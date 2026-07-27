@@ -17,6 +17,7 @@ import { GraphModule } from './modules/graph/graph.module';
 import { AiModule } from './modules/ai/ai.module';
 import { HistoryModule } from './modules/history/history.module';
 import { CrawlerSchedulerModule } from './modules/scheduler/scheduler.module';
+import { SocketModule } from './modules/socket/socket.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CrawlerSchedulerModule } from './modules/scheduler/scheduler.module';
     AiModule,
     HistoryModule,
     CrawlerSchedulerModule,
+    SocketModule,
     CrawlerModule,
   ],
   controllers: [],

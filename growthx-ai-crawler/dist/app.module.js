@@ -26,6 +26,7 @@ const graph_module_1 = require("./modules/graph/graph.module");
 const ai_module_1 = require("./modules/ai/ai.module");
 const history_module_1 = require("./modules/history/history.module");
 const scheduler_module_1 = require("./modules/scheduler/scheduler.module");
+const socket_module_1 = require("./modules/socket/socket.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -49,6 +50,7 @@ exports.AppModule = AppModule = __decorate([
             ai_module_1.AiModule,
             history_module_1.HistoryModule,
             scheduler_module_1.CrawlerSchedulerModule,
+            socket_module_1.SocketModule,
             crawler_module_1.CrawlerModule,
         ],
         controllers: [],

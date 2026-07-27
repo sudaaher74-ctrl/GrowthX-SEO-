@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Code, CheckCircle, ArrowRight, Eye, ShieldAlert, FileWarning, HelpCircle, ArrowLeftRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api-client";
 
 interface AiFixDrawerProps {
   issue: any;
@@ -12,6 +13,31 @@ interface AiFixDrawerProps {
 
 export function AiFixDrawer({ issue, isOpen, onClose }: AiFixDrawerProps) {
   const [activeTab, setActiveTab] = useState<"preview" | "explain" | "code">("preview");
+  const [isLoading, setIsLoading] = useState(false);
+  const [aiData, setAiData] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen && issue) {
+      const fetchData = async () => {
+        setIsLoading(true);
+        try {
+          // Fetch both analysis and patch simultaneously
+          const [analysis, patch] = await Promise.all([
+            api.analyzeIssue(issue.id),
+            api.autoFixIssue(issue.id)
+          ]);
+          setAiData({ analysis, patch });
+        } catch (error) {
+          console.error("Failed to fetch AI data", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchData();
+    } else {
+      setAiData(null);
+    }
+  }, [isOpen, issue]);
 
   if (!isOpen || !issue) return null;
 
@@ -131,40 +157,55 @@ export function AiFixDrawer({ issue, isOpen, onClose }: AiFixDrawerProps) {
 
             {activeTab === "code" && (
               <div>
-                 <div className="bg-[#1e1e1e] rounded-lg overflow-hidden border border-[var(--border-color)]">
-                   <div className="flex items-center px-4 py-2 bg-[#2d2d2d] text-[#ccc] text-xs font-mono border-b border-[#444]">
-                     <span>index.html</span>
+                 {isLoading ? (
+                   <div className="flex justify-center items-center h-32 text-[var(--text-muted)]">
+                     <Sparkles className="animate-pulse mr-2" size={16} /> Generating Fix...
                    </div>
-                   <pre className="p-4 text-sm font-mono overflow-x-auto">
-                     <code className="text-[#d4d4d4]">
-                       <span className="text-[#569cd6]">&lt;head&gt;</span>{'\n'}
-                       {'  '}<span className="text-[#569cd6]">&lt;title&gt;</span>Products - Red<span className="text-[#569cd6]">&lt;/title&gt;</span>{'\n'}
-                       <span className="bg-red-900/30 block px-2 -mx-2"><span className="text-red-400">- </span>{'  '}</span>
-                       <span className="bg-green-900/30 block px-2 -mx-2"><span className="text-green-400">+ </span>{'  '}<span className="text-[#569cd6]">&lt;link</span> <span className="text-[#9cdcfe]">rel</span>=<span className="text-[#ce9178]">"canonical"</span> <span className="text-[#9cdcfe]">href</span>=<span className="text-[#ce9178]">"https://milquu.com/products"</span> <span className="text-[#569cd6]">/&gt;</span></span>
-                       <span className="text-[#569cd6]">&lt;/head&gt;</span>
-                     </code>
-                   </pre>
-                 </div>
+                 ) : aiData?.patch ? (
+                   <div className="bg-[#1e1e1e] rounded-lg overflow-hidden border border-[var(--border-color)]">
+                     <div className="flex items-center px-4 py-2 bg-[#2d2d2d] text-[#ccc] text-xs font-mono border-b border-[#444]">
+                       <span>{aiData.patch.targetUrl || "index.html"}</span>
+                     </div>
+                     <pre className="p-4 text-sm font-mono overflow-x-auto">
+                       <code className="text-[#d4d4d4]">
+                         <span className="bg-red-900/30 block px-2 -mx-2"><span className="text-red-400">- </span>{'  '}{aiData.patch.originalValue}</span>
+                         <span className="bg-green-900/30 block px-2 -mx-2"><span className="text-green-400">+ </span>{'  '}{aiData.patch.codeSnippet}</span>
+                       </code>
+                     </pre>
+                   </div>
+                 ) : (
+                   <div className="text-[var(--text-muted)] text-sm">Failed to generate code patch.</div>
+                 )}
               </div>
             )}
 
             {activeTab === "explain" && (
               <div className="space-y-6 prose prose-sm dark:prose-invert">
-                <div>
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">Why is this an issue?</h3>
-                  <p className="text-[var(--text-secondary)] mt-2">
-                    Parameterized URLs (like `?color=red`) create multiple distinct URLs pointing to essentially the same content. Search engines view these as duplicate pages, which dilutes your ranking power (link equity) across multiple variations instead of consolidating it on the main page.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-[var(--text-primary)]">How does the fix work?</h3>
-                  <p className="text-[var(--text-secondary)] mt-2">
-                    Adding a canonical tag tells Google: <em>"Hey, regardless of what parameters are in the URL, treat `https://milquu.com/products` as the master version."</em> All ranking signals will be routed to the master URL.
-                  </p>
-                </div>
+                {isLoading ? (
+                  <div className="flex justify-center items-center h-32 text-[var(--text-muted)]">
+                     <Sparkles className="animate-pulse mr-2" size={16} /> Analyzing Issue...
+                  </div>
+                ) : aiData?.analysis ? (
+                  <>
+                    <div>
+                      <h3 className="text-base font-semibold text-[var(--text-primary)]">Why is this an issue?</h3>
+                      <p className="text-[var(--text-secondary)] mt-2">
+                        {aiData.analysis.whyItMatters}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-[var(--text-primary)]">How does the fix work?</h3>
+                      <p className="text-[var(--text-secondary)] mt-2">
+                        {aiData.analysis.howToFix}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[var(--text-muted)] text-sm">Failed to load analysis.</div>
+                )}
                 <div>
                   <a href="#" className="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1">
-                    Read Google's Documentation <ArrowRight size={14} />
+                    Read Documentation <ArrowRight size={14} />
                   </a>
                 </div>
               </div>

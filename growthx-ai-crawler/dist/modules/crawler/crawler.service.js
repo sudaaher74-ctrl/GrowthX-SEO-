@@ -27,9 +27,10 @@ const content_analyzer_service_1 = require("../analyzer/content-analyzer.service
 const performance_service_1 = require("../performance/performance.service");
 const issue_engine_service_1 = require("../issues/issue-engine.service");
 const graph_service_1 = require("../graph/graph.service");
+const crawler_gateway_1 = require("../socket/crawler.gateway");
 const url = require("url");
 let CrawlerService = CrawlerService_1 = class CrawlerService {
-    constructor(prisma, storage, queue, robots, sitemap, fetcher, metrics, htmlExtractor, imageAnalyzer, linkAnalyzer, schemaValidator, contentAnalyzer, performanceService, issueEngine, graphService) {
+    constructor(prisma, storage, queue, robots, sitemap, fetcher, metrics, htmlExtractor, imageAnalyzer, linkAnalyzer, schemaValidator, contentAnalyzer, performanceService, issueEngine, graphService, crawlerGateway) {
         this.prisma = prisma;
         this.storage = storage;
         this.queue = queue;
@@ -45,6 +46,7 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
         this.performanceService = performanceService;
         this.issueEngine = issueEngine;
         this.graphService = graphService;
+        this.crawlerGateway = crawlerGateway;
         this.logger = new common_1.Logger(CrawlerService_1.name);
         this.localVisited = new Map();
         this.jobSitemapUrls = new Map();
@@ -212,10 +214,11 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
                     simHash: content.simHash || undefined,
                 },
             });
-            await this.prisma.crawlJob.update({
+            const updatedJob = await this.prisma.crawlJob.update({
                 where: { id: payload.jobId },
                 data: { pagesCrawled: { increment: 1 } },
             });
+            this.crawlerGateway.broadcastProgress(payload.jobId, { pagesCrawled: updatedJob.pagesCrawled, currentUrl: normUrl });
             this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: String(fetchRes.statusCode) });
             if (payload.sourceUrl) {
                 await this.prisma.internalGraph.create({
@@ -359,6 +362,7 @@ exports.CrawlerService = CrawlerService = CrawlerService_1 = __decorate([
         content_analyzer_service_1.ContentAnalyzerService,
         performance_service_1.PerformanceService,
         issue_engine_service_1.IssueEngineService,
-        graph_service_1.GraphService])
+        graph_service_1.GraphService,
+        crawler_gateway_1.CrawlerGateway])
 ], CrawlerService);
 //# sourceMappingURL=crawler.service.js.map

@@ -14,6 +14,7 @@ import { ContentAnalyzerService } from '../analyzer/content-analyzer.service';
 import { PerformanceService } from '../performance/performance.service';
 import { IssueEngineService } from '../issues/issue-engine.service';
 import { GraphService } from '../graph/graph.service';
+import { CrawlerGateway } from '../socket/crawler.gateway';
 import * as url from 'url';
 
 @Injectable()
@@ -37,7 +38,8 @@ export class CrawlerService {
     private readonly contentAnalyzer: ContentAnalyzerService,
     private readonly performanceService: PerformanceService,
     private readonly issueEngine: IssueEngineService,
-    private readonly graphService: GraphService
+    private readonly graphService: GraphService,
+    private readonly crawlerGateway: CrawlerGateway
   ) {}
 
   /**
@@ -225,10 +227,11 @@ export class CrawlerService {
         },
       });
 
-      await this.prisma.crawlJob.update({
+      const updatedJob = await this.prisma.crawlJob.update({
         where: { id: payload.jobId },
         data: { pagesCrawled: { increment: 1 } },
       });
+      this.crawlerGateway.broadcastProgress(payload.jobId, { pagesCrawled: updatedJob.pagesCrawled, currentUrl: normUrl });
       this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: String(fetchRes.statusCode) });
 
       if (payload.sourceUrl) {

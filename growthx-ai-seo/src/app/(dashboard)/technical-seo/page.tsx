@@ -11,7 +11,41 @@ import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
 import { IssuesDataTable } from "./components/IssuesDataTable";
 import { PagePerformanceWidget } from "./components/PagePerformanceWidget";
 
+import { useState, useEffect } from "react";
+import { useCrawlSocket } from "@/hooks/useCrawlSocket";
+import { api } from "@/lib/api-client";
+
 export default function TechnicalSeoPage() {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [isCrawling, setIsCrawling] = useState(false);
+  const { progress, isCompleted } = useCrawlSocket(jobId);
+
+  // Dynamic metrics merged with mock defaults for demo
+  const currentHealthStats = {
+    ...seoHealthStats,
+    pagesCrawled: progress ? progress.pagesCrawled : seoHealthStats.pagesCrawled,
+  };
+
+  useEffect(() => {
+    if (isCompleted) {
+      setIsCrawling(false);
+      setJobId(null);
+    }
+  }, [isCompleted]);
+
+  const handleStartCrawl = async () => {
+    setIsCrawling(true);
+    try {
+      const res = await api.runTechnicalAudit("milquu.com");
+      if (res.jobId) {
+        setJobId(res.jobId);
+      }
+    } catch (e) {
+      console.error(e);
+      setIsCrawling(false);
+    }
+  };
+
   return (
     <div className="max-w-[1600px] mx-auto pb-20">
       {/* Sticky Header Section */}
@@ -22,7 +56,7 @@ export default function TechnicalSeoPage() {
             <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
               <span className="font-semibold text-[var(--color-brand-600)] dark:text-[var(--color-brand-400)]">milquu.com</span>
               <span>•</span>
-              <span className="flex items-center gap-1"><Calendar size={14}/> Last Crawl: 2 hours ago</span>
+              <span className="flex items-center gap-1"><Calendar size={14}/> Last Crawl: {isCrawling ? "In Progress..." : "2 hours ago"}</span>
               <span>•</span>
               <span>v2.4.0 Engine</span>
             </div>
@@ -35,8 +69,8 @@ export default function TechnicalSeoPage() {
             <button className="px-4 py-2 bg-[var(--surface-1)] border border-[var(--border-color)] rounded-lg text-sm font-medium hover:bg-[var(--surface-3)] transition-colors flex items-center gap-2">
               <RefreshCw size={16} /> Schedule
             </button>
-            <button className="px-4 py-2 bg-[var(--surface-1)] border border-[var(--border-color)] rounded-lg text-sm font-medium hover:bg-[var(--surface-3)] transition-colors flex items-center gap-2">
-              <Play size={16} /> Start Crawl
+            <button onClick={handleStartCrawl} disabled={isCrawling} className={`px-4 py-2 ${isCrawling ? 'bg-[var(--surface-3)] cursor-wait' : 'bg-[var(--surface-1)] hover:bg-[var(--surface-3)]'} border border-[var(--border-color)] rounded-lg text-sm font-medium transition-colors flex items-center gap-2`}>
+              <Play size={16} className={isCrawling ? "animate-pulse" : ""} /> {isCrawling ? "Crawling..." : "Start Crawl"}
             </button>
             <button className="px-5 py-2 bg-gradient-brand text-white rounded-lg text-sm font-semibold shadow-glow-brand hover:opacity-90 transition-opacity flex items-center gap-2 animate-pulse-glow">
               <Sparkles size={16} /> AI Auto Fix
@@ -49,7 +83,7 @@ export default function TechnicalSeoPage() {
         {/* Top Section: Health & AI Summary */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-1">
-            <SeoHealthWidget {...seoHealthStats} />
+            <SeoHealthWidget {...currentHealthStats} />
           </div>
           <div className="xl:col-span-2">
             <AiAnalysisPanel />

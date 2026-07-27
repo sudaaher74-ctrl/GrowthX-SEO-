@@ -65,12 +65,21 @@ export const api = {
   // ── Technical SEO Audit ──
   getTechnicalIssues: () => fetcher("/seo/technical-issues", { mockData: mockTechnicalIssues }),
   runTechnicalAudit: async (domain: string) => {
-    return fetcher("/seo/audit/run", {
+    return fetcher("/crawls/start", {
       method: "POST",
-      body: JSON.stringify({ domain }),
-      mockData: { status: "success", issuesFound: 47, durationMs: 1240, timestamp: new Date().toISOString() }
+      body: JSON.stringify({ websiteId: "mock-website-id", domain }), // Would use real ID in prod
+      mockData: { success: true, jobId: "mock-job-123", message: "Crawl started" }
     });
   },
+
+  // ── AI Auto Fix & Analysis ──
+  analyzeIssue: async (issueId: string) => {
+    return fetcher(`/issues/${issueId}/analyze`, { method: "POST" });
+  },
+  autoFixIssue: async (issueId: string) => {
+    return fetcher(`/issues/${issueId}/autofix`, { method: "POST" });
+  },
+
 
   // ── Rank Tracking ──
   getRankings: () => fetcher("/rankings", { mockData: mockRankTracking }),
