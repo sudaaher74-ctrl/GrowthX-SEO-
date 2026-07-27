@@ -1,4 +1,5 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 
 import { motion } from "framer-motion";
 import { Download, RefreshCw, Sparkles, Play, Calendar } from "lucide-react";
@@ -11,11 +12,14 @@ import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
 import { IssuesDataTable } from "./components/IssuesDataTable";
 import { PagePerformanceWidget } from "./components/PagePerformanceWidget";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useCrawlSocket } from "@/hooks/useCrawlSocket";
 import { api } from "@/lib/api-client";
 
-export default function TechnicalSeoPage() {
+function TechnicalSeoContent() {
+  const searchParams = useSearchParams();
+  const domain = searchParams.get("domain") || "milquu.com";
+
   const [jobId, setJobId] = useState<string | null>(null);
   const [isCrawling, setIsCrawling] = useState(false);
   const { progress, isCompleted } = useCrawlSocket(jobId);
@@ -36,7 +40,7 @@ export default function TechnicalSeoPage() {
   const handleStartCrawl = async () => {
     setIsCrawling(true);
     try {
-      const res = await api.runTechnicalAudit("milquu.com");
+      const res = await api.runTechnicalAudit(domain);
       if (res.jobId) {
         setJobId(res.jobId);
       }
@@ -54,9 +58,9 @@ export default function TechnicalSeoPage() {
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-1">Technical SEO Audit</h1>
             <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
-              <span className="font-semibold text-[var(--color-brand-600)] dark:text-[var(--color-brand-400)]">milquu.com</span>
+              <span className="font-semibold text-[var(--color-brand-600)] dark:text-[var(--color-brand-400)]">{domain}</span>
               <span>•</span>
-              <span className="flex items-center gap-1"><Calendar size={14}/> Last Crawl: {isCrawling ? "In Progress..." : "2 hours ago"}</span>
+              <span className="flex items-center gap-1"><Calendar size={14}/> Last Crawl: {isCrawling ? "In Progress..." : "Just now"}</span>
               <span>•</span>
               <span>v2.4.0 Engine</span>
             </div>
@@ -107,5 +111,13 @@ export default function TechnicalSeoPage() {
         <IssuesDataTable />
       </div>
     </div>
+  );
+}
+
+export default function TechnicalSeoPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-[var(--text-muted)] animate-pulse">Loading Dashboard...</div>}>
+      <TechnicalSeoContent />
+    </Suspense>
   );
 }

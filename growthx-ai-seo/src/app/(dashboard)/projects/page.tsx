@@ -1,9 +1,12 @@
 "use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Plus, Globe, ExternalLink, Settings, BarChart3, CheckCircle2 } from "lucide-react";
+import { AddWebsiteModal } from "@/components/ui/AddWebsiteModal";
 
 const projects = [
   { id: 1, name: "MilQuu Fresh Dairy", domain: "milquu.com", health: 78, keywords: 847, issues: 47, indexed: 1247, plan: "Growth", status: "active" },
@@ -14,6 +17,17 @@ const projects = [
 const healthColor = (h: number) => h >= 80 ? "text-emerald-500" : h >= 60 ? "text-amber-500" : h > 0 ? "text-red-500" : "text-slate-400";
 
 export default function ProjectsPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
+
+  // For the demo, if they have any projects in the mock data, they hit the limit.
+  const hasActiveProject = projects.length > 0;
+
+  const handleSuccess = (domain: string) => {
+    // Redirect to technical SEO dashboard for this specific domain
+    router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
+  };
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -21,7 +35,7 @@ export default function ProjectsPage() {
           <h1 className="text-h1 text-[var(--text-primary)]">Projects</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">Manage all your websites and SEO campaigns</p>
         </div>
-        <Button variant="primary" size="sm" icon={<Plus size={13}/>}>Add Website</Button>
+        <Button variant="primary" size="sm" icon={<Plus size={13}/>} onClick={() => setIsModalOpen(true)}>Add Website</Button>
       </motion.div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -76,6 +90,7 @@ export default function ProjectsPage() {
 
         {/* Add New Project Card */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          onClick={() => setIsModalOpen(true)}
           className="card p-5 flex flex-col items-center justify-center py-12 border-dashed border-2 border-[var(--border-color)] hover:border-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-900/10 cursor-pointer transition-base group">
           <div className="w-12 h-12 rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 flex items-center justify-center mb-3 group-hover:border-purple-500 transition-base">
             <Plus size={20} className="text-purple-400 group-hover:text-purple-500"/>
@@ -84,6 +99,13 @@ export default function ProjectsPage() {
           <div className="text-xs text-[var(--text-muted)] mt-0.5">Connect GSC & start tracking</div>
         </motion.div>
       </div>
+
+      <AddWebsiteModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleSuccess}
+        hasActiveProject={hasActiveProject}
+      />
     </div>
   );
 }

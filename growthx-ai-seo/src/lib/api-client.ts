@@ -62,6 +62,21 @@ export const api = {
   getTopKeywords: () => fetcher("/gsc/keywords", { mockData: mockTopKeywords }),
   getTopPages: () => fetcher("/gsc/pages", { mockData: mockTopPages }),
 
+  // ── Websites & Onboarding ──
+  registerWebsite: async (domain: string) => {
+    return fetcher("/websites", {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+      mockData: { id: "mock-website-id", domain, status: "setup" }
+    });
+  },
+  verifyDomain: async (id: string) => {
+    return fetcher(`/websites/${id}/verify`, {
+      method: "POST",
+      mockData: { id, status: "active" }
+    });
+  },
+
   // ── Technical SEO Audit ──
   getTechnicalIssues: () => fetcher("/seo/technical-issues", { mockData: mockTechnicalIssues }),
   runTechnicalAudit: async (domain: string) => {
