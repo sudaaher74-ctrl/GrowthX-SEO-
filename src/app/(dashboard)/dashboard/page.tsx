@@ -39,7 +39,7 @@ function getCVStatus(metric: { value: number; threshold: { good: number; poor: n
   return "poor";
 }
 
-const SOURCE_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#06b6d4", "#10b981"];
+const SOURCE_COLORS = ["#7c3aed", "#8b5cf6", "#a855f7", "#d946ef", "#10b981"];
 
 export default function DashboardPage() {
   const trafficSlice = mockTrafficData.slice(-30);
@@ -76,12 +76,12 @@ export default function DashboardPage() {
           <div className="flex items-center gap-8 flex-wrap justify-center">
             <ScoreRing score={mockMetrics.seoHealthScore} label="SEO Health Score" sublabel="/100" delay={0.5} size={110} />
             <ScoreRing score={mockMetrics.aiSeoScore} label="AI SEO Score" sublabel="/100" delay={0.7} size={110} color="#8b5cf6" />
-            <ScoreRing score={mockMetrics.websiteScore} label="Website Score" sublabel="/100" delay={0.9} size={110} color="#06b6d4" />
+            <ScoreRing score={mockMetrics.websiteScore} label="Website Score" sublabel="/100" delay={0.9} size={110} color="#d946ef" />
           </div>
           <div className="flex flex-col gap-2 text-sm min-w-36">
             {[
               { label: "Indexed Pages", value: mockMetrics.indexedPages.toLocaleString(), color: "text-emerald-400" },
-              { label: "Total Keywords", value: "847", color: "text-indigo-400" },
+              { label: "Total Keywords", value: "847", color: "text-purple-400" },
               { label: "Active Issues", value: mockTechnicalIssues.total.toString(), color: "text-amber-400" },
               { label: "Backlinks", value: formatNumber(mockMetrics.backlinks), color: "text-violet-400" },
             ].map(({ label, value, color }) => (
@@ -97,10 +97,10 @@ export default function DashboardPage() {
       {/* ── Metric Cards Grid ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
-          { title: "Clicks", value: mockMetrics.clicks, delta: mockMetrics.clicksDelta, icon: <MousePointer2 size={14}/>, spark: mockSparklines.clicks, color: "#6366f1" },
+          { title: "Clicks", value: mockMetrics.clicks, delta: mockMetrics.clicksDelta, icon: <MousePointer2 size={14}/>, spark: mockSparklines.clicks, color: "#7c3aed" },
           { title: "Impressions", value: mockMetrics.impressions, delta: mockMetrics.impressionsDelta, icon: <Eye size={14}/>, spark: mockSparklines.impressions, color: "#8b5cf6" },
           { title: "CTR", value: mockMetrics.ctr, delta: mockMetrics.ctrDelta, icon: <Percent size={14}/>, spark: mockSparklines.ctr, format: "percent" as const, color: "#a855f7" },
-          { title: "Avg Position", value: mockMetrics.avgPosition, delta: mockMetrics.avgPositionDelta, icon: <Navigation size={14}/>, spark: mockSparklines.avgPosition, format: "position" as const, color: "#06b6d4", invertDelta: true },
+          { title: "Avg Position", value: mockMetrics.avgPosition, delta: mockMetrics.avgPositionDelta, icon: <Navigation size={14}/>, spark: mockSparklines.avgPosition, format: "position" as const, color: "#d946ef", invertDelta: true },
           { title: "Organic Traffic", value: mockMetrics.organicTraffic, delta: mockMetrics.organicTrafficDelta, icon: <Users size={14}/>, spark: mockSparklines.organicTraffic, color: "#10b981" },
           { title: "Conversions", value: mockMetrics.conversions, delta: mockMetrics.conversionsDelta, icon: <DollarSign size={14}/>, spark: mockSparklines.conversions, color: "#f59e0b" },
         ].map((m, i) => (
@@ -132,7 +132,7 @@ export default function DashboardPage() {
               {["7d", "30d", "90d"].map((p) => (
                 <button key={p} className={cn(
                   "px-2 py-1 text-xs rounded font-medium transition-base",
-                  p === "30d" ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+                  p === "30d" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
                 )}>{p}</button>
               ))}
             </div>
@@ -142,8 +142,8 @@ export default function DashboardPage() {
               <AreaChart data={trafficSlice} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradOrganic" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3}/>
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
+                    <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.3}/>
+                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="gradDirect" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.2}/>
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                   labelStyle={{ color: "var(--text-primary)", fontWeight: 600 }}
                   itemStyle={{ color: "var(--text-secondary)" }}
                 />
-                <Area type="monotone" dataKey="organic" name="Organic" stroke="#6366f1" strokeWidth={2} fill="url(#gradOrganic)" dot={false}/>
+                <Area type="monotone" dataKey="organic" name="Organic" stroke="#7c3aed" strokeWidth={2} fill="url(#gradOrganic)" dot={false}/>
                 <Area type="monotone" dataKey="direct" name="Direct" stroke="#10b981" strokeWidth={1.5} fill="url(#gradDirect)" dot={false}/>
               </AreaChart>
             </ResponsiveContainer>
@@ -393,8 +393,8 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {/* Your site first */}
-              <tr className="bg-indigo-50/50 dark:bg-indigo-900/10">
-                <td><span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">milquu.com</span> <Badge variant="info" className="ml-1">You</Badge></td>
+              <tr className="bg-purple-50/50 dark:bg-purple-900/10">
+                <td><span className="text-purple-600 dark:text-purple-400 font-semibold text-sm">milquu.com</span> <Badge variant="info" className="ml-1">You</Badge></td>
                 <td className="text-right font-medium text-sm">{formatNumber(mockMetrics.organicTraffic)}</td>
                 <td className="text-right text-sm">847</td>
                 <td className="text-right text-sm">{formatNumber(mockMetrics.backlinks)}</td>
@@ -422,7 +422,7 @@ export default function DashboardPage() {
         <motion.div {...stagger(11)} className="card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-2">
-              <Zap size={15} className="text-indigo-500"/>
+              <Zap size={15} className="text-purple-500"/>
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">Automation Status</h3>
             </div>
             <Button variant="primary" size="sm" icon={<Plus size={13}/>}>New</Button>

@@ -65,8 +65,8 @@ export default function AIAssistantPage() {
             className={cn("flex gap-3", msg.role === "user" ? "flex-row-reverse" : "flex-row")}>
             {/* Avatar */}
             <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
-              msg.role === "assistant" ? "gradient-bg-brand" : "bg-indigo-100 dark:bg-indigo-900")}>
-              {msg.role === "assistant" ? <Sparkles size={14}/> : <User size={14} className="text-indigo-600 dark:text-indigo-400"/>}
+              msg.role === "assistant" ? "gradient-bg-brand" : "bg-purple-100 dark:bg-purple-900")}>
+              {msg.role === "assistant" ? <Sparkles size={14}/> : <User size={14} className="text-purple-600 dark:text-purple-400"/>}
             </div>
             <div className={cn("flex flex-col gap-1", msg.role === "user" ? "items-end" : "items-start", "max-w-[80%]")}>
               <div className={cn("px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-line",
@@ -91,7 +91,7 @@ export default function AIAssistantPage() {
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full gradient-bg-brand flex items-center justify-center shrink-0"><Sparkles size={14} className="text-white"/></div>
             <div className="bg-[var(--surface-2)] border border-[var(--border-color)] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-              {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}/>)}
+              {[0,1,2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}/>)}
             </div>
           </div>
         )}
@@ -102,7 +102,7 @@ export default function AIAssistantPage() {
       <div className="flex flex-wrap gap-2 mb-3 shrink-0">
         {mockSuggestedPrompts.slice(0, 4).map((prompt) => (
           <button key={prompt} onClick={() => sendMessage(prompt)}
-            className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-indigo-400 hover:text-indigo-500 transition-base bg-[var(--surface-1)]">
+            className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400 hover:text-purple-500 transition-base bg-[var(--surface-1)]">
             {prompt}
           </button>
         ))}

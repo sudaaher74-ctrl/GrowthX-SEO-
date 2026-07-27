@@ -79,12 +79,12 @@ export default function SchemaGeneratorPage() {
               <button key={type.id} onClick={() => setSelected(type.id)}
                 className={cn("w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-base",
                   selected === type.id
-                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
+                    ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
                     : "border-[var(--border-color)] hover:border-[var(--border-strong)] bg-[var(--surface-1)]"
                 )}>
                 <span className="text-xl">{type.icon}</span>
                 <div>
-                  <div className={cn("text-sm font-semibold", selected === type.id ? "text-indigo-600 dark:text-indigo-400" : "text-[var(--text-primary)]")}>{type.label}</div>
+                  <div className={cn("text-sm font-semibold", selected === type.id ? "text-purple-600 dark:text-purple-400" : "text-[var(--text-primary)]")}>{type.label}</div>
                   <div className="text-xs text-[var(--text-muted)]">{type.desc}</div>
                 </div>
               </button>
@@ -108,7 +108,7 @@ export default function SchemaGeneratorPage() {
               ].map(({ label, value }) => (
                 <div key={label}>
                   <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">{label}</label>
-                  <input defaultValue={value} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"/>
+                  <input defaultValue={value} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500"/>
                 </div>
               ))}
             </div>

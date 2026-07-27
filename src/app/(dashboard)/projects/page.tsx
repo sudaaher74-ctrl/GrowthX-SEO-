@@ -35,7 +35,7 @@ export default function ProjectsPage() {
                 </div>
                 <div>
                   <div className="text-sm font-bold text-[var(--text-primary)]">{project.name}</div>
-                  <code className="text-xs text-indigo-400 font-mono">{project.domain}</code>
+                  <code className="text-xs text-purple-400 font-mono">{project.domain}</code>
                 </div>
               </div>
               <Badge variant={project.status === "active" ? "success" : "warning"}>
@@ -47,7 +47,7 @@ export default function ProjectsPage() {
               <div className="grid grid-cols-2 gap-2 mb-4">
                 {[
                   { label: "SEO Health", value: `${project.health}`, color: healthColor(project.health) },
-                  { label: "Keywords", value: project.keywords.toString(), color: "text-indigo-500" },
+                  { label: "Keywords", value: project.keywords.toString(), color: "text-purple-500" },
                   { label: "Issues", value: project.issues.toString(), color: project.issues > 0 ? "text-amber-500" : "text-emerald-500" },
                   { label: "Indexed", value: project.indexed.toLocaleString(), color: "text-emerald-500" },
                 ].map(({ label, value, color }) => (
@@ -76,11 +76,11 @@ export default function ProjectsPage() {
 
         {/* Add New Project Card */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="card p-5 flex flex-col items-center justify-center py-12 border-dashed border-2 border-[var(--border-color)] hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 cursor-pointer transition-base group">
-          <div className="w-12 h-12 rounded-xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 flex items-center justify-center mb-3 group-hover:border-indigo-500 transition-base">
-            <Plus size={20} className="text-indigo-400 group-hover:text-indigo-500"/>
+          className="card p-5 flex flex-col items-center justify-center py-12 border-dashed border-2 border-[var(--border-color)] hover:border-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-900/10 cursor-pointer transition-base group">
+          <div className="w-12 h-12 rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 flex items-center justify-center mb-3 group-hover:border-purple-500 transition-base">
+            <Plus size={20} className="text-purple-400 group-hover:text-purple-500"/>
           </div>
-          <div className="text-sm font-semibold text-[var(--text-secondary)] group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Add New Website</div>
+          <div className="text-sm font-semibold text-[var(--text-secondary)] group-hover:text-purple-600 dark:group-hover:text-purple-400">Add New Website</div>
           <div className="text-xs text-[var(--text-muted)] mt-0.5">Connect GSC & start tracking</div>
         </motion.div>
       </div>

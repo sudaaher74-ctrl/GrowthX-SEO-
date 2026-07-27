@@ -15,7 +15,7 @@ const variantStyles = {
   secondary: "bg-[var(--surface-3)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--bg-muted)] hover:border-[var(--border-strong)]",
   ghost: "text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]",
   danger: "bg-red-500 text-white hover:bg-red-600 shadow-md",
-  outline: "border-2 border-indigo-500 text-indigo-500 hover:bg-indigo-500 hover:text-white dark:border-indigo-400 dark:text-indigo-400",
+  outline: "border-2 border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white dark:border-purple-400 dark:text-purple-400",
 };
 
 const sizeStyles = {
@@ -41,7 +41,7 @@ export function Button({
       whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
       className={cn(
         "inline-flex items-center justify-center font-semibold rounded-lg transition-base",
-        "focus-visible:outline-2 focus-visible:outline-indigo-500",
+        "focus-visible:outline-2 focus-visible:outline-purple-500",
         variantStyles[variant],
         sizeStyles[size],
         (disabled || loading) && "opacity-50 cursor-not-allowed",

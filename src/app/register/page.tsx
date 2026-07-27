@@ -56,11 +56,11 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #07070f 0%, #120824 40%, #07140f 100%)" }}>
+      style={{ background: "linear-gradient(135deg, #1f182c 0%, #2d1e42 40%, #1f2e26 100%)" }}>
       {/* Background glowing orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl" style={{ background: "radial-gradient(circle, #6366f1, transparent)" }} />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-15 blur-3xl" style={{ background: "radial-gradient(circle, #8b5cf6, transparent)" }} />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl" style={{ background: "radial-gradient(circle, #7c3aed, transparent)" }} />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-15 blur-3xl" style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
       </div>
 
       <motion.div
@@ -102,22 +102,22 @@ export default function RegisterPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">First Name</label>
-                    <input type="text" defaultValue="Sudarshan" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-400 transition-base" />
+                    <input type="text" defaultValue="Sudarshan" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Company Name</label>
-                    <input type="text" defaultValue="GrowthX Agency" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-400 transition-base" />
+                    <input type="text" defaultValue="GrowthX Agency" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
                   </div>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Work Email</label>
-                  <input type="email" defaultValue="sudarshan@growthx.in" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-400 transition-base" />
+                  <input type="email" defaultValue="sudarshan@growthx.in" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Password</label>
-                  <input type="password" defaultValue="••••••••••••" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-400 transition-base" />
+                  <input type="password" defaultValue="••••••••••••" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
                 </div>
 
                 <Button variant="primary" size="lg" className="w-full mt-2" onClick={handleNext} iconRight={<ArrowRight size={16} />}>
@@ -125,7 +125,7 @@ export default function RegisterPage() {
                 </Button>
 
                 <p className="text-center text-xs text-slate-500 mt-4">
-                  Already have an account? <Link href="/login" className="text-indigo-400 hover:underline">Sign in here</Link>
+                  Already have an account? <Link href="/login" className="text-purple-400 hover:underline">Sign in here</Link>
                 </p>
               </motion.div>
             )}
@@ -142,13 +142,13 @@ export default function RegisterPage() {
                   <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Primary Website Domain</label>
                   <div className="relative">
                     <Globe size={16} className="absolute left-4 top-3.5 text-slate-400" />
-                    <input type="text" defaultValue="milquu.com" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-indigo-400 transition-base" />
+                    <input type="text" defaultValue="milquu.com" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-purple-400 transition-base" />
                   </div>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Industry / Niche</label>
-                  <select defaultValue="Food & Beverage / Dairy" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-indigo-400 transition-base">
+                  <select defaultValue="Food & Beverage / Dairy" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-400 transition-base">
                     {industries.map(ind => <option key={ind} value={ind} className="bg-slate-900 text-white">{ind}</option>)}
                   </select>
                 </div>
@@ -157,7 +157,7 @@ export default function RegisterPage() {
                   <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Primary Target Location</label>
                   <div className="relative">
                     <MapPin size={16} className="absolute left-4 top-3.5 text-slate-400" />
-                    <input type="text" defaultValue="Navi Mumbai, Maharashtra, India" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-400 transition-base" />
+                    <input type="text" defaultValue="Navi Mumbai, Maharashtra, India" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
                   </div>
                 </div>
 
@@ -182,7 +182,7 @@ export default function RegisterPage() {
                   {/* GSC Card */}
                   <div className={cn("p-5 rounded-2xl border transition-base flex items-center justify-between", gscConnected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/5 border-white/15")}>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-indigo-400 font-bold shrink-0">
+                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-purple-400 font-bold shrink-0">
                         <Search size={22} />
                       </div>
                       <div>

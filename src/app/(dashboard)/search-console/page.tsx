@@ -42,7 +42,7 @@ export default function SearchConsolePage() {
         </div>
         <div className="flex items-center gap-2">
           {["7d", "28d", "90d"].map((p) => (
-            <button key={p} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-base ${p === "28d" ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"}`}>{p}</button>
+            <button key={p} className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-base ${p === "28d" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"}`}>{p}</button>
           ))}
           <Button variant="secondary" size="sm" icon={<RefreshCw size={13}/>}>Sync</Button>
           <Button variant="secondary" size="sm" icon={<Download size={13}/>}>Export</Button>
@@ -54,7 +54,7 @@ export default function SearchConsolePage() {
         <MetricCard title="Total Clicks" value={gscMetrics.clicks} delta={12.4} icon={<MousePointer2 size={14}/>} sparklineData={sparklines.clicks} delay={0.1}/>
         <MetricCard title="Impressions" value={gscMetrics.impressions} delta={8.7} icon={<Eye size={14}/>} sparklineData={sparklines.impressions} sparklineColor="#8b5cf6" delay={0.15}/>
         <MetricCard title="Average CTR" value={gscMetrics.ctr} delta={0.8} format="percent" icon={<Percent size={14}/>} sparklineData={sparklines.ctr} sparklineColor="#a855f7" delay={0.2}/>
-        <MetricCard title="Avg Position" value={gscMetrics.avgPosition} delta={-2.1} format="position" invertDelta icon={<Navigation size={14}/>} sparklineData={sparklines.avgPosition} sparklineColor="#06b6d4" delay={0.25}/>
+        <MetricCard title="Avg Position" value={gscMetrics.avgPosition} delta={-2.1} format="position" invertDelta icon={<Navigation size={14}/>} sparklineData={sparklines.avgPosition} sparklineColor="#d946ef" delay={0.25}/>
       </div>
 
       {/* Performance chart */}
@@ -65,15 +65,15 @@ export default function SearchConsolePage() {
             <AreaChart data={slicedData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gscGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35}/>
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.35}/>
+                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)"/>
               <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} interval={4}/>
               <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} tickFormatter={formatNumber}/>
               <Tooltip contentStyle={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", fontSize: "12px" }}/>
-              <Area type="monotone" dataKey="organic" name="Clicks" stroke="#6366f1" strokeWidth={2} fill="url(#gscGrad)" dot={false}/>
+              <Area type="monotone" dataKey="organic" name="Clicks" stroke="#7c3aed" strokeWidth={2} fill="url(#gscGrad)" dot={false}/>
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -140,7 +140,7 @@ export default function SearchConsolePage() {
                   </div>
                   <div className="h-1.5 bg-[var(--surface-3)] rounded-full overflow-hidden">
                     <motion.div initial={{ width: 0 }} animate={{ width: `${c.share}%` }} transition={{ duration: 0.8, delay: 0.5 }}
-                      className="h-full rounded-full bg-indigo-500"/>
+                      className="h-full rounded-full bg-purple-500"/>
                   </div>
                 </div>
               ))}

@@ -86,13 +86,13 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
             >
               <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
                 <span className="text-sm font-semibold">Notifications</span>
-                <span className="text-xs text-indigo-500 cursor-pointer hover:underline">Mark all read</span>
+                <span className="text-xs text-purple-500 cursor-pointer hover:underline">Mark all read</span>
               </div>
               <div className="divide-y divide-[var(--border-color)] max-h-80 overflow-y-auto">
                 {mockRecentActivity.slice(0, 5).map((item) => (
                   <div key={item.id} className={cn(
                     "px-4 py-3 hover:bg-[var(--surface-2)] cursor-pointer",
-                    item.status === "pending" && "bg-indigo-50/50 dark:bg-indigo-900/10"
+                    item.status === "pending" && "bg-purple-50/50 dark:bg-purple-900/10"
                   )}>
                     <p className="text-xs text-[var(--text-primary)] leading-relaxed">{item.message}</p>
                     <p className="text-[10px] text-[var(--text-muted)] mt-1">{formatRelativeTime(item.time)}</p>

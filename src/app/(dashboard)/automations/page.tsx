@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { Plus, Play, Pause, Trash2, Edit3, Zap, Clock, Calendar, Bell, FileBarChart, Mail, CheckCircle2, ChevronRight } from "lucide-react";
 
 const templates = [
-  { id: "weekly-audit", name: "Weekly Technical Audit", description: "Every Monday — crawl site, generate issue report, email client", trigger: "Schedule", icon: <Calendar size={16}/>, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-900/10" },
+  { id: "weekly-audit", name: "Weekly Technical Audit", description: "Every Monday — crawl site, generate issue report, email client", trigger: "Schedule", icon: <Calendar size={16}/>, color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/10" },
   { id: "new-product", name: "New Product SEO", description: "On new product — generate meta, schema, OG, alt text automatically", trigger: "Event", icon: <Zap size={16}/>, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-900/10" },
   { id: "rank-drop", name: "Rank Drop Alert", description: "Position drops >5 spots — notify owner and generate fix suggestions", trigger: "Alert", icon: <Bell size={16}/>, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-900/10" },
   { id: "monthly-report", name: "Monthly Client Report", description: "1st of month — generate PDF/Excel report and email to client", trigger: "Schedule", icon: <FileBarChart size={16}/>, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/10" },
-  { id: "content-refresh", name: "Content Refresh", description: "Page traffic drops 20% — AI suggests content improvements", trigger: "Alert", icon: <CheckCircle2 size={16}/>, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/10" },
+  { id: "content-refresh", name: "Content Refresh", description: "Page traffic drops 20% — AI suggests content improvements", trigger: "Alert", icon: <CheckCircle2 size={16}/>, color: "text-fuchsia-500", bg: "bg-fuchsia-50 dark:bg-fuchsia-900/10" },
 ];
 
 export default function AutomationsPage() {
@@ -30,7 +30,7 @@ export default function AutomationsPage() {
         {[
           { label: "Active", value: mockAutomations.filter(a => a.status === "active").length, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/10" },
           { label: "Paused", value: mockAutomations.filter(a => a.status === "paused").length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-900/10" },
-          { label: "Runs This Month", value: 47, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-900/10" },
+          { label: "Runs This Month", value: 47, color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/10" },
           { label: "Tasks Automated", value: 312, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-900/10" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}

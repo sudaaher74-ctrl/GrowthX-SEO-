@@ -16,7 +16,7 @@ const plans = [
     id: "growth", name: "Growth", price: 5000, currency: "₹", period: "month",
     description: "For growing businesses and small agencies",
     features: ["5 websites", "Everything in Starter", "Rank tracking (200 keywords)", "Competitor analysis (3 competitors)", "AI content engine (20 pages/mo)", "Automations (5 workflows)", "PDF/Excel reports", "Priority support"],
-    current: true, popular: true, color: "border-indigo-500",
+    current: true, popular: true, color: "border-purple-500",
   },
   {
     id: "agency", name: "Agency", price: 15000, currency: "₹", period: "month",
@@ -27,7 +27,7 @@ const plans = [
 ];
 
 const usageItems = [
-  { label: "AI Content Pages Generated", used: 14, limit: 20, color: "bg-indigo-500" },
+  { label: "AI Content Pages Generated", used: 14, limit: 20, color: "bg-purple-500" },
   { label: "Keywords Tracked", used: 8, limit: 200, color: "bg-violet-500" },
   { label: "Automation Runs", used: 47, limit: 150, color: "bg-emerald-500" },
   { label: "API Calls (GSC/GA4)", used: 2840, limit: 10000, color: "bg-amber-500" },

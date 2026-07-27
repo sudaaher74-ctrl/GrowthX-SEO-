@@ -33,10 +33,10 @@ export default function RankTrackingPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Tracking", value: "8", sub: "keywords", color: "text-indigo-500" },
+          { label: "Tracking", value: "8", sub: "keywords", color: "text-purple-500" },
           { label: "Top 3", value: "2", sub: "keywords", color: "text-emerald-500" },
           { label: "Top 10", value: "4", sub: "keywords", color: "text-violet-500" },
-          { label: "Improved", value: "6", sub: "this week", color: "text-blue-500" },
+          { label: "Improved", value: "6", sub: "this week", color: "text-fuchsia-500" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }} className="card p-4 text-center">
             <div className={cn("text-3xl font-bold", s.color)}>{s.value}</div>
@@ -53,7 +53,7 @@ export default function RankTrackingPage() {
           <div className="flex items-center gap-1">
             {(["all","mobile","desktop"] as const).map((d) => (
               <button key={d} onClick={() => setDevice(d)} className={cn("px-2.5 py-1 text-xs rounded-md font-medium capitalize transition-base",
-                device === d ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+                device === d ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
               )}>{d}</button>
             ))}
           </div>
@@ -66,7 +66,7 @@ export default function RankTrackingPage() {
               <YAxis reversed tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} domain={[1, 30]}/>
               <Tooltip contentStyle={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", fontSize: "12px" }}/>
               <Legend wrapperStyle={{ fontSize: "12px" }}/>
-              <Line type="monotone" dataKey="milk delivery panvel" stroke="#6366f1" strokeWidth={2} dot={false}/>
+              <Line type="monotone" dataKey="milk delivery panvel" stroke="#7c3aed" strokeWidth={2} dot={false}/>
               <Line type="monotone" dataKey="fresh milk subscription" stroke="#10b981" strokeWidth={2} dot={false}/>
               <Line type="monotone" dataKey="organic milk home delivery" stroke="#f59e0b" strokeWidth={2} dot={false}/>
             </LineChart>
@@ -97,7 +97,7 @@ export default function RankTrackingPage() {
                 <tr key={kw.keyword}>
                   <td className="font-medium text-sm text-[var(--text-primary)]">{kw.keyword}</td>
                   <td className="text-right">
-                    <span className={cn("text-lg font-bold", kw.position <= 3 ? "text-emerald-500" : kw.position <= 10 ? "text-indigo-500" : "text-[var(--text-primary)]")}>
+                    <span className={cn("text-lg font-bold", kw.position <= 3 ? "text-emerald-500" : kw.position <= 10 ? "text-purple-500" : "text-[var(--text-primary)]")}>
                       #{kw.position}
                     </span>
                   </td>
@@ -107,7 +107,7 @@ export default function RankTrackingPage() {
                   </td>
                   <td className="text-right text-sm">{formatNumber(kw.volume)}</td>
                   <td><Badge variant={kw.device === "mobile" ? "info" : "default"}>{kw.device}</Badge></td>
-                  <td><code className="text-xs text-indigo-400 font-mono">{kw.url}</code></td>
+                  <td><code className="text-xs text-purple-400 font-mono">{kw.url}</code></td>
                 </tr>
               ))}
             </tbody>

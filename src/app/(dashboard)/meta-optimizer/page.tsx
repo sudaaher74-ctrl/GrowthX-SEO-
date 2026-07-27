@@ -71,7 +71,7 @@ export default function MetaOptimizerPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Pages", value: pages.length, color: "text-indigo-500" },
+          { label: "Total Pages", value: pages.length, color: "text-purple-500" },
           { label: "Optimized", value: pages.filter(p => p.status === "ok").length, color: "text-emerald-500" },
           { label: "Needs Fix", value: issues.length, color: "text-amber-500" },
           { label: "Approved Today", value: approved.length, color: "text-violet-500" },
@@ -94,7 +94,7 @@ export default function MetaOptimizerPage() {
               <div className="flex items-center gap-4 p-4 cursor-pointer" onClick={() => setExpanded(expanded === page.url ? null : page.url)}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <code className="text-xs text-indigo-400 font-mono">{page.url}</code>
+                    <code className="text-xs text-purple-400 font-mono">{page.url}</code>
                     <Badge variant={isApproved ? "success" : statusBadge[page.status]}>
                       {isApproved ? "Approved" : statusLabel[page.status]}
                     </Badge>
@@ -114,10 +114,10 @@ export default function MetaOptimizerPage() {
 
               {/* AI Suggestions Panel */}
               {expanded === page.url && hasAI && !isApproved && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="border-t border-[var(--border-color)] p-4 bg-indigo-50/30 dark:bg-indigo-900/10">
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="border-t border-[var(--border-color)] p-4 bg-purple-50/30 dark:bg-purple-900/10">
                   <div className="flex items-center gap-2 mb-3">
-                    <Sparkles size={13} className="text-indigo-500"/>
-                    <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">AI-Generated Suggestions</span>
+                    <Sparkles size={13} className="text-purple-500"/>
+                    <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">AI-Generated Suggestions</span>
                   </div>
                   <div className="space-y-2 mb-4">
                     {[

@@ -37,7 +37,7 @@ export default function KeywordsPage() {
       {/* Search bar */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-4">
         <div className="flex gap-3">
-          <div className="flex-1 flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-base">
+          <div className="flex-1 flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 focus-within:border-purple-500 transition-base">
             <Search size={15} className="text-[var(--text-muted)] shrink-0"/>
             <input value={query} onChange={e => setQuery(e.target.value)}
               className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
@@ -47,7 +47,7 @@ export default function KeywordsPage() {
         </div>
         <div className="flex items-center gap-2 mt-3">
           {["India", "English", "Google", "All intents"].map(tag => (
-            <span key={tag} className="text-xs px-2.5 py-1 rounded-full bg-[var(--surface-3)] text-[var(--text-secondary)] cursor-pointer hover:border-indigo-400 border border-[var(--border-color)] transition-base">{tag}</span>
+            <span key={tag} className="text-xs px-2.5 py-1 rounded-full bg-[var(--surface-3)] text-[var(--text-secondary)] cursor-pointer hover:border-purple-400 border border-[var(--border-color)] transition-base">{tag}</span>
           ))}
         </div>
       </motion.div>
@@ -55,7 +55,7 @@ export default function KeywordsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Keywords Found", value: mockKeywords.length.toString(), color: "text-indigo-500" },
+          { label: "Keywords Found", value: mockKeywords.length.toString(), color: "text-purple-500" },
           { label: "Avg Difficulty", value: "36", suffix: "/100", color: "text-amber-500" },
           { label: "Total Volume", value: formatNumber(mockKeywords.reduce((s, k) => s + k.volume, 0)), color: "text-emerald-500" },
           { label: "Easy Wins", value: mockKeywords.filter(k => k.difficulty <= 30).length.toString(), color: "text-violet-500" },
@@ -74,7 +74,7 @@ export default function KeywordsPage() {
           <div className="flex items-center gap-2">
             {["All", "Informational", "Commercial", "Transactional"].map(f => (
               <button key={f} className={cn("px-2.5 py-1 text-xs rounded-md font-medium transition-base",
-                f === "All" ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+                f === "All" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
               )}>{f}</button>
             ))}
           </div>

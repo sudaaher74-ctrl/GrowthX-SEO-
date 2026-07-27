@@ -27,7 +27,7 @@ export function MetricCard({
   deltaLabel = "vs last period",
   format = "number",
   sparklineData,
-  sparklineColor = "#6366f1",
+  sparklineColor = "#7c3aed",
   icon,
   suffix,
   prefix,
@@ -63,7 +63,7 @@ export function MetricCard({
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           {icon && (
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/15 dark:text-indigo-400">
+            <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500 dark:bg-purple-500/15 dark:text-purple-400">
               {icon}
             </div>
           )}

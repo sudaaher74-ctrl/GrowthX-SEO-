@@ -20,7 +20,7 @@ const workerQueues = [
 ];
 
 const apiCosts = [
-  { service: "OpenAI GPT-4o (Content & Meta)", tokens: "2.8M", cost: 142.50, limit: 300, color: "bg-indigo-500" },
+  { service: "OpenAI GPT-4o (Content & Meta)", tokens: "2.8M", cost: 142.50, limit: 300, color: "bg-purple-500" },
   { service: "Google Gemini 1.5 Pro (Audit & GEO)", tokens: "1.4M", cost: 38.20, limit: 150, color: "bg-violet-500" },
   { service: "DataForSEO SERP API (Rankings)", tokens: "84,200 req", cost: 84.10, limit: 200, color: "bg-emerald-500" },
   { service: "Google Search Console / GA4 OAuth", tokens: "1.2M req", cost: 0.00, limit: 0, color: "bg-amber-500" },
@@ -87,7 +87,7 @@ export default function AdminPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card xl:col-span-2 overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
             <div className="flex items-center gap-2">
-              <Server size={16} className="text-indigo-500" />
+              <Server size={16} className="text-purple-500" />
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">BullMQ Background Worker Queues</h3>
             </div>
             <StatusDot status={workersPaused ? "warning" : "success"} label={workersPaused ? "Workers Paused" : "Redis Connected"} pulse={!workersPaused} />
@@ -112,7 +112,7 @@ export default function AdminPage() {
                       <span className={cn("w-2 h-2 rounded-full shrink-0", q.status === "active" && !workersPaused ? "bg-emerald-500 animate-pulse" : "bg-slate-400")} />
                       {q.name}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-medium text-indigo-500">{workersPaused ? 0 : q.active}</td>
+                    <td className="py-3.5 px-4 text-right font-medium text-purple-500">{workersPaused ? 0 : q.active}</td>
                     <td className="py-3.5 px-4 text-right text-[var(--text-secondary)]">{q.waiting.toLocaleString()}</td>
                     <td className="py-3.5 px-4 text-right text-[var(--text-secondary)]">{q.completed.toLocaleString()}</td>
                     <td className="py-3.5 px-4 text-right font-semibold text-red-500">{q.failed > 0 ? q.failed : "0"}</td>
@@ -124,7 +124,7 @@ export default function AdminPage() {
           </div>
           <div className="p-4 bg-[var(--surface-2)] border-t border-[var(--border-color)] mt-auto flex items-center justify-between text-xs text-[var(--text-muted)]">
             <span>Workers run on Node.js / BullMQ cluster connected to Redis (Port 6379)</span>
-            <span className="text-indigo-400 cursor-pointer hover:underline">View Redis Monitoring →</span>
+            <span className="text-purple-400 cursor-pointer hover:underline">View Redis Monitoring →</span>
           </div>
         </motion.div>
 
@@ -173,7 +173,7 @@ export default function AdminPage() {
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Manage subscribed agencies, quotas, and impersonate accounts for support</p>
           </div>
           <div className="flex items-center gap-2">
-            <input type="text" placeholder="Search tenants..." className="bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-indigo-500" />
+            <input type="text" placeholder="Search tenants..." className="bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500" />
             <Button variant="primary" size="sm">Provision Tenant</Button>
           </div>
         </div>

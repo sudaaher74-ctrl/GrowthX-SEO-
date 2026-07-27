@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
               <tbody>
                 {topLandingPages.map(page => (
                   <tr key={page.url}>
-                    <td><code className="text-xs text-indigo-400 font-mono">{page.url}</code></td>
+                    <td><code className="text-xs text-purple-400 font-mono">{page.url}</code></td>
                     <td className="text-right text-sm font-medium">{formatNumber(page.sessions)}</td>
                     <td className="text-right">
                       <span className={cn("text-sm font-medium", page.bounce > 60 ? "text-red-500" : page.bounce > 40 ? "text-amber-500" : "text-emerald-500")}>{page.bounce}%</span>

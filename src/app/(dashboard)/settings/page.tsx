@@ -63,7 +63,7 @@ export default function SettingsPage() {
               ].map(({ label, value }) => (
                 <div key={label}>
                   <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">{label}</label>
-                  <input defaultValue={value} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"/>
+                  <input defaultValue={value} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-purple-500"/>
                 </div>
               ))}
               <div>

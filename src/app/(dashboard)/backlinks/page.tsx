@@ -30,7 +30,7 @@ export default function BacklinksPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Backlinks", value: "2,840", color: "text-indigo-500", delta: "+5.2%" },
+          { label: "Total Backlinks", value: "2,840", color: "text-purple-500", delta: "+5.2%" },
           { label: "New (30d)", value: "3", color: "text-emerald-500", delta: "+3" },
           { label: "Lost (30d)", value: "1", color: "text-red-500", delta: "-1" },
           { label: "Domain Rating", value: "34", color: "text-violet-500", delta: "+2" },
@@ -50,7 +50,7 @@ export default function BacklinksPage() {
           <div className="flex items-center gap-1">
             {["All", "New", "Lost", "High DR"].map(f => (
               <button key={f} className={cn("px-2.5 py-1 text-xs rounded-md font-medium transition-base",
-                f === "All" ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+                f === "All" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
               )}>{f}</button>
             ))}
           </div>
@@ -70,7 +70,7 @@ export default function BacklinksPage() {
                     <Badge variant={tc.badge}>{tc.label}</Badge>
                     {link.spam > 5 && <Badge variant="error">High Spam</Badge>}
                   </div>
-                  <code className="text-xs text-indigo-400 font-mono truncate block">{link.url}</code>
+                  <code className="text-xs text-purple-400 font-mono truncate block">{link.url}</code>
                   <div className="flex items-center gap-3 mt-0.5 text-xs text-[var(--text-muted)]">
                     <span>Anchor: <span className="text-[var(--text-secondary)]">{link.anchor}</span></span>
                     <span>DA: <span className="font-semibold text-[var(--text-primary)]">{link.da}</span></span>

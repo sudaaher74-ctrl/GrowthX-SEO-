@@ -46,7 +46,7 @@ export default function ImageSEOPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Images", value: images.length, color: "text-indigo-500" },
+          { label: "Total Images", value: images.length, color: "text-purple-500" },
           { label: "Optimized", value: images.filter(i => i.status === "ok").length, color: "text-emerald-500" },
           { label: "Missing Alt Text", value: images.filter(i => i.status === "no_alt").length, color: "text-red-500" },
           { label: "Total Size Saved", value: "1.8 MB", color: "text-violet-500" },
@@ -71,7 +71,7 @@ export default function ImageSEOPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <code className="text-xs text-indigo-400 font-mono truncate">{img.src}</code>
+                  <code className="text-xs text-purple-400 font-mono truncate">{img.src}</code>
                   <Badge variant={sc.badge}>{sc.label}</Badge>
                   <Badge variant="default">{img.type.toUpperCase()}</Badge>
                 </div>
@@ -81,11 +81,11 @@ export default function ImageSEOPage() {
                   {img.alt && <span className="text-emerald-500">Alt: "{img.alt}"</span>}
                 </div>
                 {aiAlt && img.status === "no_alt" && (
-                  <div className="mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/15 rounded-lg">
+                  <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/15 rounded-lg">
                     <div className="flex items-start gap-1.5">
-                      <Sparkles size={11} className="text-indigo-500 shrink-0 mt-0.5"/>
+                      <Sparkles size={11} className="text-purple-500 shrink-0 mt-0.5"/>
                       <div>
-                        <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">AI-Generated Alt Text: </span>
+                        <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">AI-Generated Alt Text: </span>
                         <span className="text-xs text-[var(--text-secondary)]">{aiAlt}</span>
                       </div>
                     </div>

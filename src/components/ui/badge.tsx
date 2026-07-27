@@ -14,7 +14,7 @@ const variantStyles = {
   success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   warning: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   error: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  info: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+  info: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   pending: "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
 };
 
@@ -71,7 +71,7 @@ const dotColors = {
   success: "bg-emerald-400",
   warning: "bg-amber-400",
   error: "bg-red-400",
-  info: "bg-indigo-400",
+  info: "bg-purple-400",
   pending: "bg-violet-400",
 };
 

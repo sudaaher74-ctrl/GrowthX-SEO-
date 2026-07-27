@@ -73,7 +73,7 @@ export default function TechnicalSeoPage() {
           <div className="flex items-center gap-2">
             {["All", "Critical", "High", "Medium"].map((f) => (
               <button key={f} className={cn("px-2.5 py-1 text-xs rounded-md font-medium transition-base",
-                f === "All" ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+                f === "All" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
               )}>{f}</button>
             ))}
           </div>
@@ -93,7 +93,7 @@ export default function TechnicalSeoPage() {
                         <Badge variant={sc.badge}>{issue.severity}</Badge>
                         <Badge variant="default">{issue.category}</Badge>
                       </div>
-                      <code className="text-xs text-indigo-400 font-mono mt-0.5 block">{issue.url}</code>
+                      <code className="text-xs text-purple-400 font-mono mt-0.5 block">{issue.url}</code>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">{issue.description}</p>
                     </div>
                   </div>

@@ -38,7 +38,7 @@ export default function GeoTrackingPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "AI Platforms", value: "5", color: "text-indigo-500" },
+          { label: "AI Platforms", value: "5", color: "text-purple-500" },
           { label: "Total Mentions", value: mockGeoVisibility.totalMentions, color: "text-violet-500" },
           { label: "Avg Visibility Score", value: `${mockGeoVisibility.averageScore}`, suffix: "/100", color: "text-emerald-500" },
           { label: "Mentions Growth", value: `+${mockGeoVisibility.mentionsTrend}`, suffix: "%", color: "text-amber-500" },
@@ -87,7 +87,7 @@ export default function GeoTrackingPage() {
               <RadarChart data={radarData}>
                 <PolarGrid stroke="var(--border-color)"/>
                 <PolarAngleAxis dataKey="platform" tick={{ fontSize: 9, fill: "var(--text-muted)" }}/>
-                <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2}/>
+                <Radar name="Score" dataKey="score" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.2} strokeWidth={2}/>
               </RadarChart>
             </ResponsiveContainer>
           </div>
@@ -97,7 +97,7 @@ export default function GeoTrackingPage() {
       {/* Improvement Tips */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-[var(--border-color)]">
-          <Sparkles size={15} className="text-indigo-500"/>
+          <Sparkles size={15} className="text-purple-500"/>
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">AI Recommendations to Improve GEO Visibility</h3>
         </div>
         <div className="divide-y divide-[var(--border-color)]">

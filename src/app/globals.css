@@ -6,17 +6,17 @@
   --font-mono: "Geist Mono", "JetBrains Mono", monospace;
 
   /* Brand Palette */
-  --color-brand-50: oklch(0.97 0.02 280);
-  --color-brand-100: oklch(0.93 0.05 280);
-  --color-brand-200: oklch(0.86 0.10 280);
-  --color-brand-300: oklch(0.77 0.16 280);
-  --color-brand-400: oklch(0.66 0.22 280);
-  --color-brand-500: oklch(0.55 0.26 280);
-  --color-brand-600: oklch(0.47 0.26 280);
-  --color-brand-700: oklch(0.40 0.24 280);
-  --color-brand-800: oklch(0.33 0.20 280);
-  --color-brand-900: oklch(0.26 0.16 280);
-  --color-brand-950: oklch(0.17 0.10 280);
+  --color-brand-50: oklch(0.97 0.02 295);
+  --color-brand-100: oklch(0.93 0.05 295);
+  --color-brand-200: oklch(0.86 0.10 295);
+  --color-brand-300: oklch(0.77 0.16 295);
+  --color-brand-400: oklch(0.66 0.22 295);
+  --color-brand-500: oklch(0.55 0.26 295);
+  --color-brand-600: oklch(0.47 0.26 295);
+  --color-brand-700: oklch(0.40 0.24 295);
+  --color-brand-800: oklch(0.33 0.20 295);
+  --color-brand-900: oklch(0.26 0.16 295);
+  --color-brand-950: oklch(0.17 0.10 295);
 
   /* Accent - Violet */
   --color-accent-400: oklch(0.65 0.27 300);
@@ -47,77 +47,77 @@
 :root {
   /* Backgrounds */
   --bg-base: #ffffff;
-  --bg-subtle: #f8f9fb;
-  --bg-muted: #f1f3f7;
-  --bg-overlay: rgba(255, 255, 255, 0.8);
-  --bg-glass: rgba(255, 255, 255, 0.6);
+  --bg-subtle: #f8f7fa;
+  --bg-muted: #f1f0f5;
+  --bg-overlay: rgba(255, 255, 255, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.7);
 
   /* Borders */
-  --border-color: rgba(0, 0, 0, 0.07);
-  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-color: rgba(43, 37, 54, 0.07);
+  --border-strong: rgba(43, 37, 54, 0.12);
 
   /* Text */
-  --text-primary: #0a0a12;
-  --text-secondary: #52525b;
-  --text-muted: #a1a1aa;
+  --text-primary: #262030;
+  --text-secondary: #565064;
+  --text-muted: #9590a2;
   --text-inverse: #ffffff;
 
   /* Surfaces */
   --surface-1: #ffffff;
-  --surface-2: #fafafa;
-  --surface-3: #f4f4f5;
+  --surface-2: #f8f7fa;
+  --surface-3: #f1f0f5;
 
   /* Sidebar */
   --sidebar-bg: #ffffff;
-  --sidebar-border: rgba(0,0,0,0.06);
-  --sidebar-item-hover: rgba(99, 102, 241, 0.06);
-  --sidebar-item-active: rgba(99, 102, 241, 0.1);
-  --sidebar-text: #52525b;
-  --sidebar-text-active: #6366f1;
+  --sidebar-border: rgba(43, 37, 54, 0.06);
+  --sidebar-item-hover: rgba(139, 92, 246, 0.06);
+  --sidebar-item-active: rgba(139, 92, 246, 0.1);
+  --sidebar-text: #565064;
+  --sidebar-text-active: #7c3aed;
 
   /* Card */
   --card-bg: #ffffff;
-  --card-border: rgba(0, 0, 0, 0.07);
-  --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+  --card-border: rgba(43, 37, 54, 0.07);
+  --card-shadow: 0 1px 3px rgba(43, 37, 54, 0.06), 0 1px 2px rgba(43, 37, 54, 0.04);
+  --card-shadow-hover: 0 8px 30px rgba(43, 37, 54, 0.08), 0 2px 8px rgba(43, 37, 54, 0.04);
 
   /* Scrollbar */
-  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-thumb: #d0cbd8;
   --scrollbar-track: transparent;
 }
 
 .dark {
-  --bg-base: #07070f;
-  --bg-subtle: #0d0d1a;
-  --bg-muted: #131320;
-  --bg-overlay: rgba(10, 10, 20, 0.85);
-  --bg-glass: rgba(15, 15, 30, 0.7);
+  --bg-base: #1c1724;
+  --bg-subtle: #231d2c;
+  --bg-muted: #2b2436;
+  --bg-overlay: rgba(28, 23, 36, 0.85);
+  --bg-glass: rgba(35, 29, 44, 0.75);
 
   --border-color: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.12);
 
-  --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
-  --text-inverse: #0a0a12;
+  --text-primary: #f5f3f8;
+  --text-secondary: #b5b0c0;
+  --text-muted: #787284;
+  --text-inverse: #1c1724;
 
-  --surface-1: #0f0f1e;
-  --surface-2: #131325;
-  --surface-3: #1a1a2e;
+  --surface-1: #251f2e;
+  --surface-2: #2c2536;
+  --surface-3: #342c40;
 
-  --sidebar-bg: #0a0a18;
-  --sidebar-border: rgba(255,255,255,0.06);
-  --sidebar-item-hover: rgba(99, 102, 241, 0.08);
-  --sidebar-item-active: rgba(99, 102, 241, 0.15);
-  --sidebar-text: #a1a1aa;
-  --sidebar-text-active: #818cf8;
+  --sidebar-bg: #1e1926;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-item-hover: rgba(139, 92, 246, 0.1);
+  --sidebar-item-active: rgba(139, 92, 246, 0.2);
+  --sidebar-text: #b5b0c0;
+  --sidebar-text-active: #a78bfa;
 
-  --card-bg: #0f0f1e;
+  --card-bg: #251f2e;
   --card-border: rgba(255, 255, 255, 0.07);
-  --card-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-  --card-shadow-hover: 0 8px 30px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  --card-shadow: 0 1px 3px rgba(22, 18, 28, 0.3), 0 1px 2px rgba(22, 18, 28, 0.2);
+  --card-shadow-hover: 0 8px 30px rgba(22, 18, 28, 0.5), 0 2px 8px rgba(22, 18, 28, 0.3);
 
-  --scrollbar-thumb: #27272a;
+  --scrollbar-thumb: #3e364c;
   --scrollbar-track: transparent;
 }
 
@@ -164,21 +164,21 @@ body {
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #06b6d4 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #10b981 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gradient-text-brand {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gradient-text-success {
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -186,7 +186,7 @@ body {
 
 /* Brand gradient backgrounds */
 .gradient-bg-brand {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #a855f7 100%);
+  background: linear-gradient(135deg, #7c3aed 0%, #9333ea 60%, #c026d3 100%);
 }
 
 .gradient-bg-success {
@@ -235,7 +235,7 @@ body {
 
 /* ───── Focus ring ───── */
 :focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid #7c3aed;
   outline-offset: 2px;
 }
 
@@ -271,7 +271,7 @@ body {
 .status-dot.success { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
 .status-dot.warning { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
 .status-dot.error { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
-.status-dot.info { background: #6366f1; box-shadow: 0 0 6px rgba(99,102,241,0.5); }
+.status-dot.info { background: #7c3aed; box-shadow: 0 0 6px rgba(124,58,237,0.5); }
 .status-dot.pulse { animation: pulseGlow 1.5s ease-in-out infinite; }
 
 /* ───── Score rings ───── */

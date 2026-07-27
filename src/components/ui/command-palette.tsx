@@ -142,7 +142,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={() => onOpenChange(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 bg-[var(--bg-overlay)] backdrop-blur-md"
         />
 
         {/* Modal */}
@@ -156,7 +156,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         >
           {/* Search bar */}
           <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-color)] bg-[var(--surface-2)]">
-            <Search size={18} className="text-indigo-500 shrink-0" />
+            <Search size={18} className="text-purple-500 shrink-0" />
             <input
               type="text"
               autoFocus
@@ -196,27 +196,27 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           onMouseEnter={() => setSelectedIndex(idx)}
                           className={cn(
                             "flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-base group",
-                            isSelected ? "bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
+                            isSelected ? "bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
                           )}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={cn(
                               "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-base",
-                              isSelected ? "bg-indigo-500 text-white" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
+                              isSelected ? "bg-purple-500 text-white" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
                             )}>
                               <Icon size={16} />
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm font-semibold truncate">{item.title}</div>
                               {item.subtitle && (
-                                <div className={cn("text-xs truncate", isSelected ? "text-indigo-500/80 dark:text-indigo-400/80" : "text-[var(--text-muted)]")}>
+                                <div className={cn("text-xs truncate", isSelected ? "text-purple-500/80 dark:text-purple-400/80" : "text-[var(--text-muted)]")}>
                                   {item.subtitle}
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-indigo-500 dark:text-indigo-400" : "text-transparent group-hover:text-[var(--text-muted)]")}>
+                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-purple-500 dark:text-purple-400" : "text-transparent group-hover:text-[var(--text-muted)]")}>
                             <span>Select</span>
                             <CornerDownLeft size={13} />
                           </div>

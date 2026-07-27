@@ -44,7 +44,7 @@ export default function LocalSEOPage() {
           <div className="mb-4">
             <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-2">Service (from your site)</label>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-[var(--text-primary)] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-lg">
+              <span className="text-sm font-medium text-[var(--text-primary)] bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 px-3 py-1.5 rounded-lg">
                 Milk Delivery
               </span>
               <span className="text-xs text-[var(--text-muted)]">Will generate: /milk-delivery-[area]</span>
@@ -56,8 +56,8 @@ export default function LocalSEOPage() {
               {areasList.map(area => (
                 <button key={area} onClick={() => toggle(area)} className={cn("px-3 py-1.5 text-xs rounded-lg border font-medium transition-base",
                   selected.includes(area)
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
-                    : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-indigo-400"
+                    ? "border-purple-500 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
+                    : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400"
                 )}>
                   {area}
                 </button>
@@ -72,7 +72,7 @@ export default function LocalSEOPage() {
               { label: "Internal Links", checked: true, icon: <Link2 size={12}/> },
             ].map(({ label, checked, icon }) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer card p-2.5">
-                <input type="checkbox" defaultChecked={checked} className="accent-indigo-500"/>
+                <input type="checkbox" defaultChecked={checked} className="accent-purple-500"/>
                 {icon}
                 <span className="text-xs font-medium text-[var(--text-secondary)]">{label}</span>
               </label>
@@ -94,7 +94,7 @@ export default function LocalSEOPage() {
           { label: "Published", value: mockLocalPages.filter(p => p.status === "published").length, color: "text-emerald-500" },
           { label: "Pending Approval", value: mockLocalPages.filter(p => p.status === "pending_approval").length, color: "text-amber-500" },
           { label: "Drafts", value: mockLocalPages.filter(p => p.status === "draft").length, color: "text-slate-400" },
-          { label: "Total Traffic", value: mockLocalPages.reduce((s, p) => s + p.traffic, 0), color: "text-indigo-500" },
+          { label: "Total Traffic", value: mockLocalPages.reduce((s, p) => s + p.traffic, 0), color: "text-purple-500" },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }} className="card p-4 text-center">
             <div className={cn("text-3xl font-bold", s.color)}>{typeof s.value === "number" && s.label === "Total Traffic" ? formatNumber(s.value) : s.value}</div>
@@ -116,7 +116,7 @@ export default function LocalSEOPage() {
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-[var(--text-primary)]">Milk Delivery {page.area}</div>
-                  <code className="text-[10px] text-indigo-400 font-mono">/{page.slug}</code>
+                  <code className="text-[10px] text-purple-400 font-mono">/{page.slug}</code>
                 </div>
               </div>
               <Badge variant={page.status === "published" ? "success" : page.status === "pending_approval" ? "warning" : "default"}>
@@ -127,7 +127,7 @@ export default function LocalSEOPage() {
             {page.status === "published" && (
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <div className="bg-[var(--surface-2)] rounded-lg p-2 text-center">
-                  <div className="text-lg font-bold text-indigo-500">{formatNumber(page.traffic)}</div>
+                  <div className="text-lg font-bold text-purple-500">{formatNumber(page.traffic)}</div>
                   <div className="text-[10px] text-[var(--text-muted)]">Monthly Clicks</div>
                 </div>
                 <div className="bg-[var(--surface-2)] rounded-lg p-2 text-center">

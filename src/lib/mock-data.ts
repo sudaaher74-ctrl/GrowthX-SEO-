@@ -107,9 +107,9 @@ export const mockCompetitors = [
 
 export const mockGeoVisibility = {
   platforms: [
-    { name: "Google AI Overviews", score: 42, mentions: 8, trend: 12.4, color: "#4285f4" },
+    { name: "Google AI Overviews", score: 42, mentions: 8, trend: 12.4, color: "#8b5cf6" },
     { name: "ChatGPT", score: 28, mentions: 5, trend: -3.2, color: "#10a37f" },
-    { name: "Perplexity", score: 35, mentions: 6, trend: 18.7, color: "#6366f1" },
+    { name: "Perplexity", score: 35, mentions: 6, trend: 18.7, color: "#7c3aed" },
     { name: "Gemini", score: 31, mentions: 4, trend: 7.1, color: "#a855f7" },
     { name: "Claude", score: 18, mentions: 3, trend: 2.5, color: "#cc9b7a" },
   ],
@@ -212,10 +212,10 @@ export const mockIndexStatus = {
 };
 
 export const mockTrafficSources = [
-  { source: "Organic Search", sessions: 18420, percentage: 58.4, color: "#6366f1" },
+  { source: "Organic Search", sessions: 18420, percentage: 58.4, color: "#7c3aed" },
   { source: "Direct", sessions: 5840, percentage: 18.5, color: "#8b5cf6" },
   { source: "Referral", sessions: 3920, percentage: 12.4, color: "#a855f7" },
-  { source: "Social Media", sessions: 2180, percentage: 6.9, color: "#06b6d4" },
+  { source: "Social Media", sessions: 2180, percentage: 6.9, color: "#d946ef" },
   { source: "Paid Search", sessions: 1200, percentage: 3.8, color: "#10b981" },
 ];
 

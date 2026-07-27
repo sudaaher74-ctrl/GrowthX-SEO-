@@ -44,7 +44,7 @@ export default function ReportsPage() {
           <div className="space-y-3 mb-4">
             <div>
               <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Period</label>
-              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500">
+              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500">
                 <option>This Month (July 2026)</option>
                 <option>Last Month (June 2026)</option>
                 <option>Last 90 Days</option>
@@ -57,7 +57,7 @@ export default function ReportsPage() {
               <div className="flex gap-2">
                 {["PDF", "Excel", "CSV"].map(f => (
                   <button key={f} className={cn("flex-1 text-xs py-2 rounded-lg border font-medium transition-base",
-                    f === "PDF" ? "border-indigo-500 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-indigo-400"
+                    f === "PDF" ? "border-purple-500 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400"
                   )}>{f}</button>
                 ))}
               </div>
@@ -67,7 +67,7 @@ export default function ReportsPage() {
           <div className="space-y-1.5 mb-4">
             {reportSections.map(({ label, checked }) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" defaultChecked={checked} className="accent-indigo-500"/>
+                <input type="checkbox" defaultChecked={checked} className="accent-purple-500"/>
                 <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-base">{label}</span>
               </label>
             ))}
@@ -84,8 +84,8 @@ export default function ReportsPage() {
             {reports.map((r, i) => (
               <motion.div key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.04 * i }}
                 className="flex items-center gap-4 px-5 py-4 hover:bg-[var(--surface-2)] group">
-                <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center shrink-0">
-                  <FileBarChart size={16} className="text-indigo-500"/>
+                <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+                  <FileBarChart size={16} className="text-purple-500"/>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{r.name}</div>

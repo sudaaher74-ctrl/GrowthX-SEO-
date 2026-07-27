@@ -80,7 +80,7 @@ export default function CompetitorsPage() {
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={[
-                { name: "milquu.com", traffic: 18420, fill: "#6366f1" },
+                { name: "milquu.com", traffic: 18420, fill: "#7c3aed" },
                 ...mockCompetitors.map(c => ({ name: c.domain.replace(".com","").replace(".in",""), traffic: c.traffic, fill: "#e2e8f0" }))
               ]} margin={{ left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)"/>
@@ -88,7 +88,7 @@ export default function CompetitorsPage() {
                 <YAxis tickFormatter={formatNumber} tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false}/>
                 <Tooltip contentStyle={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", fontSize: "12px" }}/>
                 <Bar dataKey="traffic" name="Monthly Traffic" radius={[4,4,0,0]}
-                  fill="#6366f1"
+                  fill="#7c3aed"
                   className="[&:not(:first-child)]:fill-slate-200 dark:[&:not(:first-child)]:fill-slate-700"
                 />
               </BarChart>
@@ -103,7 +103,7 @@ export default function CompetitorsPage() {
               <RadarChart data={radarData}>
                 <PolarGrid stroke="var(--border-color)"/>
                 <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "var(--text-muted)" }}/>
-                <Radar name="milquu.com" dataKey="milquu" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} strokeWidth={2}/>
+                <Radar name="milquu.com" dataKey="milquu" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.25} strokeWidth={2}/>
                 <Radar name="milkwala.in" dataKey="competitor" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} strokeWidth={2}/>
               </RadarChart>
             </ResponsiveContainer>

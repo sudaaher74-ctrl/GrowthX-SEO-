@@ -35,7 +35,7 @@ export default function InternalLinkingPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Orphan Pages", value: orphanPages.length, color: "text-red-500" },
-          { label: "Opportunities", value: linkOpportunities.length, color: "text-indigo-500" },
+          { label: "Opportunities", value: linkOpportunities.length, color: "text-purple-500" },
           { label: "Pending Approval", value: linkOpportunities.filter(l => l.status === "pending").length, color: "text-amber-500" },
           { label: "Approved Links", value: linkOpportunities.filter(l => l.status === "approved").length, color: "text-emerald-500" },
         ].map((s, i) => (
@@ -57,7 +57,7 @@ export default function InternalLinkingPage() {
             <div key={page.url} className="flex items-center gap-4 px-5 py-3 hover:bg-[var(--surface-2)]">
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-[var(--text-primary)]">{page.title}</div>
-                <code className="text-xs text-indigo-400 font-mono">{page.url}</code>
+                <code className="text-xs text-purple-400 font-mono">{page.url}</code>
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-bold text-[var(--text-primary)]">{page.traffic}</div>
@@ -74,7 +74,7 @@ export default function InternalLinkingPage() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2">
-            <Sparkles size={15} className="text-indigo-500"/>
+            <Sparkles size={15} className="text-purple-500"/>
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">AI Link Recommendations</h3>
           </div>
           <Button variant="secondary" size="sm">Approve All Pending</Button>
@@ -85,12 +85,12 @@ export default function InternalLinkingPage() {
               className="flex items-center gap-4 px-5 py-3 hover:bg-[var(--surface-2)]">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] flex-wrap">
-                  <code className="text-indigo-400 font-mono">{link.from}</code>
+                  <code className="text-purple-400 font-mono">{link.from}</code>
                   <ArrowRight size={12}/>
                   <code className="text-violet-400 font-mono">{link.to}</code>
                 </div>
                 <div className="text-sm text-[var(--text-primary)] mt-0.5">
-                  Anchor: <span className="font-medium text-indigo-500">&ldquo;{link.anchor}&rdquo;</span>
+                  Anchor: <span className="font-medium text-purple-500">&ldquo;{link.anchor}&rdquo;</span>
                 </div>
               </div>
               <div className="text-right shrink-0">

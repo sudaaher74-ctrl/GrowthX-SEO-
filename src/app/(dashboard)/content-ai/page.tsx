@@ -65,25 +65,25 @@ export default function ContentAIPage() {
           <div className="grid md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Content Type</label>
-              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500">
+              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500">
                 {contentTypes.slice(1).map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Target Keyword</label>
-              <input className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-indigo-500"
+              <input className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-purple-500"
                 placeholder="e.g. milk delivery panvel" defaultValue="milk delivery panvel"/>
             </div>
             <div>
               <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Tone</label>
-              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-indigo-500">
+              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500">
                 {tones.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
           </div>
           <div className="mb-4">
             <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Additional Context</label>
-            <textarea rows={2} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-indigo-500 resize-none"
+            <textarea rows={2} className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-purple-500 resize-none"
               placeholder="Target audience, key points to cover, competitor URLs to outperform..."/>
           </div>
           <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ export default function ContentAIPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Total Content", value: mockContentItems.length, color: "text-indigo-500" },
+          { label: "Total Content", value: mockContentItems.length, color: "text-purple-500" },
           { label: "Pending Approval", value: mockContentItems.filter(c => c.status === "pending_approval").length, color: "text-amber-500" },
           { label: "Published", value: mockContentItems.filter(c => c.status === "published").length, color: "text-emerald-500" },
         ].map((s, i) => (
@@ -114,7 +114,7 @@ export default function ContentAIPage() {
       <div className="flex items-center gap-1 overflow-x-auto pb-1">
         {contentTypes.map(t => (
           <button key={t} onClick={() => setActiveType(t)} className={cn("px-3 py-1.5 text-xs rounded-lg font-medium whitespace-nowrap transition-base shrink-0",
-            activeType === t ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
+            activeType === t ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
           )}>{t}</button>
         ))}
       </div>

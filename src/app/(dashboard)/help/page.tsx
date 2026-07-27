@@ -25,7 +25,7 @@ export default function HelpPage() {
 
       <div className="grid sm:grid-cols-3 gap-3">
         {[
-          { icon: <Book size={20}/>, label: "Documentation", desc: "Full platform guide", color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-900/20" },
+          { icon: <Book size={20}/>, label: "Documentation", desc: "Full platform guide", color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/20" },
           { icon: <Video size={20}/>, label: "Video Tutorials", desc: "Watch & learn", color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-900/20" },
           { icon: <MessageCircle size={20}/>, label: "Live Chat", desc: "Chat with support", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
         ].map((item, i) => (
