@@ -86,6 +86,26 @@ export class CrawlController {
     return job;
   }
 
+  @Get('websites/:domain/latest-crawl')
+  @ApiOperation({ summary: 'Retrieve the most recent crawl job for a domain' })
+  @ApiParam({ name: 'domain', description: 'Website Domain' })
+  async getLatestCrawlJob(@Param('domain') domain: string) {
+    const website = await this.prisma.website.findUnique({
+      where: { domain },
+      include: {
+        crawlJobs: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      }
+    });
+    
+    if (!website) throw new NotFoundException('Website not found');
+    if (website.crawlJobs.length === 0) return null;
+    
+    return this.getCrawlJob(website.crawlJobs[0].id);
+  }
+
   @Get('crawls/:id/issues')
   @ApiOperation({ summary: 'Get paginated list of Technical SEO issues detected during crawl' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
