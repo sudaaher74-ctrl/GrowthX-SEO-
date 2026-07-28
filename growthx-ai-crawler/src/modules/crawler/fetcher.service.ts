@@ -33,6 +33,13 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         headless,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
       });
+      
+      this.browser.on('disconnected', async () => {
+        this.logger.warn('Playwright browser disconnected or crashed. Attempting to restart pool...');
+        this.isPlaywrightReady = false;
+        await this.onModuleInit();
+      });
+
       this.browserContext = await this.browser.newContext({
         userAgent: process.env.USER_AGENT || 'GrowthX-AI-Bot/1.0 (+https://growthx.ai/bot)',
         viewport: { width: 1280, height: 720 },

@@ -32,16 +32,26 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   public pageFetchQueue?: Queue<PageFetchPayload>;
 
   async onModuleInit() {
+    const redisUrl = process.env.REDIS_URL;
     const host = process.env.REDIS_HOST || 'localhost';
     const port = process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379;
 
     try {
-      this.redisConnection = new IORedis({
-        host,
-        port,
-        maxRetriesPerRequest: null,
-        lazyConnect: true,
-      });
+      if (redisUrl) {
+        const isTls = redisUrl.startsWith('rediss://');
+        this.redisConnection = new IORedis(redisUrl, {
+          maxRetriesPerRequest: null, // Required by BullMQ
+          lazyConnect: true,
+          tls: isTls ? { rejectUnauthorized: false } : undefined,
+        });
+      } else {
+        this.redisConnection = new IORedis({
+          host,
+          port,
+          maxRetriesPerRequest: null,
+          lazyConnect: true,
+        });
+      }
 
       await this.redisConnection.connect();
       this.logger.log(`Connected to Redis cluster at ${host}:${port} for BullMQ queues.`);

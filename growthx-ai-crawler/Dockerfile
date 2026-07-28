@@ -43,4 +43,4 @@ RUN npx playwright install chromium && chown -R node:node /ms-playwright
 
 USER node
 EXPOSE 3000
-CMD npx prisma db push --accept-data-loss && npm run start:prod
+CMD npx prisma db push && npm run start:prod
