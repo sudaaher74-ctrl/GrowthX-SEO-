@@ -1,21 +1,4 @@
 "use client";
-import { useSearchParams } from "next/navigation";
-
-import { motion } from "framer-motion";
-import { Download, RefreshCw, Sparkles, Play, Calendar } from "lucide-react";
-import { seoHealthStats, kpiMetrics } from "@/lib/mock-seo-data";
-
-import { SeoHealthWidget } from "./components/SeoHealthWidget";
-import { KpiCard } from "./components/KpiCard";
-import { VisualAnalytics } from "./components/VisualAnalytics";
-import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
-import { IssuesDataTable } from "./components/IssuesDataTable";
-import { PagePerformanceWidget } from "./components/PagePerformanceWidget";
-
-import { useState, useEffect, Suspense } from "react";
-import { useCrawlSocket } from "@/hooks/useCrawlSocket";
-import { api } from "@/lib/api-client";
-
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, RefreshCw, Sparkles, Play, Calendar, Settings, ChevronRight, MessageSquare, Menu } from "lucide-react";
 import { useState, useEffect, Suspense } from "react";
