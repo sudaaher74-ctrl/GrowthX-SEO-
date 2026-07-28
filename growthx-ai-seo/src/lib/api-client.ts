@@ -11,7 +11,7 @@ export interface ApiOptions {
 
 const DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
-async function fetcher<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function fetcher<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${DEFAULT_BASE_URL}${endpoint}`;
 
   const res = await fetch(url, {
