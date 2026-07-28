@@ -48,8 +48,8 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
       </button>
 
       {/* Automation status */}
-      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
         4 automations running
       </div>
 
@@ -86,13 +86,13 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
             >
               <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
                 <span className="text-sm font-semibold">Notifications</span>
-                <span className="text-xs text-purple-500 cursor-pointer hover:underline">Mark all read</span>
+                <span className="text-xs text-blue-500 cursor-pointer hover:underline">Mark all read</span>
               </div>
               <div className="divide-y divide-[var(--border-color)] max-h-80 overflow-y-auto">
                 {mockRecentActivity.slice(0, 5).map((item) => (
                   <div key={item.id} className={cn(
                     "px-4 py-3 hover:bg-[var(--surface-2)] cursor-pointer",
-                    item.status === "pending" && "bg-purple-50/50 dark:bg-purple-900/10"
+                    item.status === "pending" && "bg-blue-50/50 dark:bg-blue-900/10"
                   )}>
                     <p className="text-xs text-[var(--text-primary)] leading-relaxed">{item.message}</p>
                     <p className="text-[10px] text-[var(--text-muted)] mt-1">{formatRelativeTime(item.time)}</p>
@@ -110,7 +110,7 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
           onClick={() => { setUserOpen(!userOpen); setNotifOpen(false); }}
           className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-[var(--surface-3)] transition-base"
         >
-          <div className="w-7 h-7 rounded-full gradient-bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">
+          <div className="w-7 h-7 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black text-xs font-medium shrink-0">
             S
           </div>
           <span className="hidden md:block text-sm font-medium text-[var(--text-primary)]">Sudarshan</span>

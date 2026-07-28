@@ -11,17 +11,17 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles = {
-  primary: "gradient-bg-brand text-white shadow-md hover:shadow-glow-brand hover:brightness-110",
-  secondary: "bg-[var(--surface-3)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--bg-muted)] hover:border-[var(--border-strong)]",
-  ghost: "text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]",
-  danger: "bg-red-500 text-white hover:bg-red-600 shadow-md",
-  outline: "border-2 border-purple-500 text-purple-500 hover:bg-purple-500 hover:text-white dark:border-purple-400 dark:text-purple-400",
+  primary: "bg-black text-white shadow-[0_1px_2px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100",
+  secondary: "bg-white text-gray-900 shadow-sm border border-gray-200 hover:bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800",
+  ghost: "text-gray-600 hover:bg-gray-100/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-zinc-800/50 dark:hover:text-gray-100",
+  danger: "bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-500/10 dark:text-red-500 dark:hover:bg-red-500/20",
+  outline: "border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:border-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-800",
 };
 
 const sizeStyles = {
   sm: "px-3 py-1.5 text-xs gap-1.5",
   md: "px-4 py-2 text-sm gap-2",
-  lg: "px-6 py-2.5 text-base gap-2",
+  lg: "px-6 py-2.5 text-base gap-2.5",
 };
 
 export function Button({
@@ -40,8 +40,8 @@ export function Button({
       whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
       whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
       className={cn(
-        "inline-flex items-center justify-center font-semibold rounded-lg transition-base",
-        "focus-visible:outline-2 focus-visible:outline-purple-500",
+        "inline-flex items-center justify-center font-medium rounded-[10px] transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/10 focus-visible:ring-offset-2 dark:focus-visible:ring-white/20 dark:focus-visible:ring-offset-black",
         variantStyles[variant],
         sizeStyles[size],
         (disabled || loading) && "opacity-50 cursor-not-allowed",

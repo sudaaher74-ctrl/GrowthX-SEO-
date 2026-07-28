@@ -27,7 +27,7 @@ export function MetricCard({
   deltaLabel = "vs last period",
   format = "number",
   sparklineData,
-  sparklineColor = "#7c3aed",
+  sparklineColor = "#2563eb",
   icon,
   suffix,
   prefix,
@@ -56,14 +56,14 @@ export function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
       className={cn(
-        "card p-5 flex flex-col gap-4 group cursor-default hover:shadow-card-hover relative overflow-hidden",
+        "card p-6 flex flex-col gap-5 group cursor-default hover:shadow-card-hover relative overflow-hidden",
         className
       )}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           {icon && (
-            <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500 dark:bg-purple-500/15 dark:text-purple-400">
+            <div className="p-2 rounded-[10px] bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
               {icon}
             </div>
           )}
@@ -94,10 +94,10 @@ export function MetricCard({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={sparkData}>
                 <Line
-                  type="monotone"
+                  type="natural"
                   dataKey="v"
                   stroke={sparklineColor}
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   dot={false}
                   strokeLinecap="round"
                 />

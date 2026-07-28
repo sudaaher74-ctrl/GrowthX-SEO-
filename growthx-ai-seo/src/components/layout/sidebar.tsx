@@ -68,8 +68,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-[var(--sidebar-border)]">
-        <div className="w-8 h-8 rounded-lg gradient-bg-brand flex items-center justify-center shrink-0">
-          <Globe size={16} className="text-white" />
+        <div className="w-8 h-8 rounded-lg bg-black dark:bg-white flex items-center justify-center shrink-0">
+          <Globe size={16} className="text-white dark:text-black" />
         </div>
         <AnimatePresence>
           {!collapsed && (
@@ -80,7 +80,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="overflow-hidden"
             >
-              <span className="font-bold text-sm gradient-text-brand whitespace-nowrap">GrowthX AI SEO</span>
+              <span className="font-semibold text-sm text-gray-900 dark:text-white whitespace-nowrap tracking-tight">GrowthX AI SEO</span>
             </motion.div>
           )}
         </AnimatePresence>

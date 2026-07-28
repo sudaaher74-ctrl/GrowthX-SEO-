@@ -10,12 +10,12 @@ interface BadgeProps {
 }
 
 const variantStyles = {
-  default: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  warning: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  error: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  info: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-  pending: "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+  default: "bg-zinc-100/80 text-zinc-700 border border-zinc-200/50 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/50",
+  success: "bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
+  warning: "bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+  error: "bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
+  info: "bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
+  pending: "bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
 };
 
 export function Badge({ children, variant = "default", size = "sm", className }: BadgeProps) {
@@ -23,7 +23,7 @@ export function Badge({ children, variant = "default", size = "sm", className }:
     <span
       className={cn(
         "inline-flex items-center rounded-full font-medium",
-        size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-1 text-sm",
+        size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
         variantStyles[variant],
         className
       )}
@@ -49,8 +49,8 @@ export function TrendBadge({ value, suffix = "%", invertColor = false, className
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-xs font-semibold",
-        good ? "text-emerald-500 dark:text-emerald-400" : bad ? "text-red-500 dark:text-red-400" : "text-slate-400",
+        "inline-flex items-center gap-0.5 text-xs font-medium",
+        good ? "text-emerald-600 dark:text-emerald-400" : bad ? "text-red-600 dark:text-red-400" : "text-zinc-400",
         className
       )}
     >
@@ -68,11 +68,11 @@ interface StatusDotProps {
 }
 
 const dotColors = {
-  success: "bg-emerald-400",
-  warning: "bg-amber-400",
-  error: "bg-red-400",
-  info: "bg-purple-400",
-  pending: "bg-violet-400",
+  success: "bg-emerald-500",
+  warning: "bg-amber-500",
+  error: "bg-red-500",
+  info: "bg-blue-500",
+  pending: "bg-indigo-500",
 };
 
 export function StatusDot({ status, pulse = false, label, className }: StatusDotProps) {
