@@ -9,7 +9,7 @@ export interface ApiOptions {
   headers?: HeadersInit;
 }
 
-let DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+let DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://growthx-crawler-api.onrender.com";
 if (DEFAULT_BASE_URL.startsWith("http") && !DEFAULT_BASE_URL.endsWith("/api")) {
   DEFAULT_BASE_URL = `${DEFAULT_BASE_URL.replace(/\/$/, "")}/api`;
 }
@@ -43,10 +43,10 @@ export const api = {
   getTopPages: () => fetcher("/gsc/pages"),
 
   // ── Websites & Onboarding ──
-  registerWebsite: async (domain: string) => {
+  registerWebsite: async (url: string, domain: string) => {
     return fetcher("/websites", {
       method: "POST",
-      body: JSON.stringify({ domain }),
+      body: JSON.stringify({ url, domain }),
     });
   },
   verifyDomain: async (id: string) => {

@@ -42,7 +42,7 @@ export function AddWebsiteModal({ isOpen, onClose, onSuccess, hasActiveProject }
       setError("");
 
       // 1. Register
-      const website = await api.registerWebsite(domain);
+      const website = await api.registerWebsite(url.trim(), domain);
       
       // 2. Verify
       await api.verifyDomain(website.id);
