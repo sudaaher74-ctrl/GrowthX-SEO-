@@ -56,7 +56,7 @@ export function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
       className={cn(
-        "card p-5 flex flex-col gap-4 group cursor-default hover:shadow-card-hover",
+        "card p-5 flex flex-col gap-4 group cursor-default hover:shadow-card-hover relative overflow-hidden",
         className
       )}
     >
