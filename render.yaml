@@ -1,0 +1,55 @@
+databases:
+  - name: growthx-postgres
+    databaseName: growthx_crawler
+    user: growthx
+    plan: free
+
+services:
+  - type: redis
+    name: growthx-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: growthx-crawler-api
+    env: docker
+    plan: free
+    # Tell Render that the backend is inside this folder:
+    rootDir: ./growthx-ai-crawler
+    # Look for the Dockerfile inside that folder (must be relative to repo root):
+    dockerfilePath: ./growthx-ai-crawler/Dockerfile
+    healthCheckPath: /api/docs
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: growthx-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: growthx-redis
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: ENCRYPTION_KEY
+        value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      - key: JWT_SECRET
+        value: "super-secret-jwt-key-for-growthx-ai"
+      - key: API_KEY
+        value: "growthx-enterprise-crawler-key-2026"
+      - key: GEMINI_API_KEY
+        value: "add-your-gemini-key-in-render-dashboard"
+      - key: OPENAI_API_KEY
+        value: "add-your-openai-key-in-render-dashboard"
+      - key: PLAYWRIGHT_HEADLESS
+        value: "true"
+      - key: DEFAULT_CRAWL_CONCURRENCY
+        value: "5"
+      - key: MAX_CRAWL_CONCURRENCY
+        value: "50"
+      - key: DEFAULT_CRAWL_DEPTH
+        value: "5"
+      - key: MAX_CRAWL_DEPTH
+        value: "20"
