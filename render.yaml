@@ -15,9 +15,7 @@ services:
     env: docker
     plan: free
     # Tell Render that the backend is inside this folder:
-    rootDir: ./growthx-ai-crawler
-    # Look for the Dockerfile inside that folder (must be relative to repo root):
-    dockerfilePath: ./growthx-ai-crawler/Dockerfile
+    rootDir: growthx-ai-crawler
     healthCheckPath: /api/docs
     envVars:
       - key: DATABASE_URL
