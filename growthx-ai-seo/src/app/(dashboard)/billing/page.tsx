@@ -7,21 +7,21 @@ import { CheckCircle2, Zap, Star } from "lucide-react";
 
 const plans = [
   {
-    id: "starter", name: "Starter", price: 2000, currency: "₹", period: "month",
+    id: "pro", name: "Pro", price: 2000, currency: "₹", period: "month",
     description: "For solo founders and local businesses",
     features: ["1 website", "GSC + GA4 integration", "Technical SEO audit", "AI meta optimizer", "Local page generator (10 pages)", "Basic reports", "Email support"],
     current: false, popular: false, color: "border-[var(--border-color)]",
   },
   {
-    id: "growth", name: "Growth", price: 5000, currency: "₹", period: "month",
+    id: "max-pro", name: "Max Pro", price: 5000, currency: "₹", period: "month",
     description: "For growing businesses and small agencies",
-    features: ["5 websites", "Everything in Starter", "Rank tracking (200 keywords)", "Competitor analysis (3 competitors)", "AI content engine (20 pages/mo)", "Automations (5 workflows)", "PDF/Excel reports", "Priority support"],
-    current: true, popular: true, color: "border-purple-500",
+    features: ["5 websites", "Everything in Pro", "Rank tracking (200 keywords)", "Competitor analysis (3 competitors)", "AI content engine (20 pages/mo)", "Automations (5 workflows)", "PDF/Excel reports", "Priority support"],
+    current: true, popular: true, color: "border-blue-500",
   },
   {
     id: "agency", name: "Agency", price: 15000, currency: "₹", period: "month",
     description: "For SEO agencies managing multiple clients",
-    features: ["25 websites", "Everything in Growth", "Rank tracking (unlimited)", "Unlimited competitors", "AI content engine (unlimited)", "Unlimited automations", "White-label reports", "API access", "Dedicated support"],
+    features: ["25 websites", "Everything in Max Pro", "Rank tracking (unlimited)", "Unlimited competitors", "AI content engine (unlimited)", "Unlimited automations", "White-label reports", "API access", "Dedicated support"],
     current: false, popular: false, color: "border-violet-500",
   },
 ];
@@ -47,7 +47,7 @@ export default function BillingPage() {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">Current Plan</h3>
-              <div className="text-3xl font-bold gradient-text-brand mt-1">Growth</div>
+              <div className="text-3xl font-bold text-gray-900 dark:text-white mt-1">Max Pro</div>
               <div className="text-sm text-[var(--text-muted)]">₹5,000 / month · Renews Aug 27, 2026</div>
             </div>
             <Badge variant="success">Active</Badge>
@@ -83,7 +83,7 @@ export default function BillingPage() {
               className={cn("card p-6 relative border-2", plan.color, plan.popular && "shadow-glow-brand")}>
               {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="gradient-bg-brand text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                  <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                     <Star size={10}/> Most Popular
                   </span>
                 </div>
@@ -91,7 +91,7 @@ export default function BillingPage() {
               <div className="mb-4">
                 <h4 className="text-lg font-bold text-[var(--text-primary)]">{plan.name}</h4>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">{plan.description}</p>
-                <div className="text-3xl font-bold gradient-text-brand mt-3">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mt-3">
                   {plan.currency}{plan.price.toLocaleString()}<span className="text-base font-normal text-[var(--text-muted)]">/{plan.period}</span>
                 </div>
               </div>
