@@ -67,10 +67,23 @@ export class CrawlController {
 
   @Post('crawls/start')
   @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
-  @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
-  async startCrawlJob(@Body() body: { websiteId: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
-    if (!body.websiteId) throw new BadRequestException('websiteId is required');
-    const jobId = await this.crawlerService.startCrawlJob(body.websiteId, body);
+  @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
+  async startCrawlJob(@Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
+    if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
+    
+    let websiteId = body.websiteId;
+    if (!websiteId && body.domain) {
+      const website = await this.prisma.website.findUnique({ where: { domain: body.domain } });
+      if (!website) {
+        // Auto-register if not found for demo purposes
+        const newWeb = await this.registerWebsite({ url: `https://${body.domain}`, domain: body.domain });
+        websiteId = newWeb.id;
+      } else {
+        websiteId = website.id;
+      }
+    }
+    
+    const jobId = await this.crawlerService.startCrawlJob(websiteId as string, body);
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }
 
