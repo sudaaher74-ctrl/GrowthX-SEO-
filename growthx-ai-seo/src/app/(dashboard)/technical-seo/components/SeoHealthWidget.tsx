@@ -29,7 +29,7 @@ export function SeoHealthWidget({
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-[var(--card-bg)] rounded-[var(--radius-xl)] border border-[var(--border-color)] shadow-card p-6 flex flex-col sm:flex-row items-center gap-8"
+      className="bg-[var(--card-bg)] rounded-[var(--radius-xl)] border border-[var(--border-color)] shadow-card p-6 flex flex-col md:flex-row xl:flex-col 2xl:flex-row items-center gap-6"
     >
       {/* Circular Ring */}
       <div className="w-40 h-40 relative flex-shrink-0">
@@ -45,13 +45,13 @@ export function SeoHealthWidget({
             pathTransitionDuration: 1.5,
           })}
         />
-        <div className="absolute top-[70%] left-1/2 -translate-x-1/2 text-sm font-medium text-[var(--text-secondary)]">
+        <div className="absolute top-[70%] left-1/2 -translate-x-1/2 text-sm font-medium text-[var(--text-secondary)] whitespace-nowrap">
           {label}
         </div>
       </div>
 
       {/* Stats */}
-      <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-6 w-full">
+      <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4 gap-4 w-full">
         <div>
           <p className="text-sm text-[var(--text-muted)] mb-1">Last Crawl</p>
           <p className="text-lg font-semibold text-[var(--text-primary)]">{lastCrawl}</p>

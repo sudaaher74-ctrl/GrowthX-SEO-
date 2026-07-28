@@ -62,46 +62,58 @@ export function IssuesDataTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
-              {newTechnicalIssues.map((issue, idx) => (
-                <motion.tr 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  key={issue.id} 
-                  className="hover:bg-[var(--surface-2)] transition-colors group"
-                >
-                  <td className="p-4"><input type="checkbox" className="rounded border-[var(--border-strong)]" /></td>
-                  <td className="p-4">{getSeverityBadge(issue.severity)}</td>
-                  <td className="p-4">
-                    <p className="font-semibold text-[var(--text-primary)] text-sm">{issue.type}</p>
-                    <p className="text-xs text-[var(--text-muted)] mt-1 truncate max-w-[250px]" title={issue.url}>{issue.url}</p>
-                  </td>
-                  <td className="p-4">
-                    <span className="text-sm text-[var(--text-secondary)]">{issue.difficulty}</span>
-                  </td>
-                  <td className="p-4 text-sm text-[var(--text-secondary)]">{issue.fixTime}</td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-[var(--surface-3)] rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-brand rounded-full" 
-                          style={{ width: `${issue.aiConfidence}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-[var(--text-primary)]">{issue.aiConfidence}%</span>
+              {newTechnicalIssues.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-16 text-center text-[var(--text-muted)] bg-[var(--surface-1)]/50">
+                    <div className="flex flex-col items-center justify-center">
+                      <Search size={32} className="mb-4 opacity-20" />
+                      <p className="text-sm font-medium text-[var(--text-primary)]">No issues detected</p>
+                      <p className="text-xs mt-1 text-[var(--text-secondary)]">Run a technical SEO crawl to populate this table.</p>
                     </div>
                   </td>
-                  <td className="p-4 text-right">
-                    <button 
-                      onClick={() => setSelectedIssue(issue)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-brand text-white text-xs font-semibold rounded-lg shadow-glow-brand opacity-0 group-hover:opacity-100 transition-all transform scale-95 group-hover:scale-100 hover:opacity-90"
-                    >
-                      <Sparkles size={12} />
-                      AI Fix
-                    </button>
-                  </td>
-                </motion.tr>
-              ))}
+                </tr>
+              ) : (
+                newTechnicalIssues.map((issue, idx) => (
+                  <motion.tr 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    key={issue.id} 
+                    className="hover:bg-[var(--surface-2)] transition-colors group"
+                  >
+                    <td className="p-4"><input type="checkbox" className="rounded border-[var(--border-strong)]" /></td>
+                    <td className="p-4">{getSeverityBadge(issue.severity)}</td>
+                    <td className="p-4">
+                      <p className="font-semibold text-[var(--text-primary)] text-sm">{issue.type}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1 truncate max-w-[250px]" title={issue.url}>{issue.url}</p>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-sm text-[var(--text-secondary)]">{issue.difficulty}</span>
+                    </td>
+                    <td className="p-4 text-sm text-[var(--text-secondary)]">{issue.fixTime}</td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-2 bg-[var(--surface-3)] rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-brand rounded-full" 
+                            style={{ width: `${issue.aiConfidence}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-[var(--text-primary)]">{issue.aiConfidence}%</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => setSelectedIssue(issue)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-brand text-white text-xs font-semibold rounded-lg shadow-glow-brand opacity-0 group-hover:opacity-100 transition-all transform scale-95 group-hover:scale-100 hover:opacity-90"
+                      >
+                        <Sparkles size={12} />
+                        AI Fix
+                      </button>
+                    </td>
+                  </motion.tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

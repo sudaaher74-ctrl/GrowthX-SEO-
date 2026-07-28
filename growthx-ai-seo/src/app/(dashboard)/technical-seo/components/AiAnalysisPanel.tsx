@@ -31,11 +31,17 @@ export function AiAnalysisPanel() {
             Core Strengths
           </h3>
           <ul className="space-y-3">
-            {aiSummary.strengths.map((item, i) => (
-              <li key={i} className="text-sm text-[var(--text-secondary)] bg-[var(--surface-3)] p-3 rounded-lg border border-[var(--border-color)]">
-                {item}
+            {aiSummary.strengths.length > 0 ? (
+              aiSummary.strengths.map((item, i) => (
+                <li key={i} className="text-sm text-[var(--text-secondary)] bg-[var(--surface-3)] p-3 rounded-lg border border-[var(--border-color)]">
+                  {item}
+                </li>
+              ))
+            ) : (
+              <li className="text-sm text-[var(--text-muted)] bg-[var(--surface-1)] p-4 rounded-lg border border-dashed border-[var(--border-color)] text-center italic">
+                Awaiting initial crawl data to analyze strengths.
               </li>
-            ))}
+            )}
           </ul>
         </div>
 
@@ -46,11 +52,17 @@ export function AiAnalysisPanel() {
             Top Opportunities
           </h3>
           <ul className="space-y-3">
-            {aiSummary.opportunities.map((item, i) => (
-              <li key={i} className="text-sm text-[var(--text-secondary)] bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
-                {item}
+            {aiSummary.opportunities.length > 0 ? (
+              aiSummary.opportunities.map((item, i) => (
+                <li key={i} className="text-sm text-[var(--text-secondary)] bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                  {item}
+                </li>
+              ))
+            ) : (
+              <li className="text-sm text-[var(--text-muted)] bg-[var(--surface-1)] p-4 rounded-lg border border-dashed border-[var(--border-color)] text-center italic">
+                No opportunities identified yet. Start a crawl.
               </li>
-            ))}
+            )}
           </ul>
         </div>
 
@@ -61,22 +73,28 @@ export function AiAnalysisPanel() {
             Suggested Actions
           </h3>
           <div className="space-y-3">
-            {aiSummary.nextActions.map((action, i) => (
-              <button 
-                key={i} 
-                className="w-full text-left text-sm text-[var(--text-primary)] bg-[var(--surface-3)] hover:bg-[var(--sidebar-item-active)] p-3 rounded-lg border border-[var(--border-color)] transition-colors flex items-center justify-between group"
-              >
-                <span className="truncate pr-4">{action.text}</span>
-                <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--color-brand-600)] transition-colors flex-shrink-0" />
-              </button>
-            ))}
+            {aiSummary.nextActions.length > 0 ? (
+              aiSummary.nextActions.map((action, i) => (
+                <button 
+                  key={i} 
+                  className="w-full text-left text-sm text-[var(--text-primary)] bg-[var(--surface-3)] hover:bg-[var(--sidebar-item-active)] p-3 rounded-lg border border-[var(--border-color)] transition-colors flex items-center justify-between group"
+                >
+                  <span className="truncate pr-4">{action.text}</span>
+                  <ArrowRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--color-brand-600)] transition-colors flex-shrink-0" />
+                </button>
+              ))
+            ) : (
+              <div className="text-sm text-[var(--text-muted)] bg-[var(--surface-1)] p-4 rounded-lg border border-dashed border-[var(--border-color)] text-center italic">
+                No actions generated yet.
+              </div>
+            )}
           </div>
           
-          <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100 dark:border-indigo-900/30 flex items-start gap-3">
+          <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100 dark:border-indigo-900/30 flex items-start gap-3 opacity-60">
             <Sparkles size={18} className="text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-300">AI Confidence Score: 96/100</p>
-              <p className="text-xs text-indigo-700 dark:text-indigo-400/80 mt-1 leading-relaxed">Executing these actions is highly likely to result in positive SERP movement within 14-21 days.</p>
+              <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-300">AI Confidence Score: Pending</p>
+              <p className="text-xs text-indigo-700 dark:text-indigo-400/80 mt-1 leading-relaxed">Run a technical crawl to unlock predictive SEO AI recommendations.</p>
             </div>
           </div>
         </div>
