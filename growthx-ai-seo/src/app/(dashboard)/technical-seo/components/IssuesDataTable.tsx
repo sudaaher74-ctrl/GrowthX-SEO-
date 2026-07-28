@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { newTechnicalIssues } from "@/lib/mock-seo-data";
 import { AiFixDrawer } from "./AiFixDrawer";
 import { Sparkles, ShieldAlert, FileWarning, Search, Filter, ArrowUpDown, ChevronDown } from "lucide-react";
 
-export function IssuesDataTable() {
+export function IssuesDataTable({ issues }: { issues: any[] }) {
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
 
   const getSeverityBadge = (severity: string) => {
@@ -62,7 +61,7 @@ export function IssuesDataTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
-              {newTechnicalIssues.length === 0 ? (
+              {issues.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-16 text-center text-[var(--text-muted)] bg-[var(--surface-1)]/50">
                     <div className="flex flex-col items-center justify-center">
@@ -73,7 +72,7 @@ export function IssuesDataTable() {
                   </td>
                 </tr>
               ) : (
-                newTechnicalIssues.map((issue, idx) => (
+                issues.map((issue, idx) => (
                   <motion.tr 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

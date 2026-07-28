@@ -56,11 +56,15 @@ export const api = {
   },
 
   // ── Technical SEO Audit ──
-  getTechnicalIssues: () => fetcher("/seo/technical-issues"),
+  getLatestCrawl: (domain: string) => fetcher(`/websites/${domain}/latest-crawl`),
+  getCrawlJob: (jobId: string) => fetcher(`/crawls/${jobId}`),
+  getCrawlIssues: (jobId: string) => fetcher(`/crawls/${jobId}/issues`),
+  
+  getTechnicalIssues: () => fetcher("/seo/technical-issues"), // Legacy
   runTechnicalAudit: async (domain: string) => {
     return fetcher("/crawls/start", {
       method: "POST",
-      body: JSON.stringify({ domain }), 
+      body: JSON.stringify({ domain, maxConcurrency: 5, maxDepth: 10 }), 
     });
   },
 

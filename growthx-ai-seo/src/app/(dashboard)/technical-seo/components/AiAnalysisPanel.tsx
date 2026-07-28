@@ -2,9 +2,14 @@
 
 import { motion } from "framer-motion";
 import { Sparkles, ArrowRight, CheckCircle2, TrendingUp, AlertTriangle, Lightbulb } from "lucide-react";
-import { aiSummary } from "@/lib/mock-seo-data";
 
-export function AiAnalysisPanel() {
+export interface AiSummaryData {
+  strengths: string[];
+  opportunities: string[];
+  nextActions: { text: string; actionUrl?: string }[];
+}
+
+export function AiAnalysisPanel({ aiSummary }: { aiSummary: AiSummaryData }) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 16 }}

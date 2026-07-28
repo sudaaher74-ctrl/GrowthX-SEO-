@@ -6,9 +6,20 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   BarChart, Bar,
 } from "recharts";
-import { issuesByCategory, healthTrendData, issueSeverityData, pageSpeedDistribution } from "@/lib/mock-seo-data";
 
-export function VisualAnalytics() {
+export interface VisualAnalyticsProps {
+  issuesByCategory: any[];
+  healthTrendData: any[];
+  issueSeverityData: any[];
+  pageSpeedDistribution: any[];
+}
+
+export function VisualAnalytics({ 
+  issuesByCategory, 
+  healthTrendData, 
+  issueSeverityData, 
+  pageSpeedDistribution 
+}: VisualAnalyticsProps) {
   if (issuesByCategory.length === 0 && healthTrendData.length === 0) {
     return (
       <div className="mt-8 bg-[var(--card-bg)] rounded-[var(--radius-xl)] border border-[var(--border-color)] p-12 shadow-sm flex flex-col items-center justify-center text-center">
