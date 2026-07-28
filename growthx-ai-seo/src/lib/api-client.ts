@@ -9,7 +9,10 @@ export interface ApiOptions {
   headers?: HeadersInit;
 }
 
-const DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+let DEFAULT_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+if (DEFAULT_BASE_URL.startsWith("http") && !DEFAULT_BASE_URL.endsWith("/api")) {
+  DEFAULT_BASE_URL = `${DEFAULT_BASE_URL.replace(/\/$/, "")}/api`;
+}
 
 async function fetcher<T = any>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${DEFAULT_BASE_URL}${endpoint}`;
