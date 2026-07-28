@@ -83,6 +83,10 @@ export class CrawlerService {
     return job.id;
   }
 
+  // Local fallback queue mechanism
+  private readonly localJobQueues = new Map<string, PageFetchPayload[]>();
+  private readonly localJobActiveWorkers = new Map<string, number>();
+
   /**
    * Main job processor: discovers seed URLs (Homepage + Sitemaps) and enqueues page fetch tasks
    */
@@ -115,25 +119,68 @@ export class CrawlerService {
 
     this.jobSitemapUrls.set(payload.jobId, sitemapSet);
 
-    this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs...`);
-    for (const targetUrl of seedUrls) {
-      const fetchPayload: PageFetchPayload = {
-        jobId: payload.jobId,
-        websiteId: payload.websiteId,
-        domain: payload.domain,
-        targetUrl,
-        depth: 0,
-        maxDepth: payload.maxDepth,
-        rateLimitDelayMs: delayMs,
+    // If Redis is active, dispatch to BullMQ
+    if (this.queue.pageFetchQueue) {
+      this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs to Redis...`);
+      for (const targetUrl of seedUrls) {
+        await this.queue.addPageFetchTask({
+          jobId: payload.jobId,
+          websiteId: payload.websiteId,
+          domain: payload.domain,
+          targetUrl,
+          depth: 0,
+          maxDepth: payload.maxDepth,
+          rateLimitDelayMs: delayMs,
+        }, 0);
+      }
+    } 
+    // Fallback: Concurrent In-Memory Queue
+    else {
+      this.logger.log(`[JOB ${payload.jobId}] Redis inactive. Launching Local Concurrent Engine for ${seedUrls.size} seed URLs...`);
+      
+      const queue: PageFetchPayload[] = [];
+      this.localJobQueues.set(payload.jobId, queue);
+      
+      for (const targetUrl of seedUrls) {
+        queue.push({
+          jobId: payload.jobId,
+          websiteId: payload.websiteId,
+          domain: payload.domain,
+          targetUrl,
+          depth: 0,
+          maxDepth: payload.maxDepth,
+          rateLimitDelayMs: delayMs,
+        });
+      }
+
+      const maxConcurrency = payload.maxConcurrency || 10;
+      this.localJobActiveWorkers.set(payload.jobId, 0);
+
+      const worker = async () => {
+        while (true) {
+          const active = this.localJobActiveWorkers.get(payload.jobId) || 0;
+          const currentQueue = this.localJobQueues.get(payload.jobId) || [];
+          
+          if (currentQueue.length === 0) {
+            if (active === 0) break; // All done
+            await new Promise(r => setTimeout(r, 500)); // Wait for other workers to potentially push links
+            continue;
+          }
+
+          const task = currentQueue.shift();
+          if (!task) continue;
+
+          this.localJobActiveWorkers.set(payload.jobId, active + 1);
+          await this.processPageFetch(task);
+          this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1);
+        }
       };
 
-      await this.queue.addPageFetchTask(fetchPayload, 0);
-      if (!this.queue.pageFetchQueue) {
-        await this.processPageFetch(fetchPayload);
-      }
-    }
-
-    if (!this.queue.pageFetchQueue) {
+      const workers = Array.from({ length: maxConcurrency }).map(() => worker());
+      await Promise.all(workers);
+      
+      this.localJobQueues.delete(payload.jobId);
+      this.localJobActiveWorkers.delete(payload.jobId);
       await this.completeJob(payload.jobId);
     }
   }
@@ -319,7 +366,15 @@ export class CrawlerService {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: payload.rateLimitDelayMs,
         };
-        this.queue.addPageFetchTask(newPayload, 0);
+        
+        if (this.queue.pageFetchQueue) {
+          this.queue.addPageFetchTask(newPayload, 0);
+        } else {
+          const localQueue = this.localJobQueues.get(payload.jobId);
+          if (localQueue) {
+            localQueue.push(newPayload);
+          }
+        }
       }
     }
   }
