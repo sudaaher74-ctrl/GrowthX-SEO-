@@ -20,8 +20,8 @@ export default function ProjectsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
 
-  // For the demo, if they have any projects in the mock data, they hit the limit.
-  const hasActiveProject = projects.length > 0;
+  // Bypassing plan limit restriction for testing
+  const hasActiveProject = false;
 
   const handleSuccess = (domain: string) => {
     // Redirect to technical SEO dashboard for this specific domain
