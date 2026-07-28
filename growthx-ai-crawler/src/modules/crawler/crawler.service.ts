@@ -116,7 +116,6 @@ export class CrawlerService {
     this.jobSitemapUrls.set(payload.jobId, sitemapSet);
 
     this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs...`);
-    let idx = 0;
     for (const targetUrl of seedUrls) {
       const fetchPayload: PageFetchPayload = {
         jobId: payload.jobId,
@@ -128,11 +127,10 @@ export class CrawlerService {
         rateLimitDelayMs: delayMs,
       };
 
-      await this.queue.addPageFetchTask(fetchPayload, idx * delayMs);
+      await this.queue.addPageFetchTask(fetchPayload, 0);
       if (!this.queue.pageFetchQueue) {
         await this.processPageFetch(fetchPayload);
       }
-      idx++;
     }
 
     if (!this.queue.pageFetchQueue) {
@@ -297,7 +295,6 @@ export class CrawlerService {
    * Enqueues discovered internal links for BFS crawling
    */
   private async discoverInternalLinksAndEnqueue(payload: PageFetchPayload, internalLinks: any[], sourcePageId: string): Promise<void> {
-    let delayIdx = 0;
     for (const link of internalLinks) {
       const targetClean = this.normalizeUrl(link.targetUrl);
 
@@ -312,7 +309,6 @@ export class CrawlerService {
       }).catch(() => {});
 
       if (payload.depth + 1 <= payload.maxDepth) {
-        delayIdx++;
         const newPayload: PageFetchPayload = {
           jobId: payload.jobId,
           websiteId: payload.websiteId,
@@ -323,7 +319,7 @@ export class CrawlerService {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: payload.rateLimitDelayMs,
         };
-        this.queue.addPageFetchTask(newPayload, delayIdx * payload.rateLimitDelayMs);
+        this.queue.addPageFetchTask(newPayload, 0);
       }
     }
   }
