@@ -2,17 +2,18 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
-import { Search, Bell, Sun, Moon, ChevronDown, User, LogOut, Settings, CreditCard, HelpCircle, Zap } from "lucide-react";
+import { Search, Bell, Sun, Moon, ChevronDown, User, LogOut, Settings, CreditCard, HelpCircle, Zap, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import { mockRecentActivity } from "@/lib/mock-data";
 import { CommandPalette } from "@/components/ui/command-palette";
 
 interface TopNavProps {
-  sidebarWidth: number;
+  collapsed: boolean;
+  setMobileOpen?: (open: boolean) => void;
 }
 
-export function TopNav({ sidebarWidth }: TopNavProps) {
+export function TopNav({ collapsed, setMobileOpen }: TopNavProps) {
   const { theme, setTheme } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -22,13 +23,24 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
 
   return (
     <header
-      className="fixed top-0 right-0 h-14 z-40 flex items-center gap-3 px-4 border-b border-[var(--border-color)] backdrop-blur-md"
+      className={cn(
+        "fixed top-0 right-0 h-14 z-40 flex items-center gap-2 px-3 md:gap-3 md:px-4 border-b border-[var(--border-color)] backdrop-blur-md transition-all duration-300",
+        collapsed ? "md:left-[64px]" : "md:left-[240px]",
+        "left-0"
+      )}
       style={{
-        left: sidebarWidth,
         background: "var(--bg-overlay)",
-        transition: "left 0.25s ease",
       }}
     >
+      {/* Mobile Menu Toggle */}
+      <button
+        onClick={() => setMobileOpen?.(true)}
+        className="md:hidden p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] transition-base -ml-1"
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Breadcrumb / Page title */}
       <div className="flex-1 min-w-0">
         <h1 className="text-sm font-semibold text-[var(--text-primary)] truncate">GrowthX AI SEO</h1>
@@ -38,13 +50,21 @@ export function TopNav({ sidebarWidth }: TopNavProps) {
       {/* Search trigger */}
       <button
         onClick={() => setSearchOpen(true)}
-        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-muted)] text-sm hover:border-[var(--border-strong)] transition-base"
+        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-muted)] text-sm hover:border-[var(--border-strong)] transition-base"
       >
         <Search size={13} />
         <span className="hidden lg:block">Search...</span>
-        <kbd className="hidden lg:inline-flex h-5 items-center gap-0.5 rounded border border-[var(--border-color)] bg-[var(--surface-3)] px-1 text-[10px] font-medium">
+        <kbd className="hidden md:inline-flex h-5 items-center gap-0.5 rounded border border-[var(--border-color)] bg-[var(--surface-3)] px-1 text-[10px] font-medium">
           <span>⌘</span>K
         </kbd>
+      </button>
+
+      {/* Mobile search icon only */}
+      <button
+        onClick={() => setSearchOpen(true)}
+        className="sm:hidden p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] transition-base ml-auto"
+      >
+        <Search size={18} />
       </button>
 
       {/* Automation status */}

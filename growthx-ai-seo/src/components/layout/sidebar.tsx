@@ -54,18 +54,32 @@ const navItems = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <motion.aside
-      animate={{ width: collapsed ? 64 : 240 }}
-      transition={{ duration: 0.25, ease: "easeInOut" }}
-      className="fixed left-0 top-0 h-screen z-50 flex flex-col overflow-hidden border-r border-[var(--sidebar-border)]"
-      style={{ background: "var(--sidebar-bg)" }}
-    >
+    <>
+      {/* Mobile Backdrop */}
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setMobileOpen?.(false)}
+        />
+      )}
+      
+      <motion.aside
+        animate={{ width: collapsed ? 64 : 240 }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+        className={cn(
+          "fixed left-0 top-0 h-screen z-50 flex flex-col overflow-hidden border-r border-[var(--sidebar-border)] transition-transform duration-300 md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{ background: "var(--sidebar-bg)" }}
+      >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-[var(--sidebar-border)]">
         <div className="w-8 h-8 rounded-lg bg-black dark:bg-white flex items-center justify-center shrink-0">
@@ -107,7 +121,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             {group.items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} href={item.href} onClick={() => setMobileOpen?.(false)}>
                   <div
                     className={cn(
                       "sidebar-item relative",
@@ -146,8 +160,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Toggle button */}
-      <div className="p-2 border-t border-[var(--sidebar-border)] shrink-0">
+      {/* Toggle button - Desktop only */}
+      <div className="hidden md:block p-2 border-t border-[var(--sidebar-border)] shrink-0">
         <button
           onClick={onToggle}
           className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-[var(--sidebar-item-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-base"
@@ -157,5 +171,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
     </motion.aside>
+    </>
   );
 }
