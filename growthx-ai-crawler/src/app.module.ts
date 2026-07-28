@@ -18,6 +18,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { HistoryModule } from './modules/history/history.module';
 import { CrawlerSchedulerModule } from './modules/scheduler/scheduler.module';
 import { SocketModule } from './modules/socket/socket.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { SocketModule } from './modules/socket/socket.module';
     SocketModule,
     CrawlerModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}
