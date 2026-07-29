@@ -19,6 +19,12 @@ import { HistoryModule } from './modules/history/history.module';
 import { CrawlerSchedulerModule } from './modules/scheduler/scheduler.module';
 import { SocketModule } from './modules/socket/socket.module';
 import { HealthController } from './health.controller';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomous-engineer.module';
 
 @Module({
   imports: [
@@ -41,6 +47,12 @@ import { HealthController } from './health.controller';
     CrawlerSchedulerModule,
     SocketModule,
     CrawlerModule,
+    AuthModule,
+    UsersModule,
+    OrganizationsModule,
+    ProjectsModule,
+    SubscriptionsModule,
+    AutonomousEngineerModule,
   ],
   controllers: [HealthController],
   providers: [],

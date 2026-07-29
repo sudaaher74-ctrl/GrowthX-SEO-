@@ -16,15 +16,26 @@ let QueueService = QueueService_1 = class QueueService {
         this.logger = new common_1.Logger(QueueService_1.name);
     }
     async onModuleInit() {
+        const redisUrl = process.env.REDIS_URL;
         const host = process.env.REDIS_HOST || 'localhost';
         const port = process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379;
         try {
-            this.redisConnection = new ioredis_1.default({
-                host,
-                port,
-                maxRetriesPerRequest: null,
-                lazyConnect: true,
-            });
+            if (redisUrl) {
+                const isTls = redisUrl.startsWith('rediss://');
+                this.redisConnection = new ioredis_1.default(redisUrl, {
+                    maxRetriesPerRequest: null, // Required by BullMQ
+                    lazyConnect: true,
+                    tls: isTls ? { rejectUnauthorized: false } : undefined,
+                });
+            }
+            else {
+                this.redisConnection = new ioredis_1.default({
+                    host,
+                    port,
+                    maxRetriesPerRequest: null,
+                    lazyConnect: true,
+                });
+            }
             await this.redisConnection.connect();
             this.logger.log(`Connected to Redis cluster at ${host}:${port} for BullMQ queues.`);
             this.crawlJobsQueue = new bullmq_1.Queue('crawl-jobs', { connection: this.redisConnection });

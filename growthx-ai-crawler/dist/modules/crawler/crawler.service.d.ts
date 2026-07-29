@@ -43,6 +43,8 @@ export declare class CrawlerService {
         maxDepth?: number;
         useSitemap?: boolean;
     }): Promise<string>;
+    private readonly localJobQueues;
+    private readonly localJobActiveWorkers;
     /**
      * Main job processor: discovers seed URLs (Homepage + Sitemaps) and enqueues page fetch tasks
      */

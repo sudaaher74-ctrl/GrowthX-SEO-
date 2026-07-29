@@ -27,6 +27,13 @@ const ai_module_1 = require("./modules/ai/ai.module");
 const history_module_1 = require("./modules/history/history.module");
 const scheduler_module_1 = require("./modules/scheduler/scheduler.module");
 const socket_module_1 = require("./modules/socket/socket.module");
+const health_controller_1 = require("./health.controller");
+const auth_module_1 = require("./modules/auth/auth.module");
+const users_module_1 = require("./modules/users/users.module");
+const organizations_module_1 = require("./modules/organizations/organizations.module");
+const projects_module_1 = require("./modules/projects/projects.module");
+const subscriptions_module_1 = require("./modules/subscriptions/subscriptions.module");
+const autonomous_engineer_module_1 = require("./modules/autonomous-engineer/autonomous-engineer.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -52,8 +59,14 @@ exports.AppModule = AppModule = __decorate([
             scheduler_module_1.CrawlerSchedulerModule,
             socket_module_1.SocketModule,
             crawler_module_1.CrawlerModule,
+            auth_module_1.AuthModule,
+            users_module_1.UsersModule,
+            organizations_module_1.OrganizationsModule,
+            projects_module_1.ProjectsModule,
+            subscriptions_module_1.SubscriptionsModule,
+            autonomous_engineer_module_1.AutonomousEngineerModule,
         ],
-        controllers: [],
+        controllers: [health_controller_1.HealthController],
         providers: [],
     })
 ], AppModule);

@@ -50,6 +50,9 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
         this.logger = new common_1.Logger(CrawlerService_1.name);
         this.localVisited = new Map();
         this.jobSitemapUrls = new Map();
+        // Local fallback queue mechanism
+        this.localJobQueues = new Map();
+        this.localJobActiveWorkers = new Map();
     }
     /**
      * Initiates a new crawl job for a verified website
@@ -114,25 +117,61 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
             }
         }
         this.jobSitemapUrls.set(payload.jobId, sitemapSet);
-        this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs...`);
-        let idx = 0;
-        for (const targetUrl of seedUrls) {
-            const fetchPayload = {
-                jobId: payload.jobId,
-                websiteId: payload.websiteId,
-                domain: payload.domain,
-                targetUrl,
-                depth: 0,
-                maxDepth: payload.maxDepth,
-                rateLimitDelayMs: delayMs,
-            };
-            await this.queue.addPageFetchTask(fetchPayload, idx * delayMs);
-            if (!this.queue.pageFetchQueue) {
-                await this.processPageFetch(fetchPayload);
+        // If Redis is active, dispatch to BullMQ
+        if (this.queue.pageFetchQueue) {
+            this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs to Redis...`);
+            for (const targetUrl of seedUrls) {
+                await this.queue.addPageFetchTask({
+                    jobId: payload.jobId,
+                    websiteId: payload.websiteId,
+                    domain: payload.domain,
+                    targetUrl,
+                    depth: 0,
+                    maxDepth: payload.maxDepth,
+                    rateLimitDelayMs: delayMs,
+                }, 0);
             }
-            idx++;
         }
-        if (!this.queue.pageFetchQueue) {
+        // Fallback: Concurrent In-Memory Queue
+        else {
+            this.logger.log(`[JOB ${payload.jobId}] Redis inactive. Launching Local Concurrent Engine for ${seedUrls.size} seed URLs...`);
+            const queue = [];
+            this.localJobQueues.set(payload.jobId, queue);
+            for (const targetUrl of seedUrls) {
+                queue.push({
+                    jobId: payload.jobId,
+                    websiteId: payload.websiteId,
+                    domain: payload.domain,
+                    targetUrl,
+                    depth: 0,
+                    maxDepth: payload.maxDepth,
+                    rateLimitDelayMs: delayMs,
+                });
+            }
+            const maxConcurrency = payload.maxConcurrency || 10;
+            this.localJobActiveWorkers.set(payload.jobId, 0);
+            const worker = async () => {
+                while (true) {
+                    const active = this.localJobActiveWorkers.get(payload.jobId) || 0;
+                    const currentQueue = this.localJobQueues.get(payload.jobId) || [];
+                    if (currentQueue.length === 0) {
+                        if (active === 0)
+                            break; // All done
+                        await new Promise(r => setTimeout(r, 500)); // Wait for other workers to potentially push links
+                        continue;
+                    }
+                    const task = currentQueue.shift();
+                    if (!task)
+                        continue;
+                    this.localJobActiveWorkers.set(payload.jobId, active + 1);
+                    await this.processPageFetch(task);
+                    this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1);
+                }
+            };
+            const workers = Array.from({ length: maxConcurrency }).map(() => worker());
+            await Promise.all(workers);
+            this.localJobQueues.delete(payload.jobId);
+            this.localJobActiveWorkers.delete(payload.jobId);
             await this.completeJob(payload.jobId);
         }
     }
@@ -264,7 +303,6 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
      * Enqueues discovered internal links for BFS crawling
      */
     async discoverInternalLinksAndEnqueue(payload, internalLinks, sourcePageId) {
-        let delayIdx = 0;
         for (const link of internalLinks) {
             const targetClean = this.normalizeUrl(link.targetUrl);
             this.prisma.link.create({
@@ -277,7 +315,6 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
                 },
             }).catch(() => { });
             if (payload.depth + 1 <= payload.maxDepth) {
-                delayIdx++;
                 const newPayload = {
                     jobId: payload.jobId,
                     websiteId: payload.websiteId,
@@ -288,7 +325,15 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
                     maxDepth: payload.maxDepth,
                     rateLimitDelayMs: payload.rateLimitDelayMs,
                 };
-                this.queue.addPageFetchTask(newPayload, delayIdx * payload.rateLimitDelayMs);
+                if (this.queue.pageFetchQueue) {
+                    this.queue.addPageFetchTask(newPayload, 0);
+                }
+                else {
+                    const localQueue = this.localJobQueues.get(payload.jobId);
+                    if (localQueue) {
+                        localQueue.push(newPayload);
+                    }
+                }
             }
         }
     }

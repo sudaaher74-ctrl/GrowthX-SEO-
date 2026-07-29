@@ -33,7 +33,8 @@ export declare class CrawlController {
         message: string;
     }>;
     startCrawlJob(body: {
-        websiteId: string;
+        websiteId?: string;
+        domain?: string;
         maxConcurrency?: number;
         maxDepth?: number;
         useSitemap?: boolean;
@@ -57,6 +58,7 @@ export declare class CrawlController {
             rateLimitDelayMs: number;
             maxConcurrency: number;
             maxDepth: number;
+            projectId: string | null;
         };
     } & {
         status: import(".prisma/client").$Enums.JobStatus;
@@ -72,6 +74,37 @@ export declare class CrawlController {
         startedAt: Date | null;
         finishedAt: Date | null;
     }>;
+    getLatestCrawlJob(domain: string): Promise<({
+        website: {
+            url: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            domain: string;
+            isVerified: boolean;
+            verifiedAt: Date | null;
+            verificationToken: string | null;
+            webhookSecret: string | null;
+            authCredentials: string | null;
+            rateLimitDelayMs: number;
+            maxConcurrency: number;
+            maxDepth: number;
+            projectId: string | null;
+        };
+    } & {
+        status: import(".prisma/client").$Enums.JobStatus;
+        websiteId: string;
+        errorMessage: string | null;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        pagesCrawled: number;
+        issuesFound: number;
+        concurrency: number;
+        depthLimit: number;
+        startedAt: Date | null;
+        finishedAt: Date | null;
+    }) | null>;
     getCrawlIssues(id: string, severity?: string, page?: string, limit?: string): Promise<{
         data: {
             status: import(".prisma/client").$Enums.IssueStatus;

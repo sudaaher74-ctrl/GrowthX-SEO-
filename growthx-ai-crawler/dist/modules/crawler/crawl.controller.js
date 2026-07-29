@@ -69,9 +69,21 @@ let CrawlController = class CrawlController {
         return { success: false, isVerified: false, message: 'DNS TXT verification record not found yet. Please allow DNS propagation.' };
     }
     async startCrawlJob(body) {
-        if (!body.websiteId)
-            throw new common_1.BadRequestException('websiteId is required');
-        const jobId = await this.crawlerService.startCrawlJob(body.websiteId, body);
+        if (!body.websiteId && !body.domain)
+            throw new common_1.BadRequestException('websiteId or domain is required');
+        let websiteId = body.websiteId;
+        if (!websiteId && body.domain) {
+            const website = await this.prisma.website.findUnique({ where: { domain: body.domain } });
+            if (!website) {
+                // Auto-register if not found for demo purposes
+                const newWeb = await this.registerWebsite({ url: `https://${body.domain}`, domain: body.domain });
+                websiteId = newWeb.id;
+            }
+            else {
+                websiteId = website.id;
+            }
+        }
+        const jobId = await this.crawlerService.startCrawlJob(websiteId, body);
         return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
     }
     async getCrawlJob(id) {
@@ -82,6 +94,22 @@ let CrawlController = class CrawlController {
         if (!job)
             throw new common_1.NotFoundException('Crawl job not found');
         return job;
+    }
+    async getLatestCrawlJob(domain) {
+        const website = await this.prisma.website.findUnique({
+            where: { domain },
+            include: {
+                crawlJobs: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
+                }
+            }
+        });
+        if (!website)
+            throw new common_1.NotFoundException('Website not found');
+        if (website.crawlJobs.length === 0)
+            return null;
+        return this.getCrawlJob(website.crawlJobs[0].id);
     }
     async getCrawlIssues(id, severity, page = '1', limit = '50') {
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -141,7 +169,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('crawls/start'),
     (0, swagger_1.ApiOperation)({ summary: 'Initiate a new high-concurrency crawl job for a verified website' }),
-    (0, swagger_1.ApiBody)({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } }),
+    (0, swagger_1.ApiBody)({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -156,6 +184,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CrawlController.prototype, "getCrawlJob", null);
+__decorate([
+    (0, common_1.Get)('websites/:domain/latest-crawl'),
+    (0, swagger_1.ApiOperation)({ summary: 'Retrieve the most recent crawl job for a domain' }),
+    (0, swagger_1.ApiParam)({ name: 'domain', description: 'Website Domain' }),
+    __param(0, (0, common_1.Param)('domain')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], CrawlController.prototype, "getLatestCrawlJob", null);
 __decorate([
     (0, common_1.Get)('crawls/:id/issues'),
     (0, swagger_1.ApiOperation)({ summary: 'Get paginated list of Technical SEO issues detected during crawl' }),
