@@ -8,28 +8,30 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AutonomousEngineerModule = void 0;
 const common_1 = require("@nestjs/common");
-const repository_understanding_service_1 = require("./agents/repository-understanding/repository-understanding.service");
-const issue_analysis_service_1 = require("./agents/issue-analysis/issue-analysis.service");
-const file_selection_service_1 = require("./agents/file-selection/file-selection.service");
+const orchestrator_service_1 = require("./orchestrator/orchestrator.service");
+const git_service_1 = require("./agents/git/git.service");
 const patch_generation_service_1 = require("./agents/patch-generation/patch-generation.service");
 const validation_service_1 = require("./agents/validation/validation.service");
-const git_service_1 = require("./agents/git/git.service");
+const file_selection_service_1 = require("./agents/file-selection/file-selection.service");
+const repository_understanding_service_1 = require("./agents/repository-understanding/repository-understanding.service");
+const issue_analysis_service_1 = require("./agents/issue-analysis/issue-analysis.service");
 const verification_service_1 = require("./agents/verification/verification.service");
-const orchestrator_service_1 = require("./orchestrator/orchestrator.service");
+const repository_graph_module_1 = require("../repository-graph/repository-graph.module");
 let AutonomousEngineerModule = class AutonomousEngineerModule {
 };
 exports.AutonomousEngineerModule = AutonomousEngineerModule;
 exports.AutonomousEngineerModule = AutonomousEngineerModule = __decorate([
     (0, common_1.Module)({
+        imports: [repository_graph_module_1.RepositoryGraphModule],
         providers: [
-            repository_understanding_service_1.RepositoryUnderstandingService,
-            issue_analysis_service_1.IssueAnalysisService,
-            file_selection_service_1.FileSelectionService,
+            orchestrator_service_1.OrchestratorService,
+            git_service_1.GitService,
             patch_generation_service_1.PatchGenerationService,
             validation_service_1.ValidationService,
-            git_service_1.GitService,
-            verification_service_1.VerificationService,
-            orchestrator_service_1.OrchestratorService
+            file_selection_service_1.FileSelectionService,
+            repository_understanding_service_1.RepositoryUnderstandingService,
+            issue_analysis_service_1.IssueAnalysisService,
+            verification_service_1.VerificationService
         ],
         exports: [orchestrator_service_1.OrchestratorService]
     })

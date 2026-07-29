@@ -26,6 +26,8 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomous-engineer.module';
 import { AiSearchModule } from './modules/ai-search/ai-search.module';
+import { RepositoryGraphModule } from './modules/repository-graph/repository-graph.module';
+import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module';
 
 @Module({
   imports: [
@@ -55,6 +57,8 @@ import { AiSearchModule } from './modules/ai-search/ai-search.module';
     SubscriptionsModule,
     AutonomousEngineerModule,
     AiSearchModule,
+    RepositoryGraphModule,
+    AiVisibilityModule,
   ],
   controllers: [HealthController],
   providers: [],

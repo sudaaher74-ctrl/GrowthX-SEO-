@@ -1,23 +1,25 @@
 import { Module } from '@nestjs/common';
-import { RepositoryUnderstandingService } from './agents/repository-understanding/repository-understanding.service';
-import { IssueAnalysisService } from './agents/issue-analysis/issue-analysis.service';
-import { FileSelectionService } from './agents/file-selection/file-selection.service';
+import { OrchestratorService } from './orchestrator/orchestrator.service';
+import { GitService } from './agents/git/git.service';
 import { PatchGenerationService } from './agents/patch-generation/patch-generation.service';
 import { ValidationService } from './agents/validation/validation.service';
-import { GitService } from './agents/git/git.service';
+import { FileSelectionService } from './agents/file-selection/file-selection.service';
+import { RepositoryUnderstandingService } from './agents/repository-understanding/repository-understanding.service';
+import { IssueAnalysisService } from './agents/issue-analysis/issue-analysis.service';
 import { VerificationService } from './agents/verification/verification.service';
-import { OrchestratorService } from './orchestrator/orchestrator.service';
+import { RepositoryGraphModule } from '../repository-graph/repository-graph.module';
 
 @Module({
+  imports: [RepositoryGraphModule],
   providers: [
-    RepositoryUnderstandingService,
-    IssueAnalysisService,
-    FileSelectionService,
+    OrchestratorService,
+    GitService,
     PatchGenerationService,
     ValidationService,
-    GitService,
-    VerificationService,
-    OrchestratorService
+    FileSelectionService,
+    RepositoryUnderstandingService,
+    IssueAnalysisService,
+    VerificationService
   ],
   exports: [OrchestratorService]
 })
