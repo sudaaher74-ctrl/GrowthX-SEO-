@@ -8,11 +8,11 @@ export declare class InvestigationToolsService {
      */
     queryKnowledgeGraph(projectId: string): Promise<string>;
     /**
-     * Tool: Mocks Google Search Console data lookup
+     * Tool: Fetches Google Search Console data lookup (Pending Integration)
      */
     getTrafficMetrics(projectId: string): Promise<string>;
     /**
-     * Tool: Mocks Competitor Intelligence lookup
+     * Tool: Fetches Competitor Intelligence lookup (Pending Integration)
      */
     getCompetitorData(projectId: string): Promise<string>;
 }

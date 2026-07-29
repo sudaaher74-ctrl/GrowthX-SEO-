@@ -49,18 +49,20 @@ let AiSearchService = AiSearchService_1 = class AiSearchService {
         // Step 3: Call the Reasoning Model (Gemini Pro) via Multi-Router
         const answer = await this.multiAiRouter.generateResponse(question, multi_ai_router_service_1.ModelType.REASONING, systemPrompt);
         // Step 4: Action Generation
-        // We parse intent to attach a dynamic Auto-Fix payload if appropriate.
+        // In production, the LLM will return a structured JSON block if it determines
+        // an AUTO_FIX is appropriate. We parse that JSON here.
         let suggestedAction = undefined;
-        if (question.toLowerCase().includes('traffic dropped') || knowledgeGraphData.includes('MISSING_CANONICAL')) {
-            suggestedAction = {
-                type: 'AUTO_FIX',
-                payload: {
-                    issueId: 'mock-issue-id-123',
-                    targetFile: 'app/layout.tsx',
-                    property: 'canonical',
-                    value: 'https://growthx.ai/products/enterprise-crawler'
+        try {
+            const match = answer.match(/```json\n([\s\S]*?)\n```/);
+            if (match) {
+                const parsed = JSON.parse(match[1]);
+                if (parsed.type === 'AUTO_FIX' && parsed.payload) {
+                    suggestedAction = parsed;
                 }
-            };
+            }
+        }
+        catch (e) {
+            this.logger.debug('No valid JSON action block found in AI response.');
         }
         return {
             answer,

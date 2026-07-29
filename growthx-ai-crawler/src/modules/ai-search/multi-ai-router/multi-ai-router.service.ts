@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { GoogleGenAI } from '@google/genai';
 
 export enum ModelType {
   REASONING = 'REASONING', // Gemini Pro / Claude
@@ -27,19 +28,34 @@ export class MultiAiRouterService {
 
   private async callGemini(prompt: string, systemInstruction?: string): Promise<string> {
     this.logger.log('Executing via Google Gemini API...');
-    // Real implementation would use @google/genai SDK here.
-    // For now, we mock the tool-calling output to simulate the RAG response.
-    return Promise.resolve(`(Mock Gemini Response)\n\nBased on the evidence gathered:\n- Traffic dropped by 15%\n- 12 pages are missing canonicals.\n\nRecommended Fix: Run the Auto-Fix workflow to patch layout.tsx metadata.`);
+    
+    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured in .env');
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-pro',
+      contents: prompt,
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+      }
+    });
+
+    return response.text || '';
   }
 
   private async callOpenAiMock(prompt: string, systemInstruction?: string): Promise<string> {
     this.logger.log('Executing via OpenAI GPT-4o Mock API...');
-    return Promise.resolve(`(Mock GPT-4o Code Gen)\n\n{\n  "metadata": {\n    "title": "Fixed Title"\n  }\n}`);
+    throw new NotImplementedException('OpenAI GPT-4o integration is pending.');
   }
 
   private async callFastModelMock(prompt: string, systemInstruction?: string): Promise<string> {
     this.logger.log('Executing via Fast Local Model Mock...');
-    return Promise.resolve(`(Mock Fast Model) Indexed 45 files.`);
+    throw new NotImplementedException('Local Fast Model integration is pending.');
   }
 }
 

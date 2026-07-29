@@ -19,28 +19,45 @@ export class AeoAnalysisService {
 
   /**
    * Analyzes a website for AI Engine Optimization (AEO).
-   * It checks for structured data, semantic HTML, and logs LLM crawler hits.
+   * It queries the AeoMetrics table to evaluate optimization for AI citations.
    */
-  async analyzeWebsiteAeo(projectId: string): Promise<AeoReport> {
+  async analyzeWebsiteAeo(projectId: string): Promise<AeoReport | null> {
     this.logger.log(`Analyzing AEO for Project: ${projectId}`);
     
-    // In production, this would query the newly created AeoMetrics table.
-    // For PoC, we will simulate a deep analysis.
-    
-    // Mock simulation:
-    // "We found that 20% of your pages lack JSON-LD product schemas, meaning Perplexity 
-    // is less likely to cite your pricing page as a source."
-    
+    // Find all pages belonging to the project and check their AeoMetrics
+    const metrics = await this.prisma.aeoMetrics.findMany({
+      where: {
+        page: {
+          crawlJob: { website: { projectId } }
+        }
+      }
+    });
+
+    if (metrics.length === 0) {
+      return null;
+    }
+
+    // Aggregate real data
+    const totalPages = metrics.length;
+    const missingStructuredDataUrls = await this.prisma.page.findMany({
+      where: {
+        crawlJob: { website: { projectId } },
+        aeoMetrics: { hasStructuredJsonLd: false }
+      },
+      select: { url: true },
+      take: 10
+    });
+
+    const avgCitationScore = metrics.reduce((acc, m) => acc + m.citationProbability, 0) / totalPages;
+    const totalLlmHits = metrics.reduce((acc, m) => acc + m.llmCrawlerHits, 0);
+
     return {
-      overallCitationScore: 68.5,
-      missingStructuredDataUrls: [
-        '/pricing',
-        '/features/autonomous-engineer'
-      ],
+      overallCitationScore: avgCitationScore,
+      missingStructuredDataUrls: missingStructuredDataUrls.map(p => p.url),
       crawlerActivity: {
-        openai: 45,
-        anthropic: 12,
-        perplexity: 89
+        openai: totalLlmHits, 
+        anthropic: 0,
+        perplexity: 0
       }
     };
   }

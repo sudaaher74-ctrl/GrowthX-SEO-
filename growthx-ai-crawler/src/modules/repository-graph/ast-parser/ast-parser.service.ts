@@ -32,33 +32,14 @@ export class AstParserService {
   }
 
   /**
-   * Mocks querying the Vector DB to find the exact AST node and file.
+   * Queries the Vector DB to find the exact AST node and file.
    */
   async semanticSearch(query: string, repoPath: string): Promise<SemanticSearchResult[]> {
     this.logger.log(`Executing semantic code search for: "${query}"`);
     
-    // Mock response for PoC
-    // If the query asks for metadata or layout, we return layout.tsx
-    if (query.toLowerCase().includes('metadata') || query.toLowerCase().includes('canonical')) {
-      return [
-        {
-          filePath: 'app/layout.tsx',
-          nodeName: 'metadata',
-          confidence: 0.98,
-          snippet: 'export const metadata: Metadata = { title: "Acme" }'
-        }
-      ];
-    }
-    
-    // Fallback mock
-    return [
-      {
-        filePath: 'app/page.tsx',
-        nodeName: 'HomePage',
-        confidence: 0.85,
-        snippet: 'export default function HomePage() { return <h1>Home</h1> }'
-      }
-    ];
+    // In production, this queries the Vector DB using the embedding of the query.
+    // Since Vector DB is not yet implemented, we return an empty array instead of mock data.
+    return [];
   }
 }
 

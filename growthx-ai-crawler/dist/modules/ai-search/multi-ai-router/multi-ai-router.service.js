@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MultiAiRouterService = exports.ModelType = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const genai_1 = require("@google/genai");
 var ModelType;
 (function (ModelType) {
     ModelType["REASONING"] = "REASONING";
@@ -38,17 +39,28 @@ let MultiAiRouterService = MultiAiRouterService_1 = class MultiAiRouterService {
     }
     async callGemini(prompt, systemInstruction) {
         this.logger.log('Executing via Google Gemini API...');
-        // Real implementation would use @google/genai SDK here.
-        // For now, we mock the tool-calling output to simulate the RAG response.
-        return Promise.resolve(`(Mock Gemini Response)\n\nBased on the evidence gathered:\n- Traffic dropped by 15%\n- 12 pages are missing canonicals.\n\nRecommended Fix: Run the Auto-Fix workflow to patch layout.tsx metadata.`);
+        const apiKey = this.configService.get('GEMINI_API_KEY');
+        if (!apiKey) {
+            throw new Error('GEMINI_API_KEY is not configured in .env');
+        }
+        const ai = new genai_1.GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: prompt,
+            config: {
+                systemInstruction,
+                temperature: 0.2,
+            }
+        });
+        return response.text || '';
     }
     async callOpenAiMock(prompt, systemInstruction) {
         this.logger.log('Executing via OpenAI GPT-4o Mock API...');
-        return Promise.resolve(`(Mock GPT-4o Code Gen)\n\n{\n  "metadata": {\n    "title": "Fixed Title"\n  }\n}`);
+        throw new common_1.NotImplementedException('OpenAI GPT-4o integration is pending.');
     }
     async callFastModelMock(prompt, systemInstruction) {
         this.logger.log('Executing via Fast Local Model Mock...');
-        return Promise.resolve(`(Mock Fast Model) Indexed 45 files.`);
+        throw new common_1.NotImplementedException('Local Fast Model integration is pending.');
     }
 };
 exports.MultiAiRouterService = MultiAiRouterService;

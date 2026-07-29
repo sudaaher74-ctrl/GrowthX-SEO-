@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 
 @Injectable()
@@ -38,33 +38,19 @@ export class InvestigationToolsService {
   }
 
   /**
-   * Tool: Mocks Google Search Console data lookup
+   * Tool: Fetches Google Search Console data lookup (Pending Integration)
    */
   async getTrafficMetrics(projectId: string): Promise<string> {
     this.logger.log(`Tool Executing: getTrafficMetrics for ${projectId}`);
-    // Mock GSC Data
-    return JSON.stringify({
-      clicks_last_7_days: 12450,
-      clicks_previous_7_days: 14500,
-      trend: 'down',
-      percent_change: -14.1,
-      top_declining_urls: [
-        '/products/enterprise-crawler',
-        '/blog/seo-tips-2026'
-      ]
-    });
+    throw new NotImplementedException('Google Search Console API integration is pending.');
   }
 
   /**
-   * Tool: Mocks Competitor Intelligence lookup
+   * Tool: Fetches Competitor Intelligence lookup (Pending Integration)
    */
   async getCompetitorData(projectId: string): Promise<string> {
     this.logger.log(`Tool Executing: getCompetitorData for ${projectId}`);
-    return JSON.stringify({
-      competitors: ['screamingfrog.co.uk', 'semrush.com'],
-      content_gaps: ['AI autonomous engineering', 'AST parsing for SEO'],
-      backlink_gap: 450
-    });
+    throw new NotImplementedException('Competitor Intelligence API integration is pending.');
   }
 }
 

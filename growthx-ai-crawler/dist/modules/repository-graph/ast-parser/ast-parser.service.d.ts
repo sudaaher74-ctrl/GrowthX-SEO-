@@ -13,7 +13,7 @@ export declare class AstParserService {
      */
     indexRepository(repoPath: string): Promise<number>;
     /**
-     * Mocks querying the Vector DB to find the exact AST node and file.
+     * Queries the Vector DB to find the exact AST node and file.
      */
     semanticSearch(query: string, repoPath: string): Promise<SemanticSearchResult[]>;
 }

@@ -14,7 +14,7 @@ export declare class AeoAnalysisService {
     constructor(prisma: PrismaService);
     /**
      * Analyzes a website for AI Engine Optimization (AEO).
-     * It checks for structured data, semantic HTML, and logs LLM crawler hits.
+     * It queries the AeoMetrics table to evaluate optimization for AI citations.
      */
-    analyzeWebsiteAeo(projectId: string): Promise<AeoReport>;
+    analyzeWebsiteAeo(projectId: string): Promise<AeoReport | null>;
 }
