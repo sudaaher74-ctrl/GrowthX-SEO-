@@ -25,6 +25,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { ProjectsModule } from './modules/projects/projects.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomous-engineer.module';
+import { AiSearchModule } from './modules/ai-search/ai-search.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomo
     ProjectsModule,
     SubscriptionsModule,
     AutonomousEngineerModule,
+    AiSearchModule,
   ],
   controllers: [HealthController],
   providers: [],
