@@ -102,7 +102,7 @@ export class LinkAnalyzerService {
 
         if (isNofollow) nofollowLinks.push(linkObj);
         if (isBrokenAnchor) brokenAnchors.push(linkObj);
-      } catch (e) {
+      } catch {
         // Ignore malformed URIs
       }
     });

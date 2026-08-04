@@ -36,22 +36,53 @@ let QueueService = QueueService_1 = class QueueService {
                     lazyConnect: true,
                 });
             }
+            // ioredis emits 'error' asynchronously. Without a listener, Node treats it
+            // as an unhandled EventEmitter error and kills the process — so a brief
+            // Redis blip would take the whole API down.
+            this.redisConnection.on('error', (err) => {
+                this.logger.warn(`Redis connection error: ${err.message}`);
+            });
             await this.redisConnection.connect();
-            this.logger.log(`Connected to Redis cluster at ${host}:${port} for BullMQ queues.`);
+            this.logger.log(`Connected to Redis at ${host}:${port} for BullMQ queues.`);
             this.crawlJobsQueue = new bullmq_1.Queue('crawl-jobs', { connection: this.redisConnection });
             this.pageFetchQueue = new bullmq_1.Queue('page-fetch', { connection: this.redisConnection });
         }
         catch (err) {
-            this.logger.warn(`Could not connect to Redis at ${host}:${port}. Queues will operate in local fallback/mock mode for dev/testing.`, err);
+            this.logger.warn(`Could not connect to Redis at ${host}:${port}. Crawls will run synchronously. (${err?.message})`);
+            // Drop the dead client. Leaving it set would hand a broken connection to
+            // getRedisClient(), and CrawlerProcessor would start BullMQ workers on it.
+            if (this.redisConnection) {
+                this.redisConnection.removeAllListeners();
+                this.redisConnection.disconnect();
+                this.redisConnection = undefined;
+            }
         }
     }
     async onModuleDestroy() {
-        if (this.crawlJobsQueue)
-            await this.crawlJobsQueue.close();
-        if (this.pageFetchQueue)
-            await this.pageFetchQueue.close();
-        if (this.redisConnection)
-            await this.redisConnection.quit();
+        // Every step is guarded: shutdown must not throw, and quit() on an
+        // already-closed connection rejects with "Connection is closed."
+        try {
+            if (this.crawlJobsQueue)
+                await this.crawlJobsQueue.close();
+            if (this.pageFetchQueue)
+                await this.pageFetchQueue.close();
+        }
+        catch (err) {
+            this.logger.warn(`Error closing queues: ${err?.message}`);
+        }
+        if (!this.redisConnection)
+            return;
+        try {
+            if (this.redisConnection.status === 'ready') {
+                await this.redisConnection.quit();
+            }
+            else {
+                this.redisConnection.disconnect();
+            }
+        }
+        catch (err) {
+            this.logger.warn(`Error closing the Redis connection: ${err?.message}`);
+        }
     }
     async addCrawlJob(payload) {
         if (!this.crawlJobsQueue) {

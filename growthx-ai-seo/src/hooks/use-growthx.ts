@@ -40,6 +40,10 @@ export function useWorkspace() {
     enabled: Boolean(orgId),
   });
 
+  // The client switcher needs an explicitly chosen project, falling back to the
+  // first one so the workspace is never empty on first load.
+  const [chosenProjectId, setChosenProjectId] = useState<string | null>(null);
+
   return {
     orgId,
     setOrgId: (id: string) => {
@@ -48,10 +52,20 @@ export function useWorkspace() {
     },
     organizations: orgs.data ?? [],
     projects: projects.data ?? [],
-    projectId: projects.data?.[0]?.id ?? null,
+    projectId: chosenProjectId ?? projects.data?.[0]?.id ?? null,
+    setProjectId: setChosenProjectId,
     isLoading: orgs.isLoading || projects.isLoading || !ready,
     error: (orgs.error ?? projects.error) as ApiError | null,
   };
+}
+
+export function usePortfolio(orgId: string | null, days = 28) {
+  return useQuery({
+    queryKey: ["portfolio", orgId, days],
+    queryFn: () => api.getPortfolio(orgId!, days),
+    enabled: Boolean(orgId),
+    retry: false,
+  });
 }
 
 export function usePlans() {

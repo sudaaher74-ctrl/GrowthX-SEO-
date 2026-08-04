@@ -1,18 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { AstParserService } from '../../../repository-graph/ast-parser/ast-parser.service';
 import { FileSelectionService } from './file-selection.service';
 
 describe('FileSelectionService', () => {
   let service: FileSelectionService;
+  let astParser: { indexRepository: jest.Mock; semanticSearch: jest.Mock };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [FileSelectionService],
-    }).compile();
+    astParser = {
+      indexRepository: jest.fn().mockResolvedValue(0),
+      semanticSearch: jest.fn().mockResolvedValue([]),
+    };
 
-    service = module.get<FileSelectionService>(FileSelectionService);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [FileSelectionService, { provide: AstParserService, useValue: astParser }],
+    }).compile();
+    service = module.get(FileSelectionService);
   });
 
-  it('should be defined', () => {
+  it('is constructed with the AST parser injected', () => {
     expect(service).toBeDefined();
+    expect((service as any).astParser).toBe(astParser);
   });
 });

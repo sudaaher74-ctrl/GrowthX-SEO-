@@ -445,7 +445,7 @@ export class CrawlerService {
       }
       parsed.pathname = pathname;
       return url.format(parsed);
-    } catch (e) {
+    } catch {
       return rawUrl;
     }
   }

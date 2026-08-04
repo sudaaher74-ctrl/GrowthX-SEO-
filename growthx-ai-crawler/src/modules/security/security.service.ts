@@ -60,7 +60,7 @@ export class SecurityService {
   /**
    * Generates a unique DNS TXT verification token for a domain challenge
    */
-  generateVerificationToken(domain: string): string {
+  generateVerificationToken(_domain: string): string {
     return `growthx-verify-${crypto.randomBytes(16).toString('hex')}`;
   }
 

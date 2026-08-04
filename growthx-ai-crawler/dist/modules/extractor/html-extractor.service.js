@@ -10,6 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.HtmlExtractorService = void 0;
 const common_1 = require("@nestjs/common");
 const cheerio = require("cheerio");
+const url_1 = require("url");
 let HtmlExtractorService = HtmlExtractorService_1 = class HtmlExtractorService {
     constructor() {
         this.logger = new common_1.Logger(HtmlExtractorService_1.name);
@@ -33,10 +34,11 @@ let HtmlExtractorService = HtmlExtractorService_1 = class HtmlExtractorService {
         let canonicalUrl = $('link[rel="canonical" i]').attr('href')?.trim();
         if (canonicalUrl && !canonicalUrl.startsWith('http')) {
             try {
-                const { resolve } = require('url');
-                canonicalUrl = resolve(pageUrl, canonicalUrl);
+                canonicalUrl = (0, url_1.resolve)(pageUrl, canonicalUrl);
             }
-            catch (e) { }
+            catch {
+                // A malformed canonical stays as-is; the validator flags it downstream.
+            }
         }
         // 4. Headings
         const h1 = $('h1').map((_, el) => $(el).text().replace(/\s+/g, ' ').trim()).get().filter(Boolean);
@@ -74,7 +76,7 @@ let HtmlExtractorService = HtmlExtractorService_1 = class HtmlExtractorService {
                     }
                 }
             }
-            catch (err) {
+            catch {
                 // Malformed JSON-LD
             }
         });

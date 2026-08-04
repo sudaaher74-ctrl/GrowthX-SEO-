@@ -8,11 +8,14 @@ export declare class InvestigationToolsService {
      */
     queryKnowledgeGraph(projectId: string): Promise<string>;
     /**
-     * Tool: Fetches Google Search Console data lookup (Pending Integration)
+     * Tool: Google Search Console traffic. Not connected yet.
+     *
+     * Returns an explicit "unavailable" marker rather than throwing: this is one
+     * of several evidence sources fed to the model, and a missing integration
+     * must not take down the whole answer. The marker also tells the model not to
+     * speculate about traffic it cannot see.
      */
     getTrafficMetrics(projectId: string): Promise<string>;
-    /**
-     * Tool: Fetches Competitor Intelligence lookup (Pending Integration)
-     */
+    /** Tool: competitor intelligence. Same contract as above. */
     getCompetitorData(projectId: string): Promise<string>;
 }

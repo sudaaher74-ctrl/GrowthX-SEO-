@@ -70,7 +70,7 @@ export class RobotsService {
   /**
    * Evaluates whether a specific URL path is allowed to be crawled according to robots.txt rules.
    */
-  async isUrlAllowed(targetUrl: string, userAgent: string = 'GrowthX-AI-Bot'): Promise<boolean> {
+  async isUrlAllowed(targetUrl: string, _userAgent: string = 'GrowthX-AI-Bot'): Promise<boolean> {
     try {
       const parsed = url.parse(targetUrl);
       const domain = `${parsed.protocol}//${parsed.host}`;
@@ -114,7 +114,7 @@ export class RobotsService {
     try {
       const regex = new RegExp(regexStr);
       return regex.test(urlPath);
-    } catch (e) {
+    } catch {
       return urlPath.startsWith(rule);
     }
   }

@@ -27,7 +27,7 @@ let ValidationService = ValidationService_1 = class ValidationService {
             await execAsync(`${packageManager} install`, { cwd: repoDir, timeout: 120000 });
             // 2. Run build
             this.logger.log(`Running ${packageManager} run build...`);
-            const { stdout, stderr } = await execAsync(`${packageManager} run build`, { cwd: repoDir, timeout: 180000 });
+            const { stdout, stderr: _stderr } = await execAsync(`${packageManager} run build`, { cwd: repoDir, timeout: 180000 });
             this.logger.log(`Validation successful.`);
             return { success: true, output: stdout };
         }

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Project, SyntaxKind, SourceFile } from 'ts-morph';
+import { Project } from 'ts-morph';
 
 export interface SemanticSearchResult {
   filePath: string;
@@ -34,7 +34,7 @@ export class AstParserService {
   /**
    * Queries the Vector DB to find the exact AST node and file.
    */
-  async semanticSearch(query: string, repoPath: string): Promise<SemanticSearchResult[]> {
+  async semanticSearch(query: string, _repoPath: string): Promise<SemanticSearchResult[]> {
     this.logger.log(`Executing semantic code search for: "${query}"`);
     
     // In production, this queries the Vector DB using the embedding of the query.

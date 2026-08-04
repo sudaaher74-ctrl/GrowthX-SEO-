@@ -70,7 +70,7 @@ let SecurityService = SecurityService_1 = class SecurityService {
     /**
      * Generates a unique DNS TXT verification token for a domain challenge
      */
-    generateVerificationToken(domain) {
+    generateVerificationToken(_domain) {
         return `growthx-verify-${crypto.randomBytes(16).toString('hex')}`;
     }
     /**

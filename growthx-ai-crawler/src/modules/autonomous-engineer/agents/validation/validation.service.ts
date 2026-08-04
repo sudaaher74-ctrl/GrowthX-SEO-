@@ -26,7 +26,7 @@ export class ValidationService {
 
       // 2. Run build
       this.logger.log(`Running ${packageManager} run build...`);
-      const { stdout, stderr } = await execAsync(`${packageManager} run build`, { cwd: repoDir, timeout: 180000 });
+      const { stdout, stderr: _stderr } = await execAsync(`${packageManager} run build`, { cwd: repoDir, timeout: 180000 });
       
       this.logger.log(`Validation successful.`);
       return { success: true, output: stdout };

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 import { ExtractedHtmlData } from '../extractor/html-extractor.service';
 import { ExtractedImage } from '../analyzer/image-analyzer.service';
@@ -279,7 +280,6 @@ export class IssueEngineService {
 
     // 22. Mixed Content
     if (pageUrl.startsWith('https://')) {
-      const cheerio = require('cheerio');
       const $ = cheerio.load(html || '');
       let mixedCount = 0;
       $('img[src^="http://"], script[src^="http://"], link[rel="stylesheet"][href^="http://"]').each(() => {
@@ -322,7 +322,7 @@ export class IssueEngineService {
           aiFixAvailable: true,
         });
       }
-    } catch (e) {}
+    } catch {}
 
     // 25. XML Sitemap Presence
     if (!inSitemap && statusCode === 200) {

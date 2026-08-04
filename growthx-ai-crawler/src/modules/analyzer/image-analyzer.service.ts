@@ -58,7 +58,7 @@ export class ImageAnalyzerService {
           isBroken: false, // Verified via network worker or HTTP response code in live crawl
           isLarge,
         });
-      } catch (e) {
+      } catch {
         // Ignore malformed URLs
       }
     });

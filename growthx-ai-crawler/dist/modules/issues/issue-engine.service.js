@@ -12,6 +12,7 @@ var IssueEngineService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IssueEngineService = void 0;
 const common_1 = require("@nestjs/common");
+const cheerio = require("cheerio");
 const prisma_service_1 = require("../../database/prisma.service");
 const url = require("url");
 let IssueEngineService = IssueEngineService_1 = class IssueEngineService {
@@ -248,7 +249,6 @@ let IssueEngineService = IssueEngineService_1 = class IssueEngineService {
         }
         // 22. Mixed Content
         if (pageUrl.startsWith('https://')) {
-            const cheerio = require('cheerio');
             const $ = cheerio.load(html || '');
             let mixedCount = 0;
             $('img[src^="http://"], script[src^="http://"], link[rel="stylesheet"][href^="http://"]').each(() => {
@@ -290,7 +290,7 @@ let IssueEngineService = IssueEngineService_1 = class IssueEngineService {
                 });
             }
         }
-        catch (e) { }
+        catch { }
         // 25. XML Sitemap Presence
         if (!inSitemap && statusCode === 200) {
             issues.push({

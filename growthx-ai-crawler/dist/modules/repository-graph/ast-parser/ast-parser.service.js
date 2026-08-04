@@ -33,7 +33,7 @@ let AstParserService = AstParserService_1 = class AstParserService {
     /**
      * Queries the Vector DB to find the exact AST node and file.
      */
-    async semanticSearch(query, repoPath) {
+    async semanticSearch(query, _repoPath) {
         this.logger.log(`Executing semantic code search for: "${query}"`);
         // In production, this queries the Vector DB using the embedding of the query.
         // Since Vector DB is not yet implemented, we return an empty array instead of mock data.

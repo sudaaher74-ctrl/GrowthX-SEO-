@@ -29,6 +29,7 @@ import { AiSearchModule } from './modules/ai-search/ai-search.module';
 import { RepositoryGraphModule } from './modules/repository-graph/repository-graph.module';
 import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
+import { PortfolioModule } from './modules/portfolio/portfolio.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { StrategyModule } from './modules/strategy/strategy.module';
     RepositoryGraphModule,
     AiVisibilityModule,
     StrategyModule,
+    PortfolioModule,
   ],
   controllers: [HealthController],
   providers: [],

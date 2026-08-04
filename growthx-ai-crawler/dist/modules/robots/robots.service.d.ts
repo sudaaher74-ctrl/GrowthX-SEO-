@@ -17,7 +17,7 @@ export declare class RobotsService {
     /**
      * Evaluates whether a specific URL path is allowed to be crawled according to robots.txt rules.
      */
-    isUrlAllowed(targetUrl: string, userAgent?: string): Promise<boolean>;
+    isUrlAllowed(targetUrl: string, _userAgent?: string): Promise<boolean>;
     /**
      * Matches URL path against a robots.txt rule supporting wildcards (*) and end-of-string ($)
      */

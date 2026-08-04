@@ -43,18 +43,33 @@ let InvestigationToolsService = InvestigationToolsService_1 = class Investigatio
         })));
     }
     /**
-     * Tool: Fetches Google Search Console data lookup (Pending Integration)
+     * Tool: Google Search Console traffic. Not connected yet.
+     *
+     * Returns an explicit "unavailable" marker rather than throwing: this is one
+     * of several evidence sources fed to the model, and a missing integration
+     * must not take down the whole answer. The marker also tells the model not to
+     * speculate about traffic it cannot see.
      */
     async getTrafficMetrics(projectId) {
-        this.logger.log(`Tool Executing: getTrafficMetrics for ${projectId}`);
-        throw new common_1.NotImplementedException('Google Search Console API integration is pending.');
+        this.logger.debug(`getTrafficMetrics for ${projectId}: integration not connected.`);
+        return JSON.stringify({
+            available: false,
+            reason: 'Google Search Console is not connected for this project.',
+        });
     }
-    /**
-     * Tool: Fetches Competitor Intelligence lookup (Pending Integration)
-     */
+    /** Tool: competitor intelligence. Same contract as above. */
     async getCompetitorData(projectId) {
-        this.logger.log(`Tool Executing: getCompetitorData for ${projectId}`);
-        throw new common_1.NotImplementedException('Competitor Intelligence API integration is pending.');
+        const competitors = await this.prisma.competitorDomain.findMany({
+            where: { projectId },
+            select: { domain: true, label: true },
+        });
+        if (competitors.length === 0) {
+            return JSON.stringify({
+                available: false,
+                reason: 'No competitors are being tracked for this project yet.',
+            });
+        }
+        return JSON.stringify({ available: true, competitors });
     }
 };
 exports.InvestigationToolsService = InvestigationToolsService;

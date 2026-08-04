@@ -28,7 +28,7 @@ export class SitemapService {
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
       removeNSPrefix: true, // Strips prefixes like image:loc -> loc, video:video -> video
-      isArray: (name, jpath, isLeafNode, isAttribute) => {
+      isArray: (name: string) => {
         return ['sitemap', 'url', 'image', 'video'].indexOf(name) !== -1;
       },
     });

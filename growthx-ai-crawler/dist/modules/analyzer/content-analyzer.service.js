@@ -111,7 +111,7 @@ let ContentAnalyzerService = ContentAnalyzerService_1 = class ContentAnalyzerSer
             }
             return dist;
         }
-        catch (e) {
+        catch {
             return 64;
         }
     }

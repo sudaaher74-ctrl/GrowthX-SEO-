@@ -14,7 +14,7 @@ export declare class SecurityService {
     /**
      * Generates a unique DNS TXT verification token for a domain challenge
      */
-    generateVerificationToken(domain: string): string;
+    generateVerificationToken(_domain: string): string;
     /**
      * Validates if a user/customer owns the domain or has permission to audit it.
      * Checks for a DNS TXT record or HTML meta tag.

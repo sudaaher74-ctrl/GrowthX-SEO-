@@ -130,7 +130,7 @@ export class ContentAnalyzerService {
         xor >>= BigInt(1);
       }
       return dist;
-    } catch (e) {
+    } catch {
       return 64;
     }
   }

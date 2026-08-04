@@ -165,7 +165,7 @@ export class AutoFixService {
     let parsedPatch = {};
     try {
       parsedPatch = JSON.parse(rec.recommendedFixPatch);
-    } catch (e) {
+    } catch {
       parsedPatch = { text: rec.recommendedFixPatch };
     }
 

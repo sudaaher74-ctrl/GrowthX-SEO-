@@ -2,176 +2,271 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, FolderOpen, Bug, Search, BarChart3, Users2,
-  FileText, Bot, LineChart, AreaChart, Code2, Tag, Image, MapPin,
-  Link2, FileBarChart, Zap, CreditCard, Settings, HelpCircle,
-  ChevronLeft, ChevronRight, TrendingUp, Globe, Sparkles,
-  Activity, ShieldAlert, Target
+  ChevronsUpDown,
+  CreditCard,
+  Edit3,
+  FileText,
+  HeartPulse,
+  LayoutGrid,
+  MoreHorizontal,
+  Search,
+  Settings,
+  Sparkles,
+  Users,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useEntitlements, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
-const navItems = [
-  { group: "Overview", items: [
-    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { label: "Projects", href: "/projects", icon: FolderOpen },
-  ]},
-  { group: "Analytics", items: [
-    { label: "Search Console", href: "/search-console", icon: LineChart },
-    { label: "Google Analytics", href: "/analytics", icon: AreaChart },
-    { label: "Rank Tracking", href: "/rank-tracking", icon: TrendingUp },
-  ]},
-  { group: "SEO Tools", items: [
-    { label: "Technical SEO", href: "/technical-seo", icon: Bug },
-    { label: "Keyword Research", href: "/keywords", icon: Search },
-    { label: "Competitors", href: "/competitors", icon: Users2 },
-    { label: "Backlinks", href: "/backlinks", icon: Link2 },
-  ]},
-  { group: "AI Features", items: [
-    { label: "Content AI", href: "/content-ai", icon: FileText },
-    { label: "Meta Optimizer", href: "/meta-optimizer", icon: Tag },
-    { label: "Schema Generator", href: "/schema-generator", icon: Code2 },
-    { label: "Image SEO", href: "/image-seo", icon: Image },
-    { label: "Internal Linking", href: "/internal-linking", icon: Link2 },
-    { label: "Local SEO", href: "/local-seo", icon: MapPin },
-    { label: "AI Visibility", href: "/geo-tracking", icon: Sparkles },
-    { label: "Growth Strategy", href: "/strategy", icon: Target },
-    { label: "AI Assistant", href: "/ai-assistant", icon: Bot },
-  ]},
-  { group: "Operations", items: [
-    { label: "Automations", href: "/automations", icon: Zap },
-    { label: "Reports", href: "/reports", icon: FileBarChart },
-    { label: "Activity", href: "/activity", icon: Activity },
-  ]},
-  { group: "Account", items: [
-    { label: "Billing", href: "/billing", icon: CreditCard },
-    { label: "Settings", href: "/settings", icon: Settings },
-    { label: "Admin Panel", href: "/admin", icon: ShieldAlert },
-    { label: "Help", href: "/help", icon: HelpCircle },
-  ]},
-];
+/**
+ * Agency console sidebar.
+ *
+ * Two scopes, exactly as the design specifies: AGENCY-level work at the top,
+ * then a client switcher and everything scoped to the selected client.
+ */
 
-interface SidebarProps {
-  collapsed: boolean;
-  onToggle: () => void;
-  mobileOpen?: boolean;
-  setMobileOpen?: (open: boolean) => void;
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  /** Small right-aligned counter or metric. */
+  tag?: string;
+  tagTone?: "default" | "danger";
 }
 
-export function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen }: SidebarProps) {
+export function Sidebar({
+  mobileOpen,
+  setMobileOpen,
+}: {
+  collapsed?: boolean;
+  onToggle?: () => void;
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
+}) {
   const pathname = usePathname();
+  const { orgId, projects, projectId, setProjectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const entitlements = useEntitlements(orgId);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
+  const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
+
+  const agencyNav: NavItem[] = [
+    { label: "Clients", href: "/clients", icon: Users, tag: projects.length ? String(projects.length) : undefined },
+    { label: "Reports", href: "/reports", icon: FileText },
+    { label: "Billing & settings", href: "/billing", icon: Settings },
+  ];
+
+  const clientNav: NavItem[] = [
+    { label: "Overview", href: "/dashboard", icon: LayoutGrid },
+    {
+      label: "AI Visibility",
+      href: "/geo-tracking",
+      icon: Sparkles,
+      tag: clientRow?.aiCitationSharePct != null ? `${Math.round(clientRow.aiCitationSharePct)}%` : undefined,
+    },
+    { label: "Search", href: "/keywords", icon: Search },
+    {
+      label: "Site health",
+      href: "/technical-seo",
+      icon: HeartPulse,
+      tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
+      tagTone: "danger",
+    },
+    { label: "Content AI", href: "/content-ai", icon: Edit3 },
+  ];
+
+  const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
+  const crawlPct =
+    crawlQuota && crawlQuota.limit ? Math.min(100, (crawlQuota.used / crawlQuota.limit) * 100) : 0;
 
   return (
     <>
-      {/* Mobile Backdrop */}
       {mobileOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setMobileOpen?.(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileOpen?.(false)} />
       )}
-      
-      <motion.aside
-        animate={{ width: collapsed ? 64 : 240 }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
+
+      <aside
         className={cn(
-          "fixed left-0 top-0 h-screen z-50 flex flex-col overflow-hidden border-r border-[var(--sidebar-border)] transition-transform duration-300 md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-white transition-transform duration-200 md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
-        style={{ background: "var(--sidebar-bg)" }}
+        style={{ borderColor: "var(--border-color)" }}
       >
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-14 shrink-0 border-b border-[var(--sidebar-border)]">
-        <div className="w-8 h-8 rounded-lg bg-black dark:bg-white flex items-center justify-center shrink-0">
-          <Globe size={16} className="text-white dark:text-black" />
-        </div>
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
-              transition={{ duration: 0.15 }}
-              className="overflow-hidden"
-            >
-              <span className="font-semibold text-sm text-gray-900 dark:text-white whitespace-nowrap tracking-tight">GrowthX AI SEO</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">
-        {navItems.map((group) => (
-          <div key={group.group} className="mb-1">
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="px-2 py-1.5"
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
-                    {group.group}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {group.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link key={item.href} href={item.href} onClick={() => setMobileOpen?.(false)}>
-                  <div
-                    className={cn(
-                      "sidebar-item relative",
-                      active && "active",
-                      collapsed && "justify-center px-0 py-2"
-                    )}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    {active && (
-                      <motion.div
-                        layoutId="sidebar-active"
-                        className="absolute inset-0 rounded-lg"
-                        style={{ background: "var(--sidebar-item-active)" }}
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                      />
-                    )}
-                    <item.icon size={16} className="shrink-0 relative z-10" />
-                    <AnimatePresence>
-                      {!collapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -4 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -4 }}
-                          transition={{ duration: 0.15 }}
-                          className="text-sm relative z-10 whitespace-nowrap"
-                        >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </Link>
-              );
-            })}
+        {/* Brand */}
+        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "#f4f4f5" }}>
+          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[#09090b]">
+            <LayoutGrid size={13} className="text-white" />
           </div>
-        ))}
-      </nav>
+          <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-[#09090b]">GrowthX</span>
+          <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[#a1a1aa]">AI SEO</span>
+          {entitlements.data && (
+            <span className="ml-auto rounded-[5px] bg-[#f4f4f5] px-[5px] py-[2px] font-mono text-[9px] font-semibold text-[#52525b]">
+              {entitlements.data.plan}
+            </span>
+          )}
+        </div>
 
-      {/* Toggle button - Desktop only */}
-      <div className="hidden md:block p-2 border-t border-[var(--sidebar-border)] shrink-0">
-        <button
-          onClick={onToggle}
-          className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-[var(--sidebar-item-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-base"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
-      </div>
-    </motion.aside>
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          <SectionLabel>Agency</SectionLabel>
+          {agencyNav.map((item) => (
+            <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+          ))}
+
+          <div className="mt-5">
+            <SectionLabel>Client workspace</SectionLabel>
+
+            {/* Client switcher */}
+            <div className="relative px-1">
+              <button
+                onClick={() => setSwitcherOpen((v) => !v)}
+                disabled={projects.length === 0}
+                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-[#fafafa] disabled:opacity-60"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#f4f4f5] font-mono text-[9px] font-semibold text-[#3f3f46]">
+                  {selected ? initialsOf(selected.name) : "—"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-semibold text-[#09090b]">
+                    {selected?.name ?? "No clients yet"}
+                  </span>
+                  <span className="block truncate font-mono text-[9.5px] text-[#a1a1aa]">
+                    {clientRow?.domain ?? "add a website"}
+                  </span>
+                </span>
+                <ChevronsUpDown size={13} className="shrink-0 text-[#a1a1aa]" />
+              </button>
+
+              {switcherOpen && projects.length > 0 && (
+                <div
+                  className="absolute left-1 right-1 z-10 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  {portfolio.data?.clients.map((client) => (
+                    <button
+                      key={client.projectId}
+                      onClick={() => {
+                        setProjectId(client.projectId);
+                        setSwitcherOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-[#f4f4f5]"
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded bg-[#f4f4f5] font-mono text-[8px] font-semibold text-[#3f3f46]">
+                        {client.initials}
+                      </span>
+                      <span className="flex-1 truncate text-[11.5px] text-[#09090b]">{client.name}</span>
+                      <span className="font-mono text-[9.5px] text-[#71717a]">
+                        {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2">
+              {clientNav.map((item) => (
+                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+              ))}
+            </div>
+          </div>
+        </nav>
+
+        {/* Crawl credits */}
+        <div className="border-t px-[14px] py-3" style={{ borderColor: "#f4f4f5" }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#a1a1aa]">
+              Crawl credits
+            </span>
+            <span className="font-mono text-[10px] text-[#52525b]">
+              {crawlQuota
+                ? `${compact(crawlQuota.used)} / ${crawlQuota.limit ? compact(crawlQuota.limit) : "∞"}`
+                : "—"}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-[#f4f4f5]">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${crawlPct}%`, background: crawlPct > 80 ? "#d97706" : "#2563eb" }}
+            />
+          </div>
+          <Link href="/billing" className="mt-2 block text-[11px] font-medium text-[#2563eb] hover:underline">
+            Manage plan →
+          </Link>
+        </div>
+
+        {/* User */}
+        <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "#f4f4f5" }}>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#09090b] font-mono text-[10px] font-semibold text-white">
+            {entitlements.data ? "SA" : "—"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[11.5px] font-semibold text-[#09090b]">
+              {entitlements.data?.planName ?? "Not signed in"}
+            </span>
+            <span className="block text-[10px] text-[#a1a1aa]">Agency owner</span>
+          </span>
+          <MoreHorizontal size={14} className="text-[#a1a1aa]" />
+        </div>
+      </aside>
     </>
   );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 pb-1.5 pt-1">
+      <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[#a1a1aa]">{children}</span>
+    </div>
+  );
+}
+
+function NavLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  return (
+    <Link href={item.href} onClick={onNavigate}>
+      <div
+        className={cn(
+          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
+          active ? "bg-[#f4f4f5] text-[#09090b]" : "text-[#52525b] hover:bg-[#f4f4f5]",
+        )}
+      >
+        <item.icon size={15} className={active ? "text-[#18181b]" : "text-[#a1a1aa]"} />
+        <span className="flex-1">{item.label}</span>
+        {item.tag && (
+          <span
+            className={cn(
+              "font-mono text-[10.5px] font-medium",
+              item.tagTone === "danger" ? "text-[#dc2626]" : "text-[#a1a1aa]",
+            )}
+          >
+            {item.tag}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function compact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1000)}k`;
+  return String(n);
 }

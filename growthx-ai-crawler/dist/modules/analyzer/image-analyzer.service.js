@@ -51,7 +51,7 @@ let ImageAnalyzerService = ImageAnalyzerService_1 = class ImageAnalyzerService {
                     isLarge,
                 });
             }
-            catch (e) {
+            catch {
                 // Ignore malformed URLs
             }
         });

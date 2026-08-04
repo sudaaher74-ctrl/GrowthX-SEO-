@@ -88,7 +88,7 @@ let LinkAnalyzerService = LinkAnalyzerService_1 = class LinkAnalyzerService {
                 if (isBrokenAnchor)
                     brokenAnchors.push(linkObj);
             }
-            catch (e) {
+            catch {
                 // Ignore malformed URIs
             }
         });

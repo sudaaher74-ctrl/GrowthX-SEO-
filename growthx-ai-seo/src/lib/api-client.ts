@@ -200,6 +200,48 @@ export interface TrackedPromptRow {
   }[];
 }
 
+export interface PortfolioClient {
+  projectId: string;
+  name: string;
+  domain: string | null;
+  initials: string;
+  tier: string | null;
+  retainerMonthlyMinor: number | null;
+  retainerCurrency: string;
+  /** Null means unmeasured — never render it as 0%. */
+  aiCitationSharePct: number | null;
+  aiDeltaPt: number | null;
+  health: number | null;
+  trackedPrompts: number;
+  averagePosition: number | null;
+  criticalIssues: number;
+  trend: number[];
+  lastCrawledAt: string | null;
+}
+
+export interface PortfolioResponse {
+  clients: PortfolioClient[];
+  summary: {
+    portfolioAiSharePct: number | null;
+    portfolioAiDeltaPt: number | null;
+    promptsTracked: number;
+    clientsImproving: number;
+    clientsDeclining: number;
+    clientCount: number;
+    openCriticals: number;
+    mrrMinor: number;
+    mrrCurrency: string;
+    clientsWithoutRetainer: number;
+  };
+  alerts: {
+    projectId: string;
+    title: string;
+    detail: string;
+    tag: 'AI' | 'CRAWL' | 'SETUP';
+    severity: 'critical' | 'warning' | 'info';
+  }[];
+}
+
 export interface StrategyContent {
   businessSummary: string;
   marketAnalysis: {
@@ -242,6 +284,15 @@ export const api = {
   createOrganization: (name: string, slug: string) => post("/organizations", { name, slug }),
   listProjects: (orgId: string) => get<{ id: string; name: string }[]>(`/projects/org/${orgId}`),
   createProject: (name: string, organizationId: string) => post("/projects", { name, organizationId }),
+
+  // ── Agency portfolio
+  getPortfolio: (orgId: string, days = 28) =>
+    get<PortfolioResponse>(`/api/organizations/${orgId}/portfolio?days=${days}`),
+  setRetainer: (orgId: string, projectId: string, body: { tier?: string | null; retainerMonthlyMinor?: number | null; retainerCurrency?: string }) =>
+    request(`/api/organizations/${orgId}/portfolio/clients/${projectId}/retainer`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
 
   // ── Billing
   getPlans: () => get<{ plans: Plan[]; gateway: string; configured: boolean }>("/api/billing/plans"),

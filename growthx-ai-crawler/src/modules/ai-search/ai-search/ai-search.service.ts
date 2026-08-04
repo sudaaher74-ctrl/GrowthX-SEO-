@@ -74,7 +74,7 @@ export class AiSearchService {
           suggestedAction = parsed;
         }
       }
-    } catch (e) {
+    } catch {
       this.logger.debug('No valid JSON action block found in AI response.');
     }
 

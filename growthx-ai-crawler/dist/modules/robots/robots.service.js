@@ -66,7 +66,7 @@ let RobotsService = RobotsService_1 = class RobotsService {
     /**
      * Evaluates whether a specific URL path is allowed to be crawled according to robots.txt rules.
      */
-    async isUrlAllowed(targetUrl, userAgent = 'GrowthX-AI-Bot') {
+    async isUrlAllowed(targetUrl, _userAgent = 'GrowthX-AI-Bot') {
         try {
             const parsed = url.parse(targetUrl);
             const domain = `${parsed.protocol}//${parsed.host}`;
@@ -111,7 +111,7 @@ let RobotsService = RobotsService_1 = class RobotsService {
             const regex = new RegExp(regexStr);
             return regex.test(urlPath);
         }
-        catch (e) {
+        catch {
             return urlPath.startsWith(rule);
         }
     }

@@ -1,185 +1,87 @@
 "use client";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useTheme } from "next-themes";
-import { Search, Bell, Sun, Moon, ChevronDown, User, LogOut, Settings, CreditCard, HelpCircle, Zap, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Menu, Search, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatRelativeTime } from "@/lib/utils";
-import { mockRecentActivity } from "@/lib/mock-data";
-import { CommandPalette } from "@/components/ui/command-palette";
 
-interface TopNavProps {
-  collapsed: boolean;
-  setMobileOpen?: (open: boolean) => void;
-}
+/** Breadcrumb scope + title for each route, matching the design's header. */
+const ROUTE_META: Record<string, { scope: string; title: string }> = {
+  "/clients": { scope: "Agency", title: "Clients" },
+  "/reports": { scope: "Agency", title: "Reports" },
+  "/billing": { scope: "Agency", title: "Billing & settings" },
+  "/settings": { scope: "Agency", title: "Settings" },
+  "/dashboard": { scope: "Client", title: "Overview" },
+  "/geo-tracking": { scope: "Client", title: "AI Visibility" },
+  "/strategy": { scope: "Client", title: "Growth Strategy" },
+  "/keywords": { scope: "Client", title: "Search" },
+  "/rank-tracking": { scope: "Client", title: "Rank tracking" },
+  "/competitors": { scope: "Client", title: "Competitors" },
+  "/technical-seo": { scope: "Client", title: "Site health" },
+  "/backlinks": { scope: "Client", title: "Backlinks" },
+  "/content-ai": { scope: "Client", title: "Content AI" },
+};
 
-export function TopNav({ collapsed, setMobileOpen }: TopNavProps) {
-  const { theme, setTheme } = useTheme();
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+const PERIODS = ["7d", "28d", "90d"] as const;
 
-  const unread = mockRecentActivity.filter(a => a.status === "pending").length;
+export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?: (open: boolean) => void }) {
+  const pathname = usePathname();
+  const [period, setPeriod] = useState<(typeof PERIODS)[number]>("28d");
+
+  const meta = ROUTE_META[pathname] ?? { scope: "Client", title: "Workspace" };
 
   return (
     <header
-      className={cn(
-        "fixed top-0 right-0 h-14 z-40 flex items-center gap-2 px-3 md:gap-3 md:px-4 border-b border-[var(--border-color)] backdrop-blur-md transition-all duration-300",
-        collapsed ? "md:left-[64px]" : "md:left-[240px]",
-        "left-0"
-      )}
-      style={{
-        background: "var(--bg-overlay)",
-      }}
+      className="fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-3 border-b bg-white px-4 md:left-[232px]"
+      style={{ borderColor: "var(--border-color)" }}
     >
-      {/* Mobile Menu Toggle */}
-      <button
-        onClick={() => setMobileOpen?.(true)}
-        className="md:hidden p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] transition-base -ml-1"
-        aria-label="Open menu"
-      >
-        <Menu size={20} />
+      <button className="md:hidden" onClick={() => setMobileOpen?.(true)} aria-label="Open navigation">
+        <Menu size={18} className="text-[#52525b]" />
       </button>
 
-      {/* Breadcrumb / Page title */}
-      <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-semibold text-[var(--text-primary)] truncate">GrowthX AI SEO</h1>
-        <p className="text-xs text-[var(--text-muted)]">milquu.com · Navi Mumbai</p>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-[13px]">
+        <span className="text-[#a1a1aa]">{meta.scope}</span>
+        <span className="text-[#d4d4d8]">/</span>
+        <span className="font-semibold text-[#09090b]">{meta.title}</span>
       </div>
 
-      {/* Search trigger */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-[var(--text-muted)] text-sm hover:border-[var(--border-strong)] transition-base"
-      >
-        <Search size={13} />
-        <span className="hidden lg:block">Search...</span>
-        <kbd className="hidden md:inline-flex h-5 items-center gap-0.5 rounded border border-[var(--border-color)] bg-[var(--surface-3)] px-1 text-[10px] font-medium">
-          <span>⌘</span>K
-        </kbd>
-      </button>
-
-      {/* Mobile search icon only */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        className="sm:hidden p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] transition-base ml-auto"
-      >
-        <Search size={18} />
-      </button>
-
-      {/* Automation status */}
-      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        4 automations running
-      </div>
-
-      {/* Theme toggle */}
-      <button
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-3)] transition-base"
-        aria-label="Toggle theme"
-      >
-        {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-      </button>
-
-      {/* Notifications */}
-      <div className="relative">
-        <button
-          onClick={() => { setNotifOpen(!notifOpen); setUserOpen(false); }}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-3)] transition-base relative"
-          aria-label="Notifications"
+      <div className="ml-auto flex items-center gap-2">
+        {/* Search */}
+        <div
+          className="hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 lg:flex"
+          style={{ borderColor: "var(--border-color)" }}
         >
-          <Bell size={15} />
-          {unread > 0 && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />
-          )}
-        </button>
+          <Search size={13} className="text-[#a1a1aa]" />
+          <input
+            placeholder="Search or jump to…"
+            className="w-44 bg-transparent text-[12px] text-[#09090b] outline-none placeholder:text-[#a1a1aa]"
+          />
+          <kbd className="rounded border px-1 font-mono text-[9px] text-[#a1a1aa]" style={{ borderColor: "var(--border-color)" }}>
+            ⌘K
+          </kbd>
+        </div>
 
-        <AnimatePresence>
-          {notifOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.97 }}
-              transition={{ duration: 0.15 }}
-              className="absolute right-0 top-10 w-80 card z-50 overflow-hidden"
+        {/* Period pills */}
+        <div className="hidden items-center rounded-lg border p-0.5 sm:flex" style={{ borderColor: "var(--border-color)" }}>
+          {PERIODS.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors",
+                period === p ? "bg-[#f4f4f5] font-semibold text-[#09090b]" : "text-[#71717a] hover:text-[#09090b]",
+              )}
             >
-              <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
-                <span className="text-sm font-semibold">Notifications</span>
-                <span className="text-xs text-blue-500 cursor-pointer hover:underline">Mark all read</span>
-              </div>
-              <div className="divide-y divide-[var(--border-color)] max-h-80 overflow-y-auto">
-                {mockRecentActivity.slice(0, 5).map((item) => (
-                  <div key={item.id} className={cn(
-                    "px-4 py-3 hover:bg-[var(--surface-2)] cursor-pointer",
-                    item.status === "pending" && "bg-blue-50/50 dark:bg-blue-900/10"
-                  )}>
-                    <p className="text-xs text-[var(--text-primary)] leading-relaxed">{item.message}</p>
-                    <p className="text-[10px] text-[var(--text-muted)] mt-1">{formatRelativeTime(item.time)}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+              {p}
+            </button>
+          ))}
+        </div>
 
-      {/* User menu */}
-      <div className="relative">
-        <button
-          onClick={() => { setUserOpen(!userOpen); setNotifOpen(false); }}
-          className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-[var(--surface-3)] transition-base"
-        >
-          <div className="w-7 h-7 rounded-full bg-black dark:bg-white flex items-center justify-center text-white dark:text-black text-xs font-medium shrink-0">
-            S
-          </div>
-          <span className="hidden md:block text-sm font-medium text-[var(--text-primary)]">Sudarshan</span>
-          <ChevronDown size={13} className="text-[var(--text-muted)]" />
+        <button className="flex items-center gap-1.5 rounded-lg bg-[#09090b] px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90">
+          <Zap size={12} />
+          Run audit
         </button>
-
-        <AnimatePresence>
-          {userOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.97 }}
-              transition={{ duration: 0.15 }}
-              className="absolute right-0 top-10 w-56 card z-50 py-1 overflow-hidden"
-            >
-              <div className="px-3 py-2 border-b border-[var(--border-color)]">
-                <p className="text-sm font-semibold text-[var(--text-primary)]">Sudarshan</p>
-                <p className="text-xs text-[var(--text-muted)]">sudarshan@growthx.in</p>
-              </div>
-              {[
-                { icon: User, label: "Profile" },
-                { icon: Settings, label: "Settings" },
-                { icon: CreditCard, label: "Billing" },
-                { icon: Zap, label: "Upgrade Plan" },
-                { icon: HelpCircle, label: "Help & Support" },
-              ].map(({ icon: Icon, label }) => (
-                <button key={label} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] transition-base text-left">
-                  <Icon size={14} />
-                  {label}
-                </button>
-              ))}
-              <div className="border-t border-[var(--border-color)] mt-1 pt-1">
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-base text-left">
-                  <LogOut size={14} />
-                  Sign Out
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
-
-      {/* Click outside handler */}
-      {(notifOpen || userOpen) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setNotifOpen(false); setUserOpen(false); }} />
-      )}
-
-      {/* Command Palette (⌘K) */}
-      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
   );
 }

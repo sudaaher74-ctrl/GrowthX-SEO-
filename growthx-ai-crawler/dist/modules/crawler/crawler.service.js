@@ -400,7 +400,7 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
             parsed.pathname = pathname;
             return url.format(parsed);
         }
-        catch (e) {
+        catch {
             return rawUrl;
         }
     }

@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { UsageMetric } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
@@ -78,9 +78,14 @@ export class CrawlController {
     const website = await this.prisma.website.findUnique({ where: { id } });
     if (!website) throw new NotFoundException('Website not found');
 
-    // For local evaluation and immediate testing, auto-verify if verificationToken is present
     const isVerified = await this.securityService.verifyDomainOwnership(website.domain, website.verificationToken || 'verified');
-    if (isVerified || process.env.NODE_ENV !== 'production') {
+
+    // Auto-verify is an explicit opt-in, never an inference from NODE_ENV.
+    // Keying it on `NODE_ENV !== 'production'` meant any host that did not set
+    // NODE_ENV (the default on several PaaS providers) would let anyone claim
+    // and crawl a domain they do not own.
+    const autoVerify = process.env.ALLOW_UNVERIFIED_DOMAINS === 'true';
+    if (isVerified || autoVerify) {
       const updated = await this.prisma.website.update({
         where: { id },
         data: { isVerified: true, verifiedAt: new Date() },

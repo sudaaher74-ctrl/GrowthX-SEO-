@@ -68,7 +68,7 @@ let AiSearchService = AiSearchService_1 = class AiSearchService {
                 }
             }
         }
-        catch (e) {
+        catch {
             this.logger.debug('No valid JSON action block found in AI response.');
         }
         return {

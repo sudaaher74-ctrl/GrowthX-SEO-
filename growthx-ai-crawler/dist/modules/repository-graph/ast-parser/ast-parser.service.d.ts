@@ -15,5 +15,5 @@ export declare class AstParserService {
     /**
      * Queries the Vector DB to find the exact AST node and file.
      */
-    semanticSearch(query: string, repoPath: string): Promise<SemanticSearchResult[]>;
+    semanticSearch(query: string, _repoPath: string): Promise<SemanticSearchResult[]>;
 }

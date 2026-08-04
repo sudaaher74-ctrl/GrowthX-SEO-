@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
+import { resolve as resolveUrl } from 'url';
 
 export interface ExtractedHtmlData {
   title?: string;
@@ -46,9 +47,10 @@ export class HtmlExtractorService {
     let canonicalUrl = $('link[rel="canonical" i]').attr('href')?.trim();
     if (canonicalUrl && !canonicalUrl.startsWith('http')) {
       try {
-        const { resolve } = require('url');
-        canonicalUrl = resolve(pageUrl, canonicalUrl);
-      } catch (e) {}
+        canonicalUrl = resolveUrl(pageUrl, canonicalUrl);
+      } catch {
+        // A malformed canonical stays as-is; the validator flags it downstream.
+      }
     }
 
     // 4. Headings
@@ -88,7 +90,7 @@ export class HtmlExtractorService {
             jsonLd.push(parsed);
           }
         }
-      } catch (err) {
+      } catch {
         // Malformed JSON-LD
       }
     });
