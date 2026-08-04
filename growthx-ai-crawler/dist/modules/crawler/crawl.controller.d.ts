@@ -6,6 +6,8 @@ import { GraphService } from '../graph/graph.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+import { EntitlementsService } from '../billing/entitlements.service';
+import { OrgContextService } from '../billing/org-context.service';
 export declare class CrawlController {
     private readonly prisma;
     private readonly crawlerService;
@@ -15,10 +17,13 @@ export declare class CrawlController {
     private readonly aiService;
     private readonly autoFixService;
     private readonly schedulerService;
-    constructor(prisma: PrismaService, crawlerService: CrawlerService, securityService: SecurityService, historyService: HistoryService, graphService: GraphService, aiService: AiService, autoFixService: AutoFixService, schedulerService: SchedulerService);
-    registerWebsite(body: {
+    private readonly entitlements;
+    private readonly orgContext;
+    constructor(prisma: PrismaService, crawlerService: CrawlerService, securityService: SecurityService, historyService: HistoryService, graphService: GraphService, aiService: AiService, autoFixService: AutoFixService, schedulerService: SchedulerService, entitlements: EntitlementsService, orgContext: OrgContextService);
+    registerWebsiteRoute(req: any, body: {
         url: string;
         domain: string;
+        projectId?: string;
     }): Promise<{
         id: string;
         domain: string;
@@ -27,6 +32,8 @@ export declare class CrawlController {
         verificationToken: string;
         instructions: string;
     }>;
+    /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
+    private registerWebsite;
     verifyDomain(id: string): Promise<{
         success: boolean;
         isVerified: boolean;
@@ -129,9 +136,9 @@ export declare class CrawlController {
     }>;
     getGraphReport(id: string): Promise<import("../graph/graph.service").GraphAnalysisReport>;
     getCrawlDiff(id: string, compareWith: string): Promise<import("../history/history.service").CrawlDiffReport>;
-    analyzeIssue(id: string): Promise<import("../ai/ai.service").AIAnalysisResult>;
-    generateAutoFix(id: string): Promise<import("../ai/auto-fix.service").GeneratedFixPatch>;
-    approveFix(id: string, body: {
+    analyzeIssue(req: any, id: string): Promise<import("../ai/ai.service").AIAnalysisResult>;
+    generateAutoFix(req: any, id: string): Promise<import("../ai/auto-fix.service").GeneratedFixPatch>;
+    approveFix(req: any, id: string, body: {
         userId?: string;
     }): Promise<{
         success: boolean;

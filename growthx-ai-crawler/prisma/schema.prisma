@@ -24,10 +24,55 @@ enum Role {
 
 enum PlanType {
   FREE
-  STARTER
-  PROFESSIONAL
-  BUSINESS
+  STARTER // INR 2,000 / month
+  PRO // INR 5,000 / month
   ENTERPRISE
+}
+
+/// Mirrors the Razorpay subscription lifecycle so we never have to parse
+/// free-form strings when deciding whether an organization may use the product.
+enum SubscriptionStatus {
+  CREATED
+  AUTHENTICATED
+  ACTIVE
+  PENDING
+  HALTED
+  CANCELLED
+  COMPLETED
+  EXPIRED
+}
+
+/// Every metered thing a plan can cap. Kept as an enum so a typo in a service
+/// is a compile error rather than a silently uncounted usage.
+enum UsageMetric {
+  CRAWL_PAGES
+  AI_ANALYSES
+  AUTO_FIXES
+  AI_VISIBILITY_CHECKS
+  STRATEGY_REPORTS
+}
+
+/// Assistants we report citation share for.
+///
+/// Only CHATGPT, CLAUDE, and GEMINI can be queried directly through a vendor
+/// API. PERPLEXITY, AI_OVERVIEWS, and COPILOT are defined so the dashboard can
+/// display them, but no check runs against them until an adapter exists —
+/// `PromptCheck.error` records that rather than reporting a fabricated zero.
+enum AiAssistant {
+  CHATGPT
+  CLAUDE
+  GEMINI
+  PERPLEXITY
+  AI_OVERVIEWS
+  COPILOT
+}
+
+/// What a searcher is trying to do, used to cluster prompts in reporting.
+enum SearchIntent {
+  INFORMATIONAL
+  COMMERCIAL
+  TRANSACTIONAL
+  NAVIGATIONAL
 }
 
 enum IssueSeverity {
@@ -280,6 +325,9 @@ model AIRecommendation {
   priorityScore       Int       @default(50) // 1 - 100
   recommendedFixPatch String // JSON or copy-ready text patch
   expectedOutcome     String
+  /// Which model produced this, e.g. "claude-opus-5" or "rules-engine". Lets us
+  /// audit what a customer actually got for their plan.
+  generatedByModel    String?
   status              FixStatus @default(PENDING_APPROVAL)
   approvedBy          String?
   appliedAt           DateTime?
@@ -314,6 +362,7 @@ model Organization {
   members      OrganizationMember[]
   projects     Project[]
   subscription Subscription?
+  usageRecords UsageRecord[]
   auditLogs    AuditLog[]
 }
 
@@ -338,24 +387,161 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   websites     Website[]
+  prompts      TrackedPrompt[]
+  competitors  CompetitorDomain[]
+  strategies   StrategyReport[]
 
   @@index([organizationId])
 }
 
 model Subscription {
-  id                   String    @id @default(uuid())
-  organizationId       String    @unique
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  plan                 PlanType  @default(FREE)
-  status               String    @default("active") // active, canceled, past_due
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id             String @id @default(uuid())
+  organizationId String @unique
+
+  plan   PlanType           @default(FREE)
+  status SubscriptionStatus @default(ACTIVE)
+
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String? @unique
+  razorpayPlanId         String?
+
+  /// Denormalised from the plan catalog at checkout time so an invoice always
+  /// reflects what the customer actually agreed to, even if the catalog changes.
+  amountPaise Int    @default(0)
+  currency    String @default("INR")
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  cancelledAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, currentPeriodEnd])
+}
+
+/// One row per (organization, metric, billing period). Incremented after work
+/// succeeds, so a failed crawl or a failed LLM call never burns the customer's
+/// allowance.
+model UsageRecord {
+  id             String      @id @default(uuid())
+  organizationId String
+  metric         UsageMetric
+  periodStart    DateTime
+  periodEnd      DateTime
+  used           Int         @default(0)
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, metric, periodStart])
+  @@index([organizationId, periodStart])
+}
+
+/// A question we ask AI assistants on a schedule to see whether they cite the
+/// customer. This is the unit the AI Visibility dashboard is built on.
+model TrackedPrompt {
+  id        String        @id @default(uuid())
+  projectId String
+  text      String
+  intent    SearchIntent?
+  /// Free-form grouping, e.g. "comparison guides".
+  cluster   String?
+  /// Monthly search volume, when the customer supplies it.
+  estimatedVolume Int?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checks  PromptCheck[]
+
+  @@unique([projectId, text])
+  @@index([projectId, isActive])
+}
+
+/// One run of one prompt against one assistant.
+model PromptCheck {
+  id              String      @id @default(uuid())
+  trackedPromptId String
+  assistant       AiAssistant
+  checkedAt       DateTime    @default(now())
+
+  /// Whether the customer's own domain appeared in the answer.
+  cited Boolean @default(false)
+  /// 1 = the customer was the first brand named. Null when not cited.
+  position Int?
+  /// The customer URL the assistant referenced, when it gave one.
+  citedUrl String?
+  /// Tracked competitor domains that appeared in the same answer.
+  competitorsCited String[] @default([])
+
+  /// Trimmed answer text, kept so a customer can see the evidence.
+  answerExcerpt String?
+  /// The model that actually answered, e.g. "claude-opus-5".
+  model String?
+  /// Populated when the check could not run; `cited` stays false but this
+  /// distinguishes "not cited" from "never asked".
+  error String?
+
+  trackedPrompt TrackedPrompt @relation(fields: [trackedPromptId], references: [id], onDelete: Cascade)
+
+  @@index([trackedPromptId, checkedAt])
+  @@index([assistant, checkedAt])
+  @@index([checkedAt])
+}
+
+/// A generated go-to-market plan: market read, SEO roadmap, content plan, and
+/// social strategy, grounded in this project's crawl and visibility evidence.
+model StrategyReport {
+  id        String   @id @default(uuid())
+  projectId String
+  /// The evidence the plan was built from, kept so a customer can see the basis
+  /// for a recommendation and we can debug a bad one.
+  evidence  Json
+  content   Json
+  generatedByModel String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// A rival the customer wants share-of-voice measured against.
+model CompetitorDomain {
+  id        String   @id @default(uuid())
+  projectId String
+  domain    String
+  label     String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+}
+
+/// Razorpay retries webhooks aggressively. Storing the delivery id makes
+/// handling idempotent so a retried `subscription.charged` cannot roll the
+/// billing period forward twice.
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  provider    String
+  eventId     String
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+  @@index([eventType, createdAt])
 }
 
 model AuditLog {

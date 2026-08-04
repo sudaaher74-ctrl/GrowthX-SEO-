@@ -9,7 +9,7 @@ import {
   FileText, Bot, LineChart, AreaChart, Code2, Tag, Image, MapPin,
   Link2, FileBarChart, Zap, CreditCard, Settings, HelpCircle,
   ChevronLeft, ChevronRight, TrendingUp, Globe, Sparkles,
-  Activity, ShieldAlert
+  Activity, ShieldAlert, Target
 } from "lucide-react";
 
 const navItems = [
@@ -35,7 +35,8 @@ const navItems = [
     { label: "Image SEO", href: "/image-seo", icon: Image },
     { label: "Internal Linking", href: "/internal-linking", icon: Link2 },
     { label: "Local SEO", href: "/local-seo", icon: MapPin },
-    { label: "GEO / AI Visibility", href: "/geo-tracking", icon: Sparkles },
+    { label: "AI Visibility", href: "/geo-tracking", icon: Sparkles },
+    { label: "Growth Strategy", href: "/strategy", icon: Target },
     { label: "AI Assistant", href: "/ai-assistant", icon: Bot },
   ]},
   { group: "Operations", items: [

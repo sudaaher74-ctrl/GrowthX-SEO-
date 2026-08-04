@@ -6,7 +6,9 @@ const swagger_1 = require("@nestjs/swagger");
 const app_module_1 = require("./app.module");
 async function bootstrap() {
     const logger = new common_1.Logger('Bootstrap');
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    // rawBody is required to verify the Razorpay webhook HMAC, which is computed
+    // over the exact bytes sent rather than the re-serialised JSON.
+    const app = await core_1.NestFactory.create(app_module_1.AppModule, { rawBody: true });
     app.enableCors();
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,

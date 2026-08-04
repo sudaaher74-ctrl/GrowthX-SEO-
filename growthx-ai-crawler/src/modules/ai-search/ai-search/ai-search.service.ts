@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MultiAiRouterService, ModelType } from '../multi-ai-router/multi-ai-router.service';
+import { AiProvider, AiTask, MultiAiRouterService } from '../multi-ai-router/multi-ai-router.service';
 import { InvestigationToolsService } from '../investigation-tools/investigation-tools.service';
 
 export interface AiSearchResponse {
   answer: string;
+  /** Which model actually answered, so the UI can show it and we can audit spend. */
+  model: { provider: AiProvider; name: string; inputTokens: number; outputTokens: number; estimatedCostUsd: number | null };
   suggestedAction?: {
     type: 'AUTO_FIX';
     payload: { issueId: string; targetFile: string; property: string; value: string; }
@@ -22,7 +24,7 @@ export class AiSearchService {
   /**
    * Main entry point for the "Perplexity for SEO" feature.
    */
-  async askQuestion(projectId: string, question: string): Promise<AiSearchResponse> {
+  async askQuestion(projectId: string, question: string, organizationId?: string): Promise<AiSearchResponse> {
     this.logger.log(`Received question for project ${projectId}: "${question}"`);
 
     // Step 1: Investigation (RAG / Tool Calling Simulation)
@@ -49,12 +51,15 @@ export class AiSearchService {
       Evidence provided from Competitor Intelligence: ${competitorData}
     `;
 
-    // Step 3: Call the Reasoning Model (Gemini Pro) via Multi-Router
-    const answer = await this.multiAiRouter.generateResponse(
-      question, 
-      ModelType.REASONING, 
-      systemPrompt
-    );
+    // Step 3: Reasoning. The router picks the strongest model the org's plan
+    // allows — Claude on Pro, Gemini on Starter — and falls through on failure.
+    const completion = await this.multiAiRouter.generate({
+      prompt: question,
+      systemInstruction: systemPrompt,
+      task: AiTask.REASONING,
+      organizationId,
+    });
+    const answer = completion.text;
 
     // Step 4: Action Generation
     // In production, the LLM will return a structured JSON block if it determines
@@ -75,6 +80,13 @@ export class AiSearchService {
 
     return {
       answer,
+      model: {
+        provider: completion.provider,
+        name: completion.model,
+        inputTokens: completion.usage.inputTokens,
+        outputTokens: completion.usage.outputTokens,
+        estimatedCostUsd: completion.usage.estimatedCostUsd,
+      },
       suggestedAction
     };
   }

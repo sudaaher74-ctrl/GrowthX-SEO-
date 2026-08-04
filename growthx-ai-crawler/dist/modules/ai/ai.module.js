@@ -10,12 +10,14 @@ exports.AiModule = void 0;
 const common_1 = require("@nestjs/common");
 const ai_service_1 = require("./ai.service");
 const auto_fix_service_1 = require("./auto-fix.service");
+const ai_search_module_1 = require("../ai-search/ai-search.module");
 let AiModule = class AiModule {
 };
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
+        imports: [ai_search_module_1.AiSearchModule],
         providers: [ai_service_1.AiService, auto_fix_service_1.AutoFixService],
         exports: [ai_service_1.AiService, auto_fix_service_1.AutoFixService],
     })

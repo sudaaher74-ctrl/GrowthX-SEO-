@@ -21,7 +21,7 @@ exports.AiSearchModule = AiSearchModule = __decorate([
         imports: [database_module_1.DatabaseModule],
         controllers: [ai_search_controller_1.AiSearchController],
         providers: [multi_ai_router_service_1.MultiAiRouterService, investigation_tools_service_1.InvestigationToolsService, ai_search_service_1.AiSearchService],
-        exports: [ai_search_service_1.AiSearchService]
+        exports: [ai_search_service_1.AiSearchService, multi_ai_router_service_1.MultiAiRouterService]
     })
 ], AiSearchModule);
 //# sourceMappingURL=ai-search.module.js.map

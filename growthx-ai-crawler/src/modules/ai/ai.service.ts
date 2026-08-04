@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { OpenAI } from 'openai';
+import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
 export interface AIAnalysisResult {
   whyItMatters: string;
@@ -11,23 +11,40 @@ export interface AIAnalysisResult {
   expectedOutcome: string;
 }
 
+/** Constrains the model to exactly the shape we persist. */
+const ANALYSIS_SCHEMA = {
+  type: 'object',
+  properties: {
+    whyItMatters: { type: 'string' },
+    seoImpact: { type: 'string' },
+    businessImpact: { type: 'string' },
+    priorityScore: { type: 'integer' },
+    recommendedFix: { type: 'string' },
+    expectedOutcome: { type: 'string' },
+  },
+  required: ['whyItMatters', 'seoImpact', 'businessImpact', 'priorityScore', 'recommendedFix', 'expectedOutcome'],
+  additionalProperties: false,
+} as const;
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly provider = process.env.AI_PROVIDER || 'gemini';
-  private openai?: OpenAI;
 
-  constructor(private readonly prisma: PrismaService) {
-    if (this.provider === 'openai' && process.env.OPENAI_API_KEY) {
-      this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    }
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly router: MultiAiRouterService,
+  ) {}
 
   /**
-   * Analyzes a detected SEO issue using AI to explain root causes, SEO/business impacts, and priority grading.
-   * Module 15 Requirement: Do NOT immediately modify the website.
+   * Explains an SEO issue: why it matters, its SEO and business impact, and how
+   * to fix it. Which model answers depends on the organization's plan — Gemini
+   * on Starter, Claude or GPT on Pro — and is enforced by the router.
+   *
+   * With no provider configured (or on any model failure) this falls back to a
+   * deterministic SEO rules engine, so the product still returns real guidance
+   * rather than an error.
    */
-  async analyzeIssue(issueId: string): Promise<AIAnalysisResult> {
+  async analyzeIssue(issueId: string, organizationId?: string): Promise<AIAnalysisResult> {
     const issue = await this.prisma.issue.findUnique({
       where: { id: issueId },
       include: { page: true },
@@ -37,47 +54,58 @@ export class AiService {
       throw new Error(`Issue with ID ${issueId} not found`);
     }
 
-    this.logger.log(`Performing AI Analysis (${this.provider}) for issue ${issue.issueType} on ${issue.affectedUrl}...`);
+    this.logger.log(`Analyzing ${issue.issueType} on ${issue.affectedUrl}...`);
 
     let analysis: AIAnalysisResult;
+    let generatedByModel = 'rules-engine';
 
-    const hasRealKey = (this.provider === 'gemini' && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') ||
-                       (this.provider === 'openai' && this.openai);
+    try {
+      const completion = await this.router.generate({
+        prompt: this.buildPrompt(issue),
+        systemInstruction:
+          'You are a Staff Technical SEO and growth architect. Be specific and actionable. ' +
+          'Respond with JSON matching the requested schema and nothing else.',
+        task: AiTask.REASONING,
+        organizationId,
+        jsonSchema: ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
+      });
 
-    if (!hasRealKey) {
-      this.logger.debug('No live AI API key configured. Utilizing expert SEO rules engine for structured AI explanation.');
-      analysis = this.generateDeterministicAnalysis(issue.issueType, issue.severity, issue.affectedUrl, issue.description);
-    } else {
-      try {
-        analysis = await this.invokeLlmProvider(issue);
-      } catch (llmError: any) {
-        this.logger.warn(`LLM invocation failed: ${llmError.message}. Falling back to deterministic SEO analysis.`);
-        analysis = this.generateDeterministicAnalysis(issue.issueType, issue.severity, issue.affectedUrl, issue.description);
+      if (completion.refused || !completion.text.trim()) {
+        throw new Error('Model returned no usable content.');
       }
+
+      analysis = this.parseAnalysis(completion.text, issue);
+      generatedByModel = completion.model;
+      this.logger.log(
+        `Analysis from ${completion.provider}/${completion.model} ` +
+          `(${completion.usage.inputTokens}in/${completion.usage.outputTokens}out` +
+          `${completion.usage.estimatedCostUsd !== null ? `, $${completion.usage.estimatedCostUsd}` : ''})`,
+      );
+    } catch (error: any) {
+      this.logger.warn(`AI analysis unavailable (${error.message}); using the SEO rules engine.`);
+      analysis = this.generateDeterministicAnalysis(
+        issue.issueType,
+        issue.severity,
+        issue.affectedUrl,
+        issue.description,
+      );
     }
 
-    // Persist to AIRecommendation table
+    const record = {
+      whyItMatters: analysis.whyItMatters,
+      seoImpact: analysis.seoImpact,
+      businessImpact: analysis.businessImpact,
+      priorityScore: analysis.priorityScore,
+      recommendedFixPatch: analysis.recommendedFix,
+      expectedOutcome: analysis.expectedOutcome,
+      generatedByModel,
+      status: 'PENDING_APPROVAL' as const,
+    };
+
     await this.prisma.aIRecommendation.upsert({
       where: { issueId: issue.id },
-      update: {
-        whyItMatters: analysis.whyItMatters,
-        seoImpact: analysis.seoImpact,
-        businessImpact: analysis.businessImpact,
-        priorityScore: analysis.priorityScore,
-        recommendedFixPatch: analysis.recommendedFix,
-        expectedOutcome: analysis.expectedOutcome,
-        status: 'PENDING_APPROVAL',
-      },
-      create: {
-        issueId: issue.id,
-        whyItMatters: analysis.whyItMatters,
-        seoImpact: analysis.seoImpact,
-        businessImpact: analysis.businessImpact,
-        priorityScore: analysis.priorityScore,
-        recommendedFixPatch: analysis.recommendedFix,
-        expectedOutcome: analysis.expectedOutcome,
-        status: 'PENDING_APPROVAL',
-      },
+      update: record,
+      create: { issueId: issue.id, ...record },
     });
 
     await this.prisma.issue.update({
@@ -88,37 +116,47 @@ export class AiService {
     return analysis;
   }
 
-  /**
-   * Invokes configured LLM (OpenAI / Gemini)
-   */
-  private async invokeLlmProvider(issue: any): Promise<AIAnalysisResult> {
-    const prompt = `You are a Staff Technical SEO & SaaS Growth Architect. Analyze the following SEO issue:
-Issue Type: ${issue.issueType}
-Severity: ${issue.severity}
-URL: ${issue.affectedUrl}
-Description: ${issue.description}
+  private buildPrompt(issue: { issueType: string; severity: string; affectedUrl: string; description: string }): string {
+    return [
+      'Analyze this technical SEO issue found during a site crawl.',
+      `Issue type: ${issue.issueType}`,
+      `Severity: ${issue.severity}`,
+      `URL: ${issue.affectedUrl}`,
+      `Detected: ${issue.description}`,
+      '',
+      'priorityScore is 1-100, weighted by how much fixing this moves organic traffic.',
+      'recommendedFix must be concrete enough to implement without further research.',
+    ].join('\n');
+  }
 
-Provide a JSON response with exactly these fields:
-{
-  "whyItMatters": "...",
-  "seoImpact": "...",
-  "businessImpact": "...",
-  "priorityScore": 85,
-  "recommendedFix": "...",
-  "expectedOutcome": "..."
-}`;
+  /** Tolerates a model that wraps its JSON in prose or a code fence. */
+  private parseAnalysis(text: string, issue: { severity: string }): AIAnalysisResult {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+    const parsed = JSON.parse(candidate);
 
-    if (this.provider === 'openai' && this.openai) {
-      const resp = await this.openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-      });
-      return JSON.parse(resp.choices[0].message.content || '{}') as AIAnalysisResult;
+    const required = ['whyItMatters', 'seoImpact', 'businessImpact', 'recommendedFix', 'expectedOutcome'];
+    for (const field of required) {
+      if (typeof parsed[field] !== 'string' || !parsed[field].trim()) {
+        throw new Error(`Model response is missing "${field}".`);
+      }
     }
 
-    // Fallback to deterministic if provider fails or unconfigured
-    return this.generateDeterministicAnalysis(issue.issueType, issue.severity, issue.affectedUrl, issue.description);
+    const score = Number(parsed.priorityScore);
+    return {
+      whyItMatters: parsed.whyItMatters,
+      seoImpact: parsed.seoImpact,
+      businessImpact: parsed.businessImpact,
+      priorityScore: Number.isFinite(score)
+        ? Math.min(100, Math.max(1, Math.round(score)))
+        : this.severityScore(issue.severity),
+      recommendedFix: parsed.recommendedFix,
+      expectedOutcome: parsed.expectedOutcome,
+    };
+  }
+
+  private severityScore(severity: string): number {
+    return { CRITICAL: 95, HIGH: 80, MEDIUM: 55, LOW: 30 }[severity] ?? 60;
   }
 
   /**

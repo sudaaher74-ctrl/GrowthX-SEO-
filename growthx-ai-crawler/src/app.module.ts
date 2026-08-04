@@ -23,11 +23,12 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { ProjectsModule } from './modules/projects/projects.module';
-import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomous-engineer.module';
 import { AiSearchModule } from './modules/ai-search/ai-search.module';
 import { RepositoryGraphModule } from './modules/repository-graph/repository-graph.module';
 import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module';
+import { StrategyModule } from './modules/strategy/strategy.module';
 
 @Module({
   imports: [
@@ -54,11 +55,12 @@ import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module
     UsersModule,
     OrganizationsModule,
     ProjectsModule,
-    SubscriptionsModule,
+    BillingModule,
     AutonomousEngineerModule,
     AiSearchModule,
     RepositoryGraphModule,
     AiVisibilityModule,
+    StrategyModule,
   ],
   controllers: [HealthController],
   providers: [],

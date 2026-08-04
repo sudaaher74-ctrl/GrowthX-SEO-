@@ -32,11 +32,12 @@ const auth_module_1 = require("./modules/auth/auth.module");
 const users_module_1 = require("./modules/users/users.module");
 const organizations_module_1 = require("./modules/organizations/organizations.module");
 const projects_module_1 = require("./modules/projects/projects.module");
-const subscriptions_module_1 = require("./modules/subscriptions/subscriptions.module");
+const billing_module_1 = require("./modules/billing/billing.module");
 const autonomous_engineer_module_1 = require("./modules/autonomous-engineer/autonomous-engineer.module");
 const ai_search_module_1 = require("./modules/ai-search/ai-search.module");
 const repository_graph_module_1 = require("./modules/repository-graph/repository-graph.module");
 const ai_visibility_module_1 = require("./modules/ai-visibility/ai-visibility.module");
+const strategy_module_1 = require("./modules/strategy/strategy.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -66,11 +67,12 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             organizations_module_1.OrganizationsModule,
             projects_module_1.ProjectsModule,
-            subscriptions_module_1.SubscriptionsModule,
+            billing_module_1.BillingModule,
             autonomous_engineer_module_1.AutonomousEngineerModule,
             ai_search_module_1.AiSearchModule,
             repository_graph_module_1.RepositoryGraphModule,
             ai_visibility_module_1.AiVisibilityModule,
+            strategy_module_1.StrategyModule,
         ],
         controllers: [health_controller_1.HealthController],
         providers: [],

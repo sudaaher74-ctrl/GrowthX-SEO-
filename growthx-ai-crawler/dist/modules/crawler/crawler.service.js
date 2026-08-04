@@ -28,9 +28,11 @@ const performance_service_1 = require("../performance/performance.service");
 const issue_engine_service_1 = require("../issues/issue-engine.service");
 const graph_service_1 = require("../graph/graph.service");
 const crawler_gateway_1 = require("../socket/crawler.gateway");
+const entitlements_service_1 = require("../billing/entitlements.service");
+const client_1 = require("@prisma/client");
 const url = require("url");
 let CrawlerService = CrawlerService_1 = class CrawlerService {
-    constructor(prisma, storage, queue, robots, sitemap, fetcher, metrics, htmlExtractor, imageAnalyzer, linkAnalyzer, schemaValidator, contentAnalyzer, performanceService, issueEngine, graphService, crawlerGateway) {
+    constructor(prisma, storage, queue, robots, sitemap, fetcher, metrics, htmlExtractor, imageAnalyzer, linkAnalyzer, schemaValidator, contentAnalyzer, performanceService, issueEngine, graphService, crawlerGateway, entitlements) {
         this.prisma = prisma;
         this.storage = storage;
         this.queue = queue;
@@ -47,6 +49,7 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
         this.issueEngine = issueEngine;
         this.graphService = graphService;
         this.crawlerGateway = crawlerGateway;
+        this.entitlements = entitlements;
         this.logger = new common_1.Logger(CrawlerService_1.name);
         this.localVisited = new Map();
         this.jobSitemapUrls = new Map();
@@ -366,10 +369,22 @@ let CrawlerService = CrawlerService_1 = class CrawlerService {
         catch (graphErr) {
             this.logger.error(`[JOB ${jobId}] Graph analysis error`, graphErr);
         }
-        await this.prisma.crawlJob.update({
+        const finished = await this.prisma.crawlJob.update({
             where: { id: jobId },
             data: { status: 'COMPLETED', finishedAt: new Date() },
+            include: { website: { select: { project: { select: { organizationId: true } } } } },
         });
+        // Bill crawled pages against the plan allowance only now that the job has
+        // actually finished, so an aborted or failed crawl costs the customer nothing.
+        const organizationId = finished.website.project?.organizationId;
+        if (organizationId && finished.pagesCrawled > 0) {
+            try {
+                await this.entitlements.recordUsage(organizationId, client_1.UsageMetric.CRAWL_PAGES, finished.pagesCrawled);
+            }
+            catch (usageErr) {
+                this.logger.error(`[JOB ${jobId}] Failed to record crawl usage`, usageErr);
+            }
+        }
         this.metrics.activeCrawlJobs.dec();
         this.localVisited.delete(jobId);
         this.jobSitemapUrls.delete(jobId);
@@ -408,6 +423,7 @@ exports.CrawlerService = CrawlerService = CrawlerService_1 = __decorate([
         performance_service_1.PerformanceService,
         issue_engine_service_1.IssueEngineService,
         graph_service_1.GraphService,
-        crawler_gateway_1.CrawlerGateway])
+        crawler_gateway_1.CrawlerGateway,
+        entitlements_service_1.EntitlementsService])
 ], CrawlerService);
 //# sourceMappingURL=crawler.service.js.map

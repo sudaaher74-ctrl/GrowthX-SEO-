@@ -23,7 +23,7 @@ let AiSearchService = AiSearchService_1 = class AiSearchService {
     /**
      * Main entry point for the "Perplexity for SEO" feature.
      */
-    async askQuestion(projectId, question) {
+    async askQuestion(projectId, question, organizationId) {
         this.logger.log(`Received question for project ${projectId}: "${question}"`);
         // Step 1: Investigation (RAG / Tool Calling Simulation)
         this.logger.log('Executing Investigation Phase...');
@@ -46,8 +46,15 @@ let AiSearchService = AiSearchService_1 = class AiSearchService {
       Evidence provided from Google Search Console (Traffic): ${trafficData}
       Evidence provided from Competitor Intelligence: ${competitorData}
     `;
-        // Step 3: Call the Reasoning Model (Gemini Pro) via Multi-Router
-        const answer = await this.multiAiRouter.generateResponse(question, multi_ai_router_service_1.ModelType.REASONING, systemPrompt);
+        // Step 3: Reasoning. The router picks the strongest model the org's plan
+        // allows — Claude on Pro, Gemini on Starter — and falls through on failure.
+        const completion = await this.multiAiRouter.generate({
+            prompt: question,
+            systemInstruction: systemPrompt,
+            task: multi_ai_router_service_1.AiTask.REASONING,
+            organizationId,
+        });
+        const answer = completion.text;
         // Step 4: Action Generation
         // In production, the LLM will return a structured JSON block if it determines
         // an AUTO_FIX is appropriate. We parse that JSON here.
@@ -66,6 +73,13 @@ let AiSearchService = AiSearchService_1 = class AiSearchService {
         }
         return {
             answer,
+            model: {
+                provider: completion.provider,
+                name: completion.model,
+                inputTokens: completion.usage.inputTokens,
+                outputTokens: completion.usage.outputTokens,
+                estimatedCostUsd: completion.usage.estimatedCostUsd,
+            },
             suggestedAction
         };
     }

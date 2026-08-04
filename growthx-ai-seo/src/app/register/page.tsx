@@ -1,298 +1,112 @@
 "use client";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Globe, ArrowRight, CheckCircle2, Search, Zap, Shield, Sparkles, Building2, MapPin, BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-const industries = [
-  "E-commerce & Retail", "SaaS & Technology", "Agency & Marketing",
-  "Food & Beverage / Dairy", "Healthcare & Medical", "Real Estate",
-  "Legal & Finance", "Local Business / Services", "Other"
-];
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Globe, Loader2 } from "lucide-react";
+import { api, auth } from "@/lib/api-client";
 
 export default function RegisterPage() {
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [gscConnected, setGscConnected] = useState(false);
-  const [gaConnected, setGaConnected] = useState(false);
-  const [crawlProgress, setCrawlProgress] = useState(0);
   const router = useRouter();
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", company: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const handleNext = () => {
-    if (step === 3) {
-      setStep(4);
-      // Simulate automated crawler
-      let p = 0;
-      const interval = setInterval(() => {
-        p += 20;
-        setCrawlProgress(p);
-        if (p >= 100) {
-          clearInterval(interval);
-        }
-      }, 600);
-    } else {
-      setStep(step + 1);
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await api.register({
+        email: form.email,
+        password: form.password,
+        firstName: form.firstName,
+        lastName: form.lastName,
+      });
+
+      // A user without an organization has nothing to attach a plan or a site
+      // to, so create one immediately rather than leaving a half-set-up account.
+      const name = form.company.trim() || `${form.firstName || form.email.split("@")[0]}'s workspace`;
+      const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36)}`;
+      const org = await api.createOrganization(name, slug);
+      if ((org as any)?.id) auth.setOrgId((org as any).id);
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create the account.");
+    } finally {
+      setBusy(false);
     }
-  };
-
-  const handleConnectGsc = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setGscConnected(true);
-      setLoading(false);
-    }, 1200);
-  };
-
-  const handleConnectGa = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setGaConnected(true);
-      setLoading(false);
-    }, 1200);
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: "linear-gradient(135deg, #1f182c 0%, #2d1e42 40%, #1f2e26 100%)" }}>
-      {/* Background glowing orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-20 blur-3xl" style={{ background: "radial-gradient(circle, #7c3aed, transparent)" }} />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-15 blur-3xl" style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
-      </div>
-
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden p-4"
+      style={{ background: "linear-gradient(135deg, #1f182c 0%, #2d1e42 40%, #1f2e26 100%)" }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" as const }}
-        className="w-full max-w-xl"
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-md"
       >
-        {/* Glass card */}
-        <div className="glass-strong rounded-3xl p-8 md:p-10 border border-white/15 shadow-2xl">
-          {/* Logo & Step indicator */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl gradient-bg-brand flex items-center justify-center shadow-glow-brand">
-                <Globe size={20} className="text-white" />
-              </div>
-              <span className="text-lg font-bold text-white tracking-tight">GrowthX AI SEO</span>
+        <div className="glass-strong rounded-2xl p-8">
+          <div className="mb-8 flex flex-col items-center">
+            <div className="gradient-bg-brand shadow-glow-brand mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
+              <Globe size={26} className="text-white" />
             </div>
-
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-              <span>Step {step} of 4</span>
-              <div className="flex gap-1 ml-2">
-                {[1, 2, 3, 4].map(s => (
-                  <div key={s} className={cn("w-6 h-1.5 rounded-full transition-all duration-300", s === step ? "gradient-bg-brand w-8" : s < step ? "bg-emerald-500" : "bg-white/20")} />
-                ))}
-              </div>
-            </div>
+            <h1 className="text-h2 text-center text-white">Create your workspace</h1>
+            <p className="mt-1 text-center text-sm text-slate-400">Start with a free crawl of your site</p>
           </div>
 
-          <AnimatePresence mode="wait">
-            {/* Step 1: Account Creation */}
-            {step === 1 && (
-              <motion.div key="step-1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-5">
-                <div>
-                  <h2 className="text-h2 text-white">Create your account</h2>
-                  <p className="text-sm text-slate-400 mt-1">Start your 14-day free trial on the Growth plan. No credit card required.</p>
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="First name" value={form.firstName} onChange={set("firstName")} />
+              <Input label="Last name" value={form.lastName} onChange={set("lastName")} />
+            </div>
+            <Input label="Business name" value={form.company} onChange={set("company")} placeholder="Acme Traders" />
+            <Input label="Email" type="email" required value={form.email} onChange={set("email")} placeholder="you@business.in" />
+            <Input label="Password" type="password" required value={form.password} onChange={set("password")} placeholder="••••••••" />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">First Name</label>
-                    <input type="text" defaultValue="Sudarshan" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Company Name</label>
-                    <input type="text" defaultValue="GrowthX Agency" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Work Email</label>
-                  <input type="email" defaultValue="sudarshan@growthx.in" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Password</label>
-                  <input type="password" defaultValue="••••••••••••" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
-                </div>
-
-                <Button variant="primary" size="lg" className="w-full mt-2" onClick={handleNext} iconRight={<ArrowRight size={16} />}>
-                  Continue to Workspace Setup
-                </Button>
-
-                <p className="text-center text-xs text-slate-500 mt-4">
-                  Already have an account? <Link href="/login" className="text-purple-400 hover:underline">Sign in here</Link>
-                </p>
-              </motion.div>
+            {error && (
+              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {error}
+              </p>
             )}
 
-            {/* Step 2: Workspace Setup */}
-            {step === 2 && (
-              <motion.div key="step-2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-5">
-                <div>
-                  <h2 className="text-h2 text-white">Set up your workspace</h2>
-                  <p className="text-sm text-slate-400 mt-1">Tell us about your target website so our AI can configure your rank tracking and audit profiles.</p>
-                </div>
+            <button
+              type="submit"
+              disabled={busy}
+              className="gradient-bg-brand flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy && <Loader2 size={15} className="animate-spin" />}
+              {busy ? "Creating…" : "Create account"}
+            </button>
+          </form>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Primary Website Domain</label>
-                  <div className="relative">
-                    <Globe size={16} className="absolute left-4 top-3.5 text-slate-400" />
-                    <input type="text" defaultValue="milquu.com" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-purple-400 transition-base" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Industry / Niche</label>
-                  <select defaultValue="Food & Beverage / Dairy" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-purple-400 transition-base">
-                    {industries.map(ind => <option key={ind} value={ind} className="bg-slate-900 text-white">{ind}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide block mb-1.5">Primary Target Location</label>
-                  <div className="relative">
-                    <MapPin size={16} className="absolute left-4 top-3.5 text-slate-400" />
-                    <input type="text" defaultValue="Navi Mumbai, Maharashtra, India" className="w-full bg-white/10 border border-white/20 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-400 transition-base" />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button variant="secondary" size="lg" className="w-1/3 bg-white/10 border-white/20 text-white" onClick={() => setStep(1)}>Back</Button>
-                  <Button variant="primary" size="lg" className="w-2/3" onClick={handleNext} iconRight={<ArrowRight size={16} />}>
-                    Connect Integrations
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Step 3: Connect Integrations */}
-            {step === 3 && (
-              <motion.div key="step-3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }} className="space-y-6">
-                <div>
-                  <h2 className="text-h2 text-white">Connect data sources</h2>
-                  <p className="text-sm text-slate-400 mt-1">Connect Google Search Console and GA4 to unlock AI keyword recommendations and traffic insights.</p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* GSC Card */}
-                  <div className={cn("p-5 rounded-2xl border transition-base flex items-center justify-between", gscConnected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/5 border-white/15")}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-purple-400 font-bold shrink-0">
-                        <Search size={22} />
-                      </div>
-                      <div>
-                        <div className="text-base font-bold text-white flex items-center gap-2">
-                          Google Search Console
-                          {gscConnected && <CheckCircle2 size={15} className="text-emerald-400" />}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5">Required for keyword rank tracking & indexing checks</div>
-                      </div>
-                    </div>
-                    <Button
-                      variant={gscConnected ? "secondary" : "primary"}
-                      size="sm"
-                      onClick={handleConnectGsc}
-                      loading={loading}
-                      disabled={gscConnected}
-                    >
-                      {gscConnected ? "Connected ✓" : "Connect GSC"}
-                    </Button>
-                  </div>
-
-                  {/* GA4 Card */}
-                  <div className={cn("p-5 rounded-2xl border transition-base flex items-center justify-between", gaConnected ? "bg-emerald-500/10 border-emerald-500/30" : "bg-white/5 border-white/15")}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-amber-400 font-bold shrink-0">
-                        <BarChart3 size={22} />
-                      </div>
-                      <div>
-                        <div className="text-base font-bold text-white flex items-center gap-2">
-                          Google Analytics 4
-                          {gaConnected && <CheckCircle2 size={15} className="text-emerald-400" />}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5">Required for session funnels & conversion tracking</div>
-                      </div>
-                    </div>
-                    <Button
-                      variant={gaConnected ? "secondary" : "primary"}
-                      size="sm"
-                      onClick={handleConnectGa}
-                      loading={loading}
-                      disabled={gaConnected}
-                    >
-                      {gaConnected ? "Connected ✓" : "Connect GA4"}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <Button variant="secondary" size="lg" className="w-1/3 bg-white/10 border-white/20 text-white" onClick={() => setStep(2)}>Back</Button>
-                  <Button variant="primary" size="lg" className="w-2/3" onClick={handleNext} iconRight={<Sparkles size={16} />}>
-                    {gscConnected ? "Start AI Site Audit" : "Skip & Continue"}
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Step 4: AI Audit & Initialization */}
-            {step === 4 && (
-              <motion.div key="step-4" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="text-center py-6 space-y-6">
-                <div className="w-20 h-20 rounded-3xl gradient-bg-brand mx-auto flex items-center justify-center shadow-glow-brand relative">
-                  <Sparkles size={36} className="text-white animate-pulse" />
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white border-2 border-slate-900">
-                    <CheckCircle2 size={16} />
-                  </div>
-                </div>
-
-                <div>
-                  <h2 className="text-h2 text-white">Configuring GrowthX AI for milquu.com</h2>
-                  <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-                    Our AI is crawling sitemaps, extracting top keywords, and generating your baseline 78/100 SEO health scorecard.
-                  </p>
-                </div>
-
-                {/* Progress bar */}
-                <div className="max-w-sm mx-auto space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                    <span>{crawlProgress < 100 ? "Analyzing sitemaps & SERPs..." : "Audit Complete!"}</span>
-                    <span>{crawlProgress}%</span>
-                  </div>
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/20">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${crawlProgress}%` }}
-                      transition={{ duration: 0.5 }}
-                      className="h-full gradient-bg-brand rounded-full"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="w-full max-w-sm mx-auto font-bold shadow-glow-brand"
-                    disabled={crawlProgress < 100}
-                    onClick={() => router.push("/dashboard")}
-                    iconRight={<ArrowRight size={18} />}
-                  >
-                    {crawlProgress < 100 ? "Please Wait..." : "Launch Dashboard 🚀"}
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <p className="mt-6 text-center text-sm text-slate-400">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-white hover:underline">
+              Sign in
+            </Link>
+          </p>
         </div>
-
-        <p className="text-center text-xs text-slate-500 mt-6">
-          SOC2-Ready · 256-bit SSL Encryption · GDPR & CCPA Compliant
-        </p>
       </motion.div>
+    </div>
+  );
+}
+
+function Input({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-slate-300">{label}</label>
+      <input
+        {...props}
+        className="mt-1 w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500"
+      />
     </div>
   );
 }

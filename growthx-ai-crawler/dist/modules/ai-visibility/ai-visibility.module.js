@@ -9,15 +9,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiVisibilityModule = void 0;
 const common_1 = require("@nestjs/common");
 const aeo_analysis_service_1 = require("./aeo-analysis/aeo-analysis.service");
+const ai_visibility_service_1 = require("./ai-visibility.service");
+const ai_visibility_controller_1 = require("./ai-visibility.controller");
+const ai_visibility_scheduler_1 = require("./ai-visibility.scheduler");
 const database_module_1 = require("../../database/database.module");
+const ai_search_module_1 = require("../ai-search/ai-search.module");
 let AiVisibilityModule = class AiVisibilityModule {
 };
 exports.AiVisibilityModule = AiVisibilityModule;
 exports.AiVisibilityModule = AiVisibilityModule = __decorate([
     (0, common_1.Module)({
-        imports: [database_module_1.DatabaseModule],
-        providers: [aeo_analysis_service_1.AeoAnalysisService],
-        exports: [aeo_analysis_service_1.AeoAnalysisService]
+        imports: [database_module_1.DatabaseModule, ai_search_module_1.AiSearchModule],
+        controllers: [ai_visibility_controller_1.AiVisibilityController],
+        providers: [aeo_analysis_service_1.AeoAnalysisService, ai_visibility_service_1.AiVisibilityService, ai_visibility_scheduler_1.AiVisibilityScheduler],
+        exports: [aeo_analysis_service_1.AeoAnalysisService, ai_visibility_service_1.AiVisibilityService],
     })
 ], AiVisibilityModule);
 //# sourceMappingURL=ai-visibility.module.js.map

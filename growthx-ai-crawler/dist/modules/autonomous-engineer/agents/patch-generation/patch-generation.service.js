@@ -10,51 +10,227 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PatchGenerationService = void 0;
 const common_1 = require("@nestjs/common");
 const ts_morph_1 = require("ts-morph");
+const cheerio = require("cheerio");
+const fs = require("fs/promises");
+const path = require("path");
+/**
+ * Applies an approved SEO fix to a file in the customer's repository.
+ *
+ * Two file shapes are supported: a Next.js `metadata` export (App Router) and
+ * plain HTML. The right one is chosen from the file extension unless the caller
+ * forces it.
+ */
 let PatchGenerationService = PatchGenerationService_1 = class PatchGenerationService {
     constructor() {
         this.logger = new common_1.Logger(PatchGenerationService_1.name);
     }
+    /** Extension-based dispatch, so callers do not have to know the file shape. */
+    detectTarget(filePath) {
+        return /\.(html?|htm)$/i.test(path.extname(filePath)) ? 'html' : 'nextjs-metadata';
+    }
+    // ------------------------------------------------------------ Next.js
     /**
-     * AST-aware method to inject or update a Next.js metadata property (e.g. title)
-     * in a specific file like layout.tsx or page.tsx.
+     * Injects or replaces a property on the exported `metadata` object.
+     *
+     * Supports dotted paths so nested fields work too: `openGraph.title` writes
+     * `metadata.openGraph.title`, creating the intermediate object if needed.
      */
-    async updateNextJsMetadata(filePath, propertyName, newValue) {
-        this.logger.log(`Parsing AST for ${filePath}...`);
+    async updateNextJsMetadata(filePath, propertyPath, newValue) {
+        this.logger.log(`Patching Next.js metadata (${propertyPath}) in ${filePath}...`);
         const project = new ts_morph_1.Project();
         const sourceFile = project.addSourceFileAtPath(filePath);
-        // Find the exported `metadata` object
         const metadataDecl = sourceFile.getVariableDeclaration('metadata');
         if (!metadataDecl) {
             this.logger.warn(`No 'metadata' export found in ${filePath}. Cannot patch.`);
             return false;
         }
-        const initializer = metadataDecl.getInitializerIfKind(ts_morph_1.SyntaxKind.ObjectLiteralExpression);
-        if (!initializer) {
-            this.logger.warn(`'metadata' is not an object literal. Cannot patch.`);
+        let target = metadataDecl.getInitializerIfKind(ts_morph_1.SyntaxKind.ObjectLiteralExpression);
+        if (!target) {
+            this.logger.warn(`'metadata' is not an object literal in ${filePath}. Cannot patch.`);
             return false;
         }
-        // Check if the property already exists
-        const existingProp = initializer.getProperty(propertyName);
-        if (existingProp) {
-            this.logger.log(`Property '${propertyName}' exists. Overwriting...`);
-            // For simplicity in PoC, we remove it and re-add it. In production, we'd mutate the node directly.
-            existingProp.remove();
+        const segments = propertyPath.split('.');
+        const leaf = segments.pop();
+        // Walk (creating as needed) to the object that should hold the leaf.
+        for (const segment of segments) {
+            const parent = target;
+            const existing = parent.getProperty(segment);
+            let nested = existing
+                ?.asKind(ts_morph_1.SyntaxKind.PropertyAssignment)
+                ?.getInitializerIfKind(ts_morph_1.SyntaxKind.ObjectLiteralExpression);
+            if (!nested) {
+                existing?.remove();
+                const added = parent.addPropertyAssignment({ name: segment, initializer: '{}' });
+                nested = added.getInitializerIfKind(ts_morph_1.SyntaxKind.ObjectLiteralExpression);
+            }
+            target = nested;
+        }
+        const leafHolder = target;
+        leafHolder.getProperty(leaf)?.remove();
+        leafHolder.addPropertyAssignment({ name: leaf, initializer: JSON.stringify(newValue) });
+        await sourceFile.save();
+        this.logger.log(`Wrote ${propertyPath} to ${filePath}.`);
+        return true;
+    }
+    // --------------------------------------------------------------- HTML
+    async loadHtml(filePath) {
+        const html = await fs.readFile(filePath, 'utf8');
+        // decodeEntities: false keeps existing markup byte-stable so the PR diff
+        // shows only the change we made, not a whole-file re-encoding.
+        return { html, $: cheerio.load(html, { decodeEntities: false }) };
+    }
+    async saveHtml(filePath, $) {
+        await fs.writeFile(filePath, $.html(), 'utf8');
+    }
+    /** Sets or replaces `<title>`, creating `<head>` if the document lacks one. */
+    async setHtmlTitle(filePath, title) {
+        const { $ } = await this.loadHtml(filePath);
+        if ($('head').length === 0)
+            $('html').prepend('<head></head>');
+        if ($('title').length > 0) {
+            $('title').first().text(title);
+            $('title').slice(1).remove();
         }
         else {
-            this.logger.log(`Property '${propertyName}' does not exist. Adding...`);
+            $('head').append(`<title>${escapeText(title)}</title>`);
         }
-        // Add the new property
-        initializer.addPropertyAssignment({
-            name: propertyName,
-            initializer: `"${newValue.replace(/"/g, '\\"')}"`
+        await this.saveHtml(filePath, $);
+        return { applied: true };
+    }
+    /** Sets or replaces a `<meta name="...">` tag. */
+    async setMetaTag(filePath, name, content) {
+        const { $ } = await this.loadHtml(filePath);
+        if ($('head').length === 0)
+            $('html').prepend('<head></head>');
+        const existing = $(`head meta[name="${name}"]`);
+        if (existing.length > 0) {
+            existing.first().attr('content', content);
+            existing.slice(1).remove();
+        }
+        else {
+            $('head').append(`<meta name="${escapeAttr(name)}" content="${escapeAttr(content)}" />`);
+        }
+        await this.saveHtml(filePath, $);
+        return { applied: true };
+    }
+    /** Sets or replaces `<link rel="canonical">`. */
+    async setCanonical(filePath, href) {
+        const { $ } = await this.loadHtml(filePath);
+        if ($('head').length === 0)
+            $('html').prepend('<head></head>');
+        const existing = $('head link[rel="canonical"]');
+        if (existing.length > 0) {
+            existing.first().attr('href', href);
+            existing.slice(1).remove();
+        }
+        else {
+            $('head').append(`<link rel="canonical" href="${escapeAttr(href)}" />`);
+        }
+        await this.saveHtml(filePath, $);
+        return { applied: true };
+    }
+    /**
+     * Adds alt text to images that lack it.
+     *
+     * An image that already has alt text is never touched — overwriting a human's
+     * description with a generated one is a regression, not a fix. Pass `src` to
+     * target one image; omit it to fill every empty alt with the same text.
+     */
+    async setImageAlt(filePath, altText, src) {
+        const { $ } = await this.loadHtml(filePath);
+        const selector = src ? `img[src="${src}"]` : 'img';
+        const candidates = $(selector).filter((_, el) => {
+            const alt = $(el).attr('alt');
+            return alt === undefined || alt.trim() === '';
         });
-        this.logger.log(`Saving AST modifications to ${filePath}...`);
-        await sourceFile.save();
-        return true;
+        if (candidates.length === 0) {
+            return { applied: false, reason: src ? `No image with src "${src}" is missing alt text.` : 'No images are missing alt text.' };
+        }
+        candidates.attr('alt', altText);
+        await this.saveHtml(filePath, $);
+        return { applied: true };
+    }
+    /**
+     * Injects a JSON-LD block, replacing any existing block of the same `@type`.
+     *
+     * Malformed JSON is rejected outright — a broken `<script type="application/ld+json">`
+     * is worse for the customer than the missing schema we were asked to add.
+     */
+    async injectJsonLd(filePath, jsonLd) {
+        let parsed;
+        try {
+            parsed = typeof jsonLd === 'string' ? JSON.parse(jsonLd) : jsonLd;
+        }
+        catch {
+            return { applied: false, reason: 'Refused to inject malformed JSON-LD.' };
+        }
+        if (!parsed || typeof parsed !== 'object' || !parsed['@type']) {
+            return { applied: false, reason: 'JSON-LD is missing an @type and would not validate.' };
+        }
+        const { $ } = await this.loadHtml(filePath);
+        if ($('head').length === 0)
+            $('html').prepend('<head></head>');
+        $('script[type="application/ld+json"]').each((_, el) => {
+            try {
+                const existing = JSON.parse($(el).contents().text());
+                if (existing?.['@type'] === parsed['@type'])
+                    $(el).remove();
+            }
+            catch {
+                // Leave unparseable blocks alone; they are not ours to clean up.
+            }
+        });
+        $('head').append(`<script type="application/ld+json">\n${JSON.stringify(parsed, null, 2)}\n</script>`);
+        await this.saveHtml(filePath, $);
+        return { applied: true };
+    }
+    /**
+     * Applies a patch by fix type, dispatching to the right file strategy.
+     * This is what the orchestrator calls.
+     */
+    async applyFix(filePath, fixType, value, options = {}) {
+        const target = options.target ?? this.detectTarget(filePath);
+        if (target === 'nextjs-metadata') {
+            const property = NEXT_METADATA_PROPERTY[fixType];
+            if (!property) {
+                return { applied: false, reason: `${fixType} cannot be expressed as Next.js metadata.` };
+            }
+            const applied = await this.updateNextJsMetadata(filePath, property, value);
+            return { applied, reason: applied ? undefined : 'No metadata export to patch.' };
+        }
+        switch (fixType) {
+            case 'META_TITLE':
+                return this.setHtmlTitle(filePath, value);
+            case 'META_DESCRIPTION':
+                return this.setMetaTag(filePath, 'description', value);
+            case 'CANONICAL_URL':
+                return this.setCanonical(filePath, value);
+            case 'ALT_TEXT':
+                return this.setImageAlt(filePath, value, options.imageSrc);
+            case 'FAQ_SCHEMA':
+            case 'PRODUCT_SCHEMA':
+            case 'ORGANIZATION_SCHEMA':
+            case 'BREADCRUMB_SCHEMA':
+                return this.injectJsonLd(filePath, value);
+            default:
+                return { applied: false, reason: `${fixType} has no automated HTML patcher.` };
+        }
     }
 };
 exports.PatchGenerationService = PatchGenerationService;
 exports.PatchGenerationService = PatchGenerationService = PatchGenerationService_1 = __decorate([
     (0, common_1.Injectable)()
 ], PatchGenerationService);
+/** Fix types that map onto the Next.js metadata object. */
+const NEXT_METADATA_PROPERTY = {
+    META_TITLE: 'title',
+    META_DESCRIPTION: 'description',
+    CANONICAL_URL: 'alternates.canonical',
+};
+function escapeAttr(value) {
+    return value.replace(/"/g, '&quot;');
+}
+function escapeText(value) {
+    return value.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 //# sourceMappingURL=patch-generation.service.js.map

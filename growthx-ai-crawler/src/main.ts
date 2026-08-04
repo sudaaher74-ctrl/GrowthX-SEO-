@@ -5,7 +5,9 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  // rawBody is required to verify the Razorpay webhook HMAC, which is computed
+  // over the exact bytes sent rather than the re-serialised JSON.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors();
   app.useGlobalPipes(

@@ -13,16 +13,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AutoFixService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../database/prisma.service");
+const multi_ai_router_service_1 = require("../ai-search/multi-ai-router/multi-ai-router.service");
+const fix_generator_1 = require("./fix-generator");
 let AutoFixService = AutoFixService_1 = class AutoFixService {
-    constructor(prisma) {
+    constructor(prisma, router) {
         this.prisma = prisma;
+        this.router = router;
         this.logger = new common_1.Logger(AutoFixService_1.name);
     }
     /**
-     * Generates specific code/text patch for an issue.
-     * Module 16 Requirement: Every change requires user approval before execution.
+     * Proposes a concrete patch for an issue, written from the customer's own
+     * page content. Nothing is applied here — Module 16 requires approval first.
+     *
+     * If no model is reachable, a deterministic fallback derived from the page is
+     * used instead. Both paths are grounded in the customer's page: a patch must
+     * never carry our product name, an invented price, or a made-up claim.
      */
-    async generateFixPatch(issueId) {
+    async generateFixPatch(issueId, organizationId) {
         const issue = await this.prisma.issue.findUnique({
             where: { id: issueId },
             include: { page: true, aiRecommendation: true },
@@ -30,130 +37,58 @@ let AutoFixService = AutoFixService_1 = class AutoFixService {
         if (!issue || !issue.page) {
             throw new common_1.NotFoundException(`Issue or associated page not found for ID ${issueId}`);
         }
-        this.logger.log(`Generating Auto-Fix patch for issue ${issue.issueType} on ${issue.affectedUrl}...`);
-        let patch;
-        switch (issue.issueType) {
-            case 'MISSING_TITLE':
-            case 'SHORT_TITLE':
-            case 'LONG_TITLE': {
-                const urlParts = issue.affectedUrl.split('/').filter(Boolean);
-                const slug = urlParts[urlParts.length - 1] || 'Home';
-                const cleanSlug = slug.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const proposedTitle = `${cleanSlug} | Enterprise Software Solutions - GrowthX AI`;
-                patch = {
-                    fixType: 'META_TITLE',
-                    targetUrl: issue.affectedUrl,
-                    originalValue: issue.page.title || 'None',
-                    proposedValue: proposedTitle,
-                    codeSnippet: `<title>${proposedTitle}</title>`,
-                };
-                break;
-            }
-            case 'MISSING_META_DESCRIPTION': {
-                const proposedDesc = `Discover comprehensive insights and technical specifications for ${issue.affectedUrl}. Optimize your workflow with GrowthX AI enterprise platform.`;
-                patch = {
-                    fixType: 'META_DESCRIPTION',
-                    targetUrl: issue.affectedUrl,
-                    originalValue: issue.page.metaDescription || 'None',
-                    proposedValue: proposedDesc,
-                    codeSnippet: `<meta name="description" content="${proposedDesc}" />`,
-                };
-                break;
-            }
-            case 'MISSING_ALT_TEXT': {
-                patch = {
-                    fixType: 'ALT_TEXT',
-                    targetUrl: issue.affectedUrl,
-                    originalValue: 'img without alt attribute',
-                    proposedValue: 'Descriptive illustration of GrowthX AI platform workflow and analytics dashboard',
-                    codeSnippet: `<img src="..." alt="Descriptive illustration of GrowthX AI platform workflow and analytics dashboard" loading="lazy" />`,
-                };
-                break;
-            }
-            case 'MISSING_CANONICAL':
-            case 'BROKEN_CANONICAL': {
-                const cleanCanonical = issue.affectedUrl.split('?')[0].replace('http://', 'https://');
-                patch = {
-                    fixType: 'CANONICAL_URL',
-                    targetUrl: issue.affectedUrl,
-                    originalValue: issue.page.canonicalUrl || 'None',
-                    proposedValue: cleanCanonical,
-                    codeSnippet: `<link rel="canonical" href="${cleanCanonical}" />`,
-                };
-                break;
-            }
-            case 'SCHEMA_ERROR_FAQ':
-            case 'SCHEMA_ERROR_FAQPage': {
-                const faqSchema = {
-                    "@context": "https://schema.org",
-                    "@type": "FAQPage",
-                    "mainEntity": [
-                        {
-                            "@type": "Question",
-                            "name": "What is GrowthX AI Enterprise Crawler?",
-                            "acceptedAnswer": {
-                                "@type": "Answer",
-                                "text": "GrowthX AI is a high-performance technical SEO audit platform for enterprise websites."
-                            }
-                        }
-                    ]
-                };
-                patch = {
-                    fixType: 'FAQ_SCHEMA',
-                    targetUrl: issue.affectedUrl,
-                    proposedValue: 'Valid JSON-LD FAQPage Schema',
-                    codeSnippet: `<script type="application/ld+json">\n${JSON.stringify(faqSchema, null, 2)}\n</script>`,
-                };
-                break;
-            }
-            case 'SCHEMA_ERROR_PRODUCT':
-            case 'SCHEMA_ERROR_Product': {
-                const prodSchema = {
-                    "@context": "https://schema.org/",
-                    "@type": "Product",
-                    "name": "GrowthX AI SEO Suite",
-                    "description": "Automated SEO audit and optimization platform.",
-                    "offers": {
-                        "@type": "Offer",
-                        "url": issue.affectedUrl,
-                        "priceCurrency": "USD",
-                        "price": "99.00",
-                        "availability": "https://schema.org/InStock"
+        const page = {
+            url: issue.affectedUrl,
+            title: issue.page.title,
+            metaDescription: issue.page.metaDescription,
+            canonicalUrl: issue.page.canonicalUrl,
+            h1: issue.page.h1,
+            h2: issue.page.h2,
+            wordCount: issue.page.wordCount,
+        };
+        const plan = (0, fix_generator_1.planFix)(issue.issueType, page, issue.recommendation);
+        this.logger.log(`Generating ${plan.fixType} patch for ${issue.affectedUrl}...`);
+        let rendered = null;
+        let source = 'heuristic';
+        let model;
+        // Some fixes (canonical URLs, breadcrumbs) are derived, not written — an
+        // empty prompt marks those and skips the model entirely.
+        if (plan.prompt) {
+            try {
+                const completion = await this.router.generate({
+                    prompt: plan.prompt,
+                    systemInstruction: 'You are a technical SEO editor writing production copy for a client site. ' +
+                        'Respond only with JSON matching the schema.',
+                    task: multi_ai_router_service_1.AiTask.REASONING,
+                    organizationId,
+                    jsonSchema: plan.schema,
+                });
+                if (!completion.refused && completion.text.trim()) {
+                    rendered = (0, fix_generator_1.renderFromModel)(plan, this.parseJson(completion.text), page);
+                    if (rendered) {
+                        source = 'model';
+                        model = completion.model;
                     }
-                };
-                patch = {
-                    fixType: 'PRODUCT_SCHEMA',
-                    targetUrl: issue.affectedUrl,
-                    proposedValue: 'Valid JSON-LD Product Schema with Offer',
-                    codeSnippet: `<script type="application/ld+json">\n${JSON.stringify(prodSchema, null, 2)}\n</script>`,
-                };
-                break;
+                }
             }
-            case 'ORPHAN_PAGE': {
-                patch = {
-                    fixType: 'INTERNAL_LINKING',
-                    targetUrl: issue.affectedUrl,
-                    proposedValue: `Add contextual internal link from homepage or sitemap category index`,
-                    codeSnippet: `<a href="${issue.affectedUrl}">View ${issue.affectedUrl.split('/').pop() || 'Details'}</a>`,
-                };
-                break;
-            }
-            default: {
-                patch = {
-                    fixType: 'META_TITLE',
-                    targetUrl: issue.affectedUrl,
-                    proposedValue: issue.recommendation,
-                    codeSnippet: `<!-- Apply recommendation: ${issue.recommendation} -->`,
-                };
+            catch (error) {
+                this.logger.warn(`Model unavailable for ${plan.fixType} (${error.message}); using the derived fallback.`);
             }
         }
-        // Save proposed patch to database
+        if (!rendered)
+            rendered = plan.heuristic();
+        const patch = {
+            fixType: plan.fixType,
+            targetUrl: issue.affectedUrl,
+            originalValue: plan.originalValue,
+            proposedValue: rendered.proposedValue,
+            codeSnippet: rendered.codeSnippet,
+            source,
+            model,
+        };
         await this.prisma.aIRecommendation.upsert({
             where: { issueId: issue.id },
-            update: {
-                recommendedFixPatch: JSON.stringify(patch, null, 2),
-                status: 'PENDING_APPROVAL',
-            },
+            update: { recommendedFixPatch: JSON.stringify(patch, null, 2), status: 'PENDING_APPROVAL' },
             create: {
                 issueId: issue.id,
                 whyItMatters: issue.aiRecommendation?.whyItMatters || 'Improves technical SEO health.',
@@ -162,10 +97,22 @@ let AutoFixService = AutoFixService_1 = class AutoFixService {
                 priorityScore: issue.aiRecommendation?.priorityScore || 75,
                 recommendedFixPatch: JSON.stringify(patch, null, 2),
                 expectedOutcome: issue.aiRecommendation?.expectedOutcome || 'Resolved audit issue.',
+                generatedByModel: model ?? 'rules-engine',
                 status: 'PENDING_APPROVAL',
             },
         });
         return patch;
+    }
+    /** Tolerates a model that wraps JSON in prose or a code fence. */
+    parseJson(text) {
+        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+        try {
+            return JSON.parse(candidate);
+        }
+        catch {
+            return {};
+        }
     }
     /**
      * User approves the AI recommendation.
@@ -228,6 +175,7 @@ let AutoFixService = AutoFixService_1 = class AutoFixService {
 exports.AutoFixService = AutoFixService;
 exports.AutoFixService = AutoFixService = AutoFixService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        multi_ai_router_service_1.MultiAiRouterService])
 ], AutoFixService);
 //# sourceMappingURL=auto-fix.service.js.map

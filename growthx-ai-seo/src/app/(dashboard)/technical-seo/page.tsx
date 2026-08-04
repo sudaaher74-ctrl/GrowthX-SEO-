@@ -33,7 +33,8 @@ const NAV_ITEMS = [
 
 function TechnicalSeoContent() {
   const searchParams = useSearchParams();
-  const domain = searchParams.get("domain") || "milquu.com";
+  // No hardcoded fallback: a crawl must target the customer's own site.
+  const domain = searchParams.get("domain") || "";
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [isCrawling, setIsCrawling] = useState(false);
@@ -46,6 +47,7 @@ function TechnicalSeoContent() {
   const [isAiFixing, setIsAiFixing] = useState(false);
 
   useEffect(() => {
+    if (!domain) return;
     const fetchLatestCrawl = async () => {
       try {
         const latestJob = await api.getLatestCrawl(domain);
@@ -80,9 +82,10 @@ function TechnicalSeoContent() {
   }, [isCompleted, jobId]);
 
   const handleStartCrawl = async () => {
+    if (!domain) return;
     setIsCrawling(true);
     try {
-      const res = await api.runTechnicalAudit(domain);
+      const res = await api.startCrawl({ domain, maxDepth: 10, maxConcurrency: 5 });
       if (res.jobId) setJobId(res.jobId);
     } catch (e) {
       console.error(e);

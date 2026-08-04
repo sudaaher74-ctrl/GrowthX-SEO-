@@ -15,6 +15,8 @@ import { PerformanceService } from '../performance/performance.service';
 import { IssueEngineService } from '../issues/issue-engine.service';
 import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
+import { EntitlementsService } from '../billing/entitlements.service';
+import { UsageMetric } from '@prisma/client';
 import * as url from 'url';
 
 @Injectable()
@@ -39,7 +41,8 @@ export class CrawlerService {
     private readonly performanceService: PerformanceService,
     private readonly issueEngine: IssueEngineService,
     private readonly graphService: GraphService,
-    private readonly crawlerGateway: CrawlerGateway
+    private readonly crawlerGateway: CrawlerGateway,
+    private readonly entitlements: EntitlementsService
   ) {}
 
   /**
@@ -410,10 +413,23 @@ export class CrawlerService {
       this.logger.error(`[JOB ${jobId}] Graph analysis error`, graphErr);
     }
 
-    await this.prisma.crawlJob.update({
+    const finished = await this.prisma.crawlJob.update({
       where: { id: jobId },
       data: { status: 'COMPLETED', finishedAt: new Date() },
+      include: { website: { select: { project: { select: { organizationId: true } } } } },
     });
+
+    // Bill crawled pages against the plan allowance only now that the job has
+    // actually finished, so an aborted or failed crawl costs the customer nothing.
+    const organizationId = finished.website.project?.organizationId;
+    if (organizationId && finished.pagesCrawled > 0) {
+      try {
+        await this.entitlements.recordUsage(organizationId, UsageMetric.CRAWL_PAGES, finished.pagesCrawled);
+      } catch (usageErr) {
+        this.logger.error(`[JOB ${jobId}] Failed to record crawl usage`, usageErr);
+      }
+    }
+
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);

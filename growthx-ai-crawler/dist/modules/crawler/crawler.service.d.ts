@@ -14,6 +14,7 @@ import { PerformanceService } from '../performance/performance.service';
 import { IssueEngineService } from '../issues/issue-engine.service';
 import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
+import { EntitlementsService } from '../billing/entitlements.service';
 export declare class CrawlerService {
     private readonly prisma;
     private readonly storage;
@@ -31,10 +32,11 @@ export declare class CrawlerService {
     private readonly issueEngine;
     private readonly graphService;
     private readonly crawlerGateway;
+    private readonly entitlements;
     private readonly logger;
     private readonly localVisited;
     private readonly jobSitemapUrls;
-    constructor(prisma: PrismaService, storage: StorageService, queue: QueueService, robots: RobotsService, sitemap: SitemapService, fetcher: FetcherService, metrics: MetricsService, htmlExtractor: HtmlExtractorService, imageAnalyzer: ImageAnalyzerService, linkAnalyzer: LinkAnalyzerService, schemaValidator: SchemaValidatorService, contentAnalyzer: ContentAnalyzerService, performanceService: PerformanceService, issueEngine: IssueEngineService, graphService: GraphService, crawlerGateway: CrawlerGateway);
+    constructor(prisma: PrismaService, storage: StorageService, queue: QueueService, robots: RobotsService, sitemap: SitemapService, fetcher: FetcherService, metrics: MetricsService, htmlExtractor: HtmlExtractorService, imageAnalyzer: ImageAnalyzerService, linkAnalyzer: LinkAnalyzerService, schemaValidator: SchemaValidatorService, contentAnalyzer: ContentAnalyzerService, performanceService: PerformanceService, issueEngine: IssueEngineService, graphService: GraphService, crawlerGateway: CrawlerGateway, entitlements: EntitlementsService);
     /**
      * Initiates a new crawl job for a verified website
      */

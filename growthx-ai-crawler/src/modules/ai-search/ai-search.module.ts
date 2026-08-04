@@ -9,6 +9,6 @@ import { DatabaseModule } from '../../database/database.module';
   imports: [DatabaseModule],
   controllers: [AiSearchController],
   providers: [MultiAiRouterService, InvestigationToolsService, AiSearchService],
-  exports: [AiSearchService]
+  exports: [AiSearchService, MultiAiRouterService]
 })
 export class AiSearchModule {}
