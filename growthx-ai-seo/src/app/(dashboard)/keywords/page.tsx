@@ -1,127 +1,195 @@
 "use client";
-import { motion } from "framer-motion";
 import { useState } from "react";
-import { mockKeywords } from "@/lib/mock-data";
-import { Badge, TrendBadge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import { Search, Filter, Download, Plus, TrendingUp, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import {
+  ActionButton,
+  Kpi,
+  Mono,
+  NotConnected,
+  PageHeader,
+  Panel,
+  Pill,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
+import { QueryState } from "@/components/ui/upgrade-prompt";
+import { api } from "@/lib/api-client";
+import { useTrackedPrompts, useVisibility, useWorkspace } from "@/hooks/use-growthx";
 
-const intentColors: Record<string, "info" | "success" | "warning" | "pending" | "default"> = {
-  Informational: "info",
-  Commercial: "success",
-  Transactional: "warning",
-  Navigational: "default",
-};
+type Tab = "prompts" | "competitors" | "ranks";
 
-const difficultyColor = (d: number) => d <= 30 ? "text-emerald-500" : d <= 55 ? "text-amber-500" : "text-red-500";
-const opportunityColor = (o: number) => o >= 85 ? "text-emerald-500" : o >= 65 ? "text-amber-500" : "text-slate-400";
+/**
+ * Search — the demand side. We track AI prompts rather than classic keyword
+ * rankings, so the tabs reflect what actually exists rather than the mockup's
+ * placeholder rank data.
+ */
+export default function SearchPage() {
+  const { projectId } = useWorkspace();
+  const prompts = useTrackedPrompts(projectId);
+  const visibility = useVisibility(projectId);
+  const [tab, setTab] = useState<Tab>("prompts");
+  const [domain, setDomain] = useState("");
+  const [label, setLabel] = useState("");
+  const [saving, setSaving] = useState(false);
 
-export default function KeywordsPage() {
-  const [query, setQuery] = useState("milk delivery");
+  const competitors = (visibility.data?.shareOfVoice ?? []).filter((r) => r.domain !== null);
+
+  async function addCompetitor() {
+    if (!projectId || !domain.trim()) return;
+    setSaving(true);
+    try {
+      await api.addCompetitor(projectId, domain.trim(), label.trim() || undefined);
+      setDomain("");
+      setLabel("");
+      await visibility.refetch();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-h1 text-[var(--text-primary)]">Keyword Research</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Discover keyword opportunities powered by real search data</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<Download size={13}/>}>Export</Button>
-          <Button variant="primary" size="sm" icon={<Plus size={13}/>}>Add to Tracker</Button>
-        </div>
-      </motion.div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Search"
+        subtitle="The questions buyers ask, and who gets recommended for them"
+        actions={
+          <Link href="/geo-tracking">
+            <ActionButton variant="primary" icon={<Plus size={12} />}>Add prompts</ActionButton>
+          </Link>
+        }
+      />
 
-      {/* Search bar */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-4">
-        <div className="flex gap-3">
-          <div className="flex-1 flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 focus-within:border-purple-500 transition-base">
-            <Search size={15} className="text-[var(--text-muted)] shrink-0"/>
-            <input value={query} onChange={e => setQuery(e.target.value)}
-              className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
-              placeholder="Enter seed keyword..."/>
-          </div>
-          <Button variant="primary" icon={<Sparkles size={13}/>}>Research</Button>
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          {["India", "English", "Google", "All intents"].map(tag => (
-            <span key={tag} className="text-xs px-2.5 py-1 rounded-full bg-[var(--surface-3)] text-[var(--text-secondary)] cursor-pointer hover:border-purple-400 border border-[var(--border-color)] transition-base">{tag}</span>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Keywords Found", value: mockKeywords.length.toString(), color: "text-purple-500" },
-          { label: "Avg Difficulty", value: "36", suffix: "/100", color: "text-amber-500" },
-          { label: "Total Volume", value: formatNumber(mockKeywords.reduce((s, k) => s + k.volume, 0)), color: "text-emerald-500" },
-          { label: "Easy Wins", value: mockKeywords.filter(k => k.difficulty <= 30).length.toString(), color: "text-violet-500" },
-        ].map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }} className="card p-4 text-center">
-            <div className={cn("text-3xl font-bold", s.color)}>{s.value}<span className="text-lg">{s.suffix}</span></div>
-            <div className="text-xs text-[var(--text-muted)] mt-0.5">{s.label}</div>
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label="Prompts tracked" value={String(prompts.data?.length ?? 0)} sub="active questions" />
+        <Kpi
+          label="Citation share"
+          value={visibility.data?.summary.citationSharePct != null ? `${visibility.data.summary.citationSharePct}%` : "—"}
+          delta={visibility.data?.summary.deltaPt}
+          deltaSuffix="pt"
+          sub="across all assistants"
+        />
+        <Kpi label="Competitors tracked" value={String(competitors.length)} sub="for share of voice" />
+        <Kpi
+          label="Avg position"
+          value={visibility.data?.summary.averagePosition != null ? String(visibility.data.summary.averagePosition) : "—"}
+          sub="when cited"
+        />
       </div>
 
-      {/* Table */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Keywords ({mockKeywords.length})</h3>
-          <div className="flex items-center gap-2">
-            {["All", "Informational", "Commercial", "Transactional"].map(f => (
-              <button key={f} className={cn("px-2.5 py-1 text-xs rounded-md font-medium transition-base",
-                f === "All" ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "text-[var(--text-muted)] hover:bg-[var(--surface-3)]"
-              )}>{f}</button>
-            ))}
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Keyword</th>
-                <th className="text-right">Volume</th>
-                <th className="text-right">Difficulty</th>
-                <th className="text-right">CPC</th>
-                <th>Intent</th>
-                <th className="text-right">Trend</th>
-                <th className="text-right">Opportunity</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockKeywords.map((kw, i) => (
-                <motion.tr key={kw.keyword} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.04 * i }}>
-                  <td className="font-medium text-sm text-[var(--text-primary)]">{kw.keyword}</td>
-                  <td className="text-right text-sm font-medium">{formatNumber(kw.volume)}</td>
-                  <td className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <div className="w-12 h-1.5 bg-[var(--surface-3)] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${kw.difficulty}%`, background: kw.difficulty <= 30 ? "#10b981" : kw.difficulty <= 55 ? "#f59e0b" : "#ef4444" }}/>
+      <Tabs
+        tabs={[
+          { id: "prompts" as Tab, label: "Prompts", tag: String(prompts.data?.length ?? 0) },
+          { id: "competitors" as Tab, label: "Competitors", tag: String(competitors.length) },
+          { id: "ranks" as Tab, label: "Rank tracking" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {tab === "prompts" && (
+        <QueryState
+          isLoading={prompts.isLoading}
+          error={prompts.error}
+          isEmpty={!prompts.data?.length}
+          emptyTitle="No prompts tracked"
+          emptyBody="Add the questions your client's buyers type into ChatGPT or Gemini."
+        >
+          <Panel title="Tracked prompts" subtitle={`${prompts.data?.length ?? 0} active`}>
+            <Table minWidth={760}>
+              <thead>
+                <tr>
+                  <Th>Prompt</Th>
+                  <Th>Cluster</Th>
+                  <Th align="right">Latest results</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {prompts.data?.map((p) => (
+                  <Tr key={p.id}>
+                    <Td><span className="text-[12.5px] text-[#09090b]">{p.text}</span></Td>
+                    <Td><Mono tone="soft">{p.cluster ?? "—"}</Mono></Td>
+                    <Td align="right">
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {p.latestChecks.length === 0 && <Pill>not checked</Pill>}
+                        {p.latestChecks.map((c, i) => (
+                          <Pill key={i} tone={c.error ? "default" : c.cited ? "good" : "bad"}>
+                            {c.assistant}{c.error ? " n/a" : c.cited ? ` #${c.position ?? "?"}` : " miss"}
+                          </Pill>
+                        ))}
                       </div>
-                      <span className={cn("text-sm font-bold w-8 text-right", difficultyColor(kw.difficulty))}>{kw.difficulty}</span>
-                    </div>
-                  </td>
-                  <td className="text-right text-sm">${kw.cpc}</td>
-                  <td><Badge variant={intentColors[kw.intent]}>{kw.intent}</Badge></td>
-                  <td className="text-right"><TrendBadge value={kw.trend === "up" ? 1 : 0} suffix="" /></td>
-                  <td className="text-right">
-                    <span className={cn("text-sm font-bold", opportunityColor(kw.opportunity))}>{kw.opportunity}</span>
-                    {kw.opportunity >= 90 && <span className="ml-1">⭐</span>}
-                  </td>
-                  <td>
-                    <Button variant="ghost" size="sm" icon={<Plus size={12}/>}>Track</Button>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </Panel>
+        </QueryState>
+      )}
+
+      {tab === "competitors" && (
+        <div className="space-y-4">
+          <Panel title="Add a competitor" subtitle="Set the label — an answer saying &quot;Trailhead Co&quot; is missed without it">
+            <div className="flex flex-wrap gap-2 p-4">
+              <input
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="trailheadco.com"
+                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-[#09090b]"
+                style={{ borderColor: "#e5e7eb", minWidth: 180 }}
+              />
+              <input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Trailhead Co"
+                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-[#09090b]"
+                style={{ borderColor: "#e5e7eb", minWidth: 180 }}
+              />
+              <ActionButton variant="primary" onClick={addCompetitor} disabled={saving || !domain.trim()}>
+                {saving ? "Adding…" : "Add"}
+              </ActionButton>
+            </div>
+          </Panel>
+
+          <Panel title="Share of voice" subtitle="how often each brand appears in the same answers">
+            {competitors.length === 0 ? (
+              <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+                No competitor has appeared in a checked answer yet.
+              </p>
+            ) : (
+              <Table minWidth={520}>
+                <thead>
+                  <tr><Th>Brand</Th><Th align="right">Mentions</Th><Th align="right">Share</Th></tr>
+                </thead>
+                <tbody>
+                  {visibility.data?.shareOfVoice.map((row) => (
+                    <Tr key={row.label}>
+                      <Td>
+                        <span className={row.domain === null ? "text-[12.5px] font-semibold text-[#09090b]" : "text-[12.5px] text-[#3f3f46]"}>
+                          {row.label}
+                        </span>
+                      </Td>
+                      <Td align="right"><Mono>{row.mentions}</Mono></Td>
+                      <Td align="right"><Mono tone={row.domain === null ? "good" : undefined}>{row.sharePct}%</Mono></Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Panel>
         </div>
-      </motion.div>
+      )}
+
+      {tab === "ranks" && (
+        <NotConnected
+          title="Classic rank tracking is not connected"
+          what="Google position tracking needs a SERP data source. AI citation share, which is what this product measures, is on the Prompts tab."
+          needs={["A SERP API subscription (e.g. DataForSEO, SerpAPI)", "A keyword list per client", "A daily rank-check job"]}
+        />
+      )}
     </div>
   );
 }

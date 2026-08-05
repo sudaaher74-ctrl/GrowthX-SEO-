@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Placeholder fixtures for the pages not yet wired to the API.
+// Delete this file once every page reads real data.
 // Empty default schemas for UI components
 
 export const mockMetrics = {

@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Placeholder fixtures for the pages not yet wired to the API.
+// Delete this file once every page reads real data.
 // Empty schema defaults for the Enterprise SEO Dashboard
 
 export const seoHealthStats = {

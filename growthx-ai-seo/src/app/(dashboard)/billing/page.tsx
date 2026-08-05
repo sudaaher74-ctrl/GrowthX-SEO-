@@ -51,7 +51,7 @@ export default function BillingPage() {
     const session = await checkout.mutateAsync({ plan: plan.plan, email: email.trim() });
     // Razorpay returns a hosted checkout link; the plan is only granted once
     // their webhook confirms payment, so we never mark it active here.
-    if (session.shortUrl) window.location.href = session.shortUrl;
+    if (session.shortUrl) window.location.assign(session.shortUrl);
   }
 
   return (

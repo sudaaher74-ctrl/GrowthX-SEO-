@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   Search, ArrowRight, Sparkles, Globe, BarChart3, Search as SearchIcon,
   Zap, FileText, Bot, MapPin, Target, Eye, Sliders, Code, Link2,
@@ -15,7 +14,7 @@ interface CommandItem {
   id: string;
   title: string;
   category: "Navigation" | "Quick Actions" | "Keywords" | "Pages";
-  icon: any;
+  icon: React.ElementType;
   href?: string;
   action?: () => void;
   subtitle?: string;
@@ -30,7 +29,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
 
   // Listen for ⌘K or Ctrl+K globally
   useEffect(() => {
@@ -73,7 +71,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/technical-seo"); }, subtitle: "Scan 1,247 pages for SEO issues" },
     { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/content-ai"); }, subtitle: "Create an SEO-optimized 1,500 word article" },
     { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search-console"); }, subtitle: "Fetch latest 90-day search queries" },
-    { id: "act-theme", title: "Toggle Dark / Light Theme", category: "Quick Actions", icon: theme === "dark" ? Sun : Moon, action: () => { setTheme(theme === "dark" ? "light" : "dark"); }, subtitle: "Switch workspace visual appearance" },
     { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local-seo"); }, subtitle: "Generate landing page for a target city" },
 
     // Keywords
@@ -84,7 +81,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // Pages
     { id: "pg-1", title: "/milk-delivery-panvel", category: "Pages", icon: Globe, href: "/search-console", subtitle: "2,840 clicks · 9.2% CTR · Pos 3.1" },
     { id: "pg-2", title: "/products/a2-cow-milk", category: "Pages", icon: Globe, href: "/search-console", subtitle: "1,540 clicks · 8.3% CTR · Pos 6.8" },
-  ], [router, theme, setTheme]);
+  ], [router]);
 
   const filteredItems = useMemo(() => {
     if (!query.trim()) return items;
@@ -94,10 +91,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     );
   }, [items, query]);
 
-  // Reset selected index when query changes
-  useEffect(() => {
+  // Reset the highlighted row when the query changes. Done during render
+  // rather than in an effect so there is no extra render pass.
+  const [lastQuery, setLastQuery] = useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
     setSelectedIndex(0);
-  }, [query]);
+  }
 
   const handleSelect = (item: CommandItem) => {
     onOpenChange(false);

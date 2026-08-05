@@ -1,7 +1,20 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { api, ApiError, auth } from "@/lib/api-client";
+
+/** Subscribers to org changes, so useSyncExternalStore re-renders on switch. */
+const orgListeners = new Set<() => void>();
+
+function subscribeToOrgChange(listener: () => void) {
+  orgListeners.add(listener);
+  return () => orgListeners.delete(listener);
+}
+
+function setActiveOrg(id: string) {
+  auth.setOrgId(id);
+  orgListeners.forEach((l) => l());
+}
 
 /**
  * The active organization and project.
@@ -10,8 +23,15 @@ import { api, ApiError, auth } from "@/lib/api-client";
  * caches the ids locally instead of every page re-deriving them.
  */
 export function useWorkspace() {
-  const [orgId, setOrgId] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  // The stored org lives in localStorage, which the server cannot read.
+  // useSyncExternalStore is built for exactly this: a client snapshot and a
+  // separate server snapshot, so there is no hydration mismatch and no state
+  // update inside an effect.
+  const storedOrgId = useSyncExternalStore(
+    subscribeToOrgChange,
+    () => auth.getOrgId(),
+    () => null,
+  );
 
   const orgs = useQuery({
     queryKey: ["organizations"],
@@ -20,19 +40,13 @@ export function useWorkspace() {
     retry: false,
   });
 
+  // Falls back to the first organization so a fresh login is never empty.
+  const orgId = storedOrgId ?? orgs.data?.[0]?.id ?? null;
+
+  // Persisting is a write to localStorage, not React state — safe in an effect.
   useEffect(() => {
-    const stored = auth.getOrgId();
-    if (stored) {
-      setOrgId(stored);
-      setReady(true);
-      return;
-    }
-    if (orgs.data?.length) {
-      auth.setOrgId(orgs.data[0].id);
-      setOrgId(orgs.data[0].id);
-    }
-    if (orgs.isFetched) setReady(true);
-  }, [orgs.data, orgs.isFetched]);
+    if (orgId && orgId !== auth.getOrgId()) setActiveOrg(orgId);
+  }, [orgId]);
 
   const projects = useQuery({
     queryKey: ["projects", orgId],
@@ -40,21 +54,18 @@ export function useWorkspace() {
     enabled: Boolean(orgId),
   });
 
-  // The client switcher needs an explicitly chosen project, falling back to the
-  // first one so the workspace is never empty on first load.
+  // The client switcher needs an explicit choice, falling back to the first
+  // project so the workspace is never empty on first load.
   const [chosenProjectId, setChosenProjectId] = useState<string | null>(null);
 
   return {
     orgId,
-    setOrgId: (id: string) => {
-      auth.setOrgId(id);
-      setOrgId(id);
-    },
+    setOrgId: setActiveOrg,
     organizations: orgs.data ?? [],
     projects: projects.data ?? [],
     projectId: chosenProjectId ?? projects.data?.[0]?.id ?? null,
     setProjectId: setChosenProjectId,
-    isLoading: orgs.isLoading || projects.isLoading || !ready,
+    isLoading: orgs.isLoading || projects.isLoading,
     error: (orgs.error ?? projects.error) as ApiError | null,
   };
 }

@@ -32,7 +32,7 @@ export default function RegisterPage() {
       const name = form.company.trim() || `${form.firstName || form.email.split("@")[0]}'s workspace`;
       const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${Date.now().toString(36)}`;
       const org = await api.createOrganization(name, slug);
-      if ((org as any)?.id) auth.setOrgId((org as any).id);
+      if (org?.id) auth.setOrgId(org.id);
 
       router.push("/dashboard");
     } catch (err) {

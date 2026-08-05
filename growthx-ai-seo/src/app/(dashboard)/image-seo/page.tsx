@@ -78,7 +78,7 @@ export default function ImageSEOPage() {
                 <div className="text-xs text-[var(--text-muted)] flex items-center gap-3">
                   <span>{img.width}×{img.height}px</span>
                   <span className={cn("font-medium", img.size > 200 ? "text-red-500" : img.size > 100 ? "text-amber-500" : "text-emerald-500")}>{img.size}KB</span>
-                  {img.alt && <span className="text-emerald-500">Alt: "{img.alt}"</span>}
+                  {img.alt && <span className="text-emerald-500">Alt: &quot;{img.alt}&quot;</span>}
                 </div>
                 {aiAlt && img.status === "no_alt" && (
                   <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/15 rounded-lg">

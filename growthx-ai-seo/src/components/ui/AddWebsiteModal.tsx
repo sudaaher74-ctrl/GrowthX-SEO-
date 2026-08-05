@@ -52,8 +52,8 @@ export function AddWebsiteModal({ isOpen, onClose, onSuccess, hasActiveProject }
       onSuccess(domain);
       onClose();
       
-    } catch (err: any) {
-      setError(err.message || "Failed to add website");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add website");
       setIsSubmitting(false);
     }
   };

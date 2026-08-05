@@ -55,7 +55,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
-    public body?: any,
+    public body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -63,10 +63,8 @@ export class ApiError extends Error {
 
   /** True when the backend refused because of the customer's plan. */
   get isUpgradeRequired(): boolean {
-    return (
-      this.status === 403 &&
-      ["FEATURE_NOT_IN_PLAN", "QUOTA_EXCEEDED", "SITE_LIMIT_REACHED"].includes(this.body?.error)
-    );
+    const error = (this.body as { error?: string } | undefined)?.error;
+    return this.status === 403 && ["FEATURE_NOT_IN_PLAN", "QUOTA_EXCEEDED", "SITE_LIMIT_REACHED"].includes(error ?? "");
   }
 
   get upgrade(): UpgradePayload | null {
@@ -100,7 +98,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   const text = await response.text();
-  let body: any = null;
+  let body: unknown = null;
   if (text) {
     try {
       body = JSON.parse(text);
@@ -112,9 +110,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     // Nest wraps thrown objects under `message`, so the upgrade payload can be
     // at either level depending on how the exception was constructed.
-    const payload = body?.message && typeof body.message === "object" ? body.message : body;
+    const envelope = body as { message?: unknown } | null;
+    const payload =
+      envelope?.message && typeof envelope.message === "object" ? envelope.message : envelope;
     const message =
-      payload?.message || body?.message || response.statusText || `Request failed (${response.status})`;
+      (payload as { message?: string } | null)?.message ??
+      (typeof envelope?.message === "string" ? envelope.message : null) ??
+      response.statusText ??
+      `Request failed (${response.status})`;
 
     if (response.status === 401 && typeof window !== "undefined") auth.clear();
     throw new ApiError(response.status, String(message), payload);
@@ -242,6 +245,37 @@ export interface PortfolioResponse {
   }[];
 }
 
+export interface CrawlJob {
+  id: string;
+  status: string;
+  pagesCrawled: number;
+  issuesFound: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  website?: { domain: string; url: string };
+}
+
+export interface CrawlIssue {
+  id: string;
+  issueType: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  affectedUrl: string;
+  description: string;
+  recommendation: string;
+  status: string;
+  aiFixAvailable: boolean;
+}
+
+export interface FixPatch {
+  fixType: string;
+  targetUrl: string;
+  originalValue: string | null;
+  proposedValue: string;
+  codeSnippet: string;
+  source: "model" | "heuristic";
+  model?: string;
+}
+
 export interface StrategyContent {
   businessSummary: string;
   marketAnalysis: {
@@ -260,7 +294,7 @@ export interface StrategyReport {
   createdAt: string;
   generatedByModel: string | null;
   content?: StrategyContent;
-  evidence?: any;
+  evidence?: unknown;
 }
 
 // ──────────────────────────────────────────────────────────────── the API
@@ -281,7 +315,7 @@ export const api = {
 
   // ── Organizations & projects
   listOrganizations: () => get<{ id: string; name: string; slug: string }[]>("/organizations"),
-  createOrganization: (name: string, slug: string) => post("/organizations", { name, slug }),
+  createOrganization: (name: string, slug: string) => post<{ id: string; name: string; slug: string }>("/organizations", { name, slug }),
   listProjects: (orgId: string) => get<{ id: string; name: string }[]>(`/projects/org/${orgId}`),
   createProject: (name: string, organizationId: string) => post("/projects", { name, organizationId }),
 
@@ -298,7 +332,7 @@ export const api = {
   getPlans: () => get<{ plans: Plan[]; gateway: string; configured: boolean }>("/api/billing/plans"),
   getEntitlements: (orgId: string) =>
     get<Entitlements>(`/api/billing/organizations/${orgId}/entitlements`),
-  getSubscription: (orgId: string) => get<any>(`/api/billing/organizations/${orgId}/subscription`),
+  getSubscription: (orgId: string) => get<Record<string, unknown> | null>(`/api/billing/organizations/${orgId}/subscription`),
   startCheckout: (orgId: string, plan: string, email: string, name?: string) =>
     post<{
       subscriptionId: string;
@@ -319,31 +353,23 @@ export const api = {
   verifyDomain: (id: string) => post(`/api/websites/${id}/verify`, {}),
   startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
-  getCrawlJob: (jobId: string) => get<any>(`/api/crawls/${jobId}`),
-  getLatestCrawl: (domain: string) => get<any>(`/api/websites/${domain}/latest-crawl`),
+  getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
+  getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
   getCrawlIssues: (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
     if (params?.severity) query.set("severity", params.severity);
     if (params?.page) query.set("page", String(params.page));
     if (params?.limit) query.set("limit", String(params.limit));
     const suffix = query.toString() ? `?${query}` : "";
-    return get<{ data: any[]; meta: { total: number; page: number; totalPages: number } }>(
+    return get<{ data: CrawlIssue[]; meta: { total: number; page: number; totalPages: number } }>(
       `/api/crawls/${jobId}/issues${suffix}`,
     );
   },
-  getCrawlGraph: (jobId: string) => get<any>(`/api/crawls/${jobId}/graph`),
+  getCrawlGraph: (jobId: string) => get<unknown>(`/api/crawls/${jobId}/graph`),
 
   // ── AI analysis & fixes
-  analyzeIssue: (issueId: string) => post<any>(`/api/issues/${issueId}/analyze`, {}),
-  autoFixIssue: (issueId: string) =>
-    post<{
-      fixType: string;
-      proposedValue: string;
-      codeSnippet: string;
-      originalValue: string | null;
-      source: "model" | "heuristic";
-      model?: string;
-    }>(`/api/issues/${issueId}/autofix`, {}),
+  analyzeIssue: (issueId: string) => post<Record<string, string | number>>(`/api/issues/${issueId}/analyze`, {}),
+  autoFixIssue: (issueId: string) => post<FixPatch>(`/api/issues/${issueId}/autofix`, {}),
   approveFix: (issueId: string) => post(`/api/issues/${issueId}/approve`, {}),
 
   // ── AI visibility
@@ -360,10 +386,10 @@ export const api = {
       `/api/projects/${projectId}/ai-visibility/sweep`,
       {},
     ),
-  getAeo: (projectId: string) => get<any>(`/api/projects/${projectId}/ai-visibility/aeo`),
+  getAeo: (projectId: string) => get<unknown>(`/api/projects/${projectId}/ai-visibility/aeo`),
 
   // ── Strategy
-  getStrategyEvidence: (projectId: string) => get<any>(`/api/projects/${projectId}/strategy/evidence`),
+  getStrategyEvidence: (projectId: string) => get<unknown>(`/api/projects/${projectId}/strategy/evidence`),
   listStrategies: (projectId: string) => get<StrategyReport[]>(`/api/projects/${projectId}/strategy`),
   getStrategy: (projectId: string, reportId: string) =>
     get<StrategyReport>(`/api/projects/${projectId}/strategy/${reportId}`),

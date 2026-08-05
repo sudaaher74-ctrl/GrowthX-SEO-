@@ -1,118 +1,98 @@
 "use client";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { FileBarChart, Download, Mail, Calendar, Plus, CheckCircle2 } from "lucide-react";
+import { Download } from "lucide-react";
+import { ActionButton, Kpi, Mono, NotConnected, PageHeader, Panel, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
+import { QueryState } from "@/components/ui/upgrade-prompt";
+import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import type { PortfolioClient } from "@/lib/api-client";
 
-const reports = [
-  { id: 1, name: "July 2026 SEO Report", client: "MilQuu", date: "2026-07-27", type: "Monthly", format: "PDF", status: "ready" },
-  { id: 2, name: "Week 30 Performance", client: "MilQuu", date: "2026-07-26", type: "Weekly", format: "Excel", status: "ready" },
-  { id: 3, name: "Q2 2026 Quarterly Review", client: "GrowthX Agency", date: "2026-07-01", type: "Quarterly", format: "PDF", status: "ready" },
-  { id: 4, name: "Competitor Analysis Report", client: "MilQuu", date: "2026-07-20", type: "Custom", format: "PDF", status: "ready" },
-  { id: 5, name: "Technical SEO Audit Report", client: "Client X", date: "2026-07-15", type: "Custom", format: "CSV", status: "generating" },
-];
-
-const reportSections = [
-  { label: "Executive Summary", checked: true },
-  { label: "GSC Performance", checked: true },
-  { label: "Organic Traffic", checked: true },
-  { label: "Keyword Rankings", checked: true },
-  { label: "Core Web Vitals", checked: true },
-  { label: "Technical Issues", checked: true },
-  { label: "Content Performance", checked: false },
-  { label: "Backlinks", checked: false },
-  { label: "Competitor Overview", checked: true },
-  { label: "AI Recommendations", checked: true },
-];
-
+/**
+ * Reports — agency scope. Scheduled white-label delivery is not built, so this
+ * ships the one thing that is real today: an export of live portfolio numbers.
+ */
 export default function ReportsPage() {
+  const { orgId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const clients = portfolio.data?.clients ?? [];
+  const summary = portfolio.data?.summary;
+
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-h1 text-[var(--text-primary)]">Reports</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Generate beautiful PDF, Excel, and CSV SEO reports — white-label ready</p>
+    <div className="space-y-5">
+      <PageHeader
+        title="Reports"
+        subtitle="Client-ready numbers, exported from live data"
+        actions={
+          <ActionButton variant="primary" icon={<Download size={12} />} onClick={() => exportReport(clients)} disabled={!clients.length}>
+            Export portfolio report
+          </ActionButton>
+        }
+      />
+
+      <QueryState
+        isLoading={portfolio.isLoading}
+        error={portfolio.error}
+        isEmpty={!clients.length}
+        emptyTitle="No clients to report on"
+        emptyBody="Add a client and run an audit first."
+      >
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Kpi label="Clients" value={String(summary?.clientCount ?? 0)} sub="in this portfolio" />
+          <Kpi
+            label="Portfolio AI share"
+            value={summary?.portfolioAiSharePct != null ? `${summary.portfolioAiSharePct}%` : "—"}
+            delta={summary?.portfolioAiDeltaPt}
+            deltaSuffix="pt"
+          />
+          <Kpi label="Open criticals" value={String(summary?.openCriticals ?? 0)} tone={summary?.openCriticals ? "danger" : "good"} />
+          <Kpi label="Prompts tracked" value={(summary?.promptsTracked ?? 0).toLocaleString()} />
         </div>
-        <Button variant="primary" size="sm" icon={<Plus size={13}/>}>Generate Report</Button>
-      </motion.div>
 
-      <div className="grid xl:grid-cols-3 gap-6">
-        {/* Report Builder */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-5">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Quick Report Builder</h3>
-          <div className="space-y-3 mb-4">
-            <div>
-              <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Period</label>
-              <select className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500">
-                <option>This Month (July 2026)</option>
-                <option>Last Month (June 2026)</option>
-                <option>Last 90 Days</option>
-                <option>Q2 2026</option>
-                <option>Custom Range</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Format</label>
-              <div className="flex gap-2">
-                {["PDF", "Excel", "CSV"].map(f => (
-                  <button key={f} className={cn("flex-1 text-xs py-2 rounded-lg border font-medium transition-base",
-                    f === "PDF" ? "border-purple-500 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400" : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400"
-                  )}>{f}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">Sections</h4>
-          <div className="space-y-1.5 mb-4">
-            {reportSections.map(({ label, checked }) => (
-              <label key={label} className="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" defaultChecked={checked} className="accent-purple-500"/>
-                <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-base">{label}</span>
-              </label>
-            ))}
-          </div>
-          <Button variant="primary" className="w-full" icon={<FileBarChart size={13}/>}>Generate Report</Button>
-        </motion.div>
+        <Panel title="Per-client snapshot" subtitle="what a client report would contain today">
+          <Table minWidth={820}>
+            <thead>
+              <tr>
+                <Th>Client</Th><Th align="right">AI share</Th><Th align="right">Health</Th>
+                <Th align="right">Criticals</Th><Th align="right">Prompts</Th><Th>Last crawl</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <Tr key={c.projectId}>
+                  <Td>
+                    <span className="text-[12.5px] font-semibold text-[#09090b]">{c.name}</span>
+                    <span className="block font-mono text-[10.5px] text-[#a1a1aa]">{c.domain ?? "no website"}</span>
+                  </Td>
+                  <Td align="right"><Mono>{c.aiCitationSharePct != null ? `${c.aiCitationSharePct}%` : "—"}</Mono></Td>
+                  <Td align="right"><Mono>{c.health ?? "—"}</Mono></Td>
+                  <Td align="right"><Mono tone={c.criticalIssues ? "bad" : "good"}>{c.criticalIssues}</Mono></Td>
+                  <Td align="right"><Mono>{c.trackedPrompts}</Mono></Td>
+                  <Td><span className="text-[11.5px] text-[#71717a]">{relativeTime(c.lastCrawledAt)}</span></Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
 
-        {/* Existing Reports */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="xl:col-span-2 card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Report History</h3>
-          </div>
-          <div className="divide-y divide-[var(--border-color)]">
-            {reports.map((r, i) => (
-              <motion.div key={r.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.04 * i }}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-[var(--surface-2)] group">
-                <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                  <FileBarChart size={16} className="text-purple-500"/>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{r.name}</div>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--text-muted)]">
-                    <span>{r.client}</span>
-                    <span>·</span>
-                    <span>{r.date}</span>
-                    <Badge variant="default">{r.type}</Badge>
-                    <Badge variant="info">{r.format}</Badge>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={r.status === "ready" ? "success" : "pending"}>
-                    {r.status === "ready" ? "Ready" : "Generating..."}
-                  </Badge>
-                  {r.status === "ready" && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-base">
-                      <Button variant="secondary" size="sm" icon={<Download size={12}/>}>Download</Button>
-                      <Button variant="ghost" size="sm" icon={<Mail size={12}/>}>Email</Button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
+        <NotConnected
+          title="Scheduled white-label delivery is not built"
+          what="The design specifies recurring PDF reports emailed to client contacts on a cadence. Export above produces the same figures today."
+          needs={["A PDF renderer", "An email provider (e.g. Resend, SES)", "A schedule + recipients model", "White-label branding per client"]}
+        />
+      </QueryState>
     </div>
   );
+}
+
+function exportReport(clients: PortfolioClient[]) {
+  const header = ["Client", "Domain", "AI share %", "Delta pt", "Health", "Criticals", "Prompts", "Avg position", "Last crawl"];
+  const rows = clients.map((c) => [
+    c.name, c.domain ?? "", c.aiCitationSharePct ?? "", c.aiDeltaPt ?? "",
+    c.health ?? "", c.criticalIssues, c.trackedPrompts, c.averagePosition ?? "", c.lastCrawledAt ?? "",
+  ]);
+  const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `portfolio-report-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
