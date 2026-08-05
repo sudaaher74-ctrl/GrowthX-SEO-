@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { GitService } from './agents/git/git.service';
 import { PatchGenerationService } from './agents/patch-generation/patch-generation.service';
@@ -8,9 +8,13 @@ import { RepositoryUnderstandingService } from './agents/repository-understandin
 import { IssueAnalysisService } from './agents/issue-analysis/issue-analysis.service';
 import { VerificationService } from './agents/verification/verification.service';
 import { RepositoryGraphModule } from '../repository-graph/repository-graph.module';
+import { AiSearchModule } from '../ai-search/ai-search.module';
 
 @Module({
-  imports: [RepositoryGraphModule],
+  imports: [
+    RepositoryGraphModule,
+    forwardRef(() => AiSearchModule),
+  ],
   providers: [
     OrchestratorService,
     GitService,

@@ -9,6 +9,9 @@ export declare class ProjectsController {
         createdAt: Date;
         updatedAt: Date;
         organizationId: string;
+        tier: string | null;
+        retainerMonthlyMinor: number | null;
+        retainerCurrency: string;
     }>;
     getProjectsByOrganization(orgId: string): Promise<{
         name: string;
@@ -16,6 +19,9 @@ export declare class ProjectsController {
         createdAt: Date;
         updatedAt: Date;
         organizationId: string;
+        tier: string | null;
+        retainerMonthlyMinor: number | null;
+        retainerCurrency: string;
     }[]>;
     getProjectById(id: string): Promise<{
         name: string;
@@ -23,5 +29,8 @@ export declare class ProjectsController {
         createdAt: Date;
         updatedAt: Date;
         organizationId: string;
+        tier: string | null;
+        retainerMonthlyMinor: number | null;
+        retainerCurrency: string;
     } | null>;
 }

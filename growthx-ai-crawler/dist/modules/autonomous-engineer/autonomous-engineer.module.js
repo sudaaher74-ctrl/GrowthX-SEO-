@@ -17,12 +17,16 @@ const repository_understanding_service_1 = require("./agents/repository-understa
 const issue_analysis_service_1 = require("./agents/issue-analysis/issue-analysis.service");
 const verification_service_1 = require("./agents/verification/verification.service");
 const repository_graph_module_1 = require("../repository-graph/repository-graph.module");
+const ai_search_module_1 = require("../ai-search/ai-search.module");
 let AutonomousEngineerModule = class AutonomousEngineerModule {
 };
 exports.AutonomousEngineerModule = AutonomousEngineerModule;
 exports.AutonomousEngineerModule = AutonomousEngineerModule = __decorate([
     (0, common_1.Module)({
-        imports: [repository_graph_module_1.RepositoryGraphModule],
+        imports: [
+            repository_graph_module_1.RepositoryGraphModule,
+            (0, common_1.forwardRef)(() => ai_search_module_1.AiSearchModule),
+        ],
         providers: [
             orchestrator_service_1.OrchestratorService,
             git_service_1.GitService,
@@ -33,7 +37,13 @@ exports.AutonomousEngineerModule = AutonomousEngineerModule = __decorate([
             issue_analysis_service_1.IssueAnalysisService,
             verification_service_1.VerificationService
         ],
-        exports: [orchestrator_service_1.OrchestratorService]
+        exports: [
+            orchestrator_service_1.OrchestratorService,
+            git_service_1.GitService,
+            patch_generation_service_1.PatchGenerationService,
+            validation_service_1.ValidationService,
+            repository_understanding_service_1.RepositoryUnderstandingService,
+        ]
     })
 ], AutonomousEngineerModule);
 //# sourceMappingURL=autonomous-engineer.module.js.map

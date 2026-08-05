@@ -1,3 +1,5 @@
+import { MultiAiRouterService } from '../../../ai-search/multi-ai-router/multi-ai-router.service';
+import { IssueAnalysisResult } from '../issue-analysis/issue-analysis.service';
 export type PatchTarget = 'nextjs-metadata' | 'html';
 export interface PatchOutcome {
     applied: boolean;
@@ -12,9 +14,16 @@ export interface PatchOutcome {
  * forces it.
  */
 export declare class PatchGenerationService {
+    private readonly aiRouter;
     private readonly logger;
+    constructor(aiRouter: MultiAiRouterService);
     /** Extension-based dispatch, so callers do not have to know the file shape. */
     detectTarget(filePath: string): PatchTarget;
+    /**
+     * Generates a code patch using AI based on the issue analysis strategy.
+     * Replaces the entire file content with the AI's updated version.
+     */
+    generatePatch(filePath: string, issueAnalysis: IssueAnalysisResult, organizationId?: string): Promise<PatchOutcome>;
     /**
      * Injects or replaces a property on the exported `metadata` object.
      *

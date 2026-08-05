@@ -3,6 +3,8 @@ import { Project, SyntaxKind, ObjectLiteralExpression } from 'ts-morph';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { MultiAiRouterService, AiTask } from '../../../ai-search/multi-ai-router/multi-ai-router.service';
+import { IssueAnalysisResult } from '../issue-analysis/issue-analysis.service';
 
 export type PatchTarget = 'nextjs-metadata' | 'html';
 
@@ -23,9 +25,75 @@ export interface PatchOutcome {
 export class PatchGenerationService {
   private readonly logger = new Logger(PatchGenerationService.name);
 
+  constructor(private readonly aiRouter: MultiAiRouterService) {}
+
   /** Extension-based dispatch, so callers do not have to know the file shape. */
   detectTarget(filePath: string): PatchTarget {
     return /\.(html?|htm)$/i.test(path.extname(filePath)) ? 'html' : 'nextjs-metadata';
+  }
+
+  // ------------------------------------------------------------ AI Generation
+
+  /**
+   * Generates a code patch using AI based on the issue analysis strategy.
+   * Replaces the entire file content with the AI's updated version.
+   */
+  async generatePatch(filePath: string, issueAnalysis: IssueAnalysisResult, organizationId?: string): Promise<PatchOutcome> {
+    this.logger.log(`Generating AI patch for ${filePath}...`);
+    
+    let fileContent: string;
+    try {
+      fileContent = await fs.readFile(filePath, 'utf-8');
+    } catch (e) {
+      return { applied: false, reason: `Could not read file at ${filePath}: ${e.message}` };
+    }
+
+    const prompt = `
+You are an expert software engineer. You need to apply an SEO fix to the following file.
+
+Fix Strategy:
+${issueAnalysis.strategy}
+
+File Path: ${filePath}
+Original File Content:
+\`\`\`
+${fileContent}
+\`\`\`
+
+Apply the fix strategy to the file content. 
+Return the COMPLETE, updated file content. Do not truncate the file or use placeholders like "// ... rest of code".
+Respond strictly with a JSON object.
+`;
+
+    const jsonSchema = {
+      type: 'object',
+      properties: {
+        updatedContent: { type: 'string', description: 'The fully updated file content with the fix applied.' },
+      },
+      required: ['updatedContent']
+    };
+
+    const completion = await this.aiRouter.generate({
+      prompt,
+      systemInstruction: 'You are a technical SEO expert and software engineer.',
+      task: AiTask.CODE_GEN,
+      organizationId,
+      jsonSchema
+    });
+
+    try {
+      const result = JSON.parse(completion.text);
+      if (!result.updatedContent || result.updatedContent.trim() === '') {
+        return { applied: false, reason: 'AI returned empty content.' };
+      }
+      
+      await fs.writeFile(filePath, result.updatedContent, 'utf-8');
+      this.logger.log(`Successfully generated and applied AI patch to ${filePath}`);
+      return { applied: true };
+    } catch (e) {
+      this.logger.error(`Failed to parse AI patch generation: ${completion.text}`);
+      return { applied: false, reason: 'AI returned invalid JSON for code generation.' };
+    }
   }
 
   // ------------------------------------------------------------ Next.js

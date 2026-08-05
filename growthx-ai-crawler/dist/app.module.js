@@ -38,6 +38,8 @@ const ai_search_module_1 = require("./modules/ai-search/ai-search.module");
 const repository_graph_module_1 = require("./modules/repository-graph/repository-graph.module");
 const ai_visibility_module_1 = require("./modules/ai-visibility/ai-visibility.module");
 const strategy_module_1 = require("./modules/strategy/strategy.module");
+const portfolio_module_1 = require("./modules/portfolio/portfolio.module");
+const automation_module_1 = require("./modules/automation/automation.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -73,6 +75,8 @@ exports.AppModule = AppModule = __decorate([
             repository_graph_module_1.RepositoryGraphModule,
             ai_visibility_module_1.AiVisibilityModule,
             strategy_module_1.StrategyModule,
+            portfolio_module_1.PortfolioModule,
+            automation_module_1.AutomationModule,
         ],
         controllers: [health_controller_1.HealthController],
         providers: [],
