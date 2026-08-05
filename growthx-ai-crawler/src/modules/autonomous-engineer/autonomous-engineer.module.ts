@@ -21,6 +21,12 @@ import { RepositoryGraphModule } from '../repository-graph/repository-graph.modu
     IssueAnalysisService,
     VerificationService
   ],
-  exports: [OrchestratorService]
+  exports: [
+    OrchestratorService,
+    GitService,
+    PatchGenerationService,
+    ValidationService,
+    RepositoryUnderstandingService,
+  ]
 })
 export class AutonomousEngineerModule {}

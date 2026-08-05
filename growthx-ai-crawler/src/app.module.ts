@@ -30,6 +30,7 @@ import { RepositoryGraphModule } from './modules/repository-graph/repository-gra
 import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module';
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
+import { AutomationModule } from './modules/automation/automation.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
     AiVisibilityModule,
     StrategyModule,
     PortfolioModule,
+    AutomationModule,
   ],
   controllers: [HealthController],
   providers: [],
