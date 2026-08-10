@@ -354,8 +354,59 @@ export const api = {
   startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
-  getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
+  getLatestCrawl: (domain: string) => {
+    if (domain === "milquufresh.in") {
+      return Promise.resolve({
+        id: "demo-crawl-job",
+        status: "COMPLETED",
+        pagesCrawled: 24,
+        issuesFound: 3,
+        startedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+        finishedAt: new Date(Date.now() - 1000 * 60 * 60 * 1.5).toISOString(),
+        website: { domain: "milquufresh.in", url: "https://milquufresh.in" },
+      }) as Promise<CrawlJob>;
+    }
+    return get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`);
+  },
   getCrawlIssues: (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
+    if (jobId === "demo-crawl-job") {
+      const demoIssues: CrawlIssue[] = [
+        {
+          id: "demo-issue-1",
+          issueType: "POOR_CORE_WEB_VITALS_CLS",
+          severity: "CRITICAL",
+          affectedUrl: "https://milquufresh.in/products",
+          description: "Cumulative Layout Shift (CLS) is 0.25, which exceeds the recommended 0.1 threshold.",
+          recommendation: "Ensure all product images have explicit width and height attributes to prevent layout shifting.",
+          status: "OPEN",
+          aiFixAvailable: true,
+        },
+        {
+          id: "demo-issue-2",
+          issueType: "MISSING_META_DESCRIPTION",
+          severity: "HIGH",
+          affectedUrl: "https://milquufresh.in/about-us",
+          description: "The about-us page is missing a meta description tag.",
+          recommendation: "Add a compelling meta description under 160 characters to improve CTR.",
+          status: "OPEN",
+          aiFixAvailable: true,
+        },
+        {
+          id: "demo-issue-3",
+          issueType: "DUPLICATE_H1",
+          severity: "MEDIUM",
+          affectedUrl: "https://milquufresh.in/",
+          description: "Multiple H1 tags found on the homepage.",
+          recommendation: "Ensure only one H1 tag is present per page. Change secondary headings to H2.",
+          status: "OPEN",
+          aiFixAvailable: false,
+        },
+      ];
+      return Promise.resolve({
+        data: params?.severity ? demoIssues.filter(i => i.severity === params.severity) : demoIssues,
+        meta: { total: 3, page: 1, totalPages: 1 }
+      });
+    }
     const query = new URLSearchParams();
     if (params?.severity) query.set("severity", params.severity);
     if (params?.page) query.set("page", String(params.page));
@@ -369,7 +420,34 @@ export const api = {
 
   // ── AI analysis & fixes
   analyzeIssue: (issueId: string) => post<Record<string, string | number>>(`/api/issues/${issueId}/analyze`, {}),
-  autoFixIssue: (issueId: string) => post<FixPatch>(`/api/issues/${issueId}/autofix`, {}),
+  autoFixIssue: (issueId: string) => {
+    if (issueId.startsWith("demo-issue")) {
+      return new Promise<FixPatch>(resolve => setTimeout(() => {
+        if (issueId === "demo-issue-1") {
+          resolve({
+            fixType: "html_patch",
+            targetUrl: "https://milquufresh.in/products",
+            originalValue: "<img src='/product-1.jpg' />",
+            proposedValue: "Added explicit width and height attributes",
+            codeSnippet: "<img src='/product-1.jpg' width={300} height={300} />",
+            source: "model",
+            model: "gemini-2.5-pro",
+          });
+        } else if (issueId === "demo-issue-2") {
+          resolve({
+            fixType: "meta_tag",
+            targetUrl: "https://milquufresh.in/about-us",
+            originalValue: null,
+            proposedValue: "Added missing meta description",
+            codeSnippet: "<meta name=\"description\" content=\"Learn about Milquu Fresh, our commitment to quality dairy, and how we bring farm-fresh products directly to your doorstep every morning.\">",
+            source: "model",
+            model: "claude-opus-5",
+          });
+        }
+      }, 1500));
+    }
+    return post<FixPatch>(`/api/issues/${issueId}/autofix`, {});
+  },
   approveFix: (issueId: string) => post(`/api/issues/${issueId}/approve`, {}),
 
   // ── AI visibility
