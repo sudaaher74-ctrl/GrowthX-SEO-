@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Crawler snapshots & storage (large binary/HTML files - never commit)
+storage/
+storage/snapshots/
+
+# Prisma client (generated)
+node_modules/.prisma/
+
+# OS files
+.DS_Store
+Thumbs.db
