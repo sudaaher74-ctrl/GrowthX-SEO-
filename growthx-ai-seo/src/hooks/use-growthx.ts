@@ -185,3 +185,72 @@ export function useCrawlIssues(jobId: string | null, severity?: string) {
     enabled: Boolean(jobId),
   });
 }
+
+export function useAskAi(projectId: string | null) {
+  return useMutation({
+    mutationFn: (question: string) => api.askAi(projectId!, question),
+  });
+}
+
+export function useRepository(projectId: string | null) {
+  return useQuery({
+    queryKey: ["repository", projectId],
+    queryFn: () => api.getRepository(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useConnectRepository(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { owner: string; name: string; accessToken: string; defaultBranch?: string; framework?: string; contentDir?: string; autoMerge?: boolean }) =>
+      api.connectRepository(projectId!, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["repository", projectId] }),
+  });
+}
+
+export function useContentPieces(projectId: string | null) {
+  return useQuery({
+    queryKey: ["content-pieces", projectId],
+    queryFn: () => api.listContent(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function usePlanContent(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.planContent(projectId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["content-pieces", projectId] }),
+  });
+}
+
+export function useDraftContent(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pieceId: string) => api.draftContent(projectId!, pieceId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["content-pieces", projectId] }),
+  });
+}
+
+export function useRunContent(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pieceIds?: string[]) => api.runContentPieces(projectId!, pieceIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["content-pieces", projectId] });
+      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
+    },
+  });
+}
+
+export function useAutomationRuns(projectId: string | null) {
+  return useQuery({
+    queryKey: ["automation-runs", projectId],
+    queryFn: () => api.listAutomationRuns(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}

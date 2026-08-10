@@ -1,46 +1,68 @@
 "use client";
 import { motion } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
-import { mockChatMessages, mockSuggestedPrompts } from "@/lib/mock-data";
+import { useWorkspace, useAskAi } from "@/hooks/use-growthx";
+import { ApiError } from "@/lib/api-client";
+import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bot, Send, Sparkles, User, RefreshCw, Copy, ThumbsUp, ThumbsDown } from "lucide-react";
 
-type Message = { role: "user" | "assistant"; content: string; typing?: boolean };
+type Message = { role: "user" | "assistant"; content: string };
 
-const aiResponses: Record<string, string> = {
-  default: "Based on your dashboard data, I can see that **milk delivery panvel** is your top performing keyword at position #2. Your overall SEO health score is 78/100. I'd recommend focusing on fixing the 4 critical technical issues first — particularly the canonical problems and 404 errors — as these are directly impacting your rankings. Would you like me to generate fixes for those?",
-  traffic: "Analyzing your traffic patterns from the last 30 days... Your organic traffic grew 15.3% compared to the prior period. The biggest driver was the improvement of **milk delivery panvel** from position #4 to #2, which added approximately 680 additional clicks. I also notice a dip on July 19-21 — that coincided with a Google core update. Your site recovered well. No manual action detected.",
-  keyword: "Here are your top keyword opportunities right now:\n\n1. **dairy subscription navi mumbai** — Volume: 1,400, Difficulty: 22, Opportunity Score: 95 ⭐\n2. **milk delivery kharghar** — Volume: 1,800, Difficulty: 18, Opportunity Score: 96 ⭐\n3. **organic milk delivery mumbai** — Volume: 3,200, Difficulty: 28, Opportunity Score: 90 ⭐\n\nAll three have low difficulty and high commercial intent — perfect for quick wins. Want me to generate optimized content for any of these?",
-};
+const suggestedPrompts = [
+  "Why did traffic drop last week?",
+  "What are my best keyword opportunities?",
+  "Summarize my SEO health right now",
+  "What should I fix first?",
+];
+
+function initialMessage(clientName?: string): Message {
+  return {
+    role: "assistant",
+    content: clientName
+      ? `Hi! I'm your AI SEO assistant for ${clientName}. I can see this client's dashboard, rankings, and technical issues in real time. Ask me anything — traffic drops, keyword opportunities, or what to fix next.`
+      : "Hi! Select a client to give me access to their dashboard, rankings, and technical issues, then ask me anything.",
+  };
+}
 
 export default function AIAssistantPage() {
-  const [messages, setMessages] = useState<Message[]>(mockChatMessages);
+  const { projectId, projects } = useWorkspace();
+  const activeProject = projects.find((p) => p.id === projectId);
+
+  return (
+    <ChatPanel key={projectId ?? "none"} projectId={projectId} clientName={activeProject?.name} />
+  );
+}
+
+function ChatPanel({ projectId, clientName }: { projectId: string | null; clientName?: string }) {
+  const askAi = useAskAi(projectId);
+
+  const [messages, setMessages] = useState<Message[]>([initialMessage(clientName)]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, askAi.isPending]);
 
   const sendMessage = async (text?: string) => {
     const content = text ?? input.trim();
-    if (!content || loading) return;
+    if (!content || askAi.isPending || !projectId) return;
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content }]);
-    setLoading(true);
+    setMessages((prev) => [...prev, { role: "user", content }]);
 
-    await new Promise(r => setTimeout(r, 1200));
-
-    const lc = content.toLowerCase();
-    let response = aiResponses.default;
-    if (lc.includes("traffic") || lc.includes("drop")) response = aiResponses.traffic;
-    if (lc.includes("keyword") || lc.includes("opportunit")) response = aiResponses.keyword;
-
-    setMessages(prev => [...prev, { role: "assistant", content: response }]);
-    setLoading(false);
+    try {
+      const result = await askAi.mutateAsync(content);
+      setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
+    } catch (err) {
+      if (!(err instanceof ApiError && err.isUpgradeRequired)) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I couldn't process that — please try again." }]);
+      }
+    }
   };
+
+  const upgrade = askAi.error instanceof ApiError ? askAi.error.upgrade : null;
 
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
@@ -87,7 +109,7 @@ export default function AIAssistantPage() {
           </motion.div>
         ))}
 
-        {loading && (
+        {askAi.isPending && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full gradient-bg-brand flex items-center justify-center shrink-0"><Sparkles size={14} className="text-white"/></div>
             <div className="bg-[var(--surface-2)] border border-[var(--border-color)] rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
@@ -98,11 +120,13 @@ export default function AIAssistantPage() {
         <div ref={bottomRef}/>
       </div>
 
+      {upgrade && <div className="mb-3 shrink-0"><UpgradePrompt upgrade={upgrade} /></div>}
+
       {/* Suggested prompts */}
       <div className="flex flex-wrap gap-2 mb-3 shrink-0">
-        {mockSuggestedPrompts.slice(0, 4).map((prompt) => (
-          <button key={prompt} onClick={() => sendMessage(prompt)}
-            className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400 hover:text-purple-500 transition-base bg-[var(--surface-1)]">
+        {suggestedPrompts.map((prompt) => (
+          <button key={prompt} onClick={() => sendMessage(prompt)} disabled={!projectId}
+            className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-purple-400 hover:text-purple-500 transition-base bg-[var(--surface-1)] disabled:opacity-50 disabled:cursor-not-allowed">
             {prompt}
           </button>
         ))}
@@ -116,12 +140,13 @@ export default function AIAssistantPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }}}
-            placeholder="Ask anything about your SEO — traffic drops, content ideas, technical fixes..."
-            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none leading-relaxed"
+            placeholder={projectId ? "Ask anything about your SEO — traffic drops, content ideas, technical fixes..." : "Select a client to start chatting..."}
+            disabled={!projectId}
+            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] resize-none focus:outline-none leading-relaxed disabled:opacity-50"
             style={{ maxHeight: "120px" }}
           />
         </div>
-        <Button variant="primary" onClick={() => sendMessage()} loading={loading} className="h-11 px-4">
+        <Button variant="primary" onClick={() => sendMessage()} loading={askAi.isPending} disabled={!projectId} className="h-11 px-4">
           <Send size={15}/>
         </Button>
       </div>

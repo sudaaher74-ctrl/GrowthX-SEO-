@@ -297,6 +297,44 @@ export interface StrategyReport {
   evidence?: unknown;
 }
 
+export interface ContentPiece {
+  id: string;
+  title: string;
+  slug: string;
+  format: string | null;
+  targetQuery: string | null;
+  status: "PLANNED" | "DRAFTED" | "COMMITTED";
+  filePath: string | null;
+  generatedByModel: string | null;
+  metaDescription: string | null;
+  createdAt: string;
+}
+
+export interface SiteRepository {
+  id: string;
+  projectId: string;
+  owner: string;
+  name: string;
+  defaultBranch: string;
+  framework: string;
+  contentDir: string | null;
+  autoMerge: boolean;
+  tokenConfigured: true;
+}
+
+export interface AutomationRun {
+  id: string;
+  kind: "FIXES" | "CONTENT";
+  status: "RUNNING" | "AWAITING_REVIEW" | "FAILED";
+  steps: { at: string; step: string; detail?: string; ok: boolean }[];
+  error: string | null;
+  branch: string | null;
+  pullRequestUrl: string | null;
+  filesChanged: string[];
+  startedAt: string;
+  finishedAt: string | null;
+}
+
 // ──────────────────────────────────────────────────────────────── the API
 
 export const api = {
@@ -479,4 +517,20 @@ export const api = {
       `/api/projects/${projectId}/chat`,
       { question },
     ),
+
+  // ── Autonomous engineer: repository + content pipeline
+  getRepository: (projectId: string) => get<SiteRepository | null>(`/api/projects/${projectId}/automation/repository`),
+  connectRepository: (
+    projectId: string,
+    body: { owner: string; name: string; accessToken: string; defaultBranch?: string; framework?: string; contentDir?: string; autoMerge?: boolean },
+  ) => post<SiteRepository>(`/api/projects/${projectId}/automation/repository`, body),
+  planContent: (projectId: string) => post<ContentPiece[]>(`/api/projects/${projectId}/automation/content/plan`, {}),
+  listContent: (projectId: string) => get<ContentPiece[]>(`/api/projects/${projectId}/automation/content`),
+  draftContent: (projectId: string, pieceId: string) =>
+    post<ContentPiece>(`/api/projects/${projectId}/automation/content/${pieceId}/draft`, {}),
+  runContentPieces: (projectId: string, pieceIds?: string[]) =>
+    post<AutomationRun>(`/api/projects/${projectId}/automation/runs/content`, pieceIds ? { pieceIds } : {}),
+  runFixes: (projectId: string, issueIds?: string[]) =>
+    post<AutomationRun>(`/api/projects/${projectId}/automation/runs/fixes`, issueIds ? { issueIds } : {}),
+  listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
 };
