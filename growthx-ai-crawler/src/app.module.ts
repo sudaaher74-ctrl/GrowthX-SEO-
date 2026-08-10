@@ -31,6 +31,7 @@ import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { AutomationModule } from './modules/automation/automation.module';
+import { ActivityModule } from './modules/activity/activity.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AutomationModule } from './modules/automation/automation.module';
     StrategyModule,
     PortfolioModule,
     AutomationModule,
+    ActivityModule,
   ],
   controllers: [HealthController],
   providers: [],

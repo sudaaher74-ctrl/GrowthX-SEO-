@@ -24,8 +24,9 @@ enum Role {
 
 enum PlanType {
   FREE
-  STARTER // INR 2,000 / month
-  PRO // INR 5,000 / month
+  STARTER // INR 1,999 / month
+  GROWTH // INR 4,999 / month
+  PRO // INR 6,999 / month
   ENTERPRISE
 }
 

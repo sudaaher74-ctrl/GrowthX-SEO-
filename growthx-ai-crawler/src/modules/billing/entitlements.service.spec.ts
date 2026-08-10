@@ -92,7 +92,7 @@ describe('EntitlementsService', () => {
       expect(error.getResponse()).toMatchObject({
         error: 'FEATURE_NOT_IN_PLAN',
         currentPlan: PlanType.STARTER,
-        upgradeTo: { plan: PlanType.PRO, price: '₹5,000' },
+        upgradeTo: { plan: PlanType.PRO, price: '₹6,999' },
       });
     });
 
@@ -129,7 +129,7 @@ describe('EntitlementsService', () => {
         metric: UsageMetric.AI_ANALYSES,
         limit: 200,
         used: 200,
-        upgradeTo: { plan: PlanType.PRO, limit: 1000 },
+        upgradeTo: { plan: PlanType.GROWTH, limit: 600 },
       });
     });
 

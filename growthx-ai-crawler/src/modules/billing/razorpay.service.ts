@@ -34,7 +34,7 @@ export class RazorpayService {
     this.keySecret = this.config.get<string>('RAZORPAY_KEY_SECRET') ?? '';
     this.webhookSecret = this.config.get<string>('RAZORPAY_WEBHOOK_SECRET') ?? '';
 
-    for (const plan of [PlanType.STARTER, PlanType.PRO]) {
+    for (const plan of [PlanType.STARTER, PlanType.GROWTH, PlanType.PRO]) {
       const configured = this.config.get<string>(`RAZORPAY_PLAN_ID_${plan}`);
       if (configured) this.planIdCache.set(plan, configured);
     }
@@ -87,7 +87,7 @@ export class RazorpayService {
   /**
    * Returns the Razorpay plan id for one of our plans, creating it on first use
    * so a fresh environment does not need manual dashboard setup. Set
-   * `RAZORPAY_PLAN_ID_STARTER` / `RAZORPAY_PLAN_ID_PRO` to pin existing plans.
+   * `RAZORPAY_PLAN_ID_STARTER` / `RAZORPAY_PLAN_ID_GROWTH` / `RAZORPAY_PLAN_ID_PRO` to pin existing plans.
    */
   async ensurePlan(planType: PlanType): Promise<string> {
     const cached = this.planIdCache.get(planType);

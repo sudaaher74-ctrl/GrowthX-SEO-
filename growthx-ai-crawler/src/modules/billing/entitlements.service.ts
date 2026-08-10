@@ -236,7 +236,8 @@ export class EntitlementsService {
   /** Next self-serve plan above `plan`, if any. */
   private nextPlanUp(plan: PlanType): PlanDefinition | null {
     if (plan === PlanType.FREE) return getPlan(PlanType.STARTER);
-    if (plan === PlanType.STARTER) return getPlan(PlanType.PRO);
+    if (plan === PlanType.STARTER) return getPlan(PlanType.GROWTH);
+    if (plan === PlanType.GROWTH) return getPlan(PlanType.PRO);
     return null;
   }
 

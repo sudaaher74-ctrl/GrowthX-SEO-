@@ -77,10 +77,10 @@ export default function BillingPage() {
           </div>
         )}
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {plans.data?.plans.map((plan) => {
             const isCurrent = currentPlan === plan.plan;
-            const isPro = plan.plan === "PRO";
+            const isPopular = plan.plan === "GROWTH";
             return (
               <motion.div
                 key={plan.plan}
@@ -88,10 +88,10 @@ export default function BillingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
                   "relative rounded-2xl border bg-[var(--surface-1)] p-6",
-                  isPro ? "border-blue-500" : "border-[var(--border-color)]",
+                  isPopular ? "border-blue-500" : "border-[var(--border-color)]",
                 )}
               >
-                {isPro && (
+                {isPopular && (
                   <span className="absolute -top-3 left-6 flex items-center gap-1 rounded-full bg-blue-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
                     <Star size={10} /> Most popular
                   </span>
@@ -125,7 +125,7 @@ export default function BillingPage() {
 
                 <div className="mt-6">
                   <Button
-                    variant={isPro ? "primary" : "secondary"}
+                    variant={isPopular ? "primary" : "secondary"}
                     size="sm"
                     disabled={isCurrent || checkout.isPending || !plans.data?.configured}
                     onClick={() => subscribe(plan)}

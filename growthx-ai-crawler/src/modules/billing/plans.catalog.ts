@@ -73,15 +73,15 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
     quotas: { ...noQuota, CRAWL_PAGES: 100 },
   },
 
-  // The INR 2,000 tier: crawl the site and tell them, using Gemini, what to fix.
-  // No code is written or shipped on this plan.
+  // The INR 1,999 tier: crawl the site and tell them, using Gemini, what to
+  // fix. Basic competitor visibility, no code shipped, no market/strategy work.
   [PlanType.STARTER]: {
     plan: PlanType.STARTER,
     name: 'Starter',
-    amountPaise: 200_000,
+    amountPaise: 199_900,
     currency: 'INR',
     interval: 'monthly',
-    tagline: 'Full website crawl plus Gemini recommendations on what to improve.',
+    tagline: 'Technical SEO crawl, weekly re-crawls, basic competitor visibility, and Gemini fix suggestions.',
     maxSites: 1,
     maxSeats: 2,
     features: new Set([
@@ -89,6 +89,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.SCHEDULED_CRAWLS,
       Feature.AI_RECOMMENDATIONS,
       Feature.MODEL_GEMINI,
+      Feature.COMPETITOR_TRACKING,
     ]),
     quotas: {
       ...noQuota,
@@ -97,17 +98,49 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
     },
   },
 
-  // The INR 5,000 tier: everything above, plus GPT and Claude, patches shipped
-  // as pull requests, AI-assistant citation tracking, and strategy generation.
-  [PlanType.PRO]: {
-    plan: PlanType.PRO,
-    name: 'Pro',
-    amountPaise: 500_000,
+  // The INR 4,999 tier: daily crawls, GPT added, AI-assistant citation
+  // tracking, and the market/strategy/content-plan engine. Still no code
+  // shipped to the customer's repo — that starts at Pro.
+  [PlanType.GROWTH]: {
+    plan: PlanType.GROWTH,
+    name: 'Growth',
+    amountPaise: 499_900,
     currency: 'INR',
     interval: 'monthly',
     tagline:
-      'Everything in Starter, plus Claude and GPT, automated fix pull requests, AI-assistant visibility tracking, and market strategy.',
+      'Everything in Starter, plus daily crawls, GPT, advanced competitor analysis, market intelligence, and a full marketing & content strategy.',
     maxSites: 3,
+    maxSeats: 3,
+    features: new Set([
+      Feature.CRAWL,
+      Feature.SCHEDULED_CRAWLS,
+      Feature.AI_RECOMMENDATIONS,
+      Feature.MODEL_GEMINI,
+      Feature.MODEL_GPT,
+      Feature.COMPETITOR_TRACKING,
+      Feature.AI_VISIBILITY,
+      Feature.MARKET_STRATEGY,
+    ]),
+    quotas: {
+      ...noQuota,
+      CRAWL_PAGES: 15_000,
+      AI_ANALYSES: 600,
+      AI_VISIBILITY_CHECKS: 1_500,
+      STRATEGY_REPORTS: 2,
+    },
+  },
+
+  // The INR 6,999 tier: everything above, plus Claude, repository analysis,
+  // automated fix patches shipped as pull requests, and API access.
+  [PlanType.PRO]: {
+    plan: PlanType.PRO,
+    name: 'Pro',
+    amountPaise: 699_900,
+    currency: 'INR',
+    interval: 'monthly',
+    tagline:
+      'Everything in Growth, plus Claude, repository analysis, AI-generated pull requests, team collaboration, and API access.',
+    maxSites: 5,
     maxSeats: 5,
     features: new Set([
       Feature.CRAWL,
@@ -116,11 +149,12 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
       Feature.MODEL_CLAUDE,
+      Feature.COMPETITOR_TRACKING,
+      Feature.AI_VISIBILITY,
+      Feature.MARKET_STRATEGY,
       Feature.AUTO_FIX_PATCH,
       Feature.AUTO_FIX_DEPLOY,
-      Feature.AI_VISIBILITY,
-      Feature.COMPETITOR_TRACKING,
-      Feature.MARKET_STRATEGY,
+      Feature.API_ACCESS,
     ]),
     quotas: {
       CRAWL_PAGES: 25_000,
@@ -134,10 +168,10 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
   [PlanType.ENTERPRISE]: {
     plan: PlanType.ENTERPRISE,
     name: 'Enterprise',
-    amountPaise: 0, // negotiated; provisioned manually
+    amountPaise: 0, // negotiated; ~₹75,000+/month modelled, provisioned manually
     currency: 'INR',
     interval: 'monthly',
-    tagline: 'Unlimited sites, white-label reporting, and API access.',
+    tagline: 'Unlimited projects, distributed crawling, white-label reporting, dedicated infrastructure, SSO, and priority support.',
     maxSites: null,
     maxSeats: null,
     features: new Set(Object.values(Feature)),
@@ -152,7 +186,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
 });
 
 /** Plans a customer can buy themselves, cheapest first. */
-export const SELF_SERVE_PLANS: readonly PlanType[] = [PlanType.STARTER, PlanType.PRO];
+export const SELF_SERVE_PLANS: readonly PlanType[] = [PlanType.STARTER, PlanType.GROWTH, PlanType.PRO];
 
 export function getPlan(plan: PlanType): PlanDefinition {
   return PLAN_CATALOG[plan];

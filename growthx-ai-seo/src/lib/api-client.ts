@@ -132,8 +132,27 @@ const post = <T>(path: string, body?: unknown) =>
 
 // ──────────────────────────────────────────────────────────────── types
 
+export type Role = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+
+export interface OrgMember {
+  id: string;
+  role: Role;
+  joinedAt: string;
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+export interface ActivityItem {
+  id: string;
+  status: "success" | "warning" | "pending" | "error";
+  message: string;
+  time: string;
+}
+
 export interface Plan {
-  plan: "STARTER" | "PRO";
+  plan: "FREE" | "STARTER" | "GROWTH" | "PRO" | "ENTERPRISE";
   name: string;
   tagline: string;
   amountPaise: number;
@@ -355,7 +374,15 @@ export const api = {
   listOrganizations: () => get<{ id: string; name: string; slug: string }[]>("/organizations"),
   createOrganization: (name: string, slug: string) => post<{ id: string; name: string; slug: string }>("/organizations", { name, slug }),
   listProjects: (orgId: string) => get<{ id: string; name: string }[]>(`/projects/org/${orgId}`),
-  createProject: (name: string, organizationId: string) => post("/projects", { name, organizationId }),
+  listMembers: (orgId: string) => get<OrgMember[]>(`/organizations/${orgId}/members`),
+  addMember: (orgId: string, email: string, role: Role = "MEMBER") =>
+    post<OrgMember>(`/organizations/${orgId}/members`, { email, role }),
+  updateMemberRole: (orgId: string, memberId: string, role: Role) =>
+    request<OrgMember>(`/organizations/${orgId}/members/${memberId}`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  removeMember: (orgId: string, memberId: string) =>
+    request<{ success: boolean }>(`/organizations/${orgId}/members/${memberId}`, { method: "DELETE" }),
+  createProject: (name: string, organizationId: string) =>
+    post<{ id: string; name: string }>("/projects", { name, organizationId }),
 
   // ── Agency portfolio
   getPortfolio: (orgId: string, days = 28) =>
@@ -510,6 +537,10 @@ export const api = {
   getStrategy: (projectId: string, reportId: string) =>
     get<StrategyReport>(`/api/projects/${projectId}/strategy/${reportId}`),
   generateStrategy: (projectId: string) => post<StrategyReport>(`/api/projects/${projectId}/strategy`, {}),
+
+  // ── Activity
+  getActivity: (projectId: string, limit = 30) =>
+    get<ActivityItem[]>(`/api/projects/${projectId}/activity?limit=${limit}`),
 
   // ── AI assistant chat
   askAi: (projectId: string, question: string) =>

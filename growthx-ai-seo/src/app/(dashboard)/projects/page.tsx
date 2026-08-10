@@ -2,110 +2,122 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { ArrowLeft, CheckCircle2, Globe, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { Plus, Globe, ExternalLink, Settings, BarChart3, CheckCircle2 } from "lucide-react";
-import { AddWebsiteModal } from "@/components/ui/AddWebsiteModal";
+import { useCreateProject, useWorkspace } from "@/hooks/use-growthx";
+import { api } from "@/lib/api-client";
 
-const projects = [
-  { id: 1, name: "MilQuu Fresh Dairy", domain: "milquu.com", health: 78, keywords: 847, issues: 47, indexed: 1247, plan: "Growth", status: "active" },
-  { id: 2, name: "GrowthX Agency", domain: "growthx.in", health: 65, keywords: 320, issues: 23, indexed: 142, plan: "Growth", status: "active" },
-  { id: 3, name: "Client Demo Site", domain: "demo.growthx.in", health: 0, keywords: 0, issues: 0, indexed: 0, plan: "Growth", status: "setup" },
-];
-
-const healthColor = (h: number) => h >= 80 ? "text-emerald-500" : h >= 60 ? "text-amber-500" : h > 0 ? "text-red-500" : "text-slate-400";
-
-export default function ProjectsPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+/**
+ * The "Add client" flow linked from /clients. Creates the Project first, then
+ * registers the website against it — a website with no projectId never shows
+ * up in the portfolio, so the two calls have to happen in this order.
+ */
+export default function AddClientPage() {
   const router = useRouter();
+  const { orgId } = useWorkspace();
+  const createProject = useCreateProject(orgId);
 
-  // Bypassing plan limit restriction for testing
-  const hasActiveProject = false;
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [step, setStep] = useState<"idle" | "creating" | "registering" | "verifying">("idle");
+  const [error, setError] = useState("");
 
-  const handleSuccess = (domain: string) => {
-    // Redirect to technical SEO dashboard for this specific domain
-    router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
-  };
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !url.trim() || !orgId) return;
+    setError("");
+
+    let domain = url.trim().toLowerCase();
+    try {
+      domain = domain.startsWith("http://") || domain.startsWith("https://") ? new URL(domain).hostname : domain;
+    } catch {
+      // keep the raw input; validated below
+    }
+    domain = domain.replace(/^www\./, "");
+    if (!domain.includes(".")) {
+      setError("Enter a valid domain name (e.g. example.com)");
+      return;
+    }
+
+    try {
+      setStep("creating");
+      const project = await createProject.mutateAsync(name.trim());
+
+      setStep("registering");
+      const website = await api.registerWebsite(url.trim(), domain, project.id);
+
+      setStep("verifying");
+      await api.verifyDomain(website.id);
+
+      router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add client");
+      setStep("idle");
+    }
+  }
+
+  const busy = step !== "idle";
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-h1 text-[var(--text-primary)]">Projects</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Manage all your websites and SEO campaigns</p>
-        </div>
-        <Button variant="primary" size="sm" icon={<Plus size={13}/>} onClick={() => setIsModalOpen(true)}>Add Website</Button>
+    <div className="mx-auto max-w-lg space-y-6">
+      <Link href="/clients" className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+        <ArrowLeft size={14} /> Back to clients
+      </Link>
+
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="text-h1 text-[var(--text-primary)]">Add a client</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
+          Creates the client record and registers their website so it starts showing up in your portfolio.
+        </p>
       </motion.div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {projects.map((project, i) => (
-          <motion.div key={project.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-            className="card p-5 hover:shadow-card-hover cursor-pointer">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl gradient-bg-brand flex items-center justify-center text-white">
-                  <Globe size={18}/>
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-[var(--text-primary)]">{project.name}</div>
-                  <code className="text-xs text-purple-400 font-mono">{project.domain}</code>
-                </div>
-              </div>
-              <Badge variant={project.status === "active" ? "success" : "warning"}>
-                {project.status === "active" ? "Active" : "Setup"}
-              </Badge>
-            </div>
+      <form onSubmit={handleSubmit} className="card space-y-5 p-6">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Client name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Acme Inc."
+            disabled={busy}
+            className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3.5 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]"
+          />
+        </div>
 
-            {project.status === "active" ? (
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {[
-                  { label: "SEO Health", value: `${project.health}`, color: healthColor(project.health) },
-                  { label: "Keywords", value: project.keywords.toString(), color: "text-purple-500" },
-                  { label: "Issues", value: project.issues.toString(), color: project.issues > 0 ? "text-amber-500" : "text-emerald-500" },
-                  { label: "Indexed", value: project.indexed.toLocaleString(), color: "text-emerald-500" },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-[var(--surface-2)] rounded-lg p-2.5 text-center">
-                    <div className={cn("text-xl font-bold", color)}>{value}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">{label}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg text-xs text-amber-600 dark:text-amber-400">
-                Complete setup: connect GSC + GA4 to start tracking
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button variant="primary" size="sm" className="flex-1" icon={<BarChart3 size={12}/>}>
-                {project.status === "active" ? "View Dashboard" : "Complete Setup"}
-              </Button>
-              <button className="w-8 h-8 rounded-lg border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--surface-2)] transition-base">
-                <Settings size={13}/>
-              </button>
-            </div>
-          </motion.div>
-        ))}
-
-        {/* Add New Project Card */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          onClick={() => setIsModalOpen(true)}
-          className="card p-5 flex flex-col items-center justify-center py-12 border-dashed border-2 border-[var(--border-color)] hover:border-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-900/10 cursor-pointer transition-base group">
-          <div className="w-12 h-12 rounded-xl border-2 border-dashed border-purple-300 dark:border-purple-700 flex items-center justify-center mb-3 group-hover:border-purple-500 transition-base">
-            <Plus size={20} className="text-purple-400 group-hover:text-purple-500"/>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Website URL</label>
+          <div className="relative">
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com"
+              disabled={busy}
+              className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-2.5 pl-9 pr-3.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]"
+            />
           </div>
-          <div className="text-sm font-semibold text-[var(--text-secondary)] group-hover:text-purple-600 dark:group-hover:text-purple-400">Add New Website</div>
-          <div className="text-xs text-[var(--text-muted)] mt-0.5">Connect GSC & start tracking</div>
-        </motion.div>
-      </div>
+        </div>
 
-      <AddWebsiteModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={handleSuccess}
-        hasActiveProject={hasActiveProject}
-      />
+        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
+          <ul className="space-y-1.5 text-xs text-[var(--text-secondary)]">
+            <li className="flex items-start gap-2">
+              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> We create the client and verify domain ownership automatically.
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> You&apos;re redirected to the technical SEO audit for the new site.
+            </li>
+          </ul>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
+        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim() || !orgId}>
+          {step === "idle" && "Add client"}
+          {step === "creating" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Creating client…</>)}
+          {step === "registering" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Registering website…</>)}
+          {step === "verifying" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Verifying domain…</>)}
+        </Button>
+      </form>
     </div>
   );
 }

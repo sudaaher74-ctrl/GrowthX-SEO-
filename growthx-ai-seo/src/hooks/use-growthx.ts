@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { api, ApiError, auth } from "@/lib/api-client";
+import { api, ApiError, auth, type Role } from "@/lib/api-client";
 
 /** Subscribers to org changes, so useSyncExternalStore re-renders on switch. */
 const orgListeners = new Set<() => void>();
@@ -68,6 +68,58 @@ export function useWorkspace() {
     isLoading: orgs.isLoading || projects.isLoading,
     error: (orgs.error ?? projects.error) as ApiError | null,
   };
+}
+
+export function useCreateProject(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.createProject(name, orgId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", orgId] }),
+  });
+}
+
+export function useActivity(projectId: string | null) {
+  return useQuery({
+    queryKey: ["activity", projectId],
+    queryFn: () => api.getActivity(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useMembers(orgId: string | null) {
+  return useQuery({
+    queryKey: ["members", orgId],
+    queryFn: () => api.listMembers(orgId!),
+    enabled: Boolean(orgId),
+    retry: false,
+  });
+}
+
+export function useAddMember(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, role }: { email: string; role?: Role }) =>
+      api.addMember(orgId!, email, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", orgId] }),
+  });
+}
+
+export function useUpdateMemberRole(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, role }: { memberId: string; role: Role }) =>
+      api.updateMemberRole(orgId!, memberId, role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", orgId] }),
+  });
+}
+
+export function useRemoveMember(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: string) => api.removeMember(orgId!, memberId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", orgId] }),
+  });
 }
 
 export function usePortfolio(orgId: string | null, days = 28) {

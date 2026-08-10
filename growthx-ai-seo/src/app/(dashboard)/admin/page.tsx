@@ -45,6 +45,18 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
+      {/* Not-live warning — every number and control below is design-mockup data, not a real BullMQ/billing feed. */}
+      <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+        <div>
+          <p className="font-semibold">Design mockup — not connected to any live system</p>
+          <p className="mt-0.5 text-xs opacity-90">
+            Every metric, queue, cost figure and tenant below is hardcoded sample data. The controls do not affect real
+            infrastructure. A real version needs a BullMQ stats endpoint and a tenant-admin API on the backend.
+          </p>
+        </div>
+      </div>
+
       {/* Page Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -52,10 +64,10 @@ export default function AdminPage() {
             <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/20 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldAlert size={12} /> Super Admin
             </span>
-            <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel</h1>
+            <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel (mockup)</h1>
           </div>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Real-time BullMQ queues, AI token billing, infrastructure health, and tenant management
+            Sample layout for BullMQ queues, AI token billing, infrastructure health, and tenant management
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -64,11 +76,12 @@ export default function AdminPage() {
             size="sm"
             onClick={() => setWorkersPaused(!workersPaused)}
             icon={workersPaused ? <Play size={13} /> : <Pause size={13} />}
+            title="Mockup only — does not pause any real queue"
           >
-            {workersPaused ? "Resume Workers" : "Pause Queues"}
+            {workersPaused ? "Resume Workers (mock)" : "Pause Queues (mock)"}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRetry} loading={retrying} icon={<RefreshCw size={13} />}>
-            Retry Failed (3)
+          <Button variant="outline" size="sm" onClick={handleRetry} loading={retrying} icon={<RefreshCw size={13} />} title="Mockup only — does not retry any real job">
+            Retry Failed (mock)
           </Button>
         </div>
       </motion.div>

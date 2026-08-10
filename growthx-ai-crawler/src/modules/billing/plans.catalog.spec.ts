@@ -10,18 +10,23 @@ import {
 } from './plans.catalog';
 
 describe('plans catalog', () => {
-  it('prices the two self-serve tiers at ₹2,000 and ₹5,000', () => {
-    expect(SELF_SERVE_PLANS).toEqual([PlanType.STARTER, PlanType.PRO]);
-    expect(PLAN_CATALOG[PlanType.STARTER].amountPaise).toBe(200_000);
-    expect(PLAN_CATALOG[PlanType.PRO].amountPaise).toBe(500_000);
-    expect(formatInr(200_000)).toBe('₹2,000');
-    expect(formatInr(500_000)).toBe('₹5,000');
+  it('prices the three self-serve tiers at ₹1,999, ₹4,999 and ₹6,999', () => {
+    expect(SELF_SERVE_PLANS).toEqual([PlanType.STARTER, PlanType.GROWTH, PlanType.PRO]);
+    expect(PLAN_CATALOG[PlanType.STARTER].amountPaise).toBe(199_900);
+    expect(PLAN_CATALOG[PlanType.GROWTH].amountPaise).toBe(499_900);
+    expect(PLAN_CATALOG[PlanType.PRO].amountPaise).toBe(699_900);
+    expect(formatInr(199_900)).toBe('₹1,999');
+    expect(formatInr(499_900)).toBe('₹4,999');
+    expect(formatInr(699_900)).toBe('₹6,999');
   });
 
-  describe('STARTER (₹2,000): crawl + Gemini only', () => {
-    it.each([Feature.CRAWL, Feature.AI_RECOMMENDATIONS, Feature.MODEL_GEMINI])('includes %s', (feature) => {
-      expect(planHasFeature(PlanType.STARTER, feature)).toBe(true);
-    });
+  describe('STARTER (₹1,999): crawl + Gemini + basic competitor visibility', () => {
+    it.each([Feature.CRAWL, Feature.AI_RECOMMENDATIONS, Feature.MODEL_GEMINI, Feature.COMPETITOR_TRACKING])(
+      'includes %s',
+      (feature) => {
+        expect(planHasFeature(PlanType.STARTER, feature)).toBe(true);
+      },
+    );
 
     it.each([
       Feature.MODEL_GPT,
@@ -30,19 +35,41 @@ describe('plans catalog', () => {
       Feature.AUTO_FIX_DEPLOY,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,
-      Feature.COMPETITOR_TRACKING,
+      Feature.API_ACCESS,
     ])('excludes %s', (feature) => {
       expect(planHasFeature(PlanType.STARTER, feature)).toBe(false);
     });
 
-    it('grants no allowance for Pro-only metered work', () => {
+    it('grants no allowance for Growth/Pro-only metered work', () => {
       expect(quotaFor(PlanType.STARTER, UsageMetric.AUTO_FIXES)).toBe(0);
       expect(quotaFor(PlanType.STARTER, UsageMetric.AI_VISIBILITY_CHECKS)).toBe(0);
       expect(quotaFor(PlanType.STARTER, UsageMetric.STRATEGY_REPORTS)).toBe(0);
     });
   });
 
-  describe('PRO (₹5,000): all three models plus shipping fixes', () => {
+  describe('GROWTH (₹4,999): GPT, AI visibility, market & content strategy', () => {
+    it.each([Feature.MODEL_GPT, Feature.AI_VISIBILITY, Feature.MARKET_STRATEGY, Feature.COMPETITOR_TRACKING])(
+      'includes %s',
+      (feature) => {
+        expect(planHasFeature(PlanType.GROWTH, feature)).toBe(true);
+      },
+    );
+
+    it.each([Feature.MODEL_CLAUDE, Feature.AUTO_FIX_PATCH, Feature.AUTO_FIX_DEPLOY, Feature.API_ACCESS])(
+      'excludes %s — shipping code starts at Pro',
+      (feature) => {
+        expect(planHasFeature(PlanType.GROWTH, feature)).toBe(false);
+      },
+    );
+
+    it('is a strict superset of STARTER', () => {
+      for (const feature of PLAN_CATALOG[PlanType.STARTER].features) {
+        expect(planHasFeature(PlanType.GROWTH, feature)).toBe(true);
+      }
+    });
+  });
+
+  describe('PRO (₹6,999): Claude, repository analysis and shipped fixes', () => {
     it.each([
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
@@ -51,28 +78,30 @@ describe('plans catalog', () => {
       Feature.AUTO_FIX_DEPLOY,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,
+      Feature.API_ACCESS,
     ])('includes %s', (feature) => {
       expect(planHasFeature(PlanType.PRO, feature)).toBe(true);
     });
 
-    it('is a strict superset of STARTER', () => {
-      for (const feature of PLAN_CATALOG[PlanType.STARTER].features) {
+    it('is a strict superset of GROWTH', () => {
+      for (const feature of PLAN_CATALOG[PlanType.GROWTH].features) {
         expect(planHasFeature(PlanType.PRO, feature)).toBe(true);
       }
     });
 
-    it('raises every allowance above STARTER', () => {
+    it('raises every allowance above GROWTH', () => {
       expect(quotaFor(PlanType.PRO, UsageMetric.CRAWL_PAGES)).toBeGreaterThan(
-        quotaFor(PlanType.STARTER, UsageMetric.CRAWL_PAGES)!,
+        quotaFor(PlanType.GROWTH, UsageMetric.CRAWL_PAGES)!,
       );
       expect(quotaFor(PlanType.PRO, UsageMetric.AI_ANALYSES)).toBeGreaterThan(
-        quotaFor(PlanType.STARTER, UsageMetric.AI_ANALYSES)!,
+        quotaFor(PlanType.GROWTH, UsageMetric.AI_ANALYSES)!,
       );
     });
   });
 
   it('points upgrade prompts at the cheapest plan that unlocks a feature', () => {
     expect(cheapestPlanWith(Feature.MODEL_GEMINI)?.plan).toBe(PlanType.STARTER);
+    expect(cheapestPlanWith(Feature.MARKET_STRATEGY)?.plan).toBe(PlanType.GROWTH);
     expect(cheapestPlanWith(Feature.MODEL_CLAUDE)?.plan).toBe(PlanType.PRO);
     expect(cheapestPlanWith(Feature.AUTO_FIX_DEPLOY)?.plan).toBe(PlanType.PRO);
     // Enterprise-only features have no self-serve upgrade path.
