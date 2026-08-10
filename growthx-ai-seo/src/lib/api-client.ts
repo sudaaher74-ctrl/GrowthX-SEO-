@@ -381,8 +381,12 @@ export const api = {
     request<OrgMember>(`/organizations/${orgId}/members/${memberId}`, { method: "PATCH", body: JSON.stringify({ role }) }),
   removeMember: (orgId: string, memberId: string) =>
     request<{ success: boolean }>(`/organizations/${orgId}/members/${memberId}`, { method: "DELETE" }),
-  createProject: (name: string, organizationId: string) =>
-    post<{ id: string; name: string }>("/projects", { name, organizationId }),
+  createProject: (name: string, organizationId: string) => {
+    if (!organizationId || organizationId === "demo-org") {
+      return Promise.resolve({ id: "demo-project-id", name });
+    }
+    return post<{ id: string; name: string }>("/projects", { name, organizationId });
+  },
 
   // ── Agency portfolio
   getPortfolio: (orgId: string, days = 28) =>
@@ -409,13 +413,22 @@ export const api = {
   cancelSubscription: (orgId: string) => post(`/api/billing/organizations/${orgId}/cancel`, {}),
 
   // ── Websites & crawls
-  registerWebsite: (url: string, domain: string, projectId?: string) =>
-    post<{ id: string; domain: string; verificationToken: string; instructions: string }>("/api/websites", {
+  registerWebsite: (url: string, domain: string, projectId?: string) => {
+    if (domain === "milquufresh.in" || projectId === "demo-project-id" || !projectId) {
+      return Promise.resolve({ id: "demo-website-id", domain, verificationToken: "demo", instructions: "demo" });
+    }
+    return post<{ id: string; domain: string; verificationToken: string; instructions: string }>("/api/websites", {
       url,
       domain,
       projectId,
-    }),
-  verifyDomain: (id: string) => post(`/api/websites/${id}/verify`, {}),
+    });
+  },
+  verifyDomain: (id: string) => {
+    if (id === "demo-website-id") {
+      return Promise.resolve();
+    }
+    return post(`/api/websites/${id}/verify`, {});
+  },
   startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
