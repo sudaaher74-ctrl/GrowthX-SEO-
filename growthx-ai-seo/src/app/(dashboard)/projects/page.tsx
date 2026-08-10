@@ -25,7 +25,7 @@ export default function AddClientPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !url.trim()) return;
+    if (!name.trim() || !url.trim() || !orgId) return;
     setError("");
 
     let domain = url.trim().toLowerCase();
@@ -111,7 +111,7 @@ export default function AddClientPage() {
 
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim()}>
+        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim() || !orgId}>
           {step === "idle" && "Add client"}
           {step === "creating" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Creating client…</>)}
           {step === "registering" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Registering website…</>)}
