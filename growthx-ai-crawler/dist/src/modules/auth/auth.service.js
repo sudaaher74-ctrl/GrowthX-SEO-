@@ -13,11 +13,13 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const users_service_1 = require("../users/users.service");
 const jwt_1 = require("@nestjs/jwt");
+const organizations_service_1 = require("../organizations/organizations.service");
 const bcrypt = require("bcrypt");
 let AuthService = class AuthService {
-    constructor(usersService, jwtService) {
+    constructor(usersService, jwtService, organizationsService) {
         this.usersService = usersService;
         this.jwtService = jwtService;
+        this.organizationsService = organizationsService;
     }
     async validateUser(email, pass) {
         const user = await this.usersService.findByEmail(email);
@@ -46,6 +48,11 @@ let AuthService = class AuthService {
             firstName: data.firstName,
             lastName: data.lastName,
         });
+        // Auto-create a default workspace for the new user
+        await this.organizationsService.createOrganization(user.id, {
+            name: `${data.firstName || 'My'} Workspace`,
+            slug: `workspace-${user.id.substring(0, 8)}`,
+        });
         const payload = { email: user.email, sub: user.id };
         return {
             access_token: this.jwtService.sign(payload),
@@ -56,6 +63,7 @@ exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [users_service_1.UsersService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        organizations_service_1.OrganizationsService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
+import { OrganizationsService } from '../organizations/organizations.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private organizationsService: OrganizationsService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -39,6 +41,12 @@ export class AuthService {
       passwordHash,
       firstName: data.firstName,
       lastName: data.lastName,
+    });
+    
+    // Auto-create a default workspace for the new user
+    await this.organizationsService.createOrganization(user.id, {
+      name: `${data.firstName || 'My'} Workspace`,
+      slug: `workspace-${user.id.substring(0, 8)}`,
     });
     
     const payload = { email: user.email, sub: user.id };
