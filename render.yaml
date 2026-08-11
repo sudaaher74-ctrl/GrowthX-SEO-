@@ -34,7 +34,7 @@ services:
       - key: PORT
         value: 3000
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=4096"
+        value: "--max-old-space-size=256"
       - key: ENCRYPTION_KEY
         value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       - key: JWT_SECRET
