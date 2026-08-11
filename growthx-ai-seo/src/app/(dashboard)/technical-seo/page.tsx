@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import {
   ActionButton,
@@ -23,7 +23,7 @@ import { useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/ho
 type Severity = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 /** Site health — the crawl audit, on real issue data. */
-export default function SiteHealthPage() {
+function SiteHealthClient() {
   const searchParams = useSearchParams();
   const queryDomain = searchParams.get("domain");
 
@@ -210,6 +210,14 @@ export default function SiteHealthPage() {
         </Panel>
       </QueryState>
     </div>
+  );
+}
+
+export default function SiteHealthPage() {
+  return (
+    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-[var(--text-muted)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading site health...</div>}>
+      <SiteHealthClient />
+    </Suspense>
   );
 }
 
