@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, Globe, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateProject, useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 
@@ -15,8 +16,9 @@ import { api } from "@/lib/api-client";
  */
 export default function AddClientPage() {
   const router = useRouter();
-  const { orgId } = useWorkspace();
+  const { orgId, setProjectId } = useWorkspace();
   const createProject = useCreateProject(orgId);
+  const qc = useQueryClient();
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -43,12 +45,18 @@ export default function AddClientPage() {
     try {
       setStep("creating");
       const project = await createProject.mutateAsync(name.trim());
+      setProjectId(project.id);
 
       setStep("registering");
       const website = await api.registerWebsite(url.trim(), domain, project.id);
 
       setStep("verifying");
       await api.verifyDomain(website.id);
+
+      // Important: the project was created, but now we've added a website to it.
+      // We must invalidate the portfolio so the technical SEO page gets fresh data
+      // where the client has a domain.
+      await qc.invalidateQueries({ queryKey: ["portfolio", orgId] });
 
       router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
     } catch (err) {

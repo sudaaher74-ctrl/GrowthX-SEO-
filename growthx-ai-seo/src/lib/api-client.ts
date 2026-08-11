@@ -10,6 +10,7 @@ export const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 const TOKEN_KEY = "growthx.token";
 const ORG_KEY = "growthx.org";
+const PROJECT_KEY = "growthx.project";
 
 // ─────────────────────────────────────────────────────────── auth storage
 
@@ -28,9 +29,17 @@ export const auth = {
   setOrgId(orgId: string) {
     window.localStorage.setItem(ORG_KEY, orgId);
   },
+  getProjectId(): string | null {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(PROJECT_KEY);
+  },
+  setProjectId(projectId: string) {
+    window.localStorage.setItem(PROJECT_KEY, projectId);
+  },
   clear() {
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(ORG_KEY);
+    window.localStorage.removeItem(PROJECT_KEY);
   },
   isAuthenticated(): boolean {
     return Boolean(auth.getToken());

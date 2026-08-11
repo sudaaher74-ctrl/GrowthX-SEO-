@@ -3,17 +3,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { api, ApiError, auth, type Role } from "@/lib/api-client";
 
-/** Subscribers to org changes, so useSyncExternalStore re-renders on switch. */
 const orgListeners = new Set<() => void>();
+const projectListeners = new Set<() => void>();
 
 function subscribeToOrgChange(listener: () => void) {
   orgListeners.add(listener);
   return () => orgListeners.delete(listener);
 }
 
+function subscribeToProjectChange(listener: () => void) {
+  projectListeners.add(listener);
+  return () => projectListeners.delete(listener);
+}
+
 function setActiveOrg(id: string) {
   auth.setOrgId(id);
   orgListeners.forEach((l) => l());
+}
+
+function setActiveProject(id: string) {
+  auth.setProjectId(id);
+  projectListeners.forEach((l) => l());
 }
 
 /**
@@ -54,17 +64,25 @@ export function useWorkspace() {
     enabled: Boolean(orgId),
   });
 
-  // The client switcher needs an explicit choice, falling back to the first
-  // project so the workspace is never empty on first load.
-  const [chosenProjectId, setChosenProjectId] = useState<string | null>(null);
+  const storedProjectId = useSyncExternalStore(
+    subscribeToProjectChange,
+    () => auth.getProjectId(),
+    () => null,
+  );
+
+  const projectId = storedProjectId ?? projects.data?.[0]?.id ?? null;
+
+  useEffect(() => {
+    if (projectId && projectId !== auth.getProjectId()) setActiveProject(projectId);
+  }, [projectId]);
 
   return {
     orgId,
     setOrgId: setActiveOrg,
     organizations: orgs.data ?? [],
     projects: projects.data ?? [],
-    projectId: chosenProjectId ?? projects.data?.[0]?.id ?? null,
-    setProjectId: setChosenProjectId,
+    projectId,
+    setProjectId: setActiveProject,
     isLoading: orgs.isLoading || projects.isLoading,
     error: (orgs.error ?? projects.error) as ApiError | null,
   };
