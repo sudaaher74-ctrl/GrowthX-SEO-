@@ -119,7 +119,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       response.statusText ??
       `Request failed (${response.status})`;
 
-    if (response.status === 401 && typeof window !== "undefined") auth.clear();
+    if (response.status === 401 && typeof window !== "undefined") {
+      auth.clear();
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
     throw new ApiError(response.status, String(message), payload);
   }
 
