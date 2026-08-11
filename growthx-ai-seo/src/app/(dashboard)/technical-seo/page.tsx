@@ -17,15 +17,27 @@ import {
 } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type FixPatch } from "@/lib/api-client";
+import { useSearchParams } from "next/navigation";
 import { useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
 type Severity = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 /** Site health — the crawl audit, on real issue data. */
 export default function SiteHealthPage() {
+  const searchParams = useSearchParams();
+  const queryDomain = searchParams.get("domain");
+
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  
+  const client = useMemo(() => {
+    if (!portfolio.data?.clients) return null;
+    if (queryDomain) {
+      const match = portfolio.data.clients.find((c) => c.domain === queryDomain);
+      if (match) return match;
+    }
+    return portfolio.data.clients.find((c) => c.projectId === projectId) ?? null;
+  }, [portfolio.data?.clients, queryDomain, projectId]);
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null);
