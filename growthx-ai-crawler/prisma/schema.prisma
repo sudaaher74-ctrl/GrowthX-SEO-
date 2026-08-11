@@ -1,10 +1,508 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model Website {
+  id                String     @id @default(uuid())
+  domain            String     @unique
+  url               String
+  isVerified        Boolean    @default(false)
+  verifiedAt        DateTime?
+  verificationToken String?
+  webhookSecret     String?
+  authCredentials   String?
+  rateLimitDelayMs  Int        @default(500)
+  maxConcurrency    Int        @default(5)
+  maxDepth          Int        @default(10)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  projectId         String?
+  crawlJobs         CrawlJob[]
+  project           Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+}
+
+model CrawlJob {
+  id             String          @id @default(uuid())
+  websiteId      String
+  status         JobStatus       @default(PENDING)
+  pagesCrawled   Int             @default(0)
+  issuesFound    Int             @default(0)
+  concurrency    Int             @default(5)
+  depthLimit     Int             @default(10)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  errorMessage   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  website        Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  internalGraphs InternalGraph[]
+  issues         Issue[]
+  pages          Page[]
+
+  @@index([websiteId, status])
+  @@index([createdAt])
+}
+
+model Page {
+  id              String       @id @default(uuid())
+  crawlJobId      String
+  url             String
+  finalUrl        String
+  statusCode      Int
+  responseTimeMs  Int
+  contentType     String?
+  title           String?
+  metaDescription String?
+  canonicalUrl    String?
+  robotsMeta      String?
+  h1              String[]     @default([])
+  h2              String[]     @default([])
+  h3              String[]     @default([])
+  wordCount       Int          @default(0)
+  readingTimeMin  Float        @default(0)
+  duplicateScore  Float        @default(0)
+  contentHash     String?
+  simHash         String?
+  htmlSnapshotUrl String?
+  screenshotUrl   String?
+  crawledAt       DateTime     @default(now())
+  aeoMetrics      AeoMetrics?
+  images          Image[]
+  issues          Issue[]
+  links           Link[]
+  crawlJob        CrawlJob     @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  performance     Performance?
+  schemas         Schema[]
+
+  @@unique([crawlJobId, url])
+  @@index([crawlJobId, statusCode])
+  @@index([url])
+  @@index([contentHash])
+}
+
+model AeoMetrics {
+  id                  String   @id @default(uuid())
+  pageId              String   @unique
+  llmCrawlerHits      Int      @default(0)
+  citationProbability Float    @default(0.0)
+  hasStructuredJsonLd Boolean  @default(false)
+  hasSemanticHtml     Boolean  @default(false)
+  lastEvaluatedAt     DateTime @default(now())
+  page                Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+  id               String            @id @default(uuid())
+  crawlJobId       String
+  pageId           String?
+  issueType        String
+  severity         IssueSeverity
+  affectedUrl      String
+  description      String
+  recommendation   String
+  status           IssueStatus       @default(OPEN)
+  aiFixAvailable   Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  aiRecommendation AIRecommendation?
+  crawlJob         CrawlJob          @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  page             Page?             @relation(fields: [pageId], references: [id])
+
+  @@index([crawlJobId, severity])
+  @@index([affectedUrl, status])
+  @@index([issueType])
+}
+
+model Image {
+  id           String   @id @default(uuid())
+  pageId       String
+  imageUrl     String
+  altText      String?
+  sizeBytes    Int?
+  width        Int?
+  height       Int?
+  isLazy       Boolean  @default(false)
+  isMissingAlt Boolean  @default(false)
+  isBroken     Boolean  @default(false)
+  isLarge      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  page         Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([isMissingAlt, isBroken])
+}
+
+model Link {
+  id           String   @id @default(uuid())
+  sourcePageId String
+  targetUrl    String
+  linkType     LinkType
+  isBroken     Boolean  @default(false)
+  isRedirect   Boolean  @default(false)
+  isNofollow   Boolean  @default(false)
+  anchorText   String?
+  createdAt    DateTime @default(now())
+  sourcePage   Page     @relation(fields: [sourcePageId], references: [id], onDelete: Cascade)
+
+  @@index([sourcePageId, linkType])
+  @@index([targetUrl])
+}
+
+model Schema {
+  id               String     @id @default(uuid())
+  pageId           String
+  schemaType       SchemaType
+  isValid          Boolean    @default(true)
+  validationErrors String[]   @default([])
+  rawJson          String?
+  createdAt        DateTime   @default(now())
+  page             Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, schemaType])
+}
+
+model Performance {
+  id                 String   @id @default(uuid())
+  pageId             String   @unique
+  performanceScore   Int?
+  accessibilityScore Int?
+  bestPracticesScore Int?
+  seoScore           Int?
+  lcpMs              Float?
+  inpMs              Float?
+  clsScore           Float?
+  fetchedAt          DateTime @default(now())
+  page               Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([performanceScore])
+}
+
+model InternalGraph {
+  id              String   @id @default(uuid())
+  crawlJobId      String
+  sourceUrl       String
+  targetUrl       String
+  crawlDepth      Int      @default(0)
+  linkEquityScore Float    @default(1.0)
+  createdAt       DateTime @default(now())
+  crawlJob        CrawlJob @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+
+  @@index([crawlJobId, sourceUrl])
+  @@index([crawlJobId, targetUrl])
+  @@index([crawlJobId, crawlDepth])
+}
+
+model AIRecommendation {
+  id                  String    @id @default(uuid())
+  issueId             String    @unique
+  whyItMatters        String
+  seoImpact           String
+  businessImpact      String
+  priorityScore       Int       @default(50)
+  recommendedFixPatch String
+  expectedOutcome     String
+  /// Which model produced this, e.g. "claude-opus-5" or "rules-engine". Lets us
+  /// audit what a customer actually got for their plan.
+  generatedByModel    String?
+  status              FixStatus @default(PENDING_APPROVAL)
+  approvedBy          String?
+  appliedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  issue               Issue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([status, priorityScore])
+}
+
+model User {
+  id           String               @id @default(uuid())
+  email        String               @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  auditLogs    AuditLog[]
+  memberships  OrganizationMember[]
+}
+
+model Organization {
+  id           String               @id @default(uuid())
+  name         String
+  slug         String               @unique
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  auditLogs    AuditLog[]
+  members      OrganizationMember[]
+  projects     Project[]
+  subscription Subscription?
+  usageRecords UsageRecord[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  role           Role         @default(MEMBER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model Project {
+  id                   String             @id @default(uuid())
+  name                 String
+  organizationId       String
+  /// Agency-facing retainer label, e.g. "Scale" / "Growth" / "Starter".
+  /// Free text so an agency can use its own tier names.
+  tier                 String?
+  /// Monthly retainer in the currency's minor unit (paise / cents). Null when
+  /// the agency has not recorded one — the portfolio then shows "—" and the
+  /// figure is excluded from MRR rather than being guessed at.
+  retainerMonthlyMinor Int?
+  retainerCurrency     String             @default("INR")
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  competitors          CompetitorDomain[]
+  contentPieces        ContentPiece[]
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  repository           SiteRepository?
+  strategies           StrategyReport[]
+  prompts              TrackedPrompt[]
+  websites             Website[]
+
+  @@index([organizationId])
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  organizationId         String             @unique
+  plan                   PlanType           @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String?            @unique
+  razorpayPlanId         String?
+  /// Denormalised from the plan catalog at checkout time so an invoice always
+  /// reflects what the customer actually agreed to, even if the catalog changes.
+  amountPaise            Int                @default(0)
+  currency               String             @default("INR")
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  cancelledAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  organization           Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, currentPeriodEnd])
+}
+
+/// One row per (organization, metric, billing period). Incremented after work
+/// succeeds, so a failed crawl or a failed LLM call never burns the customer's
+/// allowance.
+model UsageRecord {
+  id             String       @id @default(uuid())
+  organizationId String
+  metric         UsageMetric
+  periodStart    DateTime
+  periodEnd      DateTime
+  used           Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, metric, periodStart])
+  @@index([organizationId, periodStart])
+}
+
+/// A question we ask AI assistants on a schedule to see whether they cite the
+/// customer. This is the unit the AI Visibility dashboard is built on.
+model TrackedPrompt {
+  id              String        @id @default(uuid())
+  projectId       String
+  text            String
+  intent          SearchIntent?
+  /// Free-form grouping, e.g. "comparison guides".
+  cluster         String?
+  /// Monthly search volume, when the customer supplies it.
+  estimatedVolume Int?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  checks          PromptCheck[]
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, text])
+  @@index([projectId, isActive])
+}
+
+/// One run of one prompt against one assistant.
+model PromptCheck {
+  id               String        @id @default(uuid())
+  trackedPromptId  String
+  assistant        AiAssistant
+  checkedAt        DateTime      @default(now())
+  /// Whether the customer's own domain appeared in the answer.
+  cited            Boolean       @default(false)
+  /// 1 = the customer was the first brand named. Null when not cited.
+  position         Int?
+  /// The customer URL the assistant referenced, when it gave one.
+  citedUrl         String?
+  /// Tracked competitor domains that appeared in the same answer.
+  competitorsCited String[]      @default([])
+  /// Trimmed answer text, kept so a customer can see the evidence.
+  answerExcerpt    String?
+  /// The model that actually answered, e.g. "claude-opus-5".
+  model            String?
+  /// Populated when the check could not run; `cited` stays false but this
+  /// distinguishes "not cited" from "never asked".
+  error            String?
+  trackedPrompt    TrackedPrompt @relation(fields: [trackedPromptId], references: [id], onDelete: Cascade)
+
+  @@index([trackedPromptId, checkedAt])
+  @@index([assistant, checkedAt])
+  @@index([checkedAt])
+}
+
+/// How a client's website code is reached, so fixes and new content can be
+/// written back to it.
+model SiteRepository {
+  id                   String          @id @default(uuid())
+  projectId            String          @unique
+  provider             String          @default("github")
+  owner                String
+  name                 String
+  defaultBranch        String          @default("main")
+  /// Encrypted with ENCRYPTION_KEY. Never returned by the API.
+  accessTokenEncrypted String
+  /// "nextjs" | "static-html" | "unknown" — decides which patch strategy runs.
+  framework            String          @default("unknown")
+  /// Where new content pages are written, e.g. "content/blog" or "src/app".
+  contentDir           String?
+  /// Off by default: a PR is opened and a human merges it. Turning this on
+  /// makes the agent publish to the live site without review.
+  autoMerge            Boolean         @default(false)
+  lastRunAt            DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  runs                 AutomationRun[]
+  project              Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// One end-to-end pass: clone, patch and/or write content, validate, open a PR.
+model AutomationRun {
+  id             String              @id @default(uuid())
+  repositoryId   String
+  projectId      String
+  kind           AutomationRunKind
+  status         AutomationRunStatus @default(PENDING)
+  branch         String?
+  pullRequestUrl String?
+  /// Per-step log so a customer can see exactly what the agent did.
+  steps          Json                @default("[]")
+  filesChanged   String[]            @default([])
+  error          String?
+  startedAt      DateTime            @default(now())
+  finishedAt     DateTime?
+  repository     SiteRepository      @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  pieces         ContentPiece[]
+
+  @@index([projectId, startedAt])
+}
+
+/// A page the strategy said to add, tracked from plan through to live.
+model ContentPiece {
+  id               String             @id @default(uuid())
+  projectId        String
+  runId            String?
+  status           ContentPieceStatus @default(PLANNED)
+  title            String
+  slug             String
+  format           String?
+  targetQuery      String?
+  rationale        String?
+  /// The generated page body (Markdown/MDX), once drafted.
+  body             String?
+  metaDescription  String?
+  generatedByModel String?
+  /// Path written in the customer's repository.
+  filePath         String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run              AutomationRun?     @relation(fields: [runId], references: [id])
+
+  @@unique([projectId, slug])
+  @@index([projectId, status])
+}
+
+/// A generated go-to-market plan: market read, SEO roadmap, content plan, and
+/// social strategy, grounded in this project's crawl and visibility evidence.
+model StrategyReport {
+  id               String   @id @default(uuid())
+  projectId        String
+  /// The evidence the plan was built from, kept so a customer can see the basis
+  /// for a recommendation and we can debug a bad one.
+  evidence         Json
+  content          Json
+  generatedByModel String?
+  createdAt        DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// A rival the customer wants share-of-voice measured against.
+model CompetitorDomain {
+  id        String   @id @default(uuid())
+  projectId String
+  domain    String
+  label     String?
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+}
+
+/// Razorpay retries webhooks aggressively. Storing the delivery id makes
+/// handling idempotent so a retried `subscription.charged` cannot roll the
+/// billing period forward twice.
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  provider    String
+  eventId     String
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+  @@index([eventType, createdAt])
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  resource       String?
+  details        Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
 }
 
 enum JobStatus {
@@ -24,9 +522,9 @@ enum Role {
 
 enum PlanType {
   FREE
-  STARTER // INR 1,999 / month
-  GROWTH // INR 4,999 / month
-  PRO // INR 6,999 / month
+  STARTER
+  GROWTH
+  PRO
   ENTERPRISE
 }
 
@@ -115,429 +613,6 @@ enum FixStatus {
   APPLIED
 }
 
-model Website {
-  id                String    @id @default(uuid())
-  domain            String    @unique
-  url               String
-  isVerified        Boolean   @default(false)
-  verifiedAt        DateTime?
-  verificationToken String?
-  webhookSecret     String?
-  authCredentials   String? // Encrypted basic auth or cookie JSON
-  rateLimitDelayMs  Int       @default(500)
-  maxConcurrency    Int       @default(5)
-  maxDepth          Int       @default(10)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  projectId String?
-  project   Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  crawlJobs CrawlJob[]
-
-  @@index([domain])
-}
-
-model CrawlJob {
-  id           String    @id @default(uuid())
-  websiteId    String
-  status       JobStatus @default(PENDING)
-  pagesCrawled Int       @default(0)
-  issuesFound  Int       @default(0)
-  concurrency  Int       @default(5)
-  depthLimit   Int       @default(10)
-  startedAt    DateTime?
-  finishedAt   DateTime?
-  errorMessage String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  website        Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  pages          Page[]
-  issues         Issue[]
-  internalGraphs InternalGraph[]
-
-  @@index([websiteId, status])
-  @@index([createdAt])
-}
-
-model Page {
-  id              String   @id @default(uuid())
-  crawlJobId      String
-  url             String
-  finalUrl        String
-  statusCode      Int
-  responseTimeMs  Int
-  contentType     String?
-  title           String?
-  metaDescription String?
-  canonicalUrl    String?
-  robotsMeta      String?
-  h1              String[] @default([])
-  h2              String[] @default([])
-  h3              String[] @default([])
-  wordCount       Int      @default(0)
-  readingTimeMin  Float    @default(0)
-  duplicateScore  Float    @default(0)
-  contentHash     String?
-  simHash         String?
-  htmlSnapshotUrl String?
-  screenshotUrl   String?
-  crawledAt       DateTime @default(now())
-
-  crawlJob    CrawlJob     @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
-  issues      Issue[]
-  images      Image[]
-  links       Link[]
-  schemas     Schema[]
-  performance Performance?
-  aeoMetrics  AeoMetrics?
-
-  @@unique([crawlJobId, url])
-  @@index([crawlJobId, statusCode])
-  @@index([url])
-  @@index([contentHash])
-}
-
-model AeoMetrics {
-  id                  String   @id @default(uuid())
-  pageId              String   @unique
-  llmCrawlerHits      Int      @default(0)
-  citationProbability Float    @default(0.0)
-  hasStructuredJsonLd Boolean  @default(false)
-  hasSemanticHtml     Boolean  @default(false)
-  lastEvaluatedAt     DateTime @default(now())
-
-  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
-}
-
-model Issue {
-  id             String        @id @default(uuid())
-  crawlJobId     String
-  pageId         String?
-  issueType      String
-  severity       IssueSeverity
-  affectedUrl    String
-  description    String
-  recommendation String
-  status         IssueStatus   @default(OPEN)
-  aiFixAvailable Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  crawlJob         CrawlJob          @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
-  page             Page?             @relation(fields: [pageId], references: [id], onDelete: SetNull)
-  aiRecommendation AIRecommendation?
-
-  @@index([crawlJobId, severity])
-  @@index([affectedUrl, status])
-  @@index([issueType])
-}
-
-model Image {
-  id           String   @id @default(uuid())
-  pageId       String
-  imageUrl     String
-  altText      String?
-  sizeBytes    Int?
-  width        Int?
-  height       Int?
-  isLazy       Boolean  @default(false)
-  isMissingAlt Boolean  @default(false)
-  isBroken     Boolean  @default(false)
-  isLarge      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-
-  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
-
-  @@index([pageId])
-  @@index([isMissingAlt, isBroken])
-}
-
-model Link {
-  id           String   @id @default(uuid())
-  sourcePageId String
-  targetUrl    String
-  linkType     LinkType
-  isBroken     Boolean  @default(false)
-  isRedirect   Boolean  @default(false)
-  isNofollow   Boolean  @default(false)
-  anchorText   String?
-  createdAt    DateTime @default(now())
-
-  sourcePage Page @relation(fields: [sourcePageId], references: [id], onDelete: Cascade)
-
-  @@index([sourcePageId, linkType])
-  @@index([targetUrl])
-}
-
-model Schema {
-  id               String     @id @default(uuid())
-  pageId           String
-  schemaType       SchemaType
-  isValid          Boolean    @default(true)
-  validationErrors String[]   @default([])
-  rawJson          String?
-  createdAt        DateTime   @default(now())
-
-  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
-
-  @@index([pageId, schemaType])
-}
-
-model Performance {
-  id                 String   @id @default(uuid())
-  pageId             String   @unique
-  performanceScore   Int?
-  accessibilityScore Int?
-  bestPracticesScore Int?
-  seoScore           Int?
-  lcpMs              Float?
-  inpMs              Float?
-  clsScore           Float?
-  fetchedAt          DateTime @default(now())
-
-  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
-
-  @@index([performanceScore])
-}
-
-model InternalGraph {
-  id              String   @id @default(uuid())
-  crawlJobId      String
-  sourceUrl       String
-  targetUrl       String
-  crawlDepth      Int      @default(0)
-  linkEquityScore Float    @default(1.0)
-  createdAt       DateTime @default(now())
-
-  crawlJob CrawlJob @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
-
-  @@index([crawlJobId, sourceUrl])
-  @@index([crawlJobId, targetUrl])
-  @@index([crawlJobId, crawlDepth])
-}
-
-model AIRecommendation {
-  id                  String    @id @default(uuid())
-  issueId             String    @unique
-  whyItMatters        String
-  seoImpact           String
-  businessImpact      String
-  priorityScore       Int       @default(50) // 1 - 100
-  recommendedFixPatch String // JSON or copy-ready text patch
-  expectedOutcome     String
-  /// Which model produced this, e.g. "claude-opus-5" or "rules-engine". Lets us
-  /// audit what a customer actually got for their plan.
-  generatedByModel    String?
-  status              FixStatus @default(PENDING_APPROVAL)
-  approvedBy          String?
-  appliedAt           DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
-
-  @@index([status, priorityScore])
-}
-
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  firstName    String?
-  lastName     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  memberships OrganizationMember[]
-  auditLogs   AuditLog[]
-}
-
-model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  members      OrganizationMember[]
-  projects     Project[]
-  subscription Subscription?
-  usageRecords UsageRecord[]
-  auditLogs    AuditLog[]
-}
-
-model OrganizationMember {
-  id             String   @id @default(uuid())
-  userId         String
-  organizationId String
-  role           Role     @default(MEMBER)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, organizationId])
-}
-
-model Project {
-  id             String   @id @default(uuid())
-  name           String
-  organizationId String
-  /// Agency-facing retainer label, e.g. "Scale" / "Growth" / "Starter".
-  /// Free text so an agency can use its own tier names.
-  tier           String?
-  /// Monthly retainer in the currency's minor unit (paise / cents). Null when
-  /// the agency has not recorded one — the portfolio then shows "—" and the
-  /// figure is excluded from MRR rather than being guessed at.
-  retainerMonthlyMinor Int?
-  retainerCurrency     String  @default("INR")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  websites     Website[]
-  prompts       TrackedPrompt[]
-  competitors   CompetitorDomain[]
-  strategies    StrategyReport[]
-  repository    SiteRepository?
-  contentPieces ContentPiece[]
-
-  @@index([organizationId])
-}
-
-model Subscription {
-  id             String @id @default(uuid())
-  organizationId String @unique
-
-  plan   PlanType           @default(FREE)
-  status SubscriptionStatus @default(ACTIVE)
-
-  razorpayCustomerId     String?
-  razorpaySubscriptionId String? @unique
-  razorpayPlanId         String?
-
-  /// Denormalised from the plan catalog at checkout time so an invoice always
-  /// reflects what the customer actually agreed to, even if the catalog changes.
-  amountPaise Int    @default(0)
-  currency    String @default("INR")
-
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean   @default(false)
-  cancelledAt        DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([status, currentPeriodEnd])
-}
-
-/// One row per (organization, metric, billing period). Incremented after work
-/// succeeds, so a failed crawl or a failed LLM call never burns the customer's
-/// allowance.
-model UsageRecord {
-  id             String      @id @default(uuid())
-  organizationId String
-  metric         UsageMetric
-  periodStart    DateTime
-  periodEnd      DateTime
-  used           Int         @default(0)
-  updatedAt      DateTime    @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, metric, periodStart])
-  @@index([organizationId, periodStart])
-}
-
-/// A question we ask AI assistants on a schedule to see whether they cite the
-/// customer. This is the unit the AI Visibility dashboard is built on.
-model TrackedPrompt {
-  id        String        @id @default(uuid())
-  projectId String
-  text      String
-  intent    SearchIntent?
-  /// Free-form grouping, e.g. "comparison guides".
-  cluster   String?
-  /// Monthly search volume, when the customer supplies it.
-  estimatedVolume Int?
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-
-  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  checks  PromptCheck[]
-
-  @@unique([projectId, text])
-  @@index([projectId, isActive])
-}
-
-/// One run of one prompt against one assistant.
-model PromptCheck {
-  id              String      @id @default(uuid())
-  trackedPromptId String
-  assistant       AiAssistant
-  checkedAt       DateTime    @default(now())
-
-  /// Whether the customer's own domain appeared in the answer.
-  cited Boolean @default(false)
-  /// 1 = the customer was the first brand named. Null when not cited.
-  position Int?
-  /// The customer URL the assistant referenced, when it gave one.
-  citedUrl String?
-  /// Tracked competitor domains that appeared in the same answer.
-  competitorsCited String[] @default([])
-
-  /// Trimmed answer text, kept so a customer can see the evidence.
-  answerExcerpt String?
-  /// The model that actually answered, e.g. "claude-opus-5".
-  model String?
-  /// Populated when the check could not run; `cited` stays false but this
-  /// distinguishes "not cited" from "never asked".
-  error String?
-
-  trackedPrompt TrackedPrompt @relation(fields: [trackedPromptId], references: [id], onDelete: Cascade)
-
-  @@index([trackedPromptId, checkedAt])
-  @@index([assistant, checkedAt])
-  @@index([checkedAt])
-}
-
-/// How a client's website code is reached, so fixes and new content can be
-/// written back to it.
-model SiteRepository {
-  id        String @id @default(uuid())
-  projectId String @unique
-
-  provider      String @default("github")
-  owner         String
-  name          String
-  defaultBranch String @default("main")
-
-  /// Encrypted with ENCRYPTION_KEY. Never returned by the API.
-  accessTokenEncrypted String
-
-  /// "nextjs" | "static-html" | "unknown" — decides which patch strategy runs.
-  framework String @default("unknown")
-  /// Where new content pages are written, e.g. "content/blog" or "src/app".
-  contentDir String?
-
-  /// Off by default: a PR is opened and a human merges it. Turning this on
-  /// makes the agent publish to the live site without review.
-  autoMerge Boolean @default(false)
-
-  lastRunAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  runs    AutomationRun[]
-}
-
 enum AutomationRunStatus {
   PENDING
   RUNNING
@@ -551,127 +626,10 @@ enum AutomationRunKind {
   CONTENT
 }
 
-/// One end-to-end pass: clone, patch and/or write content, validate, open a PR.
-model AutomationRun {
-  id           String              @id @default(uuid())
-  repositoryId String
-  projectId    String
-  kind         AutomationRunKind
-  status       AutomationRunStatus @default(PENDING)
-
-  branch        String?
-  pullRequestUrl String?
-  /// Per-step log so a customer can see exactly what the agent did.
-  steps         Json                @default("[]")
-  filesChanged  String[]            @default([])
-  error         String?
-
-  startedAt  DateTime  @default(now())
-  finishedAt DateTime?
-
-  repository SiteRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  pieces     ContentPiece[]
-
-  @@index([projectId, startedAt])
-}
-
 enum ContentPieceStatus {
   PLANNED
   DRAFTED
   COMMITTED
   PUBLISHED
   REJECTED
-}
-
-/// A page the strategy said to add, tracked from plan through to live.
-model ContentPiece {
-  id        String             @id @default(uuid())
-  projectId String
-  runId     String?
-  status    ContentPieceStatus @default(PLANNED)
-
-  title       String
-  slug        String
-  format      String?
-  targetQuery String?
-  rationale   String?
-
-  /// The generated page body (Markdown/MDX), once drafted.
-  body             String?
-  metaDescription  String?
-  generatedByModel String?
-  /// Path written in the customer's repository.
-  filePath String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  run     AutomationRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
-
-  @@unique([projectId, slug])
-  @@index([projectId, status])
-}
-
-/// A generated go-to-market plan: market read, SEO roadmap, content plan, and
-/// social strategy, grounded in this project's crawl and visibility evidence.
-model StrategyReport {
-  id        String   @id @default(uuid())
-  projectId String
-  /// The evidence the plan was built from, kept so a customer can see the basis
-  /// for a recommendation and we can debug a bad one.
-  evidence  Json
-  content   Json
-  generatedByModel String?
-  createdAt DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId, createdAt])
-}
-
-/// A rival the customer wants share-of-voice measured against.
-model CompetitorDomain {
-  id        String   @id @default(uuid())
-  projectId String
-  domain    String
-  label     String?
-  createdAt DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@unique([projectId, domain])
-  @@index([projectId])
-}
-
-/// Razorpay retries webhooks aggressively. Storing the delivery id makes
-/// handling idempotent so a retried `subscription.charged` cannot roll the
-/// billing period forward twice.
-model WebhookEvent {
-  id          String    @id @default(uuid())
-  provider    String
-  eventId     String
-  eventType   String
-  payload     Json
-  processedAt DateTime?
-  error       String?
-  createdAt   DateTime  @default(now())
-
-  @@unique([provider, eventId])
-  @@index([eventType, createdAt])
-}
-
-model AuditLog {
-  id             String   @id @default(uuid())
-  organizationId String
-  userId         String?
-  action         String
-  resource       String?
-  details        Json?
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, createdAt])
 }
