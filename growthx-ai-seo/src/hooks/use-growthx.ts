@@ -74,7 +74,10 @@ export function useCreateProject(orgId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => api.createProject(name, orgId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", orgId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["portfolio", orgId] });
+    },
   });
 }
 
@@ -227,14 +230,16 @@ export function useLatestCrawl(domain: string | null) {
     queryFn: () => api.getLatestCrawl(domain!),
     enabled: Boolean(domain),
     retry: false,
+    refetchInterval: (query) => query.state.data?.status === "RUNNING" ? 3000 : false,
   });
 }
 
-export function useCrawlIssues(jobId: string | null, severity?: string) {
+export function useCrawlIssues(jobId: string | null, severity?: string, status?: string) {
   return useQuery({
     queryKey: ["crawl-issues", jobId, severity],
     queryFn: () => api.getCrawlIssues(jobId!, { severity, limit: 100 }),
     enabled: Boolean(jobId),
+    refetchInterval: status === "RUNNING" ? 3000 : false,
   });
 }
 

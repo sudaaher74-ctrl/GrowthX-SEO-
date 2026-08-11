@@ -40,7 +40,7 @@ function SiteHealthClient() {
   }, [portfolio.data?.clients, queryDomain, projectId]);
 
   const crawl = useLatestCrawl(client?.domain ?? null);
-  const issues = useCrawlIssues(crawl.data?.id ?? null);
+  const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
 
   const [severity, setSeverity] = useState<Severity>("ALL");
   const [crawling, setCrawling] = useState(false);
