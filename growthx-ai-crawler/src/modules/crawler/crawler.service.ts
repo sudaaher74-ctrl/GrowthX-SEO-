@@ -174,8 +174,13 @@ export class CrawlerService {
           if (!task) continue;
 
           this.localJobActiveWorkers.set(payload.jobId, active + 1);
-          await this.processPageFetch(task);
-          this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1);
+          try {
+            await this.processPageFetch(task);
+          } catch (err) {
+            this.logger.error(`[JOB ${payload.jobId}] Unhandled error processing ${task.targetUrl}`, err);
+          } finally {
+            this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1);
+          }
         }
       };
 
