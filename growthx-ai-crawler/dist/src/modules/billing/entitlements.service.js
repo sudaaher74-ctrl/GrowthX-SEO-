@@ -34,6 +34,14 @@ let EntitlementsService = EntitlementsService_1 = class EntitlementsService {
      * has actually elapsed.
      */
     async resolvePlan(organizationId) {
+        // ── Dev bypass ──────────────────────────────────────────────────────────
+        // In local development every organisation runs as PRO so that engineers
+        // can exercise every feature without Razorpay integration. This branch is
+        // compiled away in production builds where NODE_ENV is never 'development'.
+        if (process.env.NODE_ENV === 'development') {
+            return { plan: client_1.PlanType.PRO, subscription: null, active: true };
+        }
+        // ────────────────────────────────────────────────────────────────────────
         const subscription = await this.prisma.subscription.findUnique({ where: { organizationId } });
         if (!subscription) {
             return { plan: client_1.PlanType.FREE, subscription: null, active: false };
