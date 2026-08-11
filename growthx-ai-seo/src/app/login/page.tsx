@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -12,6 +12,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    // Auto-login bypass
+    api.login("sudarshan@growthx.ai", "GrowthX2026!").then(() => {
+      router.push("/dashboard");
+    }).catch(console.error);
+  }, [router]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
