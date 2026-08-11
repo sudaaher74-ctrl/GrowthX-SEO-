@@ -54,7 +54,6 @@ export function Sidebar({
 
   const agencyNav: NavItem[] = [
     { label: "Clients", href: "/clients", icon: Users, tag: projects.length ? String(projects.length) : undefined },
-    { label: "Reports", href: "/reports", icon: FileText },
     { label: "Billing & settings", href: "/billing", icon: Settings },
   ];
 
