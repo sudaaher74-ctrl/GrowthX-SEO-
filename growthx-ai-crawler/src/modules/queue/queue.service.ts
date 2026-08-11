@@ -61,7 +61,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       });
 
       await this.redisConnection.connect();
-      this.logger.log(`Connected to Redis at ${host}:${port} for BullMQ queues.`);
+      this.logger.log(`Connected to ${redisUrl ? 'Production Redis' : `Redis at ${host}:${port}`} for BullMQ queues.`);
 
       this.crawlJobsQueue = new Queue<CrawlJobPayload>('crawl-jobs', { connection: this.redisConnection });
       this.pageFetchQueue = new Queue<PageFetchPayload>('page-fetch', { connection: this.redisConnection });

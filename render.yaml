@@ -50,7 +50,7 @@ services:
       - key: DEFAULT_CRAWL_CONCURRENCY
         value: "5"
       - key: MAX_CRAWL_CONCURRENCY
-        value: "50"
+        value: "3"
       - key: DEFAULT_CRAWL_DEPTH
         value: "5"
       - key: MAX_CRAWL_DEPTH

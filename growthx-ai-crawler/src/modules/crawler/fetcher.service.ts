@@ -65,6 +65,33 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     const startTime = Date.now();
     const redirectChain: string[] = [targetUrl];
 
+    // Basic SSRF protection
+    try {
+      const urlObj = new URL(targetUrl);
+      const hostname = urlObj.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('172.') ||
+        hostname.startsWith('169.254.')
+      ) {
+        throw new Error('SSRF Protection: Cannot crawl internal or reserved IP addresses.');
+      }
+    } catch (e: any) {
+      return {
+        url: targetUrl,
+        finalUrl: targetUrl,
+        statusCode: 403,
+        responseTimeMs: Date.now() - startTime,
+        html: '',
+        redirectChain,
+        engine: 'cheerio',
+        errorMessage: e.message || 'Invalid URL',
+      };
+    }
+
     if (forcePlaywright && this.isPlaywrightReady) {
       return this.fetchWithPlaywright(targetUrl, startTime);
     }
