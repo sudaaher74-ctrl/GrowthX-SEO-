@@ -8,12 +8,39 @@ import { Feature } from '../billing/plans.catalog';
 import { AiVisibilityService, SUPPORTED_ASSISTANTS } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class PromptItemDto {
+  @IsString()
+  text: string;
+
+  @IsOptional()
+  @IsEnum(SearchIntent)
+  intent?: SearchIntent;
+
+  @IsOptional()
+  @IsString()
+  cluster?: string;
+
+  @IsOptional()
+  @IsNumber()
+  estimatedVolume?: number;
+}
+
 export class AddPromptsDto {
-  prompts: { text: string; intent?: SearchIntent; cluster?: string; estimatedVolume?: number }[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PromptItemDto)
+  prompts: PromptItemDto[];
 }
 
 export class AddCompetitorDto {
+  @IsString()
   domain: string;
+
+  @IsOptional()
+  @IsString()
   label?: string;
 }
 
