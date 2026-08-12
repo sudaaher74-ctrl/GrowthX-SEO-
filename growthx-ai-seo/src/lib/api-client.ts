@@ -479,12 +479,39 @@ export const api = {
   getActivity: (projectId: string, limit = 30) =>
     get<ActivityItem[]>(`/api/projects/${projectId}/activity?limit=${limit}`),
 
-  // ── AI assistant chat
+  // ── AI assistant chat (project-scoped, uses MultiAiRouter / plan routing)
   askAi: (projectId: string, question: string) =>
     post<{ answer: string; model: { provider: string; name: string } }>(
       `/api/projects/${projectId}/chat`,
       { question },
     ),
+
+  // ── Groq Llama 3.1 8B Instant — general-purpose AI chat
+  // The GROQ_API_KEY lives ONLY on the backend. This calls our NestJS server,
+  // which then securely calls Groq. The API key never reaches the browser.
+  aiChat: (message: string, systemPrompt?: string) =>
+    post<{
+      success: boolean;
+      response?: string;
+      error?: string;
+      usage?: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number | null };
+      model?: string;
+    }>('/api/ai/chat', { message, ...(systemPrompt ? { systemPrompt } : {}) }),
+
+  aiChatMulti: (
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+    systemPrompt?: string,
+  ) =>
+    post<{
+      success: boolean;
+      response?: string;
+      error?: string;
+      usage?: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number | null };
+      model?: string;
+    }>('/api/ai/chat', { messages, ...(systemPrompt ? { systemPrompt } : {}) }),
+
+  aiHealth: () =>
+    get<{ success: boolean; provider: string; model: string; configured: boolean }>('/api/ai/health'),
 
   // ── Autonomous engineer: repository + content pipeline
   getRepository: (projectId: string) => get<SiteRepository | null>(`/api/projects/${projectId}/automation/repository`),
