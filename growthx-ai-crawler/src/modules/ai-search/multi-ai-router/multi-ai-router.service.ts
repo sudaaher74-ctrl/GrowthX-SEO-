@@ -403,8 +403,14 @@ export class MultiAiRouterService {
     if (!this.groq) throw new ServiceUnavailableException('GROQ_API_KEY is not configured.');
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
-    if (request.systemInstruction) {
-      messages.push({ role: 'system', content: request.systemInstruction });
+    let system = request.systemInstruction;
+    if (request.jsonSchema) {
+      const schemaInstruction = `You MUST return JSON matching exactly this schema:\n${JSON.stringify(request.jsonSchema)}`;
+      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
+    }
+
+    if (system) {
+      messages.push({ role: 'system', content: system });
     }
     messages.push({ role: 'user', content: request.prompt });
 
@@ -441,7 +447,13 @@ export class MultiAiRouterService {
     if (!this.openrouter) throw new ServiceUnavailableException('OPENROUTER_API_KEY is not configured.');
 
     const messages: any[] = [];
-    if (request.systemInstruction) messages.push({ role: 'system', content: request.systemInstruction });
+    let system = request.systemInstruction;
+    if (request.jsonSchema) {
+      const schemaInstruction = `You MUST return JSON matching exactly this schema:\n${JSON.stringify(request.jsonSchema)}`;
+      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
+    }
+
+    if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: request.prompt });
 
     const response = await this.openrouter.chat.completions.create({
