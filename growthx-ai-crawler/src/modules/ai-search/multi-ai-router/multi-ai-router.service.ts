@@ -182,12 +182,10 @@ export class MultiAiRouterService {
     const task = request.task ?? AiTask.REASONING;
     const allowed = await this.allowedProviders(request.organizationId);
 
-    if (request.provider) {
-      if (!allowed.includes(request.provider)) {
-        await this.assertProviderEntitled(request.organizationId, request.provider);
-        throw new ServiceUnavailableException(`${request.provider} is not configured on this server.`);
-      }
+    if (request.provider && allowed.includes(request.provider)) {
       return this.invoke(request.provider, request, task);
+    } else if (request.provider) {
+      this.logger.warn(`${request.provider} is not configured or allowed; falling back to preferred provider chain.`);
     }
 
     const chain = TASK_PREFERENCE[task].filter((p) => allowed.includes(p));

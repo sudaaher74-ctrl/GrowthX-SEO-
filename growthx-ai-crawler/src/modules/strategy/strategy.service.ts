@@ -43,8 +43,8 @@ export class StrategyService {
 
     const latestCrawl = websiteIds.length
       ? await this.prisma.crawlJob.findFirst({
-          where: { websiteId: { in: websiteIds }, status: 'COMPLETED' },
-          orderBy: { finishedAt: 'desc' },
+          where: { websiteId: { in: websiteIds }, pagesCrawled: { gt: 0 } },
+          orderBy: { createdAt: 'desc' },
         })
       : null;
 
