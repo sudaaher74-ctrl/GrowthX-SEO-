@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
+import Groq from 'groq-sdk';
 import { EntitlementsService } from '../../billing/entitlements.service';
 import { Feature } from '../../billing/plans.catalog';
 
@@ -10,6 +11,7 @@ export enum AiProvider {
   GEMINI = 'GEMINI',
   OPENAI = 'OPENAI',
   ANTHROPIC = 'ANTHROPIC',
+  GROQ = 'GROQ',
 }
 
 /** What the caller wants done, independent of which vendor ends up serving it. */
@@ -70,15 +72,16 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
 
 /** Which vendor each task prefers, best first. */
 const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
-  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI],
-  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI],
-  [AiTask.FAST]: [AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC],
+  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ],
+  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ],
+  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC],
 };
 
 const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
   [AiProvider.GEMINI]: Feature.MODEL_GEMINI,
   [AiProvider.OPENAI]: Feature.MODEL_GPT,
   [AiProvider.ANTHROPIC]: Feature.MODEL_CLAUDE,
+  [AiProvider.GROQ]: Feature.MODEL_GROQ,
 };
 
 @Injectable()
@@ -88,10 +91,14 @@ export class MultiAiRouterService {
   private readonly anthropicModel: string;
   private readonly geminiModel: string;
   private readonly openaiModel: string;
+  private readonly groqModel: string;
+  private readonly groqTemperature: number;
+  private readonly groqMaxTokens: number;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
   private gemini?: GoogleGenAI;
+  private groq?: Groq;
 
   /**
    * Anthropic's server-side refusal fallback re-serves a declined request on
@@ -107,6 +114,9 @@ export class MultiAiRouterService {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
+    this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
+    this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
+    this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
@@ -117,6 +127,9 @@ export class MultiAiRouterService {
 
     const geminiKey = this.config.get<string>('GEMINI_API_KEY');
     if (this.isRealKey(geminiKey)) this.gemini = new GoogleGenAI({ apiKey: geminiKey });
+
+    const groqKey = this.config.get<string>('GROQ_API_KEY');
+    if (this.isRealKey(groqKey)) this.groq = new Groq({ apiKey: groqKey });
 
     this.logger.log(`AI providers configured: ${this.configuredProviders().join(', ') || 'none'}`);
   }
@@ -131,6 +144,7 @@ export class MultiAiRouterService {
     if (this.gemini) configured.push(AiProvider.GEMINI);
     if (this.openai) configured.push(AiProvider.OPENAI);
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
+    if (this.groq) configured.push(AiProvider.GROQ);
     return configured;
   }
 
@@ -205,6 +219,8 @@ export class MultiAiRouterService {
         return this.callOpenAi(request);
       case AiProvider.GEMINI:
         return this.callGemini(request);
+      case AiProvider.GROQ:
+        return this.callGroq(request);
     }
   }
 
@@ -349,10 +365,50 @@ export class MultiAiRouterService {
     };
   }
 
+  // ---------------------------------------------------------------------- Groq
+
+  /**
+   * Calls Groq's OpenAI-compatible chat completions endpoint using Llama 3.1 8B Instant
+   * (or whichever model is set via GROQ_MODEL). Groq is extremely fast and cost-effective;
+   * it is preferred first in FAST tasks and acts as a last-resort fallback for heavier tasks.
+   *
+   * Note: Groq does not support JSON Schema response_format with a `strict` flag the way
+   * OpenAI does — we request `json_object` mode and let the prompt guide the schema.
+   */
+  private async callGroq(request: AiRequest): Promise<AiCompletion> {
+    if (!this.groq) throw new ServiceUnavailableException('GROQ_API_KEY is not configured.');
+
+    const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
+    if (request.systemInstruction) {
+      messages.push({ role: 'system', content: request.systemInstruction });
+    }
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await this.groq.chat.completions.create({
+      model: this.groqModel,
+      messages,
+      temperature: this.groqTemperature,
+      max_tokens: request.maxTokens ?? this.groqMaxTokens,
+      ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
+    });
+
+    return {
+      provider: AiProvider.GROQ,
+      model: response.model ?? this.groqModel,
+      text: response.choices[0]?.message?.content ?? '',
+      usage: this.usage(
+        response.usage?.prompt_tokens ?? 0,
+        response.usage?.completion_tokens ?? 0,
+        this.envRate('GROQ'),
+      ),
+      refused: false,
+    };
+  }
+
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;

@@ -32,6 +32,7 @@ import { StrategyModule } from './modules/strategy/strategy.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { ActivityModule } from './modules/activity/activity.module';
+import { GroqModule } from './modules/groq/groq.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { ActivityModule } from './modules/activity/activity.module';
     PortfolioModule,
     AutomationModule,
     ActivityModule,
+    GroqModule,
   ],
   controllers: [HealthController],
   providers: [],

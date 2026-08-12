@@ -273,6 +273,8 @@ export class EntitlementsService {
         return 'GPT analysis';
       case Feature.MODEL_GEMINI:
         return 'Gemini analysis';
+      case Feature.MODEL_GROQ:
+        return 'Groq Llama analysis';
       case Feature.AUTO_FIX_PATCH:
         return 'Automated fix generation';
       case Feature.AUTO_FIX_DEPLOY:

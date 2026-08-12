@@ -15,6 +15,8 @@ export enum Feature {
   MODEL_GEMINI = 'MODEL_GEMINI',
   MODEL_GPT = 'MODEL_GPT',
   MODEL_CLAUDE = 'MODEL_CLAUDE',
+  /** Groq-hosted Llama 3.1 8B Instant — fast, cost-efficient fallback available on all plans. */
+  MODEL_GROQ = 'MODEL_GROQ',
 
   /** Generate a concrete code/content patch for an issue. */
   AUTO_FIX_PATCH = 'AUTO_FIX_PATCH',
@@ -89,6 +91,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.SCHEDULED_CRAWLS,
       Feature.AI_RECOMMENDATIONS,
       Feature.MODEL_GEMINI,
+      Feature.MODEL_GROQ,
       Feature.COMPETITOR_TRACKING,
     ]),
     quotas: {
@@ -117,6 +120,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.AI_RECOMMENDATIONS,
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
+      Feature.MODEL_GROQ,
       Feature.COMPETITOR_TRACKING,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,
@@ -149,6 +153,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
       Feature.MODEL_CLAUDE,
+      Feature.MODEL_GROQ,
       Feature.COMPETITOR_TRACKING,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,
