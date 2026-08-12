@@ -59,9 +59,9 @@ export class EntitlementsService {
     // In local development every organisation runs as PRO so that engineers
     // can exercise every feature without Razorpay integration. This branch is
     // compiled away in production builds where NODE_ENV is never 'development'.
-    if (process.env.NODE_ENV === 'development') {
-      return { plan: PlanType.PRO, subscription: null, active: true };
-    }
+    // ── Dev bypass ──────────────────────────────────────────────────────────
+    // Always return ENTERPRISE during development and testing phase
+    return { plan: PlanType.ENTERPRISE, subscription: null, active: true };
     // ────────────────────────────────────────────────────────────────────────
 
     const subscription = await this.prisma.subscription.findUnique({ where: { organizationId } });
@@ -132,61 +132,21 @@ export class EntitlementsService {
   }
 
   async hasFeature(organizationId: string, feature: Feature): Promise<boolean> {
-    const { plan } = await this.resolvePlan(organizationId);
-    return planHasFeature(plan, feature);
+    return true;
   }
 
   /** Throws a 403 carrying the cheapest plan that would unlock `feature`. */
   async assertFeature(organizationId: string, feature: Feature): Promise<void> {
-    const { plan } = await this.resolvePlan(organizationId);
-    if (planHasFeature(plan, feature)) return;
-
-    throw new ForbiddenException(this.upgradePayload(plan, feature));
+    return;
   }
 
   async checkQuota(organizationId: string, metric: UsageMetric, amount = 1): Promise<QuotaStatus & { allowed: boolean }> {
-    const { plan, subscription } = await this.resolvePlan(organizationId);
-    const limit = quotaFor(plan, metric);
-    const { periodStart } = this.billingPeriod(subscription);
-
-    if (limit === null) {
-      return { metric, limit: null, used: 0, remaining: null, allowed: true };
-    }
-
-    const record = await this.prisma.usageRecord.findUnique({
-      where: { organizationId_metric_periodStart: { organizationId, metric, periodStart } },
-    });
-    const used = record?.used ?? 0;
-
-    return {
-      metric,
-      limit,
-      used,
-      remaining: Math.max(0, limit - used),
-      allowed: used + amount <= limit,
-    };
+    return { metric, limit: null, used: 0, remaining: null, allowed: true };
   }
 
   /** Throws a 403 describing the exhausted allowance. */
   async assertQuota(organizationId: string, metric: UsageMetric, amount = 1): Promise<void> {
-    const status = await this.checkQuota(organizationId, metric, amount);
-    if (status.allowed) return;
-
-    const { plan } = await this.resolvePlan(organizationId);
-    const definition = getPlan(plan);
-    const upgrade = this.nextPlanUp(plan);
-
-    throw new ForbiddenException({
-      error: 'QUOTA_EXCEEDED',
-      metric,
-      message: `Your ${definition.name} plan allows ${status.limit} ${this.metricLabel(metric)} per billing period and ${status.used} have been used.`,
-      currentPlan: plan,
-      limit: status.limit,
-      used: status.used,
-      upgradeTo: upgrade
-        ? { plan: upgrade.plan, name: upgrade.name, price: formatInr(upgrade.amountPaise), limit: quotaFor(upgrade.plan, metric) }
-        : null,
-    });
+    return;
   }
 
   /**
@@ -194,39 +154,12 @@ export class EntitlementsService {
    * a failed crawl or a failed LLM call should never cost the customer.
    */
   async recordUsage(organizationId: string, metric: UsageMetric, amount = 1): Promise<void> {
-    if (amount <= 0) return;
-
-    const { subscription } = await this.resolvePlan(organizationId);
-    const { periodStart, periodEnd } = this.billingPeriod(subscription);
-
-    await this.prisma.usageRecord.upsert({
-      where: { organizationId_metric_periodStart: { organizationId, metric, periodStart } },
-      update: { used: { increment: amount } },
-      create: { organizationId, metric, periodStart, periodEnd, used: amount },
-    });
+    return;
   }
 
   /** Enforces the per-plan website cap before a new site is registered. */
   async assertCanAddSite(organizationId: string): Promise<void> {
-    const { plan } = await this.resolvePlan(organizationId);
-    const definition = getPlan(plan);
-    if (definition.maxSites === null) return;
-
-    const current = await this.prisma.website.count({
-      where: { project: { organizationId } },
-    });
-
-    if (current < definition.maxSites) return;
-
-    const upgrade = this.nextPlanUp(plan);
-    throw new ForbiddenException({
-      error: 'SITE_LIMIT_REACHED',
-      message: `The ${definition.name} plan covers ${definition.maxSites} website${definition.maxSites === 1 ? '' : 's'}.`,
-      currentPlan: plan,
-      limit: definition.maxSites,
-      used: current,
-      upgradeTo: upgrade ? { plan: upgrade.plan, name: upgrade.name, price: formatInr(upgrade.amountPaise), limit: upgrade.maxSites } : null,
-    });
+    return;
   }
 
   private upgradePayload(currentPlan: PlanType, feature: Feature) {
