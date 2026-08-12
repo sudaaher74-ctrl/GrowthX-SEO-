@@ -89,8 +89,8 @@ export default function RegisterPage() {
 
           <p className="mt-6 text-center text-sm text-slate-400">
             Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-white hover:underline">
-              Sign in
+            <Link href="/dashboard" className="font-semibold text-white hover:underline">
+              Go to dashboard
             </Link>
           </p>
         </div>

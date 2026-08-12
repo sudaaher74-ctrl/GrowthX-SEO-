@@ -1,25 +1,23 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth, api } from "@/lib/api-client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
+    // There is no login page — every visitor is silently authenticated as the
+    // house account so the app is usable without a sign-in step.
     if (!auth.isAuthenticated()) {
-      // Auto-login to bypass the login system
       api.login("sudarshan@growthx.ai", "GrowthX2026!").then(() => {
         window.location.reload();
-      }).catch(err => {
+      }).catch((err) => {
         console.error("Auto-login failed:", err);
-        router.push("/login");
       });
     }
-  }, [router]);
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: "#fafafa" }}>
