@@ -157,7 +157,9 @@ export class MultiAiRouterService {
 
   /** Placeholder values from .env.example must not count as configured. */
   private isRealKey(value?: string): value is string {
-    return Boolean(value) && !value!.startsWith('your_');
+    if (!value) return false;
+    const lower = value.toLowerCase();
+    return !lower.startsWith('your_') && !lower.startsWith('add-') && !lower.includes('***');
   }
 
   configuredProviders(): AiProvider[] {
