@@ -15,6 +15,7 @@ import {
   Tr,
   relativeTime,
 } from "@/components/ui/console";
+import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
 import { QueryState } from "@/components/ui/upgrade-prompt";
 import type { CrawlIssue } from "@/lib/api-client";
 import { useCrawlIssues, useLatestCrawl, usePortfolio, useVisibility, useWorkspace } from "@/hooks/use-growthx";
@@ -60,6 +61,27 @@ export default function OverviewPage() {
           </Link>
         }
       />
+      
+      <div className="flex justify-center w-full">
+        <OpportunityDetailPanel 
+          title="Improve CTR for 17 pages"
+          evidence={[
+            "17 pages have:",
+            "High impressions",
+            "Low CTR",
+            "Positions 4–15"
+          ]}
+          businessImpact="Potential additional organic traffic."
+          recommendedAction="Rewrite titles and meta descriptions."
+          aiRecommendation="Generate optimized metadata."
+          affectedPagesCount={17}
+          estimatedImpact="Medium / High confidence"
+          onAnalyze={() => console.log('Analyze clicked')}
+          onGenerateContent={() => console.log('Generate Content clicked')}
+          onGenerateFix={() => console.log('Generate Fix clicked')}
+          onCreateTask={() => console.log('Create Task clicked')}
+        />
+      </div>
 
       <QueryState
         isLoading={portfolio.isLoading}

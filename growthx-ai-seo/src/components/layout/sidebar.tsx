@@ -3,16 +3,24 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
+  BarChart,
   ChevronsUpDown,
+  Cpu,
   CreditCard,
+  Crosshair,
   Edit3,
   FileText,
+  Globe,
   HeartPulse,
   LayoutGrid,
+  MapPin,
+  Megaphone,
   MoreHorizontal,
   Search,
   Settings,
   Sparkles,
+  TrendingUp,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -59,20 +67,21 @@ export function Sidebar({
   const clientNav: NavItem[] = [
     { label: "Overview", href: "/dashboard", icon: LayoutGrid },
     {
-      label: "AI Visibility",
-      href: "/geo-tracking",
-      icon: Sparkles,
-      tag: clientRow?.aiCitationSharePct != null ? `${Math.round(clientRow.aiCitationSharePct)}%` : undefined,
-    },
-    { label: "Search", href: "/keywords", icon: Search },
-    {
-      label: "Site health",
-      href: "/technical-seo",
-      icon: HeartPulse,
+      label: "Website",
+      href: "/website",
+      icon: Globe,
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
     },
-    { label: "Content AI", href: "/content-ai", icon: Edit3 },
+    { label: "Search", href: "/search", icon: Search },
+    { label: "Local", href: "/local", icon: MapPin },
+    { label: "Market", href: "/market", icon: TrendingUp },
+    { label: "Competitors", href: "/competitors", icon: Crosshair },
+    { label: "Marketing", href: "/marketing", icon: Megaphone },
+    { label: "Content", href: "/content", icon: Edit3 },
+    { label: "AI Engineer", href: "/engineer", icon: Cpu },
+    { label: "Monitoring", href: "/monitoring", icon: Activity },
+    { label: "Reports", href: "/reports", icon: BarChart },
   ];
 
   const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
@@ -168,6 +177,19 @@ export function Sidebar({
               {clientNav.map((item) => (
                 <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
               ))}
+            </div>
+
+            <div className="mt-4 border-t pt-4" style={{ borderColor: "#f4f4f5" }}>
+              <NavLink 
+                item={{ label: "Integrations", href: "/integrations", icon: LayoutGrid }} 
+                pathname={pathname} 
+                onNavigate={() => setMobileOpen?.(false)} 
+              />
+              <NavLink 
+                item={{ label: "Settings", href: "/settings", icon: Settings }} 
+                pathname={pathname} 
+                onNavigate={() => setMobileOpen?.(false)} 
+              />
             </div>
           </div>
         </nav>
