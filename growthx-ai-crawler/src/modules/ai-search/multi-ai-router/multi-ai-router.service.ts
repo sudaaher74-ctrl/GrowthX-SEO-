@@ -184,10 +184,21 @@ export class MultiAiRouterService {
     const task = request.task ?? AiTask.REASONING;
     const allowed = await this.allowedProviders(request.organizationId);
 
-    if (request.provider && allowed.includes(request.provider)) {
-      return this.invoke(request.provider, request, task);
-    } else if (request.provider) {
-      this.logger.warn(`${request.provider} is not configured or allowed; falling back to preferred provider chain.`);
+    let targetProvider = request.provider;
+    let modelOverride: string | undefined;
+
+    if (targetProvider && !allowed.includes(targetProvider) && allowed.includes(AiProvider.OPENROUTER)) {
+      this.logger.log(`Native ${targetProvider} is not available, proxying through OpenRouter.`);
+      if (targetProvider === AiProvider.OPENAI) modelOverride = 'openai/gpt-4o';
+      if (targetProvider === AiProvider.ANTHROPIC) modelOverride = 'anthropic/claude-3.5-sonnet';
+      if (targetProvider === AiProvider.GEMINI) modelOverride = 'google/gemini-1.5-pro';
+      targetProvider = AiProvider.OPENROUTER;
+    }
+
+    if (targetProvider && allowed.includes(targetProvider)) {
+      return this.invoke(targetProvider, request, task, modelOverride);
+    } else if (targetProvider) {
+      this.logger.warn(`${targetProvider} is not configured or allowed; falling back to preferred provider chain.`);
     }
 
     const chain = TASK_PREFERENCE[task].filter((p) => allowed.includes(p));
@@ -233,7 +244,7 @@ export class MultiAiRouterService {
     await this.entitlements.assertFeature(organizationId, PROVIDER_FEATURE[provider]);
   }
 
-  private invoke(provider: AiProvider, request: AiRequest, task: AiTask): Promise<AiCompletion> {
+  private invoke(provider: AiProvider, request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
     switch (provider) {
       case AiProvider.ANTHROPIC:
         return this.callAnthropic(request, task);
@@ -244,7 +255,7 @@ export class MultiAiRouterService {
       case AiProvider.GROQ:
         return this.callGroq(request);
       case AiProvider.OPENROUTER:
-        return this.callOpenRouter(request);
+        return this.callOpenRouter(request, modelOverride);
     }
   }
 
@@ -443,7 +454,7 @@ export class MultiAiRouterService {
    * `openai/gpt-oss-20b:free`) behind one API, so it is treated as a
    * last-resort fallback in every task chain.
    */
-  private async callOpenRouter(request: AiRequest): Promise<AiCompletion> {
+  private async callOpenRouter(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
     if (!this.openrouter) throw new ServiceUnavailableException('OPENROUTER_API_KEY is not configured.');
 
     const messages: any[] = [];
@@ -457,7 +468,7 @@ export class MultiAiRouterService {
     messages.push({ role: 'user', content: request.prompt });
 
     const response = await this.openrouter.chat.completions.create({
-      model: this.openrouterModel,
+      model: modelOverride || this.openrouterModel,
       messages,
       temperature: this.openrouterTemperature,
       max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
