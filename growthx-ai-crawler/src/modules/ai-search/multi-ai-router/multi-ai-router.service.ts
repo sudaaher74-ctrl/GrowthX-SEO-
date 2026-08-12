@@ -12,6 +12,7 @@ export enum AiProvider {
   OPENAI = 'OPENAI',
   ANTHROPIC = 'ANTHROPIC',
   GROQ = 'GROQ',
+  OPENROUTER = 'OPENROUTER',
 }
 
 /** What the caller wants done, independent of which vendor ends up serving it. */
@@ -72,9 +73,9 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
 
 /** Which vendor each task prefers, best first. */
 const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
-  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ],
-  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ],
-  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC],
+  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
 
 const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
@@ -82,6 +83,7 @@ const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
   [AiProvider.OPENAI]: Feature.MODEL_GPT,
   [AiProvider.ANTHROPIC]: Feature.MODEL_CLAUDE,
   [AiProvider.GROQ]: Feature.MODEL_GROQ,
+  [AiProvider.OPENROUTER]: Feature.MODEL_OPENROUTER,
 };
 
 @Injectable()
@@ -94,11 +96,15 @@ export class MultiAiRouterService {
   private readonly groqModel: string;
   private readonly groqTemperature: number;
   private readonly groqMaxTokens: number;
+  private readonly openrouterModel: string;
+  private readonly openrouterTemperature: number;
+  private readonly openrouterMaxTokens: number;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
   private gemini?: GoogleGenAI;
   private groq?: Groq;
+  private openrouter?: OpenAI;
 
   /**
    * Anthropic's server-side refusal fallback re-serves a declined request on
@@ -117,6 +123,9 @@ export class MultiAiRouterService {
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
+    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-oss-20b:free';
+    this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
+    this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
@@ -130,6 +139,18 @@ export class MultiAiRouterService {
 
     const groqKey = this.config.get<string>('GROQ_API_KEY');
     if (this.isRealKey(groqKey)) this.groq = new Groq({ apiKey: groqKey });
+
+    const openrouterKey = this.config.get<string>('OPENROUTER_API_KEY');
+    if (this.isRealKey(openrouterKey)) {
+      this.openrouter = new OpenAI({
+        apiKey: openrouterKey,
+        baseURL: 'https://openrouter.ai/api/v1',
+        defaultHeaders: {
+          'HTTP-Referer': this.config.get<string>('OPENROUTER_SITE_URL') || 'https://growthx.ai',
+          'X-Title': this.config.get<string>('OPENROUTER_SITE_NAME') || 'GrowthX AI SEO',
+        },
+      });
+    }
 
     this.logger.log(`AI providers configured: ${this.configuredProviders().join(', ') || 'none'}`);
   }
@@ -145,6 +166,7 @@ export class MultiAiRouterService {
     if (this.openai) configured.push(AiProvider.OPENAI);
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
     if (this.groq) configured.push(AiProvider.GROQ);
+    if (this.openrouter) configured.push(AiProvider.OPENROUTER);
     return configured;
   }
 
@@ -221,6 +243,8 @@ export class MultiAiRouterService {
         return this.callGemini(request);
       case AiProvider.GROQ:
         return this.callGroq(request);
+      case AiProvider.OPENROUTER:
+        return this.callOpenRouter(request);
     }
   }
 
@@ -405,10 +429,46 @@ export class MultiAiRouterService {
     };
   }
 
+  // ------------------------------------------------------------------ OpenRouter
+
+  /**
+   * Calls OpenRouter's OpenAI-compatible chat completions endpoint. OpenRouter
+   * fronts many vendors (including free-tier models like
+   * `openai/gpt-oss-20b:free`) behind one API, so it is treated as a
+   * last-resort fallback in every task chain.
+   */
+  private async callOpenRouter(request: AiRequest): Promise<AiCompletion> {
+    if (!this.openrouter) throw new ServiceUnavailableException('OPENROUTER_API_KEY is not configured.');
+
+    const messages: any[] = [];
+    if (request.systemInstruction) messages.push({ role: 'system', content: request.systemInstruction });
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await this.openrouter.chat.completions.create({
+      model: this.openrouterModel,
+      messages,
+      temperature: this.openrouterTemperature,
+      max_tokens: request.maxTokens ?? this.openrouterMaxTokens,
+      ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
+    } as any);
+
+    return {
+      provider: AiProvider.OPENROUTER,
+      model: response.model ?? this.openrouterModel,
+      text: response.choices[0]?.message?.content ?? '',
+      usage: this.usage(
+        response.usage?.prompt_tokens ?? 0,
+        response.usage?.completion_tokens ?? 0,
+        this.envRate('OPENROUTER'),
+      ),
+      refused: false,
+    };
+  }
+
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;

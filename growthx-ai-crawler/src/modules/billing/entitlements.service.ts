@@ -275,6 +275,8 @@ export class EntitlementsService {
         return 'Gemini analysis';
       case Feature.MODEL_GROQ:
         return 'Groq Llama analysis';
+      case Feature.MODEL_OPENROUTER:
+        return 'OpenRouter analysis';
       case Feature.AUTO_FIX_PATCH:
         return 'Automated fix generation';
       case Feature.AUTO_FIX_DEPLOY:
