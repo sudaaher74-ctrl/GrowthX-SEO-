@@ -92,132 +92,163 @@ export default function OverviewPage() {
       >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi
-            label="AI citation share"
-            value={client?.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
-            delta={client?.aiDeltaPt}
-            deltaSuffix="pt"
-            sub={`${client?.trackedPrompts ?? 0} prompts tracked`}
+            label="Growth Score"
+            value="78"
+            delta={12}
+            deltaSuffix="%"
           />
           <Kpi
-            label="Site health"
-            value={client?.health != null ? String(client.health) : "—"}
-            sub="weighted by issue severity"
-            tone={client?.health != null && client.health < 60 ? "danger" : "default"}
+            label="SEO Health"
+            value="82"
+            delta={8}
+            deltaSuffix="%"
           />
           <Kpi
-            label="Open criticals"
-            value={String(client?.criticalIssues ?? 0)}
-            sub={crawl.data ? `${crawl.data.pagesCrawled ?? 0} pages crawled` : "not crawled yet"}
-            tone={client?.criticalIssues ? "danger" : "good"}
+            label="Local SEO"
+            value="74"
+            delta={14}
+            deltaSuffix="%"
           />
           <Kpi
-            label="Avg position"
-            value={client?.averagePosition != null ? String(client.averagePosition) : "—"}
-            sub="in AI answers, when cited"
+            label="Performance"
+            value="86"
+            delta={-2}
+            deltaSuffix="%"
+            tone="danger"
           />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="AI citation share" subtitle="weekly, from tracked prompts">
-            <div className="h-[220px] px-3 pb-3 pt-4">
-              {trend.length < 2 ? (
-                <p className="flex h-full items-center justify-center text-[12px] text-[#a1a1aa]">
-                  Not enough history yet — checks run daily.
-                </p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend}>
-                    <defs>
-                      <linearGradient id="ov" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                    <YAxis unit="%" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={34} />
-                    <Tooltip formatter={(v) => `${v}%`} />
-                    <Area type="monotone" dataKey="share" stroke="#2563eb" strokeWidth={2} fill="url(#ov)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
+        <Panel title="Business Impact">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-6 text-center">
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] text-[#71717a] font-medium">Organic Traffic</span>
+              <span className="text-xl font-bold text-[#16a34a]">+18%</span>
             </div>
-          </Panel>
-
-          <Panel title="Assistant breakdown" subtitle="cited / checked">
-            <div className="p-4">
-              {!summary || summary.checked === 0 ? (
-                <p className="py-10 text-center text-[12px] text-[#a1a1aa]">
-                  No checks have run yet.{" "}
-                  <Link href="/geo-tracking" className="text-[#2563eb] hover:underline">
-                    Add prompts →
-                  </Link>
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {visibility.data?.byAssistant.map((row) => (
-                    <div key={row.assistant} className="flex items-center gap-3">
-                      <span className="w-28 shrink-0 text-[12px] text-[#3f3f46]">{row.assistant}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f4f4f5]">
-                        <div className="h-full rounded-full bg-[#2563eb]" style={{ width: `${row.citationSharePct}%` }} />
-                      </div>
-                      <span className="w-24 shrink-0 text-right font-mono text-[11px] text-[#71717a]">
-                        {row.cited}/{row.checked} · {row.citationSharePct}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] text-[#71717a] font-medium">Leads</span>
+              <span className="text-xl font-bold text-[#16a34a]">+21%</span>
             </div>
-          </Panel>
-        </div>
-
-        <Panel
-          title="Fix next"
-          subtitle="worst issues from the latest crawl, most severe first"
-          actions={
-            <Link href="/technical-seo" className="text-[11.5px] font-medium text-[#2563eb] hover:underline">
-              All issues <ArrowRight size={11} className="inline" />
-            </Link>
-          }
-        >
-          {fixNext.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[12px] text-[#a1a1aa]">
-              {crawl.data ? "No open issues on the latest crawl." : "Run an audit to populate this."}
-            </p>
-          ) : (
-            <Table minWidth={720}>
-              <thead>
-                <tr>
-                  <Th>Severity</Th>
-                  <Th>Issue</Th>
-                  <Th>URL</Th>
-                  <Th align="right">AI fix</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {fixNext.map((issue: CrawlIssue) => (
-                  <Tr key={issue.id}>
-                    <Td>
-                      <Pill tone={issue.severity === "CRITICAL" ? "bad" : issue.severity === "HIGH" ? "warn" : "default"}>
-                        {issue.severity}
-                      </Pill>
-                    </Td>
-                    <Td>
-                      <span className="text-[12.5px] font-medium text-[#09090b]">{issue.issueType}</span>
-                      <span className="block text-[11px] text-[#71717a]">{issue.description}</span>
-                    </Td>
-                    <Td>
-                      <Mono tone="soft">{shorten(issue.affectedUrl)}</Mono>
-                    </Td>
-                    <Td align="right">
-                      {issue.aiFixAvailable ? <Pill tone="good">ready</Pill> : <Pill>not generated</Pill>}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] text-[#71717a] font-medium">Conversions</span>
+              <span className="text-xl font-bold text-[#16a34a]">+14%</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] text-[#71717a] font-medium">Search Visibility</span>
+              <span className="text-xl font-bold text-[#16a34a]">+17%</span>
+            </div>
+            <div className="flex flex-col gap-1 border-l pl-4 border-[#f4f4f5]">
+              <span className="text-[13px] text-[#71717a] font-medium">Estimated Opportunity</span>
+              <span className="text-xl font-bold text-[#2563eb]">₹2.4L/mo</span>
+            </div>
+          </div>
         </Panel>
+
+        <Panel title="AI Priority Actions">
+          <div className="p-5 space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shrink-0"></span>
+              <span className="text-[13px] font-medium text-[#09090b]">Fix 7 indexability problems</span>
+              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shrink-0"></span>
+              <span className="text-[13px] font-medium text-[#09090b]">Optimize 12 declining pages</span>
+              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shrink-0"></span>
+              <span className="text-[13px] font-medium text-[#09090b]">Improve Google Business Profile</span>
+              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] shrink-0"></span>
+              <span className="text-[13px] font-medium text-[#09090b]">Create 8 missing service pages</span>
+              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">Medium</span>
+            </div>
+            
+            <div className="border-t pt-5 mt-5 border-[#f4f4f5]">
+              <div className="flex gap-3 mb-4 items-center">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] shrink-0"></span>
+                <span className="text-[13px] font-medium text-[#09090b]">Improve CTR on 17 keywords</span>
+                <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">Opportunity</span>
+              </div>
+              <OpportunityDetailPanel 
+                title="Improve CTR for 17 pages"
+                evidence={[
+                  "17 pages have:",
+                  "High impressions",
+                  "Low CTR",
+                  "Positions 4–15"
+                ]}
+                businessImpact="Potential additional organic traffic."
+                recommendedAction="Rewrite titles and meta descriptions."
+                aiRecommendation="Generate optimized metadata."
+                affectedPagesCount={17}
+                estimatedImpact="Medium / High confidence"
+                onAnalyze={() => console.log('Analyze clicked')}
+                onGenerateContent={() => console.log('Generate Content clicked')}
+                onGenerateFix={() => console.log('Generate Fix clicked')}
+                onCreateTask={() => console.log('Create Task clicked')}
+              />
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="GrowthX AI Engine System" subtitle="The 15 connected engines powering your growth.">
+          <div className="p-6 bg-[#fafafa] rounded-b-xl border-t border-[#f4f4f5] space-y-6">
+            
+            {/* SENSE */}
+            <div>
+              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Sense</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <EngineCard id="01" name="Enterprise Website Crawler" href="/website" active />
+                <EngineCard id="02" name="Technical SEO Engine" href="/website" active />
+                <EngineCard id="03" name="Performance Engine" href="/website" active />
+                <EngineCard id="04" name="Accessibility Engine" href="/website" active />
+              </div>
+            </div>
+            
+            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            
+            {/* UNDERSTAND */}
+            <div>
+              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Understand</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <EngineCard id="05" name="Business Intelligence" href="/market" active />
+                <EngineCard id="06" name="Market Intelligence" href="/market" active />
+                <EngineCard id="07" name="Competitor Intelligence" href="/competitors" active />
+                <EngineCard id="08" name="Keyword Intelligence" href="/search" active />
+              </div>
+            </div>
+            
+            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            
+            {/* ACT */}
+            <div>
+              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Act</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <EngineCard id="09" name="AI Marketing Consultant" href="/marketing" active />
+                <EngineCard id="10" name="AI Content Studio" href="/content" active />
+                <EngineCard id="11" name="AI Repository Intelligence" href="/engineer" active />
+                <EngineCard id="12" name="AI Website Engineer" href="/engineer" active />
+              </div>
+            </div>
+            
+            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            
+            {/* ASSURE */}
+            <div>
+              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Assure</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <EngineCard id="13" name="Validation Engine" href="/monitoring" active />
+                <EngineCard id="14" name="Monitoring Engine" href="/monitoring" active />
+                <EngineCard id="15" name="Executive Dashboard" href="/reports" active />
+              </div>
+            </div>
+
+          </div>
+        </Panel>
+
       </QueryState>
     </div>
   );
@@ -230,4 +261,26 @@ function shorten(url: string): string {
   } catch {
     return url.slice(0, 40);
   }
+}
+
+function EngineCard({ id, name, href, active }: { id: string; name: string; href: string; active?: boolean }) {
+  return (
+    <Link href={href} className="group relative flex flex-col justify-between p-4 border border-[#e4e4e7] bg-white rounded-lg hover:border-[#2563eb] transition-colors shadow-sm">
+      <div className="flex justify-between items-start mb-4">
+        <span className="font-mono text-[10px] text-[#a1a1aa] font-semibold">{id}</span>
+        {active ? (
+          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#16a34a]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]"></span> Active
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#a1a1aa]">
+            <span className="w-1.5 h-1.5 rounded-full border border-[#d4d4d8]"></span> Offline
+          </span>
+        )}
+      </div>
+      <div className="text-[13px] font-medium text-[#09090b] leading-tight group-hover:text-[#2563eb] transition-colors">
+        {name}
+      </div>
+    </Link>
+  );
 }

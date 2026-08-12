@@ -262,9 +262,9 @@ export function Td({
   );
 }
 
-export function Tr({ children }: { children: React.ReactNode }) {
+export function Tr({ children, className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <tr className="border-b transition-colors last:border-0 hover:bg-[#fafafa]" style={{ borderColor: "#f4f4f5" }}>
+    <tr {...props} className={cn("border-b transition-colors last:border-0 hover:bg-[#fafafa]", className)} style={{ borderColor: "#f4f4f5", ...props.style }}>
       {children}
     </tr>
   );
