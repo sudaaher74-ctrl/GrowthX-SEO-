@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/clients": { scope: "Agency", title: "Clients" },
   "/reports": { scope: "Agency", title: "Reports" },
-  "/billing": { scope: "Agency", title: "Billing & settings" },
   "/settings": { scope: "Agency", title: "Settings" },
   "/dashboard": { scope: "Client", title: "Overview" },
   "/geo-tracking": { scope: "Client", title: "AI Visibility" },

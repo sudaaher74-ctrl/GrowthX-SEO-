@@ -64,7 +64,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-links", title: "Internal Linking AI", category: "Navigation", icon: GitBranch, href: "/internal-linking", subtitle: "Orphan page detection & link graph" },
     { id: "nav-auto", title: "Automations & Workflows", category: "Navigation", icon: Play, href: "/automations", subtitle: "Scheduled audits & trigger alerts" },
     { id: "nav-reports", title: "Report Builder", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "White-label client PDF/Excel exports" },
-    { id: "nav-billing", title: "Billing & Plans", category: "Navigation", icon: CreditCard, href: "/billing", subtitle: "Manage Max Pro plan & usage quotas" },
     { id: "nav-settings", title: "Settings & Integrations", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace domain, team & OAuth" },
 
     // Quick Actions

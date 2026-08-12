@@ -54,7 +54,6 @@ export function Sidebar({
 
   const agencyNav: NavItem[] = [
     { label: "Clients", href: "/clients", icon: Users, tag: projects.length ? String(projects.length) : undefined },
-    { label: "Billing & settings", href: "/billing", icon: Settings },
   ];
 
   const clientNav: NavItem[] = [
@@ -173,28 +172,6 @@ export function Sidebar({
           </div>
         </nav>
 
-        {/* Crawl credits */}
-        <div className="border-t px-[14px] py-3" style={{ borderColor: "#f4f4f5" }}>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#a1a1aa]">
-              Crawl credits
-            </span>
-            <span className="font-mono text-[10px] text-[#52525b]">
-              {crawlQuota
-                ? `${compact(crawlQuota.used)} / ${crawlQuota.limit ? compact(crawlQuota.limit) : "∞"}`
-                : "—"}
-            </span>
-          </div>
-          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-[#f4f4f5]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${crawlPct}%`, background: crawlPct > 80 ? "#d97706" : "#2563eb" }}
-            />
-          </div>
-          <Link href="/billing" className="mt-2 block text-[11px] font-medium text-[#2563eb] hover:underline">
-            Manage plan →
-          </Link>
-        </div>
 
         {/* User */}
         <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "#f4f4f5" }}>
@@ -203,9 +180,9 @@ export function Sidebar({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[11.5px] font-semibold text-[#09090b]">
-              {entitlements.data?.planName ?? "Not signed in"}
+              GrowthX Agency
             </span>
-            <span className="block text-[10px] text-[#a1a1aa]">Agency owner</span>
+            <span className="block text-[10px] text-[#a1a1aa]">Admin</span>
           </span>
           <MoreHorizontal size={14} className="text-[#a1a1aa]" />
         </div>
