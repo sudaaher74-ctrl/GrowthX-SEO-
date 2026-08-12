@@ -128,11 +128,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       response.statusText ??
       `Request failed (${response.status})`;
 
+    // Login is auto-handled by DashboardShell (see dashboard-shell.tsx), so a
+    // stale/expired token just gets cleared here — the next mount re-runs
+    // auto-login. No forced navigation to /login.
     if (response.status === 401 && typeof window !== "undefined") {
       auth.clear();
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
     }
     throw new ApiError(response.status, String(message), payload);
   }
