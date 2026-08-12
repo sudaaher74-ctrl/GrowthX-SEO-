@@ -76,7 +76,7 @@ export function OpportunityDetailPanel({
       <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-2">
         {onAnalyze && <Button variant="outline" size="sm" onClick={onAnalyze}>Analyze</Button>}
         {onGenerateContent && <Button variant="secondary" size="sm" onClick={onGenerateContent}>Generate Content</Button>}
-        {onGenerateFix && <Button variant="default" size="sm" onClick={onGenerateFix}>Generate Fix</Button>}
+        {onGenerateFix && <Button variant="primary" size="sm" onClick={onGenerateFix}>Generate Fix</Button>}
         {onCreateTask && <Button variant="outline" size="sm" onClick={onCreateTask}>Create Task</Button>}
       </div>
     </div>
