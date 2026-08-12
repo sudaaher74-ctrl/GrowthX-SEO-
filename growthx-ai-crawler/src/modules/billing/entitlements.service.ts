@@ -55,20 +55,23 @@ export class EntitlementsService {
    * has actually elapsed.
    */
   async resolvePlan(organizationId: string): Promise<{ plan: PlanType; subscription: Subscription | null; active: boolean }> {
-    // ── Dev bypass ──────────────────────────────────────────────────────────
-    // In local development every organisation runs as PRO so that engineers
-    // can exercise every feature without Razorpay integration. This branch is
-    // compiled away in production builds where NODE_ENV is never 'development'.
-    // ── Dev bypass ──────────────────────────────────────────────────────────
-    // Always return ENTERPRISE during development and testing phase
-    return { plan: PlanType.ENTERPRISE, subscription: null, active: true };
-    // ────────────────────────────────────────────────────────────────────────
-
     const subscription = await this.prisma.subscription.findUnique({ where: { organizationId } });
 
+    // ── Dev bypass ──────────────────────────────────────────────────────────
+    // Always return ENTERPRISE during development and testing phase
+    const devBypass = true;
+
     if (!subscription) {
+      if (devBypass) {
+        return { plan: PlanType.ENTERPRISE, subscription: null, active: true };
+      }
       return { plan: PlanType.FREE, subscription: null, active: false };
     }
+
+    if (devBypass) {
+      return { plan: PlanType.ENTERPRISE, subscription, active: true };
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     if (SERVING_STATUSES.has(subscription.status)) {
       return { plan: subscription.plan, subscription, active: true };
