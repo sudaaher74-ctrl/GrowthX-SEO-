@@ -187,12 +187,17 @@ export class MultiAiRouterService {
     let targetProvider = request.provider;
     let modelOverride: string | undefined;
 
-    if (targetProvider && !allowed.includes(targetProvider) && allowed.includes(AiProvider.OPENROUTER)) {
-      this.logger.log(`Native ${targetProvider} is not available, proxying through OpenRouter.`);
-      if (targetProvider === AiProvider.OPENAI) modelOverride = 'openai/gpt-4o';
-      if (targetProvider === AiProvider.ANTHROPIC) modelOverride = 'anthropic/claude-3.5-sonnet';
-      if (targetProvider === AiProvider.GEMINI) modelOverride = 'google/gemini-1.5-pro';
-      targetProvider = AiProvider.OPENROUTER;
+    if (targetProvider && !allowed.includes(targetProvider)) {
+      if (allowed.includes(AiProvider.GROQ)) {
+        this.logger.log(`Native ${targetProvider} is not available, proxying through Groq for free testing.`);
+        targetProvider = AiProvider.GROQ;
+      } else if (allowed.includes(AiProvider.OPENROUTER)) {
+        this.logger.log(`Native ${targetProvider} is not available, proxying through OpenRouter.`);
+        if (targetProvider === AiProvider.OPENAI) modelOverride = 'openai/gpt-4o';
+        if (targetProvider === AiProvider.ANTHROPIC) modelOverride = 'anthropic/claude-3.5-sonnet';
+        if (targetProvider === AiProvider.GEMINI) modelOverride = 'google/gemini-1.5-pro';
+        targetProvider = AiProvider.OPENROUTER;
+      }
     }
 
     if (targetProvider && allowed.includes(targetProvider)) {
