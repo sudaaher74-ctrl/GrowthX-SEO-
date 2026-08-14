@@ -51,14 +51,20 @@ export class CrawlController {
 
   /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
   private async registerWebsite(body: { url: string; domain: string; projectId?: string }) {
-    if (!body.url || !body.domain) {
-      throw new BadRequestException('URL and domain are required.');
+    if (!body.url && !body.domain) {
+      throw new BadRequestException('URL or domain is required.');
     }
-    const token = this.securityService.generateVerificationToken(body.domain);
+    let domain = (body.domain || body.url).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    let formattedUrl = (body.url || body.domain).trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const token = this.securityService.generateVerificationToken(domain);
     const website = await this.prisma.website.upsert({
-      where: { domain: body.domain },
-      update: { url: body.url, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
-      create: { url: body.url, domain: body.domain, verificationToken: token, isVerified: false, projectId: body.projectId },
+      where: { domain },
+      update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
+      create: { url: formattedUrl, domain, verificationToken: token, isVerified: false, projectId: body.projectId },
     });
     return {
       id: website.id,

@@ -64,11 +64,16 @@ export class CrawlerService {
       },
     });
 
+    let startUrl = website.url.trim();
+    if (!startUrl.startsWith('http://') && !startUrl.startsWith('https://')) {
+      startUrl = `https://${startUrl}`;
+    }
+
     const payload: CrawlJobPayload = {
       jobId: job.id,
       websiteId: website.id,
       domain: website.domain,
-      startUrl: website.url,
+      startUrl,
       maxConcurrency: job.concurrency,
       maxDepth: job.depthLimit,
       rateLimitDelayMs: website.rateLimitDelayMs || 500,
@@ -161,25 +166,25 @@ export class CrawlerService {
 
       const worker = async () => {
         while (true) {
-          const active = this.localJobActiveWorkers.get(payload.jobId) || 0;
           const currentQueue = this.localJobQueues.get(payload.jobId) || [];
           
           if (currentQueue.length === 0) {
+            const active = this.localJobActiveWorkers.get(payload.jobId) || 0;
             if (active === 0) break; // All done
-            await new Promise(r => setTimeout(r, 500)); // Wait for other workers to potentially push links
+            await new Promise(r => setTimeout(r, 200)); // Wait for other workers to potentially push links
             continue;
           }
 
           const task = currentQueue.shift();
           if (!task) continue;
 
-          this.localJobActiveWorkers.set(payload.jobId, active + 1);
+          this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 0) + 1);
           try {
             await this.processPageFetch(task);
           } catch (err) {
             this.logger.error(`[JOB ${payload.jobId}] Unhandled error processing ${task.targetUrl}`, err);
           } finally {
-            this.localJobActiveWorkers.set(payload.jobId, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1);
+            this.localJobActiveWorkers.set(payload.jobId, Math.max(0, (this.localJobActiveWorkers.get(payload.jobId) || 1) - 1));
           }
         }
       };
@@ -197,152 +202,164 @@ export class CrawlerService {
    * Processes an individual page fetch task, executing the full SEO extraction & issue engine pipeline
    */
   async processPageFetch(payload: PageFetchPayload): Promise<void> {
-    const normUrl = this.normalizeUrl(payload.targetUrl);
-
-    const isVisited = await this.markUrlVisited(payload.jobId, normUrl);
-    if (isVisited) {
-      return;
-    }
-
-    if (payload.depth > payload.maxDepth) {
-      return;
-    }
-
-    const allowed = await this.robots.isUrlAllowed(normUrl);
-    if (!allowed) {
-      return;
-    }
-
-    this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
-    const fetchRes = await this.fetcher.fetchPage(normUrl);
-
-    let snapshotUrl: string | undefined;
-    if (fetchRes.html) {
-      snapshotUrl = await this.storage.saveSnapshot(payload.jobId, Buffer.from(normUrl).toString('base64').substring(0, 16), fetchRes.html);
-    }
-
     try {
-      // 1. Run Analysis Pipeline if HTML 200 OK
-      let htmlData = this.htmlExtractor.extract('', normUrl);
-      let images = [] as any[];
-      let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
-      let schemas = [] as any[];
-      let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
+      const normUrl = this.normalizeUrl(payload.targetUrl);
 
-      if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
-        htmlData = this.htmlExtractor.extract(fetchRes.html, normUrl);
-        images = this.imageAnalyzer.analyzeImages(fetchRes.html, normUrl);
-        links = this.linkAnalyzer.analyzeLinks(fetchRes.html, normUrl);
-        schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
-        content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
+      const isVisited = await this.markUrlVisited(payload.jobId, normUrl);
+      if (isVisited) {
+        return;
       }
 
-      // 2. Upsert Page with full metrics
-      const page = await this.prisma.page.upsert({
-        where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
-        update: {
-          finalUrl: fetchRes.finalUrl,
-          statusCode: fetchRes.statusCode,
-          responseTimeMs: fetchRes.responseTimeMs,
-          contentType: fetchRes.contentType,
-          htmlSnapshotUrl: snapshotUrl,
-          title: htmlData.title,
-          metaDescription: htmlData.metaDescription,
-          canonicalUrl: htmlData.canonicalUrl,
-          robotsMeta: htmlData.robotsMeta,
-          h1: htmlData.h1,
-          h2: htmlData.h2,
-          h3: htmlData.h3,
-          wordCount: content.wordCount,
-          readingTimeMin: content.readingTimeMin,
-          contentHash: content.contentHash,
-          simHash: content.simHash || undefined,
-        },
-        create: {
-          crawlJobId: payload.jobId,
-          url: normUrl,
-          finalUrl: fetchRes.finalUrl,
-          statusCode: fetchRes.statusCode,
-          responseTimeMs: fetchRes.responseTimeMs,
-          contentType: fetchRes.contentType,
-          htmlSnapshotUrl: snapshotUrl,
-          title: htmlData.title,
-          metaDescription: htmlData.metaDescription,
-          canonicalUrl: htmlData.canonicalUrl,
-          robotsMeta: htmlData.robotsMeta,
-          h1: htmlData.h1,
-          h2: htmlData.h2,
-          h3: htmlData.h3,
-          wordCount: content.wordCount,
-          readingTimeMin: content.readingTimeMin,
-          contentHash: content.contentHash,
-          simHash: content.simHash || undefined,
-        },
-      });
+      if (payload.depth > payload.maxDepth) {
+        return;
+      }
 
-      const updatedJob = await this.prisma.crawlJob.update({
-        where: { id: payload.jobId },
-        data: { pagesCrawled: { increment: 1 } },
-      });
-      this.crawlerGateway.broadcastProgress(payload.jobId, { pagesCrawled: updatedJob.pagesCrawled, currentUrl: normUrl });
-      this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: String(fetchRes.statusCode) });
+      const allowed = await this.robots.isUrlAllowed(normUrl);
+      if (!allowed) {
+        return;
+      }
 
-      if (payload.sourceUrl) {
-        await this.prisma.internalGraph.create({
-          data: {
+      this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
+      const fetchRes = await this.fetcher.fetchPage(normUrl);
+
+      let snapshotUrl: string | undefined;
+      if (fetchRes.html) {
+        snapshotUrl = await this.storage.saveSnapshot(payload.jobId, Buffer.from(normUrl).toString('base64').substring(0, 16), fetchRes.html);
+      }
+
+      try {
+        // 1. Run Analysis Pipeline if HTML 200 OK
+        let htmlData = this.htmlExtractor.extract('', normUrl);
+        let images = [] as any[];
+        let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
+        let schemas = [] as any[];
+        let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
+
+        if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
+          htmlData = this.htmlExtractor.extract(fetchRes.html, normUrl);
+          images = this.imageAnalyzer.analyzeImages(fetchRes.html, normUrl);
+          links = this.linkAnalyzer.analyzeLinks(fetchRes.html, normUrl);
+          schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
+          content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
+        }
+
+        // 2. Upsert Page with full metrics
+        const page = await this.prisma.page.upsert({
+          where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
+          update: {
+            finalUrl: fetchRes.finalUrl,
+            statusCode: fetchRes.statusCode,
+            responseTimeMs: fetchRes.responseTimeMs,
+            contentType: fetchRes.contentType,
+            htmlSnapshotUrl: snapshotUrl,
+            title: htmlData.title,
+            metaDescription: htmlData.metaDescription,
+            canonicalUrl: htmlData.canonicalUrl,
+            robotsMeta: htmlData.robotsMeta,
+            h1: htmlData.h1,
+            h2: htmlData.h2,
+            h3: htmlData.h3,
+            wordCount: content.wordCount,
+            readingTimeMin: content.readingTimeMin,
+            contentHash: content.contentHash,
+            simHash: content.simHash || undefined,
+          },
+          create: {
             crawlJobId: payload.jobId,
-            sourceUrl: this.normalizeUrl(payload.sourceUrl),
-            targetUrl: normUrl,
-            crawlDepth: payload.depth,
+            url: normUrl,
+            finalUrl: fetchRes.finalUrl,
+            statusCode: fetchRes.statusCode,
+            responseTimeMs: fetchRes.responseTimeMs,
+            contentType: fetchRes.contentType,
+            htmlSnapshotUrl: snapshotUrl,
+            title: htmlData.title,
+            metaDescription: htmlData.metaDescription,
+            canonicalUrl: htmlData.canonicalUrl,
+            robotsMeta: htmlData.robotsMeta,
+            h1: htmlData.h1,
+            h2: htmlData.h2,
+            h3: htmlData.h3,
+            wordCount: content.wordCount,
+            readingTimeMin: content.readingTimeMin,
+            contentHash: content.contentHash,
+            simHash: content.simHash || undefined,
           },
-        }).catch(() => {});
+        });
+
+        const updatedJob = await this.prisma.crawlJob.update({
+          where: { id: payload.jobId },
+          data: { pagesCrawled: { increment: 1 } },
+        });
+        this.crawlerGateway.broadcastProgress(payload.jobId, { pagesCrawled: updatedJob.pagesCrawled, currentUrl: normUrl });
+        this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: String(fetchRes.statusCode) });
+
+        if (payload.sourceUrl) {
+          await this.prisma.internalGraph.create({
+            data: {
+              crawlJobId: payload.jobId,
+              sourceUrl: this.normalizeUrl(payload.sourceUrl),
+              targetUrl: normUrl,
+              crawlDepth: payload.depth,
+            },
+          }).catch(() => {});
+        }
+
+        // 3. Save extracted Images
+        for (const img of images) {
+          await this.prisma.image.create({
+            data: {
+              pageId: page.id,
+              imageUrl: img.imageUrl,
+              altText: img.altText,
+              isLazy: img.isLazy,
+              isBroken: img.isBroken,
+              isLarge: img.isLarge,
+            },
+          }).catch(() => {});
+        }
+
+        // 4. Run Issue Engine
+        const sitemapSet = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
+        const inSitemap = sitemapSet.has(normUrl);
+
+        await this.issueEngine.evaluateAndPersistIssues(
+          payload.jobId,
+          page.id,
+          normUrl,
+          fetchRes.statusCode,
+          fetchRes.redirectChain || [normUrl],
+          fetchRes.html || '',
+          htmlData,
+          images,
+          links,
+          content,
+          schemas,
+          inSitemap,
+          true
+        );
+
+        // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
+        if (payload.depth === 0 && fetchRes.statusCode === 200) {
+          this.performanceService.fetchPageSpeedMetrics(page.id, normUrl).catch(() => {});
+        }
+
+        // 6. Enqueue internal links for BFS crawling
+        if (fetchRes.statusCode === 200 && fetchRes.html) {
+          await this.discoverInternalLinksAndEnqueue(payload, links.internalLinks, page.id);
+        }
+      } catch (dbErr: any) {
+        this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
       }
-
-      // 3. Save extracted Images
-      for (const img of images) {
-        await this.prisma.image.create({
-          data: {
-            pageId: page.id,
-            imageUrl: img.imageUrl,
-            altText: img.altText,
-            isLazy: img.isLazy,
-            isBroken: img.isBroken,
-            isLarge: img.isLarge,
-          },
-        }).catch(() => {});
+    } finally {
+      if (this.queue.pageFetchQueue) {
+        const remaining = await this.queue.decrementPendingTasks(payload.jobId);
+        if (remaining <= 0) {
+          const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
+          if (job && job.status === 'RUNNING') {
+            await this.completeJob(payload.jobId);
+          }
+        }
       }
-
-      // 4. Run Issue Engine
-      const sitemapSet = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
-      const inSitemap = sitemapSet.has(normUrl);
-
-      await this.issueEngine.evaluateAndPersistIssues(
-        payload.jobId,
-        page.id,
-        normUrl,
-        fetchRes.statusCode,
-        fetchRes.redirectChain || [normUrl],
-        fetchRes.html || '',
-        htmlData,
-        images,
-        links,
-        content,
-        schemas,
-        inSitemap,
-        true
-      );
-
-      // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
-      if (payload.depth === 0 && fetchRes.statusCode === 200) {
-        this.performanceService.fetchPageSpeedMetrics(page.id, normUrl).catch(() => {});
-      }
-
-      // 6. Enqueue internal links for BFS crawling
-      if (fetchRes.statusCode === 200 && fetchRes.html) {
-        await this.discoverInternalLinksAndEnqueue(payload, links.internalLinks, page.id);
-      }
-    } catch (dbErr: any) {
-      this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
     }
   }
 
@@ -376,7 +393,7 @@ export class CrawlerService {
         };
         
         if (this.queue.pageFetchQueue) {
-          this.queue.addPageFetchTask(newPayload, 0);
+          await this.queue.addPageFetchTask(newPayload, 0);
         } else {
           const localQueue = this.localJobQueues.get(payload.jobId);
           if (localQueue) {
@@ -411,6 +428,9 @@ export class CrawlerService {
   }
 
   async completeJob(jobId: string): Promise<void> {
+    const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId } });
+    if (!job || job.status === 'COMPLETED') return;
+
     this.logger.log(`[JOB ${jobId}] Crawl job finished. Running final Graph Link Equity & Orphan analysis...`);
     try {
       await this.graphService.generateGraphReport(jobId);
@@ -442,7 +462,11 @@ export class CrawlerService {
 
   private normalizeUrl(rawUrl: string): string {
     try {
-      const parsed = url.parse(rawUrl);
+      let formatted = rawUrl.trim();
+      if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
+        formatted = `https://${formatted}`;
+      }
+      const parsed = url.parse(formatted);
       parsed.hash = null;
       let pathname = parsed.pathname || '/';
       if (pathname !== '/' && pathname.endsWith('/')) {

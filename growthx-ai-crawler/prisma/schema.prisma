@@ -273,20 +273,20 @@ model Project {
   retainerCurrency     String              @default("INR")
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
+  ClientPortalConfig   ClientPortalConfig?
   competitors          CompetitorDomain[]
   contentPieces        ContentPiece[]
+  CustomReport         CustomReport[]
+  IntegrationConfig    IntegrationConfig?
+  LocalLocation        LocalLocation?
+  MarketIntelligence   MarketIntelligence?
+  MonitoringConfig     MonitoringConfig?
+  OutreachCampaign     OutreachCampaign[]
   organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   repository           SiteRepository?
   strategies           StrategyReport[]
   prompts              TrackedPrompt[]
   websites             Website[]
-  LocalLocation        LocalLocation?
-  OutreachCampaign     OutreachCampaign[]
-  CustomReport         CustomReport[]
-  ClientPortalConfig   ClientPortalConfig?
-  MarketIntelligence   MarketIntelligence?
-  MonitoringConfig     MonitoringConfig?
-  IntegrationConfig    IntegrationConfig?
 
   @@index([organizationId])
 }
@@ -469,29 +469,27 @@ model StrategyReport {
 }
 
 model OutreachCampaign {
-  id         String   @id @default(uuid())
+  id         String            @id @default(uuid())
   projectId  String
   name       String
-  status     String   @default("ACTIVE")
-  sentCount  Int      @default(0)
-  replyCount Int      @default(0)
-  linkCount  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  contacts OutreachContact[]
+  status     String            @default("ACTIVE")
+  sentCount  Int               @default(0)
+  replyCount Int               @default(0)
+  linkCount  Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contacts   OutreachContact[]
 }
 
 model OutreachContact {
-  id          String    @id @default(uuid())
+  id          String           @id @default(uuid())
   campaignId  String
   email       String
   domain      String
-  status      String    @default("PENDING")
+  status      String           @default("PENDING")
   lastContact DateTime?
-
-  campaign OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign    OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 }
 
 /// A rival the customer wants share-of-voice measured against.
@@ -536,6 +534,94 @@ model AuditLog {
   user           User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId, createdAt])
+}
+
+model LocalLocation {
+  id             String         @id @default(uuid())
+  projectId      String         @unique
+  businessName   String
+  address        String
+  rating         Float          @default(0)
+  reviewCount    Int            @default(0)
+  citationsCount Int            @default(0)
+  updatedAt      DateTime       @updatedAt
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rankings       LocalRanking[]
+}
+
+model CustomReport {
+  id         String   @id @default(uuid())
+  projectId  String
+  name       String
+  frequency  String   @default("MONTHLY")
+  recipients String[]
+  format     String   @default("PDF")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ClientPortalConfig {
+  id           String   @id @default(uuid())
+  projectId    String   @unique
+  customDomain String?
+  logoUrl      String?
+  themeColor   String?  @default("#2563eb")
+  isPublic     Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MarketIntelligence {
+  id               String   @id @default(uuid())
+  projectId        String   @unique
+  sentimentScore   Float    @default(0.0)
+  sentimentSummary String?
+  trendingTopics   String[]
+  updatedAt        DateTime @updatedAt
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MonitoringConfig {
+  id                  String    @id @default(uuid())
+  projectId           String    @unique
+  uptimeStatus        String    @default("UP")
+  uptimePercentage    Float     @default(99.99)
+  avgResponseTimeMs   Int       @default(250)
+  lastDowntimeAt      DateTime?
+  sslStatus           String    @default("VALID")
+  sslExpiresAt        DateTime?
+  performanceScore    Int       @default(90)
+  mobileScore         Int       @default(85)
+  coreWebVitalsStatus String    @default("PASSING")
+  updatedAt           DateTime  @updatedAt
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationConfig {
+  id               String   @id @default(uuid())
+  projectId        String   @unique
+  gaConnected      Boolean  @default(false)
+  gscConnected     Boolean  @default(false)
+  gaPropertyId     String?
+  gscPropertyId    String?
+  updatedAt        DateTime @updatedAt
+  hubspotConnected Boolean  @default(false)
+  hubspotPortalId  String?
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model LocalRanking {
+  id           String        @id @default(uuid())
+  locationId   String
+  keyword      String
+  position     Int
+  previousPos  Int?
+  searchVolume Int           @default(0)
+  updatedAt    DateTime      @updatedAt
+  location     LocalLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId])
 }
 
 enum JobStatus {
@@ -665,99 +751,4 @@ enum ContentPieceStatus {
   COMMITTED
   PUBLISHED
   REJECTED
-}
-
-model LocalLocation {
-  id             String   @id @default(uuid())
-  projectId      String   @unique
-  businessName   String
-  address        String
-  rating         Float    @default(0)
-  reviewCount    Int      @default(0)
-  citationsCount Int      @default(0)
-  updatedAt      DateTime @updatedAt
-
-  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  rankings LocalRanking[]
-}
-
-model CustomReport {
-  id         String   @id @default(uuid())
-  projectId  String
-  name       String
-  frequency  String   @default("MONTHLY") // WEEKLY, MONTHLY, QUARTERLY
-  recipients String[] // email addresses
-  format     String   @default("PDF")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model ClientPortalConfig {
-  id           String   @id @default(uuid())
-  projectId    String   @unique
-  customDomain String?
-  logoUrl      String?
-  themeColor   String?  @default("#2563eb")
-  isPublic     Boolean  @default(false)
-  updatedAt    DateTime @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model MarketIntelligence {
-  id               String   @id @default(uuid())
-  projectId        String   @unique
-  sentimentScore   Float    @default(0.0) // -1.0 to 1.0
-  sentimentSummary String?
-  trendingTopics   String[] // Array of strings
-  updatedAt        DateTime @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model MonitoringConfig {
-  id                  String    @id @default(uuid())
-  projectId           String    @unique
-  uptimeStatus        String    @default("UP") // UP, DOWN, DEGRADED
-  uptimePercentage    Float     @default(99.99)
-  avgResponseTimeMs   Int       @default(250)
-  lastDowntimeAt      DateTime?
-  sslStatus           String    @default("VALID")
-  sslExpiresAt        DateTime?
-  performanceScore    Int       @default(90)
-  mobileScore         Int       @default(85)
-  coreWebVitalsStatus String    @default("PASSING")
-  updatedAt           DateTime  @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model IntegrationConfig {
-  id              String   @id @default(uuid())
-  projectId       String   @unique
-  gaConnected     Boolean  @default(false)
-  gscConnected    Boolean  @default(false)
-  hubspotConnected Boolean @default(false)
-  gaPropertyId    String?
-  gscPropertyId   String?
-  hubspotPortalId String?
-  updatedAt       DateTime @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model LocalRanking {
-  id           String   @id @default(uuid())
-  locationId   String
-  keyword      String
-  position     Int
-  previousPos  Int?
-  searchVolume Int      @default(0)
-  updatedAt    DateTime @updatedAt
-
-  location LocalLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
-
-  @@index([locationId])
 }

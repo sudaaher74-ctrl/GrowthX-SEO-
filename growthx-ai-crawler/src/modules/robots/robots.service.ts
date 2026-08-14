@@ -72,7 +72,11 @@ export class RobotsService {
    */
   async isUrlAllowed(targetUrl: string, _userAgent: string = 'GrowthX-AI-Bot'): Promise<boolean> {
     try {
-      const parsed = url.parse(targetUrl);
+      let baseUrl = targetUrl.trim();
+      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        baseUrl = `https://${baseUrl}`;
+      }
+      const parsed = url.parse(baseUrl);
       const domain = `${parsed.protocol}//${parsed.host}`;
       const path = parsed.path || '/';
 
@@ -88,7 +92,7 @@ export class RobotsService {
               return true;
             }
           }
-          this.logger.debug(`URL blocked by robots.txt rule [Disallow: ${disallowed}]: ${targetUrl}`);
+          this.logger.warn(`URL blocked by robots.txt rule [Disallow: ${disallowed}]: ${targetUrl}`);
           return false;
         }
       }
@@ -124,8 +128,14 @@ export class RobotsService {
    */
   private parseRobotsText(text: string, rules: RobotsRules, targetUserAgent: string): void {
     const lines = text.split(/\r?\n/);
-    let isApplicableAgent = false;
-    let isGlobalAgent = false;
+    const globalDisallowed: string[] = [];
+    const globalAllowed: string[] = [];
+    const specificDisallowed: string[] = [];
+    const specificAllowed: string[] = [];
+    let hasSpecificAgentMatch = false;
+
+    let currentIsSpecific = false;
+    let currentIsGlobal = false;
 
     for (let line of lines) {
       line = line.split('#')[0].trim();
@@ -146,23 +156,32 @@ export class RobotsService {
 
       if (directive === 'user-agent') {
         const agent = val.toLowerCase();
-        isApplicableAgent = agent === targetUserAgent.toLowerCase() || targetUserAgent.toLowerCase().includes(agent);
-        isGlobalAgent = agent === '*';
+        currentIsSpecific = agent === targetUserAgent.toLowerCase() || targetUserAgent.toLowerCase().includes(agent);
+        currentIsGlobal = agent === '*';
+        if (currentIsSpecific) hasSpecificAgentMatch = true;
         continue;
       }
 
-      if (isApplicableAgent || isGlobalAgent) {
-        if (directive === 'disallow' && val) {
-          if (!rules.disallowedPaths.includes(val)) rules.disallowedPaths.push(val);
-        } else if (directive === 'allow' && val) {
-          if (!rules.allowedPaths.includes(val)) rules.allowedPaths.push(val);
-        } else if (directive === 'crawl-delay') {
-          const delaySec = parseFloat(val);
-          if (!isNaN(delaySec) && delaySec > 0) {
-            rules.crawlDelayMs = Math.round(delaySec * 1000);
-          }
+      if (directive === 'disallow' && val) {
+        if (currentIsSpecific) specificDisallowed.push(val);
+        else if (currentIsGlobal) globalDisallowed.push(val);
+      } else if (directive === 'allow' && val) {
+        if (currentIsSpecific) specificAllowed.push(val);
+        else if (currentIsGlobal) globalAllowed.push(val);
+      } else if (directive === 'crawl-delay') {
+        const delaySec = parseFloat(val);
+        if (!isNaN(delaySec) && delaySec > 0) {
+          rules.crawlDelayMs = Math.round(delaySec * 1000);
         }
       }
+    }
+
+    if (hasSpecificAgentMatch && (specificDisallowed.length > 0 || specificAllowed.length > 0)) {
+      rules.disallowedPaths = specificDisallowed;
+      rules.allowedPaths = specificAllowed;
+    } else {
+      rules.disallowedPaths = globalDisallowed;
+      rules.allowedPaths = globalAllowed;
     }
   }
 }

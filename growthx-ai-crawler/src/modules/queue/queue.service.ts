@@ -119,6 +119,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     if (!this.pageFetchQueue) {
       return;
     }
+    await this.incrementPendingTasks(payload.jobId, 1);
     await this.pageFetchQueue.add('fetch-url', payload, {
       delay: delayMs,
       removeOnComplete: true,
@@ -126,6 +127,44 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       attempts: 2,
       backoff: { type: 'fixed', delay: 1000 },
     });
+  }
+
+  private readonly inMemoryTaskCounters = new Map<string, number>();
+
+  async incrementPendingTasks(jobId: string, count: number = 1): Promise<number> {
+    if (this.redisConnection) {
+      const key = `job:${jobId}:pending_tasks`;
+      const val = await this.redisConnection.incrby(key, count);
+      await this.redisConnection.expire(key, 86400);
+      return val;
+    }
+    const current = (this.inMemoryTaskCounters.get(jobId) || 0) + count;
+    this.inMemoryTaskCounters.set(jobId, current);
+    return current;
+  }
+
+  async decrementPendingTasks(jobId: string): Promise<number> {
+    if (this.redisConnection) {
+      const key = `job:${jobId}:pending_tasks`;
+      const val = await this.redisConnection.decr(key);
+      return Math.max(0, val);
+    }
+    const current = Math.max(0, (this.inMemoryTaskCounters.get(jobId) || 1) - 1);
+    if (current === 0) {
+      this.inMemoryTaskCounters.delete(jobId);
+    } else {
+      this.inMemoryTaskCounters.set(jobId, current);
+    }
+    return current;
+  }
+
+  async getPendingTasks(jobId: string): Promise<number> {
+    if (this.redisConnection) {
+      const key = `job:${jobId}:pending_tasks`;
+      const val = await this.redisConnection.get(key);
+      return val ? parseInt(val, 10) : 0;
+    }
+    return this.inMemoryTaskCounters.get(jobId) || 0;
   }
 
   getRedisClient(): IORedis | undefined {
