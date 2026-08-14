@@ -35,6 +35,7 @@ import { ActivityModule } from './modules/activity/activity.module';
 import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
+import { OutreachModule } from './modules/outreach/outreach.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),

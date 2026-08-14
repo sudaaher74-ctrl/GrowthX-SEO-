@@ -281,6 +281,7 @@ model Project {
   prompts              TrackedPrompt[]
   websites             Website[]
   LocalLocation        LocalLocation?
+  OutreachCampaign     OutreachCampaign[]
 
   @@index([organizationId])
 }
@@ -460,6 +461,32 @@ model StrategyReport {
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+model OutreachCampaign {
+  id         String   @id @default(uuid())
+  projectId  String
+  name       String
+  status     String   @default("ACTIVE")
+  sentCount  Int      @default(0)
+  replyCount Int      @default(0)
+  linkCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contacts OutreachContact[]
+}
+
+model OutreachContact {
+  id          String    @id @default(uuid())
+  campaignId  String
+  email       String
+  domain      String
+  status      String    @default("PENDING")
+  lastContact DateTime?
+
+  campaign OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 }
 
 /// A rival the customer wants share-of-voice measured against.

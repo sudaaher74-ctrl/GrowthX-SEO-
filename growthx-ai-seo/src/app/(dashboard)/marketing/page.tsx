@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, Mono } from "@/components/ui/console";
 import { Lightbulb, Calendar, Target, Megaphone, Loader2 } from "lucide-react";
-import { useWorkspace, useStrategies, useStrategy, useContentPieces } from "@/hooks/use-growthx";
+import { useWorkspace, useStrategies, useStrategy, useContentPieces, useOutreach } from "@/hooks/use-growthx";
 
 export default function MarketingPage() {
   const { projectId } = useWorkspace();
@@ -10,6 +10,7 @@ export default function MarketingPage() {
   const activeStrategyId = strategies.data?.[0]?.id ?? null;
   const report = useStrategy(projectId, activeStrategyId);
   const contentPieces = useContentPieces(projectId);
+  const outreach = useOutreach(projectId);
 
   const [activeTab, setActiveTab] = useState("strategy");
 
@@ -20,9 +21,10 @@ export default function MarketingPage() {
     { id: "pr", label: "PR & Outreach", icon: Megaphone },
   ];
 
-  const isLoading = strategies.isLoading || report.isLoading || contentPieces.isLoading;
+  const isLoading = strategies.isLoading || report.isLoading || contentPieces.isLoading || outreach.isLoading;
   const strategyContent = report.data?.content;
   const pieces = contentPieces.data ?? [];
+  const campaigns = outreach.data ?? [];
 
   return (
     <div className="space-y-5">
@@ -161,13 +163,36 @@ export default function MarketingPage() {
 
               {(activeTab === "pr") && (
                 <Panel title="PR & Outreach" subtitle="Manage PR campaigns and outreach.">
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <Megaphone size={48} className="text-[#e4e4e7] mb-4" />
-                    <h3 className="text-lg font-medium text-[var(--text-primary)]">PR & Outreach Coming Soon</h3>
-                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                      This feature is currently in development.
-                    </p>
-                  </div>
+                  <Table minWidth={700}>
+                    <thead>
+                      <tr>
+                        <Th>Campaign Name</Th>
+                        <Th>Status</Th>
+                        <Th>Emails Sent</Th>
+                        <Th>Replies</Th>
+                        <Th>Links Secured</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campaigns.length > 0 ? (
+                        campaigns.map((campaign) => (
+                          <Tr key={campaign.id}>
+                            <Td><span className="font-medium text-[#09090b]">{campaign.name}</span></Td>
+                            <Td>
+                              <Pill tone={campaign.status === "ACTIVE" ? "good" : "default"}>
+                                {campaign.status}
+                              </Pill>
+                            </Td>
+                            <Td><span className="text-[13px] text-[#3f3f46]">{campaign.sentCount}</span></Td>
+                            <Td><span className="text-[13px] text-[#3f3f46]">{campaign.replyCount}</span></Td>
+                            <Td><span className="text-[13px] text-[#3f3f46]">{campaign.linkCount}</span></Td>
+                          </Tr>
+                        ))
+                      ) : (
+                        <Tr><Td colSpan={5} className="text-center text-sm text-[var(--text-muted)] py-4">No outreach campaigns found.</Td></Tr>
+                      )}
+                    </tbody>
+                  </Table>
                 </Panel>
               )}
             </>

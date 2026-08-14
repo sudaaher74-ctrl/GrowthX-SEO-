@@ -117,6 +117,15 @@ export function useLocalSeo(projectId: string | null) {
   });
 }
 
+export function useOutreach(projectId: string | null) {
+  return useQuery({
+    queryKey: ["outreach", projectId],
+    queryFn: () => api.getOutreachCampaigns(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
 export function useMembers(orgId: string | null) {
   return useQuery({
     queryKey: ["members", orgId],

@@ -416,6 +416,30 @@ export interface LocalSeoData {
   updatedAt: string;
 }
 
+export interface OutreachContact {
+  id: string;
+  campaignId: string;
+  email: string;
+  domain: string;
+  status: string;
+  lastContact: string | null;
+}
+
+export interface OutreachCampaign {
+  id: string;
+  projectId: string;
+  name: string;
+  status: string;
+  sentCount: number;
+  replyCount: number;
+  linkCount: number;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    contacts: number;
+  };
+}
+
 export interface ApiCostStat {
   service: string;
   tokens: string;
@@ -553,6 +577,9 @@ export const api = {
 
   // ── Local SEO
   getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
+
+  // ── PR & Outreach
+  getOutreachCampaigns: (projectId: string) => get<OutreachCampaign[]>(`/api/projects/${projectId}/outreach`),
 
   // ── Activity
   getActivity: (projectId: string, limit = 30) =>
