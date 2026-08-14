@@ -206,6 +206,16 @@ export function useAddPrompts(projectId: string | null) {
   });
 }
 
+export function useAddCompetitor(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, label }: { domain: string; label?: string }) =>
+      api.addCompetitor(projectId!, domain, label),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
+    },
+  });
+}
 export function useRunSweep(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

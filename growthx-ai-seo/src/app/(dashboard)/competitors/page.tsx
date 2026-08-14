@@ -1,115 +1,178 @@
 "use client";
-import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
-import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { Target, FileText, Link as LinkIcon, List, Zap } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend } from "recharts";
+import { Suspense, useState } from "react";
+import { Target, Loader2, Plus, Zap } from "lucide-react";
+import { PageHeader, Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
+import { QueryState } from "@/components/ui/upgrade-prompt";
+import { useWorkspace, useVisibility, useAddCompetitor } from "@/hooks/use-growthx";
 
-export default function CompetitorsPage() {
+function CompetitorsClient() {
+  const { projectId } = useWorkspace();
+  const visibility = useVisibility(projectId, 28);
+  const addCompetitor = useAddCompetitor(projectId);
+
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  const [domain, setDomain] = useState("");
+  const [label, setLabel] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
-  const tabs = [
-    { id: "overview", label: "Competitor Overview", icon: Target },
-    { id: "content", label: "Content Gap Analysis", icon: FileText },
-    { id: "links", label: "Link Intersection", icon: LinkIcon },
-    { id: "serp", label: "SERP Overlap", icon: List },
-  ];
+  const handleAddCompetitor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!domain) return;
+    
+    await addCompetitor.mutateAsync({ domain, label: label || undefined });
+    setDomain("");
+    setLabel("");
+    setIsAdding(false);
+  };
 
-  const radarData = [
-    { subject: 'Organic Traffic', A: 120, B: 110, fullMark: 150 },
-    { subject: 'Domain Auth', A: 98, B: 130, fullMark: 150 },
-    { subject: 'Referring Doms', A: 86, B: 130, fullMark: 150 },
-    { subject: 'Indexed Pages', A: 99, B: 100, fullMark: 150 },
-    { subject: 'Brand Search', A: 85, B: 90, fullMark: 150 },
-    { subject: 'Content Velocity', A: 65, B: 85, fullMark: 150 },
-  ];
+  const report = visibility.data;
+  const shareOfVoice = report?.shareOfVoice ?? [];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Competitor Intelligence"
-        subtitle="Competitor Overview, Content Gaps, and Link Intersections."
+        subtitle="Track AI Share of Voice against your top competitors."
         actions={
-          <ActionButton variant="secondary" icon={<Zap size={12} />}>
-            Run Competitor Scan
+          <ActionButton 
+            variant="secondary" 
+            icon={<Plus size={12} />}
+            onClick={() => setIsAdding(!isAdding)}
+          >
+            Add Competitor
           </ActionButton>
         }
       />
 
       <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedIssue(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "overview"
+              ? "border-[#09090b] text-[#09090b]"
+              : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+          }`}
+        >
+          <Target size={14} />
+          AI Share of Voice
+        </button>
       </div>
 
-      <div className="pt-2 flex items-start gap-4">
-        <div className="flex-1 space-y-4 w-full">
-          
-          {(activeTab === "overview") && (
-            <Panel title="Competitive Landscape" subtitle="Comparing Your Domain vs. Competitors">
+      <div className="pt-2">
+        {isAdding && (
+          <Panel title="Add Competitor" subtitle="Track how often AI cites them instead of you." className="mb-4">
+            <form onSubmit={handleAddCompetitor} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[13px] font-medium text-[#09090b] mb-1">Domain</label>
+                  <input
+                    type="text"
+                    required
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="e.g. competitor.com"
+                    className="w-full h-9 px-3 text-[13px] border border-[#e4e4e7] rounded-md focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#09090b] mb-1">Label (Optional)</label>
+                  <input
+                    type="text"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    placeholder="e.g. Competitor Inc"
+                    className="w-full h-9 px-3 text-[13px] border border-[#e4e4e7] rounded-md focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdding(false)}
+                  className="px-3 py-1.5 text-[13px] font-medium text-[#71717a] hover:text-[#09090b]"
+                >
+                  Cancel
+                </button>
+                <ActionButton
+                  variant="primary"
+                  type="submit"
+                  disabled={addCompetitor.isPending || !domain}
+                >
+                  {addCompetitor.isPending ? "Adding..." : "Add Competitor"}
+                </ActionButton>
+              </div>
+            </form>
+          </Panel>
+        )}
+
+        <QueryState
+          isLoading={visibility.isLoading}
+          error={visibility.error}
+          isEmpty={!projectId}
+        >
+          <Panel title="Share of Voice" subtitle="Percentage of tracked prompts where the brand was cited.">
+            {shareOfVoice.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Target size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Competitor Analysis Coming Soon</h3>
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">No Data Available</h3>
                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  We are building out the intelligence engine to analyze your competitors' traffic, links, and content gaps.
+                  Add competitors and sweep your AI visibility prompts to see share of voice.
                 </p>
               </div>
-            </Panel>
-          )}
-
-          {(activeTab === "content") && (
-            <Panel title="Content Gap Analysis" subtitle="Topics your competitors rank for, but you don't.">
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <FileText size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Gap Analysis Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
-          )}
-
-          {(activeTab === "links") && (
-            <Panel title="Link Intersection" subtitle="Domains linking to multiple competitors, but not you.">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                 <LinkIcon size={48} className="text-[#e4e4e7] mb-4" />
-                 <h3 className="text-lg font-medium text-[var(--text-primary)]">Link Intersect Coming Soon</h3>
-                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                   This feature is currently in development.
-                 </p>
-               </div>
-            </Panel>
-          )}
-
-          {(activeTab === "serp") && (
-            <Panel title="SERP Overlap" subtitle="Discover overlapping ranking keywords.">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                 <List size={48} className="text-[#e4e4e7] mb-4" />
-                 <h3 className="text-lg font-medium text-[var(--text-primary)]">SERP Overlap Coming Soon</h3>
-                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                   This feature is currently in development.
-                 </p>
-               </div>
-            </Panel>
-          )}
-
-        </div>
+            ) : (
+              <Table minWidth={600}>
+                <thead>
+                  <tr>
+                    <Th>Brand / Domain</Th>
+                    <Th>Total Mentions</Th>
+                    <Th>Share of Voice</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shareOfVoice.map((row, idx) => (
+                    <Tr key={row.domain || idx}>
+                      <Td>
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-medium text-[#09090b]">
+                            {row.label || row.domain}
+                          </span>
+                          {row.label && row.domain && (
+                            <span className="text-[11px] text-[#71717a]">{row.domain}</span>
+                          )}
+                        </div>
+                      </Td>
+                      <Td>
+                        <span className="text-[13px] font-medium text-[#09090b]">{row.mentions}</span>
+                      </Td>
+                      <Td>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-[#09090b] w-12">
+                            {row.sharePct.toFixed(1)}%
+                          </span>
+                          <div className="h-2 w-48 bg-[#f4f4f5] rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#09090b] rounded-full" 
+                              style={{ width: `${row.sharePct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Panel>
+        </QueryState>
       </div>
     </div>
+  );
+}
+
+export default function CompetitorsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-[var(--text-muted)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading competitors...</div>}>
+      <CompetitorsClient />
+    </Suspense>
   );
 }
