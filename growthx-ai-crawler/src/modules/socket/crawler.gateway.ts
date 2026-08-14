@@ -22,10 +22,14 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   broadcastProgress(jobId: string, progress: any) {
-    this.server.emit(`crawl.progress.${jobId}`, progress);
+    if (this.server) {
+      this.server.emit(`crawl.progress.${jobId}`, progress);
+    }
   }
 
   broadcastComplete(jobId: string, result: any) {
-    this.server.emit(`crawl.completed.${jobId}`, result);
+    if (this.server) {
+      this.server.emit(`crawl.completed.${jobId}`, result);
+    }
   }
 }
