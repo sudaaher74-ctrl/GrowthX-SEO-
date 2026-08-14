@@ -94,13 +94,47 @@ export default function LocalPage() {
 
               {(activeTab === "rankings") && (
                 <Panel title="Local Rankings" subtitle="Track your local search performance">
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <BarChart3 size={48} className="text-[#e4e4e7] mb-4" />
-                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
-                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                      Local ranking tracking is currently in development.
-                    </p>
-                  </div>
+                  {localSeo?.rankings && localSeo.rankings.length > 0 ? (
+                    <Table minWidth={600}>
+                      <thead>
+                        <tr>
+                          <Th>Keyword</Th>
+                          <Th>Position</Th>
+                          <Th>Change</Th>
+                          <Th>Search Volume</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {localSeo.rankings.map((r) => {
+                          const delta = r.previousPos ? r.previousPos - r.position : 0;
+                          return (
+                            <Tr key={r.id}>
+                              <Td><span className="font-medium text-[#09090b]">{r.keyword}</span></Td>
+                              <Td><span className="font-bold text-[#09090b]">#{r.position}</span></Td>
+                              <Td>
+                                {delta > 0 ? (
+                                  <span className="text-[#10b981] text-[13px] font-medium">+{delta}</span>
+                                ) : delta < 0 ? (
+                                  <span className="text-[#ef4444] text-[13px] font-medium">{delta}</span>
+                                ) : (
+                                  <span className="text-[#a1a1aa] text-[13px]">—</span>
+                                )}
+                              </Td>
+                              <Td><span className="text-[#71717a]">{r.searchVolume.toLocaleString()}</span></Td>
+                            </Tr>
+                          );
+                        })}
+                      </tbody>
+                    </Table>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <BarChart3 size={48} className="text-[#e4e4e7] mb-4" />
+                      <h3 className="text-lg font-medium text-[var(--text-primary)]">No Rankings Data</h3>
+                      <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                        Your local ranking data will appear here once tracked.
+                      </p>
+                    </div>
+                  )}
                 </Panel>
               )}
             </>

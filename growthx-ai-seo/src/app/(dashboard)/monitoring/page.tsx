@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
 import { Activity, Bell, History, ShieldAlert, Zap, Loader2 } from "lucide-react";
-import { useWorkspace, useActivity, useLatestCrawl, usePortfolio } from "@/hooks/use-growthx";
-import { relativeTime } from "@/components/ui/console";
+import { useWorkspace, useActivity, useLatestCrawl, usePortfolio, useMonitoring } from "@/hooks/use-growthx";
+import { relativeTime, Kpi } from "@/components/ui/console";
 
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState("alerts");
@@ -17,13 +17,15 @@ export default function MonitoringPage() {
   const tabs = [
     { id: "alerts", label: "Real-time Alerts", icon: Bell },
     { id: "changes", label: "Change Tracking", icon: History },
-    { id: "algo", label: "Algorithm Updates", icon: Activity },
-    { id: "status", label: "Status Dashboard", icon: ShieldAlert },
+    { id: "performance", label: "Performance", icon: Activity },
+    { id: "uptime", label: "Uptime & Health", icon: ShieldAlert },
   ];
 
   const isLoading = activities.isLoading || crawl.isLoading;
   const activityData = activities.data ?? [];
   const crawlData = crawl.data;
+  const monitoring = useMonitoring(projectId);
+  const monitoringData = monitoring.data;
 
   return (
     <div className="space-y-5">
@@ -97,37 +99,29 @@ export default function MonitoringPage() {
                 </Panel>
               )}
               
-              {(activeTab === "algo") && (
-                <Panel title="Algorithm Updates" subtitle="Search engine algorithm changes.">
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <Activity size={48} className="text-[#e4e4e7] mb-4" />
-                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
-                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                      This feature is currently in development.
-                    </p>
+              {(activeTab === "performance") && (
+                <Panel title="Performance Monitoring" subtitle="Core Web Vitals and Page Speed">
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Kpi label="Performance Score" value={monitoringData?.performanceScore?.toString() || "0"} tone={monitoringData?.performanceScore && monitoringData.performanceScore >= 90 ? "good" : "warn"} />
+                    <Kpi label="Mobile Score" value={monitoringData?.mobileScore?.toString() || "0"} tone={monitoringData?.mobileScore && monitoringData.mobileScore >= 85 ? "good" : "warn"} />
+                    <div className="border border-[#e4e4e7] p-4 rounded-md">
+                      <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">Core Web Vitals</h4>
+                      <Pill tone={monitoringData?.coreWebVitalsStatus === "PASSING" ? "good" : "bad"}>{monitoringData?.coreWebVitalsStatus || "N/A"}</Pill>
+                    </div>
                   </div>
                 </Panel>
               )}
 
-              {(activeTab === "status") && (
-                <Panel title="Status Dashboard" subtitle="System health and scanning status for active property.">
+              {(activeTab === "uptime") && (
+                <Panel title="Uptime & Health" subtitle="System uptime and SSL certification">
                   <div className="p-4 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Kpi label="Uptime Status" value={monitoringData?.uptimeStatus || "UNKNOWN"} tone={monitoringData?.uptimeStatus === "UP" ? "good" : "bad"} />
+                      <Kpi label="Uptime %" value={`${monitoringData?.uptimePercentage || 0}%`} tone="good" />
+                      <Kpi label="Avg Response Time" value={`${monitoringData?.avgResponseTimeMs || 0}ms`} tone={monitoringData?.avgResponseTimeMs && monitoringData.avgResponseTimeMs < 500 ? "good" : "warn"} />
                       <div className="border border-[#e4e4e7] p-4 rounded-md">
-                        <h4 className="font-medium text-[15px] mb-2">Latest Crawl Job</h4>
-                        <div className="text-sm text-[var(--text-muted)] space-y-2">
-                          <p><strong>Status:</strong> <Pill tone={crawlData?.status === "COMPLETED" ? "good" : crawlData?.status === "FAILED" ? "bad" : "warn"}>{crawlData?.status || "UNKNOWN"}</Pill></p>
-                          <p><strong>Pages Crawled:</strong> {crawlData?.pagesCrawled ?? 0}</p>
-                          <p><strong>Started At:</strong> {crawlData?.startedAt ? relativeTime(crawlData.startedAt) : "N/A"}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="border border-[#e4e4e7] p-4 rounded-md">
-                        <h4 className="font-medium text-[15px] mb-2">Active Target</h4>
-                        <div className="text-sm text-[var(--text-muted)] space-y-2">
-                          <p><strong>Domain:</strong> {client?.domain || "Not configured"}</p>
-                          <p><strong>Client Name:</strong> {client?.name || "Not configured"}</p>
-                        </div>
+                        <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">SSL Status</h4>
+                        <Pill tone={monitoringData?.sslStatus === "VALID" ? "good" : "bad"}>{monitoringData?.sslStatus || "UNKNOWN"}</Pill>
                       </div>
                     </div>
                   </div>

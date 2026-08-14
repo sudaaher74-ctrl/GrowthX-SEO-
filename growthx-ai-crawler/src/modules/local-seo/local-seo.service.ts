@@ -10,6 +10,7 @@ export class LocalSeoService {
   async getLocalSeo(projectId: string) {
     let localSeo = await this.prisma.localLocation.findUnique({
       where: { projectId },
+      include: { rankings: true },
     });
 
     if (!localSeo) {
@@ -22,7 +23,15 @@ export class LocalSeoService {
           rating: 4.8,
           reviewCount: 156,
           citationsCount: 42,
+          rankings: {
+            create: [
+              { keyword: 'growth marketing agency', position: 3, previousPos: 5, searchVolume: 1200 },
+              { keyword: 'seo services sf', position: 1, previousPos: 1, searchVolume: 800 },
+              { keyword: 'b2b marketing firm', position: 8, previousPos: 12, searchVolume: 450 },
+            ],
+          },
         },
+        include: { rankings: true },
       });
     }
 

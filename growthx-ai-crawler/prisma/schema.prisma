@@ -284,6 +284,9 @@ model Project {
   OutreachCampaign     OutreachCampaign[]
   CustomReport         CustomReport[]
   ClientPortalConfig   ClientPortalConfig?
+  MarketIntelligence   MarketIntelligence?
+  MonitoringConfig     MonitoringConfig?
+  IntegrationConfig    IntegrationConfig?
 
   @@index([organizationId])
 }
@@ -674,7 +677,8 @@ model LocalLocation {
   citationsCount Int      @default(0)
   updatedAt      DateTime @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rankings LocalRanking[]
 }
 
 model CustomReport {
@@ -700,4 +704,58 @@ model ClientPortalConfig {
   updatedAt    DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MarketIntelligence {
+  id               String   @id @default(uuid())
+  projectId        String   @unique
+  sentimentScore   Float    @default(0.0) // -1.0 to 1.0
+  sentimentSummary String?
+  trendingTopics   String[] // Array of strings
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MonitoringConfig {
+  id                  String    @id @default(uuid())
+  projectId           String    @unique
+  uptimeStatus        String    @default("UP") // UP, DOWN, DEGRADED
+  uptimePercentage    Float     @default(99.99)
+  avgResponseTimeMs   Int       @default(250)
+  lastDowntimeAt      DateTime?
+  sslStatus           String    @default("VALID")
+  sslExpiresAt        DateTime?
+  performanceScore    Int       @default(90)
+  mobileScore         Int       @default(85)
+  coreWebVitalsStatus String    @default("PASSING")
+  updatedAt           DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationConfig {
+  id            String   @id @default(uuid())
+  projectId     String   @unique
+  gaConnected   Boolean  @default(false)
+  gscConnected  Boolean  @default(false)
+  gaPropertyId  String?
+  gscPropertyId String?
+  updatedAt     DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model LocalRanking {
+  id           String   @id @default(uuid())
+  locationId   String
+  keyword      String
+  position     Int
+  previousPos  Int?
+  searchVolume Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  location LocalLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId])
 }

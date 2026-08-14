@@ -405,6 +405,14 @@ export interface AiAnalysisResult {
   recommendations: string[];
 }
 
+export interface LocalRanking {
+  id: string;
+  keyword: string;
+  position: number;
+  previousPos: number | null;
+  searchVolume: number;
+}
+
 export interface LocalSeoData {
   id: string;
   projectId: string;
@@ -414,6 +422,7 @@ export interface LocalSeoData {
   reviewCount: number;
   citationsCount: number;
   updatedAt: string;
+  rankings?: LocalRanking[];
 }
 
 export interface OutreachContact {
@@ -483,6 +492,27 @@ export interface TenantStat {
   health: number;
   quota: number;
   status: string;
+}
+
+export interface MarketIntelligenceData {
+  sentimentScore: number;
+  sentimentSummary: string | null;
+  trendingTopics: string[];
+}
+
+export interface MonitoringConfigData {
+  uptimeStatus: string;
+  uptimePercentage: number;
+  avgResponseTimeMs: number;
+  sslStatus: string;
+  performanceScore: number;
+  mobileScore: number;
+  coreWebVitalsStatus: string;
+}
+
+export interface IntegrationConfigData {
+  gaConnected: boolean;
+  gscConnected: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────── the API
@@ -609,6 +639,15 @@ export const api = {
 
   // ── Reporting
   getReportingConfig: (projectId: string) => get<ReportingConfig>(`/api/projects/${projectId}/reporting`),
+
+  // ── Market Intelligence
+  getMarketIntelligence: (projectId: string) => get<MarketIntelligenceData>(`/api/projects/${projectId}/market`),
+
+  // ── Monitoring
+  getMonitoring: (projectId: string) => get<MonitoringConfigData>(`/api/projects/${projectId}/monitoring`),
+
+  // ── Integrations
+  getIntegrations: (projectId: string) => get<IntegrationConfigData>(`/api/projects/${projectId}/integrations`),
 
   // ── Activity
   getActivity: (projectId: string, limit = 30) =>

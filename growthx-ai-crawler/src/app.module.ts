@@ -37,6 +37,9 @@ import { AdminModule } from './modules/admin/admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
+import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -77,6 +80,9 @@ import { ReportingModule } from './modules/reporting/reporting.module';
     LocalSeoModule,
     OutreachModule,
     ReportingModule,
+    MarketIntelligenceModule,
+    MonitoringModule,
+    IntegrationsModule,
   ],
   controllers: [HealthController],
   providers: [],

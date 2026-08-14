@@ -14,12 +14,13 @@ import {
   relativeTime,
 } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/upgrade-prompt";
-import { useConnectRepository, useRepository, useWorkspace } from "@/hooks/use-growthx";
+import { useConnectRepository, useRepository, useWorkspace, useIntegrations } from "@/hooks/use-growthx";
 
 function IntegrationsClient() {
   const { projectId } = useWorkspace();
   const repo = useRepository(projectId);
   const connectRepo = useConnectRepository(projectId);
+  const { data: integrationsData } = useIntegrations(projectId);
 
   const [connectingGitHub, setConnectingGitHub] = useState(false);
   const [githubForm, setGithubForm] = useState({
@@ -53,18 +54,18 @@ function IntegrationsClient() {
       name: "Google Search Console",
       category: "SEO Data",
       icon: Search,
-      status: "COMING_SOON",
-      lastSync: null,
-      metadata: null,
+      status: integrationsData?.gscConnected ? "CONNECTED" : "NOT_CONNECTED",
+      lastSync: integrationsData?.updatedAt,
+      metadata: integrationsData?.gscPropertyId || null,
     },
     {
       id: "ga4",
       name: "Google Analytics 4",
       category: "Analytics",
       icon: BarChart3,
-      status: "COMING_SOON",
-      lastSync: null,
-      metadata: null,
+      status: integrationsData?.gaConnected ? "CONNECTED" : "NOT_CONNECTED",
+      lastSync: integrationsData?.updatedAt,
+      metadata: integrationsData?.gaPropertyId || null,
     },
     {
       id: "hubspot",

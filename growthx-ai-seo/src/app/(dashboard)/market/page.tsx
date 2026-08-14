@@ -3,11 +3,12 @@ import { useState } from "react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
 import { TrendingUp, MessageSquare, Users, PieChart, Zap, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useWorkspace, useVisibility } from "@/hooks/use-growthx";
+import { useWorkspace, useVisibility, useMarketIntelligence } from "@/hooks/use-growthx";
 
 export default function MarketPage() {
   const { projectId } = useWorkspace();
   const visibility = useVisibility(projectId);
+  const { data: market } = useMarketIntelligence(projectId);
   
   const [activeTab, setActiveTab] = useState("trends");
 
@@ -129,24 +130,35 @@ export default function MarketPage() {
               
               {(activeTab === "sentiment") && (
                 <Panel title="Sentiment Analysis" subtitle="Customer feedback and market sentiment">
-                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <MessageSquare size={48} className="text-[#e4e4e7] mb-4" />
-                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
-                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                      This feature is currently in development.
-                    </p>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-[#e4e4e7] rounded-md p-4">
+                      <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Sentiment Score</h3>
+                      <p className="text-2xl font-bold text-[#09090b]">
+                        {market?.sentimentScore !== undefined ? (market.sentimentScore > 0 ? `+${market.sentimentScore}` : market.sentimentScore) : "N/A"}
+                      </p>
+                    </div>
+                    <div className="border border-[#e4e4e7] rounded-md p-4">
+                      <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Summary</h3>
+                      <p className="text-sm text-[#09090b]">
+                        {market?.sentimentSummary || "No summary available."}
+                      </p>
+                    </div>
                   </div>
                 </Panel>
               )}
 
               {(activeTab === "audience") && (
                 <Panel title="Trending Topics" subtitle="Emerging themes in your target market">
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <Users size={48} className="text-[#e4e4e7] mb-4" />
-                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
-                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                      This feature is currently in development.
-                    </p>
+                  <div className="p-4">
+                    {market?.trendingTopics && market.trendingTopics.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {market.trendingTopics.map((topic, i) => (
+                          <Pill key={i}>{topic}</Pill>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[var(--text-muted)]">No trending topics available.</p>
+                    )}
                   </div>
                 </Panel>
               )}

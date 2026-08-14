@@ -396,3 +396,30 @@ export function useReporting(projectId: string | null) {
     retry: false,
   });
 }
+
+export function useMarketIntelligence(projectId: string | null) {
+  return useQuery({
+    queryKey: ["market", projectId],
+    queryFn: () => api.getMarketIntelligence(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useMonitoring(projectId: string | null) {
+  return useQuery({
+    queryKey: ["monitoring", projectId],
+    queryFn: () => api.getMonitoring(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useIntegrations(projectId: string | null) {
+  return useQuery({
+    queryKey: ["integrations", projectId],
+    queryFn: () => api.getIntegrations(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
