@@ -106,13 +106,8 @@ export class CrawlController {
     let websiteId = body.websiteId;
     if (!websiteId && body.domain) {
       const website = await this.prisma.website.findUnique({ where: { domain: body.domain } });
-      if (!website) {
-        // Auto-register if not found for demo purposes
-        const newWeb = await this.registerWebsite({ url: `https://${body.domain}`, domain: body.domain });
-        websiteId = newWeb.id;
-      } else {
-        websiteId = website.id;
-      }
+      if (!website) throw new NotFoundException('Website not found. Please register it first.');
+      websiteId = website.id;
     }
     
     const jobId = await this.crawlerService.startCrawlJob(websiteId as string, body);

@@ -33,6 +33,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { GroqModule } from './modules/groq/groq.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { GroqModule } from './modules/groq/groq.module';
     AutomationModule,
     ActivityModule,
     GroqModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [],

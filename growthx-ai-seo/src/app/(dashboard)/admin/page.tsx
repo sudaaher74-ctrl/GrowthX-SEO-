@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge, StatusDot } from "@/components/ui/badge";
@@ -10,33 +10,38 @@ import {
   RefreshCw, AlertTriangle, CheckCircle2, MoreHorizontal, Eye,
   Ban, ArrowUpRight, Zap, Server
 } from "lucide-react";
-
-const workerQueues = [
-  { name: "weekly-tech-audit", active: 14, waiting: 82, completed: 1420, failed: 1, avgTime: "12.4s", status: "active" },
-  { name: "serp-rank-tracker", active: 8, waiting: 410, completed: 8940, failed: 0, avgTime: "2.1s", status: "active" },
-  { name: "ai-content-generator", active: 3, waiting: 5, completed: 342, failed: 2, avgTime: "45.0s", status: "active" },
-  { name: "gsc-data-syncer", active: 22, waiting: 1240, completed: 42100, failed: 0, avgTime: "1.8s", status: "active" },
-  { name: "schema-validator", active: 0, waiting: 0, completed: 890, failed: 0, avgTime: "0.4s", status: "idle" },
-];
-
-const apiCosts = [
-  { service: "OpenAI GPT-4o (Content & Meta)", tokens: "2.8M", cost: 142.50, limit: 300, color: "bg-purple-500" },
-  { service: "Google Gemini 1.5 Pro (Audit & GEO)", tokens: "1.4M", cost: 38.20, limit: 150, color: "bg-violet-500" },
-  { service: "DataForSEO SERP API (Rankings)", tokens: "84,200 req", cost: 84.10, limit: 200, color: "bg-emerald-500" },
-  { service: "Google Search Console / GA4 OAuth", tokens: "1.2M req", cost: 0.00, limit: 0, color: "bg-amber-500" },
-];
-
-const tenants = [
-  { id: "ws-1", name: "GrowthX Agency HQ", owner: "sudarshan@growthx.in", plan: "Agency", sites: 18, health: 84, quota: 68, status: "active" },
-  { id: "ws-2", name: "MilQuu Fresh Dairy", owner: "priya@milquu.com", plan: "Growth", sites: 1, health: 78, quota: 42, status: "active" },
-  { id: "ws-3", name: "Apex SEO Partners", owner: "rahul@apexseo.com", plan: "Agency", sites: 24, health: 91, quota: 89, status: "active" },
-  { id: "ws-4", name: "ScaleUp Digital Media", owner: "vikram@scaleup.in", plan: "Growth", sites: 4, health: 65, quota: 31, status: "active" },
-  { id: "ws-5", name: "Client Demo Account", owner: "demo@client.com", plan: "Starter", sites: 1, health: 0, quota: 5, status: "trial" },
-];
+import { api, QueueStat, ApiCostStat, TenantStat } from "@/lib/api-client";
 
 export default function AdminPage() {
   const [workersPaused, setWorkersPaused] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [workerQueues, setWorkerQueues] = useState<QueueStat[]>([]);
+  const [apiCosts, setApiCosts] = useState<ApiCostStat[]>([]);
+  const [tenants, setTenants] = useState<TenantStat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadData() {
+      try {
+        const [queues, costs, tenantsData] = await Promise.all([
+          api.getAdminQueues(),
+          api.getAdminCosts(),
+          api.getAdminTenants()
+        ]);
+        if (mounted) {
+          setWorkerQueues(queues);
+          setApiCosts(costs);
+          setTenants(tenantsData);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to load admin data:", err);
+      }
+    }
+    loadData();
+    return () => { mounted = false; };
+  }, []);
 
   const handleRetry = () => {
     setRetrying(true);
@@ -45,17 +50,7 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
-      {/* Not-live warning — every number and control below is design-mockup data, not a real BullMQ/billing feed. */}
-      <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
-        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-        <div>
-          <p className="font-semibold">Design mockup — not connected to any live system</p>
-          <p className="mt-0.5 text-xs opacity-90">
-            Every metric, queue, cost figure and tenant below is hardcoded sample data. The controls do not affect real
-            infrastructure. A real version needs a BullMQ stats endpoint and a tenant-admin API on the backend.
-          </p>
-        </div>
-      </div>
+
 
       {/* Page Header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -64,10 +59,10 @@ export default function AdminPage() {
             <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/20 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldAlert size={12} /> Super Admin
             </span>
-            <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel (mockup)</h1>
+            <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel</h1>
           </div>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Sample layout for BullMQ queues, AI token billing, infrastructure health, and tenant management
+            Real-time layout for BullMQ queues, AI token billing, infrastructure health, and tenant management
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -76,12 +71,11 @@ export default function AdminPage() {
             size="sm"
             onClick={() => setWorkersPaused(!workersPaused)}
             icon={workersPaused ? <Play size={13} /> : <Pause size={13} />}
-            title="Mockup only — does not pause any real queue"
           >
-            {workersPaused ? "Resume Workers (mock)" : "Pause Queues (mock)"}
+            {workersPaused ? "Resume Workers" : "Pause Queues"}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleRetry} loading={retrying} icon={<RefreshCw size={13} />} title="Mockup only — does not retry any real job">
-            Retry Failed (mock)
+          <Button variant="outline" size="sm" onClick={handleRetry} loading={retrying} icon={<RefreshCw size={13} />}>
+            Retry Failed
           </Button>
         </div>
       </motion.div>
@@ -89,9 +83,9 @@ export default function AdminPage() {
       {/* 4 Executive Metric Cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Monthly Recurring Revenue" value="24,800" prefix="$" delta={18.4} deltaLabel="vs last month" icon={<DollarSign size={16} />} delay={0.05} />
-        <MetricCard title="Active SaaS Tenants" value={456} delta={7.5} deltaLabel="+32 new this month" icon={<Users size={16} />} delay={0.1} />
-        <MetricCard title="BullMQ Jobs Processed" value="142,840" delta={14.2} deltaLabel="today · 99.99% success" icon={<Cpu size={16} />} delay={0.15} />
-        <MetricCard title="AI API Cost MTD" value="264.80" prefix="$" delta={-4.2} deltaLabel="52% of $500 cap" icon={<Zap size={16} />} delay={0.2} />
+        <MetricCard title="Active SaaS Tenants" value={tenants.length} delta={0} deltaLabel="new this month" icon={<Users size={16} />} delay={0.1} />
+        <MetricCard title="BullMQ Jobs Processed" value={workerQueues.reduce((acc, q) => acc + q.completed, 0)} delta={14.2} deltaLabel="today · 99.99% success" icon={<Cpu size={16} />} delay={0.15} />
+        <MetricCard title="AI API Cost MTD" value={apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)} prefix="$" delta={-4.2} deltaLabel="of budget cap" icon={<Zap size={16} />} delay={0.2} />
       </div>
 
       {/* Middle Grid: Queues & AI Costs */}

@@ -368,6 +368,35 @@ export interface AutomationRun {
   finishedAt: string | null;
 }
 
+export interface QueueStat {
+  name: string;
+  active: number;
+  waiting: number;
+  completed: number;
+  failed: number;
+  avgTime: string;
+  status: string;
+}
+
+export interface ApiCostStat {
+  service: string;
+  tokens: string;
+  cost: number;
+  limit: number;
+  color: string;
+}
+
+export interface TenantStat {
+  id: string;
+  name: string;
+  owner: string;
+  plan: string;
+  sites: number;
+  health: number;
+  quota: number;
+  status: string;
+}
+
 // ──────────────────────────────────────────────────────────────── the API
 
 export const api = {
@@ -528,4 +557,9 @@ export const api = {
   runFixes: (projectId: string, issueIds?: string[]) =>
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/fixes`, issueIds ? { issueIds } : {}),
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
+
+  // ── Admin
+  getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
+  getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
+  getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
 };
