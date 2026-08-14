@@ -17,7 +17,7 @@ import {
   useWorkspace,
 } from "@/hooks/use-growthx";
 
-const STATUS_TONE = { PLANNED: "default", DRAFTED: "info", COMMITTED: "good" } as const;
+const STATUS_TONE = { PLANNED: "default", DRAFTED: "info", COMMITTED: "good", PUBLISHED: "good", REJECTED: "bad" } as const;
 
 export default function ContentAiPage() {
   const { projectId } = useWorkspace();

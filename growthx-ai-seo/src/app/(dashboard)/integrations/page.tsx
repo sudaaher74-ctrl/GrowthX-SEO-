@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Loader2, Plus, Github, Search, BarChart3, Database } from "lucide-react";
+import { Loader2, Plus, GitBranch, Search, BarChart3, Database } from "lucide-react";
 import {
   ActionButton,
   PageHeader,
@@ -42,7 +42,7 @@ function IntegrationsClient() {
       id: "github",
       name: "GitHub",
       category: "Code Repository",
-      icon: Github,
+      icon: GitBranch,
       status: repo.data ? "CONNECTED" : "NOT_CONNECTED",
       lastSync: repo.data?.updatedAt,
       metadata: repo.data ? `${repo.data.owner}/${repo.data.name}` : null,

@@ -355,7 +355,8 @@ export interface ContentPiece {
   slug: string;
   format: string | null;
   targetQuery: string | null;
-  status: "PLANNED" | "DRAFTED" | "COMMITTED";
+  rationale: string | null;
+  status: "PLANNED" | "DRAFTED" | "COMMITTED" | "PUBLISHED" | "REJECTED";
   filePath: string | null;
   generatedByModel: string | null;
   metaDescription: string | null;
@@ -372,6 +373,7 @@ export interface SiteRepository {
   contentDir: string | null;
   autoMerge: boolean;
   tokenConfigured: true;
+  updatedAt: string;
 }
 
 export interface AutomationRun {
