@@ -96,18 +96,43 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       return this.fetchWithPlaywright(targetUrl, startTime);
     }
 
-    // 1. Try static fetch via Axios + Cheerio
+    // 1. Try static fetch via Axios + Cheerio with simple retry for rate limits/transient errors
+    let response;
+    let retries = 0;
+    while (retries < 3) {
+      try {
+        response = await axios.get(targetUrl, {
+          timeout: 15000,
+          maxRedirects: 10,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': process.env.USER_AGENT || 'GrowthX-AI-Bot/1.0 (+https://growthx.ai/bot)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        });
+        
+        // If it's a rate limit (429) or server error (500, 502, 503, 504), wait and retry
+        if ([429, 500, 502, 503, 504].includes(response.status) && retries < 2) {
+          retries++;
+          await new Promise(r => setTimeout(r, 2000 * retries));
+          continue;
+        }
+        break; // Success or non-retriable error
+      } catch (err: any) {
+        if (retries < 2) {
+          retries++;
+          await new Promise(r => setTimeout(r, 2000 * retries));
+          continue;
+        }
+        throw err; // Out of retries, throw to catch block below
+      }
+    }
+
     try {
-      const response = await axios.get(targetUrl, {
-        timeout: 10000,
-        maxRedirects: 10,
-        validateStatus: () => true,
-        headers: {
-          'User-Agent': process.env.USER_AGENT || 'GrowthX-AI-Bot/1.0 (+https://growthx.ai/bot)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
+      if (!response) {
+        throw new Error('Response undefined after retries');
+      }
 
       const responseTimeMs = Date.now() - startTime;
       const finalUrl = response.request?.res?.responseUrl || targetUrl;
@@ -178,9 +203,11 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         }
       });
 
-      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      // Short delay for SPA frameworks to hydrate
-      await page.waitForTimeout(1000);
+      // Wait for networkidle to ensure SPA frameworks and dynamic content fully hydrate
+      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
+      
+      // Additional short buffer for any final client-side rendering after network idle
+      await page.waitForTimeout(1500);
 
       const html = await page.content();
       const finalUrl = page.url();
