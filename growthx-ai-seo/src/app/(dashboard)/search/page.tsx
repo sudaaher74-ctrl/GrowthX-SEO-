@@ -59,52 +59,20 @@ export default function SearchPage() {
 
       <div className="pt-2 flex items-start gap-4">
         {/* Main Content Area */}
-        <div className={`flex-1 space-y-4 ${selectedKeyword ? "lg:max-w-[calc(100%-28rem)]" : "w-full"}`}>
+        <div className="flex-1 space-y-4 w-full">
           
           {/* GSC Overview Panel */}
           {(activeTab === "gsc" || activeTab === "overview") && (
             <Panel 
               title="Google Search Console" 
-              subtitle={
-                <span className="flex items-center gap-2 text-[11px]">
-                  <span className="flex items-center gap-1 text-[#16a34a] font-semibold"><span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]"></span> Connected</span>
-                  <span>· Property: https://example.com · Last synced: Today, 10:42 AM</span>
-                </span>
-              }
+              subtitle="Connect to GSC to view data"
             >
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 text-center border-b border-[#f4f4f5]">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Clicks</span>
-                  <span className="text-xl font-bold text-[#09090b]">12,482</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Impressions</span>
-                  <span className="text-xl font-bold text-[#09090b]">384,291</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">CTR</span>
-                  <span className="text-xl font-bold text-[#09090b]">3.25%</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Average Position</span>
-                  <span className="text-xl font-bold text-[#09090b]">12.4</span>
-                </div>
-              </div>
-              <div className="h-[220px] px-3 pb-3 pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend}>
-                    <defs>
-                      <linearGradient id="ov" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={40} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="clicks" stroke="#2563eb" strokeWidth={2} fill="url(#ov)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <BarChart3 size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">GSC Integration Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
               </div>
             </Panel>
           )}
@@ -112,64 +80,52 @@ export default function SearchPage() {
           {/* Keyword Opportunities */}
           {(activeTab === "opportunities" || activeTab === "overview") && (
             <Panel title="Keyword Opportunities" subtitle="Striking-distance and high-impression keywords">
-              <Table minWidth={720}>
-                <thead>
-                  <tr>
-                    <Th>Keyword</Th>
-                    <Th>Position</Th>
-                    <Th>Impressions</Th>
-                    <Th>CTR</Th>
-                    <Th>Clicks</Th>
-                    <Th>Opportunity</Th>
-                    <Th align="right">Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { id: "1", kw: "interior designer navi mumbai", pos: 8, imp: "12,400", ctr: "1.8%", clk: 223, opp: "HIGH" },
-                    { id: "2", kw: "best modular kitchen setup", pos: 11, imp: "8,900", ctr: "0.9%", clk: 80, opp: "HIGH" },
-                    { id: "3", kw: "living room false ceiling", pos: 14, imp: "15,200", ctr: "0.4%", clk: 60, opp: "MEDIUM" },
-                  ].map((row) => (
-                    <Tr key={row.id} className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setSelectedKeyword(row.id)}>
-                      <Td className="font-medium text-[#09090b]">{row.kw}</Td>
-                      <Td>{row.pos}</Td>
-                      <Td>{row.imp}</Td>
-                      <Td>{row.ctr}</Td>
-                      <Td>{row.clk}</Td>
-                      <Td><Pill tone={row.opp === "HIGH" ? "warn" : "default"}>{row.opp}</Pill></Td>
-                      <Td align="right">
-                        <ActionButton variant="secondary" onClick={(e) => { e.stopPropagation(); setSelectedKeyword(row.id); }}>
-                          Analyze
-                        </ActionButton>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Zap size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Keyword Opportunities Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "keywords") && (
+            <Panel title="Keywords" subtitle="Tracked keyword positions">
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Hash size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Keywords Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "pages") && (
+            <Panel title="Pages" subtitle="Top performing pages">
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Layout size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Pages Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "trends") && (
+            <Panel title="Search Trends" subtitle="Search visibility over time">
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <TrendingUp size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Search Trends Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
             </Panel>
           )}
         </div>
-
-        {/* Right Side Detail Panel */}
-        {selectedKeyword && (
-          <div className="w-[26rem] flex-shrink-0 animate-in fade-in slide-in-from-right-4 duration-300 hidden lg:block sticky top-4">
-            <OpportunityDetailPanel 
-              title={selectedKeyword === "1" ? "Improve CTR for interior designer navi mumbai" : "Push keyword to Page 1"}
-              evidence={[
-                "Keyword has 12,400 impressions",
-                "Currently ranking at position 8",
-                "CTR is significantly below average (1.8%)"
-              ]}
-              businessImpact="Moving from pos 8 to pos 3 could yield ~1,200 additional monthly clicks."
-              recommendedAction="Optimize the landing page title and meta description. Add targeted FAQs."
-              aiRecommendation="Generate optimized metadata for the associated landing page."
-              affectedPagesCount={1}
-              estimatedImpact="High confidence"
-              onAnalyze={() => {}}
-              onGenerateContent={() => {}}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

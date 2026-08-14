@@ -250,13 +250,15 @@ export function Td({
   children,
   align = "left",
   className,
+  colSpan,
 }: {
   children: React.ReactNode;
   align?: "left" | "right";
   className?: string;
+  colSpan?: number;
 }) {
   return (
-    <td className={cn("px-4 py-3 align-middle", align === "right" ? "text-right" : "text-left", className)}>
+    <td colSpan={colSpan} className={cn("px-4 py-3 align-middle", align === "right" ? "text-right" : "text-left", className)}>
       {children}
     </td>
   );

@@ -54,104 +54,59 @@ export default function LocalPage() {
       </div>
 
       <div className="pt-2 flex items-start gap-4">
-        <div className={`flex-1 space-y-4 ${selectedIssue ? "lg:max-w-[calc(100%-28rem)]" : "w-full"}`}>
+        <div className="flex-1 space-y-4 w-full">
           
           {(activeTab === "gbp" || activeTab === "overview") && (
             <Panel 
               title="Google Business Profile Performance" 
               subtitle="Profile views and interactions over the last 30 days"
             >
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 text-center border-b border-[#f4f4f5]">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Profile Views</span>
-                  <span className="text-xl font-bold text-[#09090b]">18,600</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Searches</span>
-                  <span className="text-xl font-bold text-[#09090b]">8,420</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Website Clicks</span>
-                  <span className="text-xl font-bold text-[#09090b]">482</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[13px] text-[#71717a] font-medium">Direction Requests</span>
-                  <span className="text-xl font-bold text-[#09090b]">315</span>
-                </div>
-              </div>
-              <div className="h-[220px] px-3 pb-3 pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trend}>
-                    <defs>
-                      <linearGradient id="ov2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={40} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="views" stroke="#f97316" strokeWidth={2} fill="url(#ov2)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <MapPin size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Google Business Profile Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  Integration with Google Business Profile is currently in development.
+                </p>
               </div>
             </Panel>
           )}
 
-          {(activeTab === "reviews" || activeTab === "gbp") && (
-            <Panel title="Actionable Local Tasks" subtitle="Tasks identified to improve local ranking">
-              <Table minWidth={720}>
-                <thead>
-                  <tr>
-                    <Th>Task</Th>
-                    <Th>Category</Th>
-                    <Th>Impact</Th>
-                    <Th>Status</Th>
-                    <Th align="right">Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { id: "1", task: "Reply to 14 unresponded Google Reviews", cat: "Reviews", impact: "HIGH", stat: "Pending" },
-                    { id: "2", task: "Add missing Products to GBP", cat: "GBP Optimization", impact: "MEDIUM", stat: "Pending" },
-                    { id: "3", task: "Fix inconsistent NAP citations (Yelp, YellowPages)", cat: "Citations", impact: "HIGH", stat: "Pending" },
-                  ].map((row) => (
-                    <Tr key={row.id} className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setSelectedIssue(row.id)}>
-                      <Td className="font-medium text-[#09090b]">{row.task}</Td>
-                      <Td className="text-[#71717a]">{row.cat}</Td>
-                      <Td><Pill tone={row.impact === "HIGH" ? "warn" : "default"}>{row.impact}</Pill></Td>
-                      <Td><span className="text-xs font-semibold uppercase tracking-wider text-[#71717a]">{row.stat}</span></Td>
-                      <Td align="right">
-                        <ActionButton variant="secondary" onClick={(e) => { e.stopPropagation(); setSelectedIssue(row.id); }}>
-                          Analyze
-                        </ActionButton>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
+          {(activeTab === "reviews") && (
+            <Panel title="Reviews & Ratings" subtitle="Manage your local reputation">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Star size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Reviews Management Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "citations") && (
+            <Panel title="Citations" subtitle="Monitor your local business listings">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <LinkIcon size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Citations Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "rankings") && (
+            <Panel title="Local Rankings" subtitle="Track your local search performance">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <BarChart3 size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Local Rankings Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
             </Panel>
           )}
         </div>
-
-        {selectedIssue && (
-          <div className="w-[26rem] flex-shrink-0 animate-in fade-in slide-in-from-right-4 duration-300 hidden lg:block sticky top-4">
-            <OpportunityDetailPanel 
-              title={selectedIssue === "1" ? "Reply to 14 unresponded Google Reviews" : "Fix inconsistent NAP citations"}
-              evidence={[
-                "14 recent reviews have no response.",
-                "Responsive businesses are favored by Google Local algorithm."
-              ]}
-              businessImpact="Improves customer trust and local map pack rankings."
-              recommendedAction="Generate professional, personalized responses to the reviews."
-              aiRecommendation="Use AI to generate 14 review responses."
-              affectedPagesCount={14}
-              estimatedImpact="High confidence"
-              onAnalyze={() => {}}
-              onGenerateContent={() => {}}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

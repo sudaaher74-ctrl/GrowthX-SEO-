@@ -48,64 +48,33 @@ export default function ContentPage() {
       </div>
 
       <div className="pt-2 flex items-start gap-4">
-        <div className={`flex-1 space-y-4 ${selectedTopic ? "lg:max-w-[calc(100%-28rem)]" : "w-full"}`}>
+        <div className="flex-1 space-y-4 w-full">
           
           {(activeTab === "strategy" || activeTab === "writer" || activeTab === "clusters") && (
             <Panel title="Drafts & Suggestions" subtitle="AI-generated content suggestions based on keyword opportunities.">
-              <Table minWidth={720}>
-                <thead>
-                  <tr>
-                    <Th>Topic / Title</Th>
-                    <Th>Cluster</Th>
-                    <Th>Word Count</Th>
-                    <Th>Status</Th>
-                    <Th align="right">Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { id: "1", title: "10 Modular Kitchen Designs for 2026", cluster: "Kitchen Design", wc: "1,200 (Est.)", stat: "Suggested" },
-                    { id: "2", title: "Cost of Interior Designer in Mumbai: A Complete Guide", cluster: "Pricing", wc: "1,850", stat: "Draft Ready" },
-                    { id: "3", title: "Vastu Shastra Tips for Master Bedroom", cluster: "Vastu", wc: "0", stat: "Brief Ready" },
-                  ].map((row) => (
-                    <Tr key={row.id} className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setSelectedTopic(row.id)}>
-                      <Td className="font-medium text-[#09090b]">{row.title}</Td>
-                      <Td className="text-[#71717a]">{row.cluster}</Td>
-                      <Td className="text-[#71717a]">{row.wc}</Td>
-                      <Td><Pill tone={row.stat === "Draft Ready" ? "good" : row.stat === "Suggested" ? "warn" : "default"}>{row.stat}</Pill></Td>
-                      <Td align="right">
-                        <ActionButton variant="secondary" onClick={(e) => { e.stopPropagation(); setSelectedTopic(row.id); }}>
-                          {row.stat === "Suggested" ? "Generate Draft" : "Review Draft"}
-                        </ActionButton>
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <FileText size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Content Suggestions Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {(activeTab === "calendar") && (
+            <Panel title="Content Calendar" subtitle="Schedule and manage content publication.">
+               <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Calendar size={48} className="text-[#e4e4e7] mb-4" />
+                <h3 className="text-lg font-medium text-[var(--text-primary)]">Content Calendar Coming Soon</h3>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                  This feature is currently in development.
+                </p>
+              </div>
             </Panel>
           )}
 
         </div>
-
-        {selectedTopic && (
-          <div className="w-[26rem] flex-shrink-0 animate-in fade-in slide-in-from-right-4 duration-300 hidden lg:block sticky top-4">
-            <OpportunityDetailPanel 
-              title={selectedTopic === "1" ? "10 Modular Kitchen Designs for 2026" : "Cost of Interior Designer in Mumbai"}
-              evidence={[
-                "Fills a critical content gap identified by Competitor Intelligence.",
-                "Primary Keyword Volume: 8,100/mo.",
-                "Target Audience: Top of funnel (Awareness)."
-              ]}
-              businessImpact="Can drive an estimated 800-1,200 visits/mo within 3-6 months of publishing."
-              recommendedAction="Generate an SEO-optimized 1,200 word draft utilizing H2/H3 structure."
-              aiRecommendation="Use AI Writer to generate the full draft and meta tags."
-              affectedPagesCount={0}
-              estimatedImpact="High confidence"
-              onAnalyze={() => {}}
-              onGenerateContent={() => {}}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
