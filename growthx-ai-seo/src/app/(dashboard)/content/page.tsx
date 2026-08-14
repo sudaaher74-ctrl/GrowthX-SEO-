@@ -1,81 +1,165 @@
 "use client";
-import { useState } from "react";
-import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
-import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { FileText, Network, PenTool, Calendar, Zap } from "lucide-react";
+import { Suspense, useState } from "react";
+import { Loader2, Zap, FileText, UploadCloud, Edit3 } from "lucide-react";
+import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, Mono } from "@/components/ui/console";
+import { QueryState } from "@/components/ui/upgrade-prompt";
+import { useWorkspace, useContentPieces, usePlanContent, useDraftContent, useRunContent } from "@/hooks/use-growthx";
+import type { ContentPiece } from "@/lib/api-client";
 
-export default function ContentPage() {
-  const [activeTab, setActiveTab] = useState("strategy");
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+function ContentClient() {
+  const { projectId } = useWorkspace();
+  const pieces = useContentPieces(projectId);
+  const planContent = usePlanContent(projectId);
+  const draftContent = useDraftContent(projectId);
+  const runContent = useRunContent(projectId);
 
-  const tabs = [
-    { id: "strategy", label: "Content Strategy", icon: FileText },
-    { id: "clusters", label: "Topic Clusters", icon: Network },
-    { id: "writer", label: "AI Writer", icon: PenTool },
-    { id: "calendar", label: "Content Calendar", icon: Calendar },
-  ];
+  const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
+
+  const handleGeneratePlan = async () => {
+    await planContent.mutateAsync();
+  };
+
+  const handleDraft = async (pieceId: string) => {
+    setDraftingId(pieceId);
+    try {
+      await draftContent.mutateAsync(pieceId);
+    } finally {
+      setDraftingId(null);
+    }
+  };
+
+  const handlePush = async (pieceId: string) => {
+    setRunningId(pieceId);
+    try {
+      await runContent.mutateAsync([pieceId]);
+    } finally {
+      setRunningId(null);
+    }
+  };
+
+  const allPieces = pieces.data ?? [];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="AI Content Studio"
-        subtitle="Manage topic clusters, content calendar, and generate SEO-optimized drafts."
+        subtitle="Manage the content pipeline from keyword strategy to GitHub publishing."
         actions={
-          <ActionButton variant="primary" icon={<Zap size={12} />}>
-            Generate New Draft
+          <ActionButton
+            variant="primary"
+            icon={planContent.isPending ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+            onClick={handleGeneratePlan}
+            disabled={planContent.isPending || !projectId}
+          >
+            {planContent.isPending ? "Generating..." : "Generate Content Plan"}
           </ActionButton>
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedTopic(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-2 flex items-start gap-4">
-        <div className="flex-1 space-y-4 w-full">
-          
-          {(activeTab === "strategy" || activeTab === "writer" || activeTab === "clusters") && (
-            <Panel title="Drafts & Suggestions" subtitle="AI-generated content suggestions based on keyword opportunities.">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <FileText size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Content Suggestions Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
+      <QueryState
+        isLoading={pieces.isLoading}
+        error={pieces.error}
+        isEmpty={!projectId}
+        emptyTitle="No Project Selected"
+        emptyBody="Please select a client project to view content."
+      >
+        <Panel title="Content Strategy & Drafts" subtitle={`${allPieces.length} pieces tracked in the pipeline.`}>
+          {allPieces.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <FileText size={48} className="text-[#e4e4e7] mb-4" />
+              <h3 className="text-lg font-medium text-[var(--text-primary)]">No Content Planned</h3>
+              <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                Click "Generate Content Plan" to have the AI evaluate your search strategy and propose new topics.
+              </p>
+            </div>
+          ) : (
+            <Table minWidth={900}>
+              <thead>
+                <tr>
+                  <Th>Status</Th>
+                  <Th>Content Piece</Th>
+                  <Th>Target Query</Th>
+                  <Th>AI Rationale</Th>
+                  <Th align="right">Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {allPieces.map((piece: ContentPiece) => (
+                  <Tr key={piece.id}>
+                    <Td>
+                      <Pill
+                        tone={
+                          piece.status === "PLANNED"
+                            ? "default"
+                            : piece.status === "DRAFTED"
+                            ? "warn"
+                            : piece.status === "COMMITTED" || piece.status === "PUBLISHED"
+                            ? "good"
+                            : "bad"
+                        }
+                      >
+                        {piece.status}
+                      </Pill>
+                    </Td>
+                    <Td>
+                      <span className="text-[12.5px] font-medium text-[#09090b]">{piece.title}</span>
+                      <span className="block mt-0.5 text-[11px] text-[#71717a]">/{piece.slug}</span>
+                    </Td>
+                    <Td>
+                      <Mono tone="soft">{piece.targetQuery || "—"}</Mono>
+                    </Td>
+                    <Td>
+                      <span className="max-w-xs block text-[11.5px] text-[#71717a] truncate" title={piece.rationale || ""}>
+                        {piece.rationale || "—"}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      {piece.status === "PLANNED" && (
+                        <ActionButton
+                          onClick={() => handleDraft(piece.id)}
+                          disabled={draftingId === piece.id}
+                          icon={draftingId === piece.id ? <Loader2 size={11} className="animate-spin" /> : <Edit3 size={11} />}
+                        >
+                          {draftingId === piece.id ? "Drafting..." : "Write Draft"}
+                        </ActionButton>
+                      )}
+                      {piece.status === "DRAFTED" && (
+                        <ActionButton
+                          onClick={() => handlePush(piece.id)}
+                          disabled={runningId === piece.id}
+                          variant="primary"
+                          icon={runningId === piece.id ? <Loader2 size={11} className="animate-spin" /> : <UploadCloud size={11} />}
+                        >
+                          {runningId === piece.id ? "Pushing..." : "Push to Repo"}
+                        </ActionButton>
+                      )}
+                      {(piece.status === "COMMITTED" || piece.status === "PUBLISHED") && (
+                        <ActionButton disabled>
+                          Pushed
+                        </ActionButton>
+                      )}
+                      {piece.status === "REJECTED" && (
+                        <ActionButton disabled>
+                          Rejected
+                        </ActionButton>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
           )}
-
-          {(activeTab === "calendar") && (
-            <Panel title="Content Calendar" subtitle="Schedule and manage content publication.">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Calendar size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Content Calendar Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
-          )}
-
-        </div>
-      </div>
+        </Panel>
+      </QueryState>
     </div>
+  );
+}
+
+export default function ContentPage() {
+  return (
+    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-[var(--text-muted)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading content studio...</div>}>
+      <ContentClient />
+    </Suspense>
   );
 }
