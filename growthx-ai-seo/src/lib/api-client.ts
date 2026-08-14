@@ -288,6 +288,25 @@ export interface CrawlJob {
   website?: { domain: string; url: string };
 }
 
+export interface CrawlPage {
+  id: string;
+  url: string;
+  statusCode: number;
+  title: string | null;
+  wordCount: number;
+  readingTimeMin: number;
+  crawledAt: string;
+  performance?: CrawlPerformance | null;
+}
+
+export interface CrawlPerformance {
+  id: string;
+  performanceScore: number | null;
+  lcpMs: number | null;
+  inpMs: number | null;
+  clsScore: number | null;
+}
+
 export interface CrawlIssue {
   id: string;
   issueType: string;
@@ -471,6 +490,15 @@ export const api = {
     const suffix = query.toString() ? `?${query}` : "";
     return get<{ data: CrawlIssue[]; meta: { total: number; page: number; totalPages: number } }>(
       `/api/crawls/${jobId}/issues${suffix}`,
+    );
+  },
+  getCrawlPages: (jobId: string, params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return get<{ data: CrawlPage[]; meta: { total: number; page: number; totalPages: number } }>(
+      `/api/crawls/${jobId}/pages${suffix}`,
     );
   },
   getCrawlGraph: (jobId: string) => get<unknown>(`/api/crawls/${jobId}/graph`),

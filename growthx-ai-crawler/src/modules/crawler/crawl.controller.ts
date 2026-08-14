@@ -176,6 +176,37 @@ export class CrawlController {
     return { data: issues, meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } };
   }
 
+  @Get('crawls/:id/pages')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get paginated list of Pages crawled and their performance metrics' })
+  @ApiParam({ name: 'id', description: 'Crawl Job ID' })
+  @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
+  async getCrawlPages(
+    @Param('id') id: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50'
+  ) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = { crawlJobId: id };
+
+    const [pages, total] = await Promise.all([
+      this.prisma.page.findMany({ 
+        where, 
+        skip, 
+        take: limitNum, 
+        orderBy: { crawledAt: 'desc' },
+        include: { performance: true }
+      }),
+      this.prisma.page.count({ where }),
+    ]);
+
+    return { data: pages, meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } };
+  }
+
   @Get('crawls/:id/graph')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve directed internal link graph, crawl depth, and orphan page report' })

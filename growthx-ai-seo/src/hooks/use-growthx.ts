@@ -261,6 +261,15 @@ export function useCrawlIssues(jobId: string | null, severity?: string, status?:
   });
 }
 
+export function useCrawlPages(jobId: string | null, status?: string) {
+  return useQuery({
+    queryKey: ["crawl-pages", jobId],
+    queryFn: () => api.getCrawlPages(jobId!, { limit: 100 }),
+    enabled: Boolean(jobId),
+    refetchInterval: status === "RUNNING" ? 3000 : false,
+  });
+}
+
 export function useAskAi(projectId: string | null) {
   return useMutation({
     mutationFn: (question: string) => api.askAi(projectId!, question),
