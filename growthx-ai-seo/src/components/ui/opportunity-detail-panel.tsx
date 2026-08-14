@@ -14,6 +14,10 @@ export interface OpportunityProps {
   onGenerateContent?: () => void;
   onGenerateFix?: () => void;
   onCreateTask?: () => void;
+  isAnalyzing?: boolean;
+  isGenerating?: boolean;
+  analysisData?: any;
+  patchData?: any;
 }
 
 export function OpportunityDetailPanel({
@@ -28,6 +32,10 @@ export function OpportunityDetailPanel({
   onGenerateContent,
   onGenerateFix,
   onCreateTask,
+  isAnalyzing,
+  isGenerating,
+  analysisData,
+  patchData,
 }: OpportunityProps) {
   return (
     <div className="flex flex-col border rounded-lg bg-white shadow-sm w-full max-w-md overflow-hidden" style={{ borderColor: "var(--border-color, #e5e7eb)" }}>
@@ -74,11 +82,40 @@ export function OpportunityDetailPanel({
       </div>
       
       <div className="p-4 border-t bg-gray-50 flex flex-wrap gap-2">
-        {onAnalyze && <Button variant="outline" size="sm" onClick={onAnalyze}>Analyze</Button>}
-        {onGenerateContent && <Button variant="secondary" size="sm" onClick={onGenerateContent}>Generate Content</Button>}
-        {onGenerateFix && <Button variant="primary" size="sm" onClick={onGenerateFix}>Generate Fix</Button>}
+        {onAnalyze && (
+          <Button variant="outline" size="sm" onClick={onAnalyze} disabled={isAnalyzing || isGenerating}>
+            {isAnalyzing ? "Analyzing..." : "Analyze"}
+          </Button>
+        )}
+        {onGenerateContent && (
+          <Button variant="secondary" size="sm" onClick={onGenerateContent} disabled={isAnalyzing || isGenerating}>
+            Generate Content
+          </Button>
+        )}
+        {onGenerateFix && (
+          <Button variant="primary" size="sm" onClick={onGenerateFix} disabled={isAnalyzing || isGenerating}>
+            {isGenerating ? "Generating..." : "Generate Fix"}
+          </Button>
+        )}
         {onCreateTask && <Button variant="outline" size="sm" onClick={onCreateTask}>Create Task</Button>}
       </div>
+
+      {(analysisData || patchData) && (
+        <div className="p-4 border-t bg-black text-green-400 font-mono text-xs overflow-auto max-h-64">
+          {analysisData && (
+            <div className="mb-4">
+              <div className="text-gray-400 mb-1">// Analysis Complete</div>
+              <pre>{JSON.stringify(analysisData, null, 2)}</pre>
+            </div>
+          )}
+          {patchData && (
+            <div>
+              <div className="text-gray-400 mb-1">// Patch Generated</div>
+              <pre>{JSON.stringify(patchData, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

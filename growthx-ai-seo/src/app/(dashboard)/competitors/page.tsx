@@ -60,7 +60,8 @@ function CompetitorsClient() {
 
       <div className="pt-2">
         {isAdding && (
-          <Panel title="Add Competitor" subtitle="Track how often AI cites them instead of you." className="mb-4">
+          <div className="mb-4">
+            <Panel title="Add Competitor" subtitle="Track how often AI cites them instead of you.">
             <form onSubmit={handleAddCompetitor} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -103,6 +104,7 @@ function CompetitorsClient() {
               </div>
             </form>
           </Panel>
+          </div>
         )}
 
         <QueryState

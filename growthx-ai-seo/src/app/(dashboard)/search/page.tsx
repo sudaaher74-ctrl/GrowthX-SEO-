@@ -3,13 +3,13 @@ import { Suspense, useState } from "react";
 import { Loader2, Search, Layout, Zap, Hash, BarChart3, TrendingUp, CheckCircle2, XCircle, MinusCircle, RefreshCw } from "lucide-react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, Mono } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/upgrade-prompt";
-import { useWorkspace, useVisibility, useTrackedPrompts, useRunVisibilitySweep } from "@/hooks/use-growthx";
+import { useWorkspace, useVisibility, useTrackedPrompts, useRunSweep } from "@/hooks/use-growthx";
 
 function AiVisibilityClient() {
   const { projectId } = useWorkspace();
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
-  const sweep = useRunVisibilitySweep(projectId);
+  const sweep = useRunSweep(projectId);
 
   const [activeTab, setActiveTab] = useState("ai");
 
@@ -60,22 +60,22 @@ function AiVisibilityClient() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <Kpi
               label="Citation Share"
-              value={report?.sharePct != null ? `${report.sharePct}%` : "—"}
-              subLabel="Overall brand presence in AI answers"
+              value={report?.summary?.citationSharePct != null ? `${report.summary.citationSharePct}%` : "—"}
+              sub="Overall brand presence in AI answers"
             />
             <Kpi
               label="Tracked Prompts"
-              value={report?.promptsTracked.toString() || "—"}
-              subLabel="Active buyer queries monitored"
+              value={report?.summary?.checked?.toString() || "—"}
+              sub="Active buyer queries monitored"
             />
             <Kpi
               label="Top Model"
               value={
-                report?.perAssistant.length
-                  ? report.perAssistant.sort((a, b) => b.sharePct - a.sharePct)[0]?.assistant
+                report?.byAssistant?.length
+                  ? report.byAssistant.sort((a, b) => b.citationSharePct - a.citationSharePct)[0]?.assistant
                   : "—"
               }
-              subLabel="Highest citation probability"
+              sub="Highest citation probability"
             />
           </div>
 
@@ -116,7 +116,7 @@ function AiVisibilityClient() {
                         <Mono tone="soft">{row.estimatedVolume?.toLocaleString() || "—"}</Mono>
                       </Td>
                       {(["CHATGPT", "CLAUDE", "GEMINI"] as const).map((assistant) => {
-                        const check = row.recentChecks[assistant];
+                        const check = row.latestChecks.find(c => c.assistant === assistant);
                         return (
                           <Td key={assistant}>
                             {check ? (

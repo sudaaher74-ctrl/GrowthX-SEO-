@@ -264,10 +264,31 @@ export function useLatestCrawl(domain: string | null) {
 
 export function useCrawlIssues(jobId: string | null, severity?: string, status?: string) {
   return useQuery({
-    queryKey: ["crawl-issues", jobId, severity],
+    queryKey: ["crawl-issues", jobId, severity, status],
     queryFn: () => api.getCrawlIssues(jobId!, { severity, limit: 100 }),
     enabled: Boolean(jobId),
-    refetchInterval: status === "RUNNING" ? 3000 : false,
+  });
+}
+
+export function useAnalyzeIssue() {
+  return useMutation({
+    mutationFn: (issueId: string) => api.analyzeIssue(issueId),
+  });
+}
+
+export function useAutoFixIssue() {
+  return useMutation({
+    mutationFn: (issueId: string) => api.autoFixIssue(issueId),
+  });
+}
+
+export function useApproveFix() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (issueId: string) => api.approveFix(issueId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["crawl-issues"] });
+    }
   });
 }
 
