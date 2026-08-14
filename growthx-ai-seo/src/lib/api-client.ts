@@ -513,8 +513,10 @@ export interface MonitoringConfigData {
 export interface IntegrationConfigData {
   gaConnected: boolean;
   gscConnected: boolean;
+  hubspotConnected?: boolean;
   gaPropertyId?: string | null;
   gscPropertyId?: string | null;
+  hubspotPortalId?: string | null;
   updatedAt?: string | null;
 }
 

@@ -72,9 +72,9 @@ function IntegrationsClient() {
       name: "HubSpot / Salesforce",
       category: "CRM & Marketing",
       icon: Database,
-      status: "COMING_SOON",
-      lastSync: null,
-      metadata: null,
+      status: integrationsData?.hubspotConnected ? "CONNECTED" : "NOT_CONNECTED",
+      lastSync: integrationsData?.updatedAt,
+      metadata: integrationsData?.hubspotPortalId || null,
     },
   ];
 
