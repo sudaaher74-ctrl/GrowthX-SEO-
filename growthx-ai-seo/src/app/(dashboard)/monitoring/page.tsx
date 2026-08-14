@@ -1,12 +1,18 @@
 "use client";
 import { useState } from "react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
-import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { Activity, Bell, History, ShieldAlert, Zap } from "lucide-react";
+import { Activity, Bell, History, ShieldAlert, Zap, Loader2 } from "lucide-react";
+import { useWorkspace, useActivity, useLatestCrawl, usePortfolio } from "@/hooks/use-growthx";
+import { relativeTime } from "@/components/ui/console";
 
 export default function MonitoringPage() {
   const [activeTab, setActiveTab] = useState("alerts");
-  const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
+  
+  const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const crawl = useLatestCrawl(client?.domain ?? null);
+  const activities = useActivity(projectId);
 
   const tabs = [
     { id: "alerts", label: "Real-time Alerts", icon: Bell },
@@ -14,6 +20,10 @@ export default function MonitoringPage() {
     { id: "algo", label: "Algorithm Updates", icon: Activity },
     { id: "status", label: "Status Dashboard", icon: ShieldAlert },
   ];
+
+  const isLoading = activities.isLoading || crawl.isLoading;
+  const activityData = activities.data ?? [];
+  const crawlData = crawl.data;
 
   return (
     <div className="space-y-5">
@@ -31,10 +41,7 @@ export default function MonitoringPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedAlert(null);
-            }}
+            onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? "border-[#2563eb] text-[#2563eb]"
@@ -50,52 +57,83 @@ export default function MonitoringPage() {
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">
           
-          {(activeTab === "alerts" || activeTab === "changes") && (
-            <Panel title="Active Alerts" subtitle="AI-detected anomalies requiring immediate attention.">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Bell size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Real-time Alerts Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
+          {isLoading ? (
+            <Panel>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <p className="text-sm text-[var(--text-muted)]">Loading monitoring data...</p>
               </div>
             </Panel>
-          )}
+          ) : (
+            <>
+              {(activeTab === "alerts" || activeTab === "changes") && (
+                <Panel title="Active Alerts & Activity" subtitle="AI-detected anomalies and system events.">
+                  <Table minWidth={600}>
+                    <thead>
+                      <tr>
+                        <Th>Time</Th>
+                        <Th>Event Message</Th>
+                        <Th>Status</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activityData.length > 0 ? (
+                        activityData.map((item) => (
+                          <Tr key={item.id}>
+                            <Td><span className="text-[13px] text-[#3f3f46] whitespace-nowrap">{relativeTime(item.time)}</span></Td>
+                            <Td><span className="font-medium text-[#09090b]">{item.message}</span></Td>
+                            <Td>
+                              <Pill tone={item.status === "error" ? "bad" : item.status === "warning" ? "warn" : item.status === "success" ? "good" : "info"}>
+                                {item.status.toUpperCase()}
+                              </Pill>
+                            </Td>
+                          </Tr>
+                        ))
+                      ) : (
+                        <Tr><Td colSpan={3} className="text-center text-sm text-[var(--text-muted)] py-4">No recent activity found.</Td></Tr>
+                      )}
+                    </tbody>
+                  </Table>
+                </Panel>
+              )}
+              
+              {(activeTab === "algo") && (
+                <Panel title="Algorithm Updates" subtitle="Search engine algorithm changes.">
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Activity size={48} className="text-[#e4e4e7] mb-4" />
+                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
+                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                      This feature is currently in development.
+                    </p>
+                  </div>
+                </Panel>
+              )}
 
-          {(activeTab === "changes" || activeTab === "algo") && (
-             <Panel title="Recent Changes Timeline" subtitle="Log of all automated fixes and algorithm shifts.">
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <History size={48} className="text-[#e4e4e7] mb-4" />
-                  <h3 className="text-lg font-medium text-[var(--text-primary)]">Change Tracking Coming Soon</h3>
-                  <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                    This feature is currently in development.
-                  </p>
-                </div>
-             </Panel>
-          )}
-          
-          {(activeTab === "algo") && (
-             <Panel title="Algorithm Updates" subtitle="Search engine algorithm changes.">
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Activity size={48} className="text-[#e4e4e7] mb-4" />
-                  <h3 className="text-lg font-medium text-[var(--text-primary)]">Algorithm Updates Coming Soon</h3>
-                  <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                    This feature is currently in development.
-                  </p>
-                </div>
-             </Panel>
-          )}
-
-          {(activeTab === "status") && (
-             <Panel title="Status Dashboard" subtitle="System health and scanning status.">
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <ShieldAlert size={48} className="text-[#e4e4e7] mb-4" />
-                  <h3 className="text-lg font-medium text-[var(--text-primary)]">Status Dashboard Coming Soon</h3>
-                  <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                    This feature is currently in development.
-                  </p>
-                </div>
-             </Panel>
+              {(activeTab === "status") && (
+                <Panel title="Status Dashboard" subtitle="System health and scanning status for active property.">
+                  <div className="p-4 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="border border-[#e4e4e7] p-4 rounded-md">
+                        <h4 className="font-medium text-[15px] mb-2">Latest Crawl Job</h4>
+                        <div className="text-sm text-[var(--text-muted)] space-y-2">
+                          <p><strong>Status:</strong> <Pill tone={crawlData?.status === "COMPLETED" ? "good" : crawlData?.status === "FAILED" ? "bad" : "warn"}>{crawlData?.status || "UNKNOWN"}</Pill></p>
+                          <p><strong>Pages Crawled:</strong> {crawlData?.pagesCrawled ?? 0}</p>
+                          <p><strong>Started At:</strong> {crawlData?.startedAt ? relativeTime(crawlData.startedAt) : "N/A"}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="border border-[#e4e4e7] p-4 rounded-md">
+                        <h4 className="font-medium text-[15px] mb-2">Active Target</h4>
+                        <div className="text-sm text-[var(--text-muted)] space-y-2">
+                          <p><strong>Domain:</strong> {client?.domain || "Not configured"}</p>
+                          <p><strong>Client Name:</strong> {client?.name || "Not configured"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Panel>
+              )}
+            </>
           )}
 
         </div>

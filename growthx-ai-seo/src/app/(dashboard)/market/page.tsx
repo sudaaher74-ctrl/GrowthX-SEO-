@@ -1,32 +1,29 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
-import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { TrendingUp, MessageSquare, Users, PieChart, Zap } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
+import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
+import { TrendingUp, MessageSquare, Users, PieChart, Zap, Loader2 } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { useWorkspace, useVisibility } from "@/hooks/use-growthx";
 
 export default function MarketPage() {
+  const { projectId } = useWorkspace();
+  const visibility = useVisibility(projectId);
+  
   const [activeTab, setActiveTab] = useState("trends");
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
   const tabs = [
     { id: "trends", label: "Market Trends", icon: TrendingUp },
+    { id: "sov", label: "Share of Voice", icon: PieChart },
     { id: "sentiment", label: "Sentiment Analysis", icon: MessageSquare },
     { id: "audience", label: "Audience Insights", icon: Users },
-    { id: "sov", label: "Share of Voice", icon: PieChart },
   ];
 
-  const trendData = [
-    { month: "Jan", volume: 4000 }, { month: "Feb", volume: 3000 }, { month: "Mar", volume: 2000 },
-    { month: "Apr", volume: 2780 }, { month: "May", volume: 1890 }, { month: "Jun", volume: 2390 }
-  ];
+  const trendData = visibility.data?.trend?.map((t, i) => ({
+    week: `W${i + 1}`,
+    share: t.citationSharePct
+  })) || [];
 
-  const sovData = [
-    { name: "GrowthX", share: 45, fill: "#2563eb" },
-    { name: "Competitor A", share: 30, fill: "#f97316" },
-    { name: "Competitor B", share: 15, fill: "#16a34a" },
-    { name: "Others", share: 10, fill: "#a1a1aa" },
-  ];
+  const sovData = visibility.data?.shareOfVoice || [];
 
   return (
     <div className="space-y-5">
@@ -44,10 +41,7 @@ export default function MarketPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedTopic(null);
-            }}
+            onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? "border-[#2563eb] text-[#2563eb]"
@@ -63,53 +57,102 @@ export default function MarketPage() {
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">
           
-          {(activeTab === "trends" || activeTab === "overview") && (
-            <Panel title="Market Search Trends" subtitle="Search volume for core topics over time">
+          {visibility.isLoading ? (
+            <Panel>
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <TrendingUp size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Trends Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
+                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <p className="text-sm text-[var(--text-muted)]">Loading market data...</p>
               </div>
             </Panel>
+          ) : (
+            <>
+              {(activeTab === "trends" || activeTab === "overview") && (
+                <Panel title="Market Search Trends" subtitle="AI Citation Share over time">
+                  {trendData.length > 0 ? (
+                    <div className="h-64 mt-4 w-full p-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trendData}>
+                          <defs>
+                            <linearGradient id="colorShare" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                          <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} tickFormatter={(val) => `${val}%`} />
+                          <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e5e5" }} />
+                          <Area type="monotone" dataKey="share" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorShare)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <TrendingUp size={48} className="text-[#e4e4e7] mb-4" />
+                      <p className="text-sm text-[var(--text-muted)]">No trend data available yet.</p>
+                    </div>
+                  )}
+                </Panel>
+              )}
+
+              {(activeTab === "sov" || activeTab === "overview") && (
+                <Panel title="Share of Voice (SOV)" subtitle="Brand visibility across AI assistants and target queries">
+                  {sovData.length > 0 ? (
+                    <Table minWidth={600}>
+                      <thead>
+                        <tr>
+                          <Th>Domain / Entity</Th>
+                          <Th>Label</Th>
+                          <Th>Mentions</Th>
+                          <Th>Share %</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sovData.map((sov, i) => (
+                          <Tr key={i}>
+                            <Td><span className="font-medium text-[#09090b]">{sov.domain || "Unknown"}</span></Td>
+                            <Td><Pill>{sov.label}</Pill></Td>
+                            <Td><span className="text-[13px] text-[#3f3f46]">{sov.mentions}</span></Td>
+                            <Td><span className="text-[13px] text-[#3f3f46]">{sov.sharePct.toFixed(1)}%</span></Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <PieChart size={48} className="text-[#e4e4e7] mb-4" />
+                      <p className="text-sm text-[var(--text-muted)]">No SOV data available yet.</p>
+                    </div>
+                  )}
+                </Panel>
+              )}
+              
+              {(activeTab === "sentiment") && (
+                <Panel title="Sentiment Analysis" subtitle="Customer feedback and market sentiment">
+                   <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <MessageSquare size={48} className="text-[#e4e4e7] mb-4" />
+                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
+                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                      This feature is currently in development.
+                    </p>
+                  </div>
+                </Panel>
+              )}
+
+              {(activeTab === "audience") && (
+                <Panel title="Trending Topics" subtitle="Emerging themes in your target market">
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <Users size={48} className="text-[#e4e4e7] mb-4" />
+                    <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
+                    <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
+                      This feature is currently in development.
+                    </p>
+                  </div>
+                </Panel>
+              )}
+            </>
           )}
 
-          {(activeTab === "sov" || activeTab === "overview") && (
-            <Panel title="Share of Voice (SOV)" subtitle="Brand visibility across target keyword clusters">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <PieChart size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">SOV Analysis Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
-          )}
-          
-          {(activeTab === "sentiment") && (
-            <Panel title="Sentiment Analysis" subtitle="Customer feedback and market sentiment">
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <MessageSquare size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Sentiment Analysis Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
-          )}
-
-          {(activeTab === "audience" || activeTab === "trends" || activeTab === "overview") && (
-            <Panel title="Trending Topics" subtitle="Emerging themes in your target market">
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Users size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Audience Insights Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development.
-                </p>
-              </div>
-            </Panel>
-          )}
         </div>
       </div>
     </div>
