@@ -36,6 +36,8 @@ import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -73,6 +75,8 @@ import { OutreachModule } from './modules/outreach/outreach.module';
     GroqModule,
     AdminModule,
     LocalSeoModule,
+    OutreachModule,
+    ReportingModule,
   ],
   controllers: [HealthController],
   providers: [],
