@@ -3,7 +3,7 @@ import { useState } from "react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton, Mono } from "@/components/ui/console";
 import { LayoutDashboard, FileBarChart, Users, FileSignature, Download, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
-import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts } from "@/hooks/use-growthx";
+import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts, useReporting } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/upgrade-prompt";
 
 export default function ReportsPage() {
@@ -14,6 +14,7 @@ export default function ReportsPage() {
   const issues = useCrawlIssues(crawl.data?.id ?? null);
   const visibility = useVisibility(projectId);
   const prompts = useTrackedPrompts(projectId);
+  const reporting = useReporting(projectId);
 
   const [activeTab, setActiveTab] = useState("executive");
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function ReportsPage() {
     { id: "whitelabel", label: "White-label", icon: FileSignature },
   ];
 
-  const isLoading = portfolio.isLoading || crawl.isLoading || issues.isLoading || visibility.isLoading || prompts.isLoading;
+  const isLoading = portfolio.isLoading || crawl.isLoading || issues.isLoading || visibility.isLoading || prompts.isLoading || reporting.isLoading;
 
   // Calculate KPIs
   const allIssues = issues.data?.data ?? [];
@@ -178,16 +179,66 @@ export default function ReportsPage() {
             </Panel>
           )}
 
-          {(activeTab === "custom" || activeTab === "client" || activeTab === "whitelabel") && (
-            <Panel title="Saved Reports" subtitle="Pre-configured reporting templates">
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <FileSignature size={48} className="text-[#e4e4e7] mb-4" />
-                <h3 className="text-lg font-medium text-[var(--text-primary)]">Coming Soon</h3>
-                <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
-                  This feature is currently in development. Check back later!
-                </p>
-              </div>
+          {(activeTab === "custom") && (
+            <Panel title="Saved Reports" subtitle="Pre-configured recurring reporting templates">
+              <Table minWidth={700}>
+                <thead>
+                  <tr>
+                    <Th>Report Name</Th>
+                    <Th>Frequency</Th>
+                    <Th>Recipients</Th>
+                    <Th>Format</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(reporting.data?.customReports ?? []).length > 0 ? (
+                    reporting.data?.customReports.map((report) => (
+                      <Tr key={report.id}>
+                        <Td><span className="font-medium text-[#09090b]">{report.name}</span></Td>
+                        <Td><Pill tone="info">{report.frequency}</Pill></Td>
+                        <Td><span className="text-[13px] text-[#3f3f46]">{report.recipients.join(", ")}</span></Td>
+                        <Td><span className="text-[13px] text-[#3f3f46]">{report.format}</span></Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr><Td colSpan={4} className="text-center text-sm text-[var(--text-muted)] py-4">No custom reports found.</Td></Tr>
+                  )}
+                </tbody>
+              </Table>
             </Panel>
+          )}
+
+          {(activeTab === "client" || activeTab === "whitelabel") && (
+            <div className="space-y-4">
+              <Panel title="Client Portal Configuration" subtitle="Configure your client's white-labeled access">
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-[#09090b] mb-1">Custom Domain</label>
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={reporting.data?.clientPortal.customDomain ?? ""} 
+                        className="w-full text-sm px-3 py-2 border border-[#e4e4e7] rounded bg-[#f4f4f5] text-[#3f3f46]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#09090b] mb-1">Theme Color</label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded border border-[#e4e4e7]" style={{ backgroundColor: reporting.data?.clientPortal.themeColor ?? "#2563eb" }}></div>
+                        <span className="text-sm text-[#3f3f46]">{reporting.data?.clientPortal.themeColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#09090b] mb-1">Portal Status</label>
+                    <Pill tone={reporting.data?.clientPortal.isPublic ? "good" : "default"}>
+                      {reporting.data?.clientPortal.isPublic ? "PUBLIC & ACTIVE" : "PRIVATE (DRAFT)"}
+                    </Pill>
+                  </div>
+                </div>
+              </Panel>
+            </div>
           )}
 
         </div>

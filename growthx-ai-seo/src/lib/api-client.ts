@@ -440,6 +440,32 @@ export interface OutreachCampaign {
   };
 }
 
+export interface CustomReport {
+  id: string;
+  projectId: string;
+  name: string;
+  frequency: string;
+  recipients: string[];
+  format: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientPortalConfig {
+  id: string;
+  projectId: string;
+  customDomain: string | null;
+  logoUrl: string | null;
+  themeColor: string | null;
+  isPublic: boolean;
+  updatedAt: string;
+}
+
+export interface ReportingConfig {
+  customReports: CustomReport[];
+  clientPortal: ClientPortalConfig;
+}
+
 export interface ApiCostStat {
   service: string;
   tokens: string;
@@ -580,6 +606,9 @@ export const api = {
 
   // ── PR & Outreach
   getOutreachCampaigns: (projectId: string) => get<OutreachCampaign[]>(`/api/projects/${projectId}/outreach`),
+
+  // ── Reporting
+  getReportingConfig: (projectId: string) => get<ReportingConfig>(`/api/projects/${projectId}/reporting`),
 
   // ── Activity
   getActivity: (projectId: string, limit = 30) =>

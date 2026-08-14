@@ -387,3 +387,12 @@ export function useAutomationRuns(projectId: string | null) {
     retry: false,
   });
 }
+
+export function useReporting(projectId: string | null) {
+  return useQuery({
+    queryKey: ["reporting", projectId],
+    queryFn: () => api.getReportingConfig(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
