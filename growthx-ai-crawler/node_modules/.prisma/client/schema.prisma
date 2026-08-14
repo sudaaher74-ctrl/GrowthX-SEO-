@@ -280,6 +280,7 @@ model Project {
   strategies           StrategyReport[]
   prompts              TrackedPrompt[]
   websites             Website[]
+  LocalLocation        LocalLocation?
 
   @@index([organizationId])
 }
@@ -632,4 +633,17 @@ enum ContentPieceStatus {
   COMMITTED
   PUBLISHED
   REJECTED
+}
+
+model LocalLocation {
+  id             String   @id @default(uuid())
+  projectId      String   @unique
+  businessName   String
+  address        String
+  rating         Float    @default(0)
+  reviewCount    Int      @default(0)
+  citationsCount Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

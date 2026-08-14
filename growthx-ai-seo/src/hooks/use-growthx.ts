@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role } from "@/lib/api-client";
+import { api, ApiError, auth, type Role, LocalSeoData } from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -103,6 +103,15 @@ export function useActivity(projectId: string | null) {
   return useQuery({
     queryKey: ["activity", projectId],
     queryFn: () => api.getActivity(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useLocalSeo(projectId: string | null) {
+  return useQuery({
+    queryKey: ["local-seo", projectId],
+    queryFn: () => api.getLocalSeo(projectId!),
     enabled: Boolean(projectId),
     retry: false,
   });

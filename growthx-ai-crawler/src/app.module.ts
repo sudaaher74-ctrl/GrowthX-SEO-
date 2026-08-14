@@ -34,7 +34,7 @@ import { AutomationModule } from './modules/automation/automation.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
-
+import { LocalSeoModule } from './modules/local-seo/local-seo.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -71,6 +71,7 @@ import { AdminModule } from './modules/admin/admin.module';
     ActivityModule,
     GroqModule,
     AdminModule,
+    LocalSeoModule,
   ],
   controllers: [HealthController],
   providers: [],

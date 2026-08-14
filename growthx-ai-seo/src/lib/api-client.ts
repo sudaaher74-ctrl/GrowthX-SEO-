@@ -399,6 +399,23 @@ export interface QueueStat {
   status: string;
 }
 
+export interface AiAnalysisResult {
+  sentiment: 'positive' | 'negative' | 'neutral';
+  keyThemes: string[];
+  recommendations: string[];
+}
+
+export interface LocalSeoData {
+  id: string;
+  projectId: string;
+  businessName: string;
+  address: string;
+  rating: number;
+  reviewCount: number;
+  citationsCount: number;
+  updatedAt: string;
+}
+
 export interface ApiCostStat {
   service: string;
   tokens: string;
@@ -533,6 +550,9 @@ export const api = {
   getStrategy: (projectId: string, reportId: string) =>
     get<StrategyReport>(`/api/projects/${projectId}/strategy/${reportId}`),
   generateStrategy: (projectId: string) => post<StrategyReport>(`/api/projects/${projectId}/strategy`, {}),
+
+  // ── Local SEO
+  getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
 
   // ── Activity
   getActivity: (projectId: string, limit = 30) =>
