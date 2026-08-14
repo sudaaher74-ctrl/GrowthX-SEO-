@@ -1,40 +1,254 @@
 "use client";
-import { PageHeader, Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
-import { Link2, Search, BarChart3, MessageSquare, Zap } from "lucide-react";
+import { Suspense, useState } from "react";
+import { Loader2, Plus, Github, Search, BarChart3, Database } from "lucide-react";
+import {
+  ActionButton,
+  PageHeader,
+  Panel,
+  Table,
+  Th,
+  Tr,
+  Td,
+  Pill,
+  Mono,
+  relativeTime,
+} from "@/components/ui/console";
+import { QueryState } from "@/components/ui/upgrade-prompt";
+import { useConnectRepository, useRepository, useWorkspace } from "@/hooks/use-growthx";
 
-export default function IntegrationsPage() {
+function IntegrationsClient() {
+  const { projectId } = useWorkspace();
+  const repo = useRepository(projectId);
+  const connectRepo = useConnectRepository(projectId);
+
+  const [connectingGitHub, setConnectingGitHub] = useState(false);
+  const [githubForm, setGithubForm] = useState({
+    owner: "sudaaher74-ctrl",
+    name: "GrowthX-SEO-",
+    defaultBranch: "main",
+    accessToken: "",
+    framework: "nextjs",
+    contentDir: "src/app",
+  });
+
+  const handleConnectGitHub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await connectRepo.mutateAsync(githubForm);
+    setConnectingGitHub(false);
+  };
+
+  const integrations = [
+    {
+      id: "github",
+      name: "GitHub",
+      category: "Code Repository",
+      icon: Github,
+      status: repo.data ? "CONNECTED" : "NOT_CONNECTED",
+      lastSync: repo.data?.updatedAt,
+      metadata: repo.data ? `${repo.data.owner}/${repo.data.name}` : null,
+      onConnect: () => setConnectingGitHub(true),
+    },
+    {
+      id: "gsc",
+      name: "Google Search Console",
+      category: "SEO Data",
+      icon: Search,
+      status: "COMING_SOON",
+      lastSync: null,
+      metadata: null,
+    },
+    {
+      id: "ga4",
+      name: "Google Analytics 4",
+      category: "Analytics",
+      icon: BarChart3,
+      status: "COMING_SOON",
+      lastSync: null,
+      metadata: null,
+    },
+    {
+      id: "hubspot",
+      name: "HubSpot / Salesforce",
+      category: "CRM & Marketing",
+      icon: Database,
+      status: "COMING_SOON",
+      lastSync: null,
+      metadata: null,
+    },
+  ];
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Integrations & Connections"
         subtitle="Connect external platforms to feed data into the 15-Engine system."
         actions={
-          <ActionButton variant="primary" icon={<Zap size={12} />}>
+          <ActionButton variant="primary" icon={<Plus size={12} />}>
             Add Integration
           </ActionButton>
         }
       />
 
-      <Panel title="Connected Platforms" subtitle="Manage your active data sources.">
-        <Table minWidth={720}>
-          <thead>
-            <tr>
-              <Th>Platform</Th>
-              <Th>Category</Th>
-              <Th>Status</Th>
-              <Th>Last Sync</Th>
-              <Th align="right">Action</Th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <Td colSpan={5} className="text-center py-8 text-[var(--text-muted)]">
-                No integrations connected.
-              </Td>
-            </tr>
-          </tbody>
-        </Table>
-      </Panel>
+      <QueryState
+        isLoading={repo.isLoading}
+        error={repo.error}
+        isEmpty={false}
+      >
+        <Panel title="Connected Platforms" subtitle="Manage your active data sources.">
+          <Table minWidth={720}>
+            <thead>
+              <tr>
+                <Th>Platform</Th>
+                <Th>Category</Th>
+                <Th>Status</Th>
+                <Th>Last Sync</Th>
+                <Th align="right">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {integrations.map((int) => (
+                <Tr key={int.id}>
+                  <Td>
+                    <div className="flex items-center space-x-3">
+                      <int.icon size={16} className="text-[#71717a]" />
+                      <span className="font-medium text-[#09090b]">{int.name}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className="text-[#71717a]">{int.category}</span>
+                  </Td>
+                  <Td>
+                    {int.status === "CONNECTED" ? (
+                      <Pill tone="good">Connected</Pill>
+                    ) : int.status === "COMING_SOON" ? (
+                      <Pill tone="default">Coming Soon</Pill>
+                    ) : (
+                      <Pill tone="warn">Not Connected</Pill>
+                    )}
+                    {int.metadata && <span className="block mt-1 text-[11px] text-[#a1a1aa]"><Mono>{int.metadata}</Mono></span>}
+                  </Td>
+                  <Td>
+                    <span className="text-[#71717a]">
+                      {int.lastSync ? relativeTime(int.lastSync) : "—"}
+                    </span>
+                  </Td>
+                  <Td align="right">
+                    {int.status === "CONNECTED" ? (
+                      <ActionButton disabled>Connected</ActionButton>
+                    ) : int.status === "COMING_SOON" ? (
+                      <ActionButton disabled>Coming Soon</ActionButton>
+                    ) : (
+                      <ActionButton onClick={int.onConnect} variant="primary">
+                        Connect
+                      </ActionButton>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
+
+        {connectingGitHub && (
+          <Panel title="Connect GitHub Repository" subtitle="Give the Autonomous Engineer access to push fixes and content.">
+            <form onSubmit={handleConnectGitHub} className="p-4 space-y-4 max-w-lg">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Owner</label>
+                <input
+                  type="text"
+                  required
+                  value={githubForm.owner}
+                  onChange={(e) => setGithubForm({ ...githubForm, owner: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  placeholder="e.g. sudaaher74-ctrl"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Repository Name</label>
+                <input
+                  type="text"
+                  required
+                  value={githubForm.name}
+                  onChange={(e) => setGithubForm({ ...githubForm, name: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  placeholder="e.g. GrowthX-SEO-"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Default Branch</label>
+                <input
+                  type="text"
+                  required
+                  value={githubForm.defaultBranch}
+                  onChange={(e) => setGithubForm({ ...githubForm, defaultBranch: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Framework</label>
+                <select
+                  value={githubForm.framework}
+                  onChange={(e) => setGithubForm({ ...githubForm, framework: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                >
+                  <option value="nextjs">Next.js</option>
+                  <option value="static-html">Static HTML</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Content Directory</label>
+                <input
+                  type="text"
+                  required
+                  value={githubForm.contentDir}
+                  onChange={(e) => setGithubForm({ ...githubForm, contentDir: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  placeholder="e.g. src/app or content/blog"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[#09090b]">Personal Access Token (PAT)</label>
+                <input
+                  type="password"
+                  required
+                  value={githubForm.accessToken}
+                  onChange={(e) => setGithubForm({ ...githubForm, accessToken: e.target.value })}
+                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  placeholder="ghp_..."
+                />
+                <p className="text-xs text-[#71717a]">Needs `repo` permissions to clone and open PRs.</p>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setConnectingGitHub(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#71717a] hover:text-[#09090b]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={connectRepo.isPending}
+                  className="inline-flex items-center justify-center rounded bg-[#09090b] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#27272a] disabled:opacity-50"
+                >
+                  {connectRepo.isPending && <Loader2 size={14} className="mr-2 animate-spin" />}
+                  Connect GitHub
+                </button>
+              </div>
+            </form>
+          </Panel>
+        )}
+      </QueryState>
     </div>
+  );
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-[var(--text-muted)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading integrations...</div>}>
+      <IntegrationsClient />
+    </Suspense>
   );
 }
