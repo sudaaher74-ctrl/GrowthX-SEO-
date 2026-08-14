@@ -513,6 +513,9 @@ export interface MonitoringConfigData {
 export interface IntegrationConfigData {
   gaConnected: boolean;
   gscConnected: boolean;
+  gaPropertyId?: string | null;
+  gscPropertyId?: string | null;
+  updatedAt?: string | null;
 }
 
 // ──────────────────────────────────────────────────────────────── the API

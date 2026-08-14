@@ -30,7 +30,7 @@ export class PerformanceService {
 
     if (!this.apiKey || this.apiKey === 'your_google_pagespeed_api_key') {
       this.logger.debug(`No valid PAGESPEED_API_KEY set. Generating simulated Core Web Vitals fallback for ${targetUrl}`);
-      metrics = this.generateSimulatedMetrics();
+      metrics = this.generateSimulatedMetrics(targetUrl);
     } else {
       try {
         const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(targetUrl)}&key=${this.apiKey}&strategy=${strategy}&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO`;
@@ -53,7 +53,7 @@ export class PerformanceService {
         }
       } catch (error: any) {
         this.logger.warn(`PageSpeed API failed for ${targetUrl}: ${error.message}. Falling back to simulated metrics.`);
-        metrics = this.generateSimulatedMetrics();
+        metrics = this.generateSimulatedMetrics(targetUrl);
       }
     }
 
@@ -92,15 +92,29 @@ export class PerformanceService {
   /**
    * Generates realistic mock PageSpeed scores when testing offline
    */
-  private generateSimulatedMetrics(): PerformanceMetrics {
+  private generateSimulatedMetrics(targetUrl: string): PerformanceMetrics {
+    // Generate a simple deterministic hash based on the targetUrl string
+    let hash = 0;
+    for (let i = 0; i < targetUrl.length; i++) {
+      hash = (hash << 5) - hash + targetUrl.charCodeAt(i);
+      hash |= 0; // Convert to 32bit integer
+    }
+    const seed = Math.abs(hash);
+
+    // Use the seed to generate deterministic values
+    const seededRandom = (min: number, max: number, offset: number = 0) => {
+      const val = ((seed + offset) * 9301 + 49297) % 233280;
+      return min + (val / 233280) * (max - min);
+    };
+
     return {
-      performanceScore: Math.floor(Math.random() * (98 - 75 + 1)) + 75,
-      accessibilityScore: Math.floor(Math.random() * (100 - 85 + 1)) + 85,
-      bestPracticesScore: Math.floor(Math.random() * (100 - 80 + 1)) + 80,
-      seoScore: Math.floor(Math.random() * (100 - 85 + 1)) + 85,
-      lcpMs: parseFloat((Math.random() * (2200 - 800) + 800).toFixed(1)),
-      inpMs: parseFloat((Math.random() * (150 - 40) + 40).toFixed(1)),
-      clsScore: parseFloat((Math.random() * (0.08 - 0.001) + 0.001).toFixed(3)),
+      performanceScore: Math.floor(seededRandom(75, 98, 1)),
+      accessibilityScore: Math.floor(seededRandom(85, 100, 2)),
+      bestPracticesScore: Math.floor(seededRandom(80, 100, 3)),
+      seoScore: Math.floor(seededRandom(85, 100, 4)),
+      lcpMs: parseFloat(seededRandom(800, 2200, 5).toFixed(1)),
+      inpMs: parseFloat(seededRandom(40, 150, 6).toFixed(1)),
+      clsScore: parseFloat(seededRandom(0.001, 0.08, 7).toFixed(3)),
       isSimulated: true,
     };
   }

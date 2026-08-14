@@ -102,8 +102,8 @@ export default function MonitoringPage() {
               {(activeTab === "performance") && (
                 <Panel title="Performance Monitoring" subtitle="Core Web Vitals and Page Speed">
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Kpi label="Performance Score" value={monitoringData?.performanceScore?.toString() || "0"} tone={monitoringData?.performanceScore && monitoringData.performanceScore >= 90 ? "good" : "warn"} />
-                    <Kpi label="Mobile Score" value={monitoringData?.mobileScore?.toString() || "0"} tone={monitoringData?.mobileScore && monitoringData.mobileScore >= 85 ? "good" : "warn"} />
+                    <Kpi label="Performance Score" value={monitoringData?.performanceScore?.toString() || "0"} tone={monitoringData?.performanceScore && monitoringData.performanceScore >= 90 ? "good" : "danger"} />
+                    <Kpi label="Mobile Score" value={monitoringData?.mobileScore?.toString() || "0"} tone={monitoringData?.mobileScore && monitoringData.mobileScore >= 85 ? "good" : "danger"} />
                     <div className="border border-[#e4e4e7] p-4 rounded-md">
                       <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">Core Web Vitals</h4>
                       <Pill tone={monitoringData?.coreWebVitalsStatus === "PASSING" ? "good" : "bad"}>{monitoringData?.coreWebVitalsStatus || "N/A"}</Pill>
@@ -116,9 +116,9 @@ export default function MonitoringPage() {
                 <Panel title="Uptime & Health" subtitle="System uptime and SSL certification">
                   <div className="p-4 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Kpi label="Uptime Status" value={monitoringData?.uptimeStatus || "UNKNOWN"} tone={monitoringData?.uptimeStatus === "UP" ? "good" : "bad"} />
+                      <Kpi label="Uptime Status" value={monitoringData?.uptimeStatus || "UNKNOWN"} tone={monitoringData?.uptimeStatus === "UP" ? "good" : "danger"} />
                       <Kpi label="Uptime %" value={`${monitoringData?.uptimePercentage || 0}%`} tone="good" />
-                      <Kpi label="Avg Response Time" value={`${monitoringData?.avgResponseTimeMs || 0}ms`} tone={monitoringData?.avgResponseTimeMs && monitoringData.avgResponseTimeMs < 500 ? "good" : "warn"} />
+                      <Kpi label="Avg Response Time" value={`${monitoringData?.avgResponseTimeMs || 0}ms`} tone={monitoringData?.avgResponseTimeMs && monitoringData.avgResponseTimeMs < 500 ? "good" : "danger"} />
                       <div className="border border-[#e4e4e7] p-4 rounded-md">
                         <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">SSL Status</h4>
                         <Pill tone={monitoringData?.sslStatus === "VALID" ? "good" : "bad"}>{monitoringData?.sslStatus || "UNKNOWN"}</Pill>
