@@ -29,7 +29,7 @@ export default function OverviewPage() {
   const portfolio = usePortfolio(orgId);
   const visibility = useVisibility(projectId);
 
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null);
 

@@ -32,7 +32,7 @@ function WebsiteClient() {
       const match = portfolio.data.clients.find((c) => c.domain === queryDomain);
       if (match) return match;
     }
-    return portfolio.data.clients.find((c) => c.projectId === projectId) ?? null;
+    return portfolio.data.clients.find((c) => c.projectId === projectId) ?? portfolio.data.clients[0] ?? null;
   }, [portfolio.data?.clients, queryDomain, projectId]);
 
   const crawl = useLatestCrawl(client?.domain ?? null);
