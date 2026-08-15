@@ -115,6 +115,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      await new Promise((res) => setTimeout(res, 2000));
+      response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    }
   } catch {
     // Retry once after 2.5s delay if Render backend is spinning up from cold sleep
     try {
