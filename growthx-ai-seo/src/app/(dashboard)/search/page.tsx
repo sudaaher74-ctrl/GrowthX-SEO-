@@ -1,20 +1,64 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Loader2, Search, Layout, Zap, Hash, BarChart3, TrendingUp, CheckCircle2, XCircle, MinusCircle, RefreshCw } from "lucide-react";
+import { Loader2, Search, Zap, CheckCircle2, XCircle, MinusCircle, RefreshCw, Plus, Sparkles } from "lucide-react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, Mono } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/upgrade-prompt";
-import { useWorkspace, useVisibility, useTrackedPrompts, useRunSweep } from "@/hooks/use-growthx";
+import { useWorkspace, useVisibility, useTrackedPrompts, useRunSweep, useAddPrompts } from "@/hooks/use-growthx";
+import { Button } from "@/components/ui/button";
 
 function AiVisibilityClient() {
   const { projectId } = useWorkspace();
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
+  const addPrompts = useAddPrompts(projectId);
 
   const [activeTab, setActiveTab] = useState("ai");
+  const [newQuery, setNewQuery] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleSweep = async () => {
-    await sweep.mutateAsync();
+    setStatusMessage(null);
+    try {
+      const res = await sweep.mutateAsync();
+      await prompts.refetch();
+      await visibility.refetch();
+      setStatusMessage(`Sweep completed! Ran ${res.checksRun ?? 0} engine checks across active AI models.`);
+    } catch (err) {
+      console.error("Sweep error:", err);
+      setStatusMessage(err instanceof Error ? err.message : "Failed to run sweep");
+    }
+  };
+
+  const handleAddQuery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuery.trim() || !projectId) return;
+    try {
+      await addPrompts.mutateAsync([{ text: newQuery.trim(), cluster: "target buyer query" }]);
+      setNewQuery("");
+      setShowAddForm(false);
+      await prompts.refetch();
+      await handleSweep();
+    } catch (err) {
+      console.error("Add query error:", err);
+    }
+  };
+
+  const handleAutoSeed = async () => {
+    if (!projectId) return;
+    try {
+      await addPrompts.mutateAsync([
+        { text: "best dairy products and fresh milk brand", cluster: "brand intent" },
+        { text: "fresh organic farm milk subscription near me", cluster: "local intent" },
+        { text: "top alternatives for farm fresh milk", cluster: "commercial" },
+        { text: "buy fresh milk online", cluster: "transactional" },
+      ]);
+      await prompts.refetch();
+      await handleSweep();
+    } catch (err) {
+      console.error("Auto seed error:", err);
+    }
   };
 
   const report = visibility.data;
@@ -24,18 +68,52 @@ function AiVisibilityClient() {
     <div className="space-y-5">
       <PageHeader
         title="Search & AI Visibility"
-        subtitle="Track brand citations and answer-engine presence across AI models."
+        subtitle="Track brand citations and answer-engine presence across ChatGPT, Claude, and Gemini."
         actions={
-          <ActionButton
-            variant="primary"
-            icon={sweep.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            onClick={handleSweep}
-            disabled={sweep.isPending || !projectId}
-          >
-            {sweep.isPending ? "Sweeping Models..." : "Sweep AI Engines"}
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="text-xs"
+            >
+              <Plus size={13} className="mr-1" /> Add Query
+            </Button>
+            <ActionButton
+              variant="primary"
+              icon={sweep.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              onClick={handleSweep}
+              disabled={sweep.isPending || !projectId}
+            >
+              {sweep.isPending ? "Sweeping Models..." : "Sweep AI Engines"}
+            </ActionButton>
+          </div>
         }
       />
+
+      {showAddForm && (
+        <form onSubmit={handleAddQuery} className="card p-4 space-y-3 bg-[var(--surface-1)] border border-[var(--border-color)] rounded-xl">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Add Target Buyer Query</h4>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newQuery}
+              onChange={(e) => setNewQuery(e.target.value)}
+              placeholder="e.g., best fresh A2 milk subscription"
+              className="flex-1 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-500)]"
+            />
+            <Button type="submit" variant="primary" size="sm" disabled={addPrompts.isPending || !newQuery.trim()}>
+              {addPrompts.isPending ? "Adding..." : "Add & Sweep"}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {statusMessage && (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+          {statusMessage}
+        </div>
+      )}
 
       <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
         <button
@@ -65,7 +143,7 @@ function AiVisibilityClient() {
             />
             <Kpi
               label="Tracked Prompts"
-              value={report?.summary?.checked?.toString() || "—"}
+              value={promptList.length.toString()}
               sub="Active buyer queries monitored"
             />
             <Kpi
@@ -87,6 +165,11 @@ function AiVisibilityClient() {
                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
                   Add target queries to monitor your visibility in ChatGPT, Claude, and Gemini.
                 </p>
+                <div className="mt-6 flex gap-3">
+                  <Button variant="primary" size="sm" onClick={handleAutoSeed} disabled={addPrompts.isPending || sweep.isPending}>
+                    <Sparkles size={14} className="mr-1.5" /> Auto-generate & Sweep Target Queries
+                  </Button>
+                </div>
               </div>
             ) : (
               <Table minWidth={900}>
@@ -116,7 +199,7 @@ function AiVisibilityClient() {
                         <Mono tone="soft">{row.estimatedVolume?.toLocaleString() || "—"}</Mono>
                       </Td>
                       {(["CHATGPT", "CLAUDE", "GEMINI"] as const).map((assistant) => {
-                        const check = row.latestChecks.find(c => c.assistant === assistant);
+                        const check = row.latestChecks.find((c) => c.assistant === assistant);
                         return (
                           <Td key={assistant}>
                             {check ? (

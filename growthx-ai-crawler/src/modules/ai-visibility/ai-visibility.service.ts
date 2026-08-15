@@ -165,9 +165,26 @@ export class AiVisibilityService {
     const context = await this.loadContext(projectId);
     const assistants = options.assistants?.length ? options.assistants : SUPPORTED_ASSISTANTS;
 
-    const prompts = await this.prisma.trackedPrompt.findMany({
+    let prompts = await this.prisma.trackedPrompt.findMany({
       where: { projectId, isActive: true },
     });
+
+    if (prompts.length === 0) {
+      const primaryDomain = context.ownDomains[0] || 'brand';
+      const brandName = context.ownBrandNames[0] || primaryDomain.split('.')[0];
+
+      const defaultQueries = [
+        { text: `best ${brandName} products and services`, cluster: 'brand intent', estimatedVolume: 1200 },
+        { text: `is ${brandName} legitimate and reliable`, cluster: 'reputation', estimatedVolume: 850 },
+        { text: `top alternatives to ${brandName}`, cluster: 'commercial', estimatedVolume: 1500 },
+        { text: `buy fresh organic products on ${primaryDomain}`, cluster: 'transactional', estimatedVolume: 2100 },
+      ];
+
+      await this.addPrompts(projectId, defaultQueries);
+      prompts = await this.prisma.trackedPrompt.findMany({
+        where: { projectId, isActive: true },
+      });
+    }
 
     const skippedAssistants = assistants.filter((a) => !ASSISTANT_PROVIDER[a]);
     const runnable = assistants.filter((a) => ASSISTANT_PROVIDER[a]);
