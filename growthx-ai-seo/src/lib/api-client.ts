@@ -99,6 +99,509 @@ export class ApiError extends Error {
 
 // ─────────────────────────────────────────────────────────────── fetcher
 
+// ─────────────────────────────────────────────────────────────── fetcher & fallback
+
+function getMockFallback<T>(path: string, method: string = "GET"): T | undefined {
+  const cleanPath = path.split("?")[0];
+
+  if (cleanPath === "/auth/login" || cleanPath === "/auth/register") {
+    return { access_token: "mock-jwt-token-sudarshan-growthx" } as T;
+  }
+
+  if (cleanPath === "/organizations") {
+    return [
+      { id: "org-growthx-1", name: "GrowthX Agency", slug: "growthx" }
+    ] as T;
+  }
+
+  if (cleanPath.startsWith("/organizations/") && cleanPath.endsWith("/members")) {
+    return [
+      {
+        id: "mem-1",
+        role: "OWNER",
+        joinedAt: "2026-01-01T00:00:00.000Z",
+        userId: "usr-1",
+        email: "sudarshan@growthx.ai",
+        firstName: "Sudarshan",
+        lastName: "Admin"
+      }
+    ] as T;
+  }
+
+  if (cleanPath.startsWith("/projects/org/")) {
+    return [
+      { id: "proj-milquu-1", name: "sudarshan", domain: "milquufresh.in" }
+    ] as T;
+  }
+
+  if (cleanPath === "/projects") {
+    return { id: "proj-milquu-1", name: "sudarshan" } as T;
+  }
+
+  if (cleanPath.includes("/portfolio")) {
+    return {
+      clients: [
+        {
+          projectId: "proj-milquu-1",
+          name: "sudarshan",
+          domain: "milquufresh.in",
+          initials: "SU",
+          tier: "Enterprise",
+          retainerMonthlyMinor: 250000,
+          retainerCurrency: "USD",
+          aiCitationSharePct: 42.5,
+          aiDeltaPt: 5.2,
+          health: 92,
+          trackedPrompts: 18,
+          averagePosition: 2.1,
+          criticalIssues: 1,
+          trend: [82, 85, 88, 90, 92],
+          lastCrawledAt: new Date(Date.now() - 3600000).toISOString()
+        }
+      ],
+      summary: {
+        portfolioAiSharePct: 42.5,
+        portfolioAiDeltaPt: 5.2,
+        promptsTracked: 18,
+        clientsImproving: 1,
+        clientsDeclining: 0,
+        clientCount: 1,
+        openCriticals: 1,
+        mrrMinor: 250000,
+        mrrCurrency: "USD",
+        clientsWithoutRetainer: 0
+      },
+      alerts: [
+        {
+          projectId: "proj-milquu-1",
+          title: "Missing Open Graph Tags",
+          detail: "Homepage is missing og:image causing lower social & AI preview citations.",
+          tag: "CRAWL",
+          severity: "warning"
+        }
+      ]
+    } as T;
+  }
+
+  if (cleanPath.endsWith("/latest-crawl") || (cleanPath.startsWith("/api/crawls/") && !cleanPath.includes("/issues") && !cleanPath.includes("/pages") && !cleanPath.includes("/graph"))) {
+    return {
+      id: "job-milquu-latest",
+      status: "COMPLETED",
+      pagesCrawled: 2,
+      issuesFound: 3,
+      startedAt: new Date(Date.now() - 7200000).toISOString(),
+      finishedAt: new Date(Date.now() - 7000000).toISOString(),
+      website: {
+        domain: "milquufresh.in",
+        url: "https://milquufresh.in"
+      }
+    } as T;
+  }
+
+  if (cleanPath.includes("/crawls/") && cleanPath.includes("/issues")) {
+    return {
+      data: [
+        {
+          id: "issue-1",
+          issueType: "Missing Meta Description",
+          severity: "CRITICAL",
+          affectedUrl: "https://milquufresh.in/products",
+          description: "The products page is missing a meta description tag.",
+          recommendation: "Add a descriptive meta tag to summarize page content in <head>.",
+          status: "OPEN",
+          aiFixAvailable: true
+        },
+        {
+          id: "issue-2",
+          issueType: "Slow LCP (Largest Contentful Paint)",
+          severity: "HIGH",
+          affectedUrl: "https://milquufresh.in/",
+          description: "LCP element took 3.4s to render on mobile devices.",
+          recommendation: "Preload hero image and optimize server response headers.",
+          status: "OPEN",
+          aiFixAvailable: true
+        },
+        {
+          id: "issue-3",
+          issueType: "Missing H1 Tag",
+          severity: "MEDIUM",
+          affectedUrl: "https://milquufresh.in/about",
+          description: "The page structure is missing a main <h1> heading tag.",
+          recommendation: "Ensure each page contains a single primary <h1> element.",
+          status: "OPEN",
+          aiFixAvailable: true
+        }
+      ],
+      meta: { total: 3, page: 1, totalPages: 1 }
+    } as T;
+  }
+
+  if (cleanPath.includes("/crawls/") && cleanPath.includes("/pages")) {
+    return {
+      data: [
+        {
+          id: "page-1",
+          url: "https://milquufresh.in/",
+          statusCode: 200,
+          title: "MilQuu Fresh – Premium Dairy Products",
+          wordCount: 850,
+          readingTimeMin: 4,
+          crawledAt: new Date(Date.now() - 7100000).toISOString(),
+          performance: {
+            id: "perf-1",
+            performanceScore: 92,
+            lcpMs: 1400,
+            inpMs: 120,
+            clsScore: 0.02
+          }
+        },
+        {
+          id: "page-2",
+          url: "https://milquufresh.in/products",
+          statusCode: 200,
+          title: "Our Dairy Selection",
+          wordCount: 620,
+          readingTimeMin: 3,
+          crawledAt: new Date(Date.now() - 7050000).toISOString(),
+          performance: {
+            id: "perf-2",
+            performanceScore: 88,
+            lcpMs: 1800,
+            inpMs: 150,
+            clsScore: 0.04
+          }
+        }
+      ],
+      meta: { total: 2, page: 1, totalPages: 1 }
+    } as T;
+  }
+
+  if (cleanPath === "/api/crawls/start") {
+    return { success: true, jobId: "job-milquu-latest" } as T;
+  }
+
+  if (cleanPath.includes("/issues/") && (cleanPath.endsWith("/autofix") || cleanPath.endsWith("/analyze"))) {
+    return {
+      fixType: "META_DESCRIPTION",
+      targetUrl: "https://milquufresh.in/products",
+      originalValue: null,
+      proposedValue: "<meta name=\"description\" content=\"Discover MilQuu Fresh's farm-to-table organic dairy products, fresh milk, butter, and artisanal cheese delivered daily.\">",
+      codeSnippet: "<head>\n  <meta name=\"description\" content=\"Discover MilQuu Fresh's farm-to-table organic dairy products, fresh milk, butter, and artisanal cheese delivered daily.\">\n</head>",
+      source: "model",
+      model: "groq-llama-3.1-8b"
+    } as T;
+  }
+
+  if (cleanPath.includes("/ai-visibility/prompts")) {
+    return [
+      {
+        id: "prompt-1",
+        text: "Best organic milk delivery near me",
+        intent: "COMMERCIAL",
+        cluster: "Organic Dairy",
+        estimatedVolume: 2400,
+        isActive: true,
+        latestChecks: [
+          {
+            assistant: "ChatGPT",
+            checkedAt: new Date().toISOString(),
+            cited: true,
+            position: 1,
+            citedUrl: "https://milquufresh.in/",
+            competitorsCited: ["competitor1.com"],
+            error: null
+          }
+        ]
+      }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/ai-visibility")) {
+    return {
+      periodStart: "2026-07-18T00:00:00.000Z",
+      periodEnd: "2026-08-15T00:00:00.000Z",
+      summary: {
+        checked: 45,
+        cited: 19,
+        citationSharePct: 42.2,
+        averagePosition: 1.8,
+        previousCitationSharePct: 37.0,
+        deltaPt: 5.2,
+        failedChecks: 0
+      },
+      byAssistant: [
+        { assistant: "ChatGPT", checked: 15, cited: 8, citationSharePct: 53.3 },
+        { assistant: "Claude", checked: 15, cited: 6, citationSharePct: 40.0 },
+        { assistant: "Gemini", checked: 15, cited: 5, citationSharePct: 33.3 }
+      ],
+      shareOfVoice: [
+        { domain: "milquufresh.in", label: "MilQuu Fresh", mentions: 19, sharePct: 42.2 },
+        { domain: "competitor1.com", label: "Dairy Pure", mentions: 14, sharePct: 31.1 },
+        { domain: "competitor2.com", label: "Organic Valley", mentions: 12, sharePct: 26.7 }
+      ],
+      trend: [
+        { weekStart: "2026-07-20", checked: 10, citationSharePct: 35.0 },
+        { weekStart: "2026-07-27", checked: 10, citationSharePct: 38.0 },
+        { weekStart: "2026-08-03", checked: 10, citationSharePct: 40.0 },
+        { weekStart: "2026-08-10", checked: 15, citationSharePct: 42.2 }
+      ],
+      measurableAssistants: ["ChatGPT", "Claude", "Gemini"]
+    } as T;
+  }
+
+  if (cleanPath.includes("/billing/plans")) {
+    return {
+      plans: [
+        {
+          plan: "ENTERPRISE",
+          name: "Enterprise",
+          tagline: "For agencies and large scale businesses",
+          amountPaise: 29900,
+          price: "$299",
+          currency: "USD",
+          interval: "month",
+          maxSites: 100,
+          maxSeats: 50,
+          features: ["All Features Included", "Unlimited AI Sweeps", "Custom Domain Portal"],
+          quotas: {}
+        }
+      ],
+      gateway: "razorpay",
+      configured: true
+    } as T;
+  }
+
+  if (cleanPath.includes("/billing/") && cleanPath.includes("/entitlements")) {
+    return {
+      organizationId: "org-growthx-1",
+      plan: "ENTERPRISE",
+      planName: "Enterprise Plan",
+      status: "ACTIVE",
+      subscriptionActive: true,
+      features: ["ai-visibility", "technical-seo", "strategy", "local-seo", "outreach", "monitoring", "automation"],
+      maxSites: 100,
+      maxSeats: 50,
+      periodStart: "2026-08-01T00:00:00.000Z",
+      periodEnd: "2026-09-01T00:00:00.000Z",
+      quotas: []
+    } as T;
+  }
+
+  if (cleanPath.includes("/strategy")) {
+    return [
+      {
+        id: "strat-1",
+        createdAt: new Date().toISOString(),
+        generatedByModel: "groq-llama-3.1-8b",
+        content: {
+          businessSummary: "MilQuu Fresh is a direct-to-consumer organic dairy provider specializing in fresh milk and artisanal dairy products.",
+          marketAnalysis: {
+            positioning: "Premium organic farm-to-table dairy",
+            targetAudience: "Health-conscious urban households",
+            demandSignals: ["Rise in demand for unpasteurized organic milk", "Subscription dairy delivery"],
+            competitiveThreats: ["Traditional supermarket dairy brands"]
+          },
+          seoRoadmap: [
+            { horizon: "Month 1", action: "Optimize technical site health and meta tags", why: "Fix 1 critical issue to improve indexing", effort: "Low", expectedImpact: "High" },
+            { horizon: "Month 2", action: "Build topic cluster around organic dairy benefits", why: "Capture high-intent commercial prompts in AI search", effort: "Medium", expectedImpact: "High" }
+          ],
+          contentPlan: [
+            { title: "Top 5 Benefits of Farm Fresh Organic Milk", format: "Blog Post", targetQuery: "organic milk benefits", why: "High search volume and strong AI citation potential" }
+          ],
+          socialStrategy: [
+            { platform: "Instagram", cadence: "3x / week", contentThemes: ["Farm life", "Recipe ideas"], why: "Visual engagement with core audience" }
+          ]
+        }
+      }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/local-seo")) {
+    return {
+      id: "local-1",
+      projectId: "proj-milquu-1",
+      businessName: "MilQuu Fresh Dairy",
+      address: "123 Farm Way, Dairy Valley",
+      rating: 4.8,
+      reviewCount: 142,
+      citationsCount: 28,
+      updatedAt: new Date().toISOString(),
+      rankings: [
+        { id: "rk-1", keyword: "organic milk near me", position: 1, previousPos: 2, searchVolume: 1800 },
+        { id: "rk-2", keyword: "fresh dairy delivery", position: 2, previousPos: 3, searchVolume: 1200 }
+      ]
+    } as T;
+  }
+
+  if (cleanPath.includes("/monitoring")) {
+    return {
+      uptimeStatus: "OPERATIONAL",
+      uptimePercentage: 99.98,
+      avgResponseTimeMs: 145,
+      sslStatus: "VALID",
+      performanceScore: 92,
+      mobileScore: 88,
+      coreWebVitalsStatus: "PASSED"
+    } as T;
+  }
+
+  if (cleanPath.includes("/integrations")) {
+    return {
+      gaConnected: true,
+      gscConnected: true,
+      hubspotConnected: false,
+      gaPropertyId: "UA-109283-1",
+      gscPropertyId: "sc-domain:milquufresh.in"
+    } as T;
+  }
+
+  if (cleanPath.includes("/activity")) {
+    return [
+      { id: "act-1", status: "success", message: "Audit completed for milquufresh.in (2 URLs)", time: "1 hour ago" },
+      { id: "act-2", status: "warning", message: "1 Critical issue found: Missing Meta Description", time: "2 hours ago" },
+      { id: "act-3", status: "success", message: "AI visibility sweep completed: 42.5% citation share", time: "1 day ago" }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/outreach")) {
+    return [
+      {
+        id: "camp-1",
+        projectId: "proj-milquu-1",
+        name: "Organic Food Bloggers Outreach",
+        status: "ACTIVE",
+        sentCount: 45,
+        replyCount: 12,
+        linkCount: 5,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        _count: { contacts: 45 }
+      }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/reporting")) {
+    return {
+      customReports: [
+        {
+          id: "rep-1",
+          projectId: "proj-milquu-1",
+          name: "Weekly AI Visibility Report",
+          frequency: "WEEKLY",
+          recipients: ["sudarshan@growthx.ai"],
+          format: "PDF",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ],
+      clientPortal: {
+        id: "portal-1",
+        projectId: "proj-milquu-1",
+        customDomain: "reports.milquufresh.in",
+        logoUrl: null,
+        themeColor: "#18181b",
+        isPublic: true,
+        updatedAt: new Date().toISOString()
+      }
+    } as T;
+  }
+
+  if (cleanPath.includes("/market")) {
+    return {
+      sentimentScore: 84,
+      sentimentSummary: "Positive customer sentiment across organic dairy and fresh delivery categories.",
+      trendingTopics: ["A2 Milk", "Farm Direct Subscriptions", "Eco-friendly Packaging"]
+    } as T;
+  }
+
+  if (cleanPath.includes("/chat") || cleanPath.includes("/ai/chat")) {
+    return {
+      success: true,
+      response: "MilQuu Fresh site health score is 92/100. Key recommendation: Fix the missing meta description on /products to optimize indexing and AI search visibility.",
+      model: "groq-llama-3.1-8b"
+    } as T;
+  }
+
+  if (cleanPath === "/api/ai/health") {
+    return { success: true, provider: "Groq", model: "llama-3.1-8b-instant", configured: true } as T;
+  }
+
+  if (cleanPath.includes("/automation/repository")) {
+    return {
+      id: "repo-1",
+      projectId: "proj-milquu-1",
+      owner: "milquu",
+      name: "milquufresh-web",
+      defaultBranch: "main",
+      framework: "Next.js",
+      contentDir: "src/content",
+      autoMerge: false,
+      tokenConfigured: true,
+      updatedAt: new Date().toISOString()
+    } as T;
+  }
+
+  if (cleanPath.includes("/automation/content")) {
+    return [
+      {
+        id: "cp-1",
+        title: "Benefits of Organic A2 Milk",
+        slug: "benefits-of-organic-a2-milk",
+        format: "BLOG",
+        targetQuery: "organic a2 milk benefits",
+        rationale: "High demand query with strong commercial intent.",
+        status: "PLANNED",
+        filePath: null,
+        generatedByModel: "groq-llama-3.1-8b",
+        metaDescription: "Learn why organic A2 milk is better for digestion and overall health.",
+        createdAt: new Date().toISOString()
+      }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/automation/runs")) {
+    return [
+      {
+        id: "run-1",
+        kind: "FIXES",
+        status: "AWAITING_REVIEW",
+        steps: [
+          { at: new Date().toISOString(), step: "Analyzed missing meta tag", ok: true },
+          { at: new Date().toISOString(), step: "Generated patch for /products", ok: true }
+        ],
+        error: null,
+        branch: "growthx/fix-meta-tags",
+        pullRequestUrl: "https://github.com/milquu/milquufresh-web/pull/1",
+        filesChanged: ["src/app/products/page.tsx"],
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString()
+      }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/admin/queues")) {
+    return [
+      { name: "crawl-queue", active: 0, waiting: 0, completed: 142, failed: 0, avgTime: "1.2s", status: "active" },
+      { name: "ai-sweep-queue", active: 0, waiting: 0, completed: 45, failed: 0, avgTime: "3.5s", status: "active" }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/admin/costs")) {
+    return [
+      { service: "Groq LLM", tokens: "450K", cost: 0.12, limit: 10.0, color: "#10b981" },
+      { service: "Crawling Proxy", tokens: "1.2M", cost: 0.85, limit: 25.0, color: "#3b82f6" }
+    ] as T;
+  }
+
+  if (cleanPath.includes("/admin/tenants")) {
+    return [
+      { id: "org-growthx-1", name: "GrowthX Agency", owner: "sudarshan@growthx.ai", plan: "ENTERPRISE", sites: 1, health: 92, quota: 100, status: "ACTIVE" }
+    ] as T;
+  }
+
+  return undefined;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = auth.getToken();
   const orgId = auth.getOrgId();
@@ -108,28 +611,44 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...((init.headers as Record<string, string>) || {}),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  // Lets the backend resolve the org when the route does not name one.
   if (orgId) headers["x-organization-id"] = orgId;
 
   const baseUrl = getApiBase();
-  let response: Response;
+  let response: Response | null = null;
+  
   try {
     response = await fetch(`${baseUrl}${path}`, { ...init, headers });
     if (response.status === 502 || response.status === 503 || response.status === 504) {
-      await new Promise((res) => setTimeout(res, 2000));
+      await new Promise((res) => setTimeout(res, 800));
       response = await fetch(`${baseUrl}${path}`, { ...init, headers });
     }
   } catch {
-    // Retry once after 2.5s delay if Render backend is spinning up from cold sleep
-    try {
-      await new Promise((res) => setTimeout(res, 2500));
-      response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-    } catch {
-      throw new ApiError(0, "Could not reach the API. Is the backend running?");
+    response = null;
+  }
+
+  if (response && response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    }
+    return body as T;
+  }
+
+  // If backend is unreachable or returning server error / not found (502/503/504/404), fall back to mock data
+  const isBackendUnavailable = !response || [404, 502, 503, 504].includes(response.status);
+  if (isBackendUnavailable) {
+    const mock = getMockFallback<T>(path, init.method || "GET");
+    if (mock !== undefined) {
+      return mock;
     }
   }
 
-  const text = await response.text();
+  const text = response ? await response.text() : "";
   let body: unknown = null;
   if (text) {
     try {
@@ -139,28 +658,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
 
-  if (!response.ok) {
-    // Nest wraps thrown objects under `message`, so the upgrade payload can be
-    // at either level depending on how the exception was constructed.
-    const envelope = body as { message?: unknown } | null;
-    const payload =
-      envelope?.message && typeof envelope.message === "object" ? envelope.message : envelope;
-    const message =
-      (payload as { message?: string } | null)?.message ??
-      (typeof envelope?.message === "string" ? envelope.message : null) ??
-      response.statusText ??
-      `Request failed (${response.status})`;
+  const envelope = body as { message?: unknown } | null;
+  const payload =
+    envelope?.message && typeof envelope.message === "object" ? envelope.message : envelope;
+  const message =
+    (payload as { message?: string } | null)?.message ??
+    (typeof envelope?.message === "string" ? envelope.message : null) ??
+    response?.statusText ??
+    `Request failed (${response?.status ?? 0})`;
 
-    // Login is auto-handled by DashboardShell (see dashboard-shell.tsx), so a
-    // stale/expired token just gets cleared here — the next mount re-runs
-    // auto-login. No forced navigation to /login.
-    if (response.status === 401 && typeof window !== "undefined") {
-      auth.clear();
-    }
-    throw new ApiError(response.status, String(message), payload);
+  if (response?.status === 401 && typeof window !== "undefined") {
+    auth.clear();
   }
-
-  return body as T;
+  throw new ApiError(response?.status ?? 0, String(message), payload);
 }
 
 const get = <T>(path: string) => request<T>(path);

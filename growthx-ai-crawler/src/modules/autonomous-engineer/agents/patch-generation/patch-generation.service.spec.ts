@@ -8,7 +8,7 @@ describe('PatchGenerationService', () => {
   let dir: string;
 
   beforeEach(async () => {
-    service = new PatchGenerationService();
+    service = new PatchGenerationService({} as any);
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-patch-'));
   });
 

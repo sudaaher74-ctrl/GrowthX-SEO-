@@ -21,6 +21,8 @@ import { GitService } from '../agents/git/git.service';
 import { RepositoryUnderstandingService } from '../agents/repository-understanding/repository-understanding.service';
 import { PatchGenerationService } from '../agents/patch-generation/patch-generation.service';
 import { ValidationService } from '../agents/validation/validation.service';
+import { IssueAnalysisService } from '../agents/issue-analysis/issue-analysis.service';
+import { FileSelectionService } from '../agents/file-selection/file-selection.service';
 import { OrchestratorService } from './orchestrator.service';
 
 describe('OrchestratorService', () => {
@@ -41,6 +43,9 @@ describe('OrchestratorService', () => {
     patch = { updateNextJsMetadata: jest.fn().mockResolvedValue(true) };
     validation = { validateRepository: jest.fn().mockResolvedValue({ success: true, output: '' }) };
 
+    const issueAnalysis = { analyzeIssue: jest.fn().mockResolvedValue({ targetFileHint: 'app/layout.tsx', proposedFixDescription: 'New title' }) };
+    const fileSelection = { selectTargetFile: jest.fn().mockResolvedValue({ selectedFilePath: 'app/layout.tsx' }) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrchestratorService,
@@ -48,13 +53,15 @@ describe('OrchestratorService', () => {
         { provide: RepositoryUnderstandingService, useValue: repo },
         { provide: PatchGenerationService, useValue: patch },
         { provide: ValidationService, useValue: validation },
+        { provide: IssueAnalysisService, useValue: issueAnalysis },
+        { provide: FileSelectionService, useValue: fileSelection },
       ],
     }).compile();
     service = module.get(OrchestratorService);
   });
 
   const run = () =>
-    service.executeAutoFixWorkflow('ghp_token', 'owner', 'repo', 'issue_1', 'app/layout.tsx', 'title', 'New title');
+    service.executeAutoFixWorkflow('ghp_token', 'owner', 'repo', 'issue_1', 'Missing title tag');
 
   it('runs clone → branch → patch → validate → PR and returns the PR url', async () => {
     await expect(run()).resolves.toBe('https://github.com/o/r/pull/1');
