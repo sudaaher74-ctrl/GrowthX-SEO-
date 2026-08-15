@@ -5,8 +5,20 @@
  * auth and organizations sit at the root, everything else under `/api`.
  */
 
-const RAW_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-export const API_BASE = RAW_BASE.replace(/\/+$/, "");
+export function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      return "https://growthx-crawler-api.onrender.com";
+    }
+  }
+  return "http://localhost:3000";
+}
+
+export const API_BASE = getApiBase();
 
 const TOKEN_KEY = "growthx.token";
 const ORG_KEY = "growthx.org";
@@ -99,11 +111,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   // Lets the backend resolve the org when the route does not name one.
   if (orgId) headers["x-organization-id"] = orgId;
 
+  const baseUrl = getApiBase();
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+    response = await fetch(`${baseUrl}${path}`, { ...init, headers });
   } catch {
-    throw new ApiError(0, "Could not reach the API. Is the backend running?");
+    // Retry once after 2.5s delay if Render backend is spinning up from cold sleep
+    try {
+      await new Promise((res) => setTimeout(res, 2500));
+      response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    } catch {
+      throw new ApiError(0, "Could not reach the API. Is the backend running?");
+    }
   }
 
   const text = await response.text();
