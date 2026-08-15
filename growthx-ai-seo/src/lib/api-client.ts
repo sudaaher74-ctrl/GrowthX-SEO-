@@ -101,8 +101,23 @@ export class ApiError extends Error {
 
 // ─────────────────────────────────────────────────────────────── fetcher & fallback
 
+// ─────────────────────────────────────────────────────────────── fetcher & fallback
+
+function isImmunityProject(path: string): boolean {
+  if (path.includes("immunity") || path.includes("proj-immunity")) return true;
+  if (path.includes("milquu")) return false;
+  if (typeof window !== "undefined") {
+    const currentProject = window.localStorage.getItem("growthx.project");
+    if (currentProject && (currentProject.includes("immunity") || currentProject === "proj-immunity-1")) {
+      return true;
+    }
+  }
+  return true; // Default to immunity group
+}
+
 function getMockFallback<T>(path: string, method: string = "GET"): T | undefined {
   const cleanPath = path.split("?")[0];
+  const isImmunity = isImmunityProject(path);
 
   if (cleanPath === "/auth/login" || cleanPath === "/auth/register") {
     return { access_token: "mock-jwt-token-sudarshan-growthx" } as T;
@@ -130,23 +145,41 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
 
   if (cleanPath.startsWith("/projects/org/")) {
     return [
+      { id: "proj-immunity-1", name: "immunity", domain: "immunitygroup.com" },
       { id: "proj-milquu-1", name: "sudarshan", domain: "milquufresh.in" }
     ] as T;
   }
 
   if (cleanPath === "/projects") {
-    return { id: "proj-milquu-1", name: "sudarshan" } as T;
+    return { id: isImmunity ? "proj-immunity-1" : "proj-milquu-1", name: isImmunity ? "immunity" : "sudarshan" } as T;
   }
 
   if (cleanPath.includes("/portfolio")) {
     return {
       clients: [
         {
+          projectId: "proj-immunity-1",
+          name: "immunity",
+          domain: "immunitygroup.com",
+          initials: "IM",
+          tier: "Enterprise",
+          retainerMonthlyMinor: 500000,
+          retainerCurrency: "USD",
+          aiCitationSharePct: 58.4,
+          aiDeltaPt: 8.1,
+          health: 94,
+          trackedPrompts: 24,
+          averagePosition: 1.4,
+          criticalIssues: 0,
+          trend: [88, 90, 92, 94, 94],
+          lastCrawledAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
           projectId: "proj-milquu-1",
           name: "sudarshan",
           domain: "milquufresh.in",
           initials: "SU",
-          tier: "Enterprise",
+          tier: "Starter",
           retainerMonthlyMinor: 250000,
           retainerCurrency: "USD",
           aiCitationSharePct: 42.5,
@@ -160,24 +193,24 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
         }
       ],
       summary: {
-        portfolioAiSharePct: 42.5,
-        portfolioAiDeltaPt: 5.2,
-        promptsTracked: 18,
-        clientsImproving: 1,
+        portfolioAiSharePct: 50.5,
+        portfolioAiDeltaPt: 6.6,
+        promptsTracked: 42,
+        clientsImproving: 2,
         clientsDeclining: 0,
-        clientCount: 1,
+        clientCount: 2,
         openCriticals: 1,
-        mrrMinor: 250000,
+        mrrMinor: 750000,
         mrrCurrency: "USD",
         clientsWithoutRetainer: 0
       },
       alerts: [
         {
-          projectId: "proj-milquu-1",
-          title: "Missing Open Graph Tags",
-          detail: "Homepage is missing og:image causing lower social & AI preview citations.",
+          projectId: "proj-immunity-1",
+          title: "Kalamboli Junction Infrastructure Landing Pages",
+          detail: "All real estate development & quarrying landing pages audited.",
           tag: "CRAWL",
-          severity: "warning"
+          severity: "info"
         }
       ]
     } as T;
@@ -185,20 +218,58 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
 
   if (cleanPath.endsWith("/latest-crawl") || (cleanPath.startsWith("/api/crawls/") && !cleanPath.includes("/issues") && !cleanPath.includes("/pages") && !cleanPath.includes("/graph"))) {
     return {
-      id: "job-milquu-latest",
+      id: isImmunity ? "job-immunity-latest" : "job-milquu-latest",
       status: "COMPLETED",
-      pagesCrawled: 2,
+      pagesCrawled: isImmunity ? 14 : 2,
       issuesFound: 3,
       startedAt: new Date(Date.now() - 7200000).toISOString(),
       finishedAt: new Date(Date.now() - 7000000).toISOString(),
       website: {
-        domain: "milquufresh.in",
-        url: "https://milquufresh.in"
+        domain: isImmunity ? "immunitygroup.com" : "milquufresh.in",
+        url: isImmunity ? "https://immunitygroup.com" : "https://milquufresh.in"
       }
     } as T;
   }
 
   if (cleanPath.includes("/crawls/") && cleanPath.includes("/issues")) {
+    if (isImmunity) {
+      return {
+        data: [
+          {
+            id: "issue-imm-1",
+            issueType: "CANONICAL_URL",
+            severity: "HIGH",
+            affectedUrl: "https://immunitygroup.com/projects/kalamboli-junction",
+            description: "Page does not specify a self-referencing or preferred canonical URL.",
+            recommendation: "Add a <link rel=\"canonical\" href=\"https://immunitygroup.com/projects/kalamboli-junction\" /> tag in <head>.",
+            status: "OPEN",
+            aiFixAvailable: true
+          },
+          {
+            id: "issue-imm-2",
+            issueType: "DUPLICATE_TITLE",
+            severity: "HIGH",
+            affectedUrl: "https://immunitygroup.com/contact",
+            description: "Title tag is duplicate of another page (https://immunitygroup.com/contact).",
+            recommendation: "Ensure each page title is unique and describes its primary content.",
+            status: "OPEN",
+            aiFixAvailable: true
+          },
+          {
+            id: "issue-imm-3",
+            issueType: "ORPHAN_PAGE",
+            severity: "HIGH",
+            affectedUrl: "https://immunitygroup.com/real-estate-development",
+            description: "Page has zero incoming internal links. It cannot be reached by users navigating the site.",
+            recommendation: "Add internal links to the real estate development page from top-level navigation.",
+            status: "OPEN",
+            aiFixAvailable: true
+          }
+        ],
+        meta: { total: 3, page: 1, totalPages: 1 }
+      } as T;
+    }
+
     return {
       data: [
         {
@@ -237,6 +308,34 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/crawls/") && cleanPath.includes("/pages")) {
+    if (isImmunity) {
+      return {
+        data: [
+          {
+            id: "page-imm-1",
+            url: "https://immunitygroup.com/",
+            statusCode: 200,
+            title: "Immunity Group – Real Estate Development, Quarrying & Minerals",
+            wordCount: 1250,
+            readingTimeMin: 5,
+            crawledAt: new Date(Date.now() - 7100000).toISOString(),
+            performance: { id: "perf-imm-1", performanceScore: 94, lcpMs: 1200, inpMs: 100, clsScore: 0.01 }
+          },
+          {
+            id: "page-imm-2",
+            url: "https://immunitygroup.com/projects/kalamboli-junction",
+            statusCode: 200,
+            title: "Kalamboli Junction Infrastructure & Development Project",
+            wordCount: 980,
+            readingTimeMin: 4,
+            crawledAt: new Date(Date.now() - 7050000).toISOString(),
+            performance: { id: "perf-imm-2", performanceScore: 92, lcpMs: 1350, inpMs: 110, clsScore: 0.02 }
+          }
+        ],
+        meta: { total: 2, page: 1, totalPages: 1 }
+      } as T;
+    }
+
     return {
       data: [
         {
@@ -277,10 +376,22 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath === "/api/crawls/start") {
-    return { success: true, jobId: "job-milquu-latest" } as T;
+    return { success: true, jobId: isImmunity ? "job-immunity-latest" : "job-milquu-latest" } as T;
   }
 
   if (cleanPath.includes("/issues/") && (cleanPath.endsWith("/autofix") || cleanPath.endsWith("/analyze"))) {
+    if (isImmunity) {
+      return {
+        fixType: "CANONICAL_URL",
+        targetUrl: "https://immunitygroup.com/projects/kalamboli-junction",
+        originalValue: null,
+        proposedValue: "<link rel=\"canonical\" href=\"https://immunitygroup.com/projects/kalamboli-junction\" />",
+        codeSnippet: "<head>\n  <link rel=\"canonical\" href=\"https://immunitygroup.com/projects/kalamboli-junction\" />\n</head>",
+        source: "heuristic",
+        model: "groq-llama-3.1-8b"
+      } as T;
+    }
+
     return {
       fixType: "META_DESCRIPTION",
       targetUrl: "https://milquufresh.in/products",
@@ -293,6 +404,49 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/ai-visibility/prompts")) {
+    if (isImmunity) {
+      return [
+        {
+          id: "prompt-imm-1",
+          text: "real estate project development kalamboli junction",
+          intent: "COMMERCIAL",
+          cluster: "Infrastructure & Real Estate",
+          estimatedVolume: 2400,
+          isActive: true,
+          latestChecks: [
+            {
+              assistant: "ChatGPT",
+              checkedAt: new Date().toISOString(),
+              cited: true,
+              position: 1,
+              citedUrl: "https://immunitygroup.com/",
+              competitorsCited: [],
+              error: null
+            }
+          ]
+        },
+        {
+          id: "prompt-imm-2",
+          text: "quarrying and mineral processing services navi mumbai",
+          intent: "COMMERCIAL",
+          cluster: "Mineral Processing",
+          estimatedVolume: 1600,
+          isActive: true,
+          latestChecks: [
+            {
+              assistant: "Claude",
+              checkedAt: new Date().toISOString(),
+              cited: true,
+              position: 1,
+              citedUrl: "https://immunitygroup.com/services/quarrying-mineral-processing",
+              competitorsCited: [],
+              error: null
+            }
+          ]
+        }
+      ] as T;
+    }
+
     return [
       {
         id: "prompt-1",
@@ -317,6 +471,39 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/ai-visibility")) {
+    if (isImmunity) {
+      return {
+        periodStart: "2026-07-18T00:00:00.000Z",
+        periodEnd: "2026-08-15T00:00:00.000Z",
+        summary: {
+          checked: 60,
+          cited: 35,
+          citationSharePct: 58.3,
+          averagePosition: 1.4,
+          previousCitationSharePct: 50.2,
+          deltaPt: 8.1,
+          failedChecks: 0
+        },
+        byAssistant: [
+          { assistant: "ChatGPT", checked: 20, cited: 14, citationSharePct: 70.0 },
+          { assistant: "Claude", checked: 20, cited: 11, citationSharePct: 55.0 },
+          { assistant: "Gemini", checked: 20, cited: 10, citationSharePct: 50.0 }
+        ],
+        shareOfVoice: [
+          { domain: "immunitygroup.com", label: "Immunity Group", mentions: 35, sharePct: 58.3 },
+          { domain: "infra-competitor.com", label: "Regional Infra", mentions: 15, sharePct: 25.0 },
+          { domain: "mineral-group.com", label: "Mineral Corp", mentions: 10, sharePct: 16.7 }
+        ],
+        trend: [
+          { weekStart: "2026-07-20", checked: 15, citationSharePct: 50.0 },
+          { weekStart: "2026-07-27", checked: 15, citationSharePct: 53.0 },
+          { weekStart: "2026-08-03", checked: 15, citationSharePct: 55.0 },
+          { weekStart: "2026-08-10", checked: 15, citationSharePct: 58.3 }
+        ],
+        measurableAssistants: ["ChatGPT", "Claude", "Gemini"]
+      } as T;
+    }
+
     return {
       periodStart: "2026-07-18T00:00:00.000Z",
       periodEnd: "2026-08-15T00:00:00.000Z",
@@ -388,6 +575,55 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/strategy")) {
+    if (isImmunity) {
+      return [
+        {
+          id: "strat-imm-1",
+          createdAt: new Date().toISOString(),
+          generatedByModel: "groq-llama-3.1-8b",
+          content: {
+            businessSummary: "Immunity Group is a business that offers real estate project development, quarrying, and mineral processing services. Their target audience appears to be individuals and organizations seeking these services, with a focus on sustainability and safety.",
+            marketAnalysis: {
+              positioning: "Immunity Group positions itself as a provider of sustainable and safe services in the real estate and mineral processing industries.",
+              targetAudience: "Individuals and organizations seeking real estate project development, quarrying, and mineral processing services.",
+              demandSignals: [
+                "Growing a Greener Tomorrow at Kalamboli Junction",
+                "37th National Road Safety Month: Our Commitment at Kalamboli Junction",
+                "Safety First, Always: Celebrating National Safety Week 2026 at Kalamboli Junction"
+              ],
+              competitiveThreats: [
+                "Regional quarrying and mineral processing competitors",
+                "Traditional infrastructure developers lacking certified safety standards"
+              ]
+            },
+            seoRoadmap: [
+              {
+                horizon: "Immediate (Month 1)",
+                action: "Fix canonical tags and meta descriptions on Kalamboli Junction project pages",
+                why: "Eliminates duplicate content penalties and ensures clear indexing for real estate searches.",
+                effort: "Low",
+                expectedImpact: "High (+20% Indexing Quality)"
+              },
+              {
+                horizon: "Short Term (Month 2)",
+                action: "Publish dedicated landing pages for Quarrying and High-Grade Mineral Processing",
+                why: "Captures B2B commercial intent queries for mineral supply and quarrying services.",
+                effort: "Medium",
+                expectedImpact: "High (+30% B2B Inquiries)"
+              }
+            ],
+            contentPlan: [
+              { title: "37th National Road Safety Month at Kalamboli Junction", format: "Blog Post", targetQuery: "road safety in real estate development", why: "High search demand for sustainable infrastructure." },
+              { title: "Sustainable Mineral Processing & Quarrying Best Practices", format: "Whitepaper", targetQuery: "quarrying and mineral processing services", why: "Establishes industry authority." }
+            ],
+            socialStrategy: [
+              { platform: "LinkedIn", cadence: "2x Weekly", contentThemes: ["Kalamboli Junction Milestones", "Safety Week 2026 Commitments", "Quarrying Environmental Standards"], why: "Engages B2B real estate & infra partners." }
+            ]
+          }
+        }
+      ] as T;
+    }
+
     return [
       {
         id: "strat-1",
@@ -417,6 +653,23 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/local-seo")) {
+    if (isImmunity) {
+      return {
+        id: "local-imm-1",
+        projectId: "proj-immunity-1",
+        businessName: "Immunity Group",
+        address: "Kalamboli Junction, Navi Mumbai",
+        rating: 4.9,
+        reviewCount: 88,
+        citationsCount: 42,
+        updatedAt: new Date().toISOString(),
+        rankings: [
+          { id: "rk-imm-1", keyword: "real estate project development kalamboli junction", position: 1, previousPos: 1, searchVolume: 2400 },
+          { id: "rk-imm-2", keyword: "quarrying and mineral processing services navi mumbai", position: 1, previousPos: 2, searchVolume: 1600 }
+        ]
+      } as T;
+    }
+
     return {
       id: "local-1",
       projectId: "proj-milquu-1",
@@ -439,8 +692,8 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
       uptimePercentage: 99.98,
       avgResponseTimeMs: 145,
       sslStatus: "VALID",
-      performanceScore: 92,
-      mobileScore: 88,
+      performanceScore: 94,
+      mobileScore: 90,
       coreWebVitalsStatus: "PASSED"
     } as T;
   }
@@ -450,12 +703,20 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
       gaConnected: true,
       gscConnected: true,
       hubspotConnected: false,
-      gaPropertyId: "UA-109283-1",
-      gscPropertyId: "sc-domain:milquufresh.in"
+      gaPropertyId: isImmunity ? "UA-998811-1" : "UA-109283-1",
+      gscPropertyId: isImmunity ? "sc-domain:immunitygroup.com" : "sc-domain:milquufresh.in"
     } as T;
   }
 
   if (cleanPath.includes("/activity")) {
+    if (isImmunity) {
+      return [
+        { id: "act-imm-1", status: "success", message: "Audit completed for immunitygroup.com (14 URLs)", time: "1 hour ago" },
+        { id: "act-imm-2", status: "warning", message: "1 High issue found: Missing Canonical Tag on Kalamboli Junction page", time: "2 hours ago" },
+        { id: "act-imm-3", status: "success", message: "AI visibility sweep completed: 58.3% citation share", time: "1 day ago" }
+      ] as T;
+    }
+
     return [
       { id: "act-1", status: "success", message: "Audit completed for milquufresh.in (2 URLs)", time: "1 hour ago" },
       { id: "act-2", status: "warning", message: "1 Critical issue found: Missing Meta Description", time: "2 hours ago" },
@@ -464,6 +725,23 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/outreach")) {
+    if (isImmunity) {
+      return [
+        {
+          id: "camp-imm-1",
+          projectId: "proj-immunity-1",
+          name: "Infrastructure & Real Estate Journal Outreach",
+          status: "ACTIVE",
+          sentCount: 35,
+          replyCount: 14,
+          linkCount: 9,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          _count: { contacts: 35 }
+        }
+      ] as T;
+    }
+
     return [
       {
         id: "camp-1",
@@ -481,6 +759,32 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/reporting")) {
+    if (isImmunity) {
+      return {
+        customReports: [
+          {
+            id: "rep-imm-1",
+            projectId: "proj-immunity-1",
+            name: "Immunity Group Executive Visibility Report",
+            frequency: "WEEKLY",
+            recipients: ["admin@immunitygroup.com"],
+            format: "PDF",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        clientPortal: {
+          id: "portal-imm-1",
+          projectId: "proj-immunity-1",
+          customDomain: "reports.immunitygroup.com",
+          logoUrl: null,
+          themeColor: "#18181b",
+          isPublic: true,
+          updatedAt: new Date().toISOString()
+        }
+      } as T;
+    }
+
     return {
       customReports: [
         {
@@ -507,6 +811,20 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/market")) {
+    if (isImmunity) {
+      return {
+        sentimentScore: 92,
+        sentimentSummary: "Immunity Group receives highly positive sentiment across real estate development and mineral processing categories. Stakeholders highlight certified safety standards at Kalamboli Junction, project delivery reliability, and sustainable quarrying practices.",
+        trendingTopics: [
+          "Sustainable Real Estate Development",
+          "Kalamboli Junction Infrastructure",
+          "Quarrying & Mineral Processing",
+          "National Safety Week 2026",
+          "37th National Road Safety Month"
+        ]
+      } as T;
+    }
+
     return {
       sentimentScore: 84,
       sentimentSummary: "Positive customer sentiment across organic dairy and fresh delivery categories.",
@@ -515,6 +833,14 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/chat") || cleanPath.includes("/ai/chat")) {
+    if (isImmunity) {
+      return {
+        success: true,
+        response: "Immunity Group site health score is 94/100. Analysis shows strong authority in real estate project development, quarrying, and mineral processing. Recommendation: Ensure canonical tags and meta descriptions are set on Kalamboli Junction project pages to maximize search & AI citation share.",
+        model: "groq-llama-3.1-8b"
+      } as T;
+    }
+
     return {
       success: true,
       response: "MilQuu Fresh site health score is 92/100. Key recommendation: Fix the missing meta description on /products to optimize indexing and AI search visibility.",
@@ -527,6 +853,21 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/automation/repository")) {
+    if (isImmunity) {
+      return {
+        id: "repo-imm-1",
+        projectId: "proj-immunity-1",
+        owner: "immunitygroup",
+        name: "immunitygroup-web",
+        defaultBranch: "main",
+        framework: "Next.js",
+        contentDir: "src/content",
+        autoMerge: false,
+        tokenConfigured: true,
+        updatedAt: new Date().toISOString()
+      } as T;
+    }
+
     return {
       id: "repo-1",
       projectId: "proj-milquu-1",
@@ -542,6 +883,50 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/automation/content")) {
+    if (isImmunity) {
+      return [
+        {
+          id: "cp-imm-1",
+          title: "37th National Road Safety Month: Our Commitment at Kalamboli Junction",
+          slug: "37th-national-road-safety-month-our-commitment-at-kalamboli-junction",
+          format: "BLOG",
+          targetQuery: "road safety in real estate development",
+          rationale: "High intent infrastructure directive highlighting Safety First principles.",
+          status: "DRAFTED",
+          filePath: "src/content/road-safety.md",
+          generatedByModel: "groq-llama-3.1-8b",
+          metaDescription: "Immunity Group celebrates 37th National Road Safety Month with safety initiatives at Kalamboli Junction.",
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: "cp-imm-2",
+          title: "Safety First, Always: Celebrating National Safety Week 2026 at Kalamboli Junction",
+          slug: "safety-first-always-celebrating-national-safety-week-2026-at-kalamboli-junction",
+          format: "ARTICLE",
+          targetQuery: "safety in real estate development",
+          rationale: "Showcases strict safety standards in real estate project development.",
+          status: "PLANNED",
+          filePath: null,
+          generatedByModel: "groq-llama-3.1-8b",
+          metaDescription: "Our commitment to worker safety and sustainable infrastructure construction.",
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: "cp-imm-3",
+          title: "Growing a Greener Tomorrow at Kalamboli Junction",
+          slug: "growing-a-greener-tomorrow-at-kalamboli-junction",
+          format: "GUIDE",
+          targetQuery: "sustainability in real estate development",
+          rationale: "Highlights eco-friendly infrastructure and sustainable quarrying techniques.",
+          status: "PLANNED",
+          filePath: null,
+          generatedByModel: "groq-llama-3.1-8b",
+          metaDescription: "Building sustainable real estate and quarrying operations at Kalamboli Junction.",
+          createdAt: new Date().toISOString()
+        }
+      ] as T;
+    }
+
     return [
       {
         id: "cp-1",
@@ -560,6 +945,26 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
   }
 
   if (cleanPath.includes("/automation/runs")) {
+    if (isImmunity) {
+      return [
+        {
+          id: "run-imm-1",
+          kind: "FIXES",
+          status: "AWAITING_REVIEW",
+          steps: [
+            { at: new Date().toISOString(), step: "Analyzed canonical URL tag", ok: true },
+            { at: new Date().toISOString(), step: "Generated patch for Kalamboli Junction page", ok: true }
+          ],
+          error: null,
+          branch: "growthx/fix-canonical-kalamboli",
+          pullRequestUrl: "https://github.com/immunitygroup/immunitygroup-web/pull/1",
+          filesChanged: ["src/app/projects/kalamboli-junction/page.tsx"],
+          startedAt: new Date().toISOString(),
+          finishedAt: new Date().toISOString()
+        }
+      ] as T;
+    }
+
     return [
       {
         id: "run-1",
@@ -595,7 +1000,7 @@ function getMockFallback<T>(path: string, method: string = "GET"): T | undefined
 
   if (cleanPath.includes("/admin/tenants")) {
     return [
-      { id: "org-growthx-1", name: "GrowthX Agency", owner: "sudarshan@growthx.ai", plan: "ENTERPRISE", sites: 1, health: 92, quota: 100, status: "ACTIVE" }
+      { id: "org-growthx-1", name: "GrowthX Agency", owner: "sudarshan@growthx.ai", plan: "ENTERPRISE", sites: 2, health: 94, quota: 100, status: "ACTIVE" }
     ] as T;
   }
 

@@ -4,18 +4,16 @@ import { Code, GitBranch, GitPullRequest, Server, Zap, Loader2, CheckCircle2, Al
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
 import { QueryState } from "@/components/ui/upgrade-prompt";
-import { useWorkspace, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";
+import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";
 import type { CrawlIssue } from "@/lib/api-client";
 
 function EngineerClient() {
-  const { projectId } = useWorkspace();
-  const latestCrawl = useLatestCrawl(projectId ? "milquufresh.in" : null); // We should probably use project domain here, but sticking to the hardcoded domain fallback for now if we don't have project details
-  // Let's actually just rely on the API. The API uses domain. Wait, useLatestCrawl expects a domain.
-  // Actually, wait, useLatestCrawl gets a domain. For now, since we only have one test project "milquufresh.in", let's hardcode the domain or pass the project ID if the backend expects project ID.
-  // Ah, the API is `/api/projects/${projectId}/crawls/latest` -> wait, `api.getLatestCrawl` takes a domain in api-client.ts.
-  // Let's assume the user has a project with domain "milquufresh.in".
-  // Actually, I can use a simpler approach. I'll pass "milquufresh.in" for now since the user said the domain is milquufresh.in.
+  const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
+  const activeDomain = client?.domain ?? "immunitygroup.com";
   
+  const latestCrawl = useLatestCrawl(activeDomain);
   const jobId = latestCrawl.data?.id ?? null;
   const issues = useCrawlIssues(jobId);
   

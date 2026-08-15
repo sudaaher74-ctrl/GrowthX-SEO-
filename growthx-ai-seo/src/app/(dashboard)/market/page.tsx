@@ -3,10 +3,15 @@ import { useState } from "react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, Mono, Kpi } from "@/components/ui/console";
 import { TrendingUp, MessageSquare, Users, PieChart, Zap, Loader2, CheckCircle2, Sparkles, Award, ArrowUpRight } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useWorkspace, useVisibility, useMarketIntelligence, useGenerateMarket } from "@/hooks/use-growthx";
+import { useWorkspace, usePortfolio, useVisibility, useMarketIntelligence, useGenerateMarket } from "@/hooks/use-growthx";
 
 export default function MarketPage() {
-  const { projectId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
+  const activeDomain = client?.domain ?? "immunitygroup.com";
+  const isImmunity = activeDomain.includes("immunity") || !activeDomain.includes("milquu");
+
   const visibility = useVisibility(projectId);
   const { data: market, isLoading: isMarketLoading } = useMarketIntelligence(projectId);
   const generateMarket = useGenerateMarket(projectId);
@@ -37,14 +42,20 @@ export default function MarketPage() {
     week: `W${i + 1}`,
     share: t.citationSharePct
   })) || [
-    { week: "W1", share: 12 },
-    { week: "W2", share: 24 },
-    { week: "W3", share: 38 },
-    { week: "W4", share: 45 },
+    { week: "W1", share: isImmunity ? 50 : 12 },
+    { week: "W2", share: isImmunity ? 53 : 24 },
+    { week: "W3", share: isImmunity ? 55 : 38 },
+    { week: "W4", share: isImmunity ? 58.3 : 45 },
   ];
 
   const sovData = visibility.data?.shareOfVoice?.length
     ? visibility.data.shareOfVoice
+    : isImmunity
+    ? [
+        { domain: "immunitygroup.com", label: "Your Brand", mentions: 35, sharePct: 58.3 },
+        { domain: "infra-competitor.com", label: "Competitor", mentions: 15, sharePct: 25.0 },
+        { domain: "mineral-corp.com", label: "Industry Competitor", mentions: 10, sharePct: 16.7 },
+      ]
     : [
         { domain: "milquufresh.in", label: "Your Brand", mentions: 48, sharePct: 42.5 },
         { domain: "countrydelight.in", label: "Competitor", mentions: 32, sharePct: 28.3 },
@@ -52,10 +63,21 @@ export default function MarketPage() {
         { domain: "amul.com", label: "Industry Leader", mentions: 15, sharePct: 13.3 },
       ];
 
-  const sentimentScore = market?.sentimentScore ?? 0.82;
-  const sentimentSummary = market?.sentimentSummary || "Strong positive market sentiment. Consumers highlight product freshness, reliable morning delivery, and high organic quality standards.";
+  const sentimentScore = market?.sentimentScore ?? (isImmunity ? 0.92 : 0.82);
+  const sentimentSummary = market?.sentimentSummary || (isImmunity
+    ? "Immunity Group receives highly positive sentiment across real estate development and mineral processing categories. Stakeholders highlight certified safety standards at Kalamboli Junction, project delivery reliability, and sustainable quarrying practices."
+    : "Strong positive market sentiment. Consumers highlight product freshness, reliable morning delivery, and high organic quality standards.");
+
   const trendingTopics = market?.trendingTopics?.length
     ? market.trendingTopics
+    : isImmunity
+    ? [
+        "Sustainable Real Estate Development",
+        "Kalamboli Junction Infrastructure",
+        "Quarrying & Mineral Processing",
+        "National Safety Week 2026",
+        "37th National Road Safety Month",
+      ]
     : [
         "Organic Milk Products",
         "A2 Cow Milk vs Regular Milk",
@@ -158,12 +180,20 @@ export default function MarketPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {[
-                          { query: "best fresh milk delivery navi mumbai", intent: "Transactional", vol: "2,400", demand: "High" },
-                          { query: "organic A2 cow milk subscription", intent: "Commercial", vol: "1,800", demand: "High" },
-                          { query: "pure desi cow ghee online", intent: "Commercial", vol: "1,200", demand: "Medium" },
-                          { query: "fresh buffalo milk near panvel", intent: "Local Intent", vol: "1,000", demand: "Medium" },
-                        ].map((row, i) => (
+                        {(isImmunity
+                          ? [
+                              { query: "real estate project development kalamboli junction", intent: "Transactional", vol: "2,400", demand: "High" },
+                              { query: "quarrying and mineral processing services navi mumbai", intent: "Commercial", vol: "1,800", demand: "High" },
+                              { query: "sustainable infrastructure construction kalamboli", intent: "Commercial", vol: "1,200", demand: "Medium" },
+                              { query: "national safety month road safety commitment", intent: "Informational", vol: "1,000", demand: "Medium" },
+                            ]
+                          : [
+                              { query: "best fresh milk delivery navi mumbai", intent: "Transactional", vol: "2,400", demand: "High" },
+                              { query: "organic A2 cow milk subscription", intent: "Commercial", vol: "1,800", demand: "High" },
+                              { query: "pure desi cow ghee online", intent: "Commercial", vol: "1,200", demand: "Medium" },
+                              { query: "fresh buffalo milk near panvel", intent: "Local Intent", vol: "1,000", demand: "Medium" },
+                            ]
+                        ).map((row, i) => (
                           <Tr key={i}>
                             <Td><span className="font-medium text-[#09090b]">{row.query}</span></Td>
                             <Td><Pill>{row.intent}</Pill></Td>
@@ -183,7 +213,7 @@ export default function MarketPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Kpi label="Brand Share" value={`${sovData[0]?.sharePct?.toFixed(1) || 0}%`} sub="Your share of voice" tone="good" />
                     <Kpi label="Total Mentions" value={sovData.reduce((a, c) => a + c.mentions, 0).toString()} sub="Citations across AI models" />
-                    <Kpi label="Market Rank" value="#1 Leader" sub="In local fresh dairy segment" />
+                    <Kpi label="Market Rank" value="#1 Leader" sub="In target category" />
                   </div>
 
                   <Panel title="Share of Voice Breakdown" subtitle="Brand visibility across AI assistants and target queries">
@@ -249,7 +279,7 @@ export default function MarketPage() {
                       {[
                         { assistant: "ChatGPT (OpenAI)", score: "88% Positive", status: "Strong Citation Share" },
                         { assistant: "Claude (Anthropic)", score: "84% Positive", status: "High Trust & Accuracy" },
-                        { assistant: "Gemini (Google)", score: "91% Positive", status: "Top Local Recommendation" },
+                        { assistant: "Gemini (Google)", score: "91% Positive", status: "Top Recommendation" },
                       ].map((item, i) => (
                         <div key={i} className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] space-y-2">
                           <div className="flex items-center justify-between">
@@ -268,15 +298,23 @@ export default function MarketPage() {
                       <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                         <Sparkles size={16} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                         <div>
-                          <span className="font-semibold text-emerald-800 dark:text-emerald-300 block mb-0.5">Product Purity & Freshness</span>
-                          100% organic farm milk with zero preservatives is the primary positive driver cited by buyers.
+                          <span className="font-semibold text-emerald-800 dark:text-emerald-300 block mb-0.5">
+                            {isImmunity ? "Certified Safety Standards" : "Product Purity & Freshness"}
+                          </span>
+                          {isImmunity
+                            ? "Strict adherence to 37th National Road Safety Month & National Safety Week guidelines at Kalamboli Junction."
+                            : "100% organic farm milk with zero preservatives is the primary positive driver cited by buyers."}
                         </div>
                       </div>
                       <div className="flex items-start gap-2.5 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                         <Award size={16} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                         <div>
-                          <span className="font-semibold text-emerald-800 dark:text-emerald-300 block mb-0.5">Morning Delivery Reliability</span>
-                          Daily doorstep delivery before 7 AM creates high customer retention and positive reviews.
+                          <span className="font-semibold text-emerald-800 dark:text-emerald-300 block mb-0.5">
+                            {isImmunity ? "Sustainable Development & Quarrying" : "Morning Delivery Reliability"}
+                          </span>
+                          {isImmunity
+                            ? "Eco-conscious real estate project development, quarrying, and high-grade mineral processing operations."
+                            : "Daily doorstep delivery before 7 AM creates high customer retention and positive reviews."}
                         </div>
                       </div>
                     </div>
@@ -300,26 +338,48 @@ export default function MarketPage() {
 
                   <Panel title="Target Buyer Personas" subtitle="Key customer segments driving search demand">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
-                      {[
-                        {
-                          title: "Health-Conscious Families",
-                          intent: "Organic & A2 Focus",
-                          description: "Parents seeking unadulterated, farm-fresh milk for children's nutrition.",
-                          priority: "High Intent",
-                        },
-                        {
-                          title: "Daily Subscribers",
-                          intent: "Convenience & Speed",
-                          description: "Working professionals relying on automated morning milk delivery in Navi Mumbai.",
-                          priority: "High Retention",
-                        },
-                        {
-                          title: "Wellness & Culinary Enthusiasts",
-                          intent: "Traditional Ghee & By-products",
-                          description: "Consumers buying premium Bilona Desi Cow Ghee for cooking and health benefits.",
-                          priority: "High AOV",
-                        },
-                      ].map((persona, i) => (
+                      {(isImmunity
+                        ? [
+                            {
+                              title: "Real Estate Developers & Investors",
+                              intent: "Project Development",
+                              description: "Organizations seeking sustainable real estate development partnerships and infrastructure engineering.",
+                              priority: "High Intent",
+                            },
+                            {
+                              title: "Infrastructure Contractors",
+                              intent: "Quarrying & Aggregates",
+                              description: "Contractors sourcing high-grade minerals, quarrying materials, and heavy development services.",
+                              priority: "High Volume",
+                            },
+                            {
+                              title: "Industrial & Mineral Enterprises",
+                              intent: "Mineral Processing",
+                              description: "Industrial clients seeking certified, safe mineral processing and raw material supply.",
+                              priority: "High Retainer",
+                            },
+                          ]
+                        : [
+                            {
+                              title: "Health-Conscious Families",
+                              intent: "Organic & A2 Focus",
+                              description: "Parents seeking unadulterated, farm-fresh milk for children's nutrition.",
+                              priority: "High Intent",
+                            },
+                            {
+                              title: "Daily Subscribers",
+                              intent: "Convenience & Speed",
+                              description: "Working professionals relying on automated morning milk delivery in Navi Mumbai.",
+                              priority: "High Retention",
+                            },
+                            {
+                              title: "Wellness & Culinary Enthusiasts",
+                              intent: "Traditional Ghee & By-products",
+                              description: "Consumers buying premium Bilona Desi Cow Ghee for cooking and health benefits.",
+                              priority: "High AOV",
+                            },
+                          ]
+                      ).map((persona, i) => (
                         <div key={i} className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] space-y-2">
                           <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{persona.priority}</span>
                           <h4 className="text-sm font-bold text-[var(--text-primary)]">{persona.title}</h4>
@@ -332,11 +392,18 @@ export default function MarketPage() {
 
                   <Panel title="Content Opportunity Signals" subtitle="High-potential topics recommended for AI strategy">
                     <div className="p-4 space-y-2.5">
-                      {[
-                        { title: "A2 Cow Milk vs Regular Buffalo Milk: Complete Health Comparison", impact: "High Traffic", diff: "Easy" },
-                        { title: "Top 5 Benefits of Drinking Farm Fresh Unpasteurized Milk Daily", impact: "High Conversion", diff: "Medium" },
-                        { title: "Why Traditional Bilona Ghee is Superior to Factory-Made Ghee", impact: "High AOV", diff: "Easy" },
-                      ].map((item, i) => (
+                      {(isImmunity
+                        ? [
+                            { title: "37th National Road Safety Month: Our Commitment at Kalamboli Junction", impact: "High Traffic", diff: "Easy" },
+                            { title: "Safety First, Always: Celebrating National Safety Week 2026 at Kalamboli Junction", impact: "High Authority", diff: "Medium" },
+                            { title: "Growing a Greener Tomorrow at Kalamboli Junction", impact: "High Conversion", diff: "Easy" },
+                          ]
+                        : [
+                            { title: "A2 Cow Milk vs Regular Buffalo Milk: Complete Health Comparison", impact: "High Traffic", diff: "Easy" },
+                            { title: "Top 5 Benefits of Drinking Farm Fresh Unpasteurized Milk Daily", impact: "High Conversion", diff: "Medium" },
+                            { title: "Why Traditional Bilona Ghee is Superior to Factory-Made Ghee", impact: "High AOV", diff: "Easy" },
+                          ]
+                      ).map((item, i) => (
                         <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs">
                           <span className="font-medium text-[var(--text-primary)] flex items-center gap-2">
                             <ArrowUpRight size={14} className="text-blue-500" />
