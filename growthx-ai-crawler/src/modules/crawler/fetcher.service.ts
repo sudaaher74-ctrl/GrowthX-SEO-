@@ -22,22 +22,48 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private browser?: Browser;
   private browserContext?: BrowserContext;
   private isPlaywrightReady = false;
+  private isInitializingPlaywright = false;
 
   constructor(private readonly metrics: MetricsService) {}
 
   async onModuleInit() {
+    // On low memory instances (e.g. Render 512MB free tier), defer Chromium launch
+    // until explicitly needed by an SPA page to save 250MB+ base RAM.
+    const autoLaunch = process.env.ENABLE_PLAYWRIGHT_STARTUP === 'true';
+    if (autoLaunch) {
+      await this.ensurePlaywrightInitialized();
+    } else {
+      this.logger.log('FetcherService initialized in lazy-Playwright mode (saves RAM on 512MB containers).');
+    }
+  }
+
+  private async ensurePlaywrightInitialized(): Promise<boolean> {
+    if (this.isPlaywrightReady && this.browserContext) return true;
+    if (this.isInitializingPlaywright) return false;
+
+    this.isInitializingPlaywright = true;
     const headless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
     try {
-      this.logger.log(`Initializing pooled Playwright Chromium browser (headless=${headless})...`);
+      this.logger.log(`Launching memory-optimized Playwright Chromium (headless=${headless})...`);
       this.browser = await chromium.launch({
         headless,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-software-rasterizer',
+          '--js-flags=--max-old-space-size=128',
+        ],
       });
-      
-      this.browser.on('disconnected', async () => {
-        this.logger.warn('Playwright browser disconnected or crashed. Attempting to restart pool...');
+
+      this.browser.on('disconnected', () => {
+        this.logger.warn('Playwright browser instance disconnected.');
         this.isPlaywrightReady = false;
-        await this.onModuleInit();
+        this.browserContext = undefined;
+        this.browser = undefined;
       });
 
       this.browserContext = await this.browser.newContext({
@@ -47,15 +73,19 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       });
       this.isPlaywrightReady = true;
       this.logger.log('Playwright Chromium pool ready.');
-    } catch (err) {
-      this.logger.warn('Failed to launch Playwright browser. Will operate in Cheerio-only static scraping mode.', err);
+      return true;
+    } catch (err: any) {
+      this.logger.warn(`Failed to launch Playwright browser (${err.message}). Cheerio static mode active.`);
       this.isPlaywrightReady = false;
+      return false;
+    } finally {
+      this.isInitializingPlaywright = false;
     }
   }
 
   async onModuleDestroy() {
-    if (this.browserContext) await this.browserContext.close();
-    if (this.browser) await this.browser.close();
+    if (this.browserContext) await this.browserContext.close().catch(() => {});
+    if (this.browser) await this.browser.close().catch(() => {});
   }
 
   /**
@@ -92,8 +122,9 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    if (forcePlaywright && this.isPlaywrightReady) {
-      return this.fetchWithPlaywright(targetUrl, startTime);
+    if (forcePlaywright) {
+      const ready = await this.ensurePlaywrightInitialized();
+      if (ready) return this.fetchWithPlaywright(targetUrl, startTime);
     }
 
     // 1. Try static fetch via Axios + Cheerio with simple retry for rate limits/transient errors
@@ -111,21 +142,20 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
             'Accept-Language': 'en-US,en;q=0.9',
           },
         });
-        
-        // If it's a rate limit (429) or server error (500, 502, 503, 504), wait and retry
+
         if ([429, 500, 502, 503, 504].includes(response.status) && retries < 2) {
           retries++;
-          await new Promise(r => setTimeout(r, 2000 * retries));
+          await new Promise((r) => setTimeout(r, 1500 * retries));
           continue;
         }
-        break; // Success or non-retriable error
+        break;
       } catch (err: any) {
         if (retries < 2) {
           retries++;
-          await new Promise(r => setTimeout(r, 2000 * retries));
+          await new Promise((r) => setTimeout(r, 1500 * retries));
           continue;
         }
-        throw err; // Out of retries, throw to catch block below
+        throw err;
       }
     }
 
@@ -145,9 +175,12 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       this.metrics.pageFetchDurationSeconds.observe({ engine: 'cheerio' }, responseTimeMs / 1000);
 
       // Check if this looks like an unrendered SPA (e.g. empty #root / #app or very short text)
-      if (this.isPlaywrightReady && this.needsDynamicRendering(html)) {
-        this.logger.debug(`SPA detected on ${targetUrl}. Upgrading to Playwright rendering.`);
-        return await this.fetchWithPlaywright(targetUrl, startTime);
+      if (this.needsDynamicRendering(html)) {
+        this.logger.debug(`SPA detected on ${targetUrl}. Attempting lazy Playwright rendering...`);
+        const ready = await this.ensurePlaywrightInitialized();
+        if (ready) {
+          return await this.fetchWithPlaywright(targetUrl, startTime);
+        }
       }
 
       return {
@@ -161,8 +194,9 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         engine: 'cheerio',
       };
     } catch (error: any) {
-      this.logger.warn(`Static Cheerio fetch failed for ${targetUrl}: ${error.message}. Attempting Playwright fallback...`);
-      if (this.isPlaywrightReady) {
+      this.logger.warn(`Static Cheerio fetch failed for ${targetUrl}: ${error.message}.`);
+      const ready = await this.ensurePlaywrightInitialized();
+      if (ready) {
         return await this.fetchWithPlaywright(targetUrl, startTime);
       }
       return {
@@ -186,7 +220,15 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Playwright browser context not initialized');
     }
 
-    const page = await this.browserContext.newPage();
+    let page;
+    try {
+      page = await this.browserContext.newPage();
+    } catch {
+      // Re-initialize context if needed
+      await this.ensurePlaywrightInitialized();
+      page = await this.browserContext!.newPage();
+    }
+
     const redirectChain: string[] = [targetUrl];
     let statusCode = 200;
     let contentType = 'text/html';
@@ -203,18 +245,15 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         }
       });
 
-      // Wait for networkidle to ensure SPA frameworks and dynamic content fully hydrate
-      await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 30000 });
-      
-      // Additional short buffer for any final client-side rendering after network idle
-      await page.waitForTimeout(1500);
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.waitForTimeout(1000);
 
       const html = await page.content();
       const finalUrl = page.url();
       const responseTimeMs = Date.now() - startTime;
 
       this.metrics.pageFetchDurationSeconds.observe({ engine: 'playwright' }, responseTimeMs / 1000);
-      await page.close();
+      await page.close().catch(() => {});
 
       return {
         url: targetUrl,
@@ -227,7 +266,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         engine: 'playwright',
       };
     } catch (err: any) {
-      await page.close();
+      if (page) await page.close().catch(() => {});
       this.logger.error(`Playwright fetch failed for ${targetUrl}: ${err.message}`);
       return {
         url: targetUrl,
@@ -251,7 +290,6 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
     const wordCount = bodyText.split(' ').filter(Boolean).length;
 
-    // If body has very few words and has #root or #app container, it's likely an SPA
     if (wordCount < 30) {
       if ($('#root').length > 0 || $('#app').length > 0 || $('div[id*="app"]').length > 0) {
         return true;

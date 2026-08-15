@@ -34,7 +34,9 @@ services:
       - key: PORT
         value: 3000
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=256"
+        value: "--max-old-space-size=300"
+      - key: ENABLE_PLAYWRIGHT_STARTUP
+        value: "false"
       - key: ENCRYPTION_KEY
         value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       - key: JWT_SECRET
@@ -48,7 +50,7 @@ services:
       - key: PLAYWRIGHT_HEADLESS
         value: "true"
       - key: DEFAULT_CRAWL_CONCURRENCY
-        value: "5"
+        value: "3"
       - key: MAX_CRAWL_CONCURRENCY
         value: "3"
       - key: DEFAULT_CRAWL_DEPTH
