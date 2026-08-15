@@ -49,7 +49,7 @@ function WebsiteClient() {
     if (!client?.domain) return;
     setCrawling(true);
     try {
-      await api.startCrawl({ domain: client.domain, maxDepth: 10, maxConcurrency: 5 });
+      await api.startCrawl({ domain: client.domain, maxDepth: 20, maxConcurrency: 10, useSitemap: true });
       setTimeout(() => crawl.refetch(), 3000);
     } finally {
       setCrawling(false);

@@ -582,7 +582,7 @@ export const api = {
       projectId,
     }),
   verifyDomain: (id: string) => post(`/api/websites/${id}/verify`, {}),
-  startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number }) =>
+  startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number; useSitemap?: boolean }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
   getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
