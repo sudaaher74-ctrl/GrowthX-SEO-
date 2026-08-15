@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd growthx-ai-seo && npm run build",
+  "outputDirectory": "growthx-ai-seo/.next",
+  "installCommand": "cd growthx-ai-seo && npm install",
+  "framework": "nextjs"
+}
