@@ -19,4 +19,11 @@ export class MarketIntelligenceController {
   getMarketIntelligence(@Param('projectId') projectId: string) {
     return this.marketService.getMarketIntelligence(projectId);
   }
+
+  @Post('generate')
+  @ApiOperation({ summary: 'Generate or refresh Market Intelligence data for project' })
+  @ApiParam({ name: 'projectId' })
+  generateMarketIntelligence(@Param('projectId') projectId: string) {
+    return this.marketService.generateMarketIntelligence(projectId);
+  }
 }

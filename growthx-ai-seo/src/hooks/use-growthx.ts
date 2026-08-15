@@ -406,6 +406,14 @@ export function useMarketIntelligence(projectId: string | null) {
   });
 }
 
+export function useGenerateMarket(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.generateMarketIntelligence(projectId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["market", projectId] }),
+  });
+}
+
 export function useMonitoring(projectId: string | null) {
   return useQuery({
     queryKey: ["monitoring", projectId],
