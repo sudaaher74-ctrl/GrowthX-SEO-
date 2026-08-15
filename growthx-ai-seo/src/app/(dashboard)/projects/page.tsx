@@ -6,7 +6,7 @@ import { ArrowLeft, CheckCircle2, Globe, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCreateProject, useWorkspace } from "@/hooks/use-growthx";
+import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 
 /**
@@ -16,8 +16,7 @@ import { api } from "@/lib/api-client";
  */
 export default function AddClientPage() {
   const router = useRouter();
-  const { orgId, setProjectId } = useWorkspace();
-  const createProject = useCreateProject(orgId);
+  const { orgId, setOrgId, setProjectId, organizations } = useWorkspace();
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
@@ -27,7 +26,7 @@ export default function AddClientPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !url.trim() || !orgId) return;
+    if (!name.trim() || !url.trim()) return;
     setError("");
 
     let domain = url.trim().toLowerCase();
@@ -44,22 +43,43 @@ export default function AddClientPage() {
 
     try {
       setStep("creating");
-      const project = await createProject.mutateAsync(name.trim());
+
+      // Ensure an active organization exists
+      let currentOrgId = orgId;
+      if (!currentOrgId) {
+        let existingOrg = organizations[0];
+        if (!existingOrg) {
+          existingOrg = await api.createOrganization("GrowthX Agency", "growthx-agency");
+        }
+        currentOrgId = existingOrg.id;
+        setOrgId(currentOrgId);
+      }
+
+      // 1. Create project for client
+      const project = await api.createProject(name.trim(), currentOrgId);
       setProjectId(project.id);
 
+      // 2. Register website
       setStep("registering");
       const website = await api.registerWebsite(url.trim(), domain, project.id);
 
+      // 3. Verify domain & start audit
       setStep("verifying");
       await api.verifyDomain(website.id);
 
-      // Important: the project was created, but now we've added a website to it.
-      // We must invalidate the portfolio so the technical SEO page gets fresh data
-      // where the client has a domain.
-      await qc.invalidateQueries({ queryKey: ["portfolio", orgId] });
+      try {
+        await api.startCrawl({ websiteId: website.id, domain });
+      } catch {
+        // Non-blocking: crawl start error will fallback gracefully
+      }
+
+      // Invalidate queries so portfolio and dashboard reflect the new site
+      await qc.invalidateQueries({ queryKey: ["portfolio", currentOrgId] });
+      await qc.invalidateQueries({ queryKey: ["projects", currentOrgId] });
 
       router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
     } catch (err) {
+      console.error("Add client error:", err);
       setError(err instanceof Error ? err.message : "Failed to add client");
       setStep("idle");
     }
@@ -117,9 +137,9 @@ export default function AddClientPage() {
           </ul>
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm font-medium text-red-500">{error}</p>}
 
-        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim() || !orgId}>
+        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim()}>
           {step === "idle" && "Add client"}
           {step === "creating" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Creating client…</>)}
           {step === "registering" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Registering website…</>)}
