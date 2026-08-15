@@ -45,10 +45,13 @@ export class ContentGenerationService {
    * page is drafted or committed.
    */
   async planFromStrategy(projectId: string) {
-    const latest = await this.prisma.strategyReport.findFirst({
+    let latest = await this.prisma.strategyReport.findFirst({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
+    if (!latest) {
+      latest = await this.strategy.generateDefaultStrategy(projectId);
+    }
     if (!latest) {
       throw new BadRequestException('Generate a strategy first — the content plan comes from it.');
     }

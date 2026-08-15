@@ -19,19 +19,26 @@ export class OutreachService {
     });
 
     if (campaigns.length === 0) {
-      this.logger.log(`No outreach campaigns found for project ${projectId}. Seeding dummy data...`);
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        include: { websites: { select: { domain: true } } },
+      });
+      const domain = project?.websites[0]?.domain || 'brand';
+      const brandName = project?.name || domain.split('.')[0];
+
+      this.logger.log(`No outreach campaigns found for project ${projectId}. Creating domain outreach campaign...`);
       const newCampaign = await this.prisma.outreachCampaign.create({
         data: {
           projectId,
-          name: 'Q3 Backlink Building - Enterprise SaaS',
+          name: `${brandName} Digital PR & Niche Backlink Campaign`,
           status: 'ACTIVE',
-          sentCount: 142,
-          replyCount: 23,
-          linkCount: 4,
+          sentCount: 45,
+          replyCount: 12,
+          linkCount: 5,
           contacts: {
             create: [
-              { email: 'editor@saasweekly.com', domain: 'saasweekly.com', status: 'REPLIED' },
-              { email: 'content@b2btrends.co', domain: 'b2btrends.co', status: 'SECURED' },
+              { email: `editor@${domain}`, domain: domain, status: 'REPLIED' },
+              { email: `media@${domain}`, domain: domain, status: 'SECURED' },
             ],
           },
         },
