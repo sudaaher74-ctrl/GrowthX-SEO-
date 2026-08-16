@@ -1,9 +1,15 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { EntitlementsGuard } from '../billing/entitlements.guard';
+import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
+import { Feature } from '../billing/plans.catalog';
 import { OutreachService } from './outreach.service';
 
 @Controller('projects/:projectId/outreach')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, EntitlementsGuard)
+@OrgFrom('project', 'projectId')
+// Digital PR and outreach sit with the strategy engine.
+@RequiresFeature(Feature.MARKET_STRATEGY)
 export class OutreachController {
   constructor(private readonly outreachService: OutreachService) {}
 

@@ -7,11 +7,13 @@ import { StrategyModule } from '../strategy/strategy.module';
 import { AutomationController } from './automation.controller';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
+import { ContentAgentController } from './content-agent.controller';
+import { ContentAgentService } from './content-agent.service';
 
 @Module({
   imports: [DatabaseModule, AiSearchModule, AutonomousEngineerModule, SecurityModule, StrategyModule],
-  controllers: [AutomationController],
-  providers: [AutomationService, ContentGenerationService],
-  exports: [AutomationService, ContentGenerationService],
+  controllers: [AutomationController, ContentAgentController],
+  providers: [AutomationService, ContentGenerationService, ContentAgentService],
+  exports: [AutomationService, ContentGenerationService, ContentAgentService],
 })
 export class AutomationModule {}

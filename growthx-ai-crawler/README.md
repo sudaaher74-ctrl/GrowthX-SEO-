@@ -83,6 +83,42 @@ npm run start:dev
 
 ---
 
+## 🗄️ Database migrations
+
+The container applies pending migrations on start (`docker-entrypoint.sh` runs
+`prisma migrate deploy` before the API boots). Schema changes therefore ship
+with the code — do not use `prisma db push` against a deployed environment.
+
+To change the schema:
+
+```bash
+# Edit prisma/schema.prisma, then generate a migration from it
+npx prisma migrate dev --name describe_your_change
+```
+
+### One-time baseline for the existing production database
+
+The production database was previously maintained with `db push`, so its tables
+exist but are not all recorded in Prisma's `_prisma_migrations` ledger. A plain
+`migrate deploy` there will fail with "relation already exists" — the migration
+is correct, the ledger just does not know it has effectively been applied.
+
+Run this **once**, against production, before the first deploy of this change:
+
+```bash
+npx prisma migrate resolve --applied 20260810100711_init
+npx prisma migrate resolve --applied 20260815000000_add_local_outreach_reporting_integrations
+```
+
+Marking a migration `--applied` records it as done without executing its SQL.
+If the first command reports it is already recorded, skip it and run the second.
+After this, deploys apply migrations normally.
+
+A failure here is loud and transactional — nothing is half-applied — so if the
+deploy stops on this step, run the commands above and redeploy.
+
+---
+
 ## 🧪 Testing
 
 ```bash

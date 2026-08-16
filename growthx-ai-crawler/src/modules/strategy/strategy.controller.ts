@@ -5,6 +5,7 @@ import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 import { StrategyService } from './strategy.service';
+import { AgentRunService } from '../agents/agent-run.service';
 
 /**
  * Market analysis, SEO roadmap, content plan, and social strategy — the
@@ -18,7 +19,10 @@ import { StrategyService } from './strategy.service';
 @OrgFrom('project', 'projectId')
 @RequiresFeature(Feature.MARKET_STRATEGY)
 export class StrategyController {
-  constructor(private readonly strategy: StrategyService) {}
+  constructor(
+    private readonly strategy: StrategyService,
+    private readonly agentRuns: AgentRunService,
+  ) {}
 
   @Get('evidence')
   @ApiOperation({ summary: 'What a strategy would be built from, without spending an allowance' })
@@ -32,6 +36,15 @@ export class StrategyController {
   @ApiParam({ name: 'projectId' })
   list(@Param('projectId') projectId: string) {
     return this.strategy.list(projectId);
+  }
+
+  @Get('plan')
+  @ApiOperation({
+    summary: 'The live 30/60/90 plan: recommendations grouped by horizon, each with its proof',
+  })
+  @ApiParam({ name: 'projectId' })
+  plan(@Param('projectId') projectId: string) {
+    return this.agentRuns.plan(projectId);
   }
 
   @Get(':reportId')

@@ -1,23 +1,23 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
-import { auth, api } from "@/lib/api-client";
+import { auth } from "@/lib/api-client";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    // There is no login page — every visitor is silently authenticated as the
-    // house account so the app is usable without a sign-in step.
+    // Unauthenticated visitors are sent to the sign-in page. This used to
+    // silently log everyone in as a shared house account with credentials
+    // hardcoded here, which put every tenant's data behind no authentication
+    // at all and shipped a real password to the browser bundle.
     if (!auth.isAuthenticated()) {
-      api.login("sudarshan@growthx.ai", "GrowthX2026!").then(() => {
-        window.location.reload();
-      }).catch((err) => {
-        console.error("Auto-login failed:", err);
-      });
+      router.replace("/login");
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen" style={{ background: "#fafafa" }}>

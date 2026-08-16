@@ -3,19 +3,27 @@ import {
   Post,
   Get,
   Body,
+  Req,
+  UseGuards,
   HttpCode,
   HttpStatus,
   BadRequestException,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { UsageMetric } from '@prisma/client';
 import {
   MultiAiRouterService,
   AiProvider,
   AiTask,
 } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { EntitlementsGuard } from '../billing/entitlements.guard';
+import { EntitlementsService } from '../billing/entitlements.service';
+import { Metered } from '../billing/entitlements.decorator';
+import { Feature } from '../billing/plans.catalog';
 
 /** A single turn in a conversation. */
 export interface ChatMessage {
@@ -48,13 +56,19 @@ When the user asks a technical question:
 - ask for missing information only when necessary`;
 
 @ApiTags('AI')
+@ApiBearerAuth()
 @Controller('api/ai')
+// This endpoint spends money on every call. It was previously unauthenticated,
+// which made it a public endpoint that draws down the account's LLM budget with
+// no caller identity, no plan check and no usage record.
+@UseGuards(JwtAuthGuard, EntitlementsGuard)
 export class GroqController {
   private readonly logger = new Logger(GroqController.name);
 
   constructor(
     private readonly aiRouter: MultiAiRouterService,
     private readonly config: ConfigService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   // ----------------------------------------------------------------- /health
@@ -77,11 +91,13 @@ export class GroqController {
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
+  @Metered(Feature.MODEL_GROQ, UsageMetric.AI_ANALYSES)
   @ApiOperation({ summary: 'Chat with Groq Llama 3.1 8B Instant' })
   @ApiResponse({ status: 200, description: 'AI response' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
+  @ApiResponse({ status: 403, description: 'Plan does not include this model, or quota is spent' })
   @ApiResponse({ status: 500, description: 'AI service error' })
-  async chat(@Body() body: SingleMessageBody) {
+  async chat(@Req() req: any, @Body() body: SingleMessageBody) {
     // ── 1. Build message array ──────────────────────────────────────────────
 
     let messages: ChatMessage[];
@@ -166,7 +182,12 @@ export class GroqController {
         systemInstruction,
         task: AiTask.FAST,           // Groq excels at FAST; it's #1 in the chain
         provider: AiProvider.GROQ,   // Force Groq — this endpoint is Groq-specific
+        // Set by EntitlementsGuard. Passing it lets the router enforce which
+        // vendors this organization's plan may reach.
+        organizationId: req.organizationId,
       });
+
+      await this.entitlements.recordUsage(req.organizationId, UsageMetric.AI_ANALYSES);
 
       this.logger.log(
         `Groq response: ${completion.usage.inputTokens}in / ${completion.usage.outputTokens}out`,

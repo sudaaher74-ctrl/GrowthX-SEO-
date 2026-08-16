@@ -7,6 +7,7 @@ import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import { StrategyService } from './strategy.service';
+import { AgentRunService } from '../agents/agent-run.service';
 import { buildStrategyPrompt, StrategyEvidence } from './strategy-evidence';
 
 const VALID_STRATEGY = {
@@ -17,7 +18,17 @@ const VALID_STRATEGY = {
     demandSignals: ['High volume on jacket queries'],
     competitiveThreats: ['Trailhead Co dominates comparison prompts'],
   },
-  seoRoadmap: [{ horizon: '30-day', action: 'Fix 12 missing titles', why: 'Crawl found 12', effort: 'Low', expectedImpact: 'CTR' }],
+  seoRoadmap: [
+    {
+      horizon: '30-day',
+      action: 'Fix 12 missing titles',
+      why: 'Crawl found 12',
+      effort: 'LOW',
+      impact: 'HIGH',
+      owner: 'Developer',
+      evidenceKey: 'ISSUE-1',
+    },
+  ],
   contentPlan: [{ title: 'Jacket guide', format: 'Guide', targetQuery: 'best jacket', why: 'Lost to Trailhead' }],
   socialStrategy: [{ platform: 'Instagram', cadence: '3x/week', contentThemes: ['Trail photos'], why: 'Visual product' }],
 };
@@ -28,6 +39,7 @@ describe('StrategyService', () => {
   let router: { generate: jest.Mock };
   let visibility: any;
   let entitlements: any;
+  let agentRuns: any;
 
   beforeEach(async () => {
     prisma = {
@@ -93,6 +105,19 @@ describe('StrategyService', () => {
       recordUsage: jest.fn().mockResolvedValue(undefined),
     };
 
+    // Stands in for the real runtime: records evidence with predictable ids so
+    // a test can assert which observation a recommendation was attached to.
+    agentRuns = {
+      withRun: jest.fn(async (_projectId: string, _agent: unknown, work: any) => {
+        const { result } = await work({ id: 'run_1', projectId: 'proj_1', agent: 'STRATEGY' });
+        return result;
+      }),
+      recordEvidenceBatch: jest.fn(async (_run: unknown, records: any[]) =>
+        records.map((r, i) => ({ ...r, id: `ev_${i + 1}` })),
+      ),
+      recommend: jest.fn().mockResolvedValue({ id: 'rec_1' }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StrategyService,
@@ -100,6 +125,7 @@ describe('StrategyService', () => {
         { provide: MultiAiRouterService, useValue: router },
         { provide: AiVisibilityService, useValue: visibility },
         { provide: EntitlementsService, useValue: entitlements },
+        { provide: AgentRunService, useValue: agentRuns },
       ],
     }).compile();
 
@@ -151,6 +177,75 @@ describe('StrategyService', () => {
       expect(report.content).toEqual(VALID_STRATEGY);
       // Keeping the evidence is what lets a customer challenge a recommendation.
       expect((report.evidence as any).site.pagesCrawled).toBe(184);
+    });
+
+    it('attaches each recommendation to the evidence the model cited', async () => {
+      await service.generate('proj_1', 'org_1');
+
+      expect(agentRuns.recommend).toHaveBeenCalledTimes(1);
+      const [, recommendation] = agentRuns.recommend.mock.calls[0];
+      expect(recommendation.owner).toBe('Developer');
+      expect(recommendation.horizon).toBe('DAYS_30');
+      expect(recommendation.impact).toBe('HIGH');
+      // ISSUE-1 is the MISSING_TITLE observation, recorded before the model ran.
+      expect(recommendation.primaryEvidence.summary).toContain('MISSING_TITLE');
+    });
+
+    it('records the evidence before calling the model', async () => {
+      await service.generate('proj_1', 'org_1');
+
+      const evidenceOrder = agentRuns.recordEvidenceBatch.mock.invocationCallOrder[0];
+      const modelOrder = router.generate.mock.invocationCallOrder[0];
+      expect(evidenceOrder).toBeLessThan(modelOrder);
+    });
+
+    // The mechanism is only worth having if an invented citation is dropped
+    // rather than silently reattached to some other observation.
+    it('discards a recommendation citing evidence that was never observed', async () => {
+      router.generate.mockResolvedValue({
+        provider: AiProvider.ANTHROPIC,
+        model: 'claude-opus-5',
+        text: JSON.stringify({
+          ...VALID_STRATEGY,
+          seoRoadmap: [
+            { ...VALID_STRATEGY.seoRoadmap[0], evidenceKey: 'ISSUE-1' },
+            {
+              horizon: '60-day',
+              action: 'Act on data we never gathered',
+              why: 'Invented',
+              effort: 'LOW',
+              impact: 'HIGH',
+              owner: 'SEO',
+              evidenceKey: 'ISSUE-999',
+            },
+          ],
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, estimatedCostUsd: null },
+        refused: false,
+      });
+
+      await service.generate('proj_1', 'org_1');
+
+      expect(agentRuns.recommend).toHaveBeenCalledTimes(1);
+      const titles = agentRuns.recommend.mock.calls.map(([, r]: any[]) => r.title);
+      expect(titles).not.toContain('Act on data we never gathered');
+    });
+
+    it('fails rather than storing a plan where nothing cited real evidence', async () => {
+      router.generate.mockResolvedValue({
+        provider: AiProvider.ANTHROPIC,
+        model: 'claude-opus-5',
+        text: JSON.stringify({
+          ...VALID_STRATEGY,
+          seoRoadmap: [{ ...VALID_STRATEGY.seoRoadmap[0], evidenceKey: 'MADE-UP' }],
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, estimatedCostUsd: null },
+        refused: false,
+      });
+
+      await expect(service.generate('proj_1', 'org_1')).rejects.toThrow(ServiceUnavailableException);
+      expect(prisma.strategyReport.create).not.toHaveBeenCalled();
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
     });
 
     it('is Pro-only and metered', async () => {
@@ -228,6 +323,7 @@ describe('buildStrategyPrompt', () => {
   const evidence: StrategyEvidence = {
     business: { projectName: 'Northwind Outdoors', domains: ['northwindoutdoors.com'] },
     site: {
+      crawlJobId: 'crawl-1',
       pagesCrawled: 184,
       lastCrawledAt: '2026-08-01T00:00:00.000Z',
       criticalIssues: 3,

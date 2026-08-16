@@ -7,9 +7,10 @@ import { AiSearchModule } from '../ai-search/ai-search.module';
  *   GET  /api/ai/health  — provider config check
  *   POST /api/ai/chat    — single-turn or multi-turn AI chat
  *
- * Routes are intentionally unauthenticated so they can serve as a lightweight
- * AI chat surface without requiring a JWT. Add JwtAuthGuard to the controller
- * if the product roadmap calls for it.
+ * Both require a JWT. `/chat` bills a paid model on every call, so it is also
+ * gated on the caller's plan and usage allowance and records usage on success.
+ * The container's own liveness probe is the root `/health` route on
+ * HealthController, not `/api/ai/health`, so guarding these is safe.
  */
 @Module({
   imports: [AiSearchModule],

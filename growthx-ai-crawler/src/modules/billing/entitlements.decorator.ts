@@ -5,6 +5,17 @@ import { Feature } from './plans.catalog';
 export const REQUIRED_FEATURES_KEY = 'billing:features';
 export const REQUIRED_QUOTA_KEY = 'billing:quota';
 export const ORG_SOURCE_KEY = 'billing:orgSource';
+export const NO_ENTITLEMENT_KEY = 'billing:noEntitlement';
+
+/**
+ * Marks a route that intentionally has no plan gate.
+ *
+ * `EntitlementsGuard` refuses to run on a route that declares nothing, because
+ * a guard that silently allows anything reads as protection while providing
+ * none. Routes that genuinely need no gate — billing itself, core workspace
+ * CRUD — say so here, and the reason is recorded next to the route.
+ */
+export const NoEntitlement = (reason: string) => SetMetadata(NO_ENTITLEMENT_KEY, reason);
 
 /** Resources the guard knows how to trace back to an owning organization. */
 export type OrgResource = 'organization' | 'project' | 'website' | 'crawlJob' | 'issue';

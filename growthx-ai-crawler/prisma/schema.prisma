@@ -260,7 +260,7 @@ model OrganizationMember {
 }
 
 model Project {
-  id                   String              @id @default(uuid())
+  id                   String                 @id @default(uuid())
   name                 String
   organizationId       String
   /// Agency-facing retainer label, e.g. "Scale" / "Growth" / "Starter".
@@ -270,9 +270,9 @@ model Project {
   /// the agency has not recorded one — the portfolio then shows "—" and the
   /// figure is excluded from MRR rather than being guessed at.
   retainerMonthlyMinor Int?
-  retainerCurrency     String              @default("INR")
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  retainerCurrency     String                 @default("INR")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
   ClientPortalConfig   ClientPortalConfig?
   competitors          CompetitorDomain[]
   contentPieces        ContentPiece[]
@@ -282,11 +282,19 @@ model Project {
   MarketIntelligence   MarketIntelligence?
   MonitoringConfig     MonitoringConfig?
   OutreachCampaign     OutreachCampaign[]
-  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   repository           SiteRepository?
   strategies           StrategyReport[]
   prompts              TrackedPrompt[]
   websites             Website[]
+  AgentRun             AgentRun[]
+  Evidence             Evidence[]
+  Recommendation       Recommendation[]
+  MarketResearchThread MarketResearchThread[]
+  MarketOpportunity    MarketOpportunity[]
+  MarketAction         MarketAction[]
+  MarketWatch          MarketWatch[]
+  WeeklyDelta          WeeklyDelta[]
 
   @@index([organizationId])
 }
@@ -431,7 +439,10 @@ model ContentPiece {
   id               String             @id @default(uuid())
   projectId        String
   runId            String?
+  kind             ContentPieceKind   @default(ARTICLE)
   status           ContentPieceStatus @default(PLANNED)
+  /// The observation this draft was written from, when there is one.
+  sourceEvidenceId String?
   title            String
   slug             String
   format           String?
@@ -447,6 +458,7 @@ model ContentPiece {
   updatedAt        DateTime           @updatedAt
   project          Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   run              AutomationRun?     @relation(fields: [runId], references: [id])
+  sourceEvidence   Evidence?          @relation(fields: [sourceEvidenceId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, slug])
   @@index([projectId, status])
@@ -745,10 +757,527 @@ enum AutomationRunKind {
   CONTENT
 }
 
+/// What the content agent produced. Everything lands in DRAFTED for review;
+/// nothing here is published automatically.
+enum ContentPieceKind {
+  ARTICLE
+  BRIEF
+  GBP_POST
+  FAQ
+  REVIEW_REPLY
+  LANDING_PAGE_OUTLINE
+  SCHEMA_MARKUP
+}
+
 enum ContentPieceStatus {
   PLANNED
   DRAFTED
   COMMITTED
   PUBLISHED
   REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent runtime — the evidence spine
+//
+// Every agent records what it did (AgentRun), what it observed (Evidence), and
+// what it concluded (Recommendation). A Recommendation carries a REQUIRED
+// foreign key to the Evidence that justifies it, so the database itself rejects
+// a conclusion with no proof behind it. This is deliberate: unsupported
+// figures presented as analysis are the single failure mode this product
+// cannot afford, and a convention would eventually be forgotten.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AgentKind {
+  SEO_AUDITOR
+  LOCAL_SEO
+  MARKET_INTELLIGENCE
+  STRATEGY
+  CONTENT
+}
+
+enum AgentRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// Where an observation came from. Anything an agent asserts must trace to one
+/// of these, so a reader can always answer "how do you know that?".
+enum EvidenceSource {
+  /// A page returned by our own crawler.
+  CRAWL_PAGE
+  /// An issue raised by the issue engine against a crawled page.
+  CRAWL_ISSUE
+  /// Lighthouse / PageSpeed measurement for a page.
+  PERFORMANCE
+  /// A tracked prompt checked against an AI assistant.
+  AI_VISIBILITY_CHECK
+  /// A prompt the customer is tracking, independent of any check.
+  TRACKED_PROMPT
+  /// SERP listing from DataForSEO.
+  DATAFORSEO_SERP
+  /// Keyword volume / difficulty from DataForSEO.
+  DATAFORSEO_KEYWORD
+  /// Review text from DataForSEO.
+  DATAFORSEO_REVIEW
+  /// Google Business Profile listing field (category, hours, photo, service).
+  GBP_PROFILE
+  /// A review left on the Google Business Profile.
+  GBP_REVIEW
+  /// Google Search Console query/page row.
+  SEARCH_CONSOLE
+  /// Google Analytics metric.
+  ANALYTICS
+}
+
+enum RecommendationHorizon {
+  DAYS_30
+  DAYS_60
+  DAYS_90
+}
+
+enum RecommendationEffort {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RecommendationImpact {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum RecommendationStatus {
+  PROPOSED
+  ACCEPTED
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+/// One execution of one agent against one project.
+model AgentRun {
+  id               String           @id @default(uuid())
+  projectId        String
+  agent            AgentKind
+  status           AgentRunStatus   @default(RUNNING)
+  startedAt        DateTime         @default(now())
+  finishedAt       DateTime?
+  /// Model that produced the output, when the run used one.
+  generatedByModel String?
+  /// What the run was given to work with, for reproducibility.
+  inputSummary     Json?
+  /// Failure reason when status is FAILED.
+  error            String?
+  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evidence         Evidence[]
+  recommendations  Recommendation[]
+
+  @@index([projectId, agent, startedAt])
+}
+
+/// A single observation, tied to where it came from and when it was true.
+model Evidence {
+  id           String           @id @default(uuid())
+  projectId    String
+  runId        String?
+  source       EvidenceSource
+  /// Points back to the origin: a URL, a Prisma row id, or an API query.
+  reference    String
+  /// When the observation was made — not when the row was written. A figure
+  /// from a three-month-old crawl should be visibly three months old.
+  observedAt   DateTime
+  /// One line a human can read without opening the payload.
+  summary      String
+  /// The raw record, kept so a claim can be re-checked against its source.
+  payload      Json?
+  createdAt    DateTime         @default(now())
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run          AgentRun?        @relation(fields: [runId], references: [id], onDelete: SetNull)
+  /// Recommendations for which this is the load-bearing proof.
+  primaryFor   Recommendation[] @relation("PrimaryEvidence")
+  /// Recommendations this additionally supports.
+  supports     Recommendation[] @relation("SupportingEvidence")
+  ContentPiece ContentPiece[]
+
+  @@index([projectId, source, observedAt])
+  @@index([runId])
+}
+
+/// A conclusion an agent reached, and the plan entry it becomes.
+model Recommendation {
+  id                 String                @id @default(uuid())
+  projectId          String
+  runId              String
+  agent              AgentKind
+  title              String
+  /// Why this matters, in the customer's terms.
+  rationale          String
+  horizon            RecommendationHorizon
+  effort             RecommendationEffort
+  impact             RecommendationImpact
+  /// Who is expected to do it — a role or team label, e.g. "Developer".
+  owner              String
+  status             RecommendationStatus  @default(PROPOSED)
+  /// NOT NULL by design. There is no way to persist a recommendation without
+  /// at least one piece of evidence behind it.
+  primaryEvidenceId  String
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  project            Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run                AgentRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  primaryEvidence    Evidence              @relation("PrimaryEvidence", fields: [primaryEvidenceId], references: [id], onDelete: Restrict)
+  supportingEvidence Evidence[]            @relation("SupportingEvidence")
+
+  @@index([projectId, horizon, status])
+  @@index([runId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GrowthX Market Research
+//
+// Cited market research joined to a client's own crawl, competitors, tracked
+// prompts and AI-visibility history.
+//
+// Every table carries BOTH organizationId and projectId. The project alone
+// would be enough to scope a query, but carrying the organization means a
+// mis-scoped query fails closed against the tenant boundary rather than
+// leaking across it, and it keeps the guard checkable in one place.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ResearchIntent {
+  MARKET_TREND
+  COMPETITOR_COMPARISON
+  CUSTOMER_INSIGHT
+  AI_VISIBILITY_GAP
+  CONTENT_OPPORTUNITY
+  STRATEGIC_RECOMMENDATION
+}
+
+enum ResearchRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// Where a piece of evidence came from. Drives the badge in the source drawer.
+enum ResearchSourceType {
+  PUBLIC_WEB
+  CLIENT_WEBSITE
+  UPLOADED_FILE
+  AI_VISIBILITY_CHECK
+  INTEGRATION_DATA
+}
+
+enum ResearchConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// A statement the model made. VERIFIED must cite sources; INFERENCE is the
+/// model reasoning beyond them and is labelled as such everywhere it appears.
+enum ResearchClaimKind {
+  VERIFIED
+  INFERENCE
+}
+
+enum MarketActionType {
+  CONTENT_BRIEF
+  PAGE_REFRESH
+  TECHNICAL_TASK
+  TRACK_PROMPT
+  COMPETITOR_WATCH
+  OUTREACH_OPPORTUNITY
+}
+
+enum MarketActionStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum MarketWatchKind {
+  COMPETITOR
+  TOPIC
+}
+
+enum ResearchMessageRole {
+  USER
+  ASSISTANT
+}
+
+/// A conversation. Follow-ups reuse the thread so context stays project scoped.
+model MarketResearchThread {
+  id             String                  @id @default(uuid())
+  organizationId String
+  projectId      String
+  title          String
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages       MarketResearchMessage[]
+  runs           MarketResearchRun[]
+
+  @@index([organizationId, projectId, updatedAt])
+}
+
+model MarketResearchMessage {
+  id             String               @id @default(uuid())
+  threadId       String
+  organizationId String
+  projectId      String
+  role           ResearchMessageRole
+  content        String
+  /// Set on assistant messages: the run that produced them.
+  runId          String?
+  createdAt      DateTime             @default(now())
+  thread         MarketResearchThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([organizationId, projectId])
+}
+
+/// One execution of the research pipeline, with everything needed to audit it.
+model MarketResearchRun {
+  id               String               @id @default(uuid())
+  threadId         String
+  organizationId   String
+  projectId        String
+  question         String
+  intent           ResearchIntent?
+  status           ResearchRunStatus    @default(RUNNING)
+  /// Whether the caller asked for the premium deep-research model.
+  deepResearch     Boolean              @default(false)
+  /// The plan produced before retrieval.
+  plan             Json?
+  /// The validated structured answer returned to the client.
+  answer           Json?
+  confidence       ResearchConfidence?
+  /// Per-step model usage: which model ran which step, and what it cost.
+  modelUsage       Json?
+  inputTokens      Int                  @default(0)
+  outputTokens     Int                  @default(0)
+  estimatedCostUsd Float?
+  error            String?
+  startedAt        DateTime             @default(now())
+  finishedAt       DateTime?
+  thread           MarketResearchThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sources          ResearchSource[]
+  claims           ResearchClaim[]
+  opportunities    MarketOpportunity[]
+  actions          MarketAction[]
+
+  @@index([organizationId, projectId, startedAt])
+  @@index([threadId])
+}
+
+/// One retrieved source. The model may only cite keys that exist here for its
+/// own run, which is what makes "no invented URLs" checkable rather than hoped for.
+model ResearchSource {
+  id             String             @id @default(uuid())
+  runId          String
+  organizationId String
+  projectId      String
+  /// Stable handle used in the model's citations, e.g. "source_1".
+  sourceKey      String
+  type           ResearchSourceType
+  url            String?
+  /// For client pages, uploads and internal records.
+  internalDocId  String?
+  title          String
+  publisher      String?
+  publishedAt    DateTime?
+  retrievedAt    DateTime           @default(now())
+  excerpt        String
+  /// 0-1. How much weight this source should carry.
+  qualityScore   Float              @default(0.5)
+  createdAt      DateTime           @default(now())
+  run            MarketResearchRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  claims         ResearchClaim[]    @relation("ClaimCitations")
+
+  @@unique([runId, sourceKey])
+  @@index([organizationId, projectId])
+}
+
+model ResearchClaim {
+  id             String            @id @default(uuid())
+  runId          String
+  organizationId String
+  projectId      String
+  kind           ResearchClaimKind
+  text           String
+  /// Why the model believes it, for inferences.
+  reasoning      String?
+  createdAt      DateTime          @default(now())
+  run            MarketResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  citations      ResearchSource[]  @relation("ClaimCitations")
+
+  @@index([runId, kind])
+  @@index([organizationId, projectId])
+}
+
+/// A citation/visibility gap the research surfaced.
+model MarketOpportunity {
+  id                  String             @id @default(uuid())
+  runId               String?
+  organizationId      String
+  projectId           String
+  topic               String
+  gap                 String
+  competitorsWinning  String[]
+  recommendedResponse String
+  impact              ResearchConfidence @default(MEDIUM)
+  effort              ResearchConfidence @default(MEDIUM)
+  createdAt           DateTime           @default(now())
+  run                 MarketResearchRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  project             Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actions             MarketAction[]
+
+  @@index([organizationId, projectId, createdAt])
+}
+
+/// A recommendation awaiting a human decision. Nothing here executes on its own.
+model MarketAction {
+  id                  String               @id @default(uuid())
+  organizationId      String
+  projectId           String
+  runId               String?
+  opportunityId       String?
+  type                MarketActionType
+  title               String
+  description         String
+  expectedImpact      String?
+  confidence          ResearchConfidence   @default(MEDIUM)
+  status              MarketActionStatus   @default(PROPOSED)
+  requiresApproval    Boolean              @default(true)
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  /// Id of the record this became once converted (content piece, prompt, etc).
+  convertedToId       String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  run                 MarketResearchRun?   @relation(fields: [runId], references: [id], onDelete: SetNull)
+  opportunity         MarketOpportunity?   @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  MarketActionOutcome MarketActionOutcome?
+
+  @@index([organizationId, projectId, status])
+}
+
+/// A competitor or topic to monitor between research runs.
+model MarketWatch {
+  id             String          @id @default(uuid())
+  organizationId String
+  projectId      String
+  kind           MarketWatchKind
+  /// Domain for COMPETITOR, phrase for TOPIC.
+  value          String
+  isActive       Boolean         @default(true)
+  lastCheckedAt  DateTime?
+  createdAt      DateTime        @default(now())
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind, value])
+  @@index([organizationId, projectId, isActive])
+}
+
+/// Embedding index over client-owned text (crawled pages, saved reports, briefs).
+///
+/// The vector is a plain Float[] and similarity is computed over this project's
+/// own rows. pgvector would be faster, but it is an extension we cannot verify
+/// on every deployment target, and a project's corpus is small enough that an
+/// exact scan is both correct and fast. Scoping the scan to one project also
+/// makes a cross-tenant match structurally impossible.
+model ResearchEmbedding {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  /// What was embedded: CRAWL_PAGE, REPORT, BRIEF, UPLOAD.
+  kind           String
+  /// Id or URL of the underlying record.
+  refId          String
+  title          String
+  excerpt        String
+  vector         Float[]
+  model          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([projectId, kind, refId])
+  @@index([organizationId, projectId, kind])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 — measurement and monitoring
+//
+// Closes the loop: an approved action that became real work gets a visibility
+// snapshot at conversion, and another one later, so the agency can see what
+// moved afterwards.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum OutcomeStatus {
+  /// Baseline captured; not enough time has passed to re-measure.
+  PENDING
+  /// A follow-up measurement exists.
+  MEASURED
+  /// Re-measured, but the project has too little visibility data to compare.
+  INCONCLUSIVE
+}
+
+/// Before-and-after visibility for one converted action.
+///
+/// Deliberately records movement, not attribution. Citation share moves for
+/// many reasons at once — competitors publishing, assistants changing, other
+/// work shipping in the same week — so this stores what changed and leaves
+/// causation to the human reading it. Claiming the action caused the delta
+/// would be the same class of invention the citation rules exist to prevent.
+model MarketActionOutcome {
+  id             String        @id @default(uuid())
+  actionId       String        @unique
+  organizationId String
+  projectId      String
+  status         OutcomeStatus @default(PENDING)
+
+  /// Position when the work was created.
+  baselineAt               DateTime
+  baselineCitationSharePct Float?
+  baselineAveragePosition  Float?
+  baselineTrackedPrompts   Int      @default(0)
+
+  /// Position at the most recent re-measurement.
+  measuredAt       DateTime?
+  citationSharePct Float?
+  averagePosition  Float?
+
+  /// Percentage points moved since baseline. Null until re-measured.
+  deltaPt   Float?
+  /// What could not be established, e.g. "no prompts tracked in this period".
+  note      String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  action    MarketAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId, status])
+}
+
+/// A generated weekly summary for one client.
+model WeeklyDelta {
+  id               String   @id @default(uuid())
+  organizationId   String
+  projectId        String
+  periodStart      DateTime
+  periodEnd        DateTime
+  /// The rendered summary: what changed, movement, competitors, next action.
+  content          Json
+  generatedByModel String?
+  createdAt        DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, periodStart])
+  @@index([organizationId, projectId, periodEnd])
 }

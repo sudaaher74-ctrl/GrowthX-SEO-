@@ -431,3 +431,76 @@ export function useIntegrations(projectId: string | null) {
     retry: false,
   });
 }
+
+// ── Market research
+
+export function useResearchThreads(projectId: string | null) {
+  return useQuery({
+    queryKey: ["research-threads", projectId],
+    queryFn: () => api.listResearchThreads(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useResearchThread(projectId: string | null, threadId: string | null) {
+  return useQuery({
+    queryKey: ["research-thread", projectId, threadId],
+    queryFn: () => api.getResearchThread(projectId!, threadId!),
+    enabled: Boolean(projectId && threadId),
+    retry: false,
+  });
+}
+
+export function useAskResearch(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { question: string; threadId?: string; deepResearch?: boolean }) =>
+      api.askResearch(projectId!, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["research-threads", projectId] });
+    },
+  });
+}
+
+export function useMarketActions(projectId: string | null, status?: "PROPOSED" | "APPROVED" | "REJECTED" | "CONVERTED") {
+  return useQuery({
+    queryKey: ["market-actions", projectId, status ?? "all"],
+    queryFn: () => api.listMarketActions(projectId!, status),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useMarketOpportunities(projectId: string | null) {
+  return useQuery({
+    queryKey: ["market-opportunities", projectId],
+    queryFn: () => api.listMarketOpportunities(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/** Approve, reject, or convert — all invalidate the queue so it reflects reality. */
+export function useMarketActionDecision(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ actionId, decision }: { actionId: string; decision: "approve" | "reject" | "convert" }) => {
+      if (decision === "approve") return api.approveMarketAction(projectId!, actionId);
+      if (decision === "reject") return api.rejectMarketAction(projectId!, actionId);
+      return api.convertMarketAction(projectId!, actionId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["market-actions", projectId] });
+    },
+  });
+}
+
+export function useMarketOutcomes(projectId: string | null) {
+  return useQuery({
+    queryKey: ["market-outcomes", projectId],
+    queryFn: () => api.listMarketOutcomes(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}

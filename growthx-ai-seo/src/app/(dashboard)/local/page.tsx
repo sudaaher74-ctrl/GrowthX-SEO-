@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
+import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, NotConnected, relativeTime } from "@/components/ui/console";
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2 } from "lucide-react";
 import { useWorkspace, useLocalSeo } from "@/hooks/use-growthx";
 
@@ -54,6 +54,12 @@ export default function LocalPage() {
                 <p className="text-sm text-[var(--text-muted)]">Loading local data...</p>
               </div>
             </Panel>
+          ) : !localSeo ? (
+            <NotConnected
+              title="No Google Business Profile connected"
+              what="Local SEO reports on this project's own listing — its categories, hours, reviews and local rankings. Nothing is shown until a real listing is linked."
+              needs={["A Google Business Profile connected to this project", "A completed local audit"]}
+            />
           ) : (
             <>
               {(activeTab === "gbp" || activeTab === "overview") && (
@@ -67,9 +73,9 @@ export default function LocalPage() {
                        <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Registered Address</h3>
                        <p className="text-[15px] font-medium">{localSeo?.address || "N/A"}</p>
                     </div>
-                    <div className="border border-[#e4e4e7] rounded-md p-4 flex flex-col justify-center">
-                       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Status</h3>
-                       <Pill tone="good">VERIFIED</Pill>
+                    <div className="border border-[#e4e4e7] rounded-md p-4">
+                       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Last Updated</h3>
+                       <p className="text-[15px] font-medium">{relativeTime(localSeo.updatedAt)}</p>
                     </div>
                   </div>
                 </Panel>
@@ -78,8 +84,10 @@ export default function LocalPage() {
               {(activeTab === "reviews") && (
                 <Panel title="Reviews & Ratings" subtitle="Manage your local reputation">
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Kpi label="Average Rating" value={localSeo?.rating.toFixed(1) || "0.0"} delta={5.2} tone="good" />
-                    <Kpi label="Total Reviews" value={(localSeo?.reviewCount || 0).toString()} delta={12} tone="good" />
+                    {/* No deltas: nothing records a previous rating or review
+                        count, so any change figure here would be invented. */}
+                    <Kpi label="Average Rating" value={localSeo.rating.toFixed(1)} />
+                    <Kpi label="Total Reviews" value={localSeo.reviewCount.toLocaleString()} />
                   </div>
                 </Panel>
               )}

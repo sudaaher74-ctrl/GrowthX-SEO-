@@ -10,9 +10,11 @@ import type { CrawlIssue } from "@/lib/api-client";
 function EngineerClient() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
-  const activeDomain = client?.domain ?? "immunitygroup.com";
-  
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  // No fallback domain: defaulting to some other tenant's site would show this
+  // workspace another customer's crawl issues and generated code fixes.
+  const activeDomain = client?.domain ?? null;
+
   const latestCrawl = useLatestCrawl(activeDomain);
   const jobId = latestCrawl.data?.id ?? null;
   const issues = useCrawlIssues(jobId);

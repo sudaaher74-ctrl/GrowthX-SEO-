@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { DatabaseModule } from './database/database.module';
+import { AgentsModule } from './modules/agents/agents.module';
 import { StorageModule } from './storage/storage.module';
 import { SecurityModule } from './modules/security/security.module';
 import { ValidatorModule } from './modules/validator/validator.module';
@@ -40,12 +43,29 @@ import { ReportingModule } from './modules/reporting/reporting.module';
 import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { MarketResearchModule } from './modules/market-research/market-research.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // `@nestjs/throttler` was a dependency but was never registered, so no
+    // route had any rate limit at all. Two buckets: a burst ceiling and a
+    // sustained per-minute ceiling, both keyed on caller IP by default.
+    //
+    // `skipIf` restricts this to HTTP. The guard is registered via APP_GUARD,
+    // which Nest also applies to WebSocket handlers, and the throttler resolves
+    // its request through `switchToHttp()` — left unguarded it would misbehave
+    // on the crawl-progress gateway.
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'burst', ttl: 1_000, limit: Number(process.env.THROTTLE_BURST_LIMIT ?? 10) },
+        { name: 'sustained', ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 120) },
+      ],
+      skipIf: (context) => context.getType() !== 'http',
+    }),
     ObservabilityModule,
     DatabaseModule,
+    AgentsModule,
     StorageModule,
     SecurityModule,
     ValidatorModule,
@@ -83,8 +103,9 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     MarketIntelligenceModule,
     MonitoringModule,
     IntegrationsModule,
+    MarketResearchModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

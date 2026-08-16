@@ -67,19 +67,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-settings", title: "Settings & Integrations", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace domain, team & OAuth" },
 
     // Quick Actions
-    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/technical-seo"); }, subtitle: "Scan 1,247 pages for SEO issues" },
-    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/content-ai"); }, subtitle: "Create an SEO-optimized 1,500 word article" },
-    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search-console"); }, subtitle: "Fetch latest 90-day search queries" },
-    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local-seo"); }, subtitle: "Generate landing page for a target city" },
-
-    // Keywords
-    { id: "kw-1", title: "milk delivery panvel", category: "Keywords", icon: Target, href: "/rank-tracking", subtitle: "Rank #2 · Volume 2,800 · KD 32" },
-    { id: "kw-2", title: "fresh milk subscription", category: "Keywords", icon: Target, href: "/rank-tracking", subtitle: "Rank #7 · Volume 5,400 · KD 45" },
-    { id: "kw-3", title: "A2 cow milk benefits", category: "Keywords", icon: Target, href: "/keywords", subtitle: "Opportunity Score 81 · Volume 12,000" },
-
-    // Pages
-    { id: "pg-1", title: "/milk-delivery-panvel", category: "Pages", icon: Globe, href: "/search-console", subtitle: "2,840 clicks · 9.2% CTR · Pos 3.1" },
-    { id: "pg-2", title: "/products/a2-cow-milk", category: "Pages", icon: Globe, href: "/search-console", subtitle: "1,540 clicks · 8.3% CTR · Pos 6.8" },
+    // Subtitles describe what the action does. They deliberately carry no
+    // counts or metrics — the palette has no workspace data loaded, so any
+    // figure here would be a fabricated number shown to every tenant.
+    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/technical-seo"); }, subtitle: "Scan your site for SEO issues" },
+    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/content-ai"); }, subtitle: "Draft an SEO-optimized article" },
+    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search-console"); }, subtitle: "Fetch the latest search queries" },
+    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local-seo"); }, subtitle: "Generate a landing page for a target city" },
   ], [router]);
 
   const filteredItems = useMemo(() => {

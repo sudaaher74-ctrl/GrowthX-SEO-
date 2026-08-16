@@ -1,11 +1,22 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { IssueSeverity, UsageMetric } from '@prisma/client';
+import {
+  AgentKind,
+  AgentRun,
+  Evidence,
+  IssueSeverity,
+  RecommendationEffort,
+  RecommendationHorizon,
+  RecommendationImpact,
+  UsageMetric,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { AgentRunService } from '../agents/agent-run.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import {
+  buildEvidenceRecords,
   buildStrategyPrompt,
   STRATEGY_SCHEMA,
   STRATEGY_SYSTEM_PROMPT,
@@ -16,6 +27,30 @@ import {
 const SAMPLE_PAGE_LIMIT = 15;
 const LOST_PROMPT_LIMIT = 10;
 
+/**
+ * The model answers with the labels from the JSON schema; these map them onto
+ * the stored enums. An unrecognised label falls back to the most conservative
+ * option rather than the most flattering one.
+ */
+const HORIZONS: Record<string, RecommendationHorizon> = {
+  '30-day': RecommendationHorizon.DAYS_30,
+  '60-day': RecommendationHorizon.DAYS_60,
+  '90-day': RecommendationHorizon.DAYS_90,
+};
+
+const EFFORTS: Record<string, RecommendationEffort> = {
+  LOW: RecommendationEffort.LOW,
+  MEDIUM: RecommendationEffort.MEDIUM,
+  HIGH: RecommendationEffort.HIGH,
+};
+
+const IMPACTS: Record<string, RecommendationImpact> = {
+  LOW: RecommendationImpact.LOW,
+  MEDIUM: RecommendationImpact.MEDIUM,
+  HIGH: RecommendationImpact.HIGH,
+  VERY_HIGH: RecommendationImpact.VERY_HIGH,
+};
+
 @Injectable()
 export class StrategyService {
   private readonly logger = new Logger(StrategyService.name);
@@ -25,6 +60,7 @@ export class StrategyService {
     private readonly router: MultiAiRouterService,
     private readonly visibility: AiVisibilityService,
     private readonly entitlements: EntitlementsService,
+    private readonly agentRuns: AgentRunService,
   ) {}
 
   /**
@@ -123,6 +159,7 @@ export class StrategyService {
     return {
       business: { projectName: project.name, domains: project.websites.map((w) => w.domain) },
       site: {
+        crawlJobId: latestCrawl?.id ?? null,
         pagesCrawled: latestCrawl?.pagesCrawled ?? 0,
         lastCrawledAt: latestCrawl?.finishedAt?.toISOString() ?? null,
         criticalIssues,
@@ -161,126 +198,117 @@ export class StrategyService {
       );
     }
 
-    const completion = await this.router.generate({
-      prompt: buildStrategyPrompt(evidence),
-      systemInstruction: STRATEGY_SYSTEM_PROMPT,
-      task: AiTask.REASONING,
-      organizationId,
-      jsonSchema: STRATEGY_SCHEMA as unknown as Record<string, unknown>,
-      // Strategy output is long; leave room for reasoning plus the plan itself.
-      maxTokens: 16000,
-    });
+    const keyed = buildEvidenceRecords(evidence);
 
-    if (completion.refused || !completion.text.trim()) {
-      throw new ServiceUnavailableException('The model did not return a strategy. Please retry.');
-    }
+    return this.agentRuns.withRun(
+      projectId,
+      AgentKind.STRATEGY,
+      async (run) => {
+        // Evidence is persisted before the model is called, so the observations
+        // exist independently of whatever the model does with them.
+        const stored = await this.agentRuns.recordEvidenceBatch(
+          run,
+          keyed.map(({ key: _key, ...record }) => record),
+        );
+        const byKey = new Map(keyed.map((record, i) => [record.key, stored[i]]));
 
-    const content = this.parseJson(completion.text);
-    if (!content.seoRoadmap || !Array.isArray(content.seoRoadmap)) {
-      throw new ServiceUnavailableException('The model returned an unusable strategy. Please retry.');
-    }
+        const completion = await this.router.generate({
+          prompt: buildStrategyPrompt(evidence, keyed),
+          systemInstruction: STRATEGY_SYSTEM_PROMPT,
+          task: AiTask.REASONING,
+          organizationId,
+          jsonSchema: STRATEGY_SCHEMA as unknown as Record<string, unknown>,
+          // Strategy output is long; leave room for reasoning plus the plan itself.
+          maxTokens: 16000,
+        });
 
-    const report = await this.prisma.strategyReport.create({
-      data: {
-        projectId,
-        evidence: evidence as any,
-        content,
-        generatedByModel: completion.model,
+        if (completion.refused || !completion.text.trim()) {
+          throw new ServiceUnavailableException('The model did not return a strategy. Please retry.');
+        }
+
+        const content = this.parseJson(completion.text);
+        if (!content.seoRoadmap || !Array.isArray(content.seoRoadmap)) {
+          throw new ServiceUnavailableException('The model returned an unusable strategy. Please retry.');
+        }
+
+        const { recommendations, discarded } = await this.persistRoadmap(run, content.seoRoadmap, byKey);
+
+        if (recommendations === 0) {
+          throw new ServiceUnavailableException(
+            'The model produced no recommendation that cited real evidence. Please retry.',
+          );
+        }
+        if (discarded > 0) {
+          this.logger.warn(
+            `Discarded ${discarded} strategy item(s) for project ${projectId}: cited evidence that was never observed.`,
+          );
+        }
+
+        const report = await this.prisma.strategyReport.create({
+          data: {
+            projectId,
+            evidence: evidence as any,
+            content,
+            generatedByModel: completion.model,
+          },
+        });
+
+        await this.entitlements.recordUsage(organizationId, UsageMetric.STRATEGY_REPORTS);
+        this.logger.log(
+          `Strategy generated for project ${projectId} by ${completion.model}: ${recommendations} recommendation(s).`,
+        );
+
+        return { result: report, model: completion.model };
       },
-    });
+      { pagesCrawled: evidence.site.pagesCrawled, evidenceCount: keyed.length },
+    );
+  }
 
-    await this.entitlements.recordUsage(organizationId, UsageMetric.STRATEGY_REPORTS);
-    this.logger.log(`Strategy generated for project ${projectId} by ${completion.model}.`);
+  /**
+   * Turns roadmap entries into Recommendations, dropping any that cite an
+   * evidence key we never recorded.
+   *
+   * A model asked to cite its sources will occasionally invent a plausible key.
+   * Dropping those is the whole point of the mechanism: the alternative is
+   * attaching the recommendation to some arbitrary other observation, which
+   * would make the provenance trail lie rather than merely be incomplete.
+   */
+  private async persistRoadmap(
+    run: AgentRun,
+    roadmap: any[],
+    byKey: Map<string, Evidence>,
+  ): Promise<{ recommendations: number; discarded: number }> {
+    let recommendations = 0;
+    let discarded = 0;
 
-    return report;
+    for (const item of roadmap) {
+      const primaryEvidence = byKey.get(String(item?.evidenceKey ?? ''));
+      if (!primaryEvidence || !item?.action) {
+        discarded++;
+        continue;
+      }
+
+      await this.agentRuns.recommend(run, {
+        title: String(item.action),
+        rationale: String(item.why ?? ''),
+        horizon: HORIZONS[String(item.horizon)] ?? RecommendationHorizon.DAYS_90,
+        effort: EFFORTS[String(item.effort)] ?? RecommendationEffort.MEDIUM,
+        impact: IMPACTS[String(item.impact)] ?? RecommendationImpact.MEDIUM,
+        owner: String(item.owner || 'Unassigned'),
+        primaryEvidence,
+      });
+      recommendations++;
+    }
+
+    return { recommendations, discarded };
   }
 
   async list(projectId: string) {
-    let reports = await this.prisma.strategyReport.findMany({
+    return this.prisma.strategyReport.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
       select: { id: true, createdAt: true, generatedByModel: true },
     });
-
-    if (reports.length === 0) {
-      const defaultReport = await this.generateDefaultStrategy(projectId);
-      if (defaultReport) {
-        reports = [{ id: defaultReport.id, createdAt: defaultReport.createdAt, generatedByModel: defaultReport.generatedByModel }];
-      }
-    }
-
-    return reports;
-  }
-
-  async generateDefaultStrategy(projectId: string) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      include: { websites: true },
-    });
-    if (!project) return null;
-
-    const domain = project.websites[0]?.domain || 'brand';
-    const brandName = project.name || domain.split('.')[0];
-
-    const defaultContent = {
-      businessSummary: `${brandName} is a high-growth D2C brand specializing in fresh, organic dairy products and doorstep delivery services across Navi Mumbai.`,
-      marketAnalysis: {
-        positioning: `Premium farm-to-table organic dairy provider targeting health-conscious urban households.`,
-        targetAudience: `Urban families, parents with young children, and wellness enthusiasts seeking 100% pure A2 milk and chemical-free dairy.`,
-        demandSignals: [
-          `350% increase in local search volume for "organic A2 milk near me"`,
-          `High recurring subscription intent in Panvel, Kharghar, and Vashi`,
-          `Growing consumer preference for glass bottle eco-friendly packaging`,
-        ],
-        competitiveThreats: [
-          `Established commercial milk aggregators with lower price points`,
-          `Regional cold-chain logistics competitors`,
-        ],
-      },
-      seoRoadmap: [
-        {
-          horizon: `Immediate (Month 1)`,
-          action: `Implement self-referencing canonical tags and fix missing H1s across all product landing pages.`,
-          why: `Eliminates duplicate content indexing penalties and clarifies page topic signals for Google.`,
-          effort: `Low`,
-          expectedImpact: `High (+15% Indexing Quality)`,
-        },
-        {
-          horizon: `Short Term (Month 2)`,
-          action: `Publish hyper-local location pages targeting "milk delivery [city]" keywords.`,
-          why: `Captures high-intent local buyer searches in specific delivery coverage zones.`,
-          effort: `Medium`,
-          expectedImpact: `High (+30% Organic Traffic)`,
-        },
-        {
-          horizon: `Long Term (Month 3+)`,
-          action: `Build AEO structured Schema.org JSON-LD data for product ratings and local business citations.`,
-          why: `Drives AI citation share in ChatGPT, Claude, and Gemini answer engines.`,
-          effort: `Medium`,
-          expectedImpact: `Very High (+40% AI Visibility)`,
-        },
-      ],
-      contentPlan: [
-        { title: "A2 Cow Milk vs Regular Buffalo Milk: Health & Nutrition Guide", format: "Guide", targetQuery: "a2 cow milk vs buffalo milk", why: "High search volume & buyer education intent" },
-        { title: "Top 5 Benefits of Drinking Unpasteurized Farm Fresh Milk Daily", format: "Article", targetQuery: "benefits of farm fresh milk", why: "Builds product authority and trust" },
-        { title: "Why Traditional Bilona Desi Ghee is Superior for Immunity", format: "Blog Post", targetQuery: "bilona desi ghee health benefits", why: "Drives high-AOV product purchases" },
-      ],
-      socialStrategy: [
-        { platform: "Instagram", cadence: "3x Weekly", contentThemes: ["Farm Tours", "Purity Tests", "Customer Reviews"], why: "Visual trust building & community engagement" },
-        { platform: "LinkedIn", cadence: "1x Weekly", contentThemes: ["Founder Story", "Sustainable Agriculture", "D2C Logistics"], why: "Corporate reputation & partnership opportunities" },
-      ]
-    };
-
-    const report = await this.prisma.strategyReport.create({
-      data: {
-        projectId,
-        evidence: { business: { projectName: project.name, domains: [domain] } },
-        content: defaultContent,
-        generatedByModel: "growthx-ai-strategy-engine",
-      },
-    });
-
-    return report;
   }
 
   async get(reportId: string) {

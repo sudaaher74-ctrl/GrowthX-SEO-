@@ -14,6 +14,7 @@ import {
   Globe,
   HeartPulse,
   LayoutGrid,
+  ListChecks,
   MapPin,
   Megaphone,
   MoreHorizontal,
@@ -21,6 +22,7 @@ import {
   Settings,
   Sparkles,
   TrendingUp,
+  Telescope,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -75,6 +77,8 @@ export function Sidebar({
     },
     { label: "Search", href: "/search", icon: Search },
     { label: "Local", href: "/local", icon: MapPin },
+    { label: "Market Research", href: "/market-research", icon: Telescope },
+    { label: "Action Queue", href: "/action-queue", icon: ListChecks },
     { label: "Market", href: "/market", icon: TrendingUp },
     { label: "Competitors", href: "/competitors", icon: Crosshair },
     { label: "Marketing", href: "/marketing", icon: Megaphone },

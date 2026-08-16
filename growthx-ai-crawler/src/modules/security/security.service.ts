@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import * as dns from 'dns';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { encryptionKey } from '../../config/secrets';
 
 @Injectable()
 export class SecurityService {
@@ -11,13 +12,7 @@ export class SecurityService {
   private readonly secretKey: Buffer;
 
   constructor() {
-    const keyString = process.env.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-    // Ensure key is 32 bytes
-    if (keyString.length >= 64) {
-      this.secretKey = Buffer.from(keyString.substring(0, 64), 'hex');
-    } else {
-      this.secretKey = crypto.createHash('sha256').update(String(keyString)).digest();
-    }
+    this.secretKey = encryptionKey();
   }
 
   /**

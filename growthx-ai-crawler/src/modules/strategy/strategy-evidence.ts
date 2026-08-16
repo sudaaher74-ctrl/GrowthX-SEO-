@@ -7,12 +7,16 @@
  * the prompt.
  */
 
+import { EvidenceSource, Prisma } from '@prisma/client';
+
 export interface StrategyEvidence {
   business: {
     projectName: string;
     domains: string[];
   };
   site: {
+    /** The crawl these figures came from, so evidence can point back at it. */
+    crawlJobId: string | null;
     pagesCrawled: number;
     lastCrawledAt: string | null;
     criticalIssues: number;
@@ -54,17 +58,27 @@ export const STRATEGY_SCHEMA = {
     },
     seoRoadmap: {
       type: 'array',
-      description: 'Sequenced actions. horizon is one of "30-day", "60-day", "90-day".',
+      description:
+        'Sequenced actions. Every entry must cite the evidence key it rests on; ' +
+        'an action with no supporting evidence key is discarded, so do not guess one.',
       items: {
         type: 'object',
         properties: {
-          horizon: { type: 'string' },
+          horizon: { type: 'string', enum: ['30-day', '60-day', '90-day'] },
           action: { type: 'string' },
           why: { type: 'string' },
-          effort: { type: 'string' },
-          expectedImpact: { type: 'string' },
+          effort: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+          impact: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'] },
+          owner: {
+            type: 'string',
+            description: 'Role expected to do the work, e.g. Developer, Content, SEO, Client.',
+          },
+          evidenceKey: {
+            type: 'string',
+            description: 'The key (e.g. "ISSUE-1") of the listed evidence that motivates this action.',
+          },
         },
-        required: ['horizon', 'action', 'why', 'effort', 'expectedImpact'],
+        required: ['horizon', 'action', 'why', 'effort', 'impact', 'owner', 'evidenceKey'],
         additionalProperties: false,
       },
     },
@@ -113,8 +127,104 @@ function bullet(lines: string[]): string {
   return lines.length ? lines.map((l) => `- ${l}`).join('\n') : '- (none recorded)';
 }
 
+/** One observation, labelled with the key the model must cite to use it. */
+export interface KeyedEvidence {
+  key: string;
+  source: EvidenceSource;
+  reference: string;
+  observedAt: Date;
+  summary: string;
+  payload?: Prisma.InputJsonValue;
+}
+
+/**
+ * Flattens the gathered evidence into individually citable records.
+ *
+ * Each gets a short key ("ISSUE-1", "PAGE-3") that appears in the prompt. The
+ * model must name one on every recommendation, which is what lets us store a
+ * real foreign key to the observation rather than a restatement of it. Anything
+ * the customer merely configured — their competitor list, say — is left out:
+ * that is context, not something we observed.
+ */
+export function buildEvidenceRecords(evidence: StrategyEvidence): KeyedEvidence[] {
+  const { site, aiVisibility } = evidence;
+  const records: KeyedEvidence[] = [];
+  const crawledAt = site.lastCrawledAt ? new Date(site.lastCrawledAt) : new Date();
+
+  if (site.crawlJobId) {
+    records.push({
+      key: 'CRAWL',
+      source: 'CRAWL_PAGE',
+      reference: `crawlJob:${site.crawlJobId}`,
+      observedAt: crawledAt,
+      summary: `Crawled ${site.pagesCrawled} pages: ${site.criticalIssues} critical and ${site.highIssues} high-severity issues open.`,
+      payload: {
+        pagesCrawled: site.pagesCrawled,
+        criticalIssues: site.criticalIssues,
+        highIssues: site.highIssues,
+      },
+    });
+  }
+
+  site.topIssueTypes.forEach((issue, i) => {
+    records.push({
+      key: `ISSUE-${i + 1}`,
+      source: 'CRAWL_ISSUE',
+      reference: `crawlJob:${site.crawlJobId}:issueType:${issue.issueType}`,
+      observedAt: crawledAt,
+      summary: `${issue.issueType} affects ${issue.count} page(s).`,
+      payload: { issueType: issue.issueType, count: issue.count },
+    });
+  });
+
+  site.samplePages.forEach((page, i) => {
+    records.push({
+      key: `PAGE-${i + 1}`,
+      source: 'CRAWL_PAGE',
+      reference: page.url,
+      observedAt: crawledAt,
+      summary: `${page.url} — "${page.title ?? 'untitled'}" (${page.wordCount} words).`,
+      payload: { url: page.url, title: page.title, wordCount: page.wordCount },
+    });
+  });
+
+  if (aiVisibility.trackedPromptCount > 0) {
+    records.push({
+      key: 'VISIBILITY',
+      source: 'AI_VISIBILITY_CHECK',
+      reference: `project-visibility:28d`,
+      observedAt: new Date(),
+      summary: `Cited in ${aiVisibility.citationSharePct ?? 0}% of AI answers across ${aiVisibility.trackedPromptCount} tracked prompts.`,
+      payload: {
+        citationSharePct: aiVisibility.citationSharePct,
+        averagePosition: aiVisibility.averagePosition,
+        byAssistant: aiVisibility.byAssistant,
+      },
+    });
+
+    aiVisibility.lostPrompts.forEach((lost, i) => {
+      records.push({
+        key: `LOST-${i + 1}`,
+        source: 'AI_VISIBILITY_CHECK',
+        reference: `prompt:${lost.prompt}`,
+        observedAt: new Date(),
+        summary: `Not cited for "${lost.prompt}"; assistants cited ${lost.competitors.join(', ')} instead.`,
+        payload: { prompt: lost.prompt, competitors: lost.competitors },
+      });
+    });
+  }
+
+  return records;
+}
+
+/** Renders the citable evidence list that the model must reference by key. */
+export function renderEvidenceKeys(records: KeyedEvidence[]): string {
+  if (!records.length) return '(no evidence available)';
+  return records.map((r) => `[${r.key}] ${r.summary}`).join('\n');
+}
+
 /** Renders the evidence as the user turn of the strategy request. */
-export function buildStrategyPrompt(evidence: StrategyEvidence): string {
+export function buildStrategyPrompt(evidence: StrategyEvidence, records: KeyedEvidence[] = []): string {
   const { business, site, aiVisibility, competitors } = evidence;
 
   const sections = [
@@ -143,6 +253,12 @@ export function buildStrategyPrompt(evidence: StrategyEvidence): string {
           )}`),
 
     `# Tracked competitors\n${bullet(competitors.map((c) => c.label ?? c.domain))}`,
+
+    `# Citable evidence\n` +
+      `Each SEO roadmap entry must set evidenceKey to exactly one key below.\n` +
+      `Use only these keys. An entry citing a key that is not listed is discarded,\n` +
+      `so if nothing here supports an action, leave the action out.\n\n` +
+      renderEvidenceKeys(records),
 
     `# What to produce\n` +
       `A plan for THIS business. Ground the market read in the pages listed above. ` +

@@ -36,6 +36,16 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/package*.json ./
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 
+# The Prisma CLI is a devDependency, so `npm ci --omit=dev` leaves it out of the
+# runtime image and `npx prisma` would fetch it over the network on every boot.
+# It depends only on @prisma/engines, so copying those two is enough to run
+# `migrate deploy` at startup offline.
+COPY --from=deps --chown=node:node /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps --chown=node:node /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+
+COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 # Install Playwright chromium browser for dynamic SPA rendering
 # Setting PLAYWRIGHT_BROWSERS_PATH guarantees they are cached securely
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
@@ -43,4 +53,4 @@ RUN npx playwright install chromium && chown -R node:node /ms-playwright
 
 USER node
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["./docker-entrypoint.sh"]

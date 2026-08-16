@@ -32,22 +32,11 @@ export class ReportingService {
       });
     }
 
-    let reports = project.CustomReport;
-    if (!reports || reports.length === 0) {
-      const mockReport = await this.prisma.customReport.create({
-        data: {
-          projectId,
-          name: 'Monthly Executive SEO Digest',
-          frequency: 'MONTHLY',
-          recipients: ['client@example.com', 'admin@milquufresh.in'],
-          format: 'PDF',
-        },
-      });
-      reports = [mockReport];
-    }
-
+    // No placeholder report is seeded here. Doing so wrote a hardcoded
+    // recipient list — including another customer's address — into every
+    // project that had not configured reporting yet.
     return {
-      customReports: reports,
+      customReports: project.CustomReport ?? [],
       clientPortal,
     };
   }
