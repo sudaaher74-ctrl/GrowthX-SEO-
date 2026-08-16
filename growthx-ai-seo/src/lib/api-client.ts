@@ -5,24 +5,41 @@
  * auth and organizations sit at the root, everything else under `/api`.
  */
 
+/**
+ * Which API this build talks to.
+ *
+ * There is deliberately no production fallback. This used to return the live
+ * production URL for any host that was not localhost, which meant a preview or
+ * staging deploy that forgot `NEXT_PUBLIC_API_URL` silently read and wrote real
+ * client data. Failing loudly on a misconfigured deploy is far cheaper than
+ * discovering it in production records afterwards.
+ */
 export function getApiBase(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "");
-  }
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host !== "localhost" && host !== "127.0.0.1") {
-      return "https://growthx-crawler-api.onrender.com";
-    }
-  }
-  return "http://localhost:3000";
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
+
+  if (isLocalhost) return "http://localhost:3000";
+
+  throw new Error(
+    "NEXT_PUBLIC_API_URL is not set. Set it to this environment's API URL " +
+      "(for example https://growthx-crawler-api.onrender.com for production). " +
+      "It has no default outside local development so a staging build cannot " +
+      "silently talk to production.",
+  );
 }
 
-export const API_BASE = getApiBase();
+// No module-level API_BASE constant: it would run getApiBase() at import time,
+// which during `next build` means throwing before a page can even render.
+// Callers resolve the base lazily, at request time.
 
 const TOKEN_KEY = "growthx.token";
 const ORG_KEY = "growthx.org";
 const PROJECT_KEY = "growthx.project";
+const REFRESH_KEY = "growthx.refresh";
 
 // ─────────────────────────────────────────────────────────── auth storage
 
@@ -33,6 +50,13 @@ export const auth = {
   },
   setToken(token: string) {
     window.localStorage.setItem(TOKEN_KEY, token);
+  },
+  getRefreshToken(): string | null {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(REFRESH_KEY);
+  },
+  setRefreshToken(token: string) {
+    window.localStorage.setItem(REFRESH_KEY, token);
   },
   getOrgId(): string | null {
     if (typeof window === "undefined") return null;
@@ -50,6 +74,7 @@ export const auth = {
   },
   clear() {
     window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
     window.localStorage.removeItem(ORG_KEY);
     window.localStorage.removeItem(PROJECT_KEY);
   },
@@ -99,7 +124,42 @@ export class ApiError extends Error {
 
 // ─────────────────────────────────────────────────────────────── fetcher
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * Swaps the refresh token for a new access token.
+ *
+ * Shared between concurrent callers: a page that fires six queries at once
+ * would otherwise send six refreshes and race to overwrite each other's token.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  const refreshToken = auth.getRefreshToken();
+  if (!refreshToken) return false;
+
+  refreshInFlight ??= (async () => {
+    try {
+      const response = await fetch(`${getApiBase()}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!response.ok) return false;
+      const body = (await response.json()) as { access_token?: string; refresh_token?: string };
+      if (!body.access_token) return false;
+      auth.setToken(body.access_token);
+      if (body.refresh_token) auth.setRefreshToken(body.refresh_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
   const token = auth.getToken();
   const orgId = auth.getOrgId();
 
@@ -159,6 +219,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     "Could not reach the GrowthX API. Check your connection and try again.";
 
   if (response?.status === 401 && typeof window !== "undefined") {
+    // A 60-minute access token expiring mid-task used to end the session. Try
+    // the refresh token first and replay the request; only clear the session
+    // when that fails too.
+    if (allowRefresh && path !== "/auth/refresh" && (await refreshSession())) {
+      return request<T>(path, init, false);
+    }
     auth.clear();
   }
   throw new ApiError(response?.status ?? 0, String(message), payload);
@@ -665,13 +731,15 @@ export interface MarketOutcomeRow {
 export const api = {
   // ── Auth
   async login(email: string, password: string) {
-    const result = await post<{ access_token: string }>("/auth/login", { email, password });
+    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/login", { email, password });
     auth.setToken(result.access_token);
+    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
   async register(data: { email: string; password: string; firstName?: string; lastName?: string }) {
-    const result = await post<{ access_token: string }>("/auth/register", data);
+    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/register", data);
     auth.setToken(result.access_token);
+    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
   logout: () => auth.clear(),

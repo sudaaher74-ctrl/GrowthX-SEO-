@@ -20,7 +20,7 @@ export enum ModelRole {
   EMBEDDING = 'EMBEDDING',
 }
 
-export type ResearchProvider = 'openai' | 'openrouter';
+export type ResearchProvider = 'openai' | 'openrouter' | 'groq';
 
 /**
  * Model ids per provider.
@@ -44,6 +44,25 @@ const MODELS: Record<ResearchProvider, Record<ModelRole, string>> = {
     // capability check below is what actually decides whether it is used.
     [ModelRole.EMBEDDING]: 'text-embedding-3-small',
   },
+  // Groq speaks the same Responses API, including json_schema — verified live.
+  // Its free tier makes this the provider that works without prepaid credit.
+  groq: {
+    [ModelRole.ANALYST]: 'openai/gpt-oss-120b',
+    [ModelRole.WORKER]: 'openai/gpt-oss-20b',
+    [ModelRole.DEEP]: 'openai/gpt-oss-120b',
+    [ModelRole.EMBEDDING]: 'text-embedding-3-small',
+  },
+};
+
+const BASE_URLS: Partial<Record<ResearchProvider, string>> = {
+  openrouter: 'https://openrouter.ai/api/v1',
+  groq: 'https://api.groq.com/openai/v1',
+};
+
+const KEY_ENV: Record<ResearchProvider, string> = {
+  openai: 'OPENAI_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  groq: 'GROQ_API_KEY',
 };
 
 const ENV_KEYS: Record<ModelRole, string> = {
@@ -114,7 +133,13 @@ export class ModelRouterService {
    */
   provider(): ResearchProvider {
     const configured = this.config.get<string>('MARKET_RESEARCH_PROVIDER')?.toLowerCase();
-    if (configured === 'openai' || configured === 'openrouter') return configured;
+    if (configured === 'openai' || configured === 'openrouter' || configured === 'groq') {
+      return configured;
+    }
+
+    // Groq first: its free tier actually serves requests, where OpenRouter
+    // returns 402 until credit is purchased. Explicit config always wins.
+    if (this.realKey(this.config.get<string>('GROQ_API_KEY'))) return 'groq';
     if (this.realKey(this.config.get<string>('OPENROUTER_API_KEY'))) return 'openrouter';
     return 'openai';
   }
@@ -137,8 +162,19 @@ export class ModelRouterService {
    */
   supportsEmbeddings(): boolean {
     if (this.provider() === 'openai') return this.isConfigured();
-    // An OpenAI key alongside OpenRouter can still serve embeddings.
+    // Neither Groq nor OpenRouter serves embeddings; an OpenAI key alongside
+    // them still can.
     return this.realKey(this.config.get<string>('OPENAI_API_KEY'));
+  }
+
+  /**
+   * Whether this provider can search the live web.
+   *
+   * Only OpenAI (hosted tool) and OpenRouter (paid plugin) can. Groq cannot, so
+   * a Groq deployment answers from client-owned evidence and says as much.
+   */
+  supportsWebSearch(): boolean {
+    return this.provider() !== 'groq';
   }
 
   private realKey(value?: string | null): boolean {
@@ -149,32 +185,31 @@ export class ModelRouterService {
   }
 
   private apiKey(): string | undefined {
-    const key =
-      this.provider() === 'openrouter'
-        ? this.config.get<string>('OPENROUTER_API_KEY')
-        : this.config.get<string>('OPENAI_API_KEY');
+    const key = this.config.get<string>(KEY_ENV[this.provider()]);
     return this.realKey(key) ? key!.trim() : undefined;
   }
 
   private openai(): OpenAI {
     if (!this.client) {
+      const provider = this.provider();
       const apiKey = this.apiKey();
       if (!apiKey) {
         throw new ServiceUnavailableException(
-          `Market research is not configured: no usable ${this.provider() === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY'}.`,
+          `Market research is not configured: no usable ${KEY_ENV[provider]}.`,
         );
       }
-      this.client =
-        this.provider() === 'openrouter'
-          ? new OpenAI({
-              apiKey,
-              baseURL: 'https://openrouter.ai/api/v1',
+      this.client = new OpenAI({
+        apiKey,
+        ...(BASE_URLS[provider] ? { baseURL: BASE_URLS[provider] } : {}),
+        ...(provider === 'openrouter'
+          ? {
               defaultHeaders: {
                 'HTTP-Referer': this.config.get<string>('OPENROUTER_SITE_URL') || 'https://growthx.ai',
                 'X-Title': this.config.get<string>('OPENROUTER_SITE_NAME') || 'GrowthX AI SEO',
               },
-            })
-          : new OpenAI({ apiKey });
+            }
+          : {}),
+      });
     }
     return this.client;
   }
@@ -203,6 +238,17 @@ export class ModelRouterService {
       input: options.input,
       max_output_tokens: options.maxOutputTokens ?? 4000,
     };
+
+    if (options.webSearch && !this.supportsWebSearch()) {
+      return {
+        text: '',
+        webSources: [],
+        webSearchUnavailable:
+          `${provider} cannot search the live web, so no public web sources were retrieved. ` +
+          'The answer is based on this client\'s own data only.',
+        usage: { step: options.step, role: options.role, model, inputTokens: 0, outputTokens: 0, costUsd: null },
+      };
+    }
 
     if (options.webSearch) {
       if (provider === 'openrouter') {

@@ -5,29 +5,18 @@ import { PrismaService } from '../../database/prisma.service';
 export class MonitoringService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Returns this project's monitoring record, or null when nothing is monitored.
+   *
+   * This used to create a record on first read claiming 99.98% uptime, a 342ms
+   * average response, a valid SSL certificate and a performance score of 92 —
+   * for a site that had never been checked. Every client saw the same invented
+   * health figures, and because the row was persisted the fiction outlived the
+   * request. The client renders an empty state instead.
+   */
   async getMonitoringConfig(projectId: string) {
-    let data = await this.prisma.monitoringConfig.findUnique({
+    return this.prisma.monitoringConfig.findUnique({
       where: { projectId },
     });
-
-    if (!data) {
-      // Seed initial mock data
-      data = await this.prisma.monitoringConfig.create({
-        data: {
-          projectId,
-          uptimeStatus: 'UP',
-          uptimePercentage: 99.98,
-          avgResponseTimeMs: 342,
-          lastDowntimeAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
-          sslStatus: 'VALID',
-          sslExpiresAt: new Date(Date.now() + 65 * 24 * 60 * 60 * 1000), // 65 days from now
-          performanceScore: 92,
-          mobileScore: 88,
-          coreWebVitalsStatus: 'PASSING',
-        },
-      });
-    }
-
-    return data;
   }
 }

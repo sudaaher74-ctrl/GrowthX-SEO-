@@ -40,7 +40,7 @@ describe('OrchestratorService', () => {
       createPullRequest: jest.fn().mockResolvedValue('https://github.com/o/r/pull/1'),
     };
     repo = { analyzeRepository: jest.fn().mockResolvedValue({ packageManager: 'npm' }) };
-    patch = { updateNextJsMetadata: jest.fn().mockResolvedValue(true) };
+    patch = { generatePatch: jest.fn().mockResolvedValue({ applied: true, reason: null }) };
     validation = { validateRepository: jest.fn().mockResolvedValue({ success: true, output: '' }) };
 
     const issueAnalysis = { analyzeIssue: jest.fn().mockResolvedValue({ targetFileHint: 'app/layout.tsx', proposedFixDescription: 'New title' }) };
@@ -68,7 +68,7 @@ describe('OrchestratorService', () => {
 
     expect(git.cloneRepository).toHaveBeenCalled();
     expect(git.createFeatureBranch).toHaveBeenCalled();
-    expect(patch.updateNextJsMetadata).toHaveBeenCalled();
+    expect(patch.generatePatch).toHaveBeenCalled();
     expect(validation.validateRepository).toHaveBeenCalled();
     expect(git.createPullRequest).toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe('OrchestratorService', () => {
   it('branches before patching so the default branch is never written to', async () => {
     await run();
     const branchOrder = git.createFeatureBranch.mock.invocationCallOrder[0];
-    const patchOrder = patch.updateNextJsMetadata.mock.invocationCallOrder[0];
+    const patchOrder = patch.generatePatch.mock.invocationCallOrder[0];
     expect(branchOrder).toBeLessThan(patchOrder);
   });
 
@@ -89,7 +89,7 @@ describe('OrchestratorService', () => {
   });
 
   it('does not open a PR when the file could not be patched', async () => {
-    patch.updateNextJsMetadata.mockResolvedValue(false);
+    patch.generatePatch.mockResolvedValue({ applied: false, reason: 'could not apply' });
 
     await expect(run()).resolves.toBeNull();
     expect(git.createPullRequest).not.toHaveBeenCalled();

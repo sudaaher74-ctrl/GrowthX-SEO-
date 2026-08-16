@@ -201,13 +201,17 @@ export class EvidenceRetrievalService {
   }
 
   /**
-   * Term-overlap search over this project's crawled pages.
+   * BM25 search over this project's crawled pages.
    *
-   * Used when no embedding model is reachable. Scoring is deliberately simple:
-   * rarer query terms count for more, and the score is normalised so it reads
-   * on the same 0-1 scale as cosine similarity in the source drawer. It is
-   * weaker than vector search, which is why the answer marks these sources with
-   * their real match strength rather than implying a semantic match.
+   * Used when no embedding model is reachable — Groq and OpenRouter serve none,
+   * so this is the live path on those deployments rather than a rare fallback,
+   * and it is worth doing properly. BM25 improves on plain term overlap in the
+   * two ways that matter for page titles: it saturates repeated terms, so a
+   * page that says "pricing" six times does not outrank a better match, and it
+   * normalises by length, so a long page does not win on volume alone.
+   *
+   * Fields are weighted because a term in the title means more than the same
+   * term in an H2.
    */
   private async lexicalSearchClientPages(
     projectId: string,
@@ -232,33 +236,54 @@ export class EvidenceRetrievalService {
     const terms = tokenize(query);
     if (terms.length === 0) return [];
 
+    // Title and H1 repeated to weight them above body headings, which is the
+    // simplest field weighting that does not need a second scoring pass.
     const documents = pages.map((page) => ({
       page,
-      text: [page.title ?? '', page.metaDescription ?? '', page.h1.join(' '), page.h2.slice(0, 8).join(' ')]
-        .join(' ')
-        .toLowerCase(),
+      tokens: tokenize(
+        [
+          page.title ?? '',
+          page.title ?? '',
+          page.h1.join(' '),
+          page.metaDescription ?? '',
+          page.h2.slice(0, 12).join(' '),
+        ].join(' '),
+        // Keep duplicates: term frequency is the whole point of BM25.
+        false,
+      ),
     }));
 
-    // A term appearing on every page tells us nothing about which page matches.
+    const N = documents.length;
+    const avgLength = documents.reduce((sum, d) => sum + d.tokens.length, 0) / N || 1;
+
     const documentFrequency = new Map<string, number>();
     for (const term of terms) {
-      documentFrequency.set(term, documents.filter((d) => d.text.includes(term)).length || 1);
+      documentFrequency.set(term, documents.filter((d) => d.tokens.includes(term)).length);
     }
-    const maxScore = terms.reduce(
-      (sum, term) => sum + Math.log(documents.length / documentFrequency.get(term)! + 1),
-      0,
-    );
-    if (maxScore === 0) return [];
 
-    return documents
-      .map(({ page, text }) => {
-        const score = terms.reduce(
-          (sum, term) =>
-            text.includes(term) ? sum + Math.log(documents.length / documentFrequency.get(term)! + 1) : sum,
-          0,
-        );
-        return { page, score: score / maxScore };
-      })
+    const K1 = 1.5; // term-frequency saturation
+    const B = 0.75; // length normalisation
+
+    const scored = documents.map(({ page, tokens }) => {
+      let score = 0;
+      for (const term of terms) {
+        const df = documentFrequency.get(term) ?? 0;
+        if (df === 0) continue;
+        const tf = tokens.filter((t) => t === term).length;
+        if (tf === 0) continue;
+
+        // Standard BM25 IDF, floored so a term present in every document
+        // contributes nothing rather than going negative.
+        const idf = Math.max(0, Math.log(1 + (N - df + 0.5) / (df + 0.5)));
+        score += idf * ((tf * (K1 + 1)) / (tf + K1 * (1 - B + B * (tokens.length / avgLength))));
+      }
+      return { page, score };
+    });
+
+    const best = Math.max(...scored.map((r) => r.score), 0);
+    if (best === 0) return [];
+
+    return scored
       .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
@@ -268,7 +293,9 @@ export class EvidenceRetrievalService {
         internalDocId: page.url,
         title: page.title ?? page.url,
         excerpt: [page.title, page.metaDescription].filter(Boolean).join(' — ').slice(0, 500),
-        qualityScore: Math.max(0, Math.min(1, score)),
+        // Normalised against the best match in this result set, so the number
+        // reads on the same 0-1 scale as cosine similarity in the source drawer.
+        qualityScore: Math.max(0, Math.min(1, score / best)),
       }));
   }
 
@@ -353,16 +380,18 @@ export class EvidenceRetrievalService {
   }
 }
 
-/** Lowercased words of 3+ characters, deduplicated. */
-export function tokenize(text: string): string[] {
-  return [
-    ...new Set(
-      text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((t) => t.length >= 3),
-    ),
-  ];
+/**
+ * Lowercased words of 3+ characters.
+ *
+ * `unique` is on for a query (each term should count once) and off for a
+ * document, where repeat counts drive BM25's term frequency.
+ */
+export function tokenize(text: string, unique = true): string[] {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3);
+  return unique ? [...new Set(tokens)] : tokens;
 }
 
 /** Cosine similarity. Returns NaN for mismatched or empty vectors. */

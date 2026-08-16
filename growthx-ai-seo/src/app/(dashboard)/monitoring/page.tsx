@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
+import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, NotConnected } from "@/components/ui/console";
 import { Activity, Bell, History, ShieldAlert, Zap, Loader2 } from "lucide-react";
 import { useWorkspace, useActivity, useLatestCrawl, usePortfolio, useMonitoring } from "@/hooks/use-growthx";
 import { relativeTime, Kpi } from "@/components/ui/console";
@@ -66,6 +66,12 @@ export default function MonitoringPage() {
                 <p className="text-sm text-[var(--text-muted)]">Loading monitoring data...</p>
               </div>
             </Panel>
+          ) : !monitoringData ? (
+            <NotConnected
+              title="Monitoring is not set up for this client"
+              what="Uptime, SSL status and Core Web Vitals are shown once this project is actually being monitored. Nothing is estimated here — the figures shown previously were placeholders and have been removed."
+              needs={["A monitoring configuration for this project", "At least one completed check"]}
+            />
           ) : (
             <>
               {(activeTab === "alerts" || activeTab === "changes") && (

@@ -19,6 +19,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    // A refresh token is long-lived by design. Accepting one here would give it
+    // the same power as an access token for a month.
+    if (payload?.type === 'refresh') {
+      throw new UnauthorizedException('A refresh token cannot be used to authenticate a request.');
+    }
+
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException();

@@ -44,10 +44,15 @@ export default function ReportsPage() {
     .sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9))
     .slice(0, 5);
 
-  const trafficData = [
-    { month: "Jan", traffic: 4000 }, { month: "Feb", traffic: 4500 }, { month: "Mar", traffic: 5100 },
-    { month: "Apr", traffic: 5800 }, { month: "May", traffic: 6200 }, { month: "Jun", traffic: 7100 }
-  ];
+  // Real citation-share history. This chart previously rendered a hardcoded
+  // six-month "traffic" series (4,000 rising to 7,100) that belonged to no
+  // client — on the page with an Export PDF button, so invented numbers went
+  // out under the agency's name. Nothing here is estimated: the project either
+  // has visibility history or the panel says it does not.
+  const citationTrend = (visibility.data?.trend ?? []).map((t) => ({
+    week: new Date(t.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    sharePct: t.citationSharePct,
+  }));
 
   return (
     <div className="space-y-5">
@@ -100,10 +105,15 @@ export default function ReportsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <Panel title="Traffic Trend (Estimated)">
+                     <Panel title="AI Citation Share Trend" subtitle="Measured from this client's tracked prompts">
+                       {citationTrend.length === 0 ? (
+                         <div className="flex h-64 items-center justify-center p-6 text-center text-xs text-[var(--text-muted)]">
+                           No visibility history yet. Track prompts and run a sweep for this client to chart it.
+                         </div>
+                       ) : (
                         <div className="h-64 mt-4 w-full">
                           <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={trafficData}>
+                            <AreaChart data={citationTrend}>
                               <defs>
                                 <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
@@ -111,15 +121,16 @@ export default function ReportsPage() {
                                 </linearGradient>
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
-                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} />
+                              <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} tickFormatter={(v) => `${v}%`} />
                               <Tooltip
                                 contentStyle={{ borderRadius: "8px", border: "1px solid #e5e5e5", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                               />
-                              <Area type="monotone" dataKey="traffic" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorTraffic)" />
+                              <Area type="monotone" dataKey="sharePct" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorTraffic)" />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
+                       )}
                      </Panel>
                      
                      <Panel title="Top Technical Issues">

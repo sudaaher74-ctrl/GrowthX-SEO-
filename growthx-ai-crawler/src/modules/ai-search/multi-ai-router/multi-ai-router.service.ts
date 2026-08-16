@@ -184,26 +184,21 @@ export class MultiAiRouterService {
     const task = request.task ?? AiTask.REASONING;
     const allowed = await this.allowedProviders(request.organizationId);
 
-    let targetProvider = request.provider;
-    let modelOverride: string | undefined;
+    const targetProvider = request.provider;
 
     if (targetProvider && !allowed.includes(targetProvider)) {
-      if (allowed.includes(AiProvider.GROQ)) {
-        this.logger.log(`Native ${targetProvider} is not available, proxying through Groq for free testing.`);
-        targetProvider = AiProvider.GROQ;
-      } else if (allowed.includes(AiProvider.OPENROUTER)) {
-        this.logger.log(`Native ${targetProvider} is not available, proxying through OpenRouter.`);
-        if (targetProvider === AiProvider.OPENAI) modelOverride = 'openai/gpt-4o';
-        if (targetProvider === AiProvider.ANTHROPIC) modelOverride = 'anthropic/claude-3.5-sonnet';
-        if (targetProvider === AiProvider.GEMINI) modelOverride = 'google/gemini-1.5-pro';
-        targetProvider = AiProvider.OPENROUTER;
-      }
-    }
+      // This used to silently reroute an explicitly-requested vendor through
+      // Groq or OpenRouter "for free testing", which meant a Starter customer
+      // asking for Claude was served anyway — the MODEL_CLAUDE and MODEL_GPT
+      // entitlements were unenforceable. If the caller named a provider their
+      // plan does not include, they get the upgrade error instead.
+      await this.assertProviderEntitled(request.organizationId, targetProvider);
 
-    if (targetProvider && allowed.includes(targetProvider)) {
-      return this.invoke(targetProvider, request, task, modelOverride);
+      // Reached only when the provider is allowed by plan but not configured
+      // (no API key), which is an operational problem rather than a billing one.
+      this.logger.warn(`${targetProvider} is not configured; falling back to the preferred provider chain.`);
     } else if (targetProvider) {
-      this.logger.warn(`${targetProvider} is not configured or allowed; falling back to preferred provider chain.`);
+      return this.invoke(targetProvider, request, task);
     }
 
     const chain = TASK_PREFERENCE[task].filter((p) => allowed.includes(p));
