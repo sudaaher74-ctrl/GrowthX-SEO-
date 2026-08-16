@@ -129,6 +129,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
 
     // 1. Try static fetch via Axios + Cheerio with simple retry for rate limits/transient errors
     let response;
+    let lastError: Error | undefined;
     let retries = 0;
     while (retries < 3) {
       try {
@@ -155,13 +156,18 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
           await new Promise((r) => setTimeout(r, 1500 * retries));
           continue;
         }
-        throw err;
+        // Recorded rather than thrown. Every other failure in this method comes
+        // back as a FetchResult carrying the reason — SSRF as a 403, a missing
+        // body as a 500 — and throwing only here made the contract inconsistent
+        // and left the page with no recorded outcome at all.
+        lastError = err;
+        break;
       }
     }
 
     try {
       if (!response) {
-        throw new Error('Response undefined after retries');
+        throw lastError ?? new Error('Response undefined after retries');
       }
 
       const responseTimeMs = Date.now() - startTime;

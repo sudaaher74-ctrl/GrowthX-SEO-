@@ -333,3 +333,30 @@ body {
 /* ───── Transition helpers ───── */
 .transition-base { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
 .transition-slow { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* ───── Auth entrance ─────
+   CSS rather than a JS animation library on purpose: these pages are
+   server-rendered, and gating their opacity on hydration meant the sign-in
+   form was invisible until the JS bundle executed. A CSS keyframe runs as
+   soon as the stylesheet parses, so the content is readable immediately even
+   if scripts are slow or blocked. */
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.auth-rise {
+  animation: auth-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-rise {
+    animation: none;
+  }
+}

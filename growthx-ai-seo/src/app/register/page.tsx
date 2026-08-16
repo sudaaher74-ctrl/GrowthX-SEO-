@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Globe, Loader2 } from "lucide-react";
+import { AuthShell, Field, SubmitButton } from "@/components/auth/auth-shell";
 import { api, auth } from "@/lib/api-client";
 
 export default function RegisterPage() {
@@ -43,70 +42,63 @@ export default function RegisterPage() {
   }
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden p-4"
-      style={{ background: "linear-gradient(135deg, #1f182c 0%, #2d1e42 40%, #1f2e26 100%)" }}
+    <AuthShell
+      title="Create your workspace"
+      subtitle="Start with a crawl of your first client's site."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold hover:underline" style={{ color: "#7c3aed" }}>
+            Sign in
+          </Link>
+        </>
+      }
     >
-      <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-md"
-      >
-        <div className="glass-strong rounded-2xl p-8">
-          <div className="mb-8 flex flex-col items-center">
-            <div className="gradient-bg-brand shadow-glow-brand mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
-              <Globe size={26} className="text-white" />
-            </div>
-            <h1 className="text-h2 text-center text-white">Create your workspace</h1>
-            <p className="mt-1 text-center text-sm text-slate-400">Start with a free crawl of your site</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="First name" value={form.firstName} onChange={set("firstName")} />
-              <Input label="Last name" value={form.lastName} onChange={set("lastName")} />
-            </div>
-            <Input label="Business name" value={form.company} onChange={set("company")} placeholder="Acme Traders" />
-            <Input label="Email" type="email" required value={form.email} onChange={set("email")} placeholder="you@business.in" />
-            <Input label="Password" type="password" required value={form.password} onChange={set("password")} placeholder="••••••••" />
-
-            {error && (
-              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="gradient-bg-brand flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {busy && <Loader2 size={15} className="animate-spin" />}
-              {busy ? "Creating…" : "Create account"}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{" "}
-            <Link href="/dashboard" className="font-semibold text-white hover:underline">
-              Go to dashboard
-            </Link>
-          </p>
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="First name" autoComplete="given-name" value={form.firstName} onChange={set("firstName")} />
+          <Field label="Last name" autoComplete="family-name" value={form.lastName} onChange={set("lastName")} />
         </div>
-      </motion.div>
-    </div>
-  );
-}
+        <Field
+          label="Agency name"
+          hint="optional"
+          value={form.company}
+          onChange={set("company")}
+          placeholder="Acme Growth"
+        />
+        <Field
+          label="Email"
+          type="email"
+          required
+          autoComplete="email"
+          value={form.email}
+          onChange={set("email")}
+          placeholder="you@agency.com"
+        />
+        <Field
+          label="Password"
+          type="password"
+          required
+          autoComplete="new-password"
+          value={form.password}
+          onChange={set("password")}
+          placeholder="••••••••"
+        />
 
-function Input({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-slate-300">{label}</label>
-      <input
-        {...props}
-        className="mt-1 w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-500"
-      />
-    </div>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-lg border px-3 py-2 text-[13px]"
+            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "#b91c1c" }}
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="pt-1">
+          <SubmitButton busy={busy}>{busy ? "Creating…" : "Create account"}</SubmitButton>
+        </div>
+      </form>
+    </AuthShell>
   );
 }
