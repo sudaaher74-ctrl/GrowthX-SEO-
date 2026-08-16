@@ -4,7 +4,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { ActionButton, Kpi, Mono, PageHeader, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type FixPatch } from "@/lib/api-client";
-import { useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { crawlPageError, useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
 /**
  * Shared shell for the SEO tool pages (images, internal links, meta tags,
@@ -65,7 +65,7 @@ export function IssueTypeView({
 
       <QueryState
         isLoading={portfolio.isLoading || crawl.isLoading}
-        error={portfolio.error}
+        error={crawlPageError(portfolio.error, crawl.error)}
         isEmpty={!client?.domain}
         emptyTitle="No website registered"
         emptyBody="Register this client's website, then run an audit from Site health."

@@ -159,6 +159,35 @@ async function refreshSession(): Promise<boolean> {
   return refreshInFlight;
 }
 
+/**
+ * Statuses that mean "the API is not up yet", rather than "the API said no".
+ *
+ * The backend runs on an instance that hibernates when idle, and a cold boot
+ * takes tens of seconds. While it wakes, the platform edge answers with a
+ * gateway error (or drops the connection outright) — none of which reach the
+ * application, so replaying the request is safe and is the only way through.
+ * 429 is included because that same edge rate-limits repeated wake attempts.
+ */
+const TRANSIENT_STATUSES = new Set([429, 502, 503, 504]);
+
+/** Backoff schedule, in ms. Spans ~60s, which covers a cold start. */
+const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
+
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+/**
+ * Whether a request can be replayed without the customer paying for it twice.
+ *
+ * Only reads are retried automatically. A POST that starts a crawl or opens a
+ * checkout may well have been applied before the connection failed, so
+ * retrying it risks a duplicate crawl job or a double charge; those surface the
+ * error and let the customer decide to press the button again.
+ */
+function isReplayable(init: RequestInit): boolean {
+  const method = (init.method ?? "GET").toUpperCase();
+  return method === "GET" || method === "HEAD";
+}
+
 async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
   const token = auth.getToken();
   const orgId = auth.getOrgId();
@@ -172,15 +201,24 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
 
   const baseUrl = getApiBase();
   let response: Response | null = null;
-  
-  try {
-    response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-    if (response.status === 502 || response.status === 503 || response.status === 504) {
-      await new Promise((res) => setTimeout(res, 800));
+
+  // A single 800ms retry used to stand in for this. That is far shorter than a
+  // cold boot, so a hibernating backend failed every read on the page and — as
+  // every query is configured not to retry — the dashboard stayed broken until
+  // the customer reloaded it by hand, long after the API had come back.
+  const attempts = isReplayable(init) ? RETRY_DELAYS_MS.length + 1 : 1;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
+
+    try {
       response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    } catch {
+      // Connection refused / reset / DNS — nothing reached the application.
+      response = null;
     }
-  } catch {
-    response = null;
+
+    if (response && !TRANSIENT_STATUSES.has(response.status)) break;
   }
 
   if (response && response.ok) {
@@ -212,11 +250,25 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   const envelope = body as { message?: unknown } | null;
   const payload =
     envelope?.message && typeof envelope.message === "object" ? envelope.message : envelope;
+
+  // Naming the actual failure matters: "check your connection" sent customers
+  // to their own router when the truth was that the API was down or asleep, and
+  // a gateway error carries no body at all, so without this it read as a bare
+  // "502".
+  const unreachable = !response
+    ? "Could not reach the GrowthX API — it may be starting up. Retry in a minute; " +
+      "if it persists the API service is down."
+    : TRANSIENT_STATUSES.has(response.status)
+      ? "The GrowthX API is not responding yet (it may still be waking up). " +
+        "Retry in a minute; if it persists the API service is down."
+      : null;
+
   const message =
     (payload as { message?: string } | null)?.message ??
     (typeof envelope?.message === "string" ? envelope.message : null) ??
+    unreachable ??
     response?.statusText ??
-    "Could not reach the GrowthX API. Check your connection and try again.";
+    "The GrowthX API returned an unexpected response.";
 
   if (response?.status === 401 && typeof window !== "undefined") {
     // A 60-minute access token expiring mid-task used to end the session. Try

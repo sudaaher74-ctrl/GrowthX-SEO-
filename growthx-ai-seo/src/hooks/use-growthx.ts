@@ -270,6 +270,24 @@ export function useGenerateStrategy(projectId: string | null) {
   });
 }
 
+/**
+ * The error worth showing on a page built from the latest crawl.
+ *
+ * These pages passed only the portfolio error to their `QueryState`, so a
+ * failing crawl request was swallowed: the page rendered zeroed tiles and
+ * "not crawled yet", which reads as "this site is fine and has no issues"
+ * when the truth is that the audit could not be loaded at all.
+ *
+ * A 404 is the exception — the crawl route returns it when the site has no
+ * crawl (or no registration) yet, which is exactly the empty state these pages
+ * already render properly. Only genuine failures become a banner.
+ */
+export function crawlPageError(portfolioError: unknown, crawlError: unknown): unknown {
+  if (portfolioError) return portfolioError;
+  if (crawlError instanceof ApiError && crawlError.status === 404) return null;
+  return crawlError ?? null;
+}
+
 export function useLatestCrawl(domain: string | null) {
   return useQuery({
     queryKey: ["latest-crawl", domain],

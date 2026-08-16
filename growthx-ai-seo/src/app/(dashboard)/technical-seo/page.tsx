@@ -18,7 +18,7 @@ import {
 import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type FixPatch } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
-import { useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { crawlPageError, useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
 type Severity = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
@@ -108,7 +108,7 @@ function SiteHealthClient() {
 
       <QueryState
         isLoading={portfolio.isLoading || crawl.isLoading}
-        error={portfolio.error}
+        error={crawlPageError(portfolio.error, crawl.error)}
         isEmpty={!client?.domain}
         emptyTitle="No website registered"
         emptyBody="Register this client's website before running an audit."
