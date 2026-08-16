@@ -2,6 +2,20 @@ import { Globe, Search, Sparkles, ShieldCheck } from "lucide-react";
 import { AuthIllustration } from "./auth-illustration";
 
 /**
+ * Fixed palette.
+ *
+ * The composition depends on one panel being light against a black one, so
+ * these do not follow the dashboard's theme tokens: under `.dark` the form
+ * surface and the dividing curve would both resolve to near-black and the
+ * split would disappear entirely.
+ */
+const FORM_BG = "#ffffff";
+const INK = "#0a0a0a";
+const INK_SOFT = "#52525b";
+const INK_MUTED = "#a1a1aa";
+const BORDER = "#e4e4e7";
+
+/**
  * The two-column frame shared by sign-in and registration.
  *
  * Left is an illustrated story panel, right is the form, and the boundary
@@ -73,11 +87,11 @@ export function AuthShell({
   footer: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row" style={{ background: "var(--bg-base)" }}>
+    <div className="flex min-h-screen flex-col lg:flex-row" style={{ background: FORM_BG }}>
       {/* ── Story ─────────────────────────────────────────────────────── */}
       <aside
         className="relative order-2 flex flex-col justify-center overflow-hidden px-8 pb-14 pt-24 lg:order-1 lg:pt-16 lg:w-[56%] lg:px-16 lg:py-16"
-        style={{ background: "linear-gradient(155deg, #150d29 0%, #2a1747 48%, #10241c 100%)" }}
+        style={{ background: "linear-gradient(155deg, #050505 0%, #171717 50%, #050505 100%)" }}
       >
         <AuthIllustration className="pointer-events-none absolute inset-y-0 right-[-10%] h-full w-[82%] opacity-90 lg:right-[-8%] lg:w-[58%]" />
 
@@ -87,17 +101,14 @@ export function AuthShell({
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "linear-gradient(95deg, rgba(15,8,28,0.94) 0%, rgba(15,8,28,0.86) 30%, rgba(15,8,28,0.35) 62%, rgba(15,8,28,0.05) 100%)",
+              "linear-gradient(95deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.86) 30%, rgba(0,0,0,0.34) 62%, rgba(0,0,0,0.04) 100%)",
           }}
         />
 
         <div className="relative z-10 max-w-lg">
           <div className="auth-rise flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #c026d3 100%)" }}
-            >
-              <Globe size={20} className="text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
+              <Globe size={20} className="text-black" />
             </div>
             <span className="text-[15px] font-semibold tracking-tight text-white">GrowthX AI</span>
           </div>
@@ -106,7 +117,7 @@ export function AuthShell({
             Know why AI search
             <br />
             recommends your clients
-            <span style={{ color: "#c084fc" }}>.</span>
+            <span className="text-white/40">.</span>
           </h1>
           <p className="auth-rise mt-4 max-w-md text-[14.5px] leading-relaxed text-white/60">
             An SEO workspace for agencies running many clients at once — from the technical audit
@@ -129,7 +140,7 @@ export function AuthShell({
           className="absolute right-[-1px] top-0 hidden h-full w-[110px] lg:block"
           viewBox="0 0 110 800"
           preserveAspectRatio="none"
-          fill="var(--bg-base)"
+          fill={FORM_BG}
         >
           <path d="M110 0 H62 C62 130 8 190 8 320 C8 450 90 520 90 640 C90 730 54 762 54 800 H110 Z" />
         </svg>
@@ -138,7 +149,7 @@ export function AuthShell({
           className="absolute -top-px left-0 h-[64px] w-full lg:hidden"
           viewBox="0 0 400 64"
           preserveAspectRatio="none"
-          fill="var(--bg-base)"
+          fill={FORM_BG}
         >
           <path d="M0 0 H400 V26 C320 26 270 60 190 60 C110 60 70 30 0 30 Z" />
         </svg>
@@ -149,20 +160,20 @@ export function AuthShell({
         <div className="auth-rise w-full max-w-[360px]" style={{ animationDelay: "80ms" }}>
           <h2
             className="text-center text-[26px] font-semibold tracking-tight lg:text-left"
-            style={{ color: "var(--text-primary)" }}
+            style={{ color: INK }}
           >
             {title}
           </h2>
           <p
             className="mt-1.5 text-center text-[14px] lg:text-left"
-            style={{ color: "var(--text-secondary)" }}
+            style={{ color: INK_SOFT }}
           >
             {subtitle}
           </p>
 
           <div className="mt-8">{children}</div>
 
-          <div className="mt-7 text-center text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
+          <div className="mt-7 text-center text-[13.5px]" style={{ color: INK_SOFT }}>
             {footer}
           </div>
         </div>
@@ -188,11 +199,11 @@ export function Field({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <label htmlFor={id} className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+        <label htmlFor={id} className="text-[13px] font-medium" style={{ color: INK }}>
           {label}
         </label>
         {hint && (
-          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[12px]" style={{ color: INK_MUTED }}>
             {hint}
           </span>
         )}
@@ -200,14 +211,14 @@ export function Field({
       <input
         id={id}
         {...props}
-        className="w-full rounded-xl border px-3.5 py-2.5 text-[14px] outline-none transition-shadow placeholder:text-[var(--text-muted)] focus:ring-2"
+        className="w-full rounded-xl border px-3.5 py-2.5 text-[14px] outline-none transition-shadow placeholder:text-neutral-400 focus:ring-2"
         style={
           {
-            background: "var(--surface-1)",
-            borderColor: "var(--border-color)",
-            color: "var(--text-primary)",
+            background: FORM_BG,
+            borderColor: BORDER,
+            color: INK,
             // Focus ring colour as a variable so the class above can stay static.
-            "--tw-ring-color": "rgba(124,58,237,0.35)",
+            "--tw-ring-color": "rgba(0,0,0,0.28)",
           } as React.CSSProperties
         }
       />
@@ -221,8 +232,8 @@ export function SubmitButton({ busy, children }: { busy: boolean; children: Reac
     <button
       type="submit"
       disabled={busy}
-      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-95 disabled:opacity-60"
-      style={{ background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 60%, #c026d3 100%)" }}
+      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-85 disabled:opacity-50"
+      style={{ background: INK }}
     >
       {busy && (
         <span

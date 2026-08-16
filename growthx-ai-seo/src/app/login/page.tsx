@@ -41,7 +41,7 @@ export default function LoginPage() {
       footer={
         <>
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold hover:underline" style={{ color: "#7c3aed" }}>
+          <Link href="/register" className="font-semibold underline underline-offset-2" style={{ color: "#0a0a0a" }}>
             Create one
           </Link>
         </>
