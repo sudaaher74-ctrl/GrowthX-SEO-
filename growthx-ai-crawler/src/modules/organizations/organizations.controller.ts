@@ -1,12 +1,16 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Request, UseGuards } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgContextService } from '../billing/org-context.service';
 import { Prisma, Role } from '@prisma/client';
 
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
 export class OrganizationsController {
-  constructor(private organizationsService: OrganizationsService) {}
+  constructor(
+    private organizationsService: OrganizationsService,
+    private orgContext: OrgContextService,
+  ) {}
 
   @Post()
   async createOrganization(@Request() req: any, @Body() body: Prisma.OrganizationCreateInput) {
@@ -19,7 +23,11 @@ export class OrganizationsController {
   }
 
   @Get(':id/members')
-  async listMembers(@Param('id') id: string) {
+  // Being signed in said nothing about *this* organization, so any account
+  // could read another tenant's member list — names, emails and roles — just by
+  // knowing its id.
+  async listMembers(@Request() req: any, @Param('id') id: string) {
+    await this.orgContext.assertMembership(req.user.userId, id);
     return this.organizationsService.listMembers(id);
   }
 

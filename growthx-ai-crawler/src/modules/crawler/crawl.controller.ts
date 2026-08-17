@@ -120,11 +120,39 @@ export class CrawlController {
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }
 
+  /**
+   * Confirms the caller's organization owns this crawl job.
+   *
+   * These read routes carried `JwtAuthGuard` only, which proves the caller is
+   * signed in and nothing more — so any account could read another tenant's
+   * audit (pages, issues, link graph) from a job id, and `latest-crawl` handed
+   * out that id for any domain in the database.
+   */
+  private async assertCrawlAccess(req: any, jobId: string): Promise<void> {
+    const job = await this.prisma.crawlJob.findUnique({
+      where: { id: jobId },
+      select: { website: { select: { project: { select: { organizationId: true } } } } },
+    });
+    if (!job) throw new NotFoundException('Crawl job not found');
+
+    const organizationId = job.website?.project?.organizationId;
+    // A website that was never attached to a project belongs to no tenant, so
+    // there is nobody who can legitimately be granted access to it.
+    if (!organizationId) throw new NotFoundException('Crawl job not found');
+
+    await this.orgContext.assertMembership(req.user.userId, organizationId);
+  }
+
   @Get('crawls/:id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve progress, status, and summary metrics for a crawl job' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
-  async getCrawlJob(@Param('id') id: string) {
+  async getCrawlJob(@Req() req: any, @Param('id') id: string) {
+    await this.assertCrawlAccess(req, id);
+    return this.loadCrawlJob(id);
+  }
+
+  private async loadCrawlJob(id: string) {
     const job = await this.prisma.crawlJob.findUnique({
       where: { id },
       include: { website: true },
@@ -137,21 +165,30 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve the most recent crawl job for a domain' })
   @ApiParam({ name: 'domain', description: 'Website Domain' })
-  async getLatestCrawlJob(@Param('domain') domain: string) {
+  async getLatestCrawlJob(@Req() req: any, @Param('domain') domain: string) {
     const website = await this.prisma.website.findUnique({
       where: { domain },
       include: {
+        project: { select: { organizationId: true } },
         crawlJobs: {
           orderBy: { createdAt: 'desc' },
           take: 1
         }
       }
     });
-    
+
     if (!website) throw new NotFoundException('Website not found');
+
+    // Checked before anything about the site is revealed: the domain is the
+    // only thing the caller needs to know to reach this route, so an
+    // unscoped answer told them whether any given domain was a customer.
+    const organizationId = website.project?.organizationId;
+    if (!organizationId) throw new NotFoundException('Website not found');
+    await this.orgContext.assertMembership(req.user.userId, organizationId);
+
     if (website.crawlJobs.length === 0) return null;
-    
-    return this.getCrawlJob(website.crawlJobs[0].id);
+
+    return this.loadCrawlJob(website.crawlJobs[0].id);
   }
 
   @Get('crawls/:id/issues')
@@ -162,11 +199,13 @@ export class CrawlController {
   @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
   async getCrawlIssues(
+    @Req() req: any,
     @Param('id') id: string,
     @Query('severity') severity?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50'
   ) {
+    await this.assertCrawlAccess(req, id);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
@@ -189,10 +228,12 @@ export class CrawlController {
   @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
   async getCrawlPages(
+    @Req() req: any,
     @Param('id') id: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50'
   ) {
+    await this.assertCrawlAccess(req, id);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
@@ -217,7 +258,8 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve directed internal link graph, crawl depth, and orphan page report' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
-  async getGraphReport(@Param('id') id: string) {
+  async getGraphReport(@Req() req: any, @Param('id') id: string) {
+    await this.assertCrawlAccess(req, id);
     return this.graphService.generateGraphReport(id);
   }
 
@@ -226,8 +268,11 @@ export class CrawlController {
   @ApiOperation({ summary: 'Compare this crawl job against a previous audit report to see new vs resolved issues' })
   @ApiParam({ name: 'id', description: 'Current Crawl Job ID' })
   @ApiQuery({ name: 'compareWith', required: true, description: 'Previous Crawl Job ID' })
-  async getCrawlDiff(@Param('id') id: string, @Query('compareWith') compareWith: string) {
+  async getCrawlDiff(@Req() req: any, @Param('id') id: string, @Query('compareWith') compareWith: string) {
     if (!compareWith) throw new BadRequestException('compareWith parameter is required');
+    // Both sides, or the comparison becomes a way to read a crawl you do not own.
+    await this.assertCrawlAccess(req, id);
+    await this.assertCrawlAccess(req, compareWith);
     return this.historyService.compareCrawlJobs(id, compareWith);
   }
 
