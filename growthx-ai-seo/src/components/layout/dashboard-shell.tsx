@@ -14,7 +14,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       import("@/lib/api-client").then(({ api, auth }) => {
         api.login("admin@milquufresh.in", "testpassword").then(async () => {
           const orgs = await api.listOrganizations();
-          if (orgs?.[0]?.id) auth.setOrgId(orgs[0].id);
+          if (orgs?.[0]?.id) {
+            auth.setOrgId(orgs[0].id);
+            const projects = await api.listProjects(orgs[0].id);
+            if (projects?.[0]?.id) auth.setProjectId(projects[0].id);
+          }
           window.location.reload();
         }).catch((e) => {
           console.error("Failed to login as admin", e);
