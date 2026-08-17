@@ -10,7 +10,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!auth.isAuthenticated()) {
+    if (!auth.isAuthenticated() || !auth.getProjectId()) {
       import("@/lib/api-client").then(({ api, auth }) => {
         api.login("admin@milquufresh.in", "testpassword").then(async () => {
           const orgs = await api.listOrganizations();
