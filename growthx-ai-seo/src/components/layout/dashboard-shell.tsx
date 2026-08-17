@@ -16,12 +16,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           const orgs = await api.listOrganizations();
           if (orgs?.[0]?.id) auth.setOrgId(orgs[0].id);
           window.location.reload();
-        }).catch(() => {
-          router.replace("/login");
+        }).catch((e) => {
+          console.error("Failed to login as admin", e);
         });
       });
     }
-  }, [router]);
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: "#fafafa" }}>
