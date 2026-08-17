@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { UsageMetric } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { Metered, OrgFrom } from '../billing/entitlements.decorator';
+import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import { MarketResearchService } from './market-research.service';
@@ -36,6 +36,12 @@ export class CreateThreadDto {
 @Controller('api/projects/:projectId/market-research')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
+// Market Research as a whole is the MARKET_STRATEGY feature, so the gate belongs
+// on the class: only `ask` declared anything, and EntitlementsGuard refuses to
+// run on a route that declares nothing — which failed the boot-time audit and
+// took the whole API down with it. Routes that additionally spend model budget
+// keep their own @Metered quota on top of this.
+@RequiresFeature(Feature.MARKET_STRATEGY)
 export class MarketResearchController {
   constructor(
     private readonly research: MarketResearchService,

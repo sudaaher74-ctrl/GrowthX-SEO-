@@ -22,7 +22,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { EntitlementsService } from '../billing/entitlements.service';
-import { Metered } from '../billing/entitlements.decorator';
+import { Metered, NoEntitlement } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 
 /** A single turn in a conversation. */
@@ -74,6 +74,10 @@ export class GroqController {
   // ----------------------------------------------------------------- /health
 
   @Get('health')
+  // Reports only whether a provider key is configured — no customer data, no
+  // model spend — so it needs no plan gate. It still has to say so: the guard
+  // refuses a route that declares nothing, which failed the boot-time audit.
+  @NoEntitlement('Provider configuration check; reads no customer data and spends no model budget.')
   @ApiOperation({ summary: 'Groq AI provider health check' })
   @ApiResponse({ status: 200, description: 'Provider configuration status' })
   getHealth() {

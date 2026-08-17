@@ -5,7 +5,9 @@ import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 
-@Controller('projects/:projectId/reporting')
+// Served under `api/` to match every other project-scoped resource; without it
+// the dashboard's Reports requests 404'd.
+@Controller('api/projects/:projectId/reporting')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
 // Client-ready and white-label reporting is a paid capability.

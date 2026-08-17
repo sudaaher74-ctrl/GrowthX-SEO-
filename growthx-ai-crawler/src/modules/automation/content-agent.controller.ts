@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { ContentPieceKind, UsageMetric } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { Metered, OrgFrom } from '../billing/entitlements.decorator';
+import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import { ContentAgentService, ContentRequest } from './content-agent.service';
@@ -37,6 +37,12 @@ export class ReviewDecisionDto {
 @Controller('api/projects/:projectId/content-agent')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
+// The whole controller is the content-agent feature. Only `drafts` declared a
+// requirement, leaving the review routes with none — and EntitlementsGuard
+// refuses a route that declares nothing, which failed the boot-time audit.
+// Drafting keeps its own @Metered quota on top of this; reviewing spends no
+// model budget, so the feature gate alone is right for it.
+@RequiresFeature(Feature.AI_RECOMMENDATIONS)
 export class ContentAgentController {
   constructor(
     private readonly contentAgent: ContentAgentService,
