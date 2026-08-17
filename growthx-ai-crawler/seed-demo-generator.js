@@ -1,4 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+const fs = require('fs');
+const path = require('path');
+
+const seedContent = `import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -292,7 +295,7 @@ async function main() {
   console.log('  -> Content Calendar');
   await prisma.contentCalendarItem.createMany({
     data: [
-      { projectId: project.id, organizationId: org.id, campaignId: campaignA2.id, platform: 'INSTAGRAM', contentType: 'REEL', contentPillar: 'EDUCATIONAL', title: 'Why A2 Milk is Better (Part 1)', status: 'APPROVED', caption: 'Did you know that not all milk is created equal? Our A2 milk is easier to digest because... 👇\n\n#Milquufresh #A2Milk #HealthyLiving', hook: 'If you feel bloated after drinking milk, watch this.', hashtags: ['Milquufresh', 'A2Milk', 'HealthyLiving'], scheduledFor: new Date(Date.now() + 1 * 86400000) },
+      { projectId: project.id, organizationId: org.id, campaignId: campaignA2.id, platform: 'INSTAGRAM', contentType: 'REEL', contentPillar: 'EDUCATIONAL', title: 'Why A2 Milk is Better (Part 1)', status: 'APPROVED', caption: 'Did you know that not all milk is created equal? Our A2 milk is easier to digest because... 👇\\n\\n#Milquufresh #A2Milk #HealthyLiving', hook: 'If you feel bloated after drinking milk, watch this.', hashtags: ['Milquufresh', 'A2Milk', 'HealthyLiving'], scheduledFor: new Date(Date.now() + 1 * 86400000) },
       { projectId: project.id, organizationId: org.id, campaignId: campaignA2.id, platform: 'INSTAGRAM', contentType: 'REEL', contentPillar: 'EDUCATIONAL', title: 'A2 Milk Science (Part 2)', status: 'SCHEDULED', caption: 'Beta-casein proteins explained. #A2Milk', hook: 'What is Beta-casein?', hashtags: ['Milquufresh', 'Science'], scheduledFor: new Date(Date.now() + 3 * 86400000) },
       { projectId: project.id, organizationId: org.id, campaignId: campaignGlass.id, platform: 'INSTAGRAM', contentType: 'REEL', contentPillar: 'LIFESTYLE', title: 'ASMR Morning Routine', status: 'DRAFT', caption: 'Listen to the sound of pure freshness. 🥛✨', hook: '(Sound of bottle opening)', hashtags: ['ASMR', 'Milquufresh'], scheduledFor: new Date(Date.now() + 5 * 86400000) },
       { projectId: project.id, organizationId: org.id, platform: 'LINKEDIN', contentType: 'POST', contentPillar: 'BEHIND_SCENES', title: 'Meet our Farmers', status: 'PUBLISHED', caption: 'Our farmers are the backbone of Milquufresh...', hashtags: ['Farming', 'Sustainability'], publishedAt: new Date(Date.now() - 2 * 86400000) },
@@ -317,3 +320,7 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+`;
+
+fs.writeFileSync(path.join(__dirname, 'prisma/seed-test.ts'), seedContent);
+console.log('Successfully updated seed-test.ts');
