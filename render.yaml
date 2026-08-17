@@ -60,6 +60,11 @@ services:
       # Comma-separated list of browser origins allowed to call this API.
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      # Comma-separated emails of the platform operators. The /api/admin routes
+      # report across every tenant, so they are restricted to this list and
+      # admit nobody while it is unset.
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
       - key: PLAYWRIGHT_HEADLESS
         value: "true"
       - key: DEFAULT_CRAWL_CONCURRENCY
