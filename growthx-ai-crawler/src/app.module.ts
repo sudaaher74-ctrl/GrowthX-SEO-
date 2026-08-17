@@ -44,6 +44,8 @@ import { MarketIntelligenceModule } from './modules/market-intelligence/market-i
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
+import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
+
 
 @Module({
   imports: [
@@ -104,7 +106,9 @@ import { MarketResearchModule } from './modules/market-research/market-research.
     MonitoringModule,
     IntegrationsModule,
     MarketResearchModule,
+    ContentIntelligenceModule,
   ],
+
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

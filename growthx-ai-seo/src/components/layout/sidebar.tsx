@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   BarChart,
+  Brain,
   ChevronsUpDown,
   Cpu,
   CreditCard,
@@ -25,6 +26,7 @@ import {
   Telescope,
   Users,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { useEntitlements, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
@@ -81,12 +83,14 @@ export function Sidebar({
     { label: "Action Queue", href: "/action-queue", icon: ListChecks },
     { label: "Market", href: "/market", icon: TrendingUp },
     { label: "Competitors", href: "/competitors", icon: Crosshair },
+    { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
     { label: "Marketing", href: "/marketing", icon: Megaphone },
     { label: "Content", href: "/content", icon: Edit3 },
     { label: "AI Engineer", href: "/engineer", icon: Cpu },
     { label: "Monitoring", href: "/monitoring", icon: Activity },
     { label: "Reports", href: "/reports", icon: BarChart },
   ];
+
 
   const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
   const crawlPct =

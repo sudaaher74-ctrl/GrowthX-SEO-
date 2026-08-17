@@ -954,4 +954,419 @@ export const api = {
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
   getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
   getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
+
+  // ── Content Intelligence & Creative Engine ──────────────────────────────
+
+  // Dashboard
+  getCIDashboard: (projectId: string) =>
+    get<CIDashboard>(`/api/projects/${projectId}/content-intelligence/dashboard`),
+
+  // Config
+  getCIConfig: (projectId: string) =>
+    get<CIConfig>(`/api/projects/${projectId}/content-intelligence/config`),
+  upsertCIConfig: (projectId: string, body: Partial<CIConfig>) =>
+    post<CIConfig>(`/api/projects/${projectId}/content-intelligence/config`, body),
+
+  // Competitor accounts
+  listCompetitorAccounts: (projectId: string) =>
+    get<CompetitorAccount[]>(`/api/projects/${projectId}/content-intelligence/competitor-accounts`),
+  addCompetitorAccount: (projectId: string, body: AddCompetitorAccountBody) =>
+    post<CompetitorAccount>(`/api/projects/${projectId}/content-intelligence/competitor-accounts`, body),
+  removeCompetitorAccount: (projectId: string, accountId: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/competitor-accounts/${accountId}`, { method: 'DELETE' }),
+  toggleCompetitorAccount: (projectId: string, accountId: string, isActive: boolean) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/competitor-accounts/${accountId}/toggle`, {
+      method: 'PATCH', body: JSON.stringify({ isActive }),
+    }),
+
+  // Competitor content
+  listCompetitorContent: (projectId: string, params?: { platform?: string; contentType?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.platform) q.set('platform', params.platform);
+    if (params?.contentType) q.set('contentType', params.contentType);
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString() ? `?${q}` : '';
+    return get<CompetitorContent[]>(`/api/projects/${projectId}/content-intelligence/competitor-content${qs}`);
+  },
+  ingestCompetitorContent: (projectId: string, body: IngestContentBody) =>
+    post<CompetitorContent>(`/api/projects/${projectId}/content-intelligence/competitor-content`, body),
+
+  // Classification
+  classifyContent: (projectId: string) =>
+    post<{ classified: number; total: number }>(`/api/projects/${projectId}/content-intelligence/classify`, {}),
+
+  // Pattern detection
+  detectPatterns: (projectId: string) =>
+    post<{ patternsDetected: number; message?: string }>(`/api/projects/${projectId}/content-intelligence/detect-patterns`, {}),
+  listCreativePatterns: (projectId: string) =>
+    get<CreativePattern[]>(`/api/projects/${projectId}/content-intelligence/patterns`),
+
+  // Gap analysis
+  analyzeGaps: (projectId: string) =>
+    post<{ gapsGenerated: number }>(`/api/projects/${projectId}/content-intelligence/analyze-gaps`, {}),
+  listContentGaps: (projectId: string, status?: string) => {
+    const qs = status ? `?status=${status}` : '';
+    return get<ContentGap[]>(`/api/projects/${projectId}/content-intelligence/gaps${qs}`);
+  },
+  updateGapStatus: (projectId: string, gapId: string, status: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/gaps/${gapId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    }),
+
+  // Content Strategy
+  generateContentStrategy: (projectId: string) =>
+    post<ContentStrategy>(`/api/projects/${projectId}/content-intelligence/strategy/generate`, {}),
+  listContentStrategies: (projectId: string) =>
+    get<ContentStrategy[]>(`/api/projects/${projectId}/content-intelligence/strategy`),
+  getContentStrategy: (projectId: string, strategyId: string) =>
+    get<ContentStrategy>(`/api/projects/${projectId}/content-intelligence/strategy/${strategyId}`),
+  approveContentStrategy: (projectId: string, strategyId: string) =>
+    post<{ count: number }>(`/api/projects/${projectId}/content-intelligence/strategy/${strategyId}/approve`, {}),
+
+  // Content Calendar
+  generateContent: (projectId: string, body: GenerateContentBody) =>
+    post<CalendarItem>(`/api/projects/${projectId}/content-intelligence/generate-content`, body),
+  listCalendarItems: (projectId: string, params?: CalendarFilter) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.platform) q.set('platform', params.platform);
+    if (params?.campaignId) q.set('campaignId', params.campaignId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q}` : '';
+    return get<CalendarItem[]>(`/api/projects/${projectId}/content-intelligence/calendar${qs}`);
+  },
+  createCalendarItem: (projectId: string, body: CreateCalendarItemBody) =>
+    post<CalendarItem>(`/api/projects/${projectId}/content-intelligence/calendar`, body),
+  updateCalendarItem: (projectId: string, itemId: string, body: Partial<CalendarItem>) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/calendar/${itemId}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  // Campaigns
+  listCICampaigns: (projectId: string) =>
+    get<CICampaign[]>(`/api/projects/${projectId}/content-intelligence/campaigns`),
+  getCICampaign: (projectId: string, campaignId: string) =>
+    get<CICampaign>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}`),
+  createCICampaign: (projectId: string, body: CreateCampaignBody) =>
+    post<CICampaign>(`/api/projects/${projectId}/content-intelligence/campaigns`, body),
+  updateCICampaignStatus: (projectId: string, campaignId: string, status: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    }),
+  matchCreatorsToCampaign: (projectId: string, campaignId: string) =>
+    post<{ matched: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/match-creators`, {}),
+
+  // Creators
+  listCreators: (projectId: string) =>
+    get<Creator[]>(`/api/projects/${projectId}/content-intelligence/creators`),
+  addCreator: (projectId: string, body: AddCreatorBody) =>
+    post<Creator>(`/api/projects/${projectId}/content-intelligence/creators`, body),
+  updateCreator: (projectId: string, creatorId: string, body: Partial<Creator>) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  // Outreach
+  generateOutreachMessage: (projectId: string, body: GenerateOutreachBody) =>
+    post<{ outreach: CreatorOutreach; generated: { subject: string; messageBody: string } }>(
+      `/api/projects/${projectId}/content-intelligence/creators/outreach`, body),
+  listOutreach: (projectId: string) =>
+    get<CreatorOutreach[]>(`/api/projects/${projectId}/content-intelligence/creators/outreach`),
+  approveOutreach: (projectId: string, outreachId: string) =>
+    post<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/approve`, {}),
+  updateOutreachStage: (projectId: string, outreachId: string, stage: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/stage`, {
+      method: 'PATCH', body: JSON.stringify({ stage }),
+    }),
 };
+
+// ── Content Intelligence types ────────────────────────────────────────────
+
+export interface CIConfig {
+  projectId: string;
+  industrySkill: string;
+  automationLevel: string;
+  postingFrequency?: string | null;
+}
+
+export interface CIDashboard {
+  stats: {
+    competitorsTracked: number;
+    contentAnalyzed: number;
+    classified: number;
+    creativePatterns: number;
+    contentGaps: number;
+    strategies: number;
+    campaigns: number;
+    platformBreakdown: { platform: string; _count: { id: number } }[];
+  };
+  topOpportunities: ContentGap[];
+  topPatterns: CreativePattern[];
+}
+
+export interface CompetitorAccount {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  competitorId: string;
+  platform: string;
+  handle: string;
+  profileUrl: string | null;
+  displayName: string | null;
+  followerCount: number | null;
+  isActive: boolean;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  _count?: { content: number };
+}
+
+export interface AddCompetitorAccountBody {
+  competitorId: string;
+  platform: string;
+  handle: string;
+  displayName?: string;
+  followerCount?: number;
+  profileUrl?: string;
+}
+
+export interface CompetitorContent {
+  id: string;
+  platform: string;
+  contentType: string | null;
+  publishedAt: string | null;
+  caption: string | null;
+  title: string | null;
+  hashtags: string[];
+  thumbnailUrl: string | null;
+  contentUrl: string | null;
+  likesCount: number | null;
+  commentsCount: number | null;
+  viewsCount: number | null;
+  classification?: ContentClassification | null;
+  account?: { displayName: string | null; platform: string; handle: string };
+}
+
+export interface IngestContentBody {
+  accountId: string;
+  platform: string;
+  contentType?: string;
+  caption?: string;
+  title?: string;
+  contentUrl?: string;
+  thumbnailUrl?: string;
+  publishedAt?: string;
+  hashtags?: string[];
+  likesCount?: number;
+  commentsCount?: number;
+  viewsCount?: number;
+}
+
+export interface ContentClassification {
+  contentCategory: string | null;
+  visualFormat: string | null;
+  detectedTopics: string[];
+  detectedObjects: string[];
+  storytellingStyle: string | null;
+  hookType: string | null;
+  ctaType: string | null;
+  creativityScore: number | null;
+}
+
+export interface CreativePattern {
+  id: string;
+  name: string;
+  description: string;
+  platforms: string[];
+  contentCategories: string[];
+  keyVisualElements: string[];
+  storytellingApproach: string | null;
+  ctaType: string | null;
+  frequency: number;
+  marketSaturation: number;
+  opportunityScore: number;
+  detectedAt: string;
+}
+
+export interface ContentGap {
+  id: string;
+  gapType: string;
+  title: string;
+  description: string;
+  competitionLevel: string;
+  opportunityScore: number;
+  recommendedAction: string | null;
+  status: string;
+  createdAt: string;
+  pattern?: { name: string; opportunityScore: number } | null;
+}
+
+export interface ContentStrategy {
+  id: string;
+  title: string;
+  status: string;
+  industrySkill: string | null;
+  generatedByModel: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contentPillars?: { pillar: string; percentage: number; rationale: string; topics?: string[] }[] | null;
+  platformFrequency?: Record<string, number> | null;
+  campaignIdeas?: { name: string; objective: string; concept: string; contentTypes?: string[]; differentiator?: string }[] | null;
+  content?: {
+    executiveSummary: string;
+    whatToAvoid?: string[];
+    whatToTest?: string[];
+    whatToScale?: string[];
+    hooks?: string[];
+    ctaStrategy?: string;
+  };
+}
+
+export interface CalendarItem {
+  id: string;
+  platform: string;
+  contentType: string;
+  contentPillar: string | null;
+  title: string;
+  caption: string | null;
+  hook: string | null;
+  cta: string | null;
+  hashtags: string[];
+  visualBrief: string | null;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  status: string;
+  campaignId: string | null;
+  createdAt: string;
+  campaign?: { name: string } | null;
+  gap?: { title: string } | null;
+}
+
+export interface CalendarFilter {
+  status?: string;
+  platform?: string;
+  campaignId?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface GenerateContentBody {
+  platform: string;
+  contentType: string;
+  contentPillar?: string;
+  topic: string;
+  campaignName?: string;
+  gapContext?: string;
+  visualDirection?: string;
+}
+
+export interface CreateCalendarItemBody {
+  platform: string;
+  contentType: string;
+  contentPillar?: string;
+  title: string;
+  caption?: string;
+  scheduledFor?: string;
+  campaignId?: string;
+}
+
+export interface CICampaign {
+  id: string;
+  name: string;
+  objective: string | null;
+  productFocus: string | null;
+  targetAudience: string | null;
+  budget: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  platforms: string[];
+  status: string;
+  approvalMode: string;
+  brief: unknown | null;
+  createdAt: string;
+  _count?: { calendarItems: number; creatorMatches: number };
+  calendarItems?: CalendarItem[];
+  creatorMatches?: CreatorMatch[];
+}
+
+export interface CreateCampaignBody {
+  name: string;
+  objective?: string;
+  productFocus?: string;
+  targetAudience?: string;
+  budget?: number;
+  startDate?: string;
+  endDate?: string;
+  platforms?: string[];
+  strategyId?: string;
+}
+
+export interface Creator {
+  id: string;
+  name: string;
+  handle: string | null;
+  platform: string | null;
+  profileUrl: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  category: string | null;
+  industry: string | null;
+  followerCount: number | null;
+  engagementRate: number | null;
+  averageBudget: number | null;
+  currency: string;
+  notes: string | null;
+  tags: string[];
+  status: string;
+  createdAt: string;
+}
+
+export interface AddCreatorBody {
+  name: string;
+  handle?: string;
+  platform?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  category?: string;
+  industry?: string;
+  followerCount?: number;
+  engagementRate?: number;
+  averageBudget?: number;
+  notes?: string;
+  tags?: string[];
+}
+
+export interface CreatorMatch {
+  id: string;
+  matchScore: number;
+  scoreBreakdown: Record<string, unknown> | null;
+  status: string;
+  createdAt: string;
+  creator: Creator;
+}
+
+export interface CreatorOutreach {
+  id: string;
+  subject: string | null;
+  messageBody: string | null;
+  channel: string;
+  pipelineStage: string;
+  approvedToSend: boolean;
+  sentAt: string | null;
+  contactedAt: string | null;
+  createdAt: string;
+  creator?: { name: string; handle: string | null; category: string | null };
+}
+
+export interface GenerateOutreachBody {
+  creatorId: string;
+  campaignId?: string;
+  brandName: string;
+  campaignName?: string;
+  product?: string;
+  location?: string;
+  proposedDate?: string;
+}
+

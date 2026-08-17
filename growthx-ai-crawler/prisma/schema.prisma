@@ -295,9 +295,12 @@ model Project {
   MarketAction         MarketAction[]
   MarketWatch          MarketWatch[]
   WeeklyDelta          WeeklyDelta[]
+  ContentIntelligenceConfig ContentIntelligenceConfig?
+  ContentStrategy      ContentStrategy[]
 
   @@index([organizationId])
 }
+
 
 model Subscription {
   id                     String             @id @default(uuid())
@@ -1281,3 +1284,394 @@ model WeeklyDelta {
   @@unique([projectId, periodStart])
   @@index([organizationId, projectId, periodEnd])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Content Intelligence & Creative Engine
+//
+// Every model carries organizationId + projectId for double-fence tenant
+// isolation, matching the pattern established in MarketResearchThread.
+//
+// The flow: competitors → competitor content → classification → patterns →
+// gaps → strategy → content calendar → campaigns → creators → publishing →
+// analytics → company brain learning.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Per-project configuration for the Content Intelligence module.
+model ContentIntelligenceConfig {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String   @unique
+  /// Industry skill applied: JEWELLERY | REAL_ESTATE | RESTAURANT | FASHION | ECOMMERCE | SAAS | GENERIC
+  industrySkill  String   @default("GENERIC")
+  /// Automation level: MANUAL | SEMI_AUTO | AUTO
+  automationLevel String  @default("MANUAL")
+  /// Posting frequency preference: DAILY | 3X_WEEK | WEEKLY
+  postingFrequency String? 
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId])
+}
+
+/// Social account handles for one competitor on one platform.
+model CompetitorAccount {
+  id             String            @id @default(uuid())
+  organizationId String
+  projectId      String
+  competitorId   String
+  /// The CompetitorDomain this account belongs to.
+  platform       String            /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
+  handle         String            /// @handle or channel id
+  profileUrl     String?
+  displayName    String?
+  followerCount  Int?
+  isActive       Boolean           @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  content        CompetitorContent[]
+
+  @@unique([projectId, platform, handle])
+  @@index([organizationId, projectId])
+  @@index([competitorId])
+}
+
+/// Normalized content item from any competitor on any platform.
+model CompetitorContent {
+  id                  String                  @id @default(uuid())
+  organizationId      String
+  projectId           String
+  accountId           String
+  platform            String                  /// INSTAGRAM | FACEBOOK | YOUTUBE
+  contentType         String?                 /// POST | REEL | VIDEO | STORY | CAROUSEL | SHORT
+  publishedAt         DateTime?
+  caption             String?
+  title               String?
+  description         String?
+  hashtags            String[]                @default([])
+  mediaUrl            String?
+  thumbnailUrl        String?
+  contentUrl          String?
+  likesCount          Int?
+  commentsCount       Int?
+  sharesCount         Int?
+  viewsCount          Int?
+  savesCount          Int?
+  engagementAvailable Boolean                 @default(false)
+  /// AI-detected topics, format, style, objects (stored separately in classification)
+  rawMetadata         Json?
+  createdAt           DateTime                @default(now())
+  account             CompetitorAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  classification      ContentClassification?
+  patternLinks        PatternContentLink[]
+
+  @@index([organizationId, projectId, platform])
+  @@index([accountId, publishedAt])
+}
+
+/// AI-generated classification for one piece of competitor content.
+model ContentClassification {
+  id                  String           @id @default(uuid())
+  contentId           String           @unique
+  /// Content category: EDUCATIONAL | PROMOTIONAL | PRODUCT | LIFESTYLE | BEHIND_SCENES | TESTIMONIAL | etc.
+  contentCategory     String?
+  /// Visual format: STATIC | CAROUSEL | REEL | SHORT_VIDEO | LONG_VIDEO | STORY
+  visualFormat        String?
+  /// Detected topics as array
+  detectedTopics      String[]         @default([])
+  /// Visual objects detected: PRODUCT | MODEL | CELEBRITY | FLOWERS | WEDDING | OUTDOOR | etc.
+  detectedObjects     String[]         @default([])
+  /// Detected storytelling style
+  storytellingStyle   String?
+  /// Detected hook type
+  hookType            String?
+  /// Detected CTA type
+  ctaType             String?
+  /// Overall creative style score 0-10
+  creativityScore     Float?
+  classifiedByModel   String?
+  classifiedAt        DateTime         @default(now())
+  content             CompetitorContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+}
+
+/// A creative pattern detected across multiple competitors' content.
+model CreativePattern {
+  id                   String               @id @default(uuid())
+  organizationId       String
+  projectId            String
+  name                 String
+  description          String
+  /// Platforms where this pattern appears
+  platforms            String[]             @default([])
+  /// Content categories exhibiting this pattern
+  contentCategories    String[]             @default([])
+  /// Visual objects central to this pattern
+  keyVisualElements    String[]             @default([])
+  /// Detected storytelling approach
+  storytellingApproach String?
+  /// Detected CTA type
+  ctaType              String?
+  /// How many content pieces use this pattern
+  frequency            Int                  @default(0)
+  /// 0-100: 100 = every competitor uses it
+  marketSaturation     Int                  @default(0)
+  /// 0-100: 100 = huge untapped opportunity
+  opportunityScore     Int                  @default(50)
+  detectedAt           DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  patternLinks         PatternContentLink[]
+  gaps                 ContentGap[]         @relation("GapPattern")
+
+  @@index([organizationId, projectId, opportunityScore])
+}
+
+/// Junction: which content items exemplify a pattern.
+model PatternContentLink {
+  id        String           @id @default(uuid())
+  patternId String
+  contentId String
+  pattern   CreativePattern  @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  content   CompetitorContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([patternId, contentId])
+}
+
+/// A content gap identified between customer content and competitor patterns.
+model ContentGap {
+  id                   String           @id @default(uuid())
+  organizationId       String
+  projectId            String
+  patternId            String?
+  /// SATURATED | COMPETITOR_WINNING | CUSTOMER_WINNING | CUSTOMER_MISSING | MARKET_GAP | EMERGING | DIFFERENTIATION
+  gapType              String
+  title                String
+  description          String
+  competitionLevel     String           @default("MEDIUM")   /// LOW | MEDIUM | HIGH
+  opportunityScore     Int              @default(50)
+  /// Recommended action
+  recommendedAction    String?
+  status               String           @default("OPEN")     /// OPEN | ACTIONED | DISMISSED
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  pattern              CreativePattern? @relation("GapPattern", fields: [patternId], references: [id], onDelete: SetNull)
+  CalendarItem         ContentCalendarItem[]
+
+  @@index([organizationId, projectId, gapType])
+  @@index([projectId, status])
+}
+
+/// AI-generated content strategy for a project.
+model ContentStrategy {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  projectId            String
+  title                String   @default("Content Strategy")
+  /// Strategy document as structured JSON
+  content              Json
+  /// Dynamic content pillars (array of {pillar, pct, rationale})
+  contentPillars       Json?
+  /// Posting frequency per platform
+  platformFrequency    Json?
+  /// Campaign recommendations
+  campaignIdeas        Json?
+  /// Creator strategy
+  creatorStrategy      String?
+  generatedByModel     String?
+  industrySkill        String?
+  status               String   @default("DRAFT")   /// DRAFT | APPROVED | ARCHIVED
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  campaigns            Campaign[]
+
+  @@index([organizationId, projectId, createdAt])
+}
+
+/// A content calendar item (one planned or published piece of social content).
+model ContentCalendarItem {
+  id                String   @id @default(uuid())
+  organizationId    String
+  projectId         String
+  campaignId        String?
+  gapId             String?
+  platform          String                  /// INSTAGRAM | FACEBOOK | YOUTUBE | WHATSAPP | WEBSITE
+  contentType       String                  /// POST | REEL | CAROUSEL | VIDEO | BLOG | STORY
+  contentPillar     String?                 /// PRODUCT | EDUCATIONAL | LIFESTYLE | CREATOR | PROMOTIONAL
+  title             String
+  caption           String?
+  hook              String?
+  cta               String?
+  hashtags          String[]  @default([])
+  visualBrief       String?
+  scheduledFor      DateTime?
+  publishedAt       DateTime?
+  status            String    @default("DRAFT") /// DRAFT | REVIEW | APPROVED | SCHEDULED | PUBLISHED | FAILED
+  approvalMode      String    @default("APPROVAL")  /// AUTO | APPROVAL | CONTROLLED
+  generatedByModel  String?
+  creatorId         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  gap               ContentGap? @relation(fields: [gapId], references: [id], onDelete: SetNull)
+  campaign          Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  metrics           SocialMetric[]
+
+  @@index([organizationId, projectId, scheduledFor])
+  @@index([projectId, status])
+  @@index([campaignId])
+}
+
+/// A campaign workspace grouping strategy → content → creators → publishing.
+model Campaign {
+  id                String    @id @default(uuid())
+  organizationId    String
+  projectId         String
+  strategyId        String?
+  name              String
+  objective         String?
+  productFocus      String?
+  targetAudience    String?
+  budget            Float?
+  startDate         DateTime?
+  endDate           DateTime?
+  platforms         String[]  @default([])
+  status            String    @default("PLANNING")  /// PLANNING | ACTIVE | PAUSED | COMPLETED | CANCELLED
+  approvalMode      String    @default("APPROVAL")
+  /// AI-generated campaign brief as JSON
+  brief             Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  strategy          ContentStrategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
+  calendarItems     ContentCalendarItem[]
+  creatorMatches    CreatorMatch[]
+
+  @@index([organizationId, projectId, status])
+}
+
+/// A creator or model in the CRM.
+model Creator {
+  id                String          @id @default(uuid())
+  organizationId    String
+  /// Creators are org-level (can be matched to multiple projects)
+  name              String
+  handle            String?
+  platform          String?         /// INSTAGRAM | YOUTUBE | TIKTOK | etc.
+  profileUrl        String?
+  email             String?
+  phone             String?
+  location          String?
+  category          String?         /// MODEL | INFLUENCER | CELEBRITY | UGC_CREATOR | PHOTOGRAPHER
+  industry          String?
+  followerCount     Int?
+  engagementRate    Float?
+  averageBudget     Float?
+  currency          String          @default("INR")
+  notes             String?
+  tags              String[]        @default([])
+  status            String          @default("ACTIVE")  /// ACTIVE | INACTIVE | BLACKLISTED
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  matches           CreatorMatch[]
+  outreach          CreatorOutreach[]
+
+  @@index([organizationId])
+  @@index([organizationId, category])
+}
+
+/// AI-scored match between a creator and a campaign.
+model CreatorMatch {
+  id                String   @id @default(uuid())
+  organizationId    String
+  projectId         String
+  campaignId        String
+  creatorId         String
+  matchScore        Int      /// 0-100
+  /// Why this score was given (JSON breakdown: brand fit, industry fit, etc.)
+  scoreBreakdown    Json?
+  /// Whether customer shortlisted / selected
+  status            String   @default("SUGGESTED")  /// SUGGESTED | SHORTLISTED | SELECTED | REJECTED
+  createdAt         DateTime @default(now())
+  campaign          Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorId])
+  @@index([organizationId, projectId])
+}
+
+/// Creator outreach pipeline record.
+model CreatorOutreach {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  projectId          String
+  creatorId          String
+  campaignId         String?
+  subject            String?
+  messageBody        String?
+  channel            String    @default("EMAIL")   /// EMAIL | INSTAGRAM_DM | WHATSAPP | MANUAL
+  /// DISCOVERED | SHORTLISTED | CONTACTED | INTERESTED | NEGOTIATING | CONFIRMED | CAMPAIGN_ACTIVE | COMPLETED | PERFORMANCE_REVIEWED
+  pipelineStage      String    @default("DISCOVERED")
+  contactedAt        DateTime?
+  responseAt         DateTime?
+  responseText       String?
+  agreedBudget       Float?
+  contractStatus     String?   /// PENDING | SIGNED | DECLINED
+  notes              String?
+  approvedToSend     Boolean   @default(false)
+  sentAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  creator            Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId, pipelineStage])
+  @@index([creatorId])
+}
+
+/// Customer's own connected social account for publishing.
+model SocialAccount {
+  id                 String    @id @default(uuid())
+  organizationId     String
+  projectId          String
+  platform           String                 /// INSTAGRAM | FACEBOOK | YOUTUBE
+  accountId          String?                /// Platform's own account/page id
+  accountName        String?
+  handle             String?
+  accessToken        String?                /// Encrypted
+  refreshToken       String?                /// Encrypted
+  tokenExpiresAt     DateTime?
+  scopes             String[]  @default([])
+  status             String    @default("DISCONNECTED")  /// CONNECTED | DISCONNECTED | EXPIRED | ERROR
+  lastPublishedAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([projectId, platform])
+  @@index([organizationId, projectId])
+}
+
+/// Performance metrics for one published calendar item.
+model SocialMetric {
+  id             String              @id @default(uuid())
+  organizationId String
+  projectId      String
+  calendarItemId String
+  platform       String
+  fetchedAt      DateTime            @default(now())
+  reach          Int?
+  impressions    Int?
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  saves          Int?
+  clicks         Int?
+  views          Int?
+  websiteClicks  Int?
+  leads          Int?
+  engagementRate Float?
+  /// Whether these are verified API metrics or modelled estimates
+  isVerified     Boolean             @default(false)
+  calendarItem   ContentCalendarItem @relation(fields: [calendarItemId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId, fetchedAt])
+  @@index([calendarItemId])
+}
+
