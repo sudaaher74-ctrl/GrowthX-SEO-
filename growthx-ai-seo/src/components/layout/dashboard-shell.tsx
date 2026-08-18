@@ -1,31 +1,45 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth } from "@/lib/api-client";
 
+/** The token lives in localStorage and only changes on sign-in or sign-out,
+ *  both of which navigate — so there is nothing to subscribe to. */
+const noSubscribe = () => () => {};
+
+/**
+ * Every dashboard route renders inside this shell, so it is where the session
+ * check belongs.
+ *
+ * It used to sign the visitor in as a fixed demo account — email and password
+ * literals in a client component, which ships them in the bundle to anyone who
+ * opens the page. Whoever held them held that account's data, and the app had
+ * no other way in, so there was effectively no authentication at all. An
+ * unauthenticated visitor now goes to /login like any other product.
+ */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
 
+  // localStorage is unreadable during the server render. useSyncExternalStore
+  // is the pattern already used for the stored org in `useWorkspace`: a client
+  // snapshot and a separate server one, so there is no hydration mismatch and
+  // no state update inside an effect. `null` means "not known yet".
+  const signedIn = useSyncExternalStore(
+    noSubscribe,
+    () => auth.isAuthenticated(),
+    () => null,
+  );
+
   useEffect(() => {
-    if (!auth.isAuthenticated() || !auth.getProjectId()) {
-      import("@/lib/api-client").then(({ api, auth }) => {
-        api.login("admin@milquufresh.in", "testpassword").then(async () => {
-          const orgs = await api.listOrganizations();
-          if (orgs?.[0]?.id) {
-            auth.setOrgId(orgs[0].id);
-            const projects = await api.listProjects(orgs[0].id);
-            if (projects?.[0]?.id) auth.setProjectId(projects[0].id);
-          }
-          window.location.reload();
-        }).catch((e) => {
-          console.error("Failed to login as admin", e);
-        });
-      });
-    }
-  }, []);
+    if (signedIn === false) router.replace("/login");
+  }, [signedIn, router]);
+
+  // Render nothing until the answer is known, rather than a frame of dashboard
+  // chrome that a signed-out visitor should never see.
+  if (signedIn !== true) return null;
 
   return (
     <div className="min-h-screen" style={{ background: "#fafafa" }}>

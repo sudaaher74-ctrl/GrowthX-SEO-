@@ -5,7 +5,7 @@ import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 import { LocalSeoService } from './local-seo.service';
 
-@Controller('projects/:projectId/local-seo')
+@Controller('api/projects/:projectId/local-seo')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
 // Local SEO auditing is part of the core crawl capability.

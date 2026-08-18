@@ -226,6 +226,12 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
       return request<T>(path, init, false);
     }
     auth.clear();
+
+    // Clearing the session used to leave the caller on the dashboard, where
+    // every query then failed with a different error. Send them to sign in —
+    // except when they are already on an auth page, which would loop.
+    const onAuthPage = ["/login", "/register"].includes(window.location.pathname);
+    if (!onAuthPage) window.location.href = "/login";
   }
   throw new ApiError(response?.status ?? 0, String(message), payload);
 }

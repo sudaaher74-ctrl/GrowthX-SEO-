@@ -22,7 +22,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { EntitlementsService } from '../billing/entitlements.service';
-import { Metered } from '../billing/entitlements.decorator';
+import { Metered, NoEntitlement } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 
 /** A single turn in a conversation. */
@@ -74,6 +74,9 @@ export class GroqController {
   // ----------------------------------------------------------------- /health
 
   @Get('health')
+  // Reports whether a provider key is configured. No model call, no tokens,
+  // no customer data — gating it would only make diagnosis harder.
+  @NoEntitlement('provider configuration check; spends no allowance')
   @ApiOperation({ summary: 'Groq AI provider health check' })
   @ApiResponse({ status: 200, description: 'Provider configuration status' })
   getHealth() {

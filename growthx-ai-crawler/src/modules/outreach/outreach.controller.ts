@@ -5,7 +5,7 @@ import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 import { OutreachService } from './outreach.service';
 
-@Controller('projects/:projectId/outreach')
+@Controller('api/projects/:projectId/outreach')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
 // Digital PR and outreach sit with the strategy engine.

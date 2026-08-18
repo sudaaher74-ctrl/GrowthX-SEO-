@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { ContentPieceKind, UsageMetric } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { Metered, OrgFrom } from '../billing/entitlements.decorator';
+import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import { ContentAgentService, ContentRequest } from './content-agent.service';
@@ -58,6 +58,10 @@ export class ContentAgentController {
   }
 
   @Get('pending-review')
+  // No allowance is spent reading or deciding on a draft — the draft route
+  // already charged for it — but both stay behind the same feature, since a
+  // plan that cannot draft has nothing to review.
+  @RequiresFeature(Feature.AI_RECOMMENDATIONS)
   @ApiOperation({ summary: 'Drafts waiting on a human decision' })
   @ApiParam({ name: 'projectId' })
   pendingReview(@Param('projectId') projectId: string) {
@@ -65,6 +69,7 @@ export class ContentAgentController {
   }
 
   @Post('drafts/:pieceId/review')
+  @RequiresFeature(Feature.AI_RECOMMENDATIONS)
   @ApiOperation({ summary: 'Approve or reject a draft. Nothing publishes without this.' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })

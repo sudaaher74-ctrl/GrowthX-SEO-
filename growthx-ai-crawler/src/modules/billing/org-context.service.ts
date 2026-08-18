@@ -76,7 +76,7 @@ export class OrgContextService {
           select: { project: { select: { organizationId: true } } },
         });
         if (!website) throw new NotFoundException('Website not found');
-        return website.project?.organizationId ?? null;
+        return this.requireOwner(website.project?.organizationId, 'website');
       }
 
       case 'crawlJob': {
@@ -85,7 +85,7 @@ export class OrgContextService {
           select: { website: { select: { project: { select: { organizationId: true } } } } },
         });
         if (!job) throw new NotFoundException('Crawl job not found');
-        return job.website.project?.organizationId ?? null;
+        return this.requireOwner(job.website.project?.organizationId, 'crawl job');
       }
 
       case 'issue': {
@@ -94,9 +94,27 @@ export class OrgContextService {
           select: { crawlJob: { select: { website: { select: { project: { select: { organizationId: true } } } } } } },
         });
         if (!issue) throw new NotFoundException('Issue not found');
-        return issue.crawlJob.website.project?.organizationId ?? null;
+        return this.requireOwner(issue.crawlJob.website.project?.organizationId, 'issue');
       }
     }
+  }
+
+  /**
+   * A resource whose owning organization cannot be traced is not a free-for-all.
+   *
+   * `Website.projectId` is optional, so a site registered without a project has
+   * no organization above it. Returning null here used to make `resolve` fall
+   * through to the `x-organization-id` header and then assert membership of
+   * *that* org — which the caller always passes — so an unparented record was
+   * readable by anyone. Refusing is the only safe reading.
+   */
+  private requireOwner(organizationId: string | null | undefined, label: string): string {
+    if (!organizationId) {
+      throw new ForbiddenException(
+        `This ${label} is not attached to any organization, so access to it cannot be authorized.`,
+      );
+    }
+    return organizationId;
   }
 
   async assertMembership(userId: string, organizationId: string): Promise<void> {

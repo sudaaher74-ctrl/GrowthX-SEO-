@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
-import { Menu, Search, Zap } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut, Menu, Search, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
 
 /** Breadcrumb scope + title for each route, matching the design's header. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
@@ -24,7 +25,15 @@ const PERIODS = ["7d", "28d", "90d"] as const;
 
 export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?: (open: boolean) => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("28d");
+
+  // There was no way to sign out anywhere in the app, because there was no
+  // real sign-in either — the shell logged everyone into one shared account.
+  function signOut() {
+    api.logout();
+    router.replace("/login");
+  }
 
   const meta = ROUTE_META[pathname] ?? { scope: "Client", title: "Workspace" };
 
@@ -79,6 +88,16 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
         <button className="flex items-center gap-1.5 rounded-lg bg-[#09090b] px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90">
           <Zap size={12} />
           Run audit
+        </button>
+
+        <button
+          onClick={signOut}
+          aria-label="Sign out"
+          title="Sign out"
+          className="rounded-lg border p-1.5 text-[#71717a] transition-colors hover:text-[#09090b]"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <LogOut size={13} />
         </button>
       </div>
     </header>

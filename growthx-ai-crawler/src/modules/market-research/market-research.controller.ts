@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { UsageMetric } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { Metered, OrgFrom } from '../billing/entitlements.decorator';
+import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
 import { MarketResearchService } from './market-research.service';
@@ -36,6 +36,10 @@ export class CreateThreadDto {
 @Controller('api/projects/:projectId/market-research')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
+// Market research is part of the paid strategy layer. `ask` overrides this with
+// @Metered because it is the route that actually spends model tokens; the rest
+// read or annotate what that route already produced.
+@RequiresFeature(Feature.MARKET_STRATEGY)
 export class MarketResearchController {
   constructor(
     private readonly research: MarketResearchService,

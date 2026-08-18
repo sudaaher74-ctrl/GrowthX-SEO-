@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { UsageMetric } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -33,17 +33,85 @@ export class CrawlController {
     private readonly orgContext: OrgContextService
   ) {}
 
+  /**
+   * Confirms the caller may act on a website, and returns it.
+   *
+   * These routes identify a resource by id or domain rather than by
+   * organization, so `JwtAuthGuard` alone only proved the caller is *someone*.
+   * Every one of them was readable by any logged-in user — and
+   * `latest-crawl` takes a plain domain, so no id had to be guessed.
+   */
+  private async websiteForCaller(req: any, where: { id: string } | { domain: string }) {
+    const website = await this.prisma.website.findUnique({
+      where: where as any,
+      select: { id: true, domain: true, verificationToken: true, project: { select: { organizationId: true } } },
+    });
+    if (!website) throw new NotFoundException('Website not found');
+
+    const organizationId = website.project?.organizationId;
+    if (!organizationId) {
+      throw new ForbiddenException(
+        'This website is not attached to any organization, so access to it cannot be authorized.',
+      );
+    }
+    await this.orgContext.assertMembership(req.user.userId, organizationId);
+    return website;
+  }
+
+  /** Same, for a crawl job traced back through its website's project. */
+  private async crawlJobForCaller(req: any, jobId: string) {
+    const job = await this.prisma.crawlJob.findUnique({
+      where: { id: jobId },
+      include: { website: { include: { project: { select: { organizationId: true } } } } },
+    });
+    if (!job) throw new NotFoundException('Crawl job not found');
+
+    const organizationId = job.website.project?.organizationId;
+    if (!organizationId) {
+      throw new ForbiddenException(
+        'This crawl job is not attached to any organization, so access to it cannot be authorized.',
+      );
+    }
+    await this.orgContext.assertMembership(req.user.userId, organizationId);
+    return job;
+  }
+
   @Post('websites')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Register a new customer website for SEO auditing' })
   @ApiBody({ schema: { type: 'object', properties: { url: { type: 'string', example: 'https://growthx.ai' }, domain: { type: 'string', example: 'growthx.ai' }, projectId: { type: 'string' } } } })
   async registerWebsiteRoute(@Req() req: any, @Body() body: { url: string; domain: string; projectId?: string }) {
     const organizationId = await this.orgContext.resolve(req);
-    const existing = await this.prisma.website.findUnique({ where: { domain: body.domain } });
+    const existing = await this.prisma.website.findUnique({
+      where: { domain: body.domain },
+      select: { id: true, project: { select: { organizationId: true } } },
+    });
+
+    // `Website.domain` is globally unique and `registerWebsite` upserts on it,
+    // so re-registering a domain another tenant already owns used to reassign
+    // its projectId — moving that site and its whole crawl history across the
+    // tenant boundary. A domain stays with the organization that claimed it.
+    const owner = existing?.project?.organizationId;
+    if (owner && owner !== organizationId) {
+      throw new ForbiddenException(
+        `${body.domain} is already registered to another organization. If you own this domain, ask them to remove it first.`,
+      );
+    }
 
     // Only a genuinely new site counts against the plan's site allowance.
     if (!existing) {
       await this.entitlements.assertCanAddSite(organizationId);
+    }
+
+    // A project the caller does not belong to would park the site outside their
+    // own organization, where the checks above cannot see it.
+    if (body.projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: body.projectId },
+        select: { organizationId: true },
+      });
+      if (!project) throw new NotFoundException('Project not found');
+      await this.orgContext.assertMembership(req.user.userId, project.organizationId);
     }
 
     return this.registerWebsite(body);
@@ -80,9 +148,8 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Verify customer ownership of a domain via DNS TXT record' })
   @ApiParam({ name: 'id', description: 'Website ID' })
-  async verifyDomain(@Param('id') id: string) {
-    const website = await this.prisma.website.findUnique({ where: { id } });
-    if (!website) throw new NotFoundException('Website not found');
+  async verifyDomain(@Req() req: any, @Param('id') id: string) {
+    const website = await this.websiteForCaller(req, { id });
 
     const isVerified = await this.securityService.verifyDomainOwnership(website.domain, website.verificationToken || 'verified');
 
@@ -106,17 +173,18 @@ export class CrawlController {
   @Metered(Feature.CRAWL, UsageMetric.CRAWL_PAGES, 1)
   @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
-  async startCrawlJob(@Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
+  async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
-    
-    let websiteId = body.websiteId;
-    if (!websiteId && body.domain) {
-      const website = await this.prisma.website.findUnique({ where: { domain: body.domain } });
-      if (!website) throw new NotFoundException('Website not found. Please register it first.');
-      websiteId = website.id;
-    }
-    
-    const jobId = await this.crawlerService.startCrawlJob(websiteId as string, body);
+
+    // EntitlementsGuard resolved an organization for the *caller*, but nothing
+    // tied the website to it: any logged-in user could spend their own plan's
+    // allowance crawling another tenant's site, and the pages would land in
+    // that tenant's crawl history.
+    const website = body.websiteId
+      ? await this.websiteForCaller(req, { id: body.websiteId })
+      : await this.websiteForCaller(req, { domain: body.domain as string });
+
+    const jobId = await this.crawlerService.startCrawlJob(website.id, body);
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }
 
@@ -124,34 +192,24 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve progress, status, and summary metrics for a crawl job' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
-  async getCrawlJob(@Param('id') id: string) {
-    const job = await this.prisma.crawlJob.findUnique({
-      where: { id },
-      include: { website: true },
-    });
-    if (!job) throw new NotFoundException('Crawl job not found');
-    return job;
+  async getCrawlJob(@Req() req: any, @Param('id') id: string) {
+    return this.crawlJobForCaller(req, id);
   }
 
   @Get('websites/:domain/latest-crawl')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve the most recent crawl job for a domain' })
   @ApiParam({ name: 'domain', description: 'Website Domain' })
-  async getLatestCrawlJob(@Param('domain') domain: string) {
-    const website = await this.prisma.website.findUnique({
-      where: { domain },
-      include: {
-        crawlJobs: {
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        }
-      }
+  async getLatestCrawlJob(@Req() req: any, @Param('domain') domain: string) {
+    await this.websiteForCaller(req, { domain });
+
+    const latest = await this.prisma.crawlJob.findFirst({
+      where: { website: { domain } },
+      orderBy: { createdAt: 'desc' },
+      include: { website: true },
     });
-    
-    if (!website) throw new NotFoundException('Website not found');
-    if (website.crawlJobs.length === 0) return null;
-    
-    return this.getCrawlJob(website.crawlJobs[0].id);
+
+    return latest ?? null;
   }
 
   @Get('crawls/:id/issues')
@@ -162,11 +220,13 @@ export class CrawlController {
   @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
   async getCrawlIssues(
+    @Req() req: any,
     @Param('id') id: string,
     @Query('severity') severity?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50'
   ) {
+    await this.crawlJobForCaller(req, id);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
@@ -189,10 +249,12 @@ export class CrawlController {
   @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
   async getCrawlPages(
+    @Req() req: any,
     @Param('id') id: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50'
   ) {
+    await this.crawlJobForCaller(req, id);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
@@ -217,7 +279,8 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve directed internal link graph, crawl depth, and orphan page report' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
-  async getGraphReport(@Param('id') id: string) {
+  async getGraphReport(@Req() req: any, @Param('id') id: string) {
+    await this.crawlJobForCaller(req, id);
     return this.graphService.generateGraphReport(id);
   }
 
@@ -226,8 +289,12 @@ export class CrawlController {
   @ApiOperation({ summary: 'Compare this crawl job against a previous audit report to see new vs resolved issues' })
   @ApiParam({ name: 'id', description: 'Current Crawl Job ID' })
   @ApiQuery({ name: 'compareWith', required: true, description: 'Previous Crawl Job ID' })
-  async getCrawlDiff(@Param('id') id: string, @Query('compareWith') compareWith: string) {
+  async getCrawlDiff(@Req() req: any, @Param('id') id: string, @Query('compareWith') compareWith: string) {
     if (!compareWith) throw new BadRequestException('compareWith parameter is required');
+    // Both sides, or the diff becomes a read of someone else's audit through
+    // the query string.
+    await this.crawlJobForCaller(req, id);
+    await this.crawlJobForCaller(req, compareWith);
     return this.historyService.compareCrawlJobs(id, compareWith);
   }
 

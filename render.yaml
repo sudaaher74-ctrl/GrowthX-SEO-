@@ -60,6 +60,9 @@ services:
       # Comma-separated list of browser origins allowed to call this API.
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      # Comma-separated emails allowed into /api/admin. Unset denies everyone.
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
       - key: PLAYWRIGHT_HEADLESS
         value: "true"
       - key: DEFAULT_CRAWL_CONCURRENCY

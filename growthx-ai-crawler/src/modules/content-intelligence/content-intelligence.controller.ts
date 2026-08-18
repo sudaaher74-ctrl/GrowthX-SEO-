@@ -3,7 +3,9 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom } from '../billing/entitlements.decorator';
+import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
+import { Feature } from '../billing/plans.catalog';
+import { UsageMetric } from '@prisma/client';
 import { CompetitorContentService } from './competitor-content.service';
 import { ClassificationService } from './classification.service';
 import { PatternDetectionService } from './pattern-detection.service';
@@ -24,6 +26,10 @@ import { PrismaService } from '../../database/prisma.service';
 @Controller('api/projects/:projectId/content-intelligence')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
+// The whole surface is the paid content/social strategy layer. Read routes
+// inherit this gate; the routes below that spend model tokens override it with
+// @Metered so the work is also counted against the plan's allowance.
+@RequiresFeature(Feature.MARKET_STRATEGY)
 export class ContentIntelligenceController {
   constructor(
     private readonly competitorContent: CompetitorContentService,
@@ -154,6 +160,7 @@ export class ContentIntelligenceController {
   // ── Classification ───────────────────────────────────────────────────────
 
   @Post('classify')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.AI_ANALYSES)
   async classifyContent(@Req() req: any, @Param('projectId') projectId: string) {
     return this.classification.classifyPending(projectId, req.organizationId);
   }
@@ -161,6 +168,7 @@ export class ContentIntelligenceController {
   // ── Pattern Detection ────────────────────────────────────────────────────
 
   @Post('detect-patterns')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.AI_ANALYSES)
   async detectPatterns(@Req() req: any, @Param('projectId') projectId: string) {
     return this.patternDetection.detectPatterns(projectId, req.organizationId);
   }
@@ -173,6 +181,7 @@ export class ContentIntelligenceController {
   // ── Gap Analysis ─────────────────────────────────────────────────────────
 
   @Post('analyze-gaps')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.AI_ANALYSES)
   async analyzeGaps(@Req() req: any, @Param('projectId') projectId: string) {
     return this.gapAnalysis.analyzeGaps(projectId, req.organizationId);
   }
@@ -198,6 +207,7 @@ export class ContentIntelligenceController {
   // ── Content Strategy ─────────────────────────────────────────────────────
 
   @Post('strategy/generate')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.STRATEGY_REPORTS)
   async generateStrategy(@Req() req: any, @Param('projectId') projectId: string) {
     return this.contentStrategy.generateStrategy(projectId, req.organizationId);
   }
@@ -220,6 +230,7 @@ export class ContentIntelligenceController {
   // ── Content Calendar ─────────────────────────────────────────────────────
 
   @Post('generate-content')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.STRATEGY_REPORTS)
   async generateContent(
     @Req() req: any,
     @Param('projectId') projectId: string,
@@ -282,6 +293,7 @@ export class ContentIntelligenceController {
   }
 
   @Post('campaigns/:campaignId/match-creators')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.AI_ANALYSES)
   async matchCreators(
     @Req() req: any,
     @Param('projectId') projectId: string,
@@ -308,6 +320,7 @@ export class ContentIntelligenceController {
   }
 
   @Post('creators/outreach')
+  @Metered(Feature.MARKET_STRATEGY, UsageMetric.AI_ANALYSES)
   async generateOutreach(@Req() req: any, @Param('projectId') projectId: string, @Body() body: any) {
     return this.creator.generateOutreachMessage(req.organizationId, projectId, body);
   }
