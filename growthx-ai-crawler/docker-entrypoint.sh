@@ -22,6 +22,15 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+# The production schema was created with `db push`, which writes no migration
+# history, so `migrate deploy` finds tables it cannot account for and stops with
+# P3005 rather than replay CREATE TABLE over live data. This records the
+# migrations the database demonstrably already contains, having checked their
+# tables and enum types are really there, and leaves the rest to be applied
+# normally below. It is a no-op once history exists, and on an empty database.
+echo "Checking migration history..."
+node scripts/baseline-database.js
+
 echo "Applying database migrations..."
 node node_modules/prisma/build/index.js migrate deploy
 

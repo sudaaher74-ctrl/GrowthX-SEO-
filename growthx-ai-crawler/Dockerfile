@@ -36,6 +36,10 @@ COPY --from=builder --chown=node:node /app/dist ./dist
 COPY --from=builder --chown=node:node /app/package*.json ./
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 
+# The entrypoint runs scripts/baseline-database.js before migrating, so the
+# directory has to exist in the runtime image, not just the build context.
+COPY --from=builder --chown=node:node /app/scripts ./scripts
+
 # The Prisma CLI is a devDependency, so `npm ci --omit=dev` leaves it out of the
 # runtime image and `npx prisma` would fetch it over the network on every boot.
 # It depends only on @prisma/engines, so copying those two is enough to run
