@@ -8,24 +8,29 @@ datasource db {
 }
 
 model Website {
-  id                String     @id @default(uuid())
-  domain            String     @unique
+  id                String         @id @default(uuid())
+  domain            String         @unique
   url               String
-  isVerified        Boolean    @default(false)
+  isVerified        Boolean        @default(false)
   verifiedAt        DateTime?
   verificationToken String?
   webhookSecret     String?
   authCredentials   String?
-  rateLimitDelayMs  Int        @default(500)
-  maxConcurrency    Int        @default(5)
-  maxDepth          Int        @default(10)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  rateLimitDelayMs  Int            @default(500)
+  maxConcurrency    Int            @default(5)
+  maxDepth          Int            @default(10)
+  /// Monthly by default: gentle enough not to swamp a small instance, while
+  /// keeping every verified site on some schedule rather than silently
+  /// dropping recurring crawls. Set OFF to opt a site out entirely.
+  crawlFrequency    CrawlFrequency @default(MONTHLY)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   projectId         String?
   crawlJobs         CrawlJob[]
-  project           Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([domain])
+  @@index([isVerified, crawlFrequency])
 }
 
 model CrawlJob {
@@ -645,6 +650,18 @@ enum JobStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+/// How often a verified site is re-crawled on its own schedule.
+///
+/// Each site is picked up by exactly one cron. The daily, weekly and monthly
+/// jobs each used to select *every* verified site, so a single site was
+/// re-crawled by all three and the crons multiplied load instead of dividing it.
+enum CrawlFrequency {
+  OFF
+  DAILY
+  WEEKLY
+  MONTHLY
 }
 
 enum Role {

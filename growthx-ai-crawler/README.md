@@ -24,6 +24,15 @@ An enterprise-grade, high-performance Technical SEO audit platform and distribut
    - **Lifecycle Gating**: Strict `PENDING_APPROVAL` -> `APPROVED` -> `APPLIED` workflow ensuring no changes occur without user authorization.
 10. **Historical Diff Reports & Scheduling**: Automated job-to-job diff comparisons highlighting new, resolved, and recurring issues. Built-in daily/weekly/monthly cron scheduler and webhook triggers for CI/CD deployment pipelines.
 
+    Each site picks one cadence via `Website.crawlFrequency` (`OFF`, `DAILY`,
+    `WEEKLY`, `MONTHLY`; `MONTHLY` by default) and is crawled by that cron only.
+    Scheduled crawls require a plan that includes `SCHEDULED_CRAWLS`, and a site
+    already crawling is skipped rather than queued twice.
+
+    `POST /api/webhooks/crawl-trigger` requires the site's `webhookSecret` in the
+    request body. A site with no secret set has webhook triggering disabled —
+    set one on the `Website` row to enable it.
+
 ---
 
 ## 🛠️ Architecture & Tech Stack
