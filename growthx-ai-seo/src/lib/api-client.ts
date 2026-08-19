@@ -740,6 +740,10 @@ export const api = {
     post<any>(`/api/projects/${projectId}/seo-tools/schema/generate`, { url, type }),
   analyzeMetaTags: async (projectId: string, url: string) => 
     post<any>(`/api/projects/${projectId}/seo-tools/meta/analyze`, { url }),
+  optimizeImages: async (projectId: string, url: string) => 
+    post<any>(`/api/projects/${projectId}/seo-tools/images/analyze`, { url }),
+  suggestInternalLinks: async (projectId: string, url: string) => 
+    post<any>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
 
   // ── Auth
   async login(email: string, password: string) {
