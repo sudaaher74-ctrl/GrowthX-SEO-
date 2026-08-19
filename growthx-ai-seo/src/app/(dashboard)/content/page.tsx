@@ -64,6 +64,52 @@ function ContentClient() {
         emptyTitle="No Project Selected"
         emptyBody="Please select a client project to view content."
       >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+          <Panel title="Social Integrations" subtitle="Connect brand accounts to train AI">
+            <div className="space-y-4 py-2">
+              <div className="flex items-center justify-between p-3 border border-[var(--border)] rounded-md bg-[var(--bg-subtle)]">
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--text-primary)]">Meta (Facebook/Instagram)</h4>
+                  <p className="text-[11.5px] text-[var(--text-muted)] mt-0.5">Analyze owned engagement data</p>
+                </div>
+                <a 
+                  href={`http://localhost:3001/api/integrations/facebook/auth?projectId=${projectId}`}
+                  className="px-3 py-1.5 text-xs font-medium bg-[#1877F2] text-white rounded hover:bg-[#1877F2]/90 transition-colors"
+                >
+                  Connect Meta
+                </a>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 border border-[var(--border)] rounded-md bg-[var(--bg-subtle)]">
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--text-primary)]">YouTube</h4>
+                  <p className="text-[11.5px] text-[var(--text-muted)] mt-0.5">Analyze owned video performance</p>
+                </div>
+                <a 
+                  href={`http://localhost:3001/api/integrations/youtube/auth?projectId=${projectId}`}
+                  className="px-3 py-1.5 text-xs font-medium bg-[#FF0000] text-white rounded hover:bg-[#FF0000]/90 transition-colors"
+                >
+                  Connect YouTube
+                </a>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel title="Competitor Analysis" subtitle="Track rival social strategies">
+            <div className="py-2">
+               <div className="flex flex-col items-center justify-center h-full min-h-[140px] text-center">
+                <h3 className="text-sm font-medium text-[var(--text-primary)]">Add Competitor Handles</h3>
+                <p className="text-xs text-[var(--text-muted)] max-w-[250px] mt-1.5 mb-3">
+                  The AI will monitor these handles to identify winning formats and content gaps.
+                </p>
+                <ActionButton variant="outline" icon={<Edit3 size={12} />}>
+                  Configure Handles
+                </ActionButton>
+              </div>
+            </div>
+          </Panel>
+        </div>
+
         <Panel title="Content Strategy & Drafts" subtitle={`${allPieces.length} pieces tracked in the pipeline.`}>
           {allPieces.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
