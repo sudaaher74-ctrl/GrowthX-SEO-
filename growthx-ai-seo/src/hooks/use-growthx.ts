@@ -219,6 +219,15 @@ export function usePortfolio(orgId: string | null, days = 28) {
   });
 }
 
+export function useProfile() {
+  return useQuery({
+    queryKey: ["profile"],
+    queryFn: () => api.getMe(),
+    enabled: auth.isAuthenticated(),
+    retry: false,
+  });
+}
+
 export function usePlans() {
   return useQuery({ queryKey: ["plans"], queryFn: api.getPlans, staleTime: 5 * 60 * 1000 });
 }

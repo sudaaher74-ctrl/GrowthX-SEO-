@@ -64,9 +64,9 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[#09090b]">Client portfolio</h1>
+          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[#09090b]">Projects portfolio</h1>
           <p className="mt-0.5 text-[13px] text-[#71717a]">
-            {summary ? `${summary.clientCount} client${summary.clientCount === 1 ? "" : "s"}` : "—"}
+            {summary ? `${summary.clientCount} project${summary.clientCount === 1 ? "" : "s"}` : "—"}
             {summary?.clientsWithoutRetainer
               ? ` · ${summary.clientsWithoutRetainer} without a recorded retainer`
               : ""}
@@ -85,7 +85,7 @@ export default function ClientsPage() {
             href="/projects"
             className="flex items-center gap-1.5 rounded-lg bg-[#09090b] px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            <Plus size={13} /> Add client
+            <Plus size={13} /> Add project
           </Link>
         </div>
       </div>
@@ -94,8 +94,8 @@ export default function ClientsPage() {
         isLoading={portfolio.isLoading}
         error={portfolio.error}
         isEmpty={!clients.length}
-        emptyTitle="No clients yet"
-        emptyBody="Add a client project and register its website to start tracking AI citation share, site health and retainer value."
+        emptyTitle="No projects yet"
+        emptyBody="Add a project and register its website to start tracking AI citation share, site health and retainer value."
       >
         {/* KPI row */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -107,14 +107,14 @@ export default function ClientsPage() {
             sub={`${(summary?.promptsTracked ?? 0).toLocaleString()} prompts tracked`}
           />
           <Kpi
-            label="Clients improving"
+            label="Projects improving"
             value={summary ? `${summary.clientsImproving} / ${summary.clientCount}` : "—"}
             sub={summary ? `${summary.clientsDeclining} declining this period` : ""}
           />
           <Kpi
             label="Prompts tracked"
             value={(summary?.promptsTracked ?? 0).toLocaleString()}
-            sub="across all clients"
+            sub="across all projects"
           />
           <Kpi
             label="Open criticals"
@@ -127,7 +127,7 @@ export default function ClientsPage() {
             value={summary?.mrrMinor ? formatMoney(summary.mrrMinor, summary.mrrCurrency) : "—"}
             sub={
               summary?.clientsWithoutRetainer
-                ? `${summary.clientsWithoutRetainer} client(s) not counted`
+                ? `${summary.clientsWithoutRetainer} project(s) not counted`
                 : `${summary?.clientCount ?? 0} active retainers`
             }
           />
@@ -158,7 +158,7 @@ export default function ClientsPage() {
             <table className="w-full min-w-[1040px]">
               <thead>
                 <tr className="border-b" style={{ borderColor: "var(--border-color)" }}>
-                  <Th>Client</Th>
+                  <Th>Project</Th>
                   <Th>Retainer</Th>
                   <Th sortKey="aiCitationSharePct" sort={sort} setSort={setSort}>AI citation share</Th>
                   <Th align="right" sortKey="health" sort={sort} setSort={setSort}>Health</Th>
@@ -272,7 +272,7 @@ export default function ClientsPage() {
 
         {/* Bottom row */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="Needs your attention" subtitle={`across ${summary?.clientCount ?? 0} clients`}>
+          <Panel title="Needs your attention" subtitle={`across ${summary?.clientCount ?? 0} projects`}>
             {alerts.length === 0 ? (
               <p className="px-4 py-6 text-center text-[12px] text-[#a1a1aa]">Nothing needs attention right now.</p>
             ) : (
@@ -299,7 +299,7 @@ export default function ClientsPage() {
             )}
           </Panel>
 
-          <Panel title="Portfolio AI citation share" subtitle="Share of tracked prompts where a client is cited">
+          <Panel title="Portfolio AI citation share" subtitle="Share of tracked prompts where a project is cited">
             <div className="h-[210px] px-3 pb-3 pt-4">
               {trendData.length === 0 ? (
                 <p className="flex h-full items-center justify-center text-[12px] text-[#a1a1aa]">
@@ -472,7 +472,7 @@ function relativeTime(iso: string | null): string {
 }
 
 function exportCsv(clients: PortfolioClient[]) {
-  const header = ["Client", "Domain", "Tier", "Retainer", "AI share %", "Delta pt", "Health", "Prompts", "Avg pos", "Criticals", "Last crawl"];
+  const header = ["Project", "Domain", "Tier", "Retainer", "AI share %", "Delta pt", "Health", "Prompts", "Avg pos", "Criticals", "Last crawl"];
   const rows = clients.map((c) => [
     c.name,
     c.domain ?? "",
@@ -494,7 +494,7 @@ function exportCsv(clients: PortfolioClient[]) {
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `client-portfolio-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `projects-portfolio-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }

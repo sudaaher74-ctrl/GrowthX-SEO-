@@ -16,7 +16,7 @@ import { api } from "@/lib/api-client";
  */
 export default function AddClientPage() {
   const router = useRouter();
-  const { orgId, setOrgId, setProjectId, organizations } = useWorkspace();
+  const { orgId, setOrgId, setProjectId, organizations, projects } = useWorkspace();
   const qc = useQueryClient();
 
   const [name, setName] = useState("");
@@ -27,6 +27,13 @@ export default function AddClientPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !url.trim()) return;
+    
+    // Enforce 2 project limit
+    if (projects.length >= 2) {
+      setError("You can only add a maximum of 2 projects per account.");
+      return;
+    }
+    
     setError("");
 
     let domain = url.trim().toLowerCase();
@@ -90,19 +97,19 @@ export default function AddClientPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <Link href="/clients" className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-        <ArrowLeft size={14} /> Back to clients
+        <ArrowLeft size={14} /> Back to projects
       </Link>
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-h1 text-[var(--text-primary)]">Add a client</h1>
+        <h1 className="text-h1 text-[var(--text-primary)]">Add a project</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Creates the client record and registers their website so it starts showing up in your portfolio.
+          Creates the project record and registers the website so it starts showing up in your portfolio.
         </p>
       </motion.div>
 
       <form onSubmit={handleSubmit} className="card space-y-5 p-6">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Client name</label>
+          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Project name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -129,7 +136,7 @@ export default function AddClientPage() {
         <div className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-3.5">
           <ul className="space-y-1.5 text-xs text-[var(--text-secondary)]">
             <li className="flex items-start gap-2">
-              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> We create the client and verify domain ownership automatically.
+              <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> We create the project and verify domain ownership automatically.
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> You&apos;re redirected to the technical SEO audit for the new site.
@@ -139,9 +146,9 @@ export default function AddClientPage() {
 
         {error && <p className="text-sm font-medium text-red-500">{error}</p>}
 
-        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim()}>
-          {step === "idle" && "Add client"}
-          {step === "creating" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Creating client…</>)}
+        <Button type="submit" variant="primary" className="w-full" disabled={busy || !name.trim() || !url.trim() || projects.length >= 2}>
+          {step === "idle" && "Add project"}
+          {step === "creating" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Creating project…</>)}
           {step === "registering" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Registering website…</>)}
           {step === "verifying" && (<><Sparkles size={14} className="mr-2 animate-pulse" /> Verifying domain…</>)}
         </Button>

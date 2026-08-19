@@ -65,11 +65,11 @@ export function Sidebar({
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
 
   const agencyNav: NavItem[] = [
-    { label: "Clients", href: "/clients", icon: Users, tag: projects.length ? String(projects.length) : undefined },
+    { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
   const clientNav: NavItem[] = [
-    { label: "Overview", href: "/dashboard", icon: LayoutGrid },
+    { label: "Overview", href: "/dashboard", icon: Activity },
     {
       label: "Website",
       href: "/website",
@@ -124,13 +124,13 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          <SectionLabel>Agency</SectionLabel>
+          <SectionLabel>Portfolio</SectionLabel>
           {agencyNav.map((item) => (
             <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
           ))}
 
           <div className="mt-5">
-            <SectionLabel>Client workspace</SectionLabel>
+            <SectionLabel>Workspace</SectionLabel>
 
             {/* Client switcher */}
             <div className="relative px-1">
@@ -145,7 +145,7 @@ export function Sidebar({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[12px] font-semibold text-[#09090b]">
-                    {selected?.name ?? "No clients yet"}
+                    {selected?.name ?? "No projects yet"}
                   </span>
                   <span className="block truncate font-mono text-[9.5px] text-[#a1a1aa]">
                     {clientRow?.domain ?? "add a website"}
@@ -210,7 +210,7 @@ export function Sidebar({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[11.5px] font-semibold text-[#09090b]">
-              GrowthX Agency
+              Workspace
             </span>
             <span className="block text-[10px] text-[#a1a1aa]">Admin</span>
           </span>

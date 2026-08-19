@@ -254,6 +254,15 @@ export interface OrgMember {
   lastName: string | null;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  googleId: string | null;
+  businessDetails?: string | null;
+}
+
 export interface ActivityItem {
   id: string;
   status: "success" | "warning" | "pending" | "error";
@@ -758,6 +767,7 @@ export const api = {
     if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
+  getMe: () => get<UserProfile>('/auth/me'),
   logout: () => auth.clear(),
 
 
