@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime } from "@/components/ui/console";
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search } from "lucide-react";
-import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness } from "@/hooks/use-growthx";
+import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
 
 export default function LocalPage() {
   const [activeTab, setActiveTab] = useState("gbp");
@@ -133,22 +133,25 @@ export default function LocalPage() {
           ) : (
             <>
               {(activeTab === "gbp" || activeTab === "overview") && (
-                <Panel title="Google Business Profile Performance" subtitle="Profile overview and details">
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border border-[#e4e4e7] rounded-md p-4">
-                       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Business Name</h3>
-                       <p className="text-lg font-medium">{localSeo?.businessName || "N/A"}</p>
+                <div className="space-y-4">
+                  <Panel title="Google Business Profile Performance" subtitle="Profile overview and details">
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                         <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Business Name</h3>
+                         <p className="text-lg font-medium">{localSeo?.businessName || "N/A"}</p>
+                      </div>
+                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                         <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Registered Address</h3>
+                         <p className="text-[15px] font-medium">{localSeo?.address || "N/A"}</p>
+                      </div>
+                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                         <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Last Updated</h3>
+                         <p className="text-[15px] font-medium">{relativeTime(localSeo.updatedAt)}</p>
+                      </div>
                     </div>
-                    <div className="border border-[#e4e4e7] rounded-md p-4">
-                       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Registered Address</h3>
-                       <p className="text-[15px] font-medium">{localSeo?.address || "N/A"}</p>
-                    </div>
-                    <div className="border border-[#e4e4e7] rounded-md p-4">
-                       <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Last Updated</h3>
-                       <p className="text-[15px] font-medium">{relativeTime(localSeo.updatedAt)}</p>
-                    </div>
-                  </div>
-                </Panel>
+                  </Panel>
+                  <GbpAuditPanel projectId={projectId} />
+                </div>
               )}
 
               {(activeTab === "reviews") && (
@@ -220,5 +223,97 @@ export default function LocalPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function GbpAuditPanel({ projectId }: { projectId: string | null }) {
+  const { data: proposals, isLoading: proposalsLoading } = useGbpProposals(projectId);
+  const analyzeMutation = useAnalyzeGbp(projectId);
+  const approveMutation = useApproveGbpFix(projectId);
+  const rejectMutation = useRejectGbpFix(projectId);
+
+  return (
+    <Panel 
+      title="AI GBP Audit" 
+      subtitle="Automated analysis of your Google Business Profile."
+      actions={
+        <ActionButton 
+          variant="primary" 
+          icon={analyzeMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+          onClick={() => analyzeMutation.mutate()}
+          disabled={analyzeMutation.isPending}
+        >
+          {analyzeMutation.isPending ? "Auditing..." : "Run AI Audit"}
+        </ActionButton>
+      }
+    >
+      <div className="p-0">
+        {proposalsLoading ? (
+          <div className="p-8 flex justify-center"><Loader2 size={24} className="animate-spin text-[#e4e4e7]" /></div>
+        ) : !proposals || proposals.length === 0 ? (
+          <div className="p-8 text-center text-[var(--text-muted)] text-sm">
+            No pending fixes. Run an audit to analyze your profile.
+          </div>
+        ) : (
+          <Table minWidth={800}>
+            <thead>
+              <tr>
+                <Th>Field</Th>
+                <Th>Current Value</Th>
+                <Th>Proposed Value</Th>
+                <Th>Rationale</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {proposals.map((proposal) => (
+                <Tr key={proposal.id}>
+                  <Td><span className="font-medium text-xs font-mono">{proposal.field}</span></Td>
+                  <Td>
+                    <div className="max-w-[200px] truncate text-xs text-red-600 line-through">
+                      {proposal.currentValue || "N/A"}
+                    </div>
+                  </Td>
+                  <Td>
+                    <div className="max-w-[200px] text-xs text-green-600 font-medium">
+                      {proposal.proposedValue}
+                    </div>
+                  </Td>
+                  <Td>
+                    <div className="max-w-[250px] text-xs text-[var(--text-muted)] whitespace-normal">
+                      {proposal.rationale}
+                    </div>
+                  </Td>
+                  <Td>
+                    {proposal.status === "PENDING" ? (
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => approveMutation.mutate(proposal.id)}
+                          disabled={approveMutation.isPending}
+                          className="text-xs font-medium text-green-600 hover:text-green-700 bg-green-50 px-2 py-1 rounded"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => rejectMutation.mutate(proposal.id)}
+                          disabled={rejectMutation.isPending}
+                          className="text-xs font-medium text-[#71717a] hover:text-[#09090b]"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    ) : proposal.status === "PUSHED" ? (
+                      <span className="text-xs font-medium text-green-600">Pushed Live</span>
+                    ) : proposal.status === "REJECTED" ? (
+                      <span className="text-xs font-medium text-[#71717a]">Rejected</span>
+                    ) : null}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </div>
+    </Panel>
   );
 }

@@ -134,6 +134,38 @@ export function useConnectLocalBusiness(projectId: string | null) {
   });
 }
 
+export function useGbpProposals(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-proposals", projectId],
+    queryFn: () => api.getGbpProposals(projectId!),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useAnalyzeGbp(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.analyzeGbp(projectId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] }),
+  });
+}
+
+export function useApproveGbpFix(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (proposalId: string) => api.approveGbpFix(projectId!, proposalId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] }),
+  });
+}
+
+export function useRejectGbpFix(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (proposalId: string) => api.rejectGbpFix(projectId!, proposalId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] }),
+  });
+}
+
 export function useOutreach(projectId: string | null) {
   return useQuery({
     queryKey: ["outreach", projectId],
