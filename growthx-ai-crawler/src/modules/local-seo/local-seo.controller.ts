@@ -6,17 +6,19 @@ import { Feature } from '../billing/plans.catalog';
 import { LocalSeoService } from './local-seo.service';
 import { GbpAnalyzerService } from './gbp-analyzer.service';
 import { GbpAutofixService } from './gbp-autofix.service';
+import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
 
 @Controller('api/projects/:projectId/local-seo')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
-// Local SEO auditing is part of the core crawl capability.
+// Local SEO auditing & rank tracking is part of the core crawl / local capability.
 @RequiresFeature(Feature.CRAWL)
 export class LocalSeoController {
   constructor(
     private readonly localSeoService: LocalSeoService,
     private readonly gbpAnalyzer: GbpAnalyzerService,
     private readonly gbpAutofix: GbpAutofixService,
+    private readonly geoGridService: GeoGridService,
   ) {}
 
   @Get()
@@ -39,7 +41,7 @@ export class LocalSeoController {
 
   @Post('gbp/analyze')
   async analyzeGbp(@Param('projectId') projectId: string, @Req() req: any) {
-    return this.gbpAnalyzer.analyzeProfile(projectId, req.user.organizationId);
+    return this.gbpAnalyzer.analyzeProfile(projectId, req.user?.organizationId || req.organizationId);
   }
 
   @Post('gbp/fix/:proposalId/approve')
@@ -55,5 +57,15 @@ export class LocalSeoController {
   @Get('gbp/proposals')
   async getProposals(@Param('projectId') projectId: string) {
     return this.localSeoService.getProposals(projectId);
+  }
+
+  @Post('geo-grid/run')
+  async runGeoGridScan(
+    @Param('projectId') projectId: string,
+    @Body() body: GeoGridScanRequest,
+    @Req() req: any,
+  ) {
+    const orgId = req.user?.organizationId || req.organizationId;
+    return this.geoGridService.runGeoGridScan(projectId, orgId, body);
   }
 }
