@@ -8,10 +8,10 @@ import { FacebookController } from './facebook.controller';
 import { YoutubeService } from './youtube.service';
 import { YoutubeController } from './youtube.controller';
 import { GbpService } from './gbp.service';
-import { PrismaModule } from '../../prisma/prisma.module';
+import { DatabaseModule } from '../../database/database.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [DatabaseModule],
   providers: [
     IntegrationsService, 
     GoogleBusinessService,

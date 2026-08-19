@@ -1,5 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { OAuth2Client } from 'google-auth-library';
 import { mybusinessbusinessinformation_v1, google } from 'googleapis';
 import * as crypto from 'crypto';
@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 @Injectable()
 export class GoogleBusinessService {
   private readonly logger = new Logger(GoogleBusinessService.name);
-  private oauth2Client: OAuth2Client;
+  private oauth2Client: any;
 
   constructor(private readonly prisma: PrismaService) {
     this.oauth2Client = new google.auth.OAuth2(
@@ -92,7 +92,7 @@ export class GoogleBusinessService {
         await this.prisma.integration.update({
           where: { id: integration.id },
           data: {
-            accessToken: tokens.access_token,
+            accessToken: tokens.access_token || undefined,
             refreshToken: tokens.refresh_token,
             expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
           },

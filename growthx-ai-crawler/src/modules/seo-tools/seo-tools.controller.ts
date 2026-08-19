@@ -1,24 +1,26 @@
 import { Controller, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom } from '../auth/org-from.decorator';
+import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
+import { Feature } from '../billing/plans.catalog';
 import { SchemaGeneratorService } from './schema-generator.service';
 import { MetaOptimizerService } from './meta-optimizer.service';
-import { Metered } from '../billing/metered.decorator';
-import { Feature } from '../billing/plans.catalog';
-import { UsageMetric } from '@prisma/client';
+import { ImageOptimizerService } from './image-optimizer.service';
+import { InternalLinkingService } from './internal-linking.service';
 
+@Controller('api/projects/:projectId/seo-tools')
 @UseGuards(JwtAuthGuard, EntitlementsGuard)
 @OrgFrom('project', 'projectId')
-@Controller('api/projects/:projectId/seo-tools')
+@RequiresFeature(Feature.AI_RECOMMENDATIONS)
 export class SeoToolsController {
   constructor(
     private readonly schemaGenerator: SchemaGeneratorService,
     private readonly metaOptimizer: MetaOptimizerService,
+    private readonly imageOptimizer: ImageOptimizerService,
+    private readonly internalLinking: InternalLinkingService,
   ) {}
 
   @Post('schema/generate')
-  @Metered(Feature.SEO_TOOLS, UsageMetric.AI_ANALYSES)
   async generateSchema(
     @Req() req: any,
     @Param('projectId') projectId: string,
@@ -28,12 +30,29 @@ export class SeoToolsController {
   }
 
   @Post('meta/analyze')
-  @Metered(Feature.SEO_TOOLS, UsageMetric.AI_ANALYSES)
   async analyzeMeta(
     @Req() req: any,
     @Param('projectId') projectId: string,
     @Body() body: { url: string },
   ) {
     return this.metaOptimizer.analyzeAndOptimize(body.url, req.organizationId);
+  }
+
+  @Post('images/analyze')
+  async analyzeImages(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { url: string },
+  ) {
+    return this.imageOptimizer.analyzeAndOptimizeImages(body.url, req.organizationId);
+  }
+
+  @Post('internal-links/suggest')
+  async suggestInternalLinks(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { url: string },
+  ) {
+    return this.internalLinking.suggestInternalLinks(body.url, projectId, req.organizationId);
   }
 }

@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../database/prisma.service';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 
 @Injectable()
 export class YoutubeService {
   private readonly logger = new Logger(YoutubeService.name);
-  private oauth2Client: OAuth2Client;
+  private oauth2Client: any;
 
   constructor(private readonly prisma: PrismaService) {
     this.oauth2Client = new google.auth.OAuth2(
