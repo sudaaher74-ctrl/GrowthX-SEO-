@@ -1,189 +1,600 @@
 "use client";
-import { useState } from "react";
-import { Info, Loader2, Plus, RefreshCw } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  ActionButton, Kpi, Mono, PageHeader, Panel, Pill, Table, Td, Th, Tr,
-} from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
-import { useAddPrompts, useRunSweep, useTrackedPrompts, useVisibility, useWorkspace } from "@/hooks/use-growthx";
+  MapPin,
+  Sparkles,
+  RefreshCw,
+  Search,
+  Crosshair,
+  Compass,
+  Trophy,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Zap,
+  Info,
+  ChevronRight,
+  Sliders,
+  Layers,
+  Star,
+} from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { PageHeader, ActionButton } from "@/components/ui/console";
+import { useWorkspace } from "@/hooks/use-growthx";
+import { api } from "@/lib/api-client";
 
-const ASSISTANT_LABEL: Record<string, string> = {
-  CHATGPT: "ChatGPT", CLAUDE: "Claude", GEMINI: "Gemini",
-  PERPLEXITY: "Perplexity", AI_OVERVIEWS: "Google AI Overviews", COPILOT: "Copilot",
-};
+interface GridNode {
+  id: string;
+  row: number;
+  col: number;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+  direction: string;
+  rank: number;
+  businessFound: boolean;
+  topCompetitors: {
+    name: string;
+    rank: number;
+    rating?: number;
+    reviewsCount?: number;
+  }[];
+}
 
-export default function AiVisibilityPage() {
+interface GeoGridScanResult {
+  keyword: string;
+  businessName: string;
+  centerCoordinates: { lat: number; lng: number };
+  gridSize: number;
+  radiusKm: number;
+  scannedAt: string;
+  metrics: {
+    averageGridRank: number;
+    top3DominancePercentage: number;
+    top1Count: number;
+    top3Count: number;
+    top10Count: number;
+    unrankedCount: number;
+  };
+  nodes: GridNode[];
+  aiGeoActionPlan: {
+    diagnosis: string;
+    keyVulnerabilities: string[];
+    actionItems: {
+      action: string;
+      impact: "HIGH" | "MEDIUM" | "LOW";
+      targetZone: string;
+      description: string;
+    }[];
+  };
+  model?: string;
+}
+
+const PRESET_KEYWORDS = [
+  "best local service",
+  "luxury jewellery store",
+  "emergency dentist",
+  "digital marketing agency",
+  "coffee shop near me",
+];
+
+export default function GeoTrackingPage() {
   const { projectId } = useWorkspace();
-  const visibility = useVisibility(projectId);
-  const prompts = useTrackedPrompts(projectId);
-  const addPrompts = useAddPrompts(projectId);
-  const sweep = useRunSweep(projectId);
-  const [draft, setDraft] = useState("");
+  const [keyword, setKeyword] = useState("luxury jewellery store");
+  const [businessName, setBusinessName] = useState("");
+  const [gridSize, setGridSize] = useState<3 | 5>(3);
+  const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [selectedNode, setSelectedNode] = useState<GridNode | null>(null);
 
-  const summary = visibility.data?.summary;
+  // Load connected local business name if available
+  const localListing = useQuery({
+    queryKey: ["local-seo-listing", projectId],
+    queryFn: () => (projectId ? api.getLocalSeo(projectId) : null),
+    enabled: !!projectId,
+  });
 
-  async function handleAdd() {
-    const lines = draft.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) return;
-    await addPrompts.mutateAsync(lines.map((text) => ({ text })));
-    setDraft("");
-  }
+  useEffect(() => {
+    if (localListing.data?.businessName && !businessName) {
+      setBusinessName(localListing.data.businessName);
+    }
+  }, [localListing.data, businessName]);
+
+  const scanMut = useMutation({
+    mutationFn: async (): Promise<GeoGridScanResult | null> => {
+      if (!projectId || !keyword.trim()) return null;
+      return api.runGeoGridScan(projectId, {
+        keyword: keyword.trim(),
+        businessName: businessName.trim() || undefined,
+        gridSize,
+        radiusKm,
+      });
+    },
+    onSuccess: (data) => {
+      if (data?.nodes && data.nodes.length > 0) {
+        // Select the center node by default
+        const center = data.nodes.find((n) => n.distanceKm === 0) || data.nodes[0];
+        setSelectedNode(center);
+      }
+    },
+  });
+
+  // Automatically trigger an initial scan when workspace is loaded
+  useEffect(() => {
+    if (projectId && !scanMut.data && !scanMut.isPending) {
+      scanMut.mutate();
+    }
+  }, [projectId]);
+
+  const data = scanMut.data;
+
+  const getRankBadgeStyle = (rank: number) => {
+    if (rank === 1) return "bg-emerald-500 text-white ring-4 ring-emerald-100 shadow-md shadow-emerald-500/20";
+    if (rank <= 3) return "bg-emerald-600 text-white ring-2 ring-emerald-100";
+    if (rank <= 9) return "bg-amber-500 text-white ring-2 ring-amber-100";
+    if (rank <= 19) return "bg-orange-500 text-white ring-2 ring-orange-100";
+    return "bg-rose-500 text-white ring-2 ring-rose-100";
+  };
+
+  const getRankTextColor = (rank: number) => {
+    if (rank <= 3) return "text-emerald-600";
+    if (rank <= 9) return "text-amber-600";
+    if (rank <= 19) return "text-orange-600";
+    return "text-rose-600";
+  };
 
   return (
-    <div className="space-y-5">
+    <div className="flex-1 overflow-y-auto bg-[#fafafa]">
       <PageHeader
-        title="AI Visibility"
-        subtitle="Whether AI assistants recommend this client when their buyers ask"
-        actions={
-          <ActionButton
-            variant="primary"
-            icon={sweep.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            onClick={() => sweep.mutate()}
-            disabled={sweep.isPending || !projectId}
-          >
-            {sweep.isPending ? "Checking…" : "Run checks now"}
-          </ActionButton>
-        }
+        title="Local Geo-Grid Map Pack Tracker"
+        subtitle="Simulate and track your Google Maps rankings across a live multi-point geo-coordinate matrix."
       />
 
-      {sweep.data && (
-        <div className="rounded-xl border bg-white px-4 py-2.5 text-[12px] text-[#3f3f46]" style={{ borderColor: "#e5e7eb" }}>
-          {sweep.data.checksRun} checks ran · {sweep.data.citations} citations · {sweep.data.checksFailed} failed
-          {sweep.data.skippedAssistants.length > 0 && (
-            <span className="text-[#a1a1aa]">
-              {" "}· skipped {sweep.data.skippedAssistants.map((a) => ASSISTANT_LABEL[a] ?? a).join(", ")}
-            </span>
-          )}
-        </div>
-      )}
-
-      <QueryState
-        isLoading={visibility.isLoading}
-        error={visibility.error}
-        isEmpty={!summary || summary.checked === 0}
-        emptyTitle="No citation data yet"
-        emptyBody="Add the questions this client's buyers ask, then run the checks. Results refresh daily."
-      >
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi
-            label="Citation share"
-            value={`${summary?.citationSharePct ?? 0}%`}
-            delta={summary?.deltaPt}
-            deltaSuffix="pt"
-            sub="of checks that named this client"
-          />
-          <Kpi label="Avg position" value={summary?.averagePosition?.toFixed(1) ?? "—"} sub="when cited" />
-          <Kpi label="Checks run" value={String(summary?.checked ?? 0)} sub={`${summary?.cited ?? 0} citations`} />
-          <Kpi
-            label="Failed checks"
-            value={String(summary?.failedChecks ?? 0)}
-            sub="excluded from the rate"
-            tone={summary?.failedChecks ? "danger" : "good"}
-          />
-        </div>
-
-        <div className="flex items-start gap-2 rounded-xl border bg-[#fafafa] px-3 py-2.5 text-[11.5px] text-[#71717a]" style={{ borderColor: "#e5e7eb" }}>
-          <Info size={13} className="mt-0.5 shrink-0" />
-          <span>
-            Measured directly on{" "}
-            <strong className="text-[#3f3f46]">
-              {visibility.data?.measurableAssistants.map((a) => ASSISTANT_LABEL[a] ?? a).join(", ")}
-            </strong>. Google AI Overviews, Perplexity and Copilot have no public API — they are excluded
-            from these percentages rather than counted as zero.
-          </span>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="Citation share by assistant" subtitle="cited / checked">
-            <div className="h-[220px] p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={visibility.data?.byAssistant.map((a) => ({ name: ASSISTANT_LABEL[a.assistant] ?? a.assistant, share: a.citationSharePct }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={34} />
-                  <Tooltip formatter={(v) => `${v}%`} />
-                  <Bar dataKey="share" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Panel>
-
-          <Panel title="Citation share trend" subtitle="weekly, all assistants blended">
-            <div className="h-[220px] p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={visibility.data?.trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
-                  <XAxis dataKey="weekStart" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={34} />
-                  <Tooltip formatter={(v) => `${v}%`} />
-                  <Line type="monotone" dataKey="citationSharePct" stroke="#2563eb" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Panel>
-        </div>
-
-        <Panel title="Share of voice" subtitle="how often each brand appears in the same answers">
-          <div className="space-y-2.5 p-4">
-            {visibility.data?.shareOfVoice.map((row) => (
-              <div key={row.label} className="flex items-center gap-3">
-                <span className={`w-40 shrink-0 truncate text-[12px] ${row.domain === null ? "font-semibold text-[#09090b]" : "text-[#3f3f46]"}`}>
-                  {row.label}
-                </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f4f4f5]">
-                  <div className="h-full rounded-full" style={{ width: `${row.sharePct}%`, background: row.domain === null ? "#2563eb" : "#a1a1aa" }} />
-                </div>
-                <span className="w-12 text-right font-mono text-[11px] text-[#71717a]">{row.sharePct}%</span>
+      <div className="p-8 max-w-7xl mx-auto space-y-8">
+        {/* Search & Config Bar */}
+        <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[#09090b]">Geo-Grid Ranking Scan</h3>
+                <p className="text-[12px] text-[#71717a] mt-0.5">
+                  Track how your business ranks in Google Local 3-Packs at specific distance nodes around your location.
+                </p>
               </div>
-            ))}
-          </div>
-        </Panel>
-      </QueryState>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium text-[#71717a] uppercase tracking-wider">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {PRESET_KEYWORDS.slice(0, 3).map((kw) => (
+                    <button
+                      key={kw}
+                      onClick={() => setKeyword(kw)}
+                      className="px-2.5 py-1 rounded-md text-[11px] bg-[#f4f4f5] text-[#3f3f46] hover:bg-[#e4e4e7] transition"
+                    >
+                      {kw}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-      <Panel title="Tracked prompts" subtitle={`${prompts.data?.length ?? 0} active`}>
-        <div className="border-b p-4" style={{ borderColor: "#f4f4f5" }}>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={3}
-            placeholder={"One question per line, e.g.\nbest insulated jacket for winter hiking\nnorthwind vs trailhead"}
-            className="w-full resize-y rounded-lg border px-3 py-2 text-[12.5px] text-[#09090b]"
-            style={{ borderColor: "#e5e7eb" }}
-          />
-          <div className="mt-2 flex justify-end">
-            <ActionButton icon={<Plus size={12} />} onClick={handleAdd} disabled={addPrompts.isPending || !draft.trim()}>
-              {addPrompts.isPending ? "Adding…" : "Add prompts"}
-            </ActionButton>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              {/* Target Keyword */}
+              <div className="md:col-span-4">
+                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                  Target Local Keyword
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <Search size={14} className="text-[#a1a1aa]" />
+                  </div>
+                  <input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="e.g. luxury jewellery store"
+                    className="pl-9 h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  />
+                </div>
+              </div>
+
+              {/* Business Name */}
+              <div className="md:col-span-3">
+                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                  Business Name (Optional)
+                </label>
+                <input
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="e.g. Tanishq Jewellery"
+                  className="h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                />
+              </div>
+
+              {/* Grid Size */}
+              <div className="md:col-span-2">
+                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                  Grid Size
+                </label>
+                <div className="flex rounded-md border border-[#e4e4e7] p-0.5 bg-[#f4f4f5]">
+                  <button
+                    onClick={() => setGridSize(3)}
+                    className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
+                      gridSize === 3 ? "bg-white text-[#09090b] shadow-sm" : "text-[#71717a] hover:text-[#09090b]"
+                    }`}
+                  >
+                    3x3 (9 pts)
+                  </button>
+                  <button
+                    onClick={() => setGridSize(5)}
+                    className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
+                      gridSize === 5 ? "bg-white text-[#09090b] shadow-sm" : "text-[#71717a] hover:text-[#09090b]"
+                    }`}
+                  >
+                    5x5 (25 pts)
+                  </button>
+                </div>
+              </div>
+
+              {/* Radius */}
+              <div className="md:col-span-1">
+                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                  Radius
+                </label>
+                <select
+                  value={radiusKm}
+                  onChange={(e) => setRadiusKm(Number(e.target.value))}
+                  className="w-full h-10 rounded-md border border-[#e4e4e7] bg-white px-2 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                >
+                  <option value={2}>2 km</option>
+                  <option value={5}>5 km</option>
+                  <option value={10}>10 km</option>
+                  <option value={20}>20 km</option>
+                </select>
+              </div>
+
+              {/* Submit Button */}
+              <div className="md:col-span-2">
+                <ActionButton
+                  onClick={() => scanMut.mutate()}
+                  disabled={!keyword.trim() || scanMut.isPending}
+                  className="h-10 w-full justify-center gap-2"
+                >
+                  {scanMut.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Crosshair size={14} />}
+                  Run Geo Scan
+                </ActionButton>
+              </div>
+            </div>
           </div>
         </div>
 
-        {!prompts.data?.length ? (
-          <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">No prompts tracked yet.</p>
-        ) : (
-          <Table minWidth={720}>
-            <thead><tr><Th>Prompt</Th><Th align="right">Latest results</Th></tr></thead>
-            <tbody>
-              {prompts.data.map((p) => (
-                <Tr key={p.id}>
-                  <Td><span className="text-[12.5px] text-[#09090b]">{p.text}</span></Td>
-                  <Td align="right">
-                    <div className="flex flex-wrap justify-end gap-1">
-                      {p.latestChecks.length === 0 && <Pill>not checked</Pill>}
-                      {p.latestChecks.map((c, i) => (
-                        <Pill key={i} tone={c.error ? "default" : c.cited ? "good" : "bad"}>
-                          {ASSISTANT_LABEL[c.assistant] ?? c.assistant}
-                          {c.error ? " n/a" : c.cited ? ` #${c.position ?? "?"}` : " miss"}
-                        </Pill>
-                      ))}
-                    </div>
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
+        {/* Loading Animation */}
+        {scanMut.isPending && (
+          <div className="py-24 flex flex-col items-center justify-center space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full blur-xl bg-emerald-500/20 animate-pulse" />
+              <Crosshair className="relative text-emerald-600 animate-spin" size={40} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-[#09090b]">Simulating Geo-Grid Local Coordinates...</p>
+              <p className="text-[12px] text-[#71717a] mt-1">
+                Calculating {gridSize * gridSize} coordinate nodes across a {radiusKm}km radius and retrieving Map Pack ranks.
+              </p>
+            </div>
+          </div>
         )}
-      </Panel>
+
+        {/* Main Dashboard Results */}
+        {data && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            {/* KPI Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Average Grid Rank (AGR)</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className={`text-3xl font-bold ${getRankTextColor(data.metrics.averageGridRank)}`}>
+                    #{data.metrics.averageGridRank}
+                  </span>
+                  <span className="text-[12px] text-[#71717a]">across {data.nodes.length} nodes</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Top 3 Dominance (SoV)</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className={`text-3xl font-bold ${data.metrics.top3DominancePercentage >= 60 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {data.metrics.top3DominancePercentage}%
+                  </span>
+                  <span className="text-[12px] text-[#71717a]">Map Pack Share</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">#1 Positions Held</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-emerald-600">{data.metrics.top1Count}</span>
+                  <span className="text-[12px] text-[#71717a]">of {data.nodes.length} locations</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Coverage Radius</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-[#09090b]">{data.radiusKm} km</span>
+                  <span className="text-[12px] text-[#71717a]">({data.gridSize}x{data.gridSize} matrix)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Grid & Node Inspector */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Map Heatmap Canvas (Left 7 Cols) */}
+              <div className="lg:col-span-7 bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Compass size={16} className="text-[#09090b]" />
+                    <h3 className="text-sm font-semibold text-[#09090b]">
+                      Interactive Geo-Grid Canvas ({data.gridSize}x{data.gridSize})
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-[#71717a]">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Top 3
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> 4-9
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" /> 10-19
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> 20+
+                    </span>
+                  </div>
+                </div>
+
+                {/* Radar Map Canvas Overlay */}
+                <div className="relative aspect-square max-w-lg mx-auto bg-slate-900 rounded-2xl p-6 overflow-hidden flex items-center justify-center border border-slate-800 shadow-inner">
+                  {/* Radar concentric distance circles */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                    <div className="w-[85%] h-[85%] rounded-full border border-emerald-400 border-dashed" />
+                    <div className="w-[55%] h-[55%] rounded-full border border-emerald-400 border-dashed" />
+                    <div className="w-[25%] h-[25%] rounded-full border border-emerald-400" />
+                    <div className="absolute w-full h-[1px] bg-emerald-400/40" />
+                    <div className="absolute h-full w-[1px] bg-emerald-400/40" />
+                  </div>
+
+                  {/* Cardinal direction labels */}
+                  <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 tracking-widest">
+                    NORTH
+                  </span>
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 tracking-widest">
+                    SOUTH
+                  </span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 tracking-widest">
+                    WEST
+                  </span>
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 tracking-widest">
+                    EAST
+                  </span>
+
+                  {/* Grid Matrix Pins */}
+                  <div
+                    className="relative z-10 grid gap-4 w-full h-full p-4"
+                    style={{
+                      gridTemplateColumns: `repeat(${data.gridSize}, minmax(0, 1fr))`,
+                      gridTemplateRows: `repeat(${data.gridSize}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {data.nodes.map((node) => {
+                      const isSelected = selectedNode?.id === node.id;
+                      const isCenter = node.distanceKm === 0;
+
+                      return (
+                        <motion.button
+                          key={node.id}
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setSelectedNode(node)}
+                          className={`relative flex items-center justify-center m-auto rounded-full font-bold text-[13px] transition cursor-pointer ${
+                            data.gridSize === 5 ? "w-10 h-10 text-[11px]" : "w-14 h-14"
+                          } ${getRankBadgeStyle(node.rank)} ${
+                            isSelected ? "ring-4 ring-white ring-offset-2 ring-offset-slate-900 z-20" : ""
+                          }`}
+                        >
+                          {node.rank > 20 ? "20+" : node.rank}
+                          {isCenter && (
+                            <span className="absolute -top-1.5 -right-1 px-1 py-0.2 bg-white text-slate-900 rounded-full text-[8px] font-extrabold uppercase border shadow">
+                              HQ
+                            </span>
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[12px] text-[#71717a] bg-[#fafafa] p-3 rounded-lg border border-[#f4f4f5]">
+                  <p>Click any coordinate pin to inspect the local 3-pack competitors at that node.</p>
+                  <span className="font-mono text-[#09090b]">Radius: {data.radiusKm} km</span>
+                </div>
+              </div>
+
+              {/* Node Inspector (Right 5 Cols) */}
+              <div className="lg:col-span-5 space-y-6">
+                {selectedNode ? (
+                  <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-5">
+                    <div className="flex items-center justify-between border-b border-[#f4f4f5] pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <MapPin size={16} className="text-blue-600" />
+                          <h4 className="text-sm font-semibold text-[#09090b]">
+                            Node Inspector ({selectedNode.direction})
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-[#71717a] mt-0.5">
+                          {selectedNode.distanceKm === 0
+                            ? "Physical Business Center (HQ)"
+                            : `${selectedNode.distanceKm} km from Center`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[11px] text-[#71717a] block uppercase font-semibold">Rank at this Pin</span>
+                        <span className={`text-2xl font-bold ${getRankTextColor(selectedNode.rank)}`}>
+                          #{selectedNode.rank > 20 ? "20+" : selectedNode.rank}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-[#71717a]">
+                      <p>
+                        Coordinates: <code className="text-[#09090b] font-mono">{selectedNode.lat}, {selectedNode.lng}</code>
+                      </p>
+                    </div>
+
+                    {/* Simulated Map Pack Results */}
+                    <div className="space-y-3 pt-2">
+                      <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider flex items-center justify-between">
+                        <span>Local 3-Pack at this spot</span>
+                        <span className="text-emerald-600">Simulated SERP</span>
+                      </p>
+
+                      <div className="space-y-2">
+                        {selectedNode.topCompetitors.map((comp, i) => {
+                          const isClient = comp.name.toLowerCase().includes(data.businessName.toLowerCase());
+                          return (
+                            <div
+                              key={i}
+                              className={`p-3 rounded-lg border flex items-center justify-between ${
+                                isClient
+                                  ? "bg-emerald-50/70 border-emerald-200"
+                                  : "bg-[#fafafa] border-[#f4f4f5]"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                    comp.rank === 1
+                                      ? "bg-emerald-500 text-white"
+                                      : comp.rank === 2
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-amber-500 text-white"
+                                  }`}
+                                >
+                                  {comp.rank}
+                                </div>
+                                <div>
+                                  <p className="text-[13px] font-semibold text-[#09090b] flex items-center gap-1.5">
+                                    {comp.name}
+                                    {isClient && (
+                                      <span className="px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-800 text-[10px] font-bold">
+                                        YOU
+                                      </span>
+                                    )}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[11px] text-[#71717a] mt-0.5">
+                                    <span className="flex items-center gap-0.5 text-amber-500 font-medium">
+                                      <Star size={10} className="fill-amber-400" />
+                                      {comp.rating}
+                                    </span>
+                                    <span>({comp.reviewsCount} reviews)</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-[#e4e4e7] p-12 text-center text-[#71717a] text-[13px]">
+                    Select a node pin on the map to inspect competitors.
+                  </div>
+                )}
+
+                {/* AI Geo Diagnosis Box */}
+                <div className="bg-gradient-to-br from-indigo-50/80 to-blue-50/50 rounded-xl border border-indigo-100 p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-indigo-600" />
+                    <h4 className="text-[13px] font-semibold text-indigo-950">AI Heatmap Diagnosis</h4>
+                  </div>
+                  <p className="text-[12px] text-slate-700 leading-relaxed">
+                    {data.aiGeoActionPlan.diagnosis}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actionable Geo-Dominance Plan */}
+            <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-6">
+              <div className="flex items-center justify-between border-b border-[#f4f4f5] pb-4">
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className="text-amber-500" />
+                  <h3 className="text-sm font-semibold text-[#09090b]">
+                    AI Geo-Dominance Expansion Plan
+                  </h3>
+                </div>
+                <span className="text-[11px] text-[#71717a]">Targeting Peripheral & Red Zones</span>
+              </div>
+
+              {/* Vulnerabilities */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                  Identified Proximity Bottlenecks
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {data.aiGeoActionPlan.keyVulnerabilities.map((vuln, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-amber-50/60 rounded-lg border border-amber-200/70 text-[12px] text-amber-900 flex items-start gap-2"
+                    >
+                      <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                      <span>{vuln}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Items */}
+              <div className="space-y-3 pt-2">
+                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                  Recommended Geo Optimization Tasks
+                </p>
+                <div className="space-y-3">
+                  {data.aiGeoActionPlan.actionItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl border border-[#e4e4e7] bg-[#fafafa] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-[#a1a1aa] transition"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.impact === "HIGH"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {item.impact} IMPACT
+                          </span>
+                          <span className="text-[11px] text-[#71717a] font-medium">
+                            Zone: <strong>{item.targetZone}</strong>
+                          </span>
+                        </div>
+                        <h4 className="text-[13px] font-semibold text-[#09090b]">{item.action}</h4>
+                        <p className="text-[12px] text-[#71717a]">{item.description}</p>
+                      </div>
+                      <button className="px-3 py-1.5 rounded-lg bg-white border border-[#e4e4e7] text-[12px] font-medium text-[#09090b] hover:bg-[#f4f4f5] transition shrink-0 self-start md:self-auto flex items-center gap-1">
+                        <span>Apply Task</span>
+                        <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }

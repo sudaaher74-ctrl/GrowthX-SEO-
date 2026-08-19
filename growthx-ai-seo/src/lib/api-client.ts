@@ -771,6 +771,8 @@ export const api = {
   getGbpProposals: (projectId: string) => get<any[]>(`/api/projects/${projectId}/local-seo/gbp/proposals`),
   approveGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/approve`, {}),
   rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
+  runGeoGridScan: (projectId: string, body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: number; radiusKm?: number }) =>
+    post<any>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
 
 
   // ── Market research
