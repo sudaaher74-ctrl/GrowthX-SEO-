@@ -97,5 +97,32 @@ export class AuthService {
     
     return this.issueTokens({ id: user.id, email: user.email });
   }
+
+  async validateGoogleUser(profile: { email: string; firstName?: string; lastName?: string }): Promise<any> {
+    let user = await this.usersService.findByEmail(profile.email);
+    
+    if (!user) {
+      // Create user with a random dummy password since they authenticate via Google
+      const saltOrRounds = 10;
+      const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      const passwordHash = await bcrypt.hash(randomPassword, saltOrRounds);
+      
+      user = await this.usersService.createUser({
+        email: profile.email,
+        passwordHash,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+      });
+
+      // Auto-create a default workspace
+      await this.organizationsService.createOrganization(user.id, {
+        name: `${profile.firstName || 'My'} Workspace`,
+        slug: `workspace-${user.id.substring(0, 8)}`,
+      });
+    }
+    
+    const { passwordHash: _passwordHash, ...result } = user;
+    return result;
+  }
 }
 
