@@ -45,6 +45,7 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
 import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
+import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 
 
 @Module({
@@ -107,6 +108,7 @@ import { ContentIntelligenceModule } from './modules/content-intelligence/conten
     IntegrationsModule,
     MarketResearchModule,
     ContentIntelligenceModule,
+    SeoToolsModule,
   ],
 
   controllers: [HealthController],
