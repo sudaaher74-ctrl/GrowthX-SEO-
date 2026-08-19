@@ -304,6 +304,7 @@ model Project {
   ContentStrategy      ContentStrategy[]
   integrations         Integration[]
   socialPosts          SocialPost[]
+  gbpFixProposals      GbpFixProposal[]
 
   @@index([organizationId])
 }
@@ -605,6 +606,21 @@ model LocalLocation {
   updatedAt      DateTime       @updatedAt
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rankings       LocalRanking[]
+}
+
+model GbpFixProposal {
+  id            String   @id @default(uuid())
+  projectId     String
+  field         String   // e.g. "description", "services", "attributes"
+  currentValue  String?
+  proposedValue String
+  rationale     String
+  status        String   @default("PENDING") // PENDING | APPROVED | REJECTED | PUSHED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
 }
 
 model CustomReport {

@@ -23,6 +23,13 @@ export class LocalSeoService {
     });
   }
 
+  async getProposals(projectId: string) {
+    return this.prisma.gbpFixProposal.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async searchBusiness(query: string) {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {

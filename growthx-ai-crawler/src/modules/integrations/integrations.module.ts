@@ -7,6 +7,7 @@ import { FacebookService } from './facebook.service';
 import { FacebookController } from './facebook.controller';
 import { YoutubeService } from './youtube.service';
 import { YoutubeController } from './youtube.controller';
+import { GbpService } from './gbp.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
@@ -15,7 +16,8 @@ import { PrismaModule } from '../../prisma/prisma.module';
     IntegrationsService, 
     GoogleBusinessService,
     FacebookService,
-    YoutubeService
+    YoutubeService,
+    GbpService
   ],
   controllers: [
     IntegrationsController, 
@@ -26,7 +28,8 @@ import { PrismaModule } from '../../prisma/prisma.module';
   exports: [
     GoogleBusinessService,
     FacebookService,
-    YoutubeService
+    YoutubeService,
+    GbpService
   ]
 })
 export class IntegrationsModule {}
