@@ -302,6 +302,7 @@ model Project {
   WeeklyDelta          WeeklyDelta[]
   ContentIntelligenceConfig ContentIntelligenceConfig?
   ContentStrategy      ContentStrategy[]
+  integrations         Integration[]
 
   @@index([organizationId])
 }
@@ -1690,5 +1691,21 @@ model SocialMetric {
 
   @@index([organizationId, projectId, fetchedAt])
   @@index([calendarItemId])
+}
+
+
+model Integration {
+  id           String   @id @default(uuid())
+  projectId    String
+  provider     String   // e.g. "google_business"
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, provider])
+  @@index([projectId])
 }
 
