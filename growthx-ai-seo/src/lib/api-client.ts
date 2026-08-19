@@ -756,6 +756,11 @@ export const api = {
     post<{ placeId: string; name: string; address: string; rating: number; userRatingsTotal: number }[]>(`/api/projects/${projectId}/local-seo/search`, { query }),
   connectLocalBusiness: (projectId: string, data: { businessName: string; address: string; rating: number; reviewCount: number }) =>
     post<LocalSeoData>(`/api/projects/${projectId}/local-seo/connect`, data),
+  getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
+  analyzeGbp: (projectId: string) => post<any[]>(`/api/projects/${projectId}/local-seo/gbp/analyze`, {}),
+  getGbpProposals: (projectId: string) => get<any[]>(`/api/projects/${projectId}/local-seo/gbp/proposals`),
+  approveGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/approve`, {}),
+  rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
 
 
   // ── Market research
@@ -890,9 +895,6 @@ export const api = {
   getStrategy: (projectId: string, reportId: string) =>
     get<StrategyReport>(`/api/projects/${projectId}/strategy/${reportId}`),
   generateStrategy: (projectId: string) => post<StrategyReport>(`/api/projects/${projectId}/strategy`, {}),
-
-  // ── Local SEO
-  getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
 
   // ── PR & Outreach
   getOutreachCampaigns: (projectId: string) => get<OutreachCampaign[]>(`/api/projects/${projectId}/outreach`),

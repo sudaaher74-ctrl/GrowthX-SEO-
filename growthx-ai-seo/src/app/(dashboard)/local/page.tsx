@@ -4,6 +4,23 @@ import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime }
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
 
+interface LocalBusinessPlace {
+  placeId: string;
+  name: string;
+  address: string;
+  rating: number;
+  userRatingsTotal: number;
+}
+
+interface GbpFixProposal {
+  id: string;
+  field: string;
+  currentValue: string | null;
+  proposedValue: string;
+  rationale: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "PUSHED";
+}
+
 export default function LocalPage() {
   const [activeTab, setActiveTab] = useState("gbp");
   const { projectId } = useWorkspace();
@@ -27,7 +44,7 @@ export default function LocalPage() {
     }
   };
 
-  const handleConnect = (place: any) => {
+  const handleConnect = (place: LocalBusinessPlace) => {
     connectMutation.mutate({
       businessName: place.name,
       address: place.address,
@@ -97,7 +114,7 @@ export default function LocalPage() {
                 {searchMutation.data && searchMutation.data.length > 0 && (
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium text-[var(--text-primary)]">Search Results</h3>
-                    {searchMutation.data.map((place: any) => (
+                    {searchMutation.data.map((place: LocalBusinessPlace) => (
                       <div key={place.placeId} className="flex items-center justify-between p-4 border border-[#e4e4e7] rounded-md">
                         <div>
                           <p className="font-medium text-[#09090b]">{place.name}</p>
@@ -266,7 +283,7 @@ function GbpAuditPanel({ projectId }: { projectId: string | null }) {
               </tr>
             </thead>
             <tbody>
-              {proposals.map((proposal) => (
+              {proposals.map((proposal: GbpFixProposal) => (
                 <Tr key={proposal.id}>
                   <Td><span className="font-medium text-xs font-mono">{proposal.field}</span></Td>
                   <Td>
