@@ -1,13 +1,17 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, NotConnected, relativeTime } from "@/components/ui/console";
-import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2 } from "lucide-react";
-import { useWorkspace, useLocalSeo } from "@/hooks/use-growthx";
+import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime, Input } from "@/components/ui/console";
+import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search } from "lucide-react";
+import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness } from "@/hooks/use-growthx";
 
 export default function LocalPage() {
   const [activeTab, setActiveTab] = useState("gbp");
   const { projectId } = useWorkspace();
   const { data: localSeo, isLoading } = useLocalSeo(projectId);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchMutation = useSearchLocalBusiness(projectId);
+  const connectMutation = useConnectLocalBusiness(projectId);
 
   const tabs = [
     { id: "gbp", label: "Google Business Profile", icon: MapPin },
@@ -15,6 +19,22 @@ export default function LocalPage() {
     { id: "citations", label: "Citations", icon: LinkIcon },
     { id: "rankings", label: "Local Rankings", icon: BarChart3 },
   ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      searchMutation.mutate(searchQuery);
+    }
+  };
+
+  const handleConnect = (place: any) => {
+    connectMutation.mutate({
+      businessName: place.name,
+      address: place.address,
+      rating: place.rating,
+      reviewCount: place.userRatingsTotal,
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -55,11 +75,60 @@ export default function LocalPage() {
               </div>
             </Panel>
           ) : !localSeo ? (
-            <NotConnected
-              title="No Google Business Profile connected"
-              what="Local SEO reports on this project's own listing — its categories, hours, reviews and local rankings. Nothing is shown until a real listing is linked."
-              needs={["A Google Business Profile connected to this project", "A completed local audit"]}
-            />
+            <Panel title="Connect Google Business Profile" subtitle="Search for your business to link it to this project">
+              <div className="p-6">
+                <form onSubmit={handleSearch} className="flex max-w-xl gap-2 mb-6">
+                  <Input
+                    placeholder="Search by business name and location..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1"
+                  />
+                  <ActionButton 
+                    variant="primary" 
+                    icon={searchMutation.isPending ? <Loader2 size={12} className="animate-spin"/> : <Search size={12} />}
+                    disabled={searchMutation.isPending || !searchQuery.trim()}
+                  >
+                    Search
+                  </ActionButton>
+                </form>
+
+                {searchMutation.data && searchMutation.data.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium text-[var(--text-primary)]">Search Results</h3>
+                    {searchMutation.data.map((place: any) => (
+                      <div key={place.placeId} className="flex items-center justify-between p-4 border border-[#e4e4e7] rounded-md">
+                        <div>
+                          <p className="font-medium text-[#09090b]">{place.name}</p>
+                          <p className="text-sm text-[#71717a]">{place.address}</p>
+                          {place.rating > 0 && (
+                            <div className="flex items-center gap-1 mt-1 text-sm text-[#71717a]">
+                              <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                              <span className="font-medium">{place.rating.toFixed(1)}</span>
+                              <span>({place.userRatingsTotal.toLocaleString()} reviews)</span>
+                            </div>
+                          )}
+                        </div>
+                        <ActionButton 
+                          variant="secondary"
+                          onClick={() => handleConnect(place)}
+                          disabled={connectMutation.isPending}
+                        >
+                          {connectMutation.isPending ? "Connecting..." : "Connect"}
+                        </ActionButton>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {searchMutation.data && searchMutation.data.length === 0 && (
+                  <p className="text-sm text-[#71717a]">No businesses found matching that query.</p>
+                )}
+                {searchMutation.isError && (
+                  <p className="text-sm text-red-500">Failed to search for businesses. Check API key.</p>
+                )}
+              </div>
+            </Panel>
           ) : (
             <>
               {(activeTab === "gbp" || activeTab === "overview") && (

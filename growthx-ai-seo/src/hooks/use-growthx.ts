@@ -117,6 +117,23 @@ export function useLocalSeo(projectId: string | null) {
   });
 }
 
+export function useSearchLocalBusiness(projectId: string | null) {
+  return useMutation({
+    mutationFn: (query: string) => api.searchLocalBusiness(projectId!, query),
+  });
+}
+
+export function useConnectLocalBusiness(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { businessName: string; address: string; rating: number; reviewCount: number }) => 
+      api.connectLocalBusiness(projectId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
+    },
+  });
+}
+
 export function useOutreach(projectId: string | null) {
   return useQuery({
     queryKey: ["outreach", projectId],

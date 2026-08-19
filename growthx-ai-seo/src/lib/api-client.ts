@@ -751,6 +751,13 @@ export const api = {
   logout: () => auth.clear(),
 
 
+  // ── Local SEO
+  searchLocalBusiness: (projectId: string, query: string) =>
+    post<{ placeId: string; name: string; address: string; rating: number; userRatingsTotal: number }[]>(`/api/projects/${projectId}/local-seo/search`, { query }),
+  connectLocalBusiness: (projectId: string, data: { businessName: string; address: string; rating: number; reviewCount: number }) =>
+    post<LocalSeoData>(`/api/projects/${projectId}/local-seo/connect`, data),
+
+
   // ── Market research
   listResearchThreads: (projectId: string) =>
     get<ResearchThreadSummary[]>(`/api/projects/${projectId}/market-research/threads`),
