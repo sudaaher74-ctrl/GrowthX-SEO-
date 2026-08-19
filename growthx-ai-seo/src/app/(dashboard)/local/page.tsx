@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime, Input } from "@/components/ui/console";
+import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime } from "@/components/ui/console";
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness } from "@/hooks/use-growthx";
 
@@ -78,11 +78,12 @@ export default function LocalPage() {
             <Panel title="Connect Google Business Profile" subtitle="Search for your business to link it to this project">
               <div className="p-6">
                 <form onSubmit={handleSearch} className="flex max-w-xl gap-2 mb-6">
-                  <Input
+                  <input
+                    type="text"
                     placeholder="Search by business name and location..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 h-9 rounded-md border border-[#e4e4e7] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-[#a1a1aa] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2563eb]"
                   />
                   <ActionButton 
                     variant="primary" 
