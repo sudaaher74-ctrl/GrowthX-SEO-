@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
@@ -16,5 +16,18 @@ export class LocalSeoController {
   @Get()
   async getLocalSeo(@Param('projectId') projectId: string) {
     return this.localSeoService.getLocalSeo(projectId);
+  }
+
+  @Post('search')
+  async searchBusiness(@Body() body: { query: string }) {
+    return this.localSeoService.searchBusiness(body.query);
+  }
+
+  @Post('connect')
+  async connectBusiness(
+    @Param('projectId') projectId: string,
+    @Body() body: { businessName: string; address: string; rating: number; reviewCount: number }
+  ) {
+    return this.localSeoService.connectBusiness(projectId, body);
   }
 }
