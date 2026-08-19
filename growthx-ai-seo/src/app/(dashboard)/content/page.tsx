@@ -102,7 +102,7 @@ function ContentClient() {
                 <p className="text-xs text-[var(--text-muted)] max-w-[250px] mt-1.5 mb-3">
                   The AI will monitor these handles to identify winning formats and content gaps.
                 </p>
-                <ActionButton variant="outline" icon={<Edit3 size={12} />}>
+                <ActionButton variant="secondary" icon={<Edit3 size={12} />}>
                   Configure Handles
                 </ActionButton>
               </div>
