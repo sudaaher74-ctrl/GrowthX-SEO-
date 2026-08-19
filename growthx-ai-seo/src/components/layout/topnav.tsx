@@ -7,18 +7,18 @@ import { api } from "@/lib/api-client";
 
 /** Breadcrumb scope + title for each route, matching the design's header. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
-  "/clients": { scope: "Agency", title: "Clients" },
-  "/reports": { scope: "Agency", title: "Reports" },
-  "/settings": { scope: "Agency", title: "Settings" },
-  "/dashboard": { scope: "Client", title: "Overview" },
-  "/geo-tracking": { scope: "Client", title: "AI Visibility" },
-  "/strategy": { scope: "Client", title: "Growth Strategy" },
-  "/keywords": { scope: "Client", title: "Search" },
-  "/rank-tracking": { scope: "Client", title: "Rank tracking" },
-  "/competitors": { scope: "Client", title: "Competitors" },
-  "/technical-seo": { scope: "Client", title: "Site health" },
-  "/backlinks": { scope: "Client", title: "Backlinks" },
-  "/content-ai": { scope: "Client", title: "Content AI" },
+  "/clients": { scope: "Portfolio", title: "Projects" },
+  "/reports": { scope: "Workspace", title: "Reports" },
+  "/settings": { scope: "Workspace", title: "Settings" },
+  "/dashboard": { scope: "Workspace", title: "Overview" },
+  "/geo-tracking": { scope: "Workspace", title: "AI Visibility" },
+  "/strategy": { scope: "Workspace", title: "Growth Strategy" },
+  "/keywords": { scope: "Workspace", title: "Search" },
+  "/rank-tracking": { scope: "Workspace", title: "Rank tracking" },
+  "/competitors": { scope: "Workspace", title: "Competitors" },
+  "/technical-seo": { scope: "Workspace", title: "Site health" },
+  "/backlinks": { scope: "Workspace", title: "Backlinks" },
+  "/content-ai": { scope: "Workspace", title: "Content AI" },
 };
 
 const PERIODS = ["7d", "28d", "90d"] as const;
@@ -35,7 +35,7 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
     router.replace("/login");
   }
 
-  const meta = ROUTE_META[pathname] ?? { scope: "Client", title: "Workspace" };
+  const meta = ROUTE_META[pathname] ?? { scope: "Workspace", title: "Workspace" };
 
   return (
     <header
