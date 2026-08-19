@@ -735,6 +735,12 @@ export interface MarketOutcomeRow {
 // ──────────────────────────────────────────────────────────────── the API
 
 export const api = {
+  // SEO Tools
+  generateSchema: async (projectId: string, url: string, type: string) => 
+    post<any>(`/api/projects/${projectId}/seo-tools/schema/generate`, { url, type }),
+  analyzeMetaTags: async (projectId: string, url: string) => 
+    post<any>(`/api/projects/${projectId}/seo-tools/meta/analyze`, { url }),
+
   // ── Auth
   async login(email: string, password: string) {
     const result = await post<{ access_token: string; refresh_token?: string }>("/auth/login", { email, password });
