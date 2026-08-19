@@ -66,11 +66,15 @@ export class ContentStrategyService {
 
   /** Generate a content strategy from patterns, gaps, and project context. */
   async generateStrategy(projectId: string, organizationId: string) {
-    const [patterns, gaps, config, project] = await Promise.all([
+    const [patterns, gaps, config, project, topOwnedPosts, topCompetitorPosts] = await Promise.all([
       this.prisma.creativePattern.findMany({ where: { organizationId, projectId }, orderBy: { marketSaturation: 'desc' }, take: 20 }),
       this.prisma.contentGap.findMany({ where: { organizationId, projectId, status: 'OPEN' }, orderBy: { opportunityScore: 'desc' }, take: 15 }),
       this.prisma.contentIntelligenceConfig.findUnique({ where: { projectId } }),
       this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+      // Fetch top 10 owned posts across all platforms
+      this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: false }, orderBy: { engagementRate: 'desc' }, take: 10 }),
+      // Fetch top 10 competitor posts across all platforms
+      this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: true }, orderBy: { engagementRate: 'desc' }, take: 10 }),
     ]);
 
     const skill = config?.industrySkill ?? 'GENERIC';
@@ -87,7 +91,13 @@ ${patterns.map(p => `- "${p.name}": Saturation ${p.marketSaturation}/100, Opport
 IDENTIFIED CONTENT GAPS & OPPORTUNITIES:
 ${gaps.map(g => `- [${g.gapType}] ${g.title}: ${g.description} | Opportunity: ${g.opportunityScore}/100`).join('\n')}
 
-Generate a differentiated content strategy that exploits the highest-opportunity gaps and avoids saturated patterns.
+TOP PERFORMING OWNED SOCIAL POSTS:
+${topOwnedPosts.map(p => `- [${p.platform}] ${p.authorHandle}: "${p.content}" | Engagement: ${p.engagementRate?.toFixed(2)}% | Likes: ${p.likes}`).join('\n')}
+
+TOP PERFORMING COMPETITOR SOCIAL POSTS:
+${topCompetitorPosts.map(p => `- [${p.platform}] ${p.authorHandle}: "${p.content}" | Engagement: ${p.engagementRate?.toFixed(2)}% | Likes: ${p.likes}`).join('\n')}
+
+Generate a differentiated content strategy that exploits the highest-opportunity gaps, leverages the formats proven by the top performing competitor posts, and leans into the strengths shown in the brand's own top posts.
 The strategy must be specific to this brand's industry and goals.
 `.trim();
 
