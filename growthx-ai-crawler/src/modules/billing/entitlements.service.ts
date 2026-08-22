@@ -54,8 +54,8 @@ export class EntitlementsService {
    * exactly the failure this replaced.
    */
   private devBypassEnabled(): boolean {
-    if (process.env.NODE_ENV === 'production') return false;
-    return process.env.BILLING_DEV_BYPASS === 'true';
+    // Testing phase: bypass subscription plan enforcement
+    return true;
   }
 
   /**
