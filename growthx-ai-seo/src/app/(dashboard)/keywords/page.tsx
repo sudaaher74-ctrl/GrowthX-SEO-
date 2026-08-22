@@ -110,7 +110,7 @@ export default function SearchPage() {
               <tbody>
                 {prompts.data?.map((p) => (
                   <Tr key={p.id}>
-                    <Td><span className="text-[12.5px] text-[#09090b]">{p.text}</span></Td>
+                    <Td><span className="text-[12.5px] text-brand-950">{p.text}</span></Td>
                     <Td><Mono tone="soft">{p.cluster ?? "—"}</Mono></Td>
                     <Td align="right">
                       <div className="flex flex-wrap justify-end gap-1">
@@ -138,15 +138,15 @@ export default function SearchPage() {
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 placeholder="trailheadco.com"
-                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-[#09090b]"
-                style={{ borderColor: "#e5e7eb", minWidth: 180 }}
+                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-brand-950"
+                style={{ borderColor: "var(--color-line)", minWidth: 180 }}
               />
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="Trailhead Co"
-                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-[#09090b]"
-                style={{ borderColor: "#e5e7eb", minWidth: 180 }}
+                className="flex-1 rounded-lg border px-3 py-2 text-[12.5px] text-brand-950"
+                style={{ borderColor: "var(--color-line)", minWidth: 180 }}
               />
               <ActionButton variant="primary" onClick={addCompetitor} disabled={saving || !domain.trim()}>
                 {saving ? "Adding…" : "Add"}
@@ -156,7 +156,7 @@ export default function SearchPage() {
 
           <Panel title="Share of voice" subtitle="how often each brand appears in the same answers">
             {competitors.length === 0 ? (
-              <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+              <p className="px-4 py-10 text-center text-[12px] text-brand-400">
                 No competitor has appeared in a checked answer yet.
               </p>
             ) : (
@@ -168,7 +168,7 @@ export default function SearchPage() {
                   {visibility.data?.shareOfVoice.map((row) => (
                     <Tr key={row.label}>
                       <Td>
-                        <span className={row.domain === null ? "text-[12.5px] font-semibold text-[#09090b]" : "text-[12.5px] text-[#3f3f46]"}>
+                        <span className={row.domain === null ? "text-[12.5px] font-semibold text-brand-950" : "text-[12.5px] text-brand-700"}>
                           {row.label}
                         </span>
                       </Td>

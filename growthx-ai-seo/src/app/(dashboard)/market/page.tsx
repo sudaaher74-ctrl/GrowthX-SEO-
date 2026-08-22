@@ -97,15 +97,15 @@ export default function MarketPage() {
         </div>
       )}
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -126,7 +126,7 @@ export default function MarketPage() {
           ) : visibility.isLoading || isMarketLoading ? (
             <Panel title="Loading">
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <Loader2 size={32} className="text-brand-200 mb-4 animate-spin" />
                 <p className="text-sm text-[var(--text-muted)]">Analyzing market intelligence data...</p>
               </div>
             </Panel>
@@ -171,15 +171,15 @@ export default function MarketPage() {
                           <AreaChart data={trendData}>
                             <defs>
                               <linearGradient id="colorShare" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                <stop offset="5%" stopColor="var(--color-accent-600)" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="var(--color-accent-600)" stopOpacity={0} />
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                            <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} tickFormatter={(val) => `${val}%`} />
-                            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e5e5" }} />
-                            <Area type="monotone" dataKey="share" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorShare)" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
+                            <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "var(--color-brand-500)" }} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "var(--color-brand-500)" }} tickFormatter={(val) => `${val}%`} />
+                            <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid var(--color-line)" }} />
+                            <Area type="monotone" dataKey="share" stroke="var(--color-accent-600)" strokeWidth={2} fillOpacity={1} fill="url(#colorShare)" />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -204,7 +204,7 @@ export default function MarketPage() {
                         <tbody>
                           {trackedPrompts.map((prompt) => (
                             <Tr key={prompt.id}>
-                              <Td><span className="font-medium text-[#09090b]">{prompt.text}</span></Td>
+                              <Td><span className="font-medium text-brand-950">{prompt.text}</span></Td>
                               <Td>{prompt.intent ? <Pill>{prompt.intent}</Pill> : <span className="text-xs text-[var(--text-muted)]">—</span>}</Td>
                               <Td><Mono tone="soft">{prompt.estimatedVolume?.toLocaleString() ?? "—"}</Mono></Td>
                               <Td><span className="text-xs text-[var(--text-muted)]">{prompt.cluster ?? "—"}</span></Td>
@@ -247,9 +247,9 @@ export default function MarketPage() {
                           <tbody>
                             {sovData.map((sov, i) => (
                               <Tr key={sov.domain ?? i}>
-                                <Td><span className="font-medium text-[#09090b]">{sov.domain || "Unknown"}</span></Td>
+                                <Td><span className="font-medium text-brand-950">{sov.domain || "Unknown"}</span></Td>
                                 <Td><Pill tone={i === 0 ? "good" : "default"}>{sov.label}</Pill></Td>
-                                <Td><span className="text-[13px] text-[#3f3f46]">{sov.mentions}</span></Td>
+                                <Td><span className="text-[13px] text-brand-700">{sov.mentions}</span></Td>
                                 <Td>
                                   <div className="flex items-center gap-3">
                                     <div className="w-32 bg-gray-100 rounded-full h-2 overflow-hidden">
@@ -258,7 +258,7 @@ export default function MarketPage() {
                                         style={{ width: `${Math.min(100, sov.sharePct)}%` }}
                                       />
                                     </div>
-                                    <span className="text-[13px] font-medium text-[#3f3f46]">{sov.sharePct.toFixed(1)}%</span>
+                                    <span className="text-[13px] font-medium text-brand-700">{sov.sharePct.toFixed(1)}%</span>
                                   </div>
                                 </Td>
                               </Tr>

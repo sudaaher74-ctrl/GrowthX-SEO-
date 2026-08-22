@@ -10,10 +10,10 @@ import { AuthIllustration } from "./auth-illustration";
  * split would disappear entirely.
  */
 const FORM_BG = "#ffffff";
-const INK = "#0a0a0a";
-const INK_SOFT = "#52525b";
-const INK_MUTED = "#a1a1aa";
-const BORDER = "#e4e4e7";
+const INK = "var(--color-brand-950)";
+const INK_SOFT = "var(--color-brand-600)";
+const INK_MUTED = "var(--color-brand-400)";
+const BORDER = "var(--color-brand-200)";
 
 /**
  * The two-column frame shared by sign-in and registration.

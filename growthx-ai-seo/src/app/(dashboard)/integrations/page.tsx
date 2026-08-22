@@ -111,12 +111,12 @@ function IntegrationsClient() {
                 <Tr key={int.id}>
                   <Td>
                     <div className="flex items-center space-x-3">
-                      <int.icon size={16} className="text-[#71717a]" />
-                      <span className="font-medium text-[#09090b]">{int.name}</span>
+                      <int.icon size={16} className="text-brand-500" />
+                      <span className="font-medium text-brand-950">{int.name}</span>
                     </div>
                   </Td>
                   <Td>
-                    <span className="text-[#71717a]">{int.category}</span>
+                    <span className="text-brand-500">{int.category}</span>
                   </Td>
                   <Td>
                     {int.status === "CONNECTED" ? (
@@ -126,10 +126,10 @@ function IntegrationsClient() {
                     ) : (
                       <Pill tone="warn">Not Connected</Pill>
                     )}
-                    {int.metadata && <span className="block mt-1 text-[11px] text-[#a1a1aa]"><Mono>{int.metadata}</Mono></span>}
+                    {int.metadata && <span className="block mt-1 text-[11px] text-brand-400"><Mono>{int.metadata}</Mono></span>}
                   </Td>
                   <Td>
-                    <span className="text-[#71717a]">
+                    <span className="text-brand-500">
                       {int.lastSync ? relativeTime(int.lastSync) : "—"}
                     </span>
                   </Td>
@@ -154,43 +154,43 @@ function IntegrationsClient() {
           <Panel title="Connect GitHub Repository" subtitle="Give the Autonomous Engineer access to push fixes and content.">
             <form onSubmit={handleConnectGitHub} className="p-4 space-y-4 max-w-lg">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Owner</label>
+                <label className="text-sm font-medium text-brand-950">Owner</label>
                 <input
                   type="text"
                   required
                   value={githubForm.owner}
                   onChange={(e) => setGithubForm({ ...githubForm, owner: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   placeholder="e.g. sudaaher74-ctrl"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Repository Name</label>
+                <label className="text-sm font-medium text-brand-950">Repository Name</label>
                 <input
                   type="text"
                   required
                   value={githubForm.name}
                   onChange={(e) => setGithubForm({ ...githubForm, name: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   placeholder="e.g. GrowthX-SEO-"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Default Branch</label>
+                <label className="text-sm font-medium text-brand-950">Default Branch</label>
                 <input
                   type="text"
                   required
                   value={githubForm.defaultBranch}
                   onChange={(e) => setGithubForm({ ...githubForm, defaultBranch: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Framework</label>
+                <label className="text-sm font-medium text-brand-950">Framework</label>
                 <select
                   value={githubForm.framework}
                   onChange={(e) => setGithubForm({ ...githubForm, framework: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                 >
                   <option value="nextjs">Next.js</option>
                   <option value="static-html">Static HTML</option>
@@ -198,41 +198,41 @@ function IntegrationsClient() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Content Directory</label>
+                <label className="text-sm font-medium text-brand-950">Content Directory</label>
                 <input
                   type="text"
                   required
                   value={githubForm.contentDir}
                   onChange={(e) => setGithubForm({ ...githubForm, contentDir: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   placeholder="e.g. src/app or content/blog"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#09090b]">Personal Access Token (PAT)</label>
+                <label className="text-sm font-medium text-brand-950">Personal Access Token (PAT)</label>
                 <input
                   type="password"
                   required
                   value={githubForm.accessToken}
                   onChange={(e) => setGithubForm({ ...githubForm, accessToken: e.target.value })}
-                  className="w-full rounded-md border border-[#e4e4e7] px-3 py-2 text-sm focus:border-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   placeholder="ghp_..."
                 />
-                <p className="text-xs text-[#71717a]">Needs `repo` permissions to clone and open PRs.</p>
+                <p className="text-xs text-brand-500">Needs `repo` permissions to clone and open PRs.</p>
               </div>
 
               <div className="pt-2 flex items-center space-x-3">
                 <button
                   type="button"
                   onClick={() => setConnectingGitHub(false)}
-                  className="px-4 py-2 text-sm font-medium text-[#71717a] hover:text-[#09090b]"
+                  className="px-4 py-2 text-sm font-medium text-brand-500 hover:text-brand-950"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={connectRepo.isPending}
-                  className="inline-flex items-center justify-center rounded bg-[#09090b] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#27272a] disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded bg-brand-950 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-800 disabled:opacity-50"
                 >
                   {connectRepo.isPending && <Loader2 size={14} className="mr-2 animate-spin" />}
                   Connect GitHub

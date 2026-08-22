@@ -43,14 +43,14 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
       style={{ borderColor: "var(--border-color)" }}
     >
       <button className="md:hidden" onClick={() => setMobileOpen?.(true)} aria-label="Open navigation">
-        <Menu size={18} className="text-[#52525b]" />
+        <Menu size={18} className="text-brand-600" />
       </button>
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-[13px]">
-        <span className="text-[#a1a1aa]">{meta.scope}</span>
-        <span className="text-[#d4d4d8]">/</span>
-        <span className="font-semibold text-[#09090b]">{meta.title}</span>
+        <span className="text-brand-400">{meta.scope}</span>
+        <span className="text-brand-300">/</span>
+        <span className="font-semibold text-brand-950">{meta.title}</span>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
@@ -59,12 +59,12 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
           className="hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 lg:flex"
           style={{ borderColor: "var(--border-color)" }}
         >
-          <Search size={13} className="text-[#a1a1aa]" />
+          <Search size={13} className="text-brand-400" />
           <input
             placeholder="Search or jump to…"
-            className="w-44 bg-transparent text-[12px] text-[#09090b] outline-none placeholder:text-[#a1a1aa]"
+            className="w-44 bg-transparent text-[12px] text-brand-950 outline-none placeholder:text-brand-400"
           />
-          <kbd className="rounded border px-1 font-mono text-[9px] text-[#a1a1aa]" style={{ borderColor: "var(--border-color)" }}>
+          <kbd className="rounded border px-1 font-mono text-[9px] text-brand-400" style={{ borderColor: "var(--border-color)" }}>
             ⌘K
           </kbd>
         </div>
@@ -77,7 +77,7 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
               onClick={() => setPeriod(p)}
               className={cn(
                 "rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors",
-                period === p ? "bg-[#f4f4f5] font-semibold text-[#09090b]" : "text-[#71717a] hover:text-[#09090b]",
+                period === p ? "bg-brand-100 font-semibold text-brand-950" : "text-brand-500 hover:text-brand-950",
               )}
             >
               {p}
@@ -85,7 +85,7 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
           ))}
         </div>
 
-        <button className="flex items-center gap-1.5 rounded-lg bg-[#09090b] px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90">
+        <button className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90">
           <Zap size={12} />
           Run audit
         </button>
@@ -94,7 +94,7 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
           onClick={signOut}
           aria-label="Sign out"
           title="Sign out"
-          className="rounded-lg border p-1.5 text-[#71717a] transition-colors hover:text-[#09090b]"
+          className="rounded-lg border p-1.5 text-brand-500 transition-colors hover:text-brand-950"
           style={{ borderColor: "var(--border-color)" }}
         >
           <LogOut size={13} />

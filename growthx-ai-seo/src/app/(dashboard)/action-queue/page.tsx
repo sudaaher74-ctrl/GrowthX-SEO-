@@ -56,15 +56,15 @@ export default function ActionQueuePage() {
         />
       ) : (
         <>
-          <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto">
+          <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   tab === t.id
-                    ? "border-[#2563eb] text-[#2563eb]"
-                    : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                    ? "border-accent-600 text-accent-600"
+                    : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
                 }`}
               >
                 {t.label}
@@ -81,7 +81,7 @@ export default function ActionQueuePage() {
           {actions.isLoading ? (
             <Panel title="Loading">
               <div className="flex items-center justify-center py-12">
-                <Loader2 size={26} className="animate-spin text-[#e4e4e7]" />
+                <Loader2 size={26} className="animate-spin text-brand-200" />
               </div>
             </Panel>
           ) : rows.length === 0 ? (

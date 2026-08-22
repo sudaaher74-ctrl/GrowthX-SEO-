@@ -9,26 +9,16 @@ import { cn } from "@/lib/utils";
  * re-inventing them. Values come from the design file's own tokens.
  */
 
-export const TOKENS = {
-  bg: "#fafafa",
-  surface: "#ffffff",
-  muted: "#f4f4f5",
-  border: "#e5e7eb",
-  ink: "#09090b",
-  ink2: "#3f3f46",
-  ink3: "#52525b",
-  soft: "#71717a",
-  softer: "#a1a1aa",
-  good: "#059669",
-  goodDeep: "#047857",
-  goodBg: "#ecfdf5",
-  bad: "#dc2626",
-  badDeep: "#b91c1c",
-  badBg: "#fef2f2",
-  warn: "#d97706",
-  accent: "#2563eb",
-  accentBg: "#eff6ff",
-} as const;
+/**
+ * Colour belongs to the design system, not to this file.
+ *
+ * This used to be a second palette of raw hex strings, and because every page
+ * copies its patterns from these primitives, the whole app copied the habit —
+ * 900+ hardcoded hex values across 40 routes, with three different greens for
+ * "good". The tokens in globals.css are the single source of truth; components
+ * below reference them through Tailwind's generated utilities (`text-brand-500`,
+ * `border-line`) or `var(--...)` where a style prop is unavoidable.
+ */
 
 export function PageHeader({
   title,
@@ -42,8 +32,8 @@ export function PageHeader({
   return (
     <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
       <div>
-        <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[#09090b]">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-[13px] text-[#71717a]">{subtitle}</p>}
+        <h1 className="text-[26px] font-bold tracking-[-0.02em] text-brand-950">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-[13px] text-brand-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -66,11 +56,10 @@ export function ActionButton({
       className={cn(
         "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50",
         variant === "primary"
-          ? "bg-[#09090b] text-white hover:opacity-90"
-          : "border bg-white text-[#3f3f46] hover:bg-[#fafafa]",
+          ? "bg-brand-950 text-white hover:opacity-90"
+          : "border bg-white text-brand-700 hover:bg-brand-50",
         props.className,
       )}
-      style={variant === "secondary" ? { borderColor: TOKENS.border, ...props.style } : props.style}
     >
       {icon}
       {children}
@@ -94,26 +83,26 @@ export function Kpi({
   tone?: "default" | "danger" | "good";
 }) {
   return (
-    <div className="rounded-xl border bg-white p-4" style={{ borderColor: TOKENS.border }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#a1a1aa]">{label}</p>
+    <div className="rounded-xl border bg-white p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span
           className={cn(
             "font-mono text-[24px] font-bold tracking-[-0.02em]",
-            tone === "danger" ? "text-[#dc2626]" : tone === "good" ? "text-[#059669]" : "text-[#09090b]",
+            tone === "danger" ? "text-error-600" : tone === "good" ? "text-success-600" : "text-brand-950",
           )}
         >
           {value}
         </span>
         {delta != null && (
-          <span className={cn("font-mono text-[12px] font-medium", delta >= 0 ? "text-[#059669]" : "text-[#dc2626]")}>
+          <span className={cn("font-mono text-[12px] font-medium", delta >= 0 ? "text-success-600" : "text-error-600")}>
             {delta >= 0 ? "+" : ""}
             {delta}
             {deltaSuffix}
           </span>
         )}
       </div>
-      {sub && <p className="mt-1 text-[11px] text-[#71717a]">{sub}</p>}
+      {sub && <p className="mt-1 text-[11px] text-brand-500">{sub}</p>}
     </div>
   );
 }
@@ -132,15 +121,15 @@ export function Panel({
   padded?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border bg-white" style={{ borderColor: TOKENS.border }}>
+    <div className="overflow-hidden rounded-xl border bg-white">
       {title && (
         <div
           className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3"
-          style={{ borderColor: TOKENS.border }}
+         
         >
           <div>
-            <h2 className="text-[13px] font-semibold text-[#09090b]">{title}</h2>
-            {subtitle && <p className="mt-0.5 text-[11px] text-[#a1a1aa]">{subtitle}</p>}
+            <h2 className="text-[13px] font-semibold text-brand-950">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-[11px] text-brand-400">{subtitle}</p>}
           </div>
           {actions}
         </div>
@@ -169,14 +158,13 @@ export function Tabs<T extends string>({
           className={cn(
             "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
             active === tab.id
-              ? "border-[#09090b] bg-[#09090b] text-white"
-              : "bg-white text-[#52525b] hover:bg-[#fafafa]",
+              ? "border-brand-950 bg-brand-950 text-white"
+              : "border-line bg-white text-brand-600 hover:bg-brand-50",
           )}
-          style={active === tab.id ? undefined : { borderColor: TOKENS.border }}
         >
           {tab.label}
           {tab.tag && (
-            <span className={cn("font-mono text-[10px]", active === tab.id ? "text-white/70" : "text-[#a1a1aa]")}>
+            <span className={cn("font-mono text-[10px]", active === tab.id ? "text-white/70" : "text-brand-400")}>
               {tab.tag}
             </span>
           )}
@@ -194,11 +182,11 @@ export function Pill({
   tone?: "default" | "good" | "bad" | "warn" | "info";
 }) {
   const styles = {
-    default: "bg-[#f4f4f5] text-[#3f3f46]",
-    good: "bg-[#ecfdf5] text-[#047857]",
-    bad: "bg-[#fef2f2] text-[#b91c1c]",
-    warn: "bg-[#fffbeb] text-[#b45309]",
-    info: "bg-[#eff6ff] text-[#1d4ed8]",
+    default: "bg-brand-100 text-brand-700",
+    good: "bg-success-50 text-success-700",
+    bad: "bg-error-50 text-error-700",
+    warn: "bg-warning-50 text-warning-700",
+    info: "bg-accent-50 text-accent-700",
   }[tone];
   return (
     <span className={cn("inline-block rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-semibold", styles)}>
@@ -234,11 +222,11 @@ export function Th({
     <th
       onClick={onClick}
       className={cn(
-        "border-b px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#a1a1aa]",
+        "border-b px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-400",
         align === "right" ? "text-right" : "text-left",
-        onClick && "cursor-pointer select-none hover:text-[#52525b]",
+        onClick && "cursor-pointer select-none hover:text-brand-600",
       )}
-      style={{ borderColor: TOKENS.border }}
+     
     >
       {children}
       {sorted && <span className="ml-1">{sorted === "desc" ? "↓" : "↑"}</span>}
@@ -266,7 +254,7 @@ export function Td({
 
 export function Tr({ children, className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <tr {...props} className={cn("border-b transition-colors last:border-0 hover:bg-[#fafafa]", className)} style={{ borderColor: "#f4f4f5", ...props.style }}>
+    <tr {...props} className={cn("border-b border-brand-100 transition-colors last:border-0 hover:bg-brand-50", className)}>
       {children}
     </tr>
   );
@@ -277,7 +265,7 @@ export function Mono({ children, tone }: { children: React.ReactNode; tone?: "go
     <span
       className={cn(
         "font-mono text-[12px]",
-        tone === "good" ? "text-[#059669]" : tone === "bad" ? "text-[#dc2626]" : tone === "soft" ? "text-[#a1a1aa]" : "text-[#3f3f46]",
+        tone === "good" ? "text-success-600" : tone === "bad" ? "text-error-600" : tone === "soft" ? "text-brand-400" : "text-brand-700",
       )}
     >
       {children}
@@ -288,10 +276,10 @@ export function Mono({ children, tone }: { children: React.ReactNode; tone?: "go
 /** Horizontal proportion bar used across the citation and share views. */
 export function MeterBar({ value, tone = "accent", width = 64 }: { value: number; tone?: "accent" | "good"; width?: number }) {
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-[#f4f4f5]" style={{ width }}>
+    <div className="h-1.5 overflow-hidden rounded-full bg-brand-100" style={{ width }}>
       <div
         className="h-full rounded-full"
-        style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: tone === "good" ? TOKENS.good : TOKENS.accent }}
+        style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: `var(--color-${tone === "good" ? "success" : "accent"}-600)` }}
       />
     </div>
   );
@@ -299,7 +287,7 @@ export function MeterBar({ value, tone = "accent", width = 64 }: { value: number
 
 /** Inline sparkline — no chart library for a 12-point series. */
 export function Sparkline({ values, width = 68, height = 22 }: { values: number[]; width?: number; height?: number }) {
-  if (values.length < 2) return <span className="text-[11px] text-[#d4d4d8]">—</span>;
+  if (values.length < 2) return <span className="text-[11px] text-brand-300">—</span>;
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -313,7 +301,7 @@ export function Sparkline({ values, width = 68, height = 22 }: { values: number[
       <polyline
         points={points}
         fill="none"
-        stroke={values[values.length - 1] >= values[0] ? TOKENS.good : TOKENS.bad}
+        stroke={`var(--color-${values[values.length - 1] >= values[0] ? "success" : "error"}-600)`}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -336,14 +324,14 @@ export function NotConnected({
   needs: string[];
 }) {
   return (
-    <div className="rounded-xl border border-dashed bg-white p-10 text-center" style={{ borderColor: TOKENS.border }}>
-      <p className="text-[14px] font-semibold text-[#09090b]">{title}</p>
-      <p className="mx-auto mt-1.5 max-w-md text-[12.5px] text-[#71717a]">{what}</p>
-      <div className="mx-auto mt-5 max-w-sm rounded-lg bg-[#fafafa] p-3 text-left">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#a1a1aa]">Needs</p>
+    <div className="rounded-xl border border-dashed bg-white p-10 text-center">
+      <p className="text-[14px] font-semibold text-brand-950">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-md text-[12.5px] text-brand-500">{what}</p>
+      <div className="mx-auto mt-5 max-w-sm rounded-lg bg-brand-50 p-3 text-left">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">Needs</p>
         <ul className="mt-1.5 space-y-1">
           {needs.map((need) => (
-            <li key={need} className="text-[11.5px] text-[#52525b]">
+            <li key={need} className="text-[11.5px] text-brand-600">
               • {need}
             </li>
           ))}

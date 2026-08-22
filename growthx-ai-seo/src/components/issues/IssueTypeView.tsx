@@ -79,7 +79,7 @@ export function IssueTypeView({
 
         <Panel title="Issues" subtitle={`${rows.length} shown`}>
           {rows.length === 0 ? (
-            <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+            <p className="px-4 py-10 text-center text-[12px] text-brand-400">
               {crawl.data ? emptyBody : "Run an audit to populate this."}
             </p>
           ) : (
@@ -104,27 +104,27 @@ export function IssueTypeView({
                         </Pill>
                       </Td>
                       <Td>
-                        <span className="text-[12.5px] font-medium text-[#09090b]">{issue.issueType}</span>
-                        <span className="block max-w-xs text-[11px] text-[#71717a]">{issue.description}</span>
+                        <span className="text-[12.5px] font-medium text-brand-950">{issue.issueType}</span>
+                        <span className="block max-w-xs text-[11px] text-brand-500">{issue.description}</span>
                       </Td>
                       <Td>
                         <Mono tone="soft">{shorten(issue.affectedUrl)}</Mono>
                       </Td>
                       <Td>
                         {fix?.error ? (
-                          <span className="text-[11px] text-[#dc2626]">{fix.error}</span>
+                          <span className="text-[11px] text-error-500">{fix.error}</span>
                         ) : fix ? (
                           <div className="max-w-sm">
-                            <span className="block text-[11.5px] font-medium text-[#09090b]">{fix.proposedValue}</span>
-                            <code className="mt-1 block overflow-x-auto rounded bg-[#fafafa] p-1.5 font-mono text-[10px] text-[#3f3f46]">
+                            <span className="block text-[11.5px] font-medium text-brand-950">{fix.proposedValue}</span>
+                            <code className="mt-1 block overflow-x-auto rounded bg-brand-50 p-1.5 font-mono text-[10px] text-brand-700">
                               {fix.codeSnippet}
                             </code>
-                            <span className="mt-1 block text-[10px] text-[#a1a1aa]">
+                            <span className="mt-1 block text-[10px] text-brand-400">
                               {fix.source === "model" ? `written by ${fix.model}` : "derived (no model available)"}
                             </span>
                           </div>
                         ) : (
-                          <span className="max-w-xs text-[11.5px] text-[#71717a]">{issue.recommendation}</span>
+                          <span className="max-w-xs text-[11.5px] text-brand-500">{issue.recommendation}</span>
                         )}
                       </Td>
                       <Td align="right">
@@ -137,7 +137,7 @@ export function IssueTypeView({
                             {fixing === issue.id ? "…" : fix ? "Regenerate" : "Generate"}
                           </ActionButton>
                         ) : (
-                          <span className="text-[11px] text-[#a1a1aa]">manual fix</span>
+                          <span className="text-[11px] text-brand-400">manual fix</span>
                         )}
                       </Td>
                     </Tr>

@@ -113,7 +113,7 @@ function ContentClient() {
         <Panel title="Content Strategy & Drafts" subtitle={`${allPieces.length} pieces tracked in the pipeline.`}>
           {allPieces.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <FileText size={48} className="text-[#e4e4e7] mb-4" />
+              <FileText size={48} className="text-brand-200 mb-4" />
               <h3 className="text-lg font-medium text-[var(--text-primary)]">No Content Planned</h3>
               <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
                 Click "Generate Content Plan" to have the AI evaluate your search strategy and propose new topics.
@@ -149,14 +149,14 @@ function ContentClient() {
                       </Pill>
                     </Td>
                     <Td>
-                      <span className="text-[12.5px] font-medium text-[#09090b]">{piece.title}</span>
-                      <span className="block mt-0.5 text-[11px] text-[#71717a]">/{piece.slug}</span>
+                      <span className="text-[12.5px] font-medium text-brand-950">{piece.title}</span>
+                      <span className="block mt-0.5 text-[11px] text-brand-500">/{piece.slug}</span>
                     </Td>
                     <Td>
                       <Mono tone="soft">{piece.targetQuery || "—"}</Mono>
                     </Td>
                     <Td>
-                      <span className="max-w-xs block text-[11.5px] text-[#71717a] truncate" title={piece.rationale || ""}>
+                      <span className="max-w-xs block text-[11.5px] text-brand-500 truncate" title={piece.rationale || ""}>
                         {piece.rationale || "—"}
                       </span>
                     </Td>

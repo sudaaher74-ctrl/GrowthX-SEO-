@@ -121,24 +121,24 @@ export default function OverviewPage() {
         <Panel title="Business Impact">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-6 text-center">
             <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-[#71717a] font-medium">Organic Traffic</span>
-              <span className="text-xl font-bold text-[#16a34a]">+18%</span>
+              <span className="text-[13px] text-brand-500 font-medium">Organic Traffic</span>
+              <span className="text-xl font-bold text-success-500">+18%</span>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-[#71717a] font-medium">Leads</span>
-              <span className="text-xl font-bold text-[#16a34a]">+21%</span>
+              <span className="text-[13px] text-brand-500 font-medium">Leads</span>
+              <span className="text-xl font-bold text-success-500">+21%</span>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-[#71717a] font-medium">Conversions</span>
-              <span className="text-xl font-bold text-[#16a34a]">+14%</span>
+              <span className="text-[13px] text-brand-500 font-medium">Conversions</span>
+              <span className="text-xl font-bold text-success-500">+14%</span>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-[#71717a] font-medium">Search Visibility</span>
-              <span className="text-xl font-bold text-[#16a34a]">+17%</span>
+              <span className="text-[13px] text-brand-500 font-medium">Search Visibility</span>
+              <span className="text-xl font-bold text-success-500">+17%</span>
             </div>
-            <div className="flex flex-col gap-1 border-l pl-4 border-[#f4f4f5]">
-              <span className="text-[13px] text-[#71717a] font-medium">Estimated Opportunity</span>
-              <span className="text-xl font-bold text-[#2563eb]">₹2.4L/mo</span>
+            <div className="flex flex-col gap-1 border-l pl-4 border-brand-100">
+              <span className="text-[13px] text-brand-500 font-medium">Estimated Opportunity</span>
+              <span className="text-xl font-bold text-accent-600">₹2.4L/mo</span>
             </div>
           </div>
         </Panel>
@@ -146,31 +146,31 @@ export default function OverviewPage() {
         <Panel title="AI Priority Actions">
           <div className="p-5 space-y-5">
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shrink-0"></span>
-              <span className="text-[13px] font-medium text-[#09090b]">Fix 7 indexability problems</span>
-              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-error-500 shrink-0"></span>
+              <span className="text-[13px] font-medium text-brand-950">Fix 7 indexability problems</span>
+              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shrink-0"></span>
-              <span className="text-[13px] font-medium text-[#09090b]">Optimize 12 declining pages</span>
-              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-series-7 shrink-0"></span>
+              <span className="text-[13px] font-medium text-brand-950">Optimize 12 declining pages</span>
+              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] shrink-0"></span>
-              <span className="text-[13px] font-medium text-[#09090b]">Improve Google Business Profile</span>
-              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">High Priority</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-series-7 shrink-0"></span>
+              <span className="text-[13px] font-medium text-brand-950">Improve Google Business Profile</span>
+              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] shrink-0"></span>
-              <span className="text-[13px] font-medium text-[#09090b]">Create 8 missing service pages</span>
-              <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">Medium</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-warning-500 shrink-0"></span>
+              <span className="text-[13px] font-medium text-brand-950">Create 8 missing service pages</span>
+              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">Medium</span>
             </div>
             
-            <div className="border-t pt-5 mt-5 border-[#f4f4f5]">
+            <div className="border-t pt-5 mt-5 border-brand-100">
               <div className="flex gap-3 mb-4 items-center">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] shrink-0"></span>
-                <span className="text-[13px] font-medium text-[#09090b]">Improve CTR on 17 keywords</span>
-                <span className="ml-auto text-[11px] font-medium text-[#a1a1aa] uppercase tracking-wider">Opportunity</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-success-500 shrink-0"></span>
+                <span className="text-[13px] font-medium text-brand-950">Improve CTR on 17 keywords</span>
+                <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">Opportunity</span>
               </div>
               <OpportunityDetailPanel 
                 title="Improve CTR for 17 pages"
@@ -195,11 +195,11 @@ export default function OverviewPage() {
         </Panel>
 
         <Panel title="GrowthX AI Engine System" subtitle="The 15 connected engines powering your growth.">
-          <div className="p-6 bg-[#fafafa] rounded-b-xl border-t border-[#f4f4f5] space-y-6">
+          <div className="p-6 bg-brand-50 rounded-b-xl border-t border-brand-100 space-y-6">
             
             {/* SENSE */}
             <div>
-              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Sense</h3>
+              <h3 className="text-[10px] font-bold text-brand-400 tracking-[0.1em] mb-3 uppercase">Sense</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <EngineCard id="01" name="Enterprise Website Crawler" href="/website" active />
                 <EngineCard id="02" name="Technical SEO Engine" href="/website" active />
@@ -208,11 +208,11 @@ export default function OverviewPage() {
               </div>
             </div>
             
-            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            <div className="flex justify-center text-brand-300"><ArrowRight size={14} className="rotate-90" /></div>
             
             {/* UNDERSTAND */}
             <div>
-              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Understand</h3>
+              <h3 className="text-[10px] font-bold text-brand-400 tracking-[0.1em] mb-3 uppercase">Understand</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <EngineCard id="05" name="Business Intelligence" href="/market" active />
                 <EngineCard id="06" name="Market Intelligence" href="/market" active />
@@ -221,11 +221,11 @@ export default function OverviewPage() {
               </div>
             </div>
             
-            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            <div className="flex justify-center text-brand-300"><ArrowRight size={14} className="rotate-90" /></div>
             
             {/* ACT */}
             <div>
-              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Act</h3>
+              <h3 className="text-[10px] font-bold text-brand-400 tracking-[0.1em] mb-3 uppercase">Act</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <EngineCard id="09" name="AI Marketing Consultant" href="/marketing" active />
                 <EngineCard id="10" name="AI Content Studio" href="/content" active />
@@ -234,11 +234,11 @@ export default function OverviewPage() {
               </div>
             </div>
             
-            <div className="flex justify-center text-[#d4d4d8]"><ArrowRight size={14} className="rotate-90" /></div>
+            <div className="flex justify-center text-brand-300"><ArrowRight size={14} className="rotate-90" /></div>
             
             {/* ASSURE */}
             <div>
-              <h3 className="text-[10px] font-bold text-[#a1a1aa] tracking-[0.1em] mb-3 uppercase">Assure</h3>
+              <h3 className="text-[10px] font-bold text-brand-400 tracking-[0.1em] mb-3 uppercase">Assure</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <EngineCard id="13" name="Validation Engine" href="/monitoring" active />
                 <EngineCard id="14" name="Monitoring Engine" href="/monitoring" active />
@@ -265,20 +265,20 @@ function shorten(url: string): string {
 
 function EngineCard({ id, name, href, active }: { id: string; name: string; href: string; active?: boolean }) {
   return (
-    <Link href={href} className="group relative flex flex-col justify-between p-4 border border-[#e4e4e7] bg-white rounded-lg hover:border-[#2563eb] transition-colors shadow-sm">
+    <Link href={href} className="group relative flex flex-col justify-between p-4 border border-brand-200 bg-white rounded-lg hover:border-accent-600 transition-colors shadow-sm">
       <div className="flex justify-between items-start mb-4">
-        <span className="font-mono text-[10px] text-[#a1a1aa] font-semibold">{id}</span>
+        <span className="font-mono text-[10px] text-brand-400 font-semibold">{id}</span>
         {active ? (
-          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#16a34a]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]"></span> Active
+          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-success-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-success-500"></span> Active
           </span>
         ) : (
-          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#a1a1aa]">
-            <span className="w-1.5 h-1.5 rounded-full border border-[#d4d4d8]"></span> Offline
+          <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-brand-400">
+            <span className="w-1.5 h-1.5 rounded-full border border-brand-300"></span> Offline
           </span>
         )}
       </div>
-      <div className="text-[13px] font-medium text-[#09090b] leading-tight group-hover:text-[#2563eb] transition-colors">
+      <div className="text-[13px] font-medium text-brand-950 leading-tight group-hover:text-accent-600 transition-colors">
         {name}
       </div>
     </Link>

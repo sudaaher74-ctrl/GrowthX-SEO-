@@ -27,7 +27,7 @@ export function MetricCard({
   deltaLabel = "vs last period",
   format = "number",
   sparklineData,
-  sparklineColor = "#2563eb",
+  sparklineColor = "var(--color-accent-600)",
   icon,
   suffix,
   prefix,

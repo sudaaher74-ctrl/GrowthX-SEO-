@@ -115,13 +115,13 @@ function AiVisibilityClient() {
         </div>
       )}
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         <button
           onClick={() => setActiveTab("ai")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "ai"
-              ? "border-[#09090b] text-[#09090b]"
-              : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+              ? "border-brand-950 text-brand-950"
+              : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
           }`}
         >
           <Zap size={14} />
@@ -160,7 +160,7 @@ function AiVisibilityClient() {
           <Panel title="Tracked Prompts" subtitle="Citation status per AI model">
             {promptList.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Search size={48} className="text-[#e4e4e7] mb-4" />
+                <Search size={48} className="text-brand-200 mb-4" />
                 <h3 className="text-lg font-medium text-[var(--text-primary)]">No Prompts Tracked</h3>
                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
                   Add target queries to monitor your visibility in ChatGPT, Claude, and Gemini.
@@ -187,13 +187,13 @@ function AiVisibilityClient() {
                   {promptList.map((row) => (
                     <Tr key={row.id}>
                       <Td>
-                        <span className="text-[12.5px] font-medium text-[#09090b]">{row.text}</span>
+                        <span className="text-[12.5px] font-medium text-brand-950">{row.text}</span>
                         {row.cluster && (
-                          <span className="block mt-0.5 text-[11px] text-[#71717a]">{row.cluster}</span>
+                          <span className="block mt-0.5 text-[11px] text-brand-500">{row.cluster}</span>
                         )}
                       </Td>
                       <Td>
-                        <span className="text-[#71717a]">{row.intent || "—"}</span>
+                        <span className="text-brand-500">{row.intent || "—"}</span>
                       </Td>
                       <Td>
                         <Mono tone="soft">{row.estimatedVolume?.toLocaleString() || "—"}</Mono>
@@ -204,18 +204,18 @@ function AiVisibilityClient() {
                           <Td key={assistant}>
                             {check ? (
                               check.cited ? (
-                                <div className="flex items-center text-[#16a34a] gap-1" title={check.citedUrl || "Cited"}>
+                                <div className="flex items-center text-success-500 gap-1" title={check.citedUrl || "Cited"}>
                                   <CheckCircle2 size={14} />
                                   <span className="text-[11px] font-medium">Cited</span>
                                 </div>
                               ) : (
-                                <div className="flex items-center text-[#dc2626] gap-1" title="Not cited">
+                                <div className="flex items-center text-error-500 gap-1" title="Not cited">
                                   <XCircle size={14} />
                                   <span className="text-[11px] font-medium">Miss</span>
                                 </div>
                               )
                             ) : (
-                              <div className="flex items-center text-[#a1a1aa] gap-1">
+                              <div className="flex items-center text-brand-400 gap-1">
                                 <MinusCircle size={14} />
                                 <span className="text-[11px] font-medium">Pending</span>
                               </div>

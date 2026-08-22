@@ -39,15 +39,15 @@ export default function MonitoringPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -62,7 +62,7 @@ export default function MonitoringPage() {
           {isLoading ? (
             <Panel>
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <Loader2 size={32} className="text-brand-200 mb-4 animate-spin" />
                 <p className="text-sm text-[var(--text-muted)]">Loading monitoring data...</p>
               </div>
             </Panel>
@@ -88,8 +88,8 @@ export default function MonitoringPage() {
                       {activityData.length > 0 ? (
                         activityData.map((item) => (
                           <Tr key={item.id}>
-                            <Td><span className="text-[13px] text-[#3f3f46] whitespace-nowrap">{relativeTime(item.time)}</span></Td>
-                            <Td><span className="font-medium text-[#09090b]">{item.message}</span></Td>
+                            <Td><span className="text-[13px] text-brand-700 whitespace-nowrap">{relativeTime(item.time)}</span></Td>
+                            <Td><span className="font-medium text-brand-950">{item.message}</span></Td>
                             <Td>
                               <Pill tone={item.status === "error" ? "bad" : item.status === "warning" ? "warn" : item.status === "success" ? "good" : "info"}>
                                 {item.status.toUpperCase()}
@@ -110,7 +110,7 @@ export default function MonitoringPage() {
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <Kpi label="Performance Score" value={monitoringData?.performanceScore?.toString() || "0"} tone={monitoringData?.performanceScore && monitoringData.performanceScore >= 90 ? "good" : "danger"} />
                     <Kpi label="Mobile Score" value={monitoringData?.mobileScore?.toString() || "0"} tone={monitoringData?.mobileScore && monitoringData.mobileScore >= 85 ? "good" : "danger"} />
-                    <div className="border border-[#e4e4e7] p-4 rounded-md">
+                    <div className="border border-brand-200 p-4 rounded-md">
                       <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">Core Web Vitals</h4>
                       <Pill tone={monitoringData?.coreWebVitalsStatus === "PASSING" ? "good" : "bad"}>{monitoringData?.coreWebVitalsStatus || "N/A"}</Pill>
                     </div>
@@ -125,7 +125,7 @@ export default function MonitoringPage() {
                       <Kpi label="Uptime Status" value={monitoringData?.uptimeStatus || "UNKNOWN"} tone={monitoringData?.uptimeStatus === "UP" ? "good" : "danger"} />
                       <Kpi label="Uptime %" value={`${monitoringData?.uptimePercentage || 0}%`} tone="good" />
                       <Kpi label="Avg Response Time" value={`${monitoringData?.avgResponseTimeMs || 0}ms`} tone={monitoringData?.avgResponseTimeMs && monitoringData.avgResponseTimeMs < 500 ? "good" : "danger"} />
-                      <div className="border border-[#e4e4e7] p-4 rounded-md">
+                      <div className="border border-brand-200 p-4 rounded-md">
                         <h4 className="font-medium text-[15px] mb-2 text-[var(--text-muted)]">SSL Status</h4>
                         <Pill tone={monitoringData?.sslStatus === "VALID" ? "good" : "bad"}>{monitoringData?.sslStatus || "UNKNOWN"}</Pill>
                       </div>

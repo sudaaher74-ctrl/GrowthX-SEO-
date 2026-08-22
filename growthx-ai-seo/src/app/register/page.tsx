@@ -58,7 +58,7 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold underline underline-offset-2" style={{ color: "#0a0a0a" }}>
+          <Link href="/login" className="font-semibold underline underline-offset-2" style={{ color: "var(--color-brand-950)" }}>
             Sign in
           </Link>
         </>
@@ -99,7 +99,7 @@ export default function RegisterPage() {
           <p
             role="alert"
             className="rounded-lg border px-3 py-2 text-[13px]"
-            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "#b91c1c" }}
+            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "var(--color-error-700)" }}
           >
             {error}
           </p>

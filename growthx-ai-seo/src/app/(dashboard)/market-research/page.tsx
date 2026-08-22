@@ -96,7 +96,7 @@ export default function MarketResearchPage() {
                     <button
                       key={s}
                       onClick={() => submit(s)}
-                      className="text-left p-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] hover:border-[#2563eb] transition-colors"
+                      className="text-left p-3 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] hover:border-accent-600 transition-colors"
                     >
                       <Search size={13} className="text-blue-500 inline mr-1.5" />
                       {s}
@@ -113,7 +113,7 @@ export default function MarketResearchPage() {
             {ask.isPending && (
               <Panel title="Researching">
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Loader2 size={28} className="text-[#e4e4e7] mb-3 animate-spin" />
+                  <Loader2 size={28} className="text-brand-200 mb-3 animate-spin" />
                   <p className="text-sm text-[var(--text-muted)]">
                     Searching the web, then checking it against this client&apos;s own data…
                   </p>
@@ -319,7 +319,7 @@ function SourcesPanel({
                 <li key={source.id}>
                   <button
                     onClick={() => onOpenSource(source)}
-                    className="w-full text-left rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] p-2.5 hover:border-[#2563eb] transition-colors"
+                    className="w-full text-left rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] p-2.5 hover:border-accent-600 transition-colors"
                   >
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-[5px] bg-blue-50 px-1 text-[10px] font-semibold text-blue-600">

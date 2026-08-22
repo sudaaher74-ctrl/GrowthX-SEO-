@@ -84,15 +84,15 @@ export default function MarketingPage() {
         </div>
       )}
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -107,7 +107,7 @@ export default function MarketingPage() {
           {isLoading ? (
             <Panel title="Loading">
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <Loader2 size={32} className="text-brand-200 mb-4 animate-spin" />
                 <p className="text-sm text-[var(--text-muted)]">Assembling AI Marketing Strategy...</p>
               </div>
             </Panel>
@@ -185,7 +185,7 @@ export default function MarketingPage() {
                   ) : (
                     <Panel title="No Strategy Generated">
                       <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <Lightbulb size={48} className="text-[#e4e4e7] mb-4" />
+                        <Lightbulb size={48} className="text-brand-200 mb-4" />
                         <h3 className="text-lg font-medium text-[var(--text-primary)]">No Active Strategy Found</h3>
                         <p className="text-sm text-[var(--text-muted)] max-w-md mt-2 mb-6">
                           Click below to generate a complete AI Marketing & Strategic Positioning report grounded in site data.
@@ -227,9 +227,9 @@ export default function MarketingPage() {
                         <tbody>
                           {pieces.map((piece) => (
                             <Tr key={piece.id}>
-                              <Td><span className="font-medium text-[#09090b]">{piece.title}</span></Td>
+                              <Td><span className="font-medium text-brand-950">{piece.title}</span></Td>
                               <Td><Mono tone="soft">{piece.targetQuery || "N/A"}</Mono></Td>
-                              <Td><span className="text-[13px] text-[#3f3f46]">{piece.format || "Blog Post"}</span></Td>
+                              <Td><span className="text-[13px] text-brand-700">{piece.format || "Blog Post"}</span></Td>
                               <Td>
                                 <Pill tone={piece.status === "PUBLISHED" ? "good" : piece.status === "PLANNED" ? "info" : "warn"}>
                                   {piece.status}
@@ -268,10 +268,10 @@ export default function MarketingPage() {
                           {strategyContent.seoRoadmap.map((item, i) => (
                             <Tr key={i}>
                               <Td><Pill tone="info">{item.horizon}</Pill></Td>
-                              <Td><span className="font-medium text-[#09090b]">{item.action}</span></Td>
-                              <Td><span className="text-[13px] text-[#3f3f46]">{item.why}</span></Td>
-                              <Td><span className="text-[12px] text-[#71717a]">{item.owner ?? "—"}</span></Td>
-                              <Td><span className="text-[12px] text-[#71717a]">{item.effort}</span></Td>
+                              <Td><span className="font-medium text-brand-950">{item.action}</span></Td>
+                              <Td><span className="text-[13px] text-brand-700">{item.why}</span></Td>
+                              <Td><span className="text-[12px] text-brand-500">{item.owner ?? "—"}</span></Td>
+                              <Td><span className="text-[12px] text-brand-500">{item.effort}</span></Td>
                               {/* `impact` is the current field; `expectedImpact` is
                                   what reports generated before the agent rewrite used. */}
                               <Td><span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">{item.impact ?? item.expectedImpact ?? "—"}</span></Td>
@@ -325,14 +325,14 @@ export default function MarketingPage() {
                         <tbody>
                           {campaigns.map((campaign) => (
                             <Tr key={campaign.id}>
-                              <Td><span className="font-medium text-[#09090b]">{campaign.name}</span></Td>
+                              <Td><span className="font-medium text-brand-950">{campaign.name}</span></Td>
                               <Td>
                                 <Pill tone={campaign.status === "ACTIVE" ? "good" : "default"}>
                                   {campaign.status}
                                 </Pill>
                               </Td>
-                              <Td><span className="text-[13px] text-[#3f3f46]">{campaign.sentCount}</span></Td>
-                              <Td><span className="text-[13px] text-[#3f3f46]">{campaign.replyCount}</span></Td>
+                              <Td><span className="text-[13px] text-brand-700">{campaign.sentCount}</span></Td>
+                              <Td><span className="text-[13px] text-brand-700">{campaign.replyCount}</span></Td>
                               <Td><span className="text-[13px] font-medium text-emerald-600 dark:text-emerald-400">{campaign.linkCount}</span></Td>
                             </Tr>
                           ))}

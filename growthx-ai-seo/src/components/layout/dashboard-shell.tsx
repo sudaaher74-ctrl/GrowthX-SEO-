@@ -42,7 +42,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (signedIn !== true) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: "#fafafa" }}>
+    <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <TopNav setMobileOpen={setMobileOpen} />
       {/* 232px sidebar + 52px header, per the design's measurements. */}

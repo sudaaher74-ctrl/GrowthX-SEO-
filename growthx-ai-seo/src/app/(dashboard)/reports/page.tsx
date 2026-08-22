@@ -66,7 +66,7 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -76,8 +76,8 @@ export default function ReportsPage() {
             }}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -93,7 +93,7 @@ export default function ReportsPage() {
             <Panel title="Executive Dashboard" subtitle={client?.domain ? `Live report for ${client.domain}` : "Select a project"}>
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                  <Loader2 size={32} className="text-brand-200 mb-4 animate-spin" />
                   <p className="text-sm text-[var(--text-muted)]">Loading executive metrics...</p>
                 </div>
               ) : (
@@ -116,17 +116,17 @@ export default function ReportsPage() {
                             <AreaChart data={citationTrend}>
                               <defs>
                                 <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                  <stop offset="5%" stopColor="var(--color-accent-600)" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="var(--color-accent-600)" stopOpacity={0} />
                                 </linearGradient>
                               </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
-                              <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
-                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} tickFormatter={(v) => `${v}%`} />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
+                              <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "var(--color-brand-500)" }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "var(--color-brand-500)" }} tickFormatter={(v) => `${v}%`} />
                               <Tooltip
-                                contentStyle={{ borderRadius: "8px", border: "1px solid #e5e5e5", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                                contentStyle={{ borderRadius: "8px", border: "1px solid var(--color-line)", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                               />
-                              <Area type="monotone" dataKey="sharePct" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorTraffic)" />
+                              <Area type="monotone" dataKey="sharePct" stroke="var(--color-accent-600)" strokeWidth={2} fillOpacity={1} fill="url(#colorTraffic)" />
                             </AreaChart>
                           </ResponsiveContainer>
                         </div>
@@ -145,7 +145,7 @@ export default function ReportsPage() {
                             {topIssues.length > 0 ? (
                               topIssues.map((issue) => (
                                 <Tr key={issue.id}>
-                                  <Td><span className="text-[13px] text-[#09090b] font-medium">{issue.issueType.replace(/_/g, ' ')}</span></Td>
+                                  <Td><span className="text-[13px] text-brand-950 font-medium">{issue.issueType.replace(/_/g, ' ')}</span></Td>
                                   <Td>
                                     <Pill tone={issue.severity === "CRITICAL" ? "bad" : issue.severity === "HIGH" ? "warn" : "info"}>
                                       {issue.severity}
@@ -176,7 +176,7 @@ export default function ReportsPage() {
                             <Tr key={prompt.id}>
                               <Td><Mono>{prompt.text}</Mono></Td>
                               <Td><Pill tone={prompt.intent === "TRANSACTIONAL" ? "good" : "default"}>{prompt.intent}</Pill></Td>
-                              <Td><span className="text-[13px] text-[#3f3f46]">{prompt.estimatedVolume?.toLocaleString()}</span></Td>
+                              <Td><span className="text-[13px] text-brand-700">{prompt.estimatedVolume?.toLocaleString()}</span></Td>
                             </Tr>
                           ))
                         ) : (
@@ -205,10 +205,10 @@ export default function ReportsPage() {
                   {(reporting.data?.customReports ?? []).length > 0 ? (
                     reporting.data?.customReports.map((report) => (
                       <Tr key={report.id}>
-                        <Td><span className="font-medium text-[#09090b]">{report.name}</span></Td>
+                        <Td><span className="font-medium text-brand-950">{report.name}</span></Td>
                         <Td><Pill tone="info">{report.frequency}</Pill></Td>
-                        <Td><span className="text-[13px] text-[#3f3f46]">{report.recipients.join(", ")}</span></Td>
-                        <Td><span className="text-[13px] text-[#3f3f46]">{report.format}</span></Td>
+                        <Td><span className="text-[13px] text-brand-700">{report.recipients.join(", ")}</span></Td>
+                        <Td><span className="text-[13px] text-brand-700">{report.format}</span></Td>
                       </Tr>
                     ))
                   ) : (
@@ -225,24 +225,24 @@ export default function ReportsPage() {
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-[#09090b] mb-1">Custom Domain</label>
+                      <label className="block text-sm font-medium text-brand-950 mb-1">Custom Domain</label>
                       <input 
                         type="text" 
                         readOnly 
                         value={reporting.data?.clientPortal.customDomain ?? ""} 
-                        className="w-full text-sm px-3 py-2 border border-[#e4e4e7] rounded bg-[#f4f4f5] text-[#3f3f46]"
+                        className="w-full text-sm px-3 py-2 border border-brand-200 rounded bg-brand-100 text-brand-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-[#09090b] mb-1">Theme Color</label>
+                      <label className="block text-sm font-medium text-brand-950 mb-1">Theme Color</label>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded border border-[#e4e4e7]" style={{ backgroundColor: reporting.data?.clientPortal.themeColor ?? "#2563eb" }}></div>
-                        <span className="text-sm text-[#3f3f46]">{reporting.data?.clientPortal.themeColor}</span>
+                        <div className="w-8 h-8 rounded border border-brand-200" style={{ backgroundColor: reporting.data?.clientPortal.themeColor ?? "var(--color-accent-600)" }}></div>
+                        <span className="text-sm text-brand-700">{reporting.data?.clientPortal.themeColor}</span>
                       </div>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#09090b] mb-1">Portal Status</label>
+                    <label className="block text-sm font-medium text-brand-950 mb-1">Portal Status</label>
                     <Pill tone={reporting.data?.clientPortal.isPublic ? "good" : "default"}>
                       {reporting.data?.clientPortal.isPublic ? "PUBLIC & ACTIVE" : "PRIVATE (DRAFT)"}
                     </Pill>

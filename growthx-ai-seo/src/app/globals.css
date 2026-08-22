@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Tailwind v4 changed the default border colour from a grey to `currentColor`,
+   so a bare `border` draws a near-black hairline. Every border in this app is
+   meant to be the hairline token; state that once rather than in every class. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+}
+
 @theme {
   --font-sans: "Inter", "system-ui", sans-serif;
   --font-display: "Geist", "Inter", sans-serif;
@@ -35,6 +46,41 @@
   --color-error-400: #f87171;
   --color-error-500: #ef4444;
 
+  /* Surfaces, as theme colours so `bg-surface-1` resolves like any other token. */
+  --color-surface-1: #ffffff;
+  --color-surface-2: #fafafa;
+  --color-surface-3: #f4f4f5;
+
+  /* Hairlines. Named so `border-line` reads as intent, not as a grey. */
+  --color-line: #e5e7eb;
+  --color-line-strong: #d1d5db;
+
+  /* Semantic tints and deep tones.
+     Every status in the product is one of these four; without the 50 and 700
+     steps a page that needed a soft background or readable text on it reached
+     for a hand-typed hex, which is where the drift started. */
+  --color-accent-50: #eff6ff;
+  --color-accent-700: #1d4ed8;
+  --color-success-50: #ecfdf5;
+  --color-success-700: #047857;
+  --color-warning-50: #fffbeb;
+  --color-warning-700: #b45309;
+  --color-error-50: #fef2f2;
+  --color-error-700: #b91c1c;
+
+  /* Categorical series, for charts and category chips.
+     These are deliberately NOT the accent: they encode which series a mark
+     belongs to, so they must stay distinguishable from each other rather than
+     collapse into the brand colour. Ordered by first-pick preference. */
+  --color-series-1: #2563eb;
+  --color-series-2: #0ea5e9;
+  --color-series-3: #10b981;
+  --color-series-4: #f59e0b;
+  --color-series-5: #ef4444;
+  --color-series-6: #8b5cf6;
+  --color-series-7: #f97316;
+  --color-series-8: #14b8a6;
+
   /* Radii */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem; /* 12px */
@@ -53,8 +99,8 @@
   --bg-glass: rgba(255, 255, 255, 0.75);
 
   /* Borders */
-  --border-color: #e5e7eb;
-  --border-strong: #d1d5db;
+  --border-color: var(--color-line);
+  --border-strong: var(--color-line-strong);
 
   /* Text */
   --text-primary: #09090b;
@@ -63,9 +109,9 @@
   --text-inverse: #ffffff;
 
   /* Surfaces */
-  --surface-1: #ffffff;
-  --surface-2: #fafafa;
-  --surface-3: #f4f4f5;
+  --surface-1: var(--color-surface-1);
+  --surface-2: var(--color-surface-2);
+  --surface-3: var(--color-surface-3);
 
   /* Sidebar */
   --sidebar-bg: #ffffff;
