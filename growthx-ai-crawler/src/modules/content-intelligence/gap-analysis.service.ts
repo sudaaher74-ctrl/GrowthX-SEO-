@@ -56,7 +56,12 @@ export class GapAnalysisService {
     ]);
 
     if (patterns.length === 0) {
-      return { gapsGenerated: 0, message: 'Run pattern detection first.' };
+      return {
+        gapsGenerated: 0,
+        message:
+          'No creative patterns have been detected yet, so there is nothing to find gaps against. ' +
+          'Add competitor content, run classification, then run pattern detection.',
+      };
     }
 
     const patternSummary = patterns.map(p =>
