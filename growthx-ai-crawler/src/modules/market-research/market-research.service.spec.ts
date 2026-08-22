@@ -63,6 +63,7 @@ describe('MarketResearchService', () => {
         visibility: { citationSharePct: 12, byAssistant: [], shareOfVoice: [], lostPrompts: [] },
       }),
       searchClientPages: jest.fn().mockResolvedValue([]),
+      countClientPages: jest.fn().mockResolvedValue(0),
       visibilitySources: jest.fn().mockReturnValue([]),
       webSources: jest.fn().mockReturnValue([{ type: 'PUBLIC_WEB', url: 'https://ex.com/a', title: 'Report', excerpt: '', qualityScore: 0.6 }]),
     };
@@ -289,6 +290,27 @@ describe('MarketResearchService', () => {
       expect(result.answer.confidence).toBe('low');
       // The answer model is never reached, so nothing can be produced from memory.
       expect(models.generate).toHaveBeenCalledTimes(2);
+    });
+
+    // Telling a customer who has crawled 29 pages that they have none sends
+    // them to re-run a crawl that was never the problem.
+    it('does not claim there are no crawled pages when there are', async () => {
+      evidence.countClientPages.mockResolvedValue(29);
+      prisma.researchSource.findMany.mockResolvedValue([]);
+      evidence.webSources.mockReturnValue([]);
+      models.generate
+        .mockResolvedValueOnce({
+          text: JSON.stringify({ intent: 'MARKET_TREND', searchQueries: ['q'], clientDataQuery: 'q' }),
+          usage: usage('classify'),
+          webSources: [],
+        })
+        .mockResolvedValueOnce({ text: '', usage: usage('web'), webSources: [] });
+
+      const result = await service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: 'q' });
+
+      expect(result.answer.summary).toContain('29 crawled page(s)');
+      expect(result.answer.summary).not.toContain('no crawled pages');
+      expect(result.answer.evidenceGaps.join(' ')).toContain('linked to this project');
     });
 
     it('preserves a conflict the model reported and keeps confidence low', async () => {

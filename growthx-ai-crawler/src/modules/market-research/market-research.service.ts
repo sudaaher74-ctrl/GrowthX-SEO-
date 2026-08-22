@@ -252,7 +252,20 @@ export class MarketResearchService {
 
       // 5. Answer, or report honestly that we cannot.
       if (stored.length === 0) {
-        return this.finishWithNoEvidence(run.id, thread.id, organizationId, projectId, usage, retrievalGaps);
+        // Say which of the two things actually happened. A project with a
+        // finished crawl that still retrieves nothing has a linkage problem,
+        // not a missing crawl, and telling them to crawl again wastes their
+        // time on the wrong fix.
+        const crawledPages = await this.evidence.countClientPages(projectId);
+        return this.finishWithNoEvidence(
+          run.id,
+          thread.id,
+          organizationId,
+          projectId,
+          usage,
+          retrievalGaps,
+          crawledPages,
+        );
       }
 
       const answerResult = await this.models.generate({
@@ -554,11 +567,18 @@ export class MarketResearchService {
     projectId: string,
     usage: ModelUsage[],
     retrievalGaps: string[] = [],
+    crawledPages = 0,
   ) {
+    const summary =
+      crawledPages > 0
+        ? 'No reliable evidence found. No usable sources were retrieved for this question, ' +
+          `even though this project has ${crawledPages} crawled page(s) — they could not be reached ` +
+          'for this run.'
+        : 'No reliable evidence found. No usable sources were retrieved for this question, ' +
+          'and this project has no crawled pages or AI-visibility history to draw on yet.';
+
     const answer = {
-      summary:
-        'No reliable evidence found. No usable sources were retrieved for this question, ' +
-        'and this project has no crawled pages or AI-visibility history to draw on yet.',
+      summary,
       confidence: 'low' as const,
       verifiedClaims: [],
       inferences: [],
@@ -566,7 +586,11 @@ export class MarketResearchService {
       recommendedActions: [],
       evidenceGaps: [
         'No sources were retrieved for this question.',
-        'Crawl the client site and track prompts so future research can use their own data.',
+        crawledPages > 0
+          ? `This project has ${crawledPages} crawled page(s) that were not used. Check that the ` +
+            'crawled site is linked to this project, then track prompts so AI-visibility history ' +
+            'can be used as evidence too.'
+          : 'Crawl the client site and track prompts so future research can use their own data.',
         ...retrievalGaps,
       ],
     };
