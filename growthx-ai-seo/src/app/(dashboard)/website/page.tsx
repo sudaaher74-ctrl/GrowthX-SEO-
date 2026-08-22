@@ -45,6 +45,31 @@ function WebsiteClient() {
   const allIssues = issues.data?.data ?? [];
   const allPages = pages.data?.data ?? [];
 
+  // Everything below is derived from rows this page already loaded. The tiles
+  // used to show a bare count each and drop the rest on the floor. Plain
+  // expressions rather than useMemo: these are single passes over a few hundred
+  // rows, and memoising them here only defeats the compiler's own analysis.
+  const severityCounts = allIssues.reduce<Record<string, number>>(
+    (counts, issue: CrawlIssue) => {
+      counts[issue.severity] = (counts[issue.severity] ?? 0) + 1;
+      return counts;
+    },
+    { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+  );
+
+  const brokenPages = allPages.filter((p: CrawlPage) => p.statusCode >= 400).length;
+
+  const crawlDuration = (() => {
+    if (!crawl.data?.startedAt || !crawl.data?.finishedAt) return null;
+    const ms = new Date(crawl.data.finishedAt).getTime() - new Date(crawl.data.startedAt).getTime();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    const mins = Math.round(ms / 60000);
+    return mins >= 1 ? `${mins} min` : `${Math.round(ms / 1000)}s`;
+  })();
+
+  const statusTone = (status?: string): "good" | "warn" | "bad" | "default" =>
+    status === "COMPLETED" ? "good" : status === "FAILED" ? "bad" : status ? "warn" : "default";
+
   async function runCrawl() {
     if (!client?.domain) return;
     setCrawling(true);
@@ -113,10 +138,43 @@ function WebsiteClient() {
         <div className="pt-2 flex flex-col gap-4">
           {activeTab === "overview" && (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi label="Pages Crawled" value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()} />
-              <Kpi label="Issues Found" value={(crawl.data?.issuesFound ?? 0).toLocaleString()} />
-              <Kpi label="Avg Health" value={client?.health != null ? String(client.health) : "—"} />
-              <Kpi label="Status" value={crawl.data?.status ?? "—"} />
+              <Kpi
+                label="Pages Crawled"
+                value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()}
+                sub={
+                  brokenPages > 0
+                    ? `${brokenPages.toLocaleString()} returned an error`
+                    : allPages.length > 0
+                      ? "All reachable"
+                      : undefined
+                }
+              />
+              <Kpi
+                label="Issues Found"
+                value={(crawl.data?.issuesFound ?? 0).toLocaleString()}
+                tone={severityCounts.CRITICAL > 0 ? "danger" : "default"}
+                sub={
+                  allIssues.length > 0
+                    ? `${severityCounts.CRITICAL} critical · ${severityCounts.HIGH} high · ${severityCounts.MEDIUM} medium`
+                    : undefined
+                }
+              />
+              {/* A health of 0 rendered as "0" reads as a broken tile rather
+                  than an unmeasured one, so an absent score stays an em dash
+                  and only a real score draws the meter. */}
+              <Kpi
+                label="Avg Health"
+                value={client?.health != null ? String(client.health) : "—"}
+                tone={client?.health != null && client.health < 50 ? "danger" : "default"}
+                meter={client?.health ?? null}
+                sub={client?.health == null ? "Not measured yet" : "out of 100"}
+              />
+              <Kpi
+                label="Status"
+                value={crawl.data?.finishedAt ? relativeTime(crawl.data.finishedAt) : "—"}
+                aside={crawl.data?.status ? <Pill tone={statusTone(crawl.data.status)}>{crawl.data.status}</Pill> : null}
+                sub={crawlDuration ? `Took ${crawlDuration}` : undefined}
+              />
             </div>
           )}
 
