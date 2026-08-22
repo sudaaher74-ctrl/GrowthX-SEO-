@@ -172,10 +172,17 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
 
   const baseUrl = getApiBase();
   let response: Response | null = null;
-  
+
+  // Only reads are retried. A POST that reached the server and failed at 503
+  // may already have done its work — a market-research question, for instance,
+  // spends model tokens on the way to that error, and retrying it silently
+  // spends them twice and files a second run.
+  const method = (init.method ?? "GET").toUpperCase();
+  const retryable = method === "GET" || method === "HEAD";
+
   try {
     response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-    if (response.status === 502 || response.status === 503 || response.status === 504) {
+    if (retryable && [502, 503, 504].includes(response.status)) {
       await new Promise((res) => setTimeout(res, 800));
       response = await fetch(`${baseUrl}${path}`, { ...init, headers });
     }

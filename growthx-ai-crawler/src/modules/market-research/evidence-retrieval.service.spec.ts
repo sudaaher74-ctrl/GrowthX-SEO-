@@ -34,6 +34,21 @@ describe('EvidenceRetrievalService — lexical retrieval', () => {
     service = module.get(EvidenceRetrievalService);
   });
 
+  // A configured embedding model that fails on the day must not take the whole
+  // research run with it: the same pages are still searchable by keyword.
+  it('falls back to keyword search when the embedding model fails', async () => {
+    models.supportsEmbeddings.mockReturnValue(true);
+    models.embed.mockRejectedValue(new Error('401 Invalid API key'));
+    prisma.page.findMany.mockResolvedValue([
+      page('https://x.com/about', 'About our company'),
+      page('https://x.com/pricing', 'Pricing and plans'),
+    ]);
+
+    const results = await service.searchClientPages('org', 'proj', 'pricing plans');
+
+    expect(results[0].url).toBe('https://x.com/pricing');
+  });
+
   it('ranks the page whose title matches the query first', async () => {
     prisma.page.findMany.mockResolvedValue([
       page('https://x.com/about', 'About our company'),

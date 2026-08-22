@@ -29,8 +29,11 @@ export class AskQuestionDto {
 }
 
 export class CreateThreadDto {
+  // Optional: the route defaults an absent title to 'New research'. Requiring
+  // it here would turn that documented default into a 400.
   @IsString()
-  title: string;
+  @IsOptional()
+  title?: string;
 }
 
 /**

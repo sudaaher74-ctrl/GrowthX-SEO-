@@ -121,6 +121,8 @@ export interface GenerateResult {
 export class ModelRouterService {
   private readonly logger = new Logger(ModelRouterService.name);
   private client: OpenAI | null = null;
+  /** Separate from `client`: embeddings can run on OpenAI while chat runs on Groq. */
+  private embeddings: OpenAI | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -214,18 +216,27 @@ export class ModelRouterService {
     return this.client;
   }
 
-  /** Embeddings client, which may be OpenAI even when chat runs on OpenRouter. */
+  /**
+   * Embeddings client, which may be OpenAI even when chat runs elsewhere.
+   *
+   * Neither Groq nor OpenRouter serves an embedding model, so every provider
+   * except OpenAI needs a separate OpenAI client here. Falling through to the
+   * chat client instead sent `text-embedding-3-small` to Groq's base URL, where
+   * it 404s — and because `supportsEmbeddings()` only checks that an OpenAI key
+   * exists, adding that key to a Groq deployment turned every research run into
+   * a 500 rather than switching retrieval on.
+   */
   private embeddingClient(): OpenAI {
+    if (this.provider() === 'openai') return this.openai();
+
     const openaiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (this.provider() === 'openrouter') {
-      if (!this.realKey(openaiKey)) {
-        throw new ServiceUnavailableException(
-          'No embedding model available: OpenRouter serves none, and OPENAI_API_KEY is not set.',
-        );
-      }
-      return new OpenAI({ apiKey: openaiKey!.trim() });
+    if (!this.realKey(openaiKey)) {
+      throw new ServiceUnavailableException(
+        `No embedding model available: ${this.provider()} serves none, and OPENAI_API_KEY is not set.`,
+      );
     }
-    return this.openai();
+    this.embeddings ??= new OpenAI({ apiKey: openaiKey!.trim() });
+    return this.embeddings;
   }
 
   async generate(options: GenerateOptions): Promise<GenerateResult> {
@@ -322,8 +333,18 @@ export class ModelRouterService {
     const model = this.modelFor(ModelRole.EMBEDDING);
     if (texts.length === 0) return { vectors: [], model };
 
-    const response = await this.embeddingClient().embeddings.create({ model, input: texts });
-    return { vectors: response.data.map((d) => d.embedding as number[]), model };
+    try {
+      const response = await this.embeddingClient().embeddings.create({ model, input: texts });
+      return { vectors: response.data.map((d) => d.embedding as number[]), model };
+    } catch (error) {
+      // Raw SDK errors surface as a 500 with no explanation. Callers that can
+      // degrade — retrieval falls back to keyword search — need to recognise
+      // this, and callers that cannot need to say what went wrong.
+      if (error instanceof ServiceUnavailableException) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Embedding call failed (${model}): ${message}`);
+      throw new ServiceUnavailableException(`The embedding model could not be reached. ${message}`);
+    }
   }
 
   /**

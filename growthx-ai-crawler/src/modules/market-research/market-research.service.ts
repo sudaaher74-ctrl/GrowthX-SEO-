@@ -1,4 +1,11 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   MarketActionStatus,
   MarketActionType,
@@ -147,7 +154,20 @@ export class MarketResearchService {
    * was retrieved and what the model did with it.
    */
   async ask(options: AskOptions) {
-    const { organizationId, projectId, question } = options;
+    const { organizationId, projectId } = options;
+
+    // Validated here rather than only in the DTO. A route whose body was
+    // stripped — a global ValidationPipe with `whitelist: true` removes every
+    // property of a DTO that carries no class-validator decorator — used to
+    // arrive with `question` undefined and crash on the first `.slice()`,
+    // which the customer saw as a bare "Internal server error". A missing
+    // question is a bad request, and it is one wherever the call came from:
+    // the scheduler and the smoke script reach this method without a pipe.
+    const question = typeof options.question === 'string' ? options.question.trim() : '';
+    if (!question) {
+      throw new BadRequestException('A question is required to run market research.');
+    }
+
     await this.assertProjectInOrg(organizationId, projectId);
 
     const thread = options.threadId
@@ -307,12 +327,27 @@ export class MarketResearchService {
       return { threadId: thread.id, runId: run.id, answer, sources: stored };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await this.prisma.marketResearchRun.update({
-        where: { id: run.id },
-        data: { status: ResearchRunStatus.FAILED, error: message, finishedAt: new Date() },
-      });
+
+      // Bookkeeping must not swallow the real failure. If the database is the
+      // thing that broke, this update throws too, and rethrowing *its* error
+      // would report a connection fault where the customer needs to see the
+      // model or retrieval failure that actually stopped the run.
+      try {
+        await this.prisma.marketResearchRun.update({
+          where: { id: run.id },
+          data: { status: ResearchRunStatus.FAILED, error: message.slice(0, 2000), finishedAt: new Date() },
+        });
+      } catch (bookkeeping) {
+        this.logger.error(`Could not mark run ${run.id} failed: ${String(bookkeeping)}`);
+      }
+
       this.logger.warn(`Research run ${run.id} failed: ${message}`);
-      throw error;
+
+      // An HttpException already carries a message the UI can show. Anything
+      // else would reach the browser as Nest's generic "Internal server error",
+      // which tells the customer nothing and tells us nothing either.
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Market research failed: ${message}`);
     }
   }
 
@@ -479,15 +514,26 @@ export class MarketResearchService {
     for (const action of answer.recommendedActions ?? []) {
       const type = ACTION_TYPES[action.type];
       if (!type) continue;
+
+      // The model can return an action with a type but no title. Passing that
+      // straight to Prisma throws on a required column and loses the whole
+      // answer at the last step, after every token has been spent. An action
+      // nobody can read is not worth queueing, so it is dropped instead.
+      const title = String(action.title ?? '').trim();
+      if (!title) {
+        this.logger.warn(`Run ${runId}: dropped a ${type} action with no title.`);
+        continue;
+      }
+
       await this.prisma.marketAction.create({
         data: {
           organizationId,
           projectId,
           runId,
           type,
-          title: action.title,
-          description: action.description,
-          expectedImpact: action.expectedImpact ?? null,
+          title,
+          description: String(action.description ?? ''),
+          expectedImpact: action.expectedImpact ? String(action.expectedImpact) : null,
           confidence: LEVEL[String(action.confidence).toLowerCase()] ?? ResearchConfidence.MEDIUM,
           status: MarketActionStatus.PROPOSED,
           requiresApproval: true,
