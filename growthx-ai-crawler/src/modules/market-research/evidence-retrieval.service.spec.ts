@@ -49,6 +49,36 @@ describe('EvidenceRetrievalService — lexical retrieval', () => {
     expect(results[0].url).toBe('https://x.com/pricing');
   });
 
+  // The bug that made a finished 29-page crawl invisible to research: a
+  // strategy question shares no words with the site's page titles, every BM25
+  // score is zero, and returning nothing left the run with no evidence at all —
+  // reported to the customer as "this project has no crawled pages".
+  it('still surfaces the client pages when nothing matches the wording', async () => {
+    prisma.page.findMany.mockResolvedValue([
+      page('https://x.com/mango-pulp', 'Mango Pulp'),
+      page('https://x.com/guava-pulp', 'Guava Pulp'),
+      page('https://x.com/quality', 'Quality and Certifications'),
+    ]);
+
+    const results = await service.searchClientPages('org', 'proj', 'What changed in this market this week?');
+
+    expect(results).toHaveLength(3);
+    // Scored at the floor: the pages are real, the wording match is not.
+    expect(results.every((r) => r.qualityScore === 0)).toBe(true);
+  });
+
+  it('still prefers a real keyword match over recency when one exists', async () => {
+    prisma.page.findMany.mockResolvedValue([
+      page('https://x.com/home', 'Home'),
+      page('https://x.com/mango-pulp', 'Mango Pulp'),
+    ]);
+
+    const results = await service.searchClientPages('org', 'proj', 'mango pulp');
+
+    expect(results[0].url).toBe('https://x.com/mango-pulp');
+    expect(results[0].qualityScore).toBeGreaterThan(0);
+  });
+
   it('ranks the page whose title matches the query first', async () => {
     prisma.page.findMany.mockResolvedValue([
       page('https://x.com/about', 'About our company'),
@@ -104,12 +134,21 @@ describe('EvidenceRetrievalService — lexical retrieval', () => {
     expect(results[0].url).toBe('https://x.com/c');
   });
 
-  it('returns nothing when no page matches, rather than a weak guess', async () => {
+  // This deliberately reverses an earlier decision to return nothing on a weak
+  // match. Withholding the pages did not make the answer more honest — it left
+  // the model with no client evidence at all, and the run reported a crawled
+  // site as having no pages. Handing over the real pages at a zero score keeps
+  // the honesty where it belongs: the model still may only cite what it was
+  // given, the citation validator still enforces that, and the score tells the
+  // reader plainly that nothing matched their wording.
+  it('hands over the real pages at a zero score when nothing matches', async () => {
     prisma.page.findMany.mockResolvedValue([page('https://x.com/a', 'Winter jackets')]);
 
     const results = await service.searchClientPages('org', 'proj', 'quantum computing');
 
-    expect(results).toEqual([]);
+    expect(results).toHaveLength(1);
+    expect(results[0].url).toBe('https://x.com/a');
+    expect(results[0].qualityScore).toBe(0);
   });
 
   it('returns nothing when the project has never been crawled', async () => {

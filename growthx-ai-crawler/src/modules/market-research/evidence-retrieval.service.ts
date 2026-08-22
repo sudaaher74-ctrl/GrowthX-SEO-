@@ -302,7 +302,25 @@ export class EvidenceRetrievalService {
     });
 
     const best = Math.max(...scored.map((r) => r.score), 0);
-    if (best === 0) return [];
+
+    // No lexical overlap at all. This is the common case for a strategy
+    // question — "what changed in this market this week" shares no words with
+    // "Mango Pulp" or "Quality & Certifications" — and returning nothing here
+    // threw away the client's entire crawl, leaving the run with no evidence
+    // and reporting it as "this project has no crawled pages". The pages are
+    // the whole point of crawling the site, so fall back to the most recently
+    // crawled ones and let the model read them. They are scored at the floor so
+    // the source drawer shows honestly that nothing matched the wording.
+    if (best === 0) {
+      return pages.slice(0, limit).map((page) => ({
+        type: ResearchSourceType.CLIENT_WEBSITE,
+        url: page.url,
+        internalDocId: page.url,
+        title: page.title ?? page.url,
+        excerpt: [page.title, page.metaDescription].filter(Boolean).join(' — ').slice(0, 500),
+        qualityScore: 0,
+      }));
+    }
 
     return scored
       .filter((r) => r.score > 0)
@@ -318,6 +336,26 @@ export class EvidenceRetrievalService {
         // reads on the same 0-1 scale as cosine similarity in the source drawer.
         qualityScore: Math.max(0, Math.min(1, score / best)),
       }));
+  }
+
+  /**
+   * How many crawled pages this project can actually draw on.
+   *
+   * Used to phrase the empty state truthfully: "nothing matched" and "nothing
+   * was ever crawled" are different problems with different fixes, and telling
+   * a customer who has crawled 29 pages that they have none sends them to
+   * re-run a crawl that was never the issue.
+   */
+  async countClientPages(projectId: string): Promise<number> {
+    const websites = await this.prisma.website.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    if (websites.length === 0) return 0;
+
+    return this.prisma.page.count({
+      where: { crawlJob: { websiteId: { in: websites.map((w) => w.id) } } },
+    });
   }
 
   /**
