@@ -68,9 +68,9 @@ export default function ContentAiPage() {
       />
 
       {!latestStrategy && !strategies.isLoading && (
-        <div className="rounded-xl border bg-[#fafafa] px-4 py-2.5 text-[12px] text-[#71717a]" style={{ borderColor: "#e5e7eb" }}>
+        <div className="rounded-xl border bg-brand-50 px-4 py-2.5 text-[12px] text-brand-500" style={{ borderColor: "var(--color-line)" }}>
           No strategy generated yet — the content plan is built from it.{" "}
-          <Link href="/strategy" className="font-medium text-[#2563eb] hover:underline">
+          <Link href="/strategy" className="font-medium text-accent-600 hover:underline">
             Generate a strategy →
           </Link>
         </div>
@@ -128,11 +128,11 @@ export default function ContentAiPage() {
                           className="h-3.5 w-3.5"
                         />
                       )}
-                      <span className="text-[12.5px] font-medium text-[#09090b]">{piece.title}</span>
+                      <span className="text-[12.5px] font-medium text-brand-950">{piece.title}</span>
                     </div>
                   </Td>
-                  <Td><span className="text-[12px] text-[#71717a]">{piece.format ?? "—"}</span></Td>
-                  <Td><span className="font-mono text-[11.5px] text-[#71717a]">{piece.targetQuery ?? "—"}</span></Td>
+                  <Td><span className="text-[12px] text-brand-500">{piece.format ?? "—"}</span></Td>
+                  <Td><span className="font-mono text-[11.5px] text-brand-500">{piece.targetQuery ?? "—"}</span></Td>
                   <Td><Pill tone={STATUS_TONE[piece.status]}>{piece.status}</Pill></Td>
                   <Td align="right">
                     {piece.status === "PLANNED" && (
@@ -145,7 +145,7 @@ export default function ContentAiPage() {
                       </ActionButton>
                     )}
                     {piece.status === "COMMITTED" && piece.filePath && (
-                      <span className="font-mono text-[11px] text-[#a1a1aa]">{piece.filePath}</span>
+                      <span className="font-mono text-[11px] text-brand-400">{piece.filePath}</span>
                     )}
                   </Td>
                 </Tr>
@@ -158,7 +158,7 @@ export default function ContentAiPage() {
       {upgrade && <UpgradePrompt upgrade={upgrade} />}
 
       {runContent.data && (
-        <div className="rounded-xl border bg-[#ecfdf5] px-4 py-3 text-[12.5px] text-[#047857]" style={{ borderColor: "#a7f3d0" }}>
+        <div className="rounded-xl border bg-success-50 px-4 py-3 text-[12.5px] text-success-700" style={{ borderColor: "var(--color-success-50)" }}>
           {runContent.data.status === "AWAITING_REVIEW" ? (
             <>
               Pull request opened with {runContent.data.filesChanged.length} page(s).{" "}
@@ -177,13 +177,13 @@ export default function ContentAiPage() {
       <Panel title="Repository" subtitle={repo.data ? `${repo.data.owner}/${repo.data.name} · ${repo.data.defaultBranch}` : "Not connected"}>
         <div className="p-4">
           {repo.data ? (
-            <p className="text-[12.5px] text-[#3f3f46]">
+            <p className="text-[12.5px] text-brand-700">
               Drafted pages are committed to a new branch and opened as a pull request against{" "}
               <span className="font-mono text-[11.5px]">{repo.data.defaultBranch}</span>. Nothing publishes without a review.
             </p>
           ) : !showConnect ? (
             <div className="text-center">
-              <p className="text-[12.5px] text-[#71717a]">Connect this client&apos;s website repository to ship drafted pages as a PR.</p>
+              <p className="text-[12.5px] text-brand-500">Connect this client&apos;s website repository to ship drafted pages as a PR.</p>
               <ActionButton className="mt-3" icon={<GitBranch size={12} />} onClick={() => setShowConnect(true)}>
                 Connect repository
               </ActionButton>
@@ -232,12 +232,12 @@ export default function ContentAiPage() {
             <tbody>
               {runs.data?.map((run) => (
                 <Tr key={run.id}>
-                  <Td><span className="text-[12px] text-[#3f3f46]">{run.kind}</span></Td>
+                  <Td><span className="text-[12px] text-brand-700">{run.kind}</span></Td>
                   <Td><Pill tone={run.status === "AWAITING_REVIEW" ? "good" : run.status === "FAILED" ? "bad" : "info"}>{run.status}</Pill></Td>
-                  <Td><span className="text-[11.5px] text-[#71717a]">{run.filesChanged.length}</span></Td>
+                  <Td><span className="text-[11.5px] text-brand-500">{run.filesChanged.length}</span></Td>
                   <Td align="right">
                     {run.pullRequestUrl && (
-                      <a href={run.pullRequestUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#2563eb] hover:underline">
+                      <a href={run.pullRequestUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] font-medium text-accent-600 hover:underline">
                         View <ExternalLink size={10} />
                       </a>
                     )}
@@ -267,14 +267,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#a1a1aa]">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-400">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-[12.5px] text-[#09090b]"
-        style={{ borderColor: "#e5e7eb" }}
+        className="mt-1 w-full rounded-lg border px-2.5 py-1.5 text-[12.5px] text-brand-950"
+        style={{ borderColor: "var(--color-line)" }}
       />
     </label>
   );

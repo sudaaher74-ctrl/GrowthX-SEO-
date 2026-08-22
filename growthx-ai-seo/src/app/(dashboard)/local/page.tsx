@@ -65,15 +65,15 @@ export default function LocalPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -87,7 +87,7 @@ export default function LocalPage() {
           {isLoading ? (
             <Panel>
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Loader2 size={32} className="text-[#e4e4e7] mb-4 animate-spin" />
+                <Loader2 size={32} className="text-brand-200 mb-4 animate-spin" />
                 <p className="text-sm text-[var(--text-muted)]">Loading local data...</p>
               </div>
             </Panel>
@@ -100,7 +100,7 @@ export default function LocalPage() {
                     placeholder="Search by business name and location..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 h-9 rounded-md border border-[#e4e4e7] bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-[#a1a1aa] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2563eb]"
+                    className="flex-1 h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
                   />
                   <ActionButton 
                     variant="primary" 
@@ -115,12 +115,12 @@ export default function LocalPage() {
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium text-[var(--text-primary)]">Search Results</h3>
                     {searchMutation.data.map((place: LocalBusinessPlace) => (
-                      <div key={place.placeId} className="flex items-center justify-between p-4 border border-[#e4e4e7] rounded-md">
+                      <div key={place.placeId} className="flex items-center justify-between p-4 border border-brand-200 rounded-md">
                         <div>
-                          <p className="font-medium text-[#09090b]">{place.name}</p>
-                          <p className="text-sm text-[#71717a]">{place.address}</p>
+                          <p className="font-medium text-brand-950">{place.name}</p>
+                          <p className="text-sm text-brand-500">{place.address}</p>
                           {place.rating > 0 && (
-                            <div className="flex items-center gap-1 mt-1 text-sm text-[#71717a]">
+                            <div className="flex items-center gap-1 mt-1 text-sm text-brand-500">
                               <Star size={12} className="text-yellow-500 fill-yellow-500" />
                               <span className="font-medium">{place.rating.toFixed(1)}</span>
                               <span>({place.userRatingsTotal.toLocaleString()} reviews)</span>
@@ -140,7 +140,7 @@ export default function LocalPage() {
                 )}
                 
                 {searchMutation.data && searchMutation.data.length === 0 && (
-                  <p className="text-sm text-[#71717a]">No businesses found matching that query.</p>
+                  <p className="text-sm text-brand-500">No businesses found matching that query.</p>
                 )}
                 {searchMutation.isError && (
                   <p className="text-sm text-red-500">Failed to search for businesses. Check API key.</p>
@@ -153,15 +153,15 @@ export default function LocalPage() {
                 <div className="space-y-4">
                   <Panel title="Google Business Profile Performance" subtitle="Profile overview and details">
                     <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                      <div className="border border-brand-200 rounded-md p-4">
                          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Business Name</h3>
                          <p className="text-lg font-medium">{localSeo?.businessName || "N/A"}</p>
                       </div>
-                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                      <div className="border border-brand-200 rounded-md p-4">
                          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Registered Address</h3>
                          <p className="text-[15px] font-medium">{localSeo?.address || "N/A"}</p>
                       </div>
-                      <div className="border border-[#e4e4e7] rounded-md p-4">
+                      <div className="border border-brand-200 rounded-md p-4">
                          <h3 className="text-sm font-medium text-[var(--text-muted)] mb-1">Last Updated</h3>
                          <p className="text-[15px] font-medium">{relativeTime(localSeo.updatedAt)}</p>
                       </div>
@@ -207,18 +207,18 @@ export default function LocalPage() {
                           const delta = r.previousPos ? r.previousPos - r.position : 0;
                           return (
                             <Tr key={r.id}>
-                              <Td><span className="font-medium text-[#09090b]">{r.keyword}</span></Td>
-                              <Td><span className="font-bold text-[#09090b]">#{r.position}</span></Td>
+                              <Td><span className="font-medium text-brand-950">{r.keyword}</span></Td>
+                              <Td><span className="font-bold text-brand-950">#{r.position}</span></Td>
                               <Td>
                                 {delta > 0 ? (
-                                  <span className="text-[#10b981] text-[13px] font-medium">+{delta}</span>
+                                  <span className="text-success-500 text-[13px] font-medium">+{delta}</span>
                                 ) : delta < 0 ? (
-                                  <span className="text-[#ef4444] text-[13px] font-medium">{delta}</span>
+                                  <span className="text-error-500 text-[13px] font-medium">{delta}</span>
                                 ) : (
-                                  <span className="text-[#a1a1aa] text-[13px]">—</span>
+                                  <span className="text-brand-400 text-[13px]">—</span>
                                 )}
                               </Td>
-                              <Td><span className="text-[#71717a]">{r.searchVolume.toLocaleString()}</span></Td>
+                              <Td><span className="text-brand-500">{r.searchVolume.toLocaleString()}</span></Td>
                             </Tr>
                           );
                         })}
@@ -226,7 +226,7 @@ export default function LocalPage() {
                     </Table>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <BarChart3 size={48} className="text-[#e4e4e7] mb-4" />
+                      <BarChart3 size={48} className="text-brand-200 mb-4" />
                       <h3 className="text-lg font-medium text-[var(--text-primary)]">No Rankings Data</h3>
                       <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
                         Your local ranking data will appear here once tracked.
@@ -266,7 +266,7 @@ function GbpAuditPanel({ projectId }: { projectId: string | null }) {
     >
       <div className="p-0">
         {proposalsLoading ? (
-          <div className="p-8 flex justify-center"><Loader2 size={24} className="animate-spin text-[#e4e4e7]" /></div>
+          <div className="p-8 flex justify-center"><Loader2 size={24} className="animate-spin text-brand-200" /></div>
         ) : !proposals || proposals.length === 0 ? (
           <div className="p-8 text-center text-[var(--text-muted)] text-sm">
             No pending fixes. Run an audit to analyze your profile.
@@ -314,7 +314,7 @@ function GbpAuditPanel({ projectId }: { projectId: string | null }) {
                         <button 
                           onClick={() => rejectMutation.mutate(proposal.id)}
                           disabled={rejectMutation.isPending}
-                          className="text-xs font-medium text-[#71717a] hover:text-[#09090b]"
+                          className="text-xs font-medium text-brand-500 hover:text-brand-950"
                         >
                           Reject
                         </button>
@@ -322,7 +322,7 @@ function GbpAuditPanel({ projectId }: { projectId: string | null }) {
                     ) : proposal.status === "PUSHED" ? (
                       <span className="text-xs font-medium text-green-600">Pushed Live</span>
                     ) : proposal.status === "REJECTED" ? (
-                      <span className="text-xs font-medium text-[#71717a]">Rejected</span>
+                      <span className="text-xs font-medium text-brand-500">Rejected</span>
                     ) : null}
                   </Td>
                 </Tr>

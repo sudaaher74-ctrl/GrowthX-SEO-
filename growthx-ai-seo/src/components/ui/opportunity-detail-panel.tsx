@@ -38,7 +38,7 @@ export function OpportunityDetailPanel({
   patchData,
 }: OpportunityProps) {
   return (
-    <div className="flex flex-col border rounded-lg bg-white shadow-sm w-full max-w-md overflow-hidden" style={{ borderColor: "var(--border-color, #e5e7eb)" }}>
+    <div className="flex flex-col border rounded-lg bg-white shadow-sm w-full max-w-md overflow-hidden" style={{ borderColor: "var(--border-color)" }}>
       <div className="p-4 border-b bg-gray-50/50">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Opportunity</h3>
         <h2 className="text-lg font-bold text-gray-900">{title}</h2>

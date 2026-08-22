@@ -41,7 +41,7 @@ export default function LoginPage() {
       footer={
         <>
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold underline underline-offset-2" style={{ color: "#0a0a0a" }}>
+          <Link href="/register" className="font-semibold underline underline-offset-2" style={{ color: "var(--color-brand-950)" }}>
             Create one
           </Link>
         </>
@@ -71,7 +71,7 @@ export default function LoginPage() {
           <p
             role="alert"
             className="rounded-lg border px-3 py-2 text-[13px]"
-            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "#b91c1c" }}
+            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "var(--color-error-700)" }}
           >
             {error}
           </p>

@@ -74,7 +74,7 @@ export default function ImageSeoPage() {
   const missingAltCount = (data?.images || []).filter((i) => !i.currentAlt || i.currentAlt.trim() === "").length;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#fafafa]">
+    <div className="flex-1 overflow-y-auto bg-brand-50">
       <PageHeader
         title="Image SEO & Alt Text Optimizer"
         subtitle="Audit on-page images, fix missing alt tags, and optimize file names with AI for Google Images rankings."
@@ -82,22 +82,22 @@ export default function ImageSeoPage() {
 
       <div className="p-8 max-w-6xl mx-auto space-y-8">
         {/* Input Bar */}
-        <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm">
+        <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm">
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#09090b]">Analyze Webpage Images</h3>
-              <p className="text-[12px] text-[#71717a] mt-0.5">
+              <h3 className="text-sm font-semibold text-brand-950">Analyze Webpage Images</h3>
+              <p className="text-[12px] text-brand-500 mt-0.5">
                 Enter any public webpage URL. We will extract all image assets, evaluate their SEO compliance, and generate rich contextual alt text.
               </p>
             </div>
             <div className="flex gap-4 items-end">
               <div className="flex-1">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Target Webpage URL
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    <Globe size={14} className="text-[#a1a1aa]" />
+                    <Globe size={14} className="text-brand-400" />
                   </div>
                   <input
                     placeholder="https://example.com/products/summer-jacket"
@@ -108,7 +108,7 @@ export default function ImageSeoPage() {
                         optimizeMut.mutate();
                       }
                     }}
-                    className="pl-9 h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    className="pl-9 h-10 w-full rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   />
                 </div>
               </div>
@@ -132,8 +132,8 @@ export default function ImageSeoPage() {
               <ImageIcon className="relative text-indigo-600 animate-bounce" size={36} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-[#09090b]">Extracting & Auditing Images...</p>
-              <p className="text-[12px] text-[#71717a] mt-1">
+              <p className="text-sm font-semibold text-brand-950">Extracting & Auditing Images...</p>
+              <p className="text-[12px] text-brand-500 mt-1">
                 Scanning DOM, checking image dimensions, and reasoning about image context with AI.
               </p>
             </div>
@@ -153,38 +153,38 @@ export default function ImageSeoPage() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             {/* Overview Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Image SEO Score</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Image SEO Score</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className={`text-3xl font-bold ${data.overallScore >= 80 ? "text-emerald-600" : data.overallScore >= 50 ? "text-amber-600" : "text-rose-600"}`}>
                     {data.overallScore}
                   </span>
-                  <span className="text-[12px] text-[#71717a]">/ 100</span>
+                  <span className="text-[12px] text-brand-500">/ 100</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Total Images Found</p>
-                <p className="text-3xl font-bold text-[#09090b] mt-2">{data.images.length}</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Total Images Found</p>
+                <p className="text-3xl font-bold text-brand-950 mt-2">{data.images.length}</p>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Missing Alt Text</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Missing Alt Text</p>
                 <p className={`text-3xl font-bold mt-2 ${missingAltCount > 0 ? "text-rose-600" : "text-emerald-600"}`}>
                   {missingAltCount}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Audit Result</p>
-                <p className="text-[12px] text-[#3f3f46] mt-2 line-clamp-2 leading-relaxed">
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Audit Result</p>
+                <p className="text-[12px] text-brand-700 mt-2 line-clamp-2 leading-relaxed">
                   {data.summary}
                 </p>
               </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center justify-between border-b border-[#e4e4e7] pb-3">
+            <div className="flex items-center justify-between border-b border-brand-200 pb-3">
               <div className="flex gap-2">
                 {[
                   { id: "ALL", label: `All (${data.images.length})` },
@@ -197,20 +197,20 @@ export default function ImageSeoPage() {
                     onClick={() => setFilter(tab.id as any)}
                     className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition ${
                       filter === tab.id
-                        ? "bg-[#09090b] text-white"
-                        : "bg-white text-[#71717a] hover:text-[#09090b] border border-[#e4e4e7]"
+                        ? "bg-brand-950 text-white"
+                        : "bg-white text-brand-500 hover:text-brand-950 border border-brand-200"
                     }`}
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
-              <span className="text-[11px] text-[#a1a1aa]">Powered by GrowthX Multi-AI Router</span>
+              <span className="text-[11px] text-brand-400">Powered by GrowthX Multi-AI Router</span>
             </div>
 
             {/* Image Cards List */}
             {filteredImages.length === 0 ? (
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-12 text-center text-[#71717a] text-[13px]">
+              <div className="bg-white rounded-xl border border-brand-200 p-12 text-center text-brand-500 text-[13px]">
                 No images matching this filter.
               </div>
             ) : (
@@ -221,10 +221,10 @@ export default function ImageSeoPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm flex flex-col md:flex-row gap-5 items-start hover:border-[#a1a1aa] transition"
+                    className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm flex flex-col md:flex-row gap-5 items-start hover:border-brand-400 transition"
                   >
                     {/* Thumbnail */}
-                    <div className="w-full md:w-44 h-32 bg-[#f4f4f5] rounded-lg overflow-hidden shrink-0 relative flex items-center justify-center border border-[#e4e4e7]">
+                    <div className="w-full md:w-44 h-32 bg-brand-100 rounded-lg overflow-hidden shrink-0 relative flex items-center justify-center border border-brand-200">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={img.src}
@@ -246,7 +246,7 @@ export default function ImageSeoPage() {
                           href={img.src}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[12px] text-[#71717a] hover:text-[#09090b] flex items-center gap-1 truncate max-w-lg"
+                          className="text-[12px] text-brand-500 hover:text-brand-950 flex items-center gap-1 truncate max-w-lg"
                         >
                           <span className="truncate">{img.src}</span>
                           <ExternalLink size={12} className="shrink-0" />
@@ -267,11 +267,11 @@ export default function ImageSeoPage() {
 
                       {/* Current vs Suggested Alt */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="p-3 rounded-lg bg-[#fafafa] border border-[#f4f4f5]">
-                          <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider mb-1">
+                        <div className="p-3 rounded-lg bg-brand-50 border border-brand-100">
+                          <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
                             Current Alt Tag
                           </p>
-                          <p className="text-[12px] text-[#3f3f46]">
+                          <p className="text-[12px] text-brand-700">
                             {img.currentAlt ? (
                               `"${img.currentAlt}"`
                             ) : (
@@ -301,15 +301,15 @@ export default function ImageSeoPage() {
                       </div>
 
                       {/* Recommended File Name & Rationale */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-[#71717a]">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px] text-brand-500">
                         <div className="flex items-center gap-1.5">
-                          <FileText size={12} className="text-[#a1a1aa]" />
+                          <FileText size={12} className="text-brand-400" />
                           <span>SEO File Name:</span>
-                          <code className="font-mono text-[#09090b] bg-[#f4f4f5] px-1.5 py-0.5 rounded">
+                          <code className="font-mono text-brand-950 bg-brand-100 px-1.5 py-0.5 rounded">
                             {img.recommendedFileName}
                           </code>
                         </div>
-                        <p className="text-[11px] text-[#71717a] italic truncate max-w-md">
+                        <p className="text-[11px] text-brand-500 italic truncate max-w-md">
                           {img.rationale}
                         </p>
                       </div>

@@ -93,15 +93,15 @@ function WebsiteClient() {
         emptyTitle="No website registered"
         emptyBody="Register this client's website before running an audit."
       >
-        <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+        <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "border-[#2563eb] text-[#2563eb]"
-                  : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                  ? "border-accent-600 text-accent-600"
+                  : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
               }`}
             >
               <tab.icon size={14} />
@@ -123,7 +123,7 @@ function WebsiteClient() {
           {activeTab === "technical-seo" && (
             <Panel title="Technical SEO Issues" subtitle={`${allIssues.length} issues identified`}>
               {allIssues.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
                   No issues found.
                 </p>
               ) : (
@@ -144,8 +144,8 @@ function WebsiteClient() {
                           </Pill>
                         </Td>
                         <Td>
-                          <span className="text-[12.5px] font-medium text-[#09090b]">{issue.issueType}</span>
-                          <span className="block max-w-xs text-[11px] text-[#71717a]">{issue.description}</span>
+                          <span className="text-[12.5px] font-medium text-brand-950">{issue.issueType}</span>
+                          <span className="block max-w-xs text-[11px] text-brand-500">{issue.description}</span>
                         </Td>
                         <Td>
                           <Mono tone="soft">{shorten(issue.affectedUrl)}</Mono>
@@ -161,7 +161,7 @@ function WebsiteClient() {
           {activeTab === "performance" && (
             <Panel title="Performance Metrics" subtitle="Core Web Vitals from the Performance Engine">
               {allPages.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
                   No performance data available.
                 </p>
               ) : (
@@ -202,7 +202,7 @@ function WebsiteClient() {
           {activeTab === "pages" && (
             <Panel title="Crawled Pages" subtitle={`${allPages.length} pages indexed`}>
               {allPages.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-[#a1a1aa]">
+                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
                   No pages crawled yet.
                 </p>
               ) : (
@@ -227,7 +227,7 @@ function WebsiteClient() {
                           <Mono tone="soft">{shorten(page.url)}</Mono>
                         </Td>
                         <Td>
-                          <span className="text-[12px] text-[#3f3f46] max-w-xs block truncate" title={page.title || ""}>
+                          <span className="text-[12px] text-brand-700 max-w-xs block truncate" title={page.title || ""}>
                             {page.title || "—"}
                           </span>
                         </Td>

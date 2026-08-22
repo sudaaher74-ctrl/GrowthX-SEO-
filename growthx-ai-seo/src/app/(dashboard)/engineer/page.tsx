@@ -60,7 +60,7 @@ function EngineerClient() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -70,8 +70,8 @@ function EngineerClient() {
             }}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
-                ? "border-[#2563eb] text-[#2563eb]"
-                : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+                ? "border-accent-600 text-accent-600"
+                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
             }`}
           >
             <tab.icon size={14} />
@@ -99,7 +99,7 @@ function EngineerClient() {
                   <tbody>
                     {actionableIssues.map((row) => (
                       <Tr key={row.id} className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setSelectedIssueId(row.id)}>
-                        <Td className="font-medium text-[#09090b]">
+                        <Td className="font-medium text-brand-950">
                           <div className="flex items-center gap-2">
                             <Code size={14} className="text-gray-500" />
                             <span>{row.description || row.issueType}</span>
@@ -112,7 +112,7 @@ function EngineerClient() {
                           <Pill tone="default">{row.issueType}</Pill>
                         </Td>
                         <Td>
-                          <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#71717a]">
+                          <div className="flex items-center gap-1.5 text-[12px] font-medium text-brand-500">
                             {row.status === "RESOLVED" ? (
                               <><CheckCircle2 size={14} className="text-green-600" /> Resolved</>
                             ) : (
@@ -135,7 +135,7 @@ function EngineerClient() {
 
           {(activeTab === "deployments") && (
              <Panel title="Recent Deployments" subtitle="Automated fixes deployed to production.">
-               <div className="p-8 text-center text-[#71717a] border-t border-[#f4f4f5]">
+               <div className="p-8 text-center text-brand-500 border-t border-brand-100">
                   No deployments yet. Generate and merge a PR to see deployment history.
                </div>
              </Panel>

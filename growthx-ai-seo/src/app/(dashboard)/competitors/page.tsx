@@ -44,13 +44,13 @@ function CompetitorsClient() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-[#e4e4e7] overflow-x-auto pb-[-1px]">
+      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
         <button
           onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "overview"
-              ? "border-[#09090b] text-[#09090b]"
-              : "border-transparent text-[#71717a] hover:text-[#09090b] hover:border-[#d4d4d8]"
+              ? "border-brand-950 text-brand-950"
+              : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
           }`}
         >
           <Target size={14} />
@@ -65,24 +65,24 @@ function CompetitorsClient() {
             <form onSubmit={handleAddCompetitor} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[13px] font-medium text-[#09090b] mb-1">Domain</label>
+                  <label className="block text-[13px] font-medium text-brand-950 mb-1">Domain</label>
                   <input
                     type="text"
                     required
                     value={domain}
                     onChange={(e) => setDomain(e.target.value)}
                     placeholder="e.g. competitor.com"
-                    className="w-full h-9 px-3 text-[13px] border border-[#e4e4e7] rounded-md focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    className="w-full h-9 px-3 text-[13px] border border-brand-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-950"
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-[#09090b] mb-1">Label (Optional)</label>
+                  <label className="block text-[13px] font-medium text-brand-950 mb-1">Label (Optional)</label>
                   <input
                     type="text"
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
                     placeholder="e.g. Competitor Inc"
-                    className="w-full h-9 px-3 text-[13px] border border-[#e4e4e7] rounded-md focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    className="w-full h-9 px-3 text-[13px] border border-brand-200 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-950"
                   />
                 </div>
               </div>
@@ -90,7 +90,7 @@ function CompetitorsClient() {
                 <button
                   type="button"
                   onClick={() => setIsAdding(false)}
-                  className="px-3 py-1.5 text-[13px] font-medium text-[#71717a] hover:text-[#09090b]"
+                  className="px-3 py-1.5 text-[13px] font-medium text-brand-500 hover:text-brand-950"
                 >
                   Cancel
                 </button>
@@ -115,7 +115,7 @@ function CompetitorsClient() {
           <Panel title="Share of Voice" subtitle="Percentage of tracked prompts where the brand was cited.">
             {shareOfVoice.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Target size={48} className="text-[#e4e4e7] mb-4" />
+                <Target size={48} className="text-brand-200 mb-4" />
                 <h3 className="text-lg font-medium text-[var(--text-primary)]">No Data Available</h3>
                 <p className="text-sm text-[var(--text-muted)] max-w-md mt-2">
                   Add competitors and sweep your AI visibility prompts to see share of voice.
@@ -135,25 +135,25 @@ function CompetitorsClient() {
                     <Tr key={row.domain || idx}>
                       <Td>
                         <div className="flex flex-col">
-                          <span className="text-[13px] font-medium text-[#09090b]">
+                          <span className="text-[13px] font-medium text-brand-950">
                             {row.label || row.domain}
                           </span>
                           {row.label && row.domain && (
-                            <span className="text-[11px] text-[#71717a]">{row.domain}</span>
+                            <span className="text-[11px] text-brand-500">{row.domain}</span>
                           )}
                         </div>
                       </Td>
                       <Td>
-                        <span className="text-[13px] font-medium text-[#09090b]">{row.mentions}</span>
+                        <span className="text-[13px] font-medium text-brand-950">{row.mentions}</span>
                       </Td>
                       <Td>
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-medium text-[#09090b] w-12">
+                          <span className="text-[13px] font-medium text-brand-950 w-12">
                             {row.sharePct.toFixed(1)}%
                           </span>
-                          <div className="h-2 w-48 bg-[#f4f4f5] rounded-full overflow-hidden">
+                          <div className="h-2 w-48 bg-brand-100 rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-[#09090b] rounded-full" 
+                              className="h-full bg-brand-950 rounded-full" 
                               style={{ width: `${row.sharePct}%` }}
                             />
                           </div>

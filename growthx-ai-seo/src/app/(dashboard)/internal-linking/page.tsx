@@ -85,7 +85,7 @@ export default function InternalLinkingPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#fafafa]">
+    <div className="flex-1 overflow-y-auto bg-brand-50">
       <PageHeader
         title="AI Internal Linking Engine"
         subtitle="Analyze topical relevance across your domain and generate high-impact internal link recommendations with natural anchor text."
@@ -93,22 +93,22 @@ export default function InternalLinkingPage() {
 
       <div className="p-8 max-w-6xl mx-auto space-y-8">
         {/* Input Card */}
-        <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm">
+        <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm">
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#09090b]">Analyze Page for Internal Linking</h3>
-              <p className="text-[12px] text-[#71717a] mt-0.5">
+              <h3 className="text-sm font-semibold text-brand-950">Analyze Page for Internal Linking</h3>
+              <p className="text-[12px] text-brand-500 mt-0.5">
                 Provide the URL of a blog post, landing page, or guide. Our AI cross-references your entire site architecture to pinpoint where to add internal links.
               </p>
             </div>
             <div className="flex gap-4 items-end">
               <div className="flex-1">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Target Page URL
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    <Globe size={14} className="text-[#a1a1aa]" />
+                    <Globe size={14} className="text-brand-400" />
                   </div>
                   <input
                     placeholder="https://example.com/blog/how-to-do-seo"
@@ -119,7 +119,7 @@ export default function InternalLinkingPage() {
                         linkMut.mutate();
                       }
                     }}
-                    className="pl-9 h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    className="pl-9 h-10 w-full rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   />
                 </div>
               </div>
@@ -143,8 +143,8 @@ export default function InternalLinkingPage() {
               <Network className="relative text-blue-600 animate-bounce" size={36} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-[#09090b]">Analyzing Topical Authority & Page Graph...</p>
-              <p className="text-[12px] text-[#71717a] mt-1">
+              <p className="text-sm font-semibold text-brand-950">Analyzing Topical Authority & Page Graph...</p>
+              <p className="text-[12px] text-brand-500 mt-1">
                 Evaluating semantics, anchor text distribution, and cluster hierarchy across your project pages.
               </p>
             </div>
@@ -156,8 +156,8 @@ export default function InternalLinkingPage() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Internal Link Health</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Internal Link Health</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span
                     className={`text-3xl font-bold ${
@@ -170,37 +170,37 @@ export default function InternalLinkingPage() {
                   >
                     {data.linkHealthScore}
                   </span>
-                  <span className="text-[12px] text-[#71717a]">/ 100</span>
+                  <span className="text-[12px] text-brand-500">/ 100</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Current Internal Links</p>
-                <p className="text-3xl font-bold text-[#09090b] mt-2">{data.currentInternalLinksCount}</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Current Internal Links</p>
+                <p className="text-3xl font-bold text-brand-950 mt-2">{data.currentInternalLinksCount}</p>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">New Links Suggested</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">New Links Suggested</p>
                 <p className="text-3xl font-bold text-blue-600 mt-2">{data.suggestions.length}</p>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Strategic Summary</p>
-                <p className="text-[12px] text-[#3f3f46] mt-2 line-clamp-2 leading-relaxed">
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Strategic Summary</p>
+                <p className="text-[12px] text-brand-700 mt-2 line-clamp-2 leading-relaxed">
                   {data.summary}
                 </p>
               </div>
             </div>
 
             {/* Suggestions Header */}
-            <div className="flex items-center justify-between border-b border-[#e4e4e7] pb-3">
+            <div className="flex items-center justify-between border-b border-brand-200 pb-3">
               <div className="flex items-center gap-2">
                 <Link2 size={16} className="text-blue-600" />
-                <h3 className="text-sm font-semibold text-[#09090b]">
+                <h3 className="text-sm font-semibold text-brand-950">
                   Recommended Internal Link Placements ({data.suggestions.length})
                 </h3>
               </div>
-              <span className="text-[11px] text-[#71717a]">Sorted by Topical Relevance</span>
+              <span className="text-[11px] text-brand-500">Sorted by Topical Relevance</span>
             </div>
 
             {/* Suggestions Grid / List */}
@@ -213,21 +213,21 @@ export default function InternalLinkingPage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm hover:border-[#a1a1aa] transition space-y-4"
+                    className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm hover:border-brand-400 transition space-y-4"
                   >
                     {/* Header Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#f4f4f5] pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-100 pb-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${badge.bg} ${badge.tone}`}>
                           {badge.label}
                         </span>
-                        <span className="text-[11px] font-medium text-[#71717a]">
-                          Relevance Score: <strong className="text-[#09090b]">{s.relevancyScore}/100</strong>
+                        <span className="text-[11px] font-medium text-brand-500">
+                          Relevance Score: <strong className="text-brand-950">{s.relevancyScore}/100</strong>
                         </span>
                       </div>
                       <button
                         onClick={() => copyToClipboard(s.targetUrl)}
-                        className="text-[11px] text-[#71717a] hover:text-[#09090b] flex items-center gap-1 self-start sm:self-auto"
+                        className="text-[11px] text-brand-500 hover:text-brand-950 flex items-center gap-1 self-start sm:self-auto"
                       >
                         {copiedUrl === s.targetUrl ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
                         {copiedUrl === s.targetUrl ? "Target Copied" : "Copy Target URL"}
@@ -236,21 +236,21 @@ export default function InternalLinkingPage() {
 
                     {/* Context and Anchor */}
                     <div className="space-y-2">
-                      <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                      <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">
                         Context Placement (In Page Content)
                       </p>
-                      <div className="p-3.5 bg-[#f8fafc] rounded-lg border border-[#e2e8f0] text-[13px] text-[#334155] leading-relaxed">
+                      <div className="p-3.5 bg-brand-50 rounded-lg border border-line text-[13px] text-brand-800 leading-relaxed">
                         &ldquo;{highlightAnchorInContext(s.sentenceContext, s.recommendedAnchorText)}&rdquo;
                       </div>
                     </div>
 
                     {/* Target Link & Action */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                      <div className="p-3 bg-[#fafafa] rounded-lg border border-[#f4f4f5] space-y-1">
-                        <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                      <div className="p-3 bg-brand-50 rounded-lg border border-brand-100 space-y-1">
+                        <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">
                           Destination Page
                         </p>
-                        <p className="text-[13px] font-semibold text-[#09090b] truncate">{s.targetTitle}</p>
+                        <p className="text-[13px] font-semibold text-brand-950 truncate">{s.targetTitle}</p>
                         <a
                           href={s.targetUrl}
                           target="_blank"

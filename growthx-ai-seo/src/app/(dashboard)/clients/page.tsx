@@ -64,8 +64,8 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[#09090b]">Projects portfolio</h1>
-          <p className="mt-0.5 text-[13px] text-[#71717a]">
+          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-brand-950">Projects portfolio</h1>
+          <p className="mt-0.5 text-[13px] text-brand-500">
             {summary ? `${summary.clientCount} project${summary.clientCount === 1 ? "" : "s"}` : "—"}
             {summary?.clientsWithoutRetainer
               ? ` · ${summary.clientsWithoutRetainer} without a recorded retainer`
@@ -76,14 +76,14 @@ export default function ClientsPage() {
           <button
             onClick={() => exportCsv(clients)}
             disabled={!clients.length}
-            className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[12px] font-medium text-[#3f3f46] transition-colors hover:bg-[#fafafa] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[12px] font-medium text-brand-700 transition-colors hover:bg-brand-50 disabled:opacity-50"
             style={{ borderColor: "var(--border-color)" }}
           >
             <Download size={13} /> Export CSV
           </button>
           <Link
             href="/projects"
-            className="flex items-center gap-1.5 rounded-lg bg-[#09090b] px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Plus size={13} /> Add project
           </Link>
@@ -143,15 +143,15 @@ export default function ClientsPage() {
                 className={cn(
                   "rounded-full border px-3 py-1 text-[11.5px] font-medium transition-colors",
                   filter === f
-                    ? "border-[#09090b] bg-[#09090b] text-white"
-                    : "bg-white text-[#52525b] hover:bg-[#fafafa]",
+                    ? "border-brand-950 bg-brand-950 text-white"
+                    : "bg-white text-brand-600 hover:bg-brand-50",
                 )}
                 style={filter === f ? undefined : { borderColor: "var(--border-color)" }}
               >
                 {f}
               </button>
             ))}
-            <span className="ml-auto font-mono text-[11px] text-[#a1a1aa]">{rows.length} shown</span>
+            <span className="ml-auto font-mono text-[11px] text-brand-400">{rows.length} shown</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -171,15 +171,15 @@ export default function ClientsPage() {
               </thead>
               <tbody>
                 {rows.map((client) => (
-                  <tr key={client.projectId} className="border-b transition-colors hover:bg-[#fafafa]" style={{ borderColor: "#f4f4f5" }}>
+                  <tr key={client.projectId} className="border-b transition-colors hover:bg-brand-50" style={{ borderColor: "var(--color-brand-100)" }}>
                     <Td>
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#f4f4f5] font-mono text-[10px] font-semibold text-[#3f3f46]">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[10px] font-semibold text-brand-700">
                           {client.initials}
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate text-[13px] font-semibold text-[#09090b]">{client.name}</span>
-                          <span className="block truncate font-mono text-[10.5px] text-[#a1a1aa]">
+                          <span className="block truncate text-[13px] font-semibold text-brand-950">{client.name}</span>
+                          <span className="block truncate font-mono text-[10.5px] text-brand-400">
                             {client.domain ?? "no website"}
                           </span>
                         </span>
@@ -188,34 +188,34 @@ export default function ClientsPage() {
 
                     <Td>
                       {client.retainerMonthlyMinor != null ? (
-                        <span className="text-[12px] text-[#52525b]">
+                        <span className="text-[12px] text-brand-600">
                           {client.tier ? `${client.tier} · ` : ""}
                           {formatMoney(client.retainerMonthlyMinor, client.retainerCurrency)}/mo
                         </span>
                       ) : (
-                        <span className="text-[12px] text-[#a1a1aa]">—</span>
+                        <span className="text-[12px] text-brand-400">—</span>
                       )}
                     </Td>
 
                     <Td>
                       {client.aiCitationSharePct === null ? (
-                        <span className="text-[11.5px] text-[#a1a1aa]">not tracked</span>
+                        <span className="text-[11.5px] text-brand-400">not tracked</span>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#f4f4f5]">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-100">
                             <div
-                              className="h-full rounded-full bg-[#059669]"
+                              className="h-full rounded-full bg-success-700"
                               style={{ width: `${Math.min(100, client.aiCitationSharePct)}%` }}
                             />
                           </div>
-                          <span className="font-mono text-[12px] font-semibold text-[#09090b]">
+                          <span className="font-mono text-[12px] font-semibold text-brand-950">
                             {client.aiCitationSharePct}%
                           </span>
                           {client.aiDeltaPt != null && (
                             <span
                               className={cn(
                                 "font-mono text-[11px]",
-                                client.aiDeltaPt >= 0 ? "text-[#059669]" : "text-[#dc2626]",
+                                client.aiDeltaPt >= 0 ? "text-success-700" : "text-error-500",
                               )}
                             >
                               {client.aiDeltaPt >= 0 ? "+" : ""}
@@ -231,12 +231,12 @@ export default function ClientsPage() {
                         className={cn(
                           "font-mono text-[12px] font-semibold",
                           client.health === null
-                            ? "text-[#a1a1aa]"
+                            ? "text-brand-400"
                             : client.health >= 80
-                              ? "text-[#059669]"
+                              ? "text-success-700"
                               : client.health >= 60
-                                ? "text-[#d97706]"
-                                : "text-[#dc2626]",
+                                ? "text-warning-500"
+                                : "text-error-500",
                         )}
                       >
                         {client.health ?? "—"}
@@ -251,10 +251,10 @@ export default function ClientsPage() {
                         className={cn(
                           "inline-block rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold",
                           client.criticalIssues === 0
-                            ? "bg-[#ecfdf5] text-[#047857]"
+                            ? "bg-success-50 text-success-700"
                             : client.criticalIssues >= 5
-                              ? "bg-[#fef2f2] text-[#b91c1c]"
-                              : "bg-[#f4f4f5] text-[#3f3f46]",
+                              ? "bg-error-50 text-error-700"
+                              : "bg-brand-100 text-brand-700",
                         )}
                       >
                         {client.criticalIssues}
@@ -262,7 +262,7 @@ export default function ClientsPage() {
                     </Td>
 
                     <Td><Sparkline values={client.trend} /></Td>
-                    <Td><span className="text-[11.5px] text-[#71717a]">{relativeTime(client.lastCrawledAt)}</span></Td>
+                    <Td><span className="text-[11.5px] text-brand-500">{relativeTime(client.lastCrawledAt)}</span></Td>
                   </tr>
                 ))}
               </tbody>
@@ -274,23 +274,23 @@ export default function ClientsPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Panel title="Needs your attention" subtitle={`across ${summary?.clientCount ?? 0} projects`}>
             {alerts.length === 0 ? (
-              <p className="px-4 py-6 text-center text-[12px] text-[#a1a1aa]">Nothing needs attention right now.</p>
+              <p className="px-4 py-6 text-center text-[12px] text-brand-400">Nothing needs attention right now.</p>
             ) : (
               <ul>
                 {alerts.slice(0, 6).map((alert, i) => (
-                  <li key={i} className="flex items-start gap-2.5 border-b px-4 py-3 last:border-0" style={{ borderColor: "#f4f4f5" }}>
+                  <li key={i} className="flex items-start gap-2.5 border-b px-4 py-3 last:border-0" style={{ borderColor: "var(--color-brand-100)" }}>
                     <span
                       className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
                       style={{
                         background:
-                          alert.severity === "critical" ? "#dc2626" : alert.severity === "warning" ? "#d97706" : "#a1a1aa",
+                          alert.severity === "critical" ? "var(--color-error-500)" : alert.severity === "warning" ? "var(--color-warning-500)" : "var(--color-brand-400)",
                       }}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[12.5px] font-medium text-[#09090b]">{alert.title}</span>
-                      <span className="block text-[11.5px] text-[#71717a]">{alert.detail}</span>
+                      <span className="block text-[12.5px] font-medium text-brand-950">{alert.title}</span>
+                      <span className="block text-[11.5px] text-brand-500">{alert.detail}</span>
                     </span>
-                    <span className="shrink-0 rounded bg-[#f4f4f5] px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-[#52525b]">
+                    <span className="shrink-0 rounded bg-brand-100 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-brand-600">
                       {alert.tag}
                     </span>
                   </li>
@@ -302,7 +302,7 @@ export default function ClientsPage() {
           <Panel title="Portfolio AI citation share" subtitle="Share of tracked prompts where a project is cited">
             <div className="h-[210px] px-3 pb-3 pt-4">
               {trendData.length === 0 ? (
-                <p className="flex h-full items-center justify-center text-[12px] text-[#a1a1aa]">
+                <p className="flex h-full items-center justify-center text-[12px] text-brand-400">
                   No citation history yet.
                 </p>
               ) : (
@@ -310,14 +310,14 @@ export default function ClientsPage() {
                   <AreaChart data={trendData}>
                     <defs>
                       <linearGradient id="share" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                        <stop offset="0%" stopColor="var(--color-accent-600)" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="var(--color-accent-600)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} />
-                    <YAxis unit="%" tick={{ fontSize: 10, fill: "#a1a1aa" }} axisLine={false} tickLine={false} width={34} />
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "var(--color-brand-400)" }} axisLine={false} tickLine={false} />
+                    <YAxis unit="%" tick={{ fontSize: 10, fill: "var(--color-brand-400)" }} axisLine={false} tickLine={false} width={34} />
                     <Tooltip formatter={(v) => `${v}%`} />
-                    <Area type="monotone" dataKey="share" stroke="#2563eb" strokeWidth={2} fill="url(#share)" />
+                    <Area type="monotone" dataKey="share" stroke="var(--color-accent-600)" strokeWidth={2} fill="url(#share)" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -348,25 +348,25 @@ function Kpi({
 }) {
   return (
     <div className="rounded-xl border bg-white p-4" style={{ borderColor: "var(--border-color)" }}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-[#a1a1aa]">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span
           className={cn(
             "font-mono text-[24px] font-bold tracking-[-0.02em]",
-            tone === "danger" ? "text-[#dc2626]" : "text-[#09090b]",
+            tone === "danger" ? "text-error-500" : "text-brand-950",
           )}
         >
           {value}
         </span>
         {delta != null && (
-          <span className={cn("font-mono text-[12px] font-medium", delta >= 0 ? "text-[#059669]" : "text-[#dc2626]")}>
+          <span className={cn("font-mono text-[12px] font-medium", delta >= 0 ? "text-success-700" : "text-error-500")}>
             {delta >= 0 ? "+" : ""}
             {delta}
             {deltaSuffix}
           </span>
         )}
       </div>
-      {sub && <p className="mt-1 text-[11px] text-[#71717a]">{sub}</p>}
+      {sub && <p className="mt-1 text-[11px] text-brand-500">{sub}</p>}
     </div>
   );
 }
@@ -375,8 +375,8 @@ function Panel({ title, subtitle, children }: { title: string; subtitle?: string
   return (
     <div className="overflow-hidden rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
       <div className="flex items-baseline justify-between border-b px-4 py-3" style={{ borderColor: "var(--border-color)" }}>
-        <h2 className="text-[13px] font-semibold text-[#09090b]">{title}</h2>
-        {subtitle && <span className="text-[11px] text-[#a1a1aa]">{subtitle}</span>}
+        <h2 className="text-[13px] font-semibold text-brand-950">{title}</h2>
+        {subtitle && <span className="text-[11px] text-brand-400">{subtitle}</span>}
       </div>
       {children}
     </div>
@@ -400,9 +400,9 @@ function Th({
   return (
     <th
       className={cn(
-        "px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[#a1a1aa]",
+        "px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-400",
         align === "right" ? "text-right" : "text-left",
-        sortKey && "cursor-pointer select-none hover:text-[#52525b]",
+        sortKey && "cursor-pointer select-none hover:text-brand-600",
       )}
       onClick={() =>
         sortKey && setSort?.({ key: sortKey, dir: active && sort!.dir === -1 ? 1 : -1 })
@@ -419,12 +419,12 @@ function Td({ children, align = "left" }: { children: React.ReactNode; align?: "
 }
 
 function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-[12px] text-[#3f3f46]">{children}</span>;
+  return <span className="font-mono text-[12px] text-brand-700">{children}</span>;
 }
 
 /** Inline SVG sparkline — no chart library needed for 12 points. */
 function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return <span className="text-[11px] text-[#d4d4d8]">—</span>;
+  if (values.length < 2) return <span className="text-[11px] text-brand-300">—</span>;
 
   const w = 68;
   const h = 22;
@@ -442,7 +442,7 @@ function Sparkline({ values }: { values: number[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke={rising ? "#059669" : "#dc2626"}
+        stroke={rising ? "var(--color-success-700)" : "var(--color-error-500)"}
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"

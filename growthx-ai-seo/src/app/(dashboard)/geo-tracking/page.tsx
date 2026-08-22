@@ -144,7 +144,7 @@ export default function GeoTrackingPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#fafafa]">
+    <div className="flex-1 overflow-y-auto bg-brand-50">
       <PageHeader
         title="Local Geo-Grid Map Pack Tracker"
         subtitle="Simulate and track your Google Maps rankings across a live multi-point geo-coordinate matrix."
@@ -152,23 +152,23 @@ export default function GeoTrackingPage() {
 
       <div className="p-8 max-w-7xl mx-auto space-y-8">
         {/* Search & Config Bar */}
-        <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm">
+        <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-semibold text-[#09090b]">Geo-Grid Ranking Scan</h3>
-                <p className="text-[12px] text-[#71717a] mt-0.5">
+                <h3 className="text-sm font-semibold text-brand-950">Geo-Grid Ranking Scan</h3>
+                <p className="text-[12px] text-brand-500 mt-0.5">
                   Track how your business ranks in Google Local 3-Packs at specific distance nodes around your location.
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-[#71717a] uppercase tracking-wider">Quick Presets:</span>
+                <span className="text-[11px] font-medium text-brand-500 uppercase tracking-wider">Quick Presets:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {PRESET_KEYWORDS.slice(0, 3).map((kw) => (
                     <button
                       key={kw}
                       onClick={() => setKeyword(kw)}
-                      className="px-2.5 py-1 rounded-md text-[11px] bg-[#f4f4f5] text-[#3f3f46] hover:bg-[#e4e4e7] transition"
+                      className="px-2.5 py-1 rounded-md text-[11px] bg-brand-100 text-brand-700 hover:bg-brand-200 transition"
                     >
                       {kw}
                     </button>
@@ -180,45 +180,45 @@ export default function GeoTrackingPage() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               {/* Target Keyword */}
               <div className="md:col-span-4">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Target Local Keyword
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                    <Search size={14} className="text-[#a1a1aa]" />
+                    <Search size={14} className="text-brand-400" />
                   </div>
                   <input
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                     placeholder="e.g. luxury jewellery store"
-                    className="pl-9 h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                    className="pl-9 h-10 w-full rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                   />
                 </div>
               </div>
 
               {/* Business Name */}
               <div className="md:col-span-3">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Business Name (Optional)
                 </label>
                 <input
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="e.g. Tanishq Jewellery"
-                  className="h-10 w-full rounded-md border border-[#e4e4e7] bg-white px-3 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="h-10 w-full rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                 />
               </div>
 
               {/* Grid Size */}
               <div className="md:col-span-2">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Grid Size
                 </label>
-                <div className="flex rounded-md border border-[#e4e4e7] p-0.5 bg-[#f4f4f5]">
+                <div className="flex rounded-md border border-brand-200 p-0.5 bg-brand-100">
                   <button
                     onClick={() => setGridSize(3)}
                     className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
-                      gridSize === 3 ? "bg-white text-[#09090b] shadow-sm" : "text-[#71717a] hover:text-[#09090b]"
+                      gridSize === 3 ? "bg-white text-brand-950 shadow-sm" : "text-brand-500 hover:text-brand-950"
                     }`}
                   >
                     3x3 (9 pts)
@@ -226,7 +226,7 @@ export default function GeoTrackingPage() {
                   <button
                     onClick={() => setGridSize(5)}
                     className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
-                      gridSize === 5 ? "bg-white text-[#09090b] shadow-sm" : "text-[#71717a] hover:text-[#09090b]"
+                      gridSize === 5 ? "bg-white text-brand-950 shadow-sm" : "text-brand-500 hover:text-brand-950"
                     }`}
                   >
                     5x5 (25 pts)
@@ -236,13 +236,13 @@ export default function GeoTrackingPage() {
 
               {/* Radius */}
               <div className="md:col-span-1">
-                <label className="text-[11px] font-medium text-[#71717a] mb-1.5 block uppercase tracking-wider">
+                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Radius
                 </label>
                 <select
                   value={radiusKm}
                   onChange={(e) => setRadiusKm(Number(e.target.value))}
-                  className="w-full h-10 rounded-md border border-[#e4e4e7] bg-white px-2 py-2 text-[13px] text-[#09090b] focus:outline-none focus:ring-1 focus:ring-[#09090b]"
+                  className="w-full h-10 rounded-md border border-brand-200 bg-white px-2 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                 >
                   <option value={2}>2 km</option>
                   <option value={5}>5 km</option>
@@ -274,8 +274,8 @@ export default function GeoTrackingPage() {
               <Crosshair className="relative text-emerald-600 animate-spin" size={40} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-[#09090b]">Simulating Geo-Grid Local Coordinates...</p>
-              <p className="text-[12px] text-[#71717a] mt-1">
+              <p className="text-sm font-semibold text-brand-950">Simulating Geo-Grid Local Coordinates...</p>
+              <p className="text-[12px] text-brand-500 mt-1">
                 Calculating {gridSize * gridSize} coordinate nodes across a {radiusKm}km radius and retrieving Map Pack ranks.
               </p>
             </div>
@@ -287,39 +287,39 @@ export default function GeoTrackingPage() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
             {/* KPI Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Average Grid Rank (AGR)</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Average Grid Rank (AGR)</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className={`text-3xl font-bold ${getRankTextColor(data.metrics.averageGridRank)}`}>
                     #{data.metrics.averageGridRank}
                   </span>
-                  <span className="text-[12px] text-[#71717a]">across {data.nodes.length} nodes</span>
+                  <span className="text-[12px] text-brand-500">across {data.nodes.length} nodes</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Top 3 Dominance (SoV)</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Top 3 Dominance (SoV)</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className={`text-3xl font-bold ${data.metrics.top3DominancePercentage >= 60 ? "text-emerald-600" : "text-amber-600"}`}>
                     {data.metrics.top3DominancePercentage}%
                   </span>
-                  <span className="text-[12px] text-[#71717a]">Map Pack Share</span>
+                  <span className="text-[12px] text-brand-500">Map Pack Share</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">#1 Positions Held</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">#1 Positions Held</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-emerald-600">{data.metrics.top1Count}</span>
-                  <span className="text-[12px] text-[#71717a]">of {data.nodes.length} locations</span>
+                  <span className="text-[12px] text-brand-500">of {data.nodes.length} locations</span>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e4e4e7] p-5 shadow-sm">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">Coverage Radius</p>
+              <div className="bg-white rounded-xl border border-brand-200 p-5 shadow-sm">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Coverage Radius</p>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-[#09090b]">{data.radiusKm} km</span>
-                  <span className="text-[12px] text-[#71717a]">({data.gridSize}x{data.gridSize} matrix)</span>
+                  <span className="text-3xl font-bold text-brand-950">{data.radiusKm} km</span>
+                  <span className="text-[12px] text-brand-500">({data.gridSize}x{data.gridSize} matrix)</span>
                 </div>
               </div>
             </div>
@@ -327,15 +327,15 @@ export default function GeoTrackingPage() {
             {/* Visual Grid & Node Inspector */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Map Heatmap Canvas (Left 7 Cols) */}
-              <div className="lg:col-span-7 bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-7 bg-white rounded-xl border border-brand-200 p-6 shadow-sm space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Compass size={16} className="text-[#09090b]" />
-                    <h3 className="text-sm font-semibold text-[#09090b]">
+                    <Compass size={16} className="text-brand-950" />
+                    <h3 className="text-sm font-semibold text-brand-950">
                       Interactive Geo-Grid Canvas ({data.gridSize}x{data.gridSize})
                     </h3>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] text-[#71717a]">
+                  <div className="flex items-center gap-3 text-[11px] text-brand-500">
                     <span className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Top 3
                     </span>
@@ -412,47 +412,47 @@ export default function GeoTrackingPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[12px] text-[#71717a] bg-[#fafafa] p-3 rounded-lg border border-[#f4f4f5]">
+                <div className="flex items-center justify-between text-[12px] text-brand-500 bg-brand-50 p-3 rounded-lg border border-brand-100">
                   <p>Click any coordinate pin to inspect the local 3-pack competitors at that node.</p>
-                  <span className="font-mono text-[#09090b]">Radius: {data.radiusKm} km</span>
+                  <span className="font-mono text-brand-950">Radius: {data.radiusKm} km</span>
                 </div>
               </div>
 
               {/* Node Inspector (Right 5 Cols) */}
               <div className="lg:col-span-5 space-y-6">
                 {selectedNode ? (
-                  <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-5">
-                    <div className="flex items-center justify-between border-b border-[#f4f4f5] pb-4">
+                  <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm space-y-5">
+                    <div className="flex items-center justify-between border-b border-brand-100 pb-4">
                       <div>
                         <div className="flex items-center gap-2">
                           <MapPin size={16} className="text-blue-600" />
-                          <h4 className="text-sm font-semibold text-[#09090b]">
+                          <h4 className="text-sm font-semibold text-brand-950">
                             Node Inspector ({selectedNode.direction})
                           </h4>
                         </div>
-                        <p className="text-[11px] text-[#71717a] mt-0.5">
+                        <p className="text-[11px] text-brand-500 mt-0.5">
                           {selectedNode.distanceKm === 0
                             ? "Physical Business Center (HQ)"
                             : `${selectedNode.distanceKm} km from Center`}
                         </p>
                       </div>
                       <div className="text-right">
-                        <span className="text-[11px] text-[#71717a] block uppercase font-semibold">Rank at this Pin</span>
+                        <span className="text-[11px] text-brand-500 block uppercase font-semibold">Rank at this Pin</span>
                         <span className={`text-2xl font-bold ${getRankTextColor(selectedNode.rank)}`}>
                           #{selectedNode.rank > 20 ? "20+" : selectedNode.rank}
                         </span>
                       </div>
                     </div>
 
-                    <div className="space-y-1 text-[11px] text-[#71717a]">
+                    <div className="space-y-1 text-[11px] text-brand-500">
                       <p>
-                        Coordinates: <code className="text-[#09090b] font-mono">{selectedNode.lat}, {selectedNode.lng}</code>
+                        Coordinates: <code className="text-brand-950 font-mono">{selectedNode.lat}, {selectedNode.lng}</code>
                       </p>
                     </div>
 
                     {/* Simulated Map Pack Results */}
                     <div className="space-y-3 pt-2">
-                      <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider flex items-center justify-between">
                         <span>Local 3-Pack at this spot</span>
                         <span className="text-emerald-600">Simulated SERP</span>
                       </p>
@@ -466,7 +466,7 @@ export default function GeoTrackingPage() {
                               className={`p-3 rounded-lg border flex items-center justify-between ${
                                 isClient
                                   ? "bg-emerald-50/70 border-emerald-200"
-                                  : "bg-[#fafafa] border-[#f4f4f5]"
+                                  : "bg-brand-50 border-brand-100"
                               }`}
                             >
                               <div className="flex items-center gap-3">
@@ -482,7 +482,7 @@ export default function GeoTrackingPage() {
                                   {comp.rank}
                                 </div>
                                 <div>
-                                  <p className="text-[13px] font-semibold text-[#09090b] flex items-center gap-1.5">
+                                  <p className="text-[13px] font-semibold text-brand-950 flex items-center gap-1.5">
                                     {comp.name}
                                     {isClient && (
                                       <span className="px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-800 text-[10px] font-bold">
@@ -490,7 +490,7 @@ export default function GeoTrackingPage() {
                                       </span>
                                     )}
                                   </p>
-                                  <div className="flex items-center gap-2 text-[11px] text-[#71717a] mt-0.5">
+                                  <div className="flex items-center gap-2 text-[11px] text-brand-500 mt-0.5">
                                     <span className="flex items-center gap-0.5 text-amber-500 font-medium">
                                       <Star size={10} className="fill-amber-400" />
                                       {comp.rating}
@@ -506,7 +506,7 @@ export default function GeoTrackingPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-[#e4e4e7] p-12 text-center text-[#71717a] text-[13px]">
+                  <div className="bg-white rounded-xl border border-brand-200 p-12 text-center text-brand-500 text-[13px]">
                     Select a node pin on the map to inspect competitors.
                   </div>
                 )}
@@ -525,20 +525,20 @@ export default function GeoTrackingPage() {
             </div>
 
             {/* Actionable Geo-Dominance Plan */}
-            <div className="bg-white rounded-xl border border-[#e4e4e7] p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-[#f4f4f5] pb-4">
+            <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm space-y-6">
+              <div className="flex items-center justify-between border-b border-brand-100 pb-4">
                 <div className="flex items-center gap-2">
                   <Zap size={16} className="text-amber-500" />
-                  <h3 className="text-sm font-semibold text-[#09090b]">
+                  <h3 className="text-sm font-semibold text-brand-950">
                     AI Geo-Dominance Expansion Plan
                   </h3>
                 </div>
-                <span className="text-[11px] text-[#71717a]">Targeting Peripheral & Red Zones</span>
+                <span className="text-[11px] text-brand-500">Targeting Peripheral & Red Zones</span>
               </div>
 
               {/* Vulnerabilities */}
               <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">
                   Identified Proximity Bottlenecks
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -556,14 +556,14 @@ export default function GeoTrackingPage() {
 
               {/* Action Items */}
               <div className="space-y-3 pt-2">
-                <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-wider">
+                <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">
                   Recommended Geo Optimization Tasks
                 </p>
                 <div className="space-y-3">
                   {data.aiGeoActionPlan.actionItems.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-4 rounded-xl border border-[#e4e4e7] bg-[#fafafa] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-[#a1a1aa] transition"
+                      className="p-4 rounded-xl border border-brand-200 bg-brand-50 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-brand-400 transition"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -576,14 +576,14 @@ export default function GeoTrackingPage() {
                           >
                             {item.impact} IMPACT
                           </span>
-                          <span className="text-[11px] text-[#71717a] font-medium">
+                          <span className="text-[11px] text-brand-500 font-medium">
                             Zone: <strong>{item.targetZone}</strong>
                           </span>
                         </div>
-                        <h4 className="text-[13px] font-semibold text-[#09090b]">{item.action}</h4>
-                        <p className="text-[12px] text-[#71717a]">{item.description}</p>
+                        <h4 className="text-[13px] font-semibold text-brand-950">{item.action}</h4>
+                        <p className="text-[12px] text-brand-500">{item.description}</p>
                       </div>
-                      <button className="px-3 py-1.5 rounded-lg bg-white border border-[#e4e4e7] text-[12px] font-medium text-[#09090b] hover:bg-[#f4f4f5] transition shrink-0 self-start md:self-auto flex items-center gap-1">
+                      <button className="px-3 py-1.5 rounded-lg bg-white border border-brand-200 text-[12px] font-medium text-brand-950 hover:bg-brand-100 transition shrink-0 self-start md:self-auto flex items-center gap-1">
                         <span>Apply Task</span>
                         <ChevronRight size={12} />
                       </button>

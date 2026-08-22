@@ -110,14 +110,14 @@ export function Sidebar({
         style={{ borderColor: "var(--border-color)" }}
       >
         {/* Brand */}
-        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "#f4f4f5" }}>
-          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[#09090b]">
+        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--color-brand-100)" }}>
+          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand-950">
             <LayoutGrid size={13} className="text-white" />
           </div>
-          <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-[#09090b]">GrowthX</span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[#a1a1aa]">AI SEO</span>
+          <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-brand-950">GrowthX</span>
+          <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-brand-400">AI SEO</span>
           {entitlements.data && (
-            <span className="ml-auto rounded-[5px] bg-[#f4f4f5] px-[5px] py-[2px] font-mono text-[9px] font-semibold text-[#52525b]">
+            <span className="ml-auto rounded-[5px] bg-brand-100 px-[5px] py-[2px] font-mono text-[9px] font-semibold text-brand-600">
               {entitlements.data.plan}
             </span>
           )}
@@ -137,21 +137,21 @@ export function Sidebar({
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
                 disabled={projects.length === 0}
-                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-[#fafafa] disabled:opacity-60"
+                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-brand-50 disabled:opacity-60"
                 style={{ borderColor: "var(--border-color)" }}
               >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#f4f4f5] font-mono text-[9px] font-semibold text-[#3f3f46]">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[9px] font-semibold text-brand-700">
                   {selected ? initialsOf(selected.name) : "—"}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-semibold text-[#09090b]">
+                  <span className="block truncate text-[12px] font-semibold text-brand-950">
                     {selected?.name ?? "No projects yet"}
                   </span>
-                  <span className="block truncate font-mono text-[9.5px] text-[#a1a1aa]">
+                  <span className="block truncate font-mono text-[9.5px] text-brand-400">
                     {clientRow?.domain ?? "add a website"}
                   </span>
                 </span>
-                <ChevronsUpDown size={13} className="shrink-0 text-[#a1a1aa]" />
+                <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
               </button>
 
               {switcherOpen && projects.length > 0 && (
@@ -166,13 +166,13 @@ export function Sidebar({
                         setProjectId(client.projectId);
                         setSwitcherOpen(false);
                       }}
-                      className="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-[#f4f4f5]"
+                      className="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-brand-100"
                     >
-                      <span className="flex h-5 w-5 items-center justify-center rounded bg-[#f4f4f5] font-mono text-[8px] font-semibold text-[#3f3f46]">
+                      <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[8px] font-semibold text-brand-700">
                         {client.initials}
                       </span>
-                      <span className="flex-1 truncate text-[11.5px] text-[#09090b]">{client.name}</span>
-                      <span className="font-mono text-[9.5px] text-[#71717a]">
+                      <span className="flex-1 truncate text-[11.5px] text-brand-950">{client.name}</span>
+                      <span className="font-mono text-[9.5px] text-brand-500">
                         {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
                       </span>
                     </button>
@@ -187,7 +187,7 @@ export function Sidebar({
               ))}
             </div>
 
-            <div className="mt-4 border-t pt-4" style={{ borderColor: "#f4f4f5" }}>
+            <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
               <NavLink 
                 item={{ label: "Integrations", href: "/integrations", icon: LayoutGrid }} 
                 pathname={pathname} 
@@ -204,17 +204,17 @@ export function Sidebar({
 
 
         {/* User */}
-        <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "#f4f4f5" }}>
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#09090b] font-mono text-[10px] font-semibold text-white">
+        <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "var(--color-brand-100)" }}>
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
             {entitlements.data ? "SA" : "—"}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[11.5px] font-semibold text-[#09090b]">
+            <span className="block truncate text-[11.5px] font-semibold text-brand-950">
               Workspace
             </span>
-            <span className="block text-[10px] text-[#a1a1aa]">Admin</span>
+            <span className="block text-[10px] text-brand-400">Admin</span>
           </span>
-          <MoreHorizontal size={14} className="text-[#a1a1aa]" />
+          <MoreHorizontal size={14} className="text-brand-400" />
         </div>
       </aside>
     </>
@@ -224,7 +224,7 @@ export function Sidebar({
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-2 pb-1.5 pt-1">
-      <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[#a1a1aa]">{children}</span>
+      <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-brand-400">{children}</span>
     </div>
   );
 }
@@ -244,16 +244,16 @@ function NavLink({
       <div
         className={cn(
           "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
-          active ? "bg-[#f4f4f5] text-[#09090b]" : "text-[#52525b] hover:bg-[#f4f4f5]",
+          active ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
         )}
       >
-        <item.icon size={15} className={active ? "text-[#18181b]" : "text-[#a1a1aa]"} />
+        <item.icon size={15} className={active ? "text-brand-900" : "text-brand-400"} />
         <span className="flex-1">{item.label}</span>
         {item.tag && (
           <span
             className={cn(
               "font-mono text-[10.5px] font-medium",
-              item.tagTone === "danger" ? "text-[#dc2626]" : "text-[#a1a1aa]",
+              item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
             )}
           >
             {item.tag}
