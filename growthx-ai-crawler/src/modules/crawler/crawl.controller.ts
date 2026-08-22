@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
-import { UsageMetric } from '@prisma/client';
+import { JobStatus, UsageMetric } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
@@ -210,6 +210,33 @@ export class CrawlController {
     });
 
     return latest ?? null;
+  }
+
+  @Get('websites/:domain/crawl-history')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Completed crawls for a domain, oldest first, for trend lines' })
+  @ApiParam({ name: 'domain', description: 'Website Domain' })
+  async getCrawlHistory(
+    @Req() req: any,
+    @Param('domain') domain: string,
+    @Query('limit') limit?: string,
+  ) {
+    await this.websiteForCaller(req, { domain });
+
+    // Only finished crawls: a running or failed job has no meaningful page or
+    // issue count, and plotting its zeros would draw a cliff that never
+    // happened. Ascending so the caller can render it left to right without
+    // reversing, and capped so a long-lived site cannot return thousands.
+    const take = Math.min(Math.max(parseInt(limit ?? '12', 10) || 12, 2), 60);
+
+    const runs = await this.prisma.crawlJob.findMany({
+      where: { website: { domain }, status: JobStatus.COMPLETED, finishedAt: { not: null } },
+      orderBy: { finishedAt: 'desc' },
+      take,
+      select: { id: true, pagesCrawled: true, issuesFound: true, startedAt: true, finishedAt: true },
+    });
+
+    return runs.reverse();
   }
 
   @Get('crawls/:id/issues')

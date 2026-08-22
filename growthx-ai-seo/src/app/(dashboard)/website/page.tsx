@@ -17,7 +17,7 @@ import {
 import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
-import { useCrawlIssues, useCrawlPages, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { useCrawlHistory, useCrawlIssues, useCrawlPages, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 
 function WebsiteClient() {
   const searchParams = useSearchParams();
@@ -38,6 +38,7 @@ function WebsiteClient() {
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
   const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
+  const history = useCrawlHistory(client?.domain ?? null, 12);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [crawling, setCrawling] = useState(false);
@@ -58,6 +59,12 @@ function WebsiteClient() {
   );
 
   const brokenPages = allPages.filter((p: CrawlPage) => p.statusCode >= 400).length;
+
+  // Real completed runs only, oldest first — the endpoint filters and orders
+  // them, so a flat or missing line here means the history is genuinely thin.
+  const runs = history.data ?? [];
+  const pagesTrend = runs.map((r) => r.pagesCrawled);
+  const issuesTrend = runs.map((r) => r.issuesFound);
 
   const crawlDuration = (() => {
     if (!crawl.data?.startedAt || !crawl.data?.finishedAt) return null;
@@ -141,6 +148,9 @@ function WebsiteClient() {
               <Kpi
                 label="Pages Crawled"
                 value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()}
+                trend={pagesTrend}
+                delta={runs.length >= 2 ? runs[runs.length - 1].pagesCrawled - runs[runs.length - 2].pagesCrawled : null}
+                deltaSuffix=" since last crawl"
                 sub={
                   brokenPages > 0
                     ? `${brokenPages.toLocaleString()} returned an error`
@@ -153,6 +163,10 @@ function WebsiteClient() {
                 label="Issues Found"
                 value={(crawl.data?.issuesFound ?? 0).toLocaleString()}
                 tone={severityCounts.CRITICAL > 0 ? "danger" : "default"}
+                trend={issuesTrend}
+                delta={runs.length >= 2 ? runs[runs.length - 1].issuesFound - runs[runs.length - 2].issuesFound : null}
+                deltaGood="down"
+                deltaSuffix=" since last crawl"
                 sub={
                   allIssues.length > 0
                     ? `${severityCounts.CRITICAL} critical · ${severityCounts.HIGH} high · ${severityCounts.MEDIUM} medium`

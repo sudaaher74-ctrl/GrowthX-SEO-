@@ -72,19 +72,25 @@ export function Kpi({
   value,
   delta,
   deltaSuffix = "",
+  deltaGood = "up",
   sub,
   tone = "default",
   meter,
+  trend,
   aside,
 }: {
   label: string;
   value: string;
   delta?: number | null;
   deltaSuffix?: string;
+  /** Which direction is an improvement. Issues going up is not good news. */
+  deltaGood?: "up" | "down";
   sub?: React.ReactNode;
   tone?: "default" | "danger" | "good";
   /** 0-100. Draws the value as a proportion beneath it. */
   meter?: number | null;
+  /** Real historical values, oldest first. Two points minimum, or no line. */
+  trend?: number[] | null;
   /** Rendered to the right of the value — a Pill, a trend, a unit. */
   aside?: React.ReactNode;
 }) {
@@ -101,7 +107,12 @@ export function Kpi({
           {value}
         </span>
         {delta != null && (
-          <span className={cn("font-mono text-[12px] font-medium", delta >= 0 ? "text-success-600" : "text-error-600")}>
+          <span
+            className={cn(
+              "font-mono text-[12px] font-medium",
+              (deltaGood === "up" ? delta >= 0 : delta <= 0) ? "text-success-600" : "text-error-600",
+            )}
+          >
             {delta >= 0 ? "+" : ""}
             {delta}
             {deltaSuffix}
@@ -112,6 +123,13 @@ export function Kpi({
       {meter != null && (
         <div className="mt-2.5">
           <MeterBar value={meter} tone={meter >= 70 ? "good" : "accent"} width="100%" />
+        </div>
+      )}
+      {/* One reading is not a trend. Below two points the line would be a
+          flat stub that implies a history the client does not have. */}
+      {trend != null && trend.length >= 2 && (
+        <div className="mt-2 -mb-0.5">
+          <Sparkline values={trend} width={96} height={20} />
         </div>
       )}
       {sub && <p className="mt-1.5 text-[11px] text-brand-500">{sub}</p>}

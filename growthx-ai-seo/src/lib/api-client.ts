@@ -400,6 +400,15 @@ export interface CrawlJob {
   website?: { domain: string; url: string };
 }
 
+/** One completed crawl, for trend lines. Only finished runs are returned. */
+export interface CrawlHistoryPoint {
+  id: string;
+  pagesCrawled: number;
+  issuesFound: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
 export interface CrawlPage {
   id: string;
   url: string;
@@ -875,6 +884,10 @@ export const api = {
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
   getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
+  getCrawlHistory: (domain: string, limit?: number) =>
+    get<CrawlHistoryPoint[]>(
+      `/api/websites/${domain}/crawl-history${limit ? `?limit=${limit}` : ""}`,
+    ),
   getCrawlIssues: (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
     if (params?.severity) query.set("severity", params.severity);
