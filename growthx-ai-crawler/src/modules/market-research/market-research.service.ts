@@ -209,7 +209,7 @@ export class MarketResearchService {
           `Client: ${context.projectName} (${context.domains.join(', ') || 'no domain on file'})`,
         ].join('\n'),
         webSearch: true,
-        maxOutputTokens: options.deepResearch ? 12000 : 6000,
+        maxOutputTokens: options.deepResearch ? 6000 : 4000,
       });
       usage.push(web.usage);
 
@@ -241,7 +241,7 @@ export class MarketResearchService {
         instructions: ANSWER_INSTRUCTIONS,
         input: this.buildAnswerInput(question, context, stored, web.text),
         jsonSchema: { name: ANSWER_SCHEMA.name, schema: ANSWER_SCHEMA.schema as Record<string, unknown> },
-        maxOutputTokens: options.deepResearch ? 16000 : 8000,
+        maxOutputTokens: options.deepResearch ? 6000 : 4000,
       });
       usage.push(answerResult.usage);
 
