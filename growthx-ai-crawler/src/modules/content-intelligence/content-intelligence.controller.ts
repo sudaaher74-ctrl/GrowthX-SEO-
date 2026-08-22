@@ -14,6 +14,7 @@ import { ContentStrategyService } from './content-strategy.service';
 import { ContentCreationService } from './content-creation.service';
 import { CreatorService } from './creator.service';
 import { CampaignService } from './campaign.service';
+import { SocialScraperService } from './social-scraper.service';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -40,6 +41,7 @@ export class ContentIntelligenceController {
     private readonly contentCreation: ContentCreationService,
     private readonly creator: CreatorService,
     private readonly campaign: CampaignService,
+    private readonly socialScraper: SocialScraperService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -155,6 +157,15 @@ export class ContentIntelligenceController {
   @Post('competitor-content')
   async ingestContent(@Req() req: any, @Param('projectId') projectId: string, @Body() body: any) {
     return this.competitorContent.ingestContent(req.organizationId, projectId, body.accountId, body);
+  }
+
+  @Post('competitor-accounts/:accountId/sync')
+  async syncAccount(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('accountId') accountId: string,
+  ) {
+    return this.socialScraper.syncYoutubeAccountContent(req.organizationId, projectId, accountId);
   }
 
   // ── Classification ───────────────────────────────────────────────────────

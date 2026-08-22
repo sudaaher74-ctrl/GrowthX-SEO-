@@ -52,10 +52,26 @@ export class ClassificationService {
    */
   async classifyPending(projectId: string, organizationId?: string, limit = 50) {
     const items = await this.prisma.competitorContent.findMany({
-      where: { projectId, classification: null },
+      // Scoped by organization like every other read in the product. Without
+      // it a project id from another tenant would classify their content.
+      where: { projectId, ...(organizationId ? { organizationId } : {}), classification: null },
       take: limit,
       orderBy: { publishedAt: 'desc' },
     });
+
+    if (items.length === 0) {
+      const total = await this.prisma.competitorContent.count({
+        where: { projectId, ...(organizationId ? { organizationId } : {}) },
+      });
+      return {
+        classified: 0,
+        message:
+          total === 0
+            ? 'No competitor content to classify yet. Add a competitor account, then add their ' +
+              'posts — either by syncing a YouTube channel or with "Add content manually".'
+            : `All ${total} competitor content item(s) are already classified. Next: detect patterns.`,
+      };
+    }
 
     let classified = 0;
     for (const item of items) {

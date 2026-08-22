@@ -65,7 +65,12 @@ export class PatternDetectionService {
     });
 
     if (classified.length < 3) {
-      return { patternsDetected: 0, message: 'Need at least 3 classified content items to detect patterns.' };
+      return {
+        patternsDetected: 0,
+        message:
+          `Pattern detection needs at least 3 classified content items; this project has ` +
+          `${classified.length}. Add more competitor posts, then run classification.`,
+      };
     }
 
     // Build aggregated summary for AI

@@ -114,6 +114,16 @@ export class HealthController implements OnApplicationBootstrap {
           'matching wording, weaker for synonyms and paraphrases.',
       },
       {
+        name: 'Competitor content ingestion (YouTube)',
+        envVar: 'YOUTUBE_API_KEY',
+        configured: realKey(process.env.YOUTUBE_API_KEY),
+        // Instagram and Facebook have no automated ingestion at all; manual
+        // entry is the only path there, and it feeds the same pipeline.
+        consequence:
+          'Content Intelligence cannot pull competitor posts automatically. Competitor content must ' +
+          'be added by hand before classification, pattern detection, gap analysis and strategy can run.',
+      },
+      {
         name: 'Billing (Razorpay)',
         envVar: 'RAZORPAY_KEY_ID',
         configured: realKey(process.env.RAZORPAY_KEY_ID),
