@@ -6,20 +6,45 @@ import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { Feature } from '../billing/plans.catalog';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ContentAgentService, ContentRequest } from './content-agent.service';
 
+// Every field needs a decorator: the global ValidationPipe runs with
+// `whitelist: true`, which strips any property of a DTO that has none. An
+// undecorated DTO therefore arrives as `{}` and the handler crashes on a field
+// the caller did send.
 export class ContentRequestDto implements ContentRequest {
+  @IsEnum(ContentPieceKind)
   kind: ContentPieceKind;
+
+  @IsString()
+  @IsOptional()
   topic?: string;
+
+  @IsString()
+  @IsOptional()
   targetQuery?: string;
+
+  @IsString()
+  @IsOptional()
   pageUrl?: string;
+
+  @IsString()
+  @IsOptional()
   reviewText?: string;
+
+  @IsNumber()
+  @IsOptional()
   reviewRating?: number;
+
+  @IsString()
+  @IsOptional()
   reviewAuthor?: string;
+
+  @IsString()
+  @IsOptional()
   location?: string;
 }
-
-import { IsEnum } from 'class-validator';
 
 export class ReviewDecisionDto {
   @IsEnum(['APPROVE', 'REJECT'])

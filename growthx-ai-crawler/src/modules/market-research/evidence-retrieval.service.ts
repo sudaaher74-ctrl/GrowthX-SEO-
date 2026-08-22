@@ -171,6 +171,27 @@ export class EvidenceRetrievalService {
       return this.lexicalSearchClientPages(projectId, query, limit);
     }
 
+    // A configured embedding model can still fail on the day: a revoked key, a
+    // rate limit, a provider outage. None of that is a reason to fail a
+    // research question outright — BM25 over the same pages is a worse ranking,
+    // not a wrong answer — so the run degrades instead of 500ing.
+    try {
+      return await this.semanticSearchClientPages(organizationId, projectId, query, limit);
+    } catch (error) {
+      this.logger.warn(
+        `Semantic retrieval unavailable for project ${projectId}; falling back to keyword search: ${String(error)}`,
+      );
+      return this.lexicalSearchClientPages(projectId, query, limit);
+    }
+  }
+
+  /** Vector search over this project's indexed pages. */
+  private async semanticSearchClientPages(
+    organizationId: string,
+    projectId: string,
+    query: string,
+    limit: number,
+  ): Promise<RetrievedSource[]> {
     await this.indexProjectPages(organizationId, projectId);
 
     const rows = await this.prisma.researchEmbedding.findMany({

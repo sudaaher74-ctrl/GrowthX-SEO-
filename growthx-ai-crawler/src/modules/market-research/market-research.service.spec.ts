@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService } from './evidence-retrieval.service';
 import { MarketResearchService } from './market-research.service';
@@ -158,6 +158,44 @@ describe('MarketResearchService', () => {
     });
   });
 
+  // The production 500: the global ValidationPipe runs with `whitelist: true`,
+  // so a DTO with no class-validator decorators arrives as {} and `question`
+  // is undefined by the time it reaches here. The customer saw a bare
+  // "Internal server error" on every question they asked.
+  describe('bad input', () => {
+    it.each([undefined, null, '', '   '])('refuses a question of %p as a bad request', async (question) => {
+      await expect(
+        service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: question as any }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not open a thread or a run for a missing question', async () => {
+      await expect(
+        service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: undefined as any }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.marketResearchThread.create).not.toHaveBeenCalled();
+      expect(prisma.marketResearchRun.create).not.toHaveBeenCalled();
+      expect(models.generate).not.toHaveBeenCalled();
+    });
+
+    it('trims the question before using it', async () => {
+      mockPipeline({
+        summary: 's',
+        confidence: 'medium',
+        verifiedClaims: [{ claim: 'c', citationIds: ['source_1'] }],
+        inferences: [],
+        citationGaps: [],
+        recommendedActions: [],
+        evidenceGaps: [],
+      });
+
+      await service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: '  What changed?  ' });
+
+      expect(prisma.marketResearchRun.create.mock.calls[0][0].data.question).toBe('What changed?');
+    });
+  });
+
   describe('citation enforcement', () => {
     it('removes claims citing sources that were never retrieved', async () => {
       mockPipeline({
@@ -307,6 +345,55 @@ describe('MarketResearchService', () => {
       const update = prisma.marketResearchRun.update.mock.calls.at(-1)[0].data;
       expect(update.status).toBe('FAILED');
       expect(update.error).toBe('model unreachable');
+    });
+
+    // "Internal server error" in the UI tells the customer nothing. Whatever
+    // broke, its message has to survive the trip to the browser.
+    it('surfaces the cause of an unexpected failure instead of a bare 500', async () => {
+      models.generate.mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.1:5432'));
+
+      await expect(
+        service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: 'q' }),
+      ).rejects.toThrow(InternalServerErrorException);
+      await expect(
+        service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: 'q' }),
+      ).rejects.toThrow(/ECONNREFUSED/);
+    });
+
+    it('still reports the original failure when the failure bookkeeping also fails', async () => {
+      models.generate.mockRejectedValue(new Error('model unreachable'));
+      prisma.marketResearchRun.update.mockRejectedValue(new Error('database is down'));
+
+      await expect(
+        service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: 'q' }),
+      ).rejects.toThrow(/model unreachable/);
+    });
+  });
+
+  describe('model output that does not fit the schema', () => {
+    // Reached only after every token is spent, so a Prisma error here throws
+    // away a complete answer.
+    it('drops a recommended action with no title rather than failing the run', async () => {
+      prisma.marketAction = { create: jest.fn().mockResolvedValue({}) };
+      prisma.marketOpportunity = { create: jest.fn().mockResolvedValue({}) };
+      mockPipeline({
+        summary: 's',
+        confidence: 'medium',
+        verifiedClaims: [{ claim: 'c', citationIds: ['source_1'] }],
+        inferences: [],
+        citationGaps: [],
+        recommendedActions: [
+          { type: 'CONTENT_BRIEF', description: 'no title on this one', evidenceCitationIds: ['source_1'], confidence: 'high' },
+          { type: 'CONTENT_BRIEF', title: 'Write the comparison page', description: 'd', evidenceCitationIds: ['source_1'], confidence: 'high' },
+        ],
+        evidenceGaps: [],
+      });
+
+      const result = await service.ask({ organizationId: ORG_A, projectId: PROJ_A, question: 'q' });
+
+      expect(result.answer.summary).toBe('s');
+      expect(prisma.marketAction.create).toHaveBeenCalledTimes(1);
+      expect(prisma.marketAction.create.mock.calls[0][0].data.title).toBe('Write the comparison page');
     });
   });
 });
