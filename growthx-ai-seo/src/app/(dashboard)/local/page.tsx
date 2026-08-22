@@ -176,7 +176,12 @@ export default function LocalPage() {
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* No deltas: nothing records a previous rating or review
                         count, so any change figure here would be invented. */}
-                    <Kpi label="Average Rating" value={localSeo.rating.toFixed(1)} />
+                    <Kpi
+                      label="Average Rating"
+                      value={localSeo.rating.toFixed(1)}
+                      meter={(localSeo.rating / 5) * 100}
+                      sub="out of 5"
+                    />
                     <Kpi label="Total Reviews" value={localSeo.reviewCount.toLocaleString()} />
                   </div>
                 </Panel>

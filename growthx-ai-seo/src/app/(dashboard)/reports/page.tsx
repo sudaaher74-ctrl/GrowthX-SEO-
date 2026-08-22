@@ -99,8 +99,22 @@ export default function ReportsPage() {
               ) : (
                 <div className="space-y-6 mt-4 p-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Kpi label="Technical Health" value={technicalHealth.toString()} deltaSuffix="/ 100" />
-                    <Kpi label="Citation Share" value={citationShare.toFixed(1)} deltaSuffix="%" />
+                    {/* deltaSuffix only renders alongside a delta, and nothing
+                        here records a previous value — so the units it was
+                        carrying never reached the screen. They belong on the
+                        value and the sub-line instead. */}
+                    <Kpi
+                      label="Technical Health"
+                      value={technicalHealth.toString()}
+                      meter={technicalHealth}
+                      sub="out of 100"
+                    />
+                    <Kpi
+                      label="Citation Share"
+                      value={`${citationShare.toFixed(1)}%`}
+                      meter={citationShare}
+                      sub="of tracked prompts citing this client"
+                    />
                     <Kpi label="Search Volume Pot." value={totalVolume.toLocaleString()} />
                   </div>
 

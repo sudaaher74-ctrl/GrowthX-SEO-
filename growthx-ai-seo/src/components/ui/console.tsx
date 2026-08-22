@@ -74,6 +74,8 @@ export function Kpi({
   deltaSuffix = "",
   sub,
   tone = "default",
+  meter,
+  aside,
 }: {
   label: string;
   value: string;
@@ -81,9 +83,13 @@ export function Kpi({
   deltaSuffix?: string;
   sub?: React.ReactNode;
   tone?: "default" | "danger" | "good";
+  /** 0-100. Draws the value as a proportion beneath it. */
+  meter?: number | null;
+  /** Rendered to the right of the value — a Pill, a trend, a unit. */
+  aside?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border bg-white p-4">
+    <div className="flex flex-col rounded-xl border bg-white p-4">
       <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span
@@ -101,8 +107,14 @@ export function Kpi({
             {deltaSuffix}
           </span>
         )}
+        {aside}
       </div>
-      {sub && <p className="mt-1 text-[11px] text-brand-500">{sub}</p>}
+      {meter != null && (
+        <div className="mt-2.5">
+          <MeterBar value={meter} tone={meter >= 70 ? "good" : "accent"} width="100%" />
+        </div>
+      )}
+      {sub && <p className="mt-1.5 text-[11px] text-brand-500">{sub}</p>}
     </div>
   );
 }
@@ -274,7 +286,7 @@ export function Mono({ children, tone }: { children: React.ReactNode; tone?: "go
 }
 
 /** Horizontal proportion bar used across the citation and share views. */
-export function MeterBar({ value, tone = "accent", width = 64 }: { value: number; tone?: "accent" | "good"; width?: number }) {
+export function MeterBar({ value, tone = "accent", width = 64 }: { value: number; tone?: "accent" | "good"; width?: number | string }) {
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-brand-100" style={{ width }}>
       <div
