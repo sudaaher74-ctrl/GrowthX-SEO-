@@ -19,7 +19,10 @@ export class ContentRequestDto implements ContentRequest {
   location?: string;
 }
 
+import { IsEnum } from 'class-validator';
+
 export class ReviewDecisionDto {
+  @IsEnum(['APPROVE', 'REJECT'])
   decision: 'APPROVE' | 'REJECT';
 }
 

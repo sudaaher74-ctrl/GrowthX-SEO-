@@ -4,9 +4,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../billing/org-context.service';
 import { PortfolioService } from './portfolio.service';
 
+import { IsOptional, IsString, IsNumber } from 'class-validator';
+
 export class SetRetainerDto {
+  @IsOptional()
+  @IsString()
   tier?: string | null;
+
+  @IsOptional()
+  @IsNumber()
   retainerMonthlyMinor?: number | null;
+
+  @IsOptional()
+  @IsString()
   retainerCurrency?: string;
 }
 

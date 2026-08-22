@@ -19,10 +19,15 @@ import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
 import { OrgContextService } from './org-context.service';
 import { RazorpayService } from './razorpay.service';
+import { IsEnum, IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class StartCheckoutDto {
+  @IsEnum(PlanType)
   plan: PlanType;
+  @IsEmail()
   email: string;
+  @IsOptional()
+  @IsString()
   name?: string;
 }
 

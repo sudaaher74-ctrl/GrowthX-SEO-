@@ -6,14 +6,26 @@ import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
+import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 
 export class ConnectRepoDto {
+  @IsString()
   owner: string;
+  @IsString()
   name: string;
+  @IsString()
   accessToken: string;
+  @IsOptional()
+  @IsString()
   defaultBranch?: string;
+  @IsOptional()
+  @IsEnum(['nextjs', 'static-html', 'unknown'])
   framework?: 'nextjs' | 'static-html' | 'unknown';
+  @IsOptional()
+  @IsString()
   contentDir?: string;
+  @IsOptional()
+  @IsBoolean()
   autoMerge?: boolean;
 }
 

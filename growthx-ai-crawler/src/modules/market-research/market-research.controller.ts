@@ -12,15 +12,24 @@ import { OutcomeMeasurementService } from './outcome-measurement.service';
 import { WeeklyDeltaService } from './weekly-delta.service';
 import { MarketWatchKind } from '@prisma/client';
 import { MarketActionStatus } from '@prisma/client';
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class AskQuestionDto {
+  @IsString()
   question: string;
+
+  @IsString()
+  @IsOptional()
   threadId?: string;
+
   /** Opt in to the premium deep-research model. */
+  @IsBoolean()
+  @IsOptional()
   deepResearch?: boolean;
 }
 
 export class CreateThreadDto {
+  @IsString()
   title: string;
 }
 

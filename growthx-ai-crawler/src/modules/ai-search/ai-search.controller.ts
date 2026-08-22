@@ -7,7 +7,10 @@ import { EntitlementsService } from '../billing/entitlements.service';
 import { Metered, OrgFrom } from '../billing/entitlements.decorator';
 import { Feature } from '../billing/plans.catalog';
 
+import { IsString } from 'class-validator';
+
 export class AiSearchDto {
+  @IsString()
   question: string;
 }
 
