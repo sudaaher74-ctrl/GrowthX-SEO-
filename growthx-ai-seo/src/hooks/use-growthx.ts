@@ -338,6 +338,22 @@ export function useLatestCrawl(domain: string | null) {
   });
 }
 
+/**
+ * Completed crawls for a domain, oldest first.
+ *
+ * Separate from useLatestCrawl because the two answer different questions and
+ * have different refresh needs: the latest crawl polls while one is running,
+ * whereas history only changes when a run finishes.
+ */
+export function useCrawlHistory(domain: string | null, limit?: number) {
+  return useQuery({
+    queryKey: ["crawl-history", domain, limit],
+    queryFn: () => api.getCrawlHistory(domain!, limit),
+    enabled: Boolean(domain),
+    retry: false,
+  });
+}
+
 export function useCrawlIssues(jobId: string | null, severity?: string, status?: string) {
   return useQuery({
     queryKey: ["crawl-issues", jobId, severity, status],
