@@ -15,6 +15,7 @@ export enum Feature {
   MODEL_GEMINI = 'MODEL_GEMINI',
   MODEL_GPT = 'MODEL_GPT',
   MODEL_CLAUDE = 'MODEL_CLAUDE',
+  MODEL_SARVAM = 'MODEL_SARVAM',
   /** Groq-hosted Llama 3.1 8B Instant — fast, cost-efficient fallback available on all plans. */
   MODEL_GROQ = 'MODEL_GROQ',
   /** OpenRouter — routes to whichever free/low-cost model is configured; available on all plans. */
@@ -93,6 +94,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.SCHEDULED_CRAWLS,
       Feature.AI_RECOMMENDATIONS,
       Feature.MODEL_GEMINI,
+      Feature.MODEL_SARVAM,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
       Feature.COMPETITOR_TRACKING,
@@ -123,6 +125,8 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.AI_RECOMMENDATIONS,
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
+      Feature.MODEL_CLAUDE,
+      Feature.MODEL_SARVAM,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
       Feature.COMPETITOR_TRACKING,
@@ -157,6 +161,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_GEMINI,
       Feature.MODEL_GPT,
       Feature.MODEL_CLAUDE,
+      Feature.MODEL_SARVAM,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
       Feature.COMPETITOR_TRACKING,

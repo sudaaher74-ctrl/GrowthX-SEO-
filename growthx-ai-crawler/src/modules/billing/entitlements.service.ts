@@ -290,6 +290,8 @@ export class EntitlementsService {
         return 'GPT analysis';
       case Feature.MODEL_GEMINI:
         return 'Gemini analysis';
+      case Feature.MODEL_SARVAM:
+        return 'Sarvam AI analysis';
       case Feature.MODEL_GROQ:
         return 'Groq Llama analysis';
       case Feature.MODEL_OPENROUTER:

@@ -8,6 +8,7 @@ import { EntitlementsService } from '../../billing/entitlements.service';
 import { Feature } from '../../billing/plans.catalog';
 
 export enum AiProvider {
+  SARVAM = 'SARVAM',
   GEMINI = 'GEMINI',
   OPENAI = 'OPENAI',
   ANTHROPIC = 'ANTHROPIC',
@@ -73,12 +74,13 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
 
 /** Which vendor each task prefers, best first. */
 const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
-  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
+  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [AiTask.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
 
 const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
+  [AiProvider.SARVAM]: Feature.MODEL_SARVAM,
   [AiProvider.GEMINI]: Feature.MODEL_GEMINI,
   [AiProvider.OPENAI]: Feature.MODEL_GPT,
   [AiProvider.ANTHROPIC]: Feature.MODEL_CLAUDE,
@@ -99,6 +101,8 @@ export class MultiAiRouterService {
   private readonly openrouterModel: string;
   private readonly openrouterTemperature: number;
   private readonly openrouterMaxTokens: number;
+  private readonly sarvamModel: string;
+  private readonly sarvamKey?: string;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
@@ -126,6 +130,8 @@ export class MultiAiRouterService {
     this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-oss-20b:free';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
+    this.sarvamModel = this.config.get<string>('SARVAM_MODEL') || 'sarvam-105b';
+    this.sarvamKey = this.config.get<string>('SARVAM_API_KEY');
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
@@ -164,6 +170,7 @@ export class MultiAiRouterService {
 
   configuredProviders(): AiProvider[] {
     const configured: AiProvider[] = [];
+    if (this.isRealKey(this.sarvamKey)) configured.push(AiProvider.SARVAM);
     if (this.gemini) configured.push(AiProvider.GEMINI);
     if (this.openai) configured.push(AiProvider.OPENAI);
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
@@ -246,6 +253,8 @@ export class MultiAiRouterService {
 
   private invoke(provider: AiProvider, request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
     switch (provider) {
+      case AiProvider.SARVAM:
+        return this.callSarvam(request);
       case AiProvider.ANTHROPIC:
         return this.callAnthropic(request, task);
       case AiProvider.OPENAI:
@@ -484,6 +493,58 @@ export class MultiAiRouterService {
         response.usage?.completion_tokens ?? 0,
         this.envRate('OPENROUTER'),
       ),
+      refused: false,
+    };
+  }
+
+  // ------------------------------------------------------------------ Sarvam AI
+
+  private async callSarvam(request: AiRequest): Promise<AiCompletion> {
+    if (!this.isRealKey(this.sarvamKey)) {
+      throw new ServiceUnavailableException('SARVAM_API_KEY is not configured.');
+    }
+
+    const messages: Array<{ role: string; content: string }> = [];
+    let system = request.systemInstruction;
+    if (request.jsonSchema) {
+      const schemaInstruction = `You MUST return strictly valid JSON matching this schema:\n${JSON.stringify(request.jsonSchema)}`;
+      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
+    }
+
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: request.prompt });
+
+    const maxTokens = request.maxTokens ?? 4000;
+    const response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-subscription-key': this.sarvamKey,
+        Authorization: `Bearer ${this.sarvamKey}`,
+      },
+      body: JSON.stringify({
+        model: this.sarvamModel,
+        messages,
+        temperature: 0.2,
+        max_tokens: maxTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new ServiceUnavailableException(`Sarvam API failed (HTTP ${response.status}): ${errText}`);
+    }
+
+    const json: any = await response.json();
+    const content = json?.choices?.[0]?.message?.content ?? '';
+    const promptTokens = json?.usage?.prompt_tokens ?? 0;
+    const completionTokens = json?.usage?.completion_tokens ?? 0;
+
+    return {
+      provider: AiProvider.SARVAM,
+      model: json?.model ?? this.sarvamModel,
+      text: content,
+      usage: this.usage(promptTokens, completionTokens),
       refused: false,
     };
   }

@@ -46,6 +46,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
 import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
 import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
+import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 
 
 @Module({
@@ -81,6 +82,7 @@ import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
     IssuesModule,
     GraphModule,
     AiModule,
+    AiEngineModule,
     HistoryModule,
     CrawlerSchedulerModule,
     SocketModule,
