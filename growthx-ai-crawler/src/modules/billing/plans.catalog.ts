@@ -19,6 +19,8 @@ export enum Feature {
   MODEL_GROQ = 'MODEL_GROQ',
   /** OpenRouter — routes to whichever free/low-cost model is configured; available on all plans. */
   MODEL_OPENROUTER = 'MODEL_OPENROUTER',
+  /** Sarvam AI — Indian-language-first models, served from India; available on all plans. */
+  MODEL_SARVAM = 'MODEL_SARVAM',
 
   /** Generate a concrete code/content patch for an issue. */
   AUTO_FIX_PATCH = 'AUTO_FIX_PATCH',
@@ -95,6 +97,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_GEMINI,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
+      Feature.MODEL_SARVAM,
       Feature.COMPETITOR_TRACKING,
     ]),
     quotas: {
@@ -125,6 +128,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_GPT,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
+      Feature.MODEL_SARVAM,
       Feature.COMPETITOR_TRACKING,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,
@@ -159,6 +163,7 @@ export const PLAN_CATALOG: Readonly<Record<PlanType, PlanDefinition>> = Object.f
       Feature.MODEL_CLAUDE,
       Feature.MODEL_GROQ,
       Feature.MODEL_OPENROUTER,
+      Feature.MODEL_SARVAM,
       Feature.COMPETITOR_TRACKING,
       Feature.AI_VISIBILITY,
       Feature.MARKET_STRATEGY,

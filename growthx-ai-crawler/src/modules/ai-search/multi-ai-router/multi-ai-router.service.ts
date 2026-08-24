@@ -13,6 +13,7 @@ export enum AiProvider {
   ANTHROPIC = 'ANTHROPIC',
   GROQ = 'GROQ',
   OPENROUTER = 'OPENROUTER',
+  SARVAM = 'SARVAM',
 }
 
 /** What the caller wants done, independent of which vendor ends up serving it. */
@@ -73,9 +74,9 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
 
 /** Which vendor each task prefers, best first. */
 const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
-  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
+  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.SARVAM],
+  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.SARVAM],
+  [AiTask.FAST]: [AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER, AiProvider.SARVAM],
 };
 
 const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
@@ -84,6 +85,7 @@ const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
   [AiProvider.ANTHROPIC]: Feature.MODEL_CLAUDE,
   [AiProvider.GROQ]: Feature.MODEL_GROQ,
   [AiProvider.OPENROUTER]: Feature.MODEL_OPENROUTER,
+  [AiProvider.SARVAM]: Feature.MODEL_SARVAM,
 };
 
 @Injectable()
@@ -99,12 +101,16 @@ export class MultiAiRouterService {
   private readonly openrouterModel: string;
   private readonly openrouterTemperature: number;
   private readonly openrouterMaxTokens: number;
+  private readonly sarvamModel: string;
+  private readonly sarvamTemperature: number;
+  private readonly sarvamMaxTokens: number;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
   private gemini?: GoogleGenAI;
   private groq?: Groq;
   private openrouter?: OpenAI;
+  private sarvam?: OpenAI;
 
   /**
    * Anthropic's server-side refusal fallback re-serves a declined request on
@@ -123,9 +129,12 @@ export class MultiAiRouterService {
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
-    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-oss-20b:free';
+    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-oss-20b';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
+    this.sarvamModel = this.config.get<string>('SARVAM_MODEL') || 'sarvam-105b';
+    this.sarvamTemperature = Number(this.config.get<string>('SARVAM_TEMPERATURE') ?? '0.2');
+    this.sarvamMaxTokens = Number(this.config.get<string>('SARVAM_MAX_TOKENS') ?? '2000');
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
@@ -152,6 +161,25 @@ export class MultiAiRouterService {
       });
     }
 
+    /**
+     * Sarvam's chat API is OpenAI-compatible, so it rides the same SDK with a
+     * different base URL — the same trick already used for OpenRouter.
+     *
+     * The key goes in two places on purpose. Sarvam's documented header is
+     * `api-subscription-key`, and its v1 endpoint additionally accepts the
+     * OpenAI-style `Authorization: Bearer` that `apiKey` produces. Their docs
+     * disagree between versions about which is required, and sending both
+     * costs nothing while making this work against either.
+     */
+    const sarvamKey = this.config.get<string>('SARVAM_API_KEY');
+    if (this.isRealKey(sarvamKey)) {
+      this.sarvam = new OpenAI({
+        apiKey: sarvamKey,
+        baseURL: this.config.get<string>('SARVAM_BASE_URL') || 'https://api.sarvam.ai/v1',
+        defaultHeaders: { 'api-subscription-key': sarvamKey },
+      });
+    }
+
     this.logger.log(`AI providers configured: ${this.configuredProviders().join(', ') || 'none'}`);
   }
 
@@ -169,6 +197,7 @@ export class MultiAiRouterService {
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
     if (this.groq) configured.push(AiProvider.GROQ);
     if (this.openrouter) configured.push(AiProvider.OPENROUTER);
+    if (this.sarvam) configured.push(AiProvider.SARVAM);
     return configured;
   }
 
@@ -256,6 +285,8 @@ export class MultiAiRouterService {
         return this.callGroq(request);
       case AiProvider.OPENROUTER:
         return this.callOpenRouter(request, modelOverride);
+      case AiProvider.SARVAM:
+        return this.callSarvam(request, modelOverride);
     }
   }
 
@@ -488,10 +519,54 @@ export class MultiAiRouterService {
     };
   }
 
+  // ------------------------------------------------------------------- Sarvam
+
+  /**
+   * Sarvam AI — Indian-language-first models, served from India.
+   *
+   * Same OpenAI-compatible shape as OpenRouter above. `sarvam-105b` is the
+   * flagship chat model; `SARVAM_MODEL` overrides it, which is how to reach
+   * the open-weight ids (`glm5.2`, `gemma4`) that only the v2 endpoint serves
+   * — those need `SARVAM_BASE_URL=https://api.sarvam.ai/v2` alongside.
+   */
+  private async callSarvam(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {
+    if (!this.sarvam) throw new ServiceUnavailableException('SARVAM_API_KEY is not configured.');
+
+    const messages: any[] = [];
+    let system = request.systemInstruction;
+    if (request.jsonSchema) {
+      const schemaInstruction = `You MUST return JSON matching exactly this schema:\n${JSON.stringify(request.jsonSchema)}`;
+      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
+    }
+
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await this.sarvam.chat.completions.create({
+      model: modelOverride || this.sarvamModel,
+      messages,
+      temperature: this.sarvamTemperature,
+      max_tokens: request.maxTokens ?? this.sarvamMaxTokens,
+      ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
+    } as any);
+
+    return {
+      provider: AiProvider.SARVAM,
+      model: response.model ?? this.sarvamModel,
+      text: response.choices[0]?.message?.content ?? '',
+      usage: this.usage(
+        response.usage?.prompt_tokens ?? 0,
+        response.usage?.completion_tokens ?? 0,
+        this.envRate('SARVAM'),
+      ),
+      refused: false,
+    };
+  }
+
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;
