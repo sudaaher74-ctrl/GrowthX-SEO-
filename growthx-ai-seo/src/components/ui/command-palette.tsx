@@ -1,36 +1,35 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Search, ArrowRight, Sparkles, Globe, BarChart3, Search as SearchIcon,
-  Zap, FileText, Bot, MapPin, Target, Eye, Sliders, Code, Link2,
-  Image, GitBranch, Play, FileSpreadsheet, CreditCard, Settings,
-  HelpCircle, Moon, Sun, RefreshCw, Plus, Check, CornerDownLeft
-} from "lucide-react";
+import { CornerDownLeft, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface CommandItem {
-  id: string;
-  title: string;
-  category: "Navigation" | "Quick Actions" | "Keywords" | "Pages";
-  icon: React.ElementType;
-  href?: string;
-  action?: () => void;
-  subtitle?: string;
-}
+import { ROUTES, searchRoutes, type AppRoute } from "@/lib/routes";
 
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * ⌘K navigation.
+ *
+ * Its item list used to be hand-written and had drifted badly: six of its
+ * nineteen destinations (`/search-console`, `/analytics`, `/rank-tracking`,
+ * `/local-seo`, `/backlinks`, `/automations`) were never built, so selecting
+ * them 404'd, while ten real pages were missing. It now enumerates the route
+ * registry, so it cannot disagree with the app again.
+ */
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const router = useRouter();
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Where focus was before the palette opened, so Escape can put it back
+  // rather than dropping the user at the top of the document.
+  const restoreFocusTo = useRef<HTMLElement | null>(null);
 
-  // Listen for ⌘K or Ctrl+K globally
+  // ⌘K / Ctrl+K anywhere in the app.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -44,200 +43,193 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
 
-  const items: CommandItem[] = useMemo(() => [
-    // Navigation
-    { id: "nav-dash", title: "Dashboard Overview", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Main analytics & executive summary" },
-    { id: "nav-gsc", title: "Google Search Console", category: "Navigation", icon: SearchIcon, href: "/search-console", subtitle: "Queries, clicks, CTR & impressions" },
-    { id: "nav-ga", title: "Google Analytics 4", category: "Navigation", icon: Globe, href: "/analytics", subtitle: "Sessions, users & conversion funnels" },
-    { id: "nav-tech", title: "Technical SEO Audit", category: "Navigation", icon: Zap, href: "/technical-seo", subtitle: "Site crawler & 47 detected issues" },
-    { id: "nav-rank", title: "Rank Tracking", category: "Navigation", icon: Target, href: "/rank-tracking", subtitle: "Daily keyword positions & SERP updates" },
-    { id: "nav-kw", title: "Keyword Research", category: "Navigation", icon: SearchIcon, href: "/keywords", subtitle: "Volume, difficulty, CPC & opportunities" },
-    { id: "nav-content", title: "AI Content Engine", category: "Navigation", icon: FileText, href: "/content-ai", subtitle: "Generate SEO blogs, landing & local pages" },
-    { id: "nav-ai", title: "AI Assistant", category: "Navigation", icon: Bot, href: "/ai-assistant", subtitle: "Chat with AI about your workspace data" },
-    { id: "nav-local", title: "Local SEO Generator", category: "Navigation", icon: MapPin, href: "/local-seo", subtitle: "Bulk city & service page generation" },
-    { id: "nav-geo", title: "GEO / AI Search Visibility", category: "Navigation", icon: Eye, href: "/geo-tracking", subtitle: "Track mentions in ChatGPT, Perplexity & Gemini" },
-    { id: "nav-comp", title: "Competitor Analysis", category: "Navigation", icon: Target, href: "/competitors", subtitle: "Side-by-side traffic & keyword gaps" },
-    { id: "nav-meta", title: "AI Meta Optimizer", category: "Navigation", icon: Sliders, href: "/meta-optimizer", subtitle: "Bulk title & description generator" },
-    { id: "nav-schema", title: "Schema Generator", category: "Navigation", icon: Code, href: "/schema-generator", subtitle: "JSON-LD structured data builder" },
-    { id: "nav-backlinks", title: "Backlink Monitor", category: "Navigation", icon: Link2, href: "/backlinks", subtitle: "New, lost & spam backlink analysis" },
-    { id: "nav-img", title: "Image SEO Optimizer", category: "Navigation", icon: Image, href: "/image-seo", subtitle: "Alt text generator & WebP compression" },
-    { id: "nav-links", title: "Internal Linking AI", category: "Navigation", icon: GitBranch, href: "/internal-linking", subtitle: "Orphan page detection & link graph" },
-    { id: "nav-auto", title: "Automations & Workflows", category: "Navigation", icon: Play, href: "/automations", subtitle: "Scheduled audits & trigger alerts" },
-    { id: "nav-reports", title: "Report Builder", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "White-label client PDF/Excel exports" },
-    { id: "nav-settings", title: "Settings & Integrations", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace domain, team & OAuth" },
+  useEffect(() => {
+    if (open) {
+      restoreFocusTo.current = document.activeElement as HTMLElement | null;
+      inputRef.current?.focus();
+    } else {
+      restoreFocusTo.current?.focus?.();
+    }
+  }, [open]);
 
-    // Quick Actions
-    // Subtitles describe what the action does. They deliberately carry no
-    // counts or metrics — the palette has no workspace data loaded, so any
-    // figure here would be a fabricated number shown to every tenant.
-    { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/technical-seo"); }, subtitle: "Scan your site for SEO issues" },
-    { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/content-ai"); }, subtitle: "Draft an SEO-optimized article" },
-    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search-console"); }, subtitle: "Fetch the latest search queries" },
-    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local-seo"); }, subtitle: "Generate a landing page for a target city" },
-  ], [router]);
+  // Clearing the query belongs in render, not in the effect above: setting
+  // state from an effect costs a second render pass, and React flags it.
+  const [lastOpen, setLastOpen] = useState(open);
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    if (!open) {
+      setQuery("");
+      setSelectedIndex(0);
+    }
+  }
 
-  const filteredItems = useMemo(() => {
-    if (!query.trim()) return items;
-    const q = query.toLowerCase();
-    return items.filter(
-      item => item.title.toLowerCase().includes(q) || (item.subtitle && item.subtitle.toLowerCase().includes(q)) || item.category.toLowerCase().includes(q)
-    );
-  }, [items, query]);
+  const results = useMemo(() => searchRoutes(query), [query]);
 
-  // Reset the highlighted row when the query changes. Done during render
-  // rather than in an effect so there is no extra render pass.
+  // Reset the highlight when the query changes. Done during render rather than
+  // in an effect so there is no extra render pass.
   const [lastQuery, setLastQuery] = useState(query);
   if (query !== lastQuery) {
     setLastQuery(query);
     setSelectedIndex(0);
   }
 
-  const handleSelect = (item: CommandItem) => {
+  const select = (route: AppRoute) => {
     onOpenChange(false);
-    setQuery("");
-    if (item.action) {
-      item.action();
-    } else if (item.href) {
-      router.push(item.href);
-    }
+    router.push(route.href);
   };
 
-  // Keyboard navigation within modal
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex(prev => (prev + 1) % (filteredItems.length || 1));
+      setSelectedIndex((prev) => (prev + 1) % (results.length || 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex(prev => (prev - 1 + (filteredItems.length || 1)) % (filteredItems.length || 1));
-    } else if (e.key === "Enter" && filteredItems[selectedIndex]) {
+      setSelectedIndex((prev) => (prev - 1 + (results.length || 1)) % (results.length || 1));
+    } else if (e.key === "Enter" && results[selectedIndex]) {
       e.preventDefault();
-      handleSelect(filteredItems[selectedIndex]);
+      select(results[selectedIndex]);
+    } else if (e.key === "Tab") {
+      // The palette is the only thing on screen while it is open; Tab must not
+      // walk into the page behind the backdrop.
+      e.preventDefault();
     }
   };
 
-  const categories = useMemo(() => {
-    const cats: string[] = [];
-    filteredItems.forEach(i => {
-      if (!cats.includes(i.category)) cats.push(i.category);
-    });
-    return cats;
-  }, [filteredItems]);
+  // Keep the highlighted row in view when arrowing past the fold.
+  useEffect(() => {
+    listRef.current?.querySelector('[data-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const byScope = new Map<string, AppRoute[]>();
+    for (const route of results) {
+      if (!byScope.has(route.scope)) {
+        byScope.set(route.scope, []);
+        order.push(route.scope);
+      }
+      byScope.get(route.scope)!.push(route);
+    }
+    return order.map((scope) => ({ scope, routes: byScope.get(scope)! }));
+  }, [results]);
 
   if (!open) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => onOpenChange(false)}
-          className="fixed inset-0 bg-[var(--bg-overlay)] backdrop-blur-md"
-        />
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-20">
+      <button
+        aria-label="Close search"
+        tabIndex={-1}
+        onClick={() => onOpenChange(false)}
+        className="fixed inset-0 cursor-default bg-brand-950/20 backdrop-blur-sm"
+      />
 
-        {/* Modal */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -10 }}
-          transition={{ duration: 0.15 }}
-          onKeyDown={handleKeyDown}
-          className="relative w-full max-w-2xl bg-[var(--card-bg)] border border-[var(--border-strong)] rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[70vh]"
-        >
-          {/* Search bar */}
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-color)] bg-[var(--surface-2)]">
-            <Search size={18} className="text-gray-400 shrink-0" />
-            <input
-              type="text"
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search tools, keywords, pages, quick actions... (try 'audit', 'rank', 'theme')"
-              className="w-full bg-transparent text-base text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
-            />
-            <kbd className="h-6 px-2 rounded border border-[var(--border-color)] bg-[var(--surface-3)] text-xs text-[var(--text-muted)] font-mono flex items-center shrink-0">
-              ESC
-            </kbd>
-          </div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search and jump to a page"
+        onKeyDown={handleKeyDown}
+        className="relative z-50 flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <div className="flex items-center gap-3 border-b bg-brand-50 px-5 py-4" style={{ borderColor: "var(--border-color)" }}>
+          <Search size={18} className="shrink-0 text-brand-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search pages and tools…"
+            aria-label="Search pages and tools"
+            aria-controls="command-palette-results"
+            className="w-full bg-transparent text-base text-brand-950 placeholder:text-brand-400 focus:outline-none"
+          />
+          <kbd
+            className="flex h-6 shrink-0 items-center rounded border bg-brand-100 px-2 font-mono text-xs text-brand-500"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            ESC
+          </kbd>
+        </div>
 
-          {/* Results list */}
-          <div className="overflow-y-auto flex-1 p-3 space-y-4">
-            {filteredItems.length === 0 ? (
-              <div className="py-12 text-center text-[var(--text-muted)] text-sm">
-                No results found for &ldquo;{query}&rdquo;. Try searching for &ldquo;SEO&rdquo;, &ldquo;content&rdquo;, or &ldquo;rank&rdquo;.
-              </div>
-            ) : (
-              categories.map(cat => (
-                <div key={cat} className="space-y-1">
-                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    {cat}
-                  </div>
-                  {filteredItems
-                    .filter(i => i.category === cat)
-                    .map(item => {
-                      const idx = filteredItems.findIndex(i => i.id === item.id);
-                      const isSelected = idx === selectedIndex;
-                      const Icon = item.icon;
+        <div id="command-palette-results" ref={listRef} className="flex-1 space-y-4 overflow-y-auto p-3">
+          {results.length === 0 ? (
+            <p className="py-12 text-center text-sm text-brand-400">
+              Nothing matches &ldquo;{query}&rdquo;.
+            </p>
+          ) : (
+            groups.map((group) => (
+              <div key={group.scope} className="space-y-1">
+                <p className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-400">{group.scope}</p>
+                {group.routes.map((route) => {
+                  const idx = results.indexOf(route);
+                  const isSelected = idx === selectedIndex;
+                  const Icon = route.icon;
 
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelect(item)}
-                          onMouseEnter={() => setSelectedIndex(idx)}
+                  return (
+                    <button
+                      key={route.href}
+                      type="button"
+                      data-selected={isSelected}
+                      onClick={() => select(route)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={cn(
+                        "group flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-colors",
+                        isSelected ? "bg-brand-100 text-brand-950" : "text-brand-950 hover:bg-brand-50",
+                      )}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span
                           className={cn(
-                            "flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-base group",
-                            isSelected ? "bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-100" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                            isSelected ? "bg-white text-brand-950 shadow-sm" : "bg-brand-100 text-brand-500",
                           )}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-base",
-                              isSelected ? "bg-white dark:bg-zinc-700 text-gray-900 shadow-sm" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
-                            )}>
-                              <Icon size={16} />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold truncate">{item.title}</div>
-                              {item.subtitle && (
-                                <div className={cn("text-xs truncate", isSelected ? "text-gray-500 dark:text-gray-400" : "text-[var(--text-muted)]")}>
-                                  {item.subtitle}
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          <Icon size={16} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold">{route.label}</span>
+                          <span className="block truncate text-xs text-brand-400">{route.description}</span>
+                        </span>
+                      </span>
 
-                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-gray-500 dark:text-gray-400" : "text-transparent group-hover:text-[var(--text-muted)]")}>
-                            <span>Select</span>
-                            <CornerDownLeft size={13} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              ))
-            )}
-          </div>
+                      <span
+                        className={cn(
+                          "flex shrink-0 items-center gap-1 text-xs font-medium",
+                          isSelected ? "text-brand-500" : "text-transparent group-hover:text-brand-400",
+                        )}
+                      >
+                        Select
+                        <CornerDownLeft size={13} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
 
-          {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-[var(--border-color)] bg-[var(--surface-2)] flex items-center justify-between text-xs text-[var(--text-muted)]">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↑</kbd>
-                <kbd className="px-1 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↓</kbd>
-                to navigate
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd className="px-1.5 rounded bg-[var(--surface-3)] border border-[var(--border-color)]">↵</kbd>
-                to select
-              </span>
-            </div>
-            <span>GrowthX AI SEO · Quick Command</span>
-          </div>
-        </motion.div>
+        <div
+          className="flex items-center justify-between border-t bg-brand-50 px-4 py-2.5 text-xs text-brand-400"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <span className="flex items-center gap-4">
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border bg-brand-100 px-1">↑</kbd>
+              <kbd className="rounded border bg-brand-100 px-1">↓</kbd>
+              to navigate
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border bg-brand-100 px-1.5">↵</kbd>
+              to select
+            </span>
+          </span>
+          <span>
+            {results.length} of {ROUTES.length} pages
+          </span>
+        </div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }

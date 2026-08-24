@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role, LocalSeoData } from "@/lib/api-client";
+import { useEffect, useSyncExternalStore } from "react";
+import { api, ApiError, auth, type Role } from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -24,6 +24,54 @@ function setActiveOrg(id: string) {
 function setActiveProject(id: string) {
   auth.setProjectId(id);
   projectListeners.forEach((l) => l());
+}
+
+/**
+ * The reporting period the whole console is looking at.
+ *
+ * The top bar has always had 7d / 28d / 90d pills, but they wrote to a
+ * `useState` inside `TopNav` that nothing else could read — picking 90d
+ * re-rendered three buttons and changed no data. The period is a workspace-wide
+ * choice, so it lives beside the active org and project and uses the same
+ * external-store pattern rather than a context, which keeps the pills usable
+ * from a component that does not wrap the pages.
+ */
+export const PERIODS = [7, 28, 90] as const;
+export type PeriodDays = (typeof PERIODS)[number];
+
+const PERIOD_KEY = "growthx.period";
+const periodListeners = new Set<() => void>();
+let periodDays: PeriodDays = 28;
+
+function readStoredPeriod(): PeriodDays {
+  if (typeof window === "undefined") return 28;
+  const raw = Number(window.localStorage.getItem(PERIOD_KEY));
+  return (PERIODS as readonly number[]).includes(raw) ? (raw as PeriodDays) : 28;
+}
+
+// Hydrate once at module load on the client so a reload keeps the choice.
+if (typeof window !== "undefined") periodDays = readStoredPeriod();
+
+function subscribeToPeriodChange(listener: () => void) {
+  periodListeners.add(listener);
+  return () => periodListeners.delete(listener);
+}
+
+export function setPeriodDays(days: PeriodDays) {
+  periodDays = days;
+  if (typeof window !== "undefined") window.localStorage.setItem(PERIOD_KEY, String(days));
+  periodListeners.forEach((l) => l());
+}
+
+/** The selected period. The server snapshot is the 28d default, which is what
+ *  the server renders with, so there is no hydration mismatch. */
+export function usePeriod() {
+  const days = useSyncExternalStore(
+    subscribeToPeriodChange,
+    () => periodDays,
+    () => 28 as PeriodDays,
+  );
+  return { days, setDays: setPeriodDays };
 }
 
 /**
@@ -210,10 +258,15 @@ export function useRemoveMember(orgId: string | null) {
   });
 }
 
-export function usePortfolio(orgId: string | null, days = 28) {
+export function usePortfolio(orgId: string | null, days?: number) {
+  // `days` stays overridable for the few places that need a fixed window, but
+  // when it is omitted the query follows the period pills — that is what makes
+  // them do something. It is part of the key, so switching period refetches.
+  const { days: selected } = usePeriod();
+  const range = days ?? selected;
   return useQuery({
-    queryKey: ["portfolio", orgId, days],
-    queryFn: () => api.getPortfolio(orgId!, days),
+    queryKey: ["portfolio", orgId, range],
+    queryFn: () => api.getPortfolio(orgId!, range),
     enabled: Boolean(orgId),
     retry: false,
   });
@@ -253,10 +306,12 @@ export function useCheckout(orgId: string | null) {
   });
 }
 
-export function useVisibility(projectId: string | null, days = 28) {
+export function useVisibility(projectId: string | null, days?: number) {
+  const { days: selected } = usePeriod();
+  const range = days ?? selected;
   return useQuery({
-    queryKey: ["visibility", projectId, days],
-    queryFn: () => api.getVisibility(projectId!, days),
+    queryKey: ["visibility", projectId, range],
+    queryFn: () => api.getVisibility(projectId!, range),
     enabled: Boolean(projectId),
     retry: false,
   });

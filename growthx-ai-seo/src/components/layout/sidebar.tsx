@@ -1,49 +1,37 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  BarChart,
-  Brain,
-  ChevronsUpDown,
-  Cpu,
-  CreditCard,
-  Crosshair,
-  Edit3,
-  FileText,
-  Globe,
-  HeartPulse,
-  LayoutGrid,
-  ListChecks,
-  MapPin,
-  Megaphone,
-  MoreHorizontal,
-  Search,
-  Settings,
-  Sparkles,
-  TrendingUp,
-  Telescope,
-  Users,
-} from "lucide-react";
+import { ChevronsUpDown, LayoutGrid } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useEntitlements, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { routeFor, routesInSection, type AppRoute } from "@/lib/routes";
+import { useEntitlements, usePortfolio, useProfile, useWorkspace } from "@/hooks/use-growthx";
 
 /**
  * Agency console sidebar.
  *
  * Two scopes, exactly as the design specifies: AGENCY-level work at the top,
  * then a client switcher and everything scoped to the selected client.
+ *
+ * The nav used to be two hand-written arrays listing 16 of the app's 40 routes,
+ * so ten finished pages — Keywords, Content AI, Image SEO, Internal Linking,
+ * Meta Optimizer, Schema Generator, the AI Assistant, Activity, Billing and
+ * Help — could only be reached by typing their URL. It now reads the shared
+ * route registry, so a new route appears here by existing.
  */
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  /** Small right-aligned counter or metric. */
-  tag?: string;
-  tagTone?: "default" | "danger";
+/** Per-route badges. Counts come from workspace data, so they cannot live in
+ *  the static registry; this maps a route to the number that belongs on it. */
+function useNavTags(): Record<string, { value: string; tone?: "danger" }> {
+  const { orgId, projectId, projects } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+
+  const tags: Record<string, { value: string; tone?: "danger" }> = {};
+  if (projects.length) tags["/clients"] = { value: String(projects.length) };
+  if (client?.criticalIssues) tags["/website"] = { value: String(client.criticalIssues), tone: "danger" };
+  return tags;
 }
 
 export function Sidebar({
@@ -59,50 +47,51 @@ export function Sidebar({
   const { orgId, projects, projectId, setProjectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const entitlements = useEntitlements(orgId);
+  const profile = useProfile();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
+  const tags = useNavTags();
+  const activeHref = routeFor(pathname)?.href ?? null;
 
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
 
-  const agencyNav: NavItem[] = [
-    { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
-  ];
-
-  const clientNav: NavItem[] = [
-    { label: "Overview", href: "/dashboard", icon: Activity },
-    {
-      label: "Website",
-      href: "/website",
-      icon: Globe,
-      tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
-      tagTone: "danger",
-    },
-    { label: "Search", href: "/search", icon: Search },
-    { label: "Local", href: "/local", icon: MapPin },
-    { label: "Market Research", href: "/market-research", icon: Telescope },
-    { label: "Action Queue", href: "/action-queue", icon: ListChecks },
-    { label: "Market", href: "/market", icon: TrendingUp },
-    { label: "Competitors", href: "/competitors", icon: Crosshair },
-    { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
-    { label: "Marketing", href: "/marketing", icon: Megaphone },
-    { label: "Content", href: "/content", icon: Edit3 },
-    { label: "AI Engineer", href: "/engineer", icon: Cpu },
-    { label: "Monitoring", href: "/monitoring", icon: Activity },
-    { label: "Reports", href: "/reports", icon: BarChart },
-  ];
-
+  // The switcher was a bare open/closed boolean: no way to dismiss it except by
+  // hitting the trigger again, and no Escape. Both are table stakes for a menu.
+  useEffect(() => {
+    if (!switcherOpen) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!switcherRef.current?.contains(event.target as Node)) setSwitcherOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setSwitcherOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [switcherOpen]);
 
   const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
   const crawlPct =
     crawlQuota && crawlQuota.limit ? Math.min(100, (crawlQuota.used / crawlQuota.limit) * 100) : 0;
 
+  const user = profile.data;
+  const displayName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email?.split("@")[0] || "Your workspace";
+
+  const closeMobile = () => setMobileOpen?.(false);
+
   return (
     <>
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileOpen?.(false)} />
+        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={closeMobile} aria-hidden="true" />
       )}
 
       <aside
+        aria-label="Main navigation"
         className={cn(
           "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-white transition-transform duration-200 md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
@@ -110,7 +99,10 @@ export function Sidebar({
         style={{ borderColor: "var(--border-color)" }}
       >
         {/* Brand */}
-        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--color-brand-100)" }}>
+        <div
+          className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]"
+          style={{ borderColor: "var(--color-brand-100)" }}
+        >
           <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand-950">
             <LayoutGrid size={13} className="text-white" />
           </div>
@@ -125,18 +117,20 @@ export function Sidebar({
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <SectionLabel>Portfolio</SectionLabel>
-          {agencyNav.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+          {routesInSection("portfolio").map((route) => (
+            <NavLink key={route.href} route={route} activeHref={activeHref} tags={tags} onNavigate={closeMobile} />
           ))}
 
           <div className="mt-5">
             <SectionLabel>Workspace</SectionLabel>
 
             {/* Client switcher */}
-            <div className="relative px-1">
+            <div className="relative px-1" ref={switcherRef}>
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
                 disabled={projects.length === 0}
+                aria-expanded={switcherOpen}
+                aria-haspopup="listbox"
                 className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-brand-50 disabled:opacity-60"
                 style={{ borderColor: "var(--border-color)" }}
               >
@@ -151,17 +145,21 @@ export function Sidebar({
                     {clientRow?.domain ?? "add a website"}
                   </span>
                 </span>
-                <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
+                <ChevronsUpDown size={13} className="shrink-0 text-brand-400" aria-hidden="true" />
               </button>
 
               {switcherOpen && projects.length > 0 && (
                 <div
+                  role="listbox"
+                  aria-label="Switch project"
                   className="absolute left-1 right-1 z-10 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg"
                   style={{ borderColor: "var(--border-color)" }}
                 >
                   {portfolio.data?.clients.map((client) => (
                     <button
                       key={client.projectId}
+                      role="option"
+                      aria-selected={client.projectId === projectId}
                       onClick={() => {
                         setProjectId(client.projectId);
                         setSwitcherOpen(false);
@@ -182,40 +180,77 @@ export function Sidebar({
             </div>
 
             <div className="mt-2">
-              {clientNav.map((item) => (
-                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+              {routesInSection("workspace").map((route) => (
+                <NavLink key={route.href} route={route} activeHref={activeHref} tags={tags} onNavigate={closeMobile} />
               ))}
             </div>
 
-            <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
-              <NavLink 
-                item={{ label: "Integrations", href: "/integrations", icon: LayoutGrid }} 
-                pathname={pathname} 
-                onNavigate={() => setMobileOpen?.(false)} 
-              />
-              <NavLink 
-                item={{ label: "Settings", href: "/settings", icon: Settings }} 
-                pathname={pathname} 
-                onNavigate={() => setMobileOpen?.(false)} 
-              />
+            <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--color-brand-100)" }}>
+              <SectionLabel>Content Intelligence</SectionLabel>
+              {routesInSection("content-intelligence").map((route) => (
+                <NavLink key={route.href} route={route} activeHref={activeHref} tags={tags} onNavigate={closeMobile} />
+              ))}
+            </div>
+
+            <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--color-brand-100)" }}>
+              <SectionLabel>Tools</SectionLabel>
+              {routesInSection("tools").map((route) => (
+                <NavLink key={route.href} route={route} activeHref={activeHref} tags={tags} onNavigate={closeMobile} />
+              ))}
+            </div>
+
+            <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--color-brand-100)" }}>
+              <SectionLabel>Account</SectionLabel>
+              {routesInSection("account").map((route) => (
+                <NavLink key={route.href} route={route} activeHref={activeHref} tags={tags} onNavigate={closeMobile} />
+              ))}
             </div>
           </div>
         </nav>
 
+        {/* Crawl quota. This percentage was computed and then never rendered —
+            the meter it was written for had gone missing from the markup. */}
+        {crawlQuota?.limit != null && (
+          <div className="shrink-0 border-t px-[14px] py-3" style={{ borderColor: "var(--color-brand-100)" }}>
+            <div className="flex items-baseline justify-between">
+              <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-brand-400">
+                Pages crawled
+              </span>
+              <span className="font-mono text-[9.5px] text-brand-500">
+                {compact(crawlQuota.used)}/{compact(crawlQuota.limit)}
+              </span>
+            </div>
+            <div
+              className="mt-1.5 h-1 overflow-hidden rounded-full bg-brand-100"
+              role="progressbar"
+              aria-valuenow={Math.round(crawlPct)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Crawl quota used"
+            >
+              <div
+                className={cn("h-full rounded-full", crawlPct >= 90 ? "bg-error-500" : "bg-brand-950")}
+                style={{ width: `${crawlPct}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-        {/* User */}
-        <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "var(--color-brand-100)" }}>
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
-            {entitlements.data ? "SA" : "—"}
+        {/* User. Was hardcoded to "SA / Workspace / Admin" for every visitor. */}
+        <Link
+          href="/settings"
+          onClick={closeMobile}
+          className="flex items-center gap-2 border-t px-[14px] py-3 transition-colors hover:bg-brand-50"
+          style={{ borderColor: "var(--color-brand-100)" }}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
+            {user ? initialsOf(displayName) : "—"}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[11.5px] font-semibold text-brand-950">
-              Workspace
-            </span>
-            <span className="block text-[10px] text-brand-400">Admin</span>
+            <span className="block truncate text-[11.5px] font-semibold text-brand-950">{displayName}</span>
+            <span className="block truncate text-[10px] text-brand-400">{user?.email ?? "Not signed in"}</span>
           </span>
-          <MoreHorizontal size={14} className="text-brand-400" />
-        </div>
+        </Link>
       </aside>
     </>
   );
@@ -230,36 +265,45 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 function NavLink({
-  item,
-  pathname,
+  route,
+  activeHref,
+  tags,
   onNavigate,
 }: {
-  item: NavItem;
-  pathname: string;
+  route: AppRoute;
+  /** The href of the registry entry the current URL resolves to. */
+  activeHref: string | null;
+  tags: Record<string, { value: string; tone?: "danger" }>;
   onNavigate: () => void;
 }) {
-  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  // Resolved by longest prefix upstream, so an unregistered child URL still
+  // highlights its parent while /content-intelligence/gaps highlights itself
+  // rather than lighting up the hub it is nested under as well.
+  const active = activeHref === route.href;
+  const tag = tags[route.href];
+
   return (
-    <Link href={item.href} onClick={onNavigate}>
-      <div
-        className={cn(
-          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
-          active ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
-        )}
-      >
-        <item.icon size={15} className={active ? "text-brand-900" : "text-brand-400"} />
-        <span className="flex-1">{item.label}</span>
-        {item.tag && (
-          <span
-            className={cn(
-              "font-mono text-[10.5px] font-medium",
-              item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
-            )}
-          >
-            {item.tag}
-          </span>
-        )}
-      </div>
+    <Link
+      href={route.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
+        active ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
+      )}
+    >
+      <route.icon size={15} className={active ? "text-brand-900" : "text-brand-400"} aria-hidden="true" />
+      <span className="flex-1 truncate">{route.label}</span>
+      {tag && (
+        <span
+          className={cn(
+            "font-mono text-[10.5px] font-medium",
+            tag.tone === "danger" ? "text-error-500" : "text-brand-400",
+          )}
+        >
+          {tag.value}
+        </span>
+      )}
     </Link>
   );
 }
