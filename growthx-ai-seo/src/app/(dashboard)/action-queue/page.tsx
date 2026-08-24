@@ -73,7 +73,7 @@ export default function ActionQueuePage() {
           </div>
 
           {error && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-400">
+            <div className="rounded-xl border border-error-500/20 bg-error-50 px-4 py-3 text-xs text-error-700">
               {error}
             </div>
           )}
@@ -118,9 +118,9 @@ export default function ActionQueuePage() {
                         <span
                           className={`text-[13px] font-bold ${
                             o.deltaPt > 0
-                              ? "text-emerald-600 dark:text-emerald-400"
+                              ? "text-success-600"
                               : o.deltaPt < 0
-                                ? "text-red-600 dark:text-red-400"
+                                ? "text-error-600"
                                 : "text-[var(--text-muted)]"
                           }`}
                         >
@@ -174,7 +174,7 @@ export default function ActionQueuePage() {
                         Winning: {o.competitorsWinning.join(", ")}
                       </p>
                     )}
-                    <p className="text-[12.5px] text-blue-600 dark:text-blue-400 mt-1.5">{o.recommendedResponse}</p>
+                    <p className="text-[12.5px] text-accent-700 mt-1.5">{o.recommendedResponse}</p>
                   </div>
                 ))}
               </div>
@@ -272,7 +272,7 @@ function ActionCard({
           )}
 
           {action.status === "CONVERTED" && (
-            <p className="text-[12px] text-emerald-600 dark:text-emerald-400">
+            <p className="text-[12px] text-success-600">
               Created in GrowthX{action.convertedToId ? ` (${action.convertedToId.slice(0, 8)}…)` : ""}.
             </p>
           )}

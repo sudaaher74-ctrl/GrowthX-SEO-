@@ -10,12 +10,21 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: React.ReactNode;
 }
 
+/**
+ * On the brand scale, not Tailwind's stock greys.
+ *
+ * `bg-black` and `gray-200` are not the same as `brand-950` and `line`, which
+ * is what `console.tsx` — the design system the other 24 pages are built from
+ * — uses for the identical roles. Side by side the difference read as a bug.
+ * The `dark:` halves are gone with them: the app is light-only, so they never
+ * matched a single rendered element.
+ */
 const variantStyles = {
-  primary: "bg-black text-white shadow-[0_1px_2px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100",
-  secondary: "bg-white text-gray-900 shadow-sm border border-gray-200 hover:bg-gray-50 dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800",
-  ghost: "text-gray-600 hover:bg-gray-100/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-zinc-800/50 dark:hover:text-gray-100",
-  danger: "bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-500/10 dark:text-red-500 dark:hover:bg-red-500/20",
-  outline: "border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:border-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-800",
+  primary: "bg-brand-950 text-white shadow-[0_1px_2px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] hover:opacity-90",
+  secondary: "bg-white text-brand-900 shadow-sm border border-line hover:bg-brand-50",
+  ghost: "text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+  danger: "bg-error-500 text-white shadow-sm hover:bg-error-600",
+  outline: "border border-line text-brand-700 hover:bg-brand-50 hover:text-brand-950",
 };
 
 const sizeStyles = {
@@ -41,7 +50,7 @@ export function Button({
       whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
       className={cn(
         "inline-flex items-center justify-center font-medium rounded-[10px] transition-all duration-200",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/10 focus-visible:ring-offset-2 dark:focus-visible:ring-white/20 dark:focus-visible:ring-offset-black",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-950/20 focus-visible:ring-offset-2",
         variantStyles[variant],
         sizeStyles[size],
         (disabled || loading) && "opacity-50 cursor-not-allowed",

@@ -92,7 +92,7 @@ export default function MarketPage() {
       />
 
       {statusMessage && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <div className="rounded-xl border border-success-500/20 bg-success-50 px-4 py-2.5 text-xs text-success-700">
           {statusMessage}
         </div>
       )}

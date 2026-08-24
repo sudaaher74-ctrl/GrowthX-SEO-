@@ -45,9 +45,16 @@ export default function ContentAiPage() {
 
   async function handleConnect() {
     if (!form.owner || !form.name || !form.accessToken) return;
-    await connectRepo.mutateAsync(form);
-    setShowConnect(false);
-    setForm({ owner: "", name: "", accessToken: "", defaultBranch: "main" });
+    try {
+      await connectRepo.mutateAsync(form);
+      setShowConnect(false);
+      setForm({ owner: "", name: "", accessToken: "", defaultBranch: "main" });
+    } catch {
+      // Swallowed on purpose: the MutationCache in `providers.tsx` has already
+      // shown the failure. Catching it keeps the rejection from surfacing as an
+      // unhandled promise error, and keeps the success-only cleanup above from
+      // running when the call did not succeed.
+    }
   }
 
   return (

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { api, type AddCompetitorAccountBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { confirmAction } from "@/components/ui/confirm-dialog";
 
 const PLATFORMS = ["INSTAGRAM", "FACEBOOK", "YOUTUBE", "TIKTOK", "TWITTER", "LINKEDIN"];
 // No brand icons in lucide — use Globe as fallback for all platforms
@@ -152,7 +153,14 @@ export default function CompetitorWorkspacePage() {
                         {account.isActive ? <EyeOff size={13} /> : <Eye size={13} />}
                       </button>
                       <button
-                        onClick={() => { if (confirm("Remove this account and all its content?")) removeMut.mutate(account.id); }}
+                        onClick={async () => {
+                          const confirmed = await confirmAction({
+                            title: `Remove ${account.handle ?? "this account"}?`,
+                            body: "Its tracked content and analysis are deleted with it. This cannot be undone.",
+                            confirmLabel: "Remove account",
+                          });
+                          if (confirmed) removeMut.mutate(account.id);
+                        }}
                         className="rounded-md p-1.5 text-error-500 hover:bg-error-50"
                       >
                         <Trash2 size={13} />

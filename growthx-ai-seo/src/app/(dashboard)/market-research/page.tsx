@@ -122,7 +122,7 @@ export default function MarketResearchPage() {
             )}
 
             {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-400">
+              <div className="rounded-xl border border-error-500/20 bg-error-50 px-4 py-3 text-xs text-error-700">
                 {error}
               </div>
             )}
@@ -242,7 +242,7 @@ function AnswerBlock({ turn, onOpenSource }: { turn: Turn; onOpenSource: (s: Res
                       Winning: {gap.competitorsWinning.join(", ")}
                     </p>
                   )}
-                  <p className="text-[12.5px] text-blue-600 dark:text-blue-400 mt-1.5">{gap.recommendedResponse}</p>
+                  <p className="text-[12.5px] text-accent-700 mt-1.5">{gap.recommendedResponse}</p>
                   <div className="flex gap-2 mt-2">
                     <Pill>impact {gap.impact}</Pill>
                     <Pill>effort {gap.effort}</Pill>
@@ -269,7 +269,7 @@ function AnswerBlock({ turn, onOpenSource }: { turn: Turn; onOpenSource: (s: Res
                   </div>
                   {/* Phase 1 surfaces recommendations only. Converting one into a
                       GrowthX task is Phase 2, so no approve button is shown yet. */}
-                  <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                  <p className="mt-2 text-[11px] text-warning-700">
                     Requires approval before any work is created.
                   </p>
                 </div>

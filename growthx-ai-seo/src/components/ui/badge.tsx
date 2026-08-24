@@ -9,13 +9,26 @@ interface BadgeProps {
   className?: string;
 }
 
+/**
+ * Tones come from the design tokens, not from Tailwind's stock palette.
+ *
+ * These variants used to be written in raw `zinc`/`emerald`/`amber`/`red`
+ * with a `dark:` half. The app is light-only — `providers.tsx` says so and
+ * nothing ever sets the `dark` class — so every dark variant was dead weight,
+ * and the light halves were a second palette sitting next to the console's.
+ * "Success" here and "good" in `console.tsx` were two different greens.
+ *
+ * `pending` maps onto the accent rather than a sixth hue: the tokens define
+ * four semantic colours, and inventing an indigo for this one component is how
+ * the drift started.
+ */
 const variantStyles = {
-  default: "bg-zinc-100/80 text-zinc-700 border border-zinc-200/50 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/50",
-  success: "bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
-  warning: "bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  error: "bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  info: "bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  pending: "bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+  default: "bg-brand-100 text-brand-700 border border-line",
+  success: "bg-success-50 text-success-700 border border-success-500/20",
+  warning: "bg-warning-50 text-warning-700 border border-warning-500/20",
+  error: "bg-error-50 text-error-700 border border-error-500/20",
+  info: "bg-accent-50 text-accent-700 border border-accent-500/20",
+  pending: "bg-accent-50 text-accent-700 border border-accent-500/20",
 };
 
 export function Badge({ children, variant = "default", size = "sm", className }: BadgeProps) {
@@ -50,7 +63,7 @@ export function TrendBadge({ value, suffix = "%", invertColor = false, className
     <span
       className={cn(
         "inline-flex items-center gap-0.5 text-xs font-medium",
-        good ? "text-emerald-600 dark:text-emerald-400" : bad ? "text-red-600 dark:text-red-400" : "text-zinc-400",
+        good ? "text-success-600" : bad ? "text-error-600" : "text-brand-400",
         className
       )}
     >
@@ -68,18 +81,18 @@ interface StatusDotProps {
 }
 
 const dotColors = {
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  error: "bg-red-500",
-  info: "bg-blue-500",
-  pending: "bg-indigo-500",
+  success: "bg-success-500",
+  warning: "bg-warning-500",
+  error: "bg-error-500",
+  info: "bg-accent-500",
+  pending: "bg-accent-500",
 };
 
 export function StatusDot({ status, pulse = false, label, className }: StatusDotProps) {
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
       <span className={cn("w-2 h-2 rounded-full shrink-0", dotColors[status], pulse && "animate-pulse")} />
-      {label && <span className="text-xs text-[var(--text-muted)]">{label}</span>}
+      {label && <span className="text-xs text-brand-400">{label}</span>}
     </span>
   );
 }

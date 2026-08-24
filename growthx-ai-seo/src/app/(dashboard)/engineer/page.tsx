@@ -40,12 +40,23 @@ function EngineerClient() {
 
   const handleAnalyze = async () => {
     if (!selectedIssue) return;
-    await analyzeIssue.mutateAsync(selectedIssue.id);
+    try {
+      await analyzeIssue.mutateAsync(selectedIssue.id);
+    } catch {
+      // Swallowed on purpose: the MutationCache in `providers.tsx` has already
+      // shown the failure. Catching it keeps the rejection from surfacing as an
+      // unhandled promise error, and keeps the success-only cleanup above from
+      // running when the call did not succeed.
+    }
   };
 
   const handleGenerateFix = async () => {
     if (!selectedIssue) return;
-    await autoFixIssue.mutateAsync(selectedIssue.id);
+    try {
+      await autoFixIssue.mutateAsync(selectedIssue.id);
+    } catch {
+      // As above — already reported, nothing to clean up.
+    }
   };
 
   return (

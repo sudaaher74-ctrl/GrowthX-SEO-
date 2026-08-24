@@ -56,7 +56,7 @@ export default function AdminPage() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/20 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-full bg-error-50 text-error-600 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldAlert size={12} /> Super Admin
             </span>
             <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel</h1>

@@ -8,6 +8,7 @@ import { QueryState } from "@/components/ui/upgrade-prompt";
 import { cn } from "@/lib/utils";
 import { useCheckout, useEntitlements, usePlans, useWorkspace } from "@/hooks/use-growthx";
 import type { Plan } from "@/lib/api-client";
+import { toast } from "@/components/ui/toast";
 
 /** Human labels for the feature flags the API returns. */
 const FEATURE_LABELS: Record<string, string> = {
@@ -45,13 +46,20 @@ export default function BillingPage() {
 
   async function subscribe(plan: Plan) {
     if (!email.trim()) {
-      window.alert("Enter the billing email first.");
+      toast.info("Add a billing email first", "The receipt and plan confirmation are sent there.");
       return;
     }
-    const session = await checkout.mutateAsync({ plan: plan.plan, email: email.trim() });
-    // Razorpay returns a hosted checkout link; the plan is only granted once
-    // their webhook confirms payment, so we never mark it active here.
-    if (session.shortUrl) window.location.assign(session.shortUrl);
+    try {
+      const session = await checkout.mutateAsync({ plan: plan.plan, email: email.trim() });
+      // Razorpay returns a hosted checkout link; the plan is only granted once
+      // their webhook confirms payment, so we never mark it active here.
+      if (session.shortUrl) window.location.assign(session.shortUrl);
+    } catch {
+      // Swallowed on purpose: the MutationCache in `providers.tsx` has already
+      // shown the failure. Catching it keeps the rejection from surfacing as an
+      // unhandled promise error, and keeps the success-only cleanup above from
+      // running when the call did not succeed.
+    }
   }
 
   return (

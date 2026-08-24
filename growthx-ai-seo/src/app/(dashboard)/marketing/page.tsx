@@ -79,7 +79,7 @@ export default function MarketingPage() {
       />
 
       {statusMessage && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <div className="rounded-xl border border-success-500/20 bg-success-50 px-4 py-2.5 text-xs text-success-700">
           {statusMessage}
         </div>
       )}
@@ -135,7 +135,7 @@ export default function MarketingPage() {
                       <Panel title="Executive Business Summary & Positioning" subtitle="High-level AI-generated marketing analysis">
                         <div className="p-5 space-y-5 text-sm text-[var(--text-primary)]">
                           <div className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]">
-                            <h4 className="font-bold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1.5">Business Overview</h4>
+                            <h4 className="font-bold text-xs uppercase tracking-wider text-accent-700 mb-1.5">Business Overview</h4>
                             <p className="text-[var(--text-secondary)] leading-relaxed">{strategyContent.businessSummary}</p>
                           </div>
 
@@ -152,7 +152,7 @@ export default function MarketingPage() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                             <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
-                              <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                              <h4 className="font-bold text-xs uppercase tracking-wider text-success-600 flex items-center gap-1.5">
                                 <Zap size={14} /> Key Demand Signals
                               </h4>
                               <ul className="space-y-1.5 text-xs text-[var(--text-secondary)]">
@@ -166,7 +166,7 @@ export default function MarketingPage() {
                             </div>
 
                             <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-2">
-                              <h4 className="font-bold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                              <h4 className="font-bold text-xs uppercase tracking-wider text-warning-700 flex items-center gap-1.5">
                                 <Award size={14} /> Competitive Counter-Strategies
                               </h4>
                               <ul className="space-y-1.5 text-xs text-[var(--text-secondary)]">
@@ -274,7 +274,7 @@ export default function MarketingPage() {
                               <Td><span className="text-[12px] text-brand-500">{item.effort}</span></Td>
                               {/* `impact` is the current field; `expectedImpact` is
                                   what reports generated before the agent rewrite used. */}
-                              <Td><span className="text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">{item.impact ?? item.expectedImpact ?? "—"}</span></Td>
+                              <Td><span className="text-[12px] font-semibold text-success-600">{item.impact ?? item.expectedImpact ?? "—"}</span></Td>
                             </Tr>
                           ))}
                         </tbody>
@@ -333,7 +333,7 @@ export default function MarketingPage() {
                               </Td>
                               <Td><span className="text-[13px] text-brand-700">{campaign.sentCount}</span></Td>
                               <Td><span className="text-[13px] text-brand-700">{campaign.replyCount}</span></Td>
-                              <Td><span className="text-[13px] font-medium text-emerald-600 dark:text-emerald-400">{campaign.linkCount}</span></Td>
+                              <Td><span className="text-[13px] font-medium text-success-600">{campaign.linkCount}</span></Td>
                             </Tr>
                           ))}
                         </tbody>

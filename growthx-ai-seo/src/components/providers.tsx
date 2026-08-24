@@ -1,6 +1,7 @@
 "use client";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { ConfirmHost } from "@/components/ui/confirm-dialog";
 import { Toaster, toast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api-client";
 
@@ -56,6 +57,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
+      <ConfirmHost />
       <Toaster />
     </QueryClientProvider>
   );

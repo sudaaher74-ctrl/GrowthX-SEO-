@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { routeFor } from "@/lib/routes";
 import { TopNav } from "@/components/layout/topnav";
 import { auth } from "@/lib/api-client";
 
@@ -22,6 +23,7 @@ const noSubscribe = () => () => {};
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   // localStorage is unreadable during the server render. useSyncExternalStore
   // is the pattern already used for the stored org in `useWorkspace`: a client
@@ -41,8 +43,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // chrome that a signed-out visitor should never see.
   if (signedIn !== true) return null;
 
+  const route = routeFor(pathname);
+
   return (
     <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
+      {/* Every one of the 40 dashboard routes shared the root layout's single
+          title, so every browser tab and every bookmark read "GrowthX AI SEO —
+          AI SEO Automation Platform". These pages are all Client Components, so
+          they cannot export `metadata`; React hoists this <title> to <head>
+          instead, and it is written here so a page gets its name by being in
+          the route registry rather than by remembering to declare one. The
+          suffix is spelled out because a hoisted title replaces the root
+          layout's template rather than filling it in. */}
+      <title>{route ? `${route.label} | GrowthX AI SEO` : "GrowthX AI SEO"}</title>
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <TopNav setMobileOpen={setMobileOpen} />
       {/* 232px sidebar + 52px header, per the design's measurements. */}

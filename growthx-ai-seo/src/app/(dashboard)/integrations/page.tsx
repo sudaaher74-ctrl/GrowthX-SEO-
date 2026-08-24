@@ -34,8 +34,15 @@ function IntegrationsClient() {
 
   const handleConnectGitHub = async (e: React.FormEvent) => {
     e.preventDefault();
-    await connectRepo.mutateAsync(githubForm);
-    setConnectingGitHub(false);
+    try {
+      await connectRepo.mutateAsync(githubForm);
+      setConnectingGitHub(false);
+    } catch {
+      // Swallowed on purpose: the MutationCache in `providers.tsx` has already
+      // shown the failure. Catching it keeps the rejection from surfacing as an
+      // unhandled promise error, and keeps the success-only cleanup above from
+      // running when the call did not succeed.
+    }
   };
 
   const integrations = [

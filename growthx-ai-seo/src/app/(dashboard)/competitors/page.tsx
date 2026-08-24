@@ -19,10 +19,17 @@ function CompetitorsClient() {
     e.preventDefault();
     if (!domain) return;
     
-    await addCompetitor.mutateAsync({ domain, label: label || undefined });
-    setDomain("");
-    setLabel("");
-    setIsAdding(false);
+    try {
+      await addCompetitor.mutateAsync({ domain, label: label || undefined });
+      setDomain("");
+      setLabel("");
+      setIsAdding(false);
+    } catch {
+      // Swallowed on purpose: the MutationCache in `providers.tsx` has already
+      // shown the failure. Catching it keeps the rejection from surfacing as an
+      // unhandled promise error, and keeps the success-only cleanup above from
+      // running when the call did not succeed.
+    }
   };
 
   const report = visibility.data;
