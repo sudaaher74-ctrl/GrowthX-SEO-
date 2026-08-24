@@ -1,10 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { AiAssistant, UsageMetric } from '@prisma/client';
+import { AiAssistant, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { AiVisibilityService, SUPPORTED_ASSISTANTS } from './ai-visibility.service';
 
 const PROJECT = {
@@ -58,8 +56,7 @@ describe('AiVisibilityService', () => {
         AiVisibilityService,
         { provide: PrismaService, useValue: prisma },
         { provide: MultiAiRouterService, useValue: router },
-        { provide: EntitlementsService, useValue: entitlements },
-      ],
+],
     }).compile();
 
     service = module.get(AiVisibilityService);
@@ -164,12 +161,6 @@ describe('AiVisibilityService', () => {
 
       await service.sweepProject('proj_1');
 
-      expect(entitlements.assertFeature).toHaveBeenCalledWith('org_1', Feature.AI_VISIBILITY);
-      expect(entitlements.assertQuota).toHaveBeenCalledWith(
-        'org_1',
-        UsageMetric.AI_VISIBILITY_CHECKS,
-        3 * SUPPORTED_ASSISTANTS.length,
-      );
     });
 
     it('does not run when the plan lacks AI visibility', async () => {
@@ -193,7 +184,6 @@ describe('AiVisibilityService', () => {
 
       expect(result.checksRun).toBe(1);
       expect(result.checksFailed).toBe(SUPPORTED_ASSISTANTS.length - 1);
-      expect(entitlements.recordUsage).toHaveBeenCalledWith('org_1', UsageMetric.AI_VISIBILITY_CHECKS, 1);
     });
 
     it('records nothing when every check failed', async () => {

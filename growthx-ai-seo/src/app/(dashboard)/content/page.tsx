@@ -2,9 +2,9 @@
 import { Suspense, useState } from "react";
 import { Loader2, Zap, FileText, UploadCloud, Edit3 } from "lucide-react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, Mono } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useWorkspace, useContentPieces, usePlanContent, useDraftContent, useRunContent } from "@/hooks/use-growthx";
 import type { ContentPiece } from "@/lib/api-client";
+import { QueryState } from "@/components/ui/query-state";
 
 function ContentClient() {
   const { projectId } = useWorkspace();

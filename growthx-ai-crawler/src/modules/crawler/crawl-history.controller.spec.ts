@@ -7,8 +7,6 @@ import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
 import { HistoryService } from '../history/history.service';
 import { GraphService } from '../graph/graph.service';
-import { OrgContextService } from '../billing/org-context.service';
-import { EntitlementsService } from '../billing/entitlements.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
@@ -49,10 +47,7 @@ describe('CrawlController — crawl history', () => {
         { provide: GraphService, useValue: {} },
         { provide: AiService, useValue: {} },
         { provide: AutoFixService, useValue: {} },
-        { provide: SchedulerService, useValue: {} },
-        { provide: OrgContextService, useValue: orgContext },
-        { provide: EntitlementsService, useValue: {} },
-      ],
+        { provide: SchedulerService, useValue: {} },      ],
     }).compile();
 
     controller = module.get(CrawlController);

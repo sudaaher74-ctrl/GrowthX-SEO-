@@ -2,9 +2,6 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AiAssistant, SearchIntent } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 import { AiVisibilityService, SUPPORTED_ASSISTANTS } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 
@@ -48,14 +45,12 @@ export class AddCompetitorDto {
  * AI Visibility (AEO/GEO) — whether ChatGPT, Claude, and Gemini cite the
  * customer when answering the questions their buyers actually ask.
  *
- * Every route is Pro-only: the whole surface sits behind Feature.AI_VISIBILITY.
+ * Every route is Pro-only: the whole surface sits behind.
  */
 @ApiTags('AI Visibility')
 @ApiBearerAuth()
 @Controller('api/projects/:projectId/ai-visibility')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
-@RequiresFeature(Feature.AI_VISIBILITY)
+@UseGuards(JwtAuthGuard)
 export class AiVisibilityController {
   constructor(
     private readonly visibility: AiVisibilityService,

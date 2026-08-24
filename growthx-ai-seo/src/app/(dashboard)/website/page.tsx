@@ -14,10 +14,10 @@ import {
   Tr,
   relativeTime,
 } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
 import { useCrawlHistory, useCrawlIssues, useCrawlPages, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 function WebsiteClient() {
   const searchParams = useSearchParams();

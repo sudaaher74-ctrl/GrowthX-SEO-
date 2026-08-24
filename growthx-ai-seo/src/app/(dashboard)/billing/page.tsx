@@ -4,10 +4,10 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { cn } from "@/lib/utils";
 import { useCheckout, useEntitlements, usePlans, useWorkspace } from "@/hooks/use-growthx";
 import type { Plan } from "@/lib/api-client";
+import { QueryState } from "@/components/ui/query-state";
 
 /** Human labels for the feature flags the API returns. */
 const FEATURE_LABELS: Record<string, string> = {

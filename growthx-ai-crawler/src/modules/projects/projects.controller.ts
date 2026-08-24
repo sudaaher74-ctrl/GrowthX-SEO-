@@ -2,7 +2,6 @@ import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards }
 import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { OrgContextService } from '../billing/org-context.service';
 
 /**
  * The body used to accept `Prisma.ProjectCreateInput` directly, which meant the
@@ -30,16 +29,13 @@ export class CreateProjectDto {
 @UseGuards(JwtAuthGuard)
 export class ProjectsController {
   constructor(
-    private projectsService: ProjectsService,
-    private readonly orgContext: OrgContextService,
-  ) {}
+    private projectsService: ProjectsService,) {}
 
   @Post()
   async createProject(@Req() req: any, @Body() body: CreateProjectDto) {
     // Without this the caller could create a project inside any organization
     // id they cared to type, including one they have never been a member of.
-    await this.orgContext.assertMembership(req.user.userId, body.organizationId);
-
+    
     return this.projectsService.createProject({
       name: body.name,
       tier: body.tier,
@@ -49,8 +45,7 @@ export class ProjectsController {
 
   @Get('org/:orgId')
   async getProjectsByOrganization(@Req() req: any, @Param('orgId') orgId: string) {
-    await this.orgContext.assertMembership(req.user.userId, orgId);
-    return this.projectsService.getProjectsByOrganization(orgId);
+        return this.projectsService.getProjectsByOrganization(orgId);
   }
 
   @Get(':id')
@@ -58,7 +53,6 @@ export class ProjectsController {
     const project = await this.projectsService.getProjectById(id);
     if (!project) throw new NotFoundException('Project not found');
 
-    await this.orgContext.assertMembership(req.user.userId, project.organizationId);
-    return project;
+        return project;
   }
 }

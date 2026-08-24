@@ -15,10 +15,10 @@ import {
   Tr,
   relativeTime,
 } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api, type CrawlIssue, type FixPatch } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
 import { useCrawlIssues, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 type Severity = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 

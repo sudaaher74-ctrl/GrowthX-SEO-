@@ -23,7 +23,7 @@ describe('SchedulerService', () => {
     };
     crawler = { startCrawlJob: jest.fn().mockResolvedValue('job_1') };
     entitlements = { hasFeature: jest.fn().mockResolvedValue(true) };
-    scheduler = new SchedulerService(prisma as any, crawler as any, entitlements as any);
+    scheduler = new SchedulerService(prisma as any, crawler as any);
   });
 
   const crawledDomains = () =>

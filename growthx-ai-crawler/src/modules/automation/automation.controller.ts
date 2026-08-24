@@ -1,9 +1,6 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
 import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
@@ -39,9 +36,7 @@ export class ConnectRepoDto {
 @ApiTags('Autonomous engineer')
 @ApiBearerAuth()
 @Controller('api/projects/:projectId/automation')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
-@RequiresFeature(Feature.AUTO_FIX_DEPLOY)
+@UseGuards(JwtAuthGuard)
 export class AutomationController {
   constructor(
     private readonly automation: AutomationService,

@@ -2,9 +2,9 @@
 import { Suspense, useState } from "react";
 import { Loader2, Search, Zap, CheckCircle2, XCircle, MinusCircle, RefreshCw, Plus, Sparkles } from "lucide-react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, Mono } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useWorkspace, useVisibility, useTrackedPrompts, useRunSweep, useAddPrompts } from "@/hooks/use-growthx";
 import { Button } from "@/components/ui/button";
+import { QueryState } from "@/components/ui/query-state";
 
 function AiVisibilityClient() {
   const { projectId } = useWorkspace();

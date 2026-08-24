@@ -247,8 +247,6 @@ model Organization {
   auditLogs    AuditLog[]
   members      OrganizationMember[]
   projects     Project[]
-  subscription Subscription?
-  usageRecords UsageRecord[]
 }
 
 model OrganizationMember {
@@ -310,45 +308,10 @@ model Project {
 }
 
 
-model Subscription {
-  id                     String             @id @default(uuid())
-  organizationId         String             @unique
-  plan                   PlanType           @default(FREE)
-  status                 SubscriptionStatus @default(ACTIVE)
-  razorpayCustomerId     String?
-  razorpaySubscriptionId String?            @unique
-  razorpayPlanId         String?
-  /// Denormalised from the plan catalog at checkout time so an invoice always
-  /// reflects what the customer actually agreed to, even if the catalog changes.
-  amountPaise            Int                @default(0)
-  currency               String             @default("INR")
-  currentPeriodStart     DateTime?
-  currentPeriodEnd       DateTime?
-  cancelAtPeriodEnd      Boolean            @default(false)
-  cancelledAt            DateTime?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  organization           Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([status, currentPeriodEnd])
-}
 
 /// One row per (organization, metric, billing period). Incremented after work
 /// succeeds, so a failed crawl or a failed LLM call never burns the customer's
 /// allowance.
-model UsageRecord {
-  id             String       @id @default(uuid())
-  organizationId String
-  metric         UsageMetric
-  periodStart    DateTime
-  periodEnd      DateTime
-  used           Int          @default(0)
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, metric, periodStart])
-  @@index([organizationId, periodStart])
-}
 
 /// A question we ask AI assistants on a schedule to see whether they cite the
 /// customer. This is the unit the AI Visibility dashboard is built on.
@@ -725,36 +688,12 @@ enum Role {
   VIEWER
 }
 
-enum PlanType {
-  FREE
-  STARTER
-  GROWTH
-  PRO
-  ENTERPRISE
-}
 
 /// Mirrors the Razorpay subscription lifecycle so we never have to parse
 /// free-form strings when deciding whether an organization may use the product.
-enum SubscriptionStatus {
-  CREATED
-  AUTHENTICATED
-  ACTIVE
-  PENDING
-  HALTED
-  CANCELLED
-  COMPLETED
-  EXPIRED
-}
 
 /// Every metered thing a plan can cap. Kept as an enum so a typo in a service
 /// is a compile error rather than a silently uncounted usage.
-enum UsageMetric {
-  CRAWL_PAGES
-  AI_ANALYSES
-  AUTO_FIXES
-  AI_VISIBILITY_CHECKS
-  STRATEGY_REPORTS
-}
 
 /// Assistants we report citation share for.
 ///

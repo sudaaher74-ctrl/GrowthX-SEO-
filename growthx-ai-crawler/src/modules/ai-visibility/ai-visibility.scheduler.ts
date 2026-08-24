@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { UsageMetric } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { AiVisibilityService } from './ai-visibility.service';
 
 /**
@@ -16,9 +13,7 @@ export class AiVisibilityScheduler {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly visibility: AiVisibilityService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly visibility: AiVisibilityService,) {}
 
   /** 06:00 UTC, matching the rank-tracking cadence the dashboard advertises. */
   @Cron('0 6 * * *')
@@ -37,23 +32,6 @@ export class AiVisibilityScheduler {
 
     for (const project of projects) {
       try {
-        // Skip quietly rather than throwing: a lapsed plan is an expected state
-        // for a scheduled job, not an error worth alerting on.
-        const { plan } = await this.entitlements.resolvePlan(project.organizationId);
-        const entitled = await this.entitlements.hasFeature(project.organizationId, Feature.AI_VISIBILITY);
-        if (!entitled) {
-          this.logger.debug(`Skipping ${project.name}: ${plan} does not include AI visibility.`);
-          continue;
-        }
-
-        const quota = await this.entitlements.checkQuota(
-          project.organizationId,
-          UsageMetric.AI_VISIBILITY_CHECKS,
-        );
-        if (!quota.allowed) {
-          this.logger.warn(`Skipping ${project.name}: AI visibility allowance exhausted for this period.`);
-          continue;
-        }
 
         const result = await this.visibility.sweepProject(project.id);
         this.logger.log(

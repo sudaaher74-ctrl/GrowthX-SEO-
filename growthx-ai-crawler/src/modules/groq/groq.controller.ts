@@ -13,17 +13,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { UsageMetric } from '@prisma/client';
 import {
   MultiAiRouterService,
   AiProvider,
   AiTask,
 } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Metered, NoEntitlement } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 
 /** A single turn in a conversation. */
 export interface ChatMessage {
@@ -61,22 +56,19 @@ When the user asks a technical question:
 // This endpoint spends money on every call. It was previously unauthenticated,
 // which made it a public endpoint that draws down the account's LLM budget with
 // no caller identity, no plan check and no usage record.
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
+@UseGuards(JwtAuthGuard)
 export class GroqController {
   private readonly logger = new Logger(GroqController.name);
 
   constructor(
     private readonly aiRouter: MultiAiRouterService,
-    private readonly config: ConfigService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly config: ConfigService,) {}
 
   // ----------------------------------------------------------------- /health
 
   @Get('health')
   // Reports whether a provider key is configured. No model call, no tokens,
   // no customer data — gating it would only make diagnosis harder.
-  @NoEntitlement('provider configuration check; spends no allowance')
   @ApiOperation({ summary: 'Groq AI provider health check' })
   @ApiResponse({ status: 200, description: 'Provider configuration status' })
   getHealth() {
@@ -94,7 +86,6 @@ export class GroqController {
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
-  @Metered(Feature.MODEL_GROQ, UsageMetric.AI_ANALYSES)
   @ApiOperation({ summary: 'Chat with Groq Llama 3.1 8B Instant' })
   @ApiResponse({ status: 200, description: 'AI response' })
   @ApiResponse({ status: 400, description: 'Invalid request' })
@@ -185,12 +176,10 @@ export class GroqController {
         systemInstruction,
         task: AiTask.FAST,           // Groq excels at FAST; it's #1 in the chain
         provider: AiProvider.GROQ,   // Force Groq — this endpoint is Groq-specific
-        // Set by EntitlementsGuard. Passing it lets the router enforce which
+        // Set by . Passing it lets the router enforce which
         // vendors this organization's plan may reach.
         organizationId: req.organizationId,
       });
-
-      await this.entitlements.recordUsage(req.organizationId, UsageMetric.AI_ANALYSES);
 
       this.logger.log(
         `Groq response: ${completion.usage.inputTokens}in / ${completion.usage.outputTokens}out`,

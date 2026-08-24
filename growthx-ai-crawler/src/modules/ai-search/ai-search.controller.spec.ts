@@ -1,9 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UsageMetric } from '@prisma/client';
 import { AiSearchController } from './ai-search.controller';
 import { AiSearchService } from './ai-search/ai-search.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 describe('AiSearchController', () => {
@@ -19,15 +16,13 @@ describe('AiSearchController', () => {
       controllers: [AiSearchController],
       providers: [
         { provide: AiSearchService, useValue: aiSearch },
-        { provide: EntitlementsService, useValue: entitlements },
-      ],
+],
     })
       // The guards are exercised in their own suites; here we test the handler,
       // so they are stubbed out rather than wired up.
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
-      .overrideGuard(EntitlementsGuard)
-      .useValue({ canActivate: () => true })
+      
       .compile();
     controller = module.get(AiSearchController);
   });
@@ -41,7 +36,7 @@ describe('AiSearchController', () => {
   it('bills the analysis only after the answer comes back', async () => {
     const req = { organizationId: 'org_1' };
     await controller.askQuestion(req, 'proj_1', { question: 'why?' });
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('org_1', UsageMetric.AI_ANALYSES);
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('org_1', 'AI_ANALYSES');
   });
 
   it('does not bill when the answer fails', async () => {

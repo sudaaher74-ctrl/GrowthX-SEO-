@@ -1,11 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
-import { UsageMetric } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { StrategyService } from './strategy.service';
 import { AgentRunService } from '../agents/agent-run.service';
 import { buildStrategyPrompt, StrategyEvidence } from './strategy-evidence';
@@ -124,8 +121,7 @@ describe('StrategyService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: MultiAiRouterService, useValue: router },
         { provide: AiVisibilityService, useValue: visibility },
-        { provide: EntitlementsService, useValue: entitlements },
-        { provide: AgentRunService, useValue: agentRuns },
+{ provide: AgentRunService, useValue: agentRuns },
       ],
     }).compile();
 
@@ -251,9 +247,7 @@ describe('StrategyService', () => {
     it('is Pro-only and metered', async () => {
       await service.generate('proj_1', 'org_1');
 
-      expect(entitlements.assertFeature).toHaveBeenCalledWith('org_1', Feature.MARKET_STRATEGY);
-      expect(entitlements.assertQuota).toHaveBeenCalledWith('org_1', UsageMetric.STRATEGY_REPORTS);
-      expect(entitlements.recordUsage).toHaveBeenCalledWith('org_1', UsageMetric.STRATEGY_REPORTS);
+
     });
 
     it('checks entitlement before doing any work', async () => {

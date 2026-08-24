@@ -1,9 +1,6 @@
 import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 import { StrategyService } from './strategy.service';
 import { AgentRunService } from '../agents/agent-run.service';
 
@@ -15,9 +12,7 @@ import { AgentRunService } from '../agents/agent-run.service';
 @ApiTags('Strategy')
 @ApiBearerAuth()
 @Controller('api/projects/:projectId/strategy')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
-@RequiresFeature(Feature.MARKET_STRATEGY)
+@UseGuards(JwtAuthGuard)
 export class StrategyController {
   constructor(
     private readonly strategy: StrategyService,
@@ -59,7 +54,7 @@ export class StrategyController {
   @ApiOperation({ summary: 'Generate a new strategy (counts against the plan allowance)' })
   @ApiParam({ name: 'projectId' })
   generate(@Req() req: any, @Param('projectId') projectId: string) {
-    // req.organizationId is set by EntitlementsGuard.
+    // req.organizationId is set by .
     return this.strategy.generate(projectId, req.organizationId);
   }
 }

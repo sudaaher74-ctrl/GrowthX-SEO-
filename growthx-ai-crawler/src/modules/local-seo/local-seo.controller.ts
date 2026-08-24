@@ -1,18 +1,13 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 import { LocalSeoService } from './local-seo.service';
 import { GbpAnalyzerService } from './gbp-analyzer.service';
 import { GbpAutofixService } from './gbp-autofix.service';
 import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
 
 @Controller('api/projects/:projectId/local-seo')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
+@UseGuards(JwtAuthGuard)
 // Local SEO auditing & rank tracking is part of the core crawl / local capability.
-@RequiresFeature(Feature.CRAWL)
 export class LocalSeoController {
   constructor(
     private readonly localSeoService: LocalSeoService,

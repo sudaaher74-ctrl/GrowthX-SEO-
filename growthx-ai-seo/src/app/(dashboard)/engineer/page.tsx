@@ -3,7 +3,6 @@ import { Suspense, useState } from "react";
 import { Code, GitBranch, GitPullRequest, Server, Zap, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";
 import type { CrawlIssue } from "@/lib/api-client";
 
@@ -172,6 +171,7 @@ function EngineerClient() {
 
 // Need to import Search for icons
 import { Search } from "lucide-react";
+import { QueryState } from "@/components/ui/query-state";
 
 export default function EngineerPage() {
   return (

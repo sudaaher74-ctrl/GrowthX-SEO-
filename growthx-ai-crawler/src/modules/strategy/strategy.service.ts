@@ -7,14 +7,11 @@ import {
   RecommendationEffort,
   RecommendationHorizon,
   RecommendationImpact,
-  UsageMetric,
-} from '@prisma/client';
+  } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AgentRunService } from '../agents/agent-run.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import {
   buildEvidenceRecords,
   buildStrategyPrompt,
@@ -58,9 +55,7 @@ export class StrategyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
-    private readonly visibility: AiVisibilityService,
-    private readonly entitlements: EntitlementsService,
-    private readonly agentRuns: AgentRunService,
+    private readonly visibility: AiVisibilityService,private readonly agentRuns: AgentRunService,
   ) {}
 
   /**
@@ -187,8 +182,6 @@ export class StrategyService {
    * to send. If no model is reachable we say so.
    */
   async generate(projectId: string, organizationId: string) {
-    await this.entitlements.assertFeature(organizationId, Feature.MARKET_STRATEGY);
-    await this.entitlements.assertQuota(organizationId, UsageMetric.STRATEGY_REPORTS);
 
     const evidence = await this.gatherEvidence(projectId);
 
@@ -216,7 +209,6 @@ export class StrategyService {
           prompt: buildStrategyPrompt(evidence, keyed),
           systemInstruction: STRATEGY_SYSTEM_PROMPT,
           task: AiTask.REASONING,
-          organizationId,
           jsonSchema: STRATEGY_SCHEMA as unknown as Record<string, unknown>,
           // Strategy output is long; leave room for reasoning plus the plan itself.
           maxTokens: 16000,
@@ -252,8 +244,6 @@ export class StrategyService {
             generatedByModel: completion.model,
           },
         });
-
-        await this.entitlements.recordUsage(organizationId, UsageMetric.STRATEGY_REPORTS);
         this.logger.log(
           `Strategy generated for project ${projectId} by ${completion.model}: ${recommendations} recommendation(s).`,
         );

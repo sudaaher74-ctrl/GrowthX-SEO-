@@ -4,7 +4,6 @@ import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton, Mono } f
 import { LayoutDashboard, FileBarChart, Users, FileSignature, Download, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
 import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts, useReporting } from "@/hooks/use-growthx";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 
 export default function ReportsPage() {
   const { orgId, projectId, projects } = useWorkspace();

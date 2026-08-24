@@ -1,11 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ContentPieceKind, UsageMetric } from '@prisma/client';
+import { ContentPieceKind, } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ContentAgentService, ContentRequest } from './content-agent.service';
 
@@ -63,16 +59,12 @@ export class ReviewDecisionDto {
 @ApiTags('Content agent')
 @ApiBearerAuth()
 @Controller('api/projects/:projectId/content-agent')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
+@UseGuards(JwtAuthGuard)
 export class ContentAgentController {
   constructor(
-    private readonly contentAgent: ContentAgentService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly contentAgent: ContentAgentService,) {}
 
   @Post('drafts')
-  @Metered(Feature.AI_RECOMMENDATIONS, UsageMetric.AI_ANALYSES)
   @ApiOperation({ summary: 'Draft one piece of content, grounded in this project’s own data' })
   @ApiParam({ name: 'projectId' })
   async draft(
@@ -81,7 +73,6 @@ export class ContentAgentController {
     @Body() body: ContentRequestDto,
   ) {
     const piece = await this.contentAgent.generate(projectId, req.organizationId, body);
-    await this.entitlements.recordUsage(req.organizationId, UsageMetric.AI_ANALYSES);
     return piece;
   }
 
@@ -89,7 +80,6 @@ export class ContentAgentController {
   // No allowance is spent reading or deciding on a draft — the draft route
   // already charged for it — but both stay behind the same feature, since a
   // plan that cannot draft has nothing to review.
-  @RequiresFeature(Feature.AI_RECOMMENDATIONS)
   @ApiOperation({ summary: 'Drafts waiting on a human decision' })
   @ApiParam({ name: 'projectId' })
   pendingReview(@Param('projectId') projectId: string) {
@@ -97,7 +87,6 @@ export class ContentAgentController {
   }
 
   @Post('drafts/:pieceId/review')
-  @RequiresFeature(Feature.AI_RECOMMENDATIONS)
   @ApiOperation({ summary: 'Approve or reject a draft. Nothing publishes without this.' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })

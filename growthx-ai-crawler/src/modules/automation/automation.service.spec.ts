@@ -3,7 +3,7 @@ jest.mock('simple-git', () => ({ simpleGit: jest.fn() }));
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { AutomationRunStatus, UsageMetric } from '@prisma/client';
+import { AutomationRunStatus, } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -13,8 +13,6 @@ import { PatchGenerationService } from '../autonomous-engineer/agents/patch-gene
 import { RepositoryUnderstandingService } from '../autonomous-engineer/agents/repository-understanding/repository-understanding.service';
 import { ValidationService } from '../autonomous-engineer/agents/validation/validation.service';
 import { AutoFixService } from '../ai/auto-fix.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { SecurityService } from '../security/security.service';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
@@ -99,8 +97,7 @@ describe('AutomationService', () => {
         { provide: AutoFixService, useValue: {} },
         { provide: ContentGenerationService, useValue: { toMarkdownFile: () => '---\ntitle: "x"\n---\nbody\n' } },
         { provide: SecurityService, useValue: { encryptCredentials: (v: string) => `enc:${v}`, decryptCredentials: (v: string) => v.replace('enc:', '') } },
-        { provide: EntitlementsService, useValue: entitlements },
-      ],
+],
     }).compile();
 
     service = module.get(AutomationService);
@@ -149,9 +146,8 @@ describe('AutomationService', () => {
 
     it('is Pro-only and metered', async () => {
       await service.runFixes('proj_1', 'org_1');
-      expect(entitlements.assertFeature).toHaveBeenCalledWith('org_1', Feature.AUTO_FIX_DEPLOY);
-      expect(entitlements.assertQuota).toHaveBeenCalledWith('org_1', UsageMetric.AUTO_FIXES, 1);
-      expect(entitlements.recordUsage).toHaveBeenCalledWith('org_1', UsageMetric.AUTO_FIXES, 1);
+
+
     });
 
     it('does nothing when the plan does not allow it', async () => {

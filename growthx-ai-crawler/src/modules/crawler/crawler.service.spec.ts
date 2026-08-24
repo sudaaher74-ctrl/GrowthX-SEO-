@@ -49,7 +49,6 @@ function makeService(overrides: Partial<Record<string, any>> = {}): CrawlerServi
     deps.issueEngine as any,
     deps.graphService as any,
     deps.crawlerGateway as any,
-    deps.entitlements as any,
   );
 }
 

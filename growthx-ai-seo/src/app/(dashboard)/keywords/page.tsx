@@ -16,9 +16,9 @@ import {
   Th,
   Tr,
 } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { api } from "@/lib/api-client";
 import { useTrackedPrompts, useVisibility, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 type Tab = "prompts" | "competitors" | "ranks";
 

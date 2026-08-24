@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ExternalLink, GitBranch, Loader2, PenLine, Sparkles } from "lucide-react";
 import { ActionButton, PageHeader, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
-import { QueryState, UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { ApiError } from "@/lib/api-client";
+import { QueryState } from "@/components/ui/query-state";
 import {
   useAutomationRuns,
   useConnectRepository,
@@ -37,8 +37,7 @@ export default function ContentAiPage() {
 
   const latestStrategy = strategies.data?.[0];
   const drafted = (pieces.data ?? []).filter((p) => p.status === "DRAFTED");
-  const upgrade = runContent.error instanceof ApiError ? runContent.error.upgrade : null;
-
+  
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -155,8 +154,7 @@ export default function ContentAiPage() {
         </Panel>
       </QueryState>
 
-      {upgrade && <UpgradePrompt upgrade={upgrade} />}
-
+      
       {runContent.data && (
         <div className="rounded-xl border bg-success-50 px-4 py-3 text-[12.5px] text-success-700" style={{ borderColor: "var(--color-success-50)" }}>
           {runContent.data.status === "AWAITING_REVIEW" ? (

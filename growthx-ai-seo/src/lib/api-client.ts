@@ -86,17 +86,6 @@ export const auth = {
 // ─────────────────────────────────────────────────────────────── errors
 
 /** The shape the billing layer returns on a 403. */
-export interface UpgradePayload {
-  error: "FEATURE_NOT_IN_PLAN" | "QUOTA_EXCEEDED" | "SITE_LIMIT_REACHED";
-  message: string;
-  feature?: string;
-  metric?: string;
-  currentPlan?: string;
-  limit?: number | null;
-  used?: number;
-  upgradeTo?: { plan: string; name: string; price: string; limit?: number | null } | null;
-}
-
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -112,11 +101,6 @@ export class ApiError extends Error {
     const error = (this.body as { error?: string } | undefined)?.error;
     return this.status === 403 && ["FEATURE_NOT_IN_PLAN", "QUOTA_EXCEEDED", "SITE_LIMIT_REACHED"].includes(error ?? "");
   }
-
-  get upgrade(): UpgradePayload | null {
-    return this.isUpgradeRequired ? (this.body as UpgradePayload) : null;
-  }
-
   get isUnauthorized(): boolean {
     return this.status === 401;
   }

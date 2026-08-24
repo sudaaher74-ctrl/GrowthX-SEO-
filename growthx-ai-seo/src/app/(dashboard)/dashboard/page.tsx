@@ -16,9 +16,9 @@ import {
   relativeTime,
 } from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import type { CrawlIssue } from "@/lib/api-client";
 import { useCrawlIssues, useLatestCrawl, usePortfolio, useVisibility, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 /**
  * Client Overview — the first screen after choosing a client in the switcher.

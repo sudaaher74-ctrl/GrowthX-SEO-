@@ -3,8 +3,7 @@ import {
   AutomationRunKind,
   AutomationRunStatus,
   ContentPieceStatus,
-  UsageMetric,
-} from '@prisma/client';
+  } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PrismaService } from '../../database/prisma.service';
@@ -13,8 +12,6 @@ import { PatchGenerationService } from '../autonomous-engineer/agents/patch-gene
 import { RepositoryUnderstandingService } from '../autonomous-engineer/agents/repository-understanding/repository-understanding.service';
 import { ValidationService } from '../autonomous-engineer/agents/validation/validation.service';
 import { AutoFixService } from '../ai/auto-fix.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { SecurityService } from '../security/security.service';
 import { ContentGenerationService } from './content-generation.service';
 
@@ -40,9 +37,7 @@ export class AutomationService {
     private readonly validation: ValidationService,
     private readonly autoFix: AutoFixService,
     private readonly content: ContentGenerationService,
-    private readonly security: SecurityService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly security: SecurityService,) {}
 
   // ───────────────────────────────────────────────── repository connection
 
@@ -107,7 +102,6 @@ export class AutomationService {
    * publishing straight to the live site.
    */
   async runFixes(projectId: string, organizationId: string, issueIds?: string[]) {
-    await this.entitlements.assertFeature(organizationId, Feature.AUTO_FIX_DEPLOY);
 
     const repo = await this.requireRepository(projectId);
     const run = await this.startRun(repo.id, projectId, AutomationRunKind.FIXES);
@@ -123,8 +117,6 @@ export class AutomationService {
           error: 'No open issues with a generated fix. Generate fixes first.',
         });
       }
-
-      await this.entitlements.assertQuota(organizationId, UsageMetric.AUTO_FIXES, issues.length);
 
       workingDir = await this.git.cloneRepository(
         `https://github.com/${repo.owner}/${repo.name}.git`,
@@ -198,8 +190,6 @@ export class AutomationService {
       );
       steps.push(this.step('pull_request', prUrl, true));
 
-      await this.entitlements.recordUsage(organizationId, UsageMetric.AUTO_FIXES, issues.length);
-
       return this.finishRun(run.id, AutomationRunStatus.AWAITING_REVIEW, steps, {
         branch,
         pullRequestUrl: prUrl,
@@ -219,7 +209,6 @@ export class AutomationService {
    * Only DRAFTED pieces are shipped — a plan without a written body is skipped.
    */
   async runContent(projectId: string, organizationId: string, pieceIds?: string[]) {
-    await this.entitlements.assertFeature(organizationId, Feature.AUTO_FIX_DEPLOY);
 
     const repo = await this.requireRepository(projectId);
     const run = await this.startRun(repo.id, projectId, AutomationRunKind.CONTENT);

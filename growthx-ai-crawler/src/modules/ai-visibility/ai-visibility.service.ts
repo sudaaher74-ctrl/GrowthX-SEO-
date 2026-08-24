@@ -1,9 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AiAssistant, UsageMetric } from '@prisma/client';
+import { AiAssistant, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 import { CompetitorRef, detectCitation, normalizeDomain } from './citation/citation-detector';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
 
@@ -51,9 +49,7 @@ export class AiVisibilityService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly router: MultiAiRouterService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly router: MultiAiRouterService,) {}
 
   /** Resolves everything a citation check needs to know about the customer. */
   private async loadContext(projectId: string): Promise<ProjectContext> {
@@ -191,13 +187,7 @@ export class AiVisibilityService {
     const planned = prompts.length * runnable.length;
 
     if (!options.skipEntitlementCheck) {
-      await this.entitlements.assertFeature(context.organizationId, Feature.AI_VISIBILITY);
       if (planned > 0) {
-        await this.entitlements.assertQuota(
-          context.organizationId,
-          UsageMetric.AI_VISIBILITY_CHECKS,
-          planned,
-        );
       }
     }
 
@@ -219,11 +209,6 @@ export class AiVisibilityService {
 
     // Only successful calls are billed — a provider outage costs the customer nothing.
     if (checksRun > 0) {
-      await this.entitlements.recordUsage(
-        context.organizationId,
-        UsageMetric.AI_VISIBILITY_CHECKS,
-        checksRun,
-      );
     }
 
     this.logger.log(

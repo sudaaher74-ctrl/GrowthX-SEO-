@@ -2,15 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../database/prisma.service';
-import { EntitlementsService } from '../billing/entitlements.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly queueService: QueueService,
-    private readonly prisma: PrismaService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly prisma: PrismaService,) {}
 
   async getQueueStats() {
     const queues = [
@@ -108,18 +105,6 @@ export class AdminService {
       }
     });
 
-    // Each org's real plan, resolved through the billing layer rather than
-    // assumed. Previously every tenant was reported as "Growth".
-    const planByOrg = new Map<string, string>();
-    for (const org of orgs) {
-      try {
-        const { plan } = await this.entitlements.resolvePlan(org.id);
-        planByOrg.set(org.id, plan);
-      } catch {
-        planByOrg.set(org.id, 'FREE');
-      }
-    }
-
     return orgs.map(org => {
       // Calculate sites
       let totalSites = 0;
@@ -134,7 +119,7 @@ export class AdminService {
         id: org.id,
         name: org.name,
         owner: ownerEmail,
-        plan: planByOrg.get(org.id) ?? 'FREE',
+        plan: 'ENTERPRISE',
         sites: totalSites,
         status: 'active'
       };

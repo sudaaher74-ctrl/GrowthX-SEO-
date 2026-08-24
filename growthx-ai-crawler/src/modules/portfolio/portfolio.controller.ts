@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { OrgContextService } from '../billing/org-context.service';
 import { PortfolioService } from './portfolio.service';
 
 import { IsOptional, IsString, IsNumber } from 'class-validator';
@@ -27,17 +26,14 @@ export class SetRetainerDto {
 @UseGuards(JwtAuthGuard)
 export class PortfolioController {
   constructor(
-    private readonly portfolio: PortfolioService,
-    private readonly orgContext: OrgContextService,
-  ) {}
+    private readonly portfolio: PortfolioService,) {}
 
   @Get()
   @ApiOperation({ summary: 'Every client with AI share, health, criticals and retainer' })
   @ApiParam({ name: 'orgId' })
   @ApiQuery({ name: 'days', required: false, example: 28 })
   async getPortfolio(@Req() req: any, @Param('orgId') orgId: string, @Query('days') days?: string) {
-    await this.orgContext.assertMembership(req.user.userId, orgId);
-    const window = Math.min(180, Math.max(7, parseInt(days ?? '28', 10) || 28));
+        const window = Math.min(180, Math.max(7, parseInt(days ?? '28', 10) || 28));
     return this.portfolio.getPortfolio(orgId, window);
   }
 
@@ -51,7 +47,6 @@ export class PortfolioController {
     @Param('projectId') projectId: string,
     @Body() body: SetRetainerDto,
   ) {
-    await this.orgContext.assertMembership(req.user.userId, orgId);
-    return this.portfolio.setRetainer(projectId, body);
+        return this.portfolio.setRetainer(projectId, body);
   }
 }

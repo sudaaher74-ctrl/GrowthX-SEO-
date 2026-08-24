@@ -26,7 +26,6 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { ProjectsModule } from './modules/projects/projects.module';
-import { BillingModule } from './modules/billing/billing.module';
 import { AutonomousEngineerModule } from './modules/autonomous-engineer/autonomous-engineer.module';
 import { AiSearchModule } from './modules/ai-search/ai-search.module';
 import { RepositoryGraphModule } from './modules/repository-graph/repository-graph.module';
@@ -91,7 +90,6 @@ import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
     UsersModule,
     OrganizationsModule,
     ProjectsModule,
-    BillingModule,
     AutonomousEngineerModule,
     AiSearchModule,
     RepositoryGraphModule,

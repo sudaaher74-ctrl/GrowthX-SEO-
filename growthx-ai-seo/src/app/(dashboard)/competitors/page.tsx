@@ -2,8 +2,8 @@
 import { Suspense, useState } from "react";
 import { Target, Loader2, Plus, Zap } from "lucide-react";
 import { PageHeader, Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useWorkspace, useVisibility, useAddCompetitor } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 function CompetitorsClient() {
   const { projectId } = useWorkspace();

@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
 import { useWorkspace, useAskAi } from "@/hooks/use-growthx";
 import { ApiError } from "@/lib/api-client";
-import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bot, Send, Sparkles, User, RefreshCw, Copy, ThumbsUp, ThumbsDown } from "lucide-react";
@@ -62,8 +61,7 @@ function ChatPanel({ projectId, clientName }: { projectId: string | null; client
     }
   };
 
-  const upgrade = askAi.error instanceof ApiError ? askAi.error.upgrade : null;
-
+  
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 3.5rem - 3rem)" }}>
       {/* Header */}
@@ -120,8 +118,7 @@ function ChatPanel({ projectId, clientName }: { projectId: string | null; client
         <div ref={bottomRef}/>
       </div>
 
-      {upgrade && <div className="mb-3 shrink-0"><UpgradePrompt upgrade={upgrade} /></div>}
-
+      
       {/* Suggested prompts */}
       <div className="flex flex-wrap gap-2 mb-3 shrink-0">
         {suggestedPrompts.map((prompt) => (

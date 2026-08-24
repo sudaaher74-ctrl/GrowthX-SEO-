@@ -13,8 +13,8 @@ import {
   Mono,
   relativeTime,
 } from "@/components/ui/console";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useConnectRepository, useRepository, useWorkspace, useIntegrations } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 function IntegrationsClient() {
   const { projectId } = useWorkspace();

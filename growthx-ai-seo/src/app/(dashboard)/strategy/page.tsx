@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import { Loader2, Sparkles, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { useGenerateStrategy, useStrategies, useStrategy, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 const HORIZON_ORDER = ["30-day", "60-day", "90-day"];
 

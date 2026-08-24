@@ -1,17 +1,12 @@
 import { Controller, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 import { SchemaGeneratorService } from './schema-generator.service';
 import { MetaOptimizerService } from './meta-optimizer.service';
 import { ImageOptimizerService } from './image-optimizer.service';
 import { InternalLinkingService } from './internal-linking.service';
 
 @Controller('api/projects/:projectId/seo-tools')
-@UseGuards(JwtAuthGuard, EntitlementsGuard)
-@OrgFrom('project', 'projectId')
-@RequiresFeature(Feature.AI_RECOMMENDATIONS)
+@UseGuards(JwtAuthGuard)
 export class SeoToolsController {
   constructor(
     private readonly schemaGenerator: SchemaGeneratorService,

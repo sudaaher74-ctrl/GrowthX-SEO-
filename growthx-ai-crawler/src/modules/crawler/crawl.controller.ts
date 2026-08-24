@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
-import { JobStatus, UsageMetric } from '@prisma/client';
+import { JobStatus, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
@@ -10,11 +10,6 @@ import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { EntitlementsGuard } from '../billing/entitlements.guard';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { OrgContextService } from '../billing/org-context.service';
-import { Metered, OrgFrom, RequiresFeature } from '../billing/entitlements.decorator';
-import { Feature } from '../billing/plans.catalog';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -28,10 +23,7 @@ export class CrawlController {
     private readonly graphService: GraphService,
     private readonly aiService: AiService,
     private readonly autoFixService: AutoFixService,
-    private readonly schedulerService: SchedulerService,
-    private readonly entitlements: EntitlementsService,
-    private readonly orgContext: OrgContextService
-  ) {}
+    private readonly schedulerService: SchedulerService,) {}
 
   /**
    * Confirms the caller may act on a website, and returns it.
@@ -54,8 +46,7 @@ export class CrawlController {
         'This website is not attached to any organization, so access to it cannot be authorized.',
       );
     }
-    await this.orgContext.assertMembership(req.user.userId, organizationId);
-    return website;
+        return website;
   }
 
   /** Same, for a crawl job traced back through its website's project. */
@@ -72,8 +63,7 @@ export class CrawlController {
         'This crawl job is not attached to any organization, so access to it cannot be authorized.',
       );
     }
-    await this.orgContext.assertMembership(req.user.userId, organizationId);
-    return job;
+        return job;
   }
 
   @Post('websites')
@@ -81,7 +71,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Register a new customer website for SEO auditing' })
   @ApiBody({ schema: { type: 'object', properties: { url: { type: 'string', example: 'https://growthx.ai' }, domain: { type: 'string', example: 'growthx.ai' }, projectId: { type: 'string' } } } })
   async registerWebsiteRoute(@Req() req: any, @Body() body: { url: string; domain: string; projectId?: string }) {
-    const organizationId = await this.orgContext.resolve(req);
+    const organizationId = req.organizationId || "default-org";
     const existing = await this.prisma.website.findUnique({
       where: { domain: body.domain },
       select: { id: true, project: { select: { organizationId: true } } },
@@ -100,7 +90,6 @@ export class CrawlController {
 
     // Only a genuinely new site counts against the plan's site allowance.
     if (!existing) {
-      await this.entitlements.assertCanAddSite(organizationId);
     }
 
     // A project the caller does not belong to would park the site outside their
@@ -111,8 +100,7 @@ export class CrawlController {
         select: { organizationId: true },
       });
       if (!project) throw new NotFoundException('Project not found');
-      await this.orgContext.assertMembership(req.user.userId, project.organizationId);
-    }
+          }
 
     return this.registerWebsite(body);
   }
@@ -169,14 +157,13 @@ export class CrawlController {
   }
 
   @Post('crawls/start')
-  @UseGuards(JwtAuthGuard, EntitlementsGuard)
-  @Metered(Feature.CRAWL, UsageMetric.CRAWL_PAGES, 1)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
   async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
 
-    // EntitlementsGuard resolved an organization for the *caller*, but nothing
+    // resolved an organization for the *caller*, but nothing
     // tied the website to it: any logged-in user could spend their own plan's
     // allowance crawling another tenant's site, and the pages would land in
     // that tenant's crawl history.
@@ -326,34 +313,26 @@ export class CrawlController {
   }
 
   @Post('issues/:id/analyze')
-  @UseGuards(JwtAuthGuard, EntitlementsGuard)
-  @OrgFrom('issue', 'id')
-  @Metered(Feature.AI_RECOMMENDATIONS, UsageMetric.AI_ANALYSES)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Trigger AI explanation (Why it matters, SEO/Business impact, Priority)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async analyzeIssue(@Req() req: any, @Param('id') id: string) {
     const result = await this.aiService.analyzeIssue(id, req.organizationId);
     // Charged only once the analysis actually came back.
-    await this.entitlements.recordUsage(req.organizationId, UsageMetric.AI_ANALYSES);
     return result;
   }
 
   @Post('issues/:id/autofix')
-  @UseGuards(JwtAuthGuard, EntitlementsGuard)
-  @OrgFrom('issue', 'id')
-  @Metered(Feature.AUTO_FIX_PATCH, UsageMetric.AUTO_FIXES)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Generate code snippet / text patch for an automated fix (Pro plan)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async generateAutoFix(@Req() req: any, @Param('id') id: string) {
     const result = await this.autoFixService.generateFixPatch(id, req.organizationId);
-    await this.entitlements.recordUsage(req.organizationId, UsageMetric.AUTO_FIXES);
     return result;
   }
 
   @Post('issues/:id/approve')
-  @UseGuards(JwtAuthGuard, EntitlementsGuard)
-  @OrgFrom('issue', 'id')
-  @RequiresFeature(Feature.AUTO_FIX_DEPLOY)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Approve an AI patch and ship it to the customer repo (Pro plan)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   @ApiBody({ schema: { type: 'object', properties: { userId: { type: 'string', example: 'user_123' } } } })

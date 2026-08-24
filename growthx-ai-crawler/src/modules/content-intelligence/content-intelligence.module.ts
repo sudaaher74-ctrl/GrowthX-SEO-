@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
-import { BillingModule } from '../billing/billing.module';
 import { CompetitorContentService } from './competitor-content.service';
 import { ClassificationService } from './classification.service';
 import { PatternDetectionService } from './pattern-detection.service';
@@ -22,10 +21,10 @@ import { ContentIntelligenceController } from './content-intelligence.controller
  *
  * Uses MultiAiRouterService (via AiSearchModule) for all AI calls so model
  * selection, cost tracking, and fallbacks are handled centrally.
- * BillingModule provides EntitlementsGuard used on the controller.
+ * BillingModule provides used on the controller.
  */
 @Module({
-  imports: [DatabaseModule, AiSearchModule, BillingModule],
+  imports: [DatabaseModule, AiSearchModule],
   controllers: [ContentIntelligenceController],
   providers: [
     CompetitorContentService,

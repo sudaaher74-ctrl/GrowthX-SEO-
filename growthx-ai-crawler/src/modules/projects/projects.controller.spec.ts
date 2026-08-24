@@ -2,7 +2,6 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
-import { OrgContextService } from '../billing/org-context.service';
 
 describe('ProjectsController', () => {
   let controller: ProjectsController;
@@ -23,8 +22,7 @@ describe('ProjectsController', () => {
       controllers: [ProjectsController],
       providers: [
         { provide: ProjectsService, useValue: projects },
-        { provide: OrgContextService, useValue: orgContext },
-      ],
+],
     }).compile();
     controller = module.get(ProjectsController);
   });

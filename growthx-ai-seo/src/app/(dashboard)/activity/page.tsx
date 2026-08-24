@@ -1,9 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
 import { StatusDot } from "@/components/ui/badge";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { formatRelativeTime } from "@/lib/utils";
 import { useActivity, useWorkspace } from "@/hooks/use-growthx";
+import { QueryState } from "@/components/ui/query-state";
 
 export default function ActivityPage() {
   const { projectId } = useWorkspace();

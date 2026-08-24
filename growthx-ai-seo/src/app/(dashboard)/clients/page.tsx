@@ -3,10 +3,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Plus } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { QueryState } from "@/components/ui/upgrade-prompt";
 import { cn } from "@/lib/utils";
 import { usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 import type { PortfolioClient } from "@/lib/api-client";
+import { QueryState } from "@/components/ui/query-state";
 
 type Filter = "All" | "Needs attention" | "Top tier" | "AI gap";
 const FILTERS: Filter[] = ["All", "Needs attention", "Top tier", "AI gap"];

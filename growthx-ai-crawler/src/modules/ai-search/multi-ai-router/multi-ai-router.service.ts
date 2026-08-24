@@ -4,8 +4,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
 import Groq from 'groq-sdk';
-import { EntitlementsService } from '../../billing/entitlements.service';
-import { Feature } from '../../billing/plans.catalog';
 
 export enum AiProvider {
   SARVAM = 'SARVAM',
@@ -79,14 +77,6 @@ const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
   [AiTask.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
 
-const PROVIDER_FEATURE: Readonly<Record<AiProvider, Feature>> = {
-  [AiProvider.SARVAM]: Feature.MODEL_SARVAM,
-  [AiProvider.GEMINI]: Feature.MODEL_GEMINI,
-  [AiProvider.OPENAI]: Feature.MODEL_GPT,
-  [AiProvider.ANTHROPIC]: Feature.MODEL_CLAUDE,
-  [AiProvider.GROQ]: Feature.MODEL_GROQ,
-  [AiProvider.OPENROUTER]: Feature.MODEL_OPENROUTER,
-};
 
 @Injectable()
 export class MultiAiRouterService {
@@ -118,9 +108,7 @@ export class MultiAiRouterService {
   private serverSideFallbackEnabled: boolean;
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly entitlements: EntitlementsService,
-  ) {
+    private readonly config: ConfigService,) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
@@ -189,22 +177,14 @@ export class MultiAiRouterService {
    */
   async generate(request: AiRequest): Promise<AiCompletion> {
     const task = request.task ?? AiTask.REASONING;
-    const allowed = await this.allowedProviders(request.organizationId);
+    const allowed = this.configuredProviders();
 
     const targetProvider = request.provider;
 
-    if (targetProvider && !allowed.includes(targetProvider)) {
-      // This used to silently reroute an explicitly-requested vendor through
-      // Groq or OpenRouter "for free testing", which meant a Starter customer
-      // asking for Claude was served anyway — the MODEL_CLAUDE and MODEL_GPT
-      // entitlements were unenforceable. If the caller named a provider their
-      // plan does not include, they get the upgrade error instead.
-      await this.assertProviderEntitled(request.organizationId, targetProvider);
-
-      // Reached only when the provider is allowed by plan but not configured
-      // (no API key), which is an operational problem rather than a billing one.
-      this.logger.warn(`${targetProvider} is not configured; falling back to the preferred provider chain.`);
-    } else if (targetProvider) {
+    if (targetProvider) {
+      if (!allowed.includes(targetProvider)) {
+         throw new ServiceUnavailableException(`${targetProvider} is not configured.`);
+      }
       return this.invoke(targetProvider, request, task);
     }
 
@@ -237,20 +217,6 @@ export class MultiAiRouterService {
   }
 
   /** Vendors the org's plan permits, intersected with what has credentials. */
-  private async allowedProviders(organizationId?: string): Promise<AiProvider[]> {
-    const configured = this.configuredProviders();
-    if (!organizationId) return configured;
-
-    const entitlements = await this.entitlements.getEntitlements(organizationId);
-    return configured.filter((provider) => entitlements.features.includes(PROVIDER_FEATURE[provider]));
-  }
-
-  /** Raises the plan-upgrade 403 when the block is entitlement rather than config. */
-  private async assertProviderEntitled(organizationId: string | undefined, provider: AiProvider): Promise<void> {
-    if (!organizationId) return;
-    await this.entitlements.assertFeature(organizationId, PROVIDER_FEATURE[provider]);
-  }
-
   private invoke(provider: AiProvider, request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
     switch (provider) {
       case AiProvider.SARVAM:

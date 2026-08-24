@@ -4,8 +4,6 @@ import { CrawlFrequency } from '@prisma/client';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
-import { EntitlementsService } from '../billing/entitlements.service';
-import { Feature } from '../billing/plans.catalog';
 
 @Injectable()
 export class SchedulerService {
@@ -13,9 +11,7 @@ export class SchedulerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly crawlerService: CrawlerService,
-    private readonly entitlements: EntitlementsService,
-  ) {}
+    private readonly crawlerService: CrawlerService,) {}
 
   /**
    * Daily Cron trigger at midnight UTC for scheduled websites
@@ -86,11 +82,7 @@ export class SchedulerService {
             continue;
           }
 
-          if (!(await this.entitlements.hasFeature(organizationId, Feature.SCHEDULED_CRAWLS))) {
-            this.logger.log(`Skipping ${site.domain}: plan does not include scheduled crawls.`);
-            skipped++;
-            continue;
-          }
+
 
           // A crawl that outlives its own interval would otherwise stack up,
           // and on a small instance a pile-up is what takes the API down.
