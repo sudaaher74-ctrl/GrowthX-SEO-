@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Plus, X, RefreshCw, Check, Clock, Users } from "lucide-react";
 import { api, type CreateCampaignBody, type CICampaign } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
   PLANNING: { color: "var(--color-warning-500)", bg: "var(--color-warning-50)" },
@@ -18,6 +19,7 @@ const PLATFORMS = ["INSTAGRAM", "FACEBOOK", "YOUTUBE", "TIKTOK"];
 
 function CampaignCard({ campaign, onMatchCreators }: { campaign: CICampaign; onMatchCreators: (id: string) => void }) {
   const status = STATUS_COLORS[campaign.status] ?? STATUS_COLORS.PLANNING;
+
   return (
     <div className="rounded-xl border bg-white p-5" style={{ borderColor: "var(--color-brand-100)" }}>
       <div className="flex items-start justify-between gap-4">
@@ -111,6 +113,8 @@ export default function CampaignsPage() {
     }));
   };
 
+  const newCampaignRef = useModalA11y<HTMLDivElement>(showCreate, () => setShowCreate(false));
+
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
   return (
@@ -157,8 +161,12 @@ export default function CampaignsPage() {
       <AnimatePresence>
         {showCreate && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
             <motion.div
+              ref={newCampaignRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-campaign-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -166,7 +174,7 @@ export default function CampaignsPage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">New Campaign</h2>
+                <h2 id="new-campaign-title" className="text-[14px] font-semibold text-brand-950">New Campaign</h2>
                 <button onClick={() => setShowCreate(false)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <div className="space-y-3">
@@ -177,14 +185,14 @@ export default function CampaignsPage() {
                   { label: "Target Audience", key: "targetAudience", placeholder: "e.g. Women 25-40, metro cities" },
                 ].map(({ label, key, placeholder }) => (
                   <div key={key}>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <input value={(form as any)[key] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    <label htmlFor={`field-${key}`} className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
+                    <input id={`field-${key}`} value={(form as any)[key] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={placeholder} className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                   </div>
                 ))}
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-medium text-brand-600">Platforms</label>
-                  <div className="flex flex-wrap gap-2">
+                  <span id="platforms-label" className="mb-1.5 block text-[11px] font-medium text-brand-600">Platforms</span>
+                  <div role="group" aria-labelledby="platforms-label" className="flex flex-wrap gap-2">
                     {PLATFORMS.map((p) => (
                       <button
                         key={p}
@@ -197,8 +205,8 @@ export default function CampaignsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Budget (₹, optional)</label>
-                  <input type="number" placeholder="e.g. 50000" onChange={(e) => setForm(f => ({ ...f, budget: parseInt(e.target.value) || undefined }))}
+                  <label htmlFor="budget-optional" className="mb-1 block text-[11px] font-medium text-brand-600">Budget (₹, optional)</label>
+                  <input id="budget-optional" type="number" placeholder="e.g. 50000" onChange={(e) => setForm(f => ({ ...f, budget: parseInt(e.target.value) || undefined }))}
                     className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
               </div>

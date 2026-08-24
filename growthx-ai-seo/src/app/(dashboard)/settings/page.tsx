@@ -50,12 +50,12 @@ export default function SettingsPage() {
             <div className="card p-6 space-y-4">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">Workspace</h3>
               <div>
-                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Workspace name</label>
-                <input value={activeOrg?.name ?? ""} disabled readOnly className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"/>
+                <label htmlFor="workspace-name" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Workspace name</label>
+                <input id="workspace-name" value={activeOrg?.name ?? ""} disabled readOnly className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"/>
                 <p className="mt-1 text-xs text-[var(--text-muted)]">Renaming a workspace isn&apos;t available yet.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-2">Integrations</label>
+                <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-2">Integrations</h3>
                 <div className="space-y-2">
                   {["Google Search Console", "Google Analytics 4", "Google Business Profile", "Slack Notifications"].map((name) => (
                     <div key={name} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border-color)]">
@@ -103,8 +103,8 @@ function ProfileTab() {
       
       <div className="grid gap-4">
         <div>
-          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Name</label>
-          <input 
+          <label htmlFor="name" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Name</label>
+          <input id="name" 
             value={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || '—'} 
             disabled readOnly 
             className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"
@@ -112,8 +112,8 @@ function ProfileTab() {
         </div>
         
         <div>
-          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Email</label>
-          <input 
+          <label htmlFor="email" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Email</label>
+          <input id="email" 
             value={user?.email ?? '—'} 
             disabled readOnly 
             className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"
@@ -122,8 +122,8 @@ function ProfileTab() {
 
         {user?.googleId && (
           <div>
-            <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Google ID</label>
-            <input 
+            <label htmlFor="google-id" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Google ID</label>
+            <input id="google-id" 
               value={user.googleId} 
               disabled readOnly 
               className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"
@@ -132,8 +132,8 @@ function ProfileTab() {
         )}
 
         <div>
-          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Business Details</label>
-          <textarea 
+          <label htmlFor="business-details" className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide block mb-1.5">Business Details</label>
+          <textarea id="business-details" 
             value={user?.businessDetails ?? 'No business details provided.'} 
             disabled readOnly 
             className="w-full min-h-[100px] text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] opacity-70"

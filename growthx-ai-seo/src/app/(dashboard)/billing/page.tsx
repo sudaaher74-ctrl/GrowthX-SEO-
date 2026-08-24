@@ -155,8 +155,8 @@ export default function BillingPage() {
         </div>
 
         <div className="mt-4 max-w-sm">
-          <label className="text-xs font-medium text-[var(--text-muted)]">Billing email</label>
-          <input
+          <label htmlFor="billing-email" className="text-xs font-medium text-[var(--text-muted)]">Billing email</label>
+          <input id="billing-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

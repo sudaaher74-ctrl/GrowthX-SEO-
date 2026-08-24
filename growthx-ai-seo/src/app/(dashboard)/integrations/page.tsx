@@ -161,8 +161,8 @@ function IntegrationsClient() {
           <Panel title="Connect GitHub Repository" subtitle="Give the Autonomous Engineer access to push fixes and content.">
             <form onSubmit={handleConnectGitHub} className="p-4 space-y-4 max-w-lg">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Owner</label>
-                <input
+                <label htmlFor="owner" className="text-sm font-medium text-brand-950">Owner</label>
+                <input id="owner"
                   type="text"
                   required
                   value={githubForm.owner}
@@ -172,8 +172,8 @@ function IntegrationsClient() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Repository Name</label>
-                <input
+                <label htmlFor="repository-name" className="text-sm font-medium text-brand-950">Repository Name</label>
+                <input id="repository-name"
                   type="text"
                   required
                   value={githubForm.name}
@@ -183,8 +183,8 @@ function IntegrationsClient() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Default Branch</label>
-                <input
+                <label htmlFor="default-branch" className="text-sm font-medium text-brand-950">Default Branch</label>
+                <input id="default-branch"
                   type="text"
                   required
                   value={githubForm.defaultBranch}
@@ -193,8 +193,8 @@ function IntegrationsClient() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Framework</label>
-                <select
+                <label htmlFor="framework" className="text-sm font-medium text-brand-950">Framework</label>
+                <select id="framework"
                   value={githubForm.framework}
                   onChange={(e) => setGithubForm({ ...githubForm, framework: e.target.value })}
                   className="w-full rounded-md border border-brand-200 px-3 py-2 text-sm focus:border-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
@@ -205,8 +205,8 @@ function IntegrationsClient() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Content Directory</label>
-                <input
+                <label htmlFor="content-directory" className="text-sm font-medium text-brand-950">Content Directory</label>
+                <input id="content-directory"
                   type="text"
                   required
                   value={githubForm.contentDir}
@@ -216,8 +216,8 @@ function IntegrationsClient() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-brand-950">Personal Access Token (PAT)</label>
-                <input
+                <label htmlFor="personal-access-token-pat" className="text-sm font-medium text-brand-950">Personal Access Token (PAT)</label>
+                <input id="personal-access-token-pat"
                   type="password"
                   required
                   value={githubForm.accessToken}

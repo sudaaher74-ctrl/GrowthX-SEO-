@@ -109,8 +109,8 @@ export default function AddClientPage() {
 
       <form onSubmit={handleSubmit} className="card space-y-5 p-6">
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Project name</label>
-          <input
+          <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Project name</label>
+          <input id="project-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Acme Inc."
@@ -120,10 +120,10 @@ export default function AddClientPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Website URL</label>
+          <label htmlFor="website-url" className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Website URL</label>
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
-            <input
+            <input id="website-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com"

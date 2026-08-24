@@ -239,8 +239,8 @@ export default function ReportsPage() {
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-brand-950 mb-1">Custom Domain</label>
-                      <input 
+                      <label htmlFor="custom-domain" className="block text-sm font-medium text-brand-950 mb-1">Custom Domain</label>
+                      <input id="custom-domain" 
                         type="text" 
                         readOnly 
                         value={reporting.data?.clientPortal.customDomain ?? ""} 
@@ -248,7 +248,7 @@ export default function ReportsPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-brand-950 mb-1">Theme Color</label>
+                      <span className="block text-sm font-medium text-brand-950 mb-1">Theme Color</span>
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded border border-brand-200" style={{ backgroundColor: reporting.data?.clientPortal.themeColor ?? "var(--color-accent-600)" }}></div>
                         <span className="text-sm text-brand-700">{reporting.data?.clientPortal.themeColor}</span>
@@ -256,7 +256,7 @@ export default function ReportsPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-brand-950 mb-1">Portal Status</label>
+                    <span className="block text-sm font-medium text-brand-950 mb-1">Portal Status</span>
                     <Pill tone={reporting.data?.clientPortal.isPublic ? "good" : "default"}>
                       {reporting.data?.clientPortal.isPublic ? "PUBLIC & ACTIVE" : "PRIVATE (DRAFT)"}
                     </Pill>

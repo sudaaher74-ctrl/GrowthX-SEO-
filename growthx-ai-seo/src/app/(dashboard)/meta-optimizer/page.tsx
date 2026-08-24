@@ -39,12 +39,12 @@ export default function MetaOptimizerPage() {
             <h3 className="text-sm font-semibold text-brand-950">Analyze Webpage</h3>
             <div className="flex gap-4">
               <div className="flex-1">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Target URL</label>
+                <label htmlFor="target-url" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Target URL</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Globe size={14} className="text-brand-400" />
                   </div>
-                  <input 
+                  <input id="target-url" 
                     placeholder="https://example.com/blog-post" 
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}

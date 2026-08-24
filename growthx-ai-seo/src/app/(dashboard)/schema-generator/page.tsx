@@ -41,12 +41,12 @@ export default function SchemaGeneratorPage() {
             <h3 className="text-sm font-semibold text-brand-950">Generate Schema</h3>
             <div className="flex gap-4">
               <div className="flex-1">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Target URL</label>
+                <label htmlFor="target-url" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Target URL</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Globe size={14} className="text-brand-400" />
                   </div>
-                  <input 
+                  <input id="target-url" 
                     placeholder="https://example.com/about" 
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
@@ -55,8 +55,8 @@ export default function SchemaGeneratorPage() {
                 </div>
               </div>
               <div className="w-64">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Schema Type</label>
-                <select 
+                <label htmlFor="schema-type" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">Schema Type</label>
+                <select id="schema-type" 
                   value={schemaType}
                   onChange={(e) => setSchemaType(e.target.value)}
                   className="w-full h-10 rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"

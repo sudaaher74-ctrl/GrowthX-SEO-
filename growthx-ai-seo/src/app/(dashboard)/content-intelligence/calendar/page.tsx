@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, Plus, Sparkles, X, Check, Clock, RefreshCw } from "lucide-react";
 import { api, type CalendarItem, type GenerateContentBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   DRAFT: { label: "Draft", color: "var(--color-brand-500)", bg: "var(--color-brand-100)" },
@@ -30,6 +31,7 @@ const PILLARS = ["PRODUCT", "EDUCATIONAL", "LIFESTYLE", "CREATOR", "PROMOTIONAL"
 
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.DRAFT;
+
   return (
     <span className="rounded-full px-2 py-0.5 text-[9.5px] font-semibold" style={{ color: config.color, background: config.bg }}>
       {config.label}
@@ -123,6 +125,9 @@ export default function CalendarPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-calendar"] }),
   });
 
+  const aiGenerateRef = useModalA11y<HTMLDivElement>(showGenerate, () => setShowGenerate(false));
+  const addContentItemRef = useModalA11y<HTMLDivElement>(showCreate, () => setShowCreate(false));
+
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
   const tabs = [
@@ -192,8 +197,12 @@ export default function CalendarPage() {
       <AnimatePresence>
         {showGenerate && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowGenerate(false)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setShowGenerate(false)} />
             <motion.div
+              ref={aiGenerateRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ai-generate-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -201,7 +210,7 @@ export default function CalendarPage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">AI Content Generation</h2>
+                <h2 id="ai-generate-title" className="text-[14px] font-semibold text-brand-950">AI Content Generation</h2>
                 <button onClick={() => setShowGenerate(false)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <div className="space-y-3">
@@ -211,16 +220,16 @@ export default function CalendarPage() {
                   { label: "Content Pillar", key: "contentPillar", options: PILLARS },
                 ].map(({ label, key, options }) => (
                   <div key={key}>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <select value={(generateForm as any)[key]} onChange={(e) => setGenerateForm(f => ({ ...f, [key]: e.target.value }))}
+                    <label htmlFor={`generate-${key}`} className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
+                    <select id={`generate-${key}`} value={(generateForm as any)[key]} onChange={(e) => setGenerateForm(f => ({ ...f, [key]: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       {options.map(o => <option key={o}>{o}</option>)}
                     </select>
                   </div>
                 ))}
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Topic / Brief</label>
-                  <textarea
+                  <label htmlFor="topic-brief" className="mb-1 block text-[11px] font-medium text-brand-600">Topic / Brief</label>
+                  <textarea id="topic-brief"
                     value={generateForm.topic}
                     onChange={(e) => setGenerateForm(f => ({ ...f, topic: e.target.value }))}
                     placeholder="e.g. New diamond necklace launch — focus on elegance for weddings"
@@ -249,8 +258,12 @@ export default function CalendarPage() {
       <AnimatePresence>
         {showCreate && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
             <motion.div
+              ref={addContentItemRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-content-item-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -258,13 +271,13 @@ export default function CalendarPage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">Add Content Item</h2>
+                <h2 id="add-content-item-title" className="text-[14px] font-semibold text-brand-950">Add Content Item</h2>
                 <button onClick={() => setShowCreate(false)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Title</label>
-                  <input value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: e.target.value }))}
+                  <label htmlFor="title" className="mb-1 block text-[11px] font-medium text-brand-600">Title</label>
+                  <input id="title" value={createForm.title} onChange={(e) => setCreateForm(f => ({ ...f, title: e.target.value }))}
                     placeholder="Content title" className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
                 {[
@@ -272,8 +285,8 @@ export default function CalendarPage() {
                   { label: "Content Type", key: "contentType", options: CONTENT_TYPES },
                 ].map(({ label, key, options }) => (
                   <div key={key}>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <select value={(createForm as any)[key]} onChange={(e) => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    <label htmlFor={`create-${key}`} className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
+                    <select id={`create-${key}`} value={(createForm as any)[key]} onChange={(e) => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       {options.map(o => <option key={o}>{o}</option>)}
                     </select>

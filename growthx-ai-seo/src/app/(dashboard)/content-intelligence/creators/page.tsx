@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Users, Plus, X, Send, Star } from "lucide-react";
 import { api, type AddCreatorBody, type Creator } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   ACTIVE: { label: "Active", color: "var(--color-success-500)" },
@@ -17,6 +18,7 @@ const CATEGORIES = ["FASHION", "BEAUTY", "LIFESTYLE", "FOOD", "TRAVEL", "TECH", 
 
 function CreatorCard({ creator, projectId, onOutreach }: { creator: Creator; projectId: string; onOutreach: (creator: Creator) => void }) {
   const status = STATUS_CONFIG[creator.status] ?? STATUS_CONFIG.ACTIVE;
+
   return (
     <div className="rounded-xl border bg-white p-5" style={{ borderColor: "var(--color-brand-100)" }}>
       <div className="flex items-start gap-4">
@@ -100,6 +102,9 @@ export default function CreatorsPage() {
     onSuccess: () => { setOutreachCreator(null); qc.invalidateQueries({ queryKey: ["ci-outreach"] }); },
   });
 
+  const addCreatorRef = useModalA11y<HTMLDivElement>(showAdd, () => setShowAdd(false));
+  const generateOutreachRef = useModalA11y<HTMLDivElement>(Boolean(outreachCreator), () => setOutreachCreator(null));
+
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
   return (
@@ -146,8 +151,12 @@ export default function CreatorsPage() {
       <AnimatePresence>
         {showAdd && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowAdd(false)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setShowAdd(false)} />
             <motion.div
+              ref={addCreatorRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-creator-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -155,7 +164,7 @@ export default function CreatorsPage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">Add Creator</h2>
+                <h2 id="add-creator-title" className="text-[14px] font-semibold text-brand-950">Add Creator</h2>
                 <button onClick={() => setShowAdd(false)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <div className="space-y-3">
@@ -166,22 +175,22 @@ export default function CreatorsPage() {
                   { label: "Location", key: "location", placeholder: "e.g. Mumbai, India" },
                 ].map(({ label, key, placeholder }) => (
                   <div key={key}>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <input value={(form as any)[key] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    <label htmlFor={`field-${key}`} className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
+                    <input id={`field-${key}`} value={(form as any)[key] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={placeholder} className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                   </div>
                 ))}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">Platform</label>
-                    <select value={form.platform} onChange={(e) => setForm(f => ({ ...f, platform: e.target.value }))}
+                    <label htmlFor="platform" className="mb-1 block text-[11px] font-medium text-brand-600">Platform</label>
+                    <select id="platform" value={form.platform} onChange={(e) => setForm(f => ({ ...f, platform: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       {PLATFORMS.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">Category</label>
-                    <select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
+                    <label htmlFor="category" className="mb-1 block text-[11px] font-medium text-brand-600">Category</label>
+                    <select id="category" value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       <option value="">Select…</option>
                       {CATEGORIES.map(c => <option key={c}>{c}</option>)}
@@ -190,13 +199,13 @@ export default function CreatorsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">Followers</label>
-                    <input type="number" placeholder="e.g. 50000" onChange={(e) => setForm(f => ({ ...f, followerCount: parseInt(e.target.value) || undefined }))}
+                    <label htmlFor="followers" className="mb-1 block text-[11px] font-medium text-brand-600">Followers</label>
+                    <input id="followers" type="number" placeholder="e.g. 50000" onChange={(e) => setForm(f => ({ ...f, followerCount: parseInt(e.target.value) || undefined }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[11px] font-medium text-brand-600">Avg Budget (₹)</label>
-                    <input type="number" placeholder="e.g. 25000" onChange={(e) => setForm(f => ({ ...f, averageBudget: parseInt(e.target.value) || undefined }))}
+                    <label htmlFor="avg-budget" className="mb-1 block text-[11px] font-medium text-brand-600">Avg Budget (₹)</label>
+                    <input id="avg-budget" type="number" placeholder="e.g. 25000" onChange={(e) => setForm(f => ({ ...f, averageBudget: parseInt(e.target.value) || undefined }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                   </div>
                 </div>
@@ -217,8 +226,12 @@ export default function CreatorsPage() {
       <AnimatePresence>
         {outreachCreator && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setOutreachCreator(null)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setOutreachCreator(null)} />
             <motion.div
+              ref={generateOutreachRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="generate-outreach-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -226,7 +239,7 @@ export default function CreatorsPage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[14px] font-semibold text-brand-950">Generate Outreach</h2>
+                <h2 id="generate-outreach-title" className="text-[14px] font-semibold text-brand-950">Generate Outreach</h2>
                 <button onClick={() => setOutreachCreator(null)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <p className="mb-4 text-[11.5px] text-brand-500">
@@ -234,18 +247,18 @@ export default function CreatorsPage() {
               </p>
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Your Brand Name *</label>
-                  <input value={outreachForm.brandName} onChange={(e) => setOutreachForm(f => ({ ...f, brandName: e.target.value }))}
+                  <label htmlFor="your-brand-name" className="mb-1 block text-[11px] font-medium text-brand-600">Your Brand Name *</label>
+                  <input id="your-brand-name" value={outreachForm.brandName} onChange={(e) => setOutreachForm(f => ({ ...f, brandName: e.target.value }))}
                     placeholder="e.g. Kalyan Jewellers" className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Campaign Name</label>
-                  <input value={outreachForm.campaignName} onChange={(e) => setOutreachForm(f => ({ ...f, campaignName: e.target.value }))}
+                  <label htmlFor="campaign-name" className="mb-1 block text-[11px] font-medium text-brand-600">Campaign Name</label>
+                  <input id="campaign-name" value={outreachForm.campaignName} onChange={(e) => setOutreachForm(f => ({ ...f, campaignName: e.target.value }))}
                     placeholder="e.g. Diwali Wedding Collection" className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Product / Service</label>
-                  <input value={outreachForm.product} onChange={(e) => setOutreachForm(f => ({ ...f, product: e.target.value }))}
+                  <label htmlFor="product-service" className="mb-1 block text-[11px] font-medium text-brand-600">Product / Service</label>
+                  <input id="product-service" value={outreachForm.product} onChange={(e) => setOutreachForm(f => ({ ...f, product: e.target.value }))}
                     placeholder="e.g. Diamond bridal jewellery" className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
               </div>

@@ -180,14 +180,14 @@ export default function GeoTrackingPage() {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               {/* Target Keyword */}
               <div className="md:col-span-4">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
+                <label htmlFor="target-local-keyword" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Target Local Keyword
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Search size={14} className="text-brand-400" />
                   </div>
-                  <input
+                  <input id="target-local-keyword"
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                     placeholder="e.g. luxury jewellery store"
@@ -198,10 +198,10 @@ export default function GeoTrackingPage() {
 
               {/* Business Name */}
               <div className="md:col-span-3">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
+                <label htmlFor="business-name-optional" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Business Name (Optional)
                 </label>
-                <input
+                <input id="business-name-optional"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="e.g. Tanishq Jewellery"
@@ -211,10 +211,10 @@ export default function GeoTrackingPage() {
 
               {/* Grid Size */}
               <div className="md:col-span-2">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
+                <span id="grid-size-label" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Grid Size
-                </label>
-                <div className="flex rounded-md border border-brand-200 p-0.5 bg-brand-100">
+                </span>
+                <div role="group" aria-labelledby="grid-size-label" className="flex rounded-md border border-brand-200 p-0.5 bg-brand-100">
                   <button
                     onClick={() => setGridSize(3)}
                     className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
@@ -236,10 +236,10 @@ export default function GeoTrackingPage() {
 
               {/* Radius */}
               <div className="md:col-span-1">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
+                <label htmlFor="radius" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Radius
                 </label>
-                <select
+                <select id="radius"
                   value={radiusKm}
                   onChange={(e) => setRadiusKm(Number(e.target.value))}
                   className="w-full h-10 rounded-md border border-brand-200 bg-white px-2 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"

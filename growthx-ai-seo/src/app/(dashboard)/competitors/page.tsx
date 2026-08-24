@@ -72,8 +72,8 @@ function CompetitorsClient() {
             <form onSubmit={handleAddCompetitor} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[13px] font-medium text-brand-950 mb-1">Domain</label>
-                  <input
+                  <label htmlFor="domain" className="block text-[13px] font-medium text-brand-950 mb-1">Domain</label>
+                  <input id="domain"
                     type="text"
                     required
                     value={domain}
@@ -83,8 +83,8 @@ function CompetitorsClient() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-brand-950 mb-1">Label (Optional)</label>
-                  <input
+                  <label htmlFor="label-optional" className="block text-[13px] font-medium text-brand-950 mb-1">Label (Optional)</label>
+                  <input id="label-optional"
                     type="text"
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}

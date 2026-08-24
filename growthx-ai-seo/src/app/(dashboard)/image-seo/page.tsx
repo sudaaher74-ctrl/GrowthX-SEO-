@@ -92,14 +92,14 @@ export default function ImageSeoPage() {
             </div>
             <div className="flex gap-4 items-end">
               <div className="flex-1">
-                <label className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
+                <label htmlFor="target-webpage-url" className="text-[11px] font-medium text-brand-500 mb-1.5 block uppercase tracking-wider">
                   Target Webpage URL
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                     <Globe size={14} className="text-brand-400" />
                   </div>
-                  <input
+                  <input id="target-webpage-url"
                     placeholder="https://example.com/products/summer-jacket"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}

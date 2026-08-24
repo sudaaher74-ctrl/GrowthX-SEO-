@@ -6,6 +6,7 @@ import { Sparkles, RefreshCw, Check, ChevronRight, Clock, Cpu } from "lucide-rea
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { api, type ContentStrategy } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 const PILLAR_COLORS = ["var(--color-accent-600)", "var(--color-series-2)", "var(--color-series-6)", "var(--color-warning-500)", "var(--color-success-500)", "var(--color-error-500)", "var(--color-series-7)", "var(--color-series-8)"];
 
@@ -73,12 +74,22 @@ function StrategyCard({ strategy, onView }: { strategy: ContentStrategy; onView:
 
 function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStrategy; onClose: () => void; onApprove: () => void }) {
   const content = strategy.content as any;
+  // Rendered only while open, so the hook is always passed `true`.
+  const panelRef = useModalA11y<HTMLDivElement>(true, onClose);
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30" onClick={onClose}>
-      <div className="mx-auto max-w-2xl my-8 rounded-2xl border bg-white shadow-2xl" style={{ borderColor: "var(--color-brand-100)" }} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategy-detail-title"
+        className="mx-auto max-w-2xl my-8 rounded-2xl border bg-white shadow-2xl"
+        style={{ borderColor: "var(--color-brand-100)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b px-6 py-5" style={{ borderColor: "var(--color-brand-100)" }}>
           <div>
-            <h2 className="text-[14px] font-semibold text-brand-950">{strategy.title}</h2>
+            <h2 id="strategy-detail-title" className="text-[14px] font-semibold text-brand-950">{strategy.title}</h2>
             <p className="text-[11px] text-brand-500">{strategy.industrySkill} · {new Date(strategy.createdAt).toLocaleDateString()}</p>
           </div>
           <div className="flex gap-2">

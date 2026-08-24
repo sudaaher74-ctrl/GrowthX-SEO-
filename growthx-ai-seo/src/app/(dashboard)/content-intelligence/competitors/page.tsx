@@ -9,6 +9,7 @@ import {
 import { api, type AddCompetitorAccountBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { confirmAction } from "@/components/ui/confirm-dialog";
+import { useModalA11y } from "@/hooks/use-modal-a11y";
 
 const PLATFORMS = ["INSTAGRAM", "FACEBOOK", "YOUTUBE", "TIKTOK", "TWITTER", "LINKEDIN"];
 // No brand icons in lucide — use Globe as fallback for all platforms
@@ -66,6 +67,9 @@ export default function CompetitorWorkspacePage() {
     mutationFn: (body: any) => api.ingestCompetitorContent(projectId!, { accountId: ingestAccountId!, ...ingestForm }),
     onSuccess: () => { setIngestAccountId(null); qc.invalidateQueries({ queryKey: ["ci-accounts"] }); },
   });
+
+  const addAccountRef = useModalA11y<HTMLDivElement>(showAdd, () => setShowAdd(false));
+  const ingestContentRef = useModalA11y<HTMLDivElement>(Boolean(ingestAccountId), () => setIngestAccountId(null));
 
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
@@ -178,8 +182,12 @@ export default function CompetitorWorkspacePage() {
       <AnimatePresence>
         {showAdd && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowAdd(false)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setShowAdd(false)} />
             <motion.div
+              ref={addAccountRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-account-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -187,14 +195,14 @@ export default function CompetitorWorkspacePage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">Add Competitor Account</h2>
+                <h2 id="add-account-title" className="text-[14px] font-semibold text-brand-950">Add Competitor Account</h2>
                 <button onClick={() => setShowAdd(false)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Platform</label>
-                  <select
+                  <label htmlFor="platform" className="mb-1 block text-[11px] font-medium text-brand-600">Platform</label>
+                  <select id="platform"
                     value={form.platform}
                     onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))}
                     className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600"
@@ -204,8 +212,8 @@ export default function CompetitorWorkspacePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Handle / Username</label>
-                  <input
+                  <label htmlFor="handle-username" className="mb-1 block text-[11px] font-medium text-brand-600">Handle / Username</label>
+                  <input id="handle-username"
                     value={form.handle}
                     onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))}
                     placeholder="@username or channel-id"
@@ -214,8 +222,8 @@ export default function CompetitorWorkspacePage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Display Name (optional)</label>
-                  <input
+                  <label htmlFor="display-name-optional" className="mb-1 block text-[11px] font-medium text-brand-600">Display Name (optional)</label>
+                  <input id="display-name-optional"
                     value={form.displayName ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
                     placeholder="Competitor brand name"
@@ -224,8 +232,8 @@ export default function CompetitorWorkspacePage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Approximate Follower Count (optional)</label>
-                  <input
+                  <label htmlFor="approximate-follower-count-optio" className="mb-1 block text-[11px] font-medium text-brand-600">Approximate Follower Count (optional)</label>
+                  <input id="approximate-follower-count-optio"
                     type="number"
                     value={form.followerCount ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, followerCount: parseInt(e.target.value) || undefined }))}
@@ -257,8 +265,12 @@ export default function CompetitorWorkspacePage() {
       <AnimatePresence>
         {ingestAccountId && (
           <motion.div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0 bg-black/30" onClick={() => setIngestAccountId(null)} />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/30" onClick={() => setIngestAccountId(null)} />
             <motion.div
+              ref={ingestContentRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ingest-content-title"
               className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border bg-white p-6 shadow-2xl"
               style={{ borderColor: "var(--color-brand-100)" }}
               initial={{ y: 60, opacity: 0 }}
@@ -266,27 +278,27 @@ export default function CompetitorWorkspacePage() {
               exit={{ y: 60, opacity: 0 }}
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-semibold text-brand-950">Add Content Manually</h2>
+                <h2 id="ingest-content-title" className="text-[14px] font-semibold text-brand-950">Add Content Manually</h2>
                 <button onClick={() => setIngestAccountId(null)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Content Type</label>
-                  <select value={ingestForm.contentType} onChange={(e) => setIngestForm(f => ({ ...f, contentType: e.target.value }))}
+                  <label htmlFor="content-type" className="mb-1 block text-[11px] font-medium text-brand-600">Content Type</label>
+                  <select id="content-type" value={ingestForm.contentType} onChange={(e) => setIngestForm(f => ({ ...f, contentType: e.target.value }))}
                     className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                     {["POST", "REEL", "VIDEO", "CAROUSEL", "STORY"].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Caption / Text</label>
-                  <textarea value={ingestForm.caption} onChange={(e) => setIngestForm(f => ({ ...f, caption: e.target.value }))}
+                  <label htmlFor="caption-text" className="mb-1 block text-[11px] font-medium text-brand-600">Caption / Text</label>
+                  <textarea id="caption-text" value={ingestForm.caption} onChange={(e) => setIngestForm(f => ({ ...f, caption: e.target.value }))}
                     placeholder="Paste the post caption or description"
                     rows={4}
                     className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600 resize-none" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-brand-600">Content URL (optional)</label>
-                  <input value={ingestForm.contentUrl} onChange={(e) => setIngestForm(f => ({ ...f, contentUrl: e.target.value }))}
+                  <label htmlFor="content-url-optional" className="mb-1 block text-[11px] font-medium text-brand-600">Content URL (optional)</label>
+                  <input id="content-url-optional" value={ingestForm.contentUrl} onChange={(e) => setIngestForm(f => ({ ...f, contentUrl: e.target.value }))}
                     placeholder="https://www.instagram.com/p/..."
                     className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                 </div>
