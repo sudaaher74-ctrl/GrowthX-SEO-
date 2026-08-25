@@ -310,8 +310,9 @@ function NavLink({
   const isExactActive = pathname === item.href;
   const isChildActive = item.children?.some(child => pathname === child.href || pathname.startsWith(`${child.href}/`)) ?? false;
   const isActive = isExactActive || isChildActive || pathname.startsWith(`${item.href}/`);
-  
+
   const [isOpen, setIsOpen] = useState(isActive);
+  const hasChildren = (item.children?.length ?? 0) > 0;
 
   // When active state changes from outside, keep it synced
   if (isActive && !isOpen && item.children) {
@@ -320,54 +321,87 @@ function NavLink({
 
   return (
     <div>
-      <Link 
-        href={item.href} 
-        onClick={(e) => {
-          if (item.children && item.children.length > 0) {
-            // e.preventDefault(); // Do not prevent default if they want to click the parent overview
-            setIsOpen(!isOpen);
-          }
-          onNavigate();
-        }}
+      {/* The chevron is a sibling of the link, not a descendant of it: a
+          <button> inside an <a> is invalid nesting, and the old version leaned
+          on preventDefault to stop the navigation it had itself created. */}
+      <div
+        className={cn(
+          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
+          isExactActive
+            ? "bg-brand-950 font-semibold text-white"
+            : isActive
+              ? "bg-brand-100 font-semibold text-brand-950"
+              : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+        )}
       >
-        <div
-          className={cn(
-            "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
-            isActive ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
-          )}
+        <Link
+          href={item.href}
+          onClick={() => {
+            if (hasChildren) setIsOpen(true);
+            onNavigate();
+          }}
+          className="flex min-w-0 flex-1 items-center gap-[9px]"
         >
-          <item.icon size={15} className={isActive ? "text-brand-900" : "text-brand-400"} />
-          <span className="flex-1">{item.label}</span>
+          <item.icon
+            size={15}
+            className={isExactActive ? "text-white" : isActive ? "text-brand-900" : "text-brand-400"}
+          />
+          <span className="flex-1 truncate">{item.label}</span>
           {item.tag && (
+            /* A count that matters is a badge, not loose mono text beside the
+               label — a red "3" floating at the edge read as decoration. */
             <span
               className={cn(
-                "font-mono text-[10.5px] font-medium",
-                item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
+                "shrink-0 rounded-full px-[5px] py-[1px] font-mono text-[9.5px] font-semibold leading-[14px]",
+                item.tagTone === "danger"
+                  ? "bg-error-50 text-error-700"
+                  : isExactActive
+                    ? "bg-white/15 text-white"
+                    : "bg-brand-200 text-brand-600",
               )}
             >
               {item.tag}
             </span>
           )}
-          {item.children && item.children.length > 0 && (
-            <div className="shrink-0 text-brand-400" onClick={(e) => { e.preventDefault(); setIsOpen(!isOpen); }}>
-              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </div>
-          )}
-        </div>
-      </Link>
-      
-      {isOpen && item.children && item.children.length > 0 && (
-        <div className="mt-1 flex flex-col gap-1 pl-7 pr-2">
-          {item.children.map((child) => {
+        </Link>
+
+        {hasChildren && (
+          <button
+            type="button"
+            aria-label={`${isOpen ? "Collapse" : "Expand"} ${item.label}`}
+            aria-expanded={isOpen}
+            onClick={() => setIsOpen((open) => !open)}
+            className={cn(
+              "-mr-0.5 shrink-0 rounded p-0.5 transition-colors",
+              isExactActive ? "text-white/60 hover:text-white" : "text-brand-400 hover:text-brand-700",
+            )}
+          >
+            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+        )}
+      </div>
+
+      {isOpen && hasChildren && (
+        /* The rail ties the group to its parent: without it the four child rows
+           read as four more top-level entries at a smaller size. */
+        <div className="relative mt-1 flex flex-col gap-[2px] py-0.5 pl-[17px] pr-1">
+          <span aria-hidden className="absolute bottom-1 left-[17px] top-1 w-px bg-brand-200" />
+          {item.children?.map((child) => {
             const isChildItemActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
             return (
-              <Link key={child.href} href={child.href} onClick={onNavigate}>
+              <Link key={child.href} href={child.href} onClick={onNavigate} className="relative">
+                {isChildItemActive && (
+                  <span
+                    aria-hidden
+                    className="absolute -left-px top-1/2 h-[14px] w-[2px] -translate-y-1/2 rounded-full bg-brand-950"
+                  />
+                )}
                 <div
                   className={cn(
-                    "rounded-md px-2 py-1.5 text-[11.5px] font-medium transition-colors",
+                    "ml-[9px] rounded-md px-2 py-[5px] text-[11.5px] transition-colors",
                     isChildItemActive
-                      ? "bg-brand-50 text-brand-950"
-                      : "text-brand-500 hover:bg-brand-50 hover:text-brand-900"
+                      ? "bg-brand-100 font-semibold text-brand-950"
+                      : "font-medium text-brand-500 hover:bg-brand-50 hover:text-brand-900",
                   )}
                 >
                   {child.label}
