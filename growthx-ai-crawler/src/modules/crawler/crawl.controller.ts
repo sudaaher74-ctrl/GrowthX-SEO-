@@ -10,6 +10,7 @@ import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OrgContextService } from '../organizations/org-context.service';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -23,7 +24,9 @@ export class CrawlController {
     private readonly graphService: GraphService,
     private readonly aiService: AiService,
     private readonly autoFixService: AutoFixService,
-    private readonly schedulerService: SchedulerService,) {}
+    private readonly schedulerService: SchedulerService,
+    private readonly orgContext: OrgContextService,
+  ) {}
 
   /**
    * Confirms the caller may act on a website, and returns it.
@@ -46,7 +49,11 @@ export class CrawlController {
         'This website is not attached to any organization, so access to it cannot be authorized.',
       );
     }
-        return website;
+
+    // Resolving the owner proves who the record belongs to, not that the
+    // caller is one of them. Both halves are the check.
+    await this.orgContext.assertMembership(req.user?.userId, organizationId);
+    return website;
   }
 
   /** Same, for a crawl job traced back through its website's project. */
@@ -63,7 +70,9 @@ export class CrawlController {
         'This crawl job is not attached to any organization, so access to it cannot be authorized.',
       );
     }
-        return job;
+
+    await this.orgContext.assertMembership(req.user?.userId, organizationId);
+    return job;
   }
 
   @Post('websites')

@@ -10,6 +10,7 @@ import { GraphService } from '../graph/graph.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+import { OrgContextService } from '../organizations/org-context.service';
 
 const ORG = 'org_1';
 const REQ = { user: { userId: 'user_1' } };
@@ -47,7 +48,9 @@ describe('CrawlController — crawl history', () => {
         { provide: GraphService, useValue: {} },
         { provide: AiService, useValue: {} },
         { provide: AutoFixService, useValue: {} },
-        { provide: SchedulerService, useValue: {} },      ],
+        { provide: SchedulerService, useValue: {} },
+        { provide: OrgContextService, useValue: orgContext },
+      ],
     }).compile();
 
     controller = module.get(CrawlController);
