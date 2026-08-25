@@ -29,6 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return { userId: payload.sub, email: payload.email };
+    // Controllers expect req.user.organizationId or a middleware maps it to req.organizationId.
+    // By adding it here, it becomes available on req.user.
+    return { userId: payload.sub, email: payload.email, organizationId: payload.organizationId };
   }
 }

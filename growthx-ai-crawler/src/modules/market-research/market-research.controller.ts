@@ -56,14 +56,14 @@ export class MarketResearchController {
   @ApiOperation({ summary: 'Research threads for this project' })
   @ApiParam({ name: 'projectId' })
   listThreads(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.research.listThreads(req.organizationId, projectId);
+    return this.research.listThreads(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Post('threads')
   @ApiOperation({ summary: 'Start a new research thread' })
   @ApiParam({ name: 'projectId' })
   createThread(@Req() req: any, @Param('projectId') projectId: string, @Body() body: CreateThreadDto) {
-    return this.research.createThread(req.organizationId, projectId, body?.title ?? 'New research');
+    return this.research.createThread(req.user?.organizationId || req.organizationId, projectId, body?.title ?? 'New research');
   }
 
   @Get('threads/:threadId')
@@ -71,7 +71,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'threadId' })
   getThread(@Req() req: any, @Param('projectId') projectId: string, @Param('threadId') threadId: string) {
-    return this.research.getThread(req.organizationId, projectId, threadId);
+    return this.research.getThread(req.user?.organizationId || req.organizationId, projectId, threadId);
   }
 
   @Post('ask')
@@ -79,7 +79,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   async ask(@Req() req: any, @Param('projectId') projectId: string, @Body() body: AskQuestionDto) {
     const result = await this.research.ask({
-      organizationId: req.organizationId,
+      organizationId: req.user?.organizationId || req.organizationId,
       projectId,
       threadId: body.threadId,
       question: body.question,
@@ -94,7 +94,7 @@ export class MarketResearchController {
   @ApiOperation({ summary: 'Citation and visibility gaps surfaced by research' })
   @ApiParam({ name: 'projectId' })
   listOpportunities(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.actions.listOpportunities(req.organizationId, projectId);
+    return this.actions.listOpportunities(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Get('actions')
@@ -105,7 +105,7 @@ export class MarketResearchController {
     @Param('projectId') projectId: string,
     @Query('status') status?: MarketActionStatus,
   ) {
-    return this.actions.list(req.organizationId, projectId, status);
+    return this.actions.list(req.user?.organizationId || req.organizationId, projectId, status);
   }
 
   @Post('actions/:actionId/approve')
@@ -113,7 +113,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'actionId' })
   approve(@Req() req: any, @Param('projectId') projectId: string, @Param('actionId') actionId: string) {
-    return this.actions.approve(req.organizationId, projectId, actionId, req.user?.userId);
+    return this.actions.approve(req.user?.organizationId || req.organizationId, projectId, actionId, req.user?.userId);
   }
 
   @Post('actions/:actionId/reject')
@@ -121,7 +121,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'actionId' })
   reject(@Req() req: any, @Param('projectId') projectId: string, @Param('actionId') actionId: string) {
-    return this.actions.reject(req.organizationId, projectId, actionId);
+    return this.actions.reject(req.user?.organizationId || req.organizationId, projectId, actionId);
   }
 
   @Post('actions/:actionId/convert')
@@ -129,7 +129,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'actionId' })
   convert(@Req() req: any, @Param('projectId') projectId: string, @Param('actionId') actionId: string) {
-    return this.actions.convert(req.organizationId, projectId, actionId);
+    return this.actions.convert(req.user?.organizationId || req.organizationId, projectId, actionId);
   }
 
   // ── measurement and monitoring (Phase 3)
@@ -138,7 +138,7 @@ export class MarketResearchController {
   @ApiOperation({ summary: 'Before/after visibility for converted actions' })
   @ApiParam({ name: 'projectId' })
   listOutcomes(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.outcomes.list(req.organizationId, projectId);
+    return this.outcomes.list(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Post('actions/:actionId/measure')
@@ -146,28 +146,28 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'actionId' })
   measure(@Req() req: any, @Param('projectId') projectId: string, @Param('actionId') actionId: string) {
-    return this.outcomes.measure(req.organizationId, projectId, actionId);
+    return this.outcomes.measure(req.user?.organizationId || req.organizationId, projectId, actionId);
   }
 
   @Get('weekly-delta')
   @ApiOperation({ summary: 'Recent weekly client deltas' })
   @ApiParam({ name: 'projectId' })
   listWeeklyDeltas(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.weekly.list(req.organizationId, projectId);
+    return this.weekly.list(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Post('weekly-delta')
   @ApiOperation({ summary: 'Generate this week\'s client delta now' })
   @ApiParam({ name: 'projectId' })
   generateWeeklyDelta(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.weekly.generate(req.organizationId, projectId);
+    return this.weekly.generate(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Get('watches')
   @ApiOperation({ summary: 'Competitor and topic watches for this client' })
   @ApiParam({ name: 'projectId' })
   listWatches(@Req() req: any, @Param('projectId') projectId: string) {
-    return this.weekly.listWatches(req.organizationId, projectId);
+    return this.weekly.listWatches(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Post('watches')
@@ -178,7 +178,7 @@ export class MarketResearchController {
     @Param('projectId') projectId: string,
     @Body() body: { kind: MarketWatchKind; value: string },
   ) {
-    return this.weekly.createWatch(req.organizationId, projectId, body.kind, body.value);
+    return this.weekly.createWatch(req.user?.organizationId || req.organizationId, projectId, body.kind, body.value);
   }
 
   @Post('watches/:watchId/deactivate')
@@ -186,7 +186,7 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'watchId' })
   deactivateWatch(@Req() req: any, @Param('projectId') projectId: string, @Param('watchId') watchId: string) {
-    return this.weekly.deactivateWatch(req.organizationId, projectId, watchId);
+    return this.weekly.deactivateWatch(req.user?.organizationId || req.organizationId, projectId, watchId);
   }
 
   @Get('runs/:runId/sources')
@@ -194,6 +194,6 @@ export class MarketResearchController {
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'runId' })
   getRunSources(@Req() req: any, @Param('projectId') projectId: string, @Param('runId') runId: string) {
-    return this.research.getRunSources(req.organizationId, projectId, runId);
+    return this.research.getRunSources(req.user?.organizationId || req.organizationId, projectId, runId);
   }
 }
