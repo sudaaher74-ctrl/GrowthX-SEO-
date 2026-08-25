@@ -1,6 +1,17 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, NotConnected } from "@/components/ui/console";
+import {
+  ActionButton,
+  NotConnected,
+  PageHeader,
+  Panel,
+  Pill,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { Activity, Bell, History, ShieldAlert, Zap, Loader2 } from "lucide-react";
 import { useWorkspace, useActivity, useLatestCrawl, usePortfolio, useMonitoring } from "@/hooks/use-growthx";
 import { relativeTime, Kpi } from "@/components/ui/console";
@@ -39,22 +50,7 @@ export default function MonitoringPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-accent-600 text-accent-600"
-                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">

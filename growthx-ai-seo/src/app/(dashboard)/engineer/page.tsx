@@ -1,7 +1,17 @@
 "use client";
 import { Suspense, useState } from "react";
 import { Code, GitBranch, GitPullRequest, Server, Zap, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton } from "@/components/ui/console";
+import {
+  ActionButton,
+  PageHeader,
+  Panel,
+  Pill,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
 import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";
 import type { CrawlIssue } from "@/lib/api-client";
@@ -59,25 +69,14 @@ function EngineerClient() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedIssueId(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-accent-600 text-accent-600"
-                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={tabs}
+        active={activeTab}
+        onChange={(id) => {
+          setActiveTab(id);
+                setSelectedIssueId(null);
+        }}
+      />
 
       <div className="pt-2 flex items-start gap-4">
         <div className={`flex-1 space-y-4 ${selectedIssueId ? "lg:max-w-[calc(100%-28rem)]" : "w-full"}`}>

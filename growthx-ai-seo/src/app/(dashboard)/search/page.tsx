@@ -1,7 +1,18 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Loader2, Search, Zap, CheckCircle2, XCircle, MinusCircle, RefreshCw, Plus, Sparkles } from "lucide-react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, Mono } from "@/components/ui/console";
+import { Loader2, Search, CheckCircle2, XCircle, MinusCircle, RefreshCw, Plus, Sparkles } from "lucide-react";
+import {
+  ActionButton,
+  Kpi,
+  Mono,
+  PageHeader,
+  Panel,
+  StatusNote,
+  Table,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { useWorkspace, useVisibility, useTrackedPrompts, useRunSweep, useAddPrompts } from "@/hooks/use-growthx";
 import { Button } from "@/components/ui/button";
 import { QueryState } from "@/components/ui/query-state";
@@ -13,7 +24,6 @@ function AiVisibilityClient() {
   const sweep = useRunSweep(projectId);
   const addPrompts = useAddPrompts(projectId);
 
-  const [activeTab, setActiveTab] = useState("ai");
   const [newQuery, setNewQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -110,24 +120,9 @@ function AiVisibilityClient() {
       )}
 
       {statusMessage && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">
-          {statusMessage}
-        </div>
+        <StatusNote>{statusMessage}</StatusNote>
       )}
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        <button
-          onClick={() => setActiveTab("ai")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "ai"
-              ? "border-brand-950 text-brand-950"
-              : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-          }`}
-        >
-          <Zap size={14} />
-          AI Visibility
-        </button>
-      </div>
 
       <div className="pt-2">
         <QueryState

@@ -169,37 +169,77 @@ export function Panel({
   );
 }
 
-/** Segmented control used for the design's page-level tabs. */
+/**
+ * Segmented control used for the design's page-level tabs.
+ *
+ * Every module routes its page-level tabs through here. Nine pages used to
+ * hand-roll an underlined bar instead, in two variants that disagreed about
+ * which colour marks the active tab, so the same control changed appearance
+ * as you moved through the nav.
+ */
 export function Tabs<T extends string>({
   tabs,
   active,
   onChange,
 }: {
-  tabs: { id: T; label: string; tag?: string }[];
+  tabs: { id: T; label: string; tag?: string; icon?: React.ElementType }[];
   active: T;
   onChange: (id: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
-            active === tab.id
-              ? "border-brand-950 bg-brand-950 text-white"
-              : "border-line bg-white text-brand-600 hover:bg-brand-50",
-          )}
-        >
-          {tab.label}
-          {tab.tag && (
-            <span className={cn("font-mono text-[10px]", active === tab.id ? "text-white/70" : "text-brand-400")}>
-              {tab.tag}
-            </span>
-          )}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      className="-mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible"
+    >
+      {tabs.map((tab) => {
+        const isActive = active === tab.id;
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors",
+              isActive
+                ? "border-brand-950 bg-brand-950 text-white"
+                : "border-line bg-white text-brand-600 hover:bg-brand-50 hover:text-brand-950",
+            )}
+          >
+            {Icon && <Icon size={13} className={isActive ? "text-white/80" : "text-brand-400"} />}
+            {tab.label}
+            {tab.tag && (
+              <span
+                className={cn(
+                  "rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold",
+                  isActive ? "bg-white/15 text-white" : "bg-brand-100 text-brand-500",
+                )}
+              >
+                {tab.tag}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Transient result of an action the user just took. Three pages each had their
+ * own copy of this in raw emerald, which is off-palette and was the only green
+ * in the app that ignored the success tokens.
+ */
+export function StatusNote({ children, tone = "good" }: { children: React.ReactNode; tone?: "good" | "bad" }) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-4 py-2.5 text-[12px]",
+        tone === "good" ? "bg-success-50 text-success-700" : "bg-error-50 text-error-700",
+      )}
+    >
+      {children}
     </div>
   );
 }

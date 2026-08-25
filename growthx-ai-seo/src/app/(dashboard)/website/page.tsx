@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Activity, Layout, LayoutGrid, Loader2, RefreshCw, Zap } from "lucide-react";
 import {
   ActionButton,
   Kpi,
@@ -122,11 +122,11 @@ function WebsiteClient() {
     </ActionButton>
   );
 
-  const tabs: { id: TabId; label: string; tag?: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "technical-seo", label: "Technical SEO", tag: allIssues.length ? String(allIssues.length) : undefined },
-    { id: "performance", label: "Performance" },
-    { id: "pages", label: "Pages", tag: allPages.length ? String(allPages.length) : undefined },
+  const tabs: { id: TabId; label: string; tag?: string; icon?: React.ElementType }[] = [
+    { id: "overview", label: "Overview", icon: LayoutGrid },
+    { id: "technical-seo", label: "Technical SEO", icon: Zap, tag: allIssues.length ? String(allIssues.length) : undefined },
+    { id: "performance", label: "Performance", icon: Activity },
+    { id: "pages", label: "Pages", icon: Layout, tag: allPages.length ? String(allPages.length) : undefined },
   ];
 
   return (

@@ -1,6 +1,18 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, Pill, ActionButton, Mono } from "@/components/ui/console";
+import {
+  ActionButton,
+  Kpi,
+  Mono,
+  PageHeader,
+  Panel,
+  Pill,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { LayoutDashboard, FileBarChart, Users, FileSignature, Download, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
 import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts, useReporting } from "@/hooks/use-growthx";
@@ -65,25 +77,14 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              setSelectedReport(null);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-accent-600 text-accent-600"
-                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={tabs}
+        active={activeTab}
+        onChange={(id) => {
+          setActiveTab(id);
+                setSelectedReport(null);
+        }}
+      />
 
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">
