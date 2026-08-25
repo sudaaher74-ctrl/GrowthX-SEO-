@@ -178,7 +178,7 @@ export default function ContentIntelligencePage() {
             <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
               {dashboard.isLoading ? (
                 <div className="px-5 py-8 text-center text-[12px] text-brand-500">Loading…</div>
-              ) : !dashboard.data?.topOpportunities.length ? (
+              ) : !dashboard.data?.topOpportunities?.length ? (
                 <div className="px-5 py-8 text-center">
                   <Target size={24} className="mx-auto mb-2 text-brand-300" />
                   <p className="text-[12px] text-brand-500">No gaps yet. Add competitors and run the pipeline.</p>
@@ -220,7 +220,7 @@ export default function ContentIntelligencePage() {
             <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
               {dashboard.isLoading ? (
                 <div className="px-5 py-8 text-center text-[12px] text-brand-500">Loading…</div>
-              ) : !dashboard.data?.topPatterns.length ? (
+              ) : !dashboard.data?.topPatterns?.length ? (
                 <div className="px-5 py-8 text-center">
                   <Layers size={24} className="mx-auto mb-2 text-brand-300" />
                   <p className="text-[12px] text-brand-500">No patterns detected yet.</p>

@@ -78,7 +78,7 @@ export default function BillingPage() {
         )}
 
         <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {plans.data?.plans.map((plan) => {
+          {plans.data?.plans?.map((plan) => {
             const isCurrent = currentPlan === plan.plan;
             const isPopular = plan.plan === "GROWTH";
             return (
@@ -173,7 +173,7 @@ export default function BillingPage() {
           emptyBody="Pick a plan above to start tracking usage."
         >
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {entitlements.data?.quotas.map((quota) => {
+            {entitlements.data?.quotas?.map((quota) => {
               const unlimited = quota.limit === null;
               const pct = unlimited ? 0 : Math.min(100, (quota.used / Math.max(1, quota.limit!)) * 100);
               return (

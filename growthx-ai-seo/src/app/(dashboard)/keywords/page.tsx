@@ -67,15 +67,15 @@ export default function SearchPage() {
         <Kpi label="Prompts tracked" value={String(prompts.data?.length ?? 0)} sub="active questions" />
         <Kpi
           label="Citation share"
-          value={visibility.data?.summary.citationSharePct != null ? `${visibility.data.summary.citationSharePct}%` : "—"}
-          delta={visibility.data?.summary.deltaPt}
+          value={visibility.data?.summary?.citationSharePct != null ? `${visibility.data.summary.citationSharePct}%` : "—"}
+          delta={visibility.data?.summary?.deltaPt}
           deltaSuffix="pt"
           sub="across all assistants"
         />
         <Kpi label="Competitors tracked" value={String(competitors.length)} sub="for share of voice" />
         <Kpi
           label="Avg position"
-          value={visibility.data?.summary.averagePosition != null ? String(visibility.data.summary.averagePosition) : "—"}
+          value={visibility.data?.summary?.averagePosition != null ? String(visibility.data.summary.averagePosition) : "—"}
           sub="when cited"
         />
       </div>
@@ -114,8 +114,8 @@ export default function SearchPage() {
                     <Td><Mono tone="soft">{p.cluster ?? "—"}</Mono></Td>
                     <Td align="right">
                       <div className="flex flex-wrap justify-end gap-1">
-                        {p.latestChecks.length === 0 && <Pill>not checked</Pill>}
-                        {p.latestChecks.map((c, i) => (
+                        {!p.latestChecks?.length && <Pill>not checked</Pill>}
+                        {p.latestChecks?.map((c, i) => (
                           <Pill key={i} tone={c.error ? "default" : c.cited ? "good" : "bad"}>
                             {c.assistant}{c.error ? " n/a" : c.cited ? ` #${c.position ?? "?"}` : " miss"}
                           </Pill>
@@ -165,7 +165,7 @@ export default function SearchPage() {
                   <tr><Th>Brand</Th><Th align="right">Mentions</Th><Th align="right">Share</Th></tr>
                 </thead>
                 <tbody>
-                  {visibility.data?.shareOfVoice.map((row) => (
+                  {visibility.data?.shareOfVoice?.map((row) => (
                     <Tr key={row.label}>
                       <Td>
                         <span className={row.domain === null ? "text-[12.5px] font-semibold text-brand-950" : "text-[12.5px] text-brand-700"}>

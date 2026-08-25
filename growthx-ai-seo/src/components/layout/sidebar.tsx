@@ -65,7 +65,7 @@ export function Sidebar({
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
-  const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
+  const clientRow = portfolio.data?.clients?.find((c) => c.projectId === selected?.id) ?? null;
 
   const agencyNav: NavItem[] = [
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
@@ -92,10 +92,6 @@ export function Sidebar({
     { label: "Reports", href: "/reports", icon: BarChart },
   ];
 
-
-  const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
-  const crawlPct =
-    crawlQuota && crawlQuota.limit ? Math.min(100, (crawlQuota.used / crawlQuota.limit) * 100) : 0;
 
   return (
     <>
@@ -160,7 +156,7 @@ export function Sidebar({
                   className="absolute left-1 right-1 z-10 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg"
                   style={{ borderColor: "var(--border-color)" }}
                 >
-                  {portfolio.data?.clients.map((client) => (
+                  {portfolio.data?.clients?.map((client) => (
                     <button
                       key={client.projectId}
                       onClick={() => {
