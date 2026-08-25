@@ -142,6 +142,13 @@ export function useGbpProposals(projectId: string | null) {
   });
 }
 
+export function useRunGeoGridScan(projectId: string | null) {
+  return useMutation({
+    mutationFn: (body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: 3 | 5; radiusKm?: number }) =>
+      api.runGeoGridScan(projectId!, body),
+  });
+}
+
 export function useAnalyzeGbp(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

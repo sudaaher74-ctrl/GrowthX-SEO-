@@ -540,6 +540,62 @@ export interface LocalSeoData {
   updatedAt: string;
   rankings?: LocalRanking[];
 }
+export interface GridNode {
+  id: string;
+  row: number;
+  col: number;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+  direction: string;
+  rank: number;
+  businessFound: boolean;
+  topCompetitors: {
+    name: string;
+    rank: number;
+    rating?: number;
+    reviewsCount?: number;
+    distanceKm?: number;
+  }[];
+}
+
+export interface GeoGridScanRequest {
+  keyword: string;
+  businessName?: string;
+  lat?: number;
+  lng?: number;
+  gridSize?: 3 | 5;
+  radiusKm?: number;
+}
+
+export interface GeoGridScanResult {
+  keyword: string;
+  businessName: string;
+  centerCoordinates: { lat: number; lng: number };
+  gridSize: number;
+  radiusKm: number;
+  scannedAt: string;
+  metrics: {
+    averageGridRank: number;
+    top3DominancePercentage: number;
+    top1Count: number;
+    top3Count: number;
+    top10Count: number;
+    unrankedCount: number;
+  };
+  nodes: GridNode[];
+  aiGeoActionPlan: {
+    diagnosis: string;
+    keyVulnerabilities: string[];
+    actionItems: {
+      action: string;
+      impact: 'HIGH' | 'MEDIUM' | 'LOW';
+      targetZone: string;
+      description: string;
+    }[];
+  };
+  model?: string;
+}
 
 export interface OutreachContact {
   id: string;

@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime } from "@/components/ui/console";
-import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search } from "lucide-react";
+import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search, Map } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
+import { GeoGridPanel } from "./GeoGridPanel";
 
 interface LocalBusinessPlace {
   placeId: string;
@@ -35,6 +36,7 @@ export default function LocalPage() {
     { id: "reviews", label: "Reviews & Ratings", icon: Star },
     { id: "citations", label: "Citations", icon: LinkIcon },
     { id: "rankings", label: "Local Rankings", icon: BarChart3 },
+    { id: "geogrid", label: "GeoGrid Scan", icon: Map },
   ];
 
   const handleSearch = (e: React.FormEvent) => {
@@ -239,6 +241,10 @@ export default function LocalPage() {
                     </div>
                   )}
                 </Panel>
+              )}
+
+              {(activeTab === "geogrid") && (
+                <GeoGridPanel projectId={projectId} businessName={localSeo?.businessName} />
               )}
             </>
           )}
