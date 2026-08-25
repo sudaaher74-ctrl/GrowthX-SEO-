@@ -1,14 +1,17 @@
 "use client";
-import { Suspense, useMemo, useState } from "react";
-import { Loader2, RefreshCw, Sparkles, Search, Zap, Code, Layout, LayoutGrid, HeartPulse, Activity } from "lucide-react";
+import { Suspense, useState } from "react";
+import { Activity, Layout, LayoutGrid, Loader2, RefreshCw, Zap } from "lucide-react";
 import {
   ActionButton,
   Kpi,
+  MeterBar,
   Mono,
   PageHeader,
   Panel,
   Pill,
+  Sparkline,
   Table,
+  Tabs,
   Td,
   Th,
   Tr,
@@ -19,28 +22,48 @@ import { useSearchParams } from "next/navigation";
 import { useCrawlHistory, useCrawlIssues, useCrawlPages, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
+type TabId = "overview" | "technical-seo" | "performance" | "pages";
+
+const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+type Severity = (typeof SEVERITIES)[number];
+
+const SEVERITY_TONE: Record<Severity, "bad" | "warn" | "info" | "default"> = {
+  CRITICAL: "bad",
+  HIGH: "warn",
+  MEDIUM: "info",
+  LOW: "default",
+};
+
+/** The bar colour for each severity, so the breakdown reads at a glance. */
+const SEVERITY_BAR: Record<Severity, string> = {
+  CRITICAL: "var(--color-error-600)",
+  HIGH: "var(--color-warning-600)",
+  MEDIUM: "var(--color-accent-600)",
+  LOW: "var(--color-brand-300)",
+};
+
 function WebsiteClient() {
   const searchParams = useSearchParams();
   const queryDomain = searchParams.get("domain");
 
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  
-  const client = useMemo(() => {
-    if (!portfolio.data?.clients) return null;
-    if (queryDomain) {
-      const match = portfolio.data.clients.find((c) => c.domain === queryDomain);
-      if (match) return match;
-    }
-    return portfolio.data.clients.find((c) => c.projectId === projectId) ?? portfolio.data.clients[0] ?? null;
-  }, [portfolio.data?.clients, queryDomain, projectId]);
+
+  // Plain derivation over a handful of clients; memoising it only hid the
+  // dependency list from the compiler.
+  const clients = portfolio.data?.clients ?? [];
+  const client =
+    (queryDomain ? clients.find((c) => c.domain === queryDomain) : null) ??
+    clients.find((c) => c.projectId === projectId) ??
+    clients[0] ??
+    null;
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
   const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
   const history = useCrawlHistory(client?.domain ?? null, 12);
 
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [crawling, setCrawling] = useState(false);
 
   const allIssues = issues.data?.data ?? [];
@@ -88,11 +111,22 @@ function WebsiteClient() {
     }
   }
 
-  const tabs = [
+  const scanButton = (
+    <ActionButton
+      variant="primary"
+      icon={crawling ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+      onClick={runCrawl}
+      disabled={crawling || !client?.domain}
+    >
+      {crawling ? "Starting…" : "Run full scan"}
+    </ActionButton>
+  );
+
+  const tabs: { id: TabId; label: string; tag?: string; icon?: React.ElementType }[] = [
     { id: "overview", label: "Overview", icon: LayoutGrid },
-    { id: "technical-seo", label: "Technical SEO", icon: Zap },
+    { id: "technical-seo", label: "Technical SEO", icon: Zap, tag: allIssues.length ? String(allIssues.length) : undefined },
     { id: "performance", label: "Performance", icon: Activity },
-    { id: "pages", label: "Pages", icon: Layout },
+    { id: "pages", label: "Pages", icon: Layout, tag: allPages.length ? String(allPages.length) : undefined },
   ];
 
   return (
@@ -101,21 +135,12 @@ function WebsiteClient() {
         title="Website"
         subtitle={
           crawl.data
-            ? `${crawl.data.pagesCrawled ?? 0} URLs · crawl ${relativeTime(crawl.data.finishedAt)}`
+            ? `${(crawl.data.pagesCrawled ?? 0).toLocaleString()} URLs · crawl ${relativeTime(crawl.data.finishedAt)}`
             : client?.domain
               ? `${client.domain} · not crawled yet`
               : "Select a client with a website"
         }
-        actions={
-          <ActionButton
-            variant="primary"
-            icon={crawling ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            onClick={runCrawl}
-            disabled={crawling || !client?.domain}
-          >
-            {crawling ? "Starting…" : "Run full scan"}
-          </ActionButton>
-        }
+        actions={scanButton}
       />
 
       <QueryState
@@ -123,81 +148,114 @@ function WebsiteClient() {
         error={portfolio.error}
         isEmpty={!client?.domain}
         emptyTitle="No website registered"
-        emptyBody="Register this client's website before running an audit."
+        emptyBody="This workspace has no client with a website attached yet. Add one from Projects, then run a full scan to populate the audit."
       >
-        <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-accent-600 text-accent-600"
-                  : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-              }`}
-            >
-              <tab.icon size={14} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Site banner — the one place that answers "which site, how healthy,
+            how fresh" without the reader assembling it from four tiles. */}
+        <SiteBanner
+          domain={client?.domain ?? ""}
+          health={client?.health ?? null}
+          status={crawl.data?.status}
+          statusTone={statusTone(crawl.data?.status)}
+          finishedAt={crawl.data?.finishedAt}
+          duration={crawlDuration}
+          criticalCount={severityCounts.CRITICAL}
+        />
 
-        <div className="pt-2 flex flex-col gap-4">
+        <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+
+        <div className="flex flex-col gap-4">
           {activeTab === "overview" && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi
-                label="Pages Crawled"
-                value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()}
-                trend={pagesTrend}
-                delta={runs.length >= 2 ? runs[runs.length - 1].pagesCrawled - runs[runs.length - 2].pagesCrawled : null}
-                deltaSuffix=" since last crawl"
-                sub={
-                  brokenPages > 0
-                    ? `${brokenPages.toLocaleString()} returned an error`
-                    : allPages.length > 0
-                      ? "All reachable"
+            <>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Kpi
+                  label="Pages Crawled"
+                  value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()}
+                  trend={pagesTrend}
+                  delta={runs.length >= 2 ? runs[runs.length - 1].pagesCrawled - runs[runs.length - 2].pagesCrawled : null}
+                  deltaSuffix=" since last crawl"
+                  sub={
+                    brokenPages > 0
+                      ? `${brokenPages.toLocaleString()} returned an error`
+                      : allPages.length > 0
+                        ? "All reachable"
+                        : undefined
+                  }
+                />
+                <Kpi
+                  label="Issues Found"
+                  value={(crawl.data?.issuesFound ?? 0).toLocaleString()}
+                  tone={severityCounts.CRITICAL > 0 ? "danger" : "default"}
+                  trend={issuesTrend}
+                  delta={runs.length >= 2 ? runs[runs.length - 1].issuesFound - runs[runs.length - 2].issuesFound : null}
+                  deltaGood="down"
+                  deltaSuffix=" since last crawl"
+                  sub={
+                    allIssues.length > 0
+                      ? `${severityCounts.CRITICAL} critical · ${severityCounts.HIGH} high · ${severityCounts.MEDIUM} medium`
                       : undefined
-                }
-              />
-              <Kpi
-                label="Issues Found"
-                value={(crawl.data?.issuesFound ?? 0).toLocaleString()}
-                tone={severityCounts.CRITICAL > 0 ? "danger" : "default"}
-                trend={issuesTrend}
-                delta={runs.length >= 2 ? runs[runs.length - 1].issuesFound - runs[runs.length - 2].issuesFound : null}
-                deltaGood="down"
-                deltaSuffix=" since last crawl"
-                sub={
-                  allIssues.length > 0
-                    ? `${severityCounts.CRITICAL} critical · ${severityCounts.HIGH} high · ${severityCounts.MEDIUM} medium`
-                    : undefined
-                }
-              />
-              {/* A health of 0 rendered as "0" reads as a broken tile rather
-                  than an unmeasured one, so an absent score stays an em dash
-                  and only a real score draws the meter. */}
-              <Kpi
-                label="Avg Health"
-                value={client?.health != null ? String(client.health) : "—"}
-                tone={client?.health != null && client.health < 50 ? "danger" : "default"}
-                meter={client?.health ?? null}
-                sub={client?.health == null ? "Not measured yet" : "out of 100"}
-              />
-              <Kpi
-                label="Status"
-                value={crawl.data?.finishedAt ? relativeTime(crawl.data.finishedAt) : "—"}
-                aside={crawl.data?.status ? <Pill tone={statusTone(crawl.data.status)}>{crawl.data.status}</Pill> : null}
-                sub={crawlDuration ? `Took ${crawlDuration}` : undefined}
-              />
-            </div>
+                  }
+                />
+                {/* A health of 0 rendered as "0" reads as a broken tile rather
+                    than an unmeasured one, so an absent score stays an em dash
+                    and only a real score draws the meter. */}
+                <Kpi
+                  label="Avg Health"
+                  value={client?.health != null ? String(client.health) : "—"}
+                  tone={client?.health != null && client.health < 50 ? "danger" : "default"}
+                  meter={client?.health ?? null}
+                  sub={client?.health == null ? "Not measured yet" : "out of 100"}
+                />
+                <Kpi
+                  label="Status"
+                  value={crawl.data?.finishedAt ? relativeTime(crawl.data.finishedAt) : "—"}
+                  aside={crawl.data?.status ? <Pill tone={statusTone(crawl.data.status)}>{crawl.data.status}</Pill> : null}
+                  sub={crawlDuration ? `Took ${crawlDuration}` : undefined}
+                />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Panel title="Issues by severity" subtitle={`${allIssues.length} open across the last crawl`} padded>
+                  {allIssues.length === 0 ? (
+                    <EmptyNote>No issues in the latest crawl.</EmptyNote>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {SEVERITIES.map((severity) => (
+                        <SeverityRow
+                          key={severity}
+                          severity={severity}
+                          count={severityCounts[severity] ?? 0}
+                          total={allIssues.length}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+
+                <Panel title="Crawl history" subtitle={runs.length ? `Last ${runs.length} completed runs` : "No completed runs yet"} padded>
+                  {runs.length < 2 ? (
+                    <EmptyNote>Two completed crawls are needed before a trend means anything.</EmptyNote>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <TrendRow label="Pages crawled" values={pagesTrend} />
+                      <TrendRow label="Issues found" values={issuesTrend} />
+                    </div>
+                  )}
+                </Panel>
+              </div>
+            </>
           )}
 
           {activeTab === "technical-seo" && (
-            <Panel title="Technical SEO Issues" subtitle={`${allIssues.length} issues identified`}>
+            <Panel
+              title="Technical SEO Issues"
+              subtitle={`${allIssues.length} issues identified`}
+              actions={
+                severityCounts.CRITICAL > 0 ? <Pill tone="bad">{severityCounts.CRITICAL} critical</Pill> : null
+              }
+            >
               {allIssues.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
-                  No issues found.
-                </p>
+                <EmptyNote>No issues found.</EmptyNote>
               ) : (
                 <Table>
                   <thead>
@@ -211,9 +269,7 @@ function WebsiteClient() {
                     {allIssues.map((issue: CrawlIssue) => (
                       <Tr key={issue.id}>
                         <Td>
-                          <Pill tone={issue.severity === "CRITICAL" ? "bad" : issue.severity === "HIGH" ? "warn" : "default"}>
-                            {issue.severity}
-                          </Pill>
+                          <Pill tone={SEVERITY_TONE[issue.severity as Severity] ?? "default"}>{issue.severity}</Pill>
                         </Td>
                         <Td>
                           <span className="text-[12.5px] font-medium text-brand-950">{issue.issueType}</span>
@@ -233,9 +289,7 @@ function WebsiteClient() {
           {activeTab === "performance" && (
             <Panel title="Performance Metrics" subtitle="Core Web Vitals from the Performance Engine">
               {allPages.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
-                  No performance data available.
-                </p>
+                <EmptyNote>No performance data available.</EmptyNote>
               ) : (
                 <Table>
                   <thead>
@@ -272,11 +326,13 @@ function WebsiteClient() {
           )}
 
           {activeTab === "pages" && (
-            <Panel title="Crawled Pages" subtitle={`${allPages.length} pages indexed`}>
+            <Panel
+              title="Crawled Pages"
+              subtitle={`${allPages.length} pages indexed`}
+              actions={brokenPages > 0 ? <Pill tone="bad">{brokenPages} broken</Pill> : null}
+            >
               {allPages.length === 0 ? (
-                <p className="px-4 py-10 text-center text-[12px] text-brand-400">
-                  No pages crawled yet.
-                </p>
+                <EmptyNote>No pages crawled yet.</EmptyNote>
               ) : (
                 <Table>
                   <thead>
@@ -284,7 +340,7 @@ function WebsiteClient() {
                       <Th>Status</Th>
                       <Th>URL</Th>
                       <Th>Title</Th>
-                      <Th>Word Count</Th>
+                      <Th align="right">Word Count</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,7 +359,9 @@ function WebsiteClient() {
                             {page.title || "—"}
                           </span>
                         </Td>
-                        <Td>{page.wordCount.toLocaleString()}</Td>
+                        <Td align="right">
+                          <Mono>{page.wordCount.toLocaleString()}</Mono>
+                        </Td>
                       </Tr>
                     ))}
                   </tbody>
@@ -317,9 +375,111 @@ function WebsiteClient() {
   );
 }
 
+/**
+ * Identity strip for the audited site: which domain, its health, and how fresh
+ * the numbers underneath it are.
+ */
+function SiteBanner({
+  domain,
+  health,
+  status,
+  statusTone,
+  finishedAt,
+  duration,
+  criticalCount,
+}: {
+  domain: string;
+  health: number | null;
+  status?: string;
+  statusTone: "good" | "warn" | "bad" | "default";
+  finishedAt?: string | null;
+  duration: string | null;
+  criticalCount: number;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-950 font-mono text-[11px] font-semibold text-white">
+          {domain.replace(/^www\./, "").slice(0, 2).toUpperCase() || "—"}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-mono text-[13px] font-semibold text-brand-950">{domain || "—"}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-brand-500">
+            {status && <Pill tone={statusTone}>{status}</Pill>}
+            <span>Last crawl {relativeTime(finishedAt)}</span>
+            {duration && <span className="text-brand-400">· took {duration}</span>}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 sm:shrink-0">
+        {criticalCount > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">Critical</p>
+            <p className="mt-0.5 font-mono text-[18px] font-bold text-error-600">{criticalCount}</p>
+          </div>
+        )}
+        <div className="w-[132px]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">Site health</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-mono text-[18px] font-bold tracking-[-0.02em] text-brand-950">
+              {health != null ? health : "—"}
+            </span>
+            <div className="flex-1">
+              {health != null ? (
+                <MeterBar value={health} tone={health >= 70 ? "good" : "accent"} width="100%" />
+              ) : (
+                <span className="text-[11px] text-brand-400">not measured</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeverityRow({ severity, count, total }: { severity: Severity; count: number; total: number }) {
+  const pct = total > 0 ? (count / total) * 100 : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-[70px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-500">
+        {severity}
+      </span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SEVERITY_BAR[severity] }} />
+      </div>
+      <span className="w-9 shrink-0 text-right font-mono text-[12px] font-semibold text-brand-950">{count}</span>
+    </div>
+  );
+}
+
+function TrendRow({ label, values }: { label: string; values: number[] }) {
+  const latest = values[values.length - 1];
+  const first = values[0];
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
+        <p className="mt-0.5 font-mono text-[16px] font-bold text-brand-950">{latest.toLocaleString()}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-[11px] text-brand-400">
+          from {first.toLocaleString()}
+        </span>
+        <Sparkline values={values} width={120} height={28} />
+      </div>
+    </div>
+  );
+}
+
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="px-4 py-10 text-center text-[12px] text-brand-400">{children}</p>;
+}
+
 export default function WebsitePage() {
   return (
-    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-[var(--text-muted)]"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading website...</div>}>
+    <Suspense fallback={<div className="flex h-32 items-center justify-center text-sm text-brand-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading website…</div>}>
       <WebsiteClient />
     </Suspense>
   );

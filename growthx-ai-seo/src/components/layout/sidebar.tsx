@@ -244,17 +244,27 @@ function NavLink({
     <Link href={item.href} onClick={onNavigate}>
       <div
         className={cn(
-          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
-          active ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
+          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
+          /* The active row used brand-100, which is also the hover colour, so
+             hovering any row made it look selected. */
+          active
+            ? "bg-brand-950 font-semibold text-white"
+            : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
         )}
       >
-        <item.icon size={15} className={active ? "text-brand-900" : "text-brand-400"} />
-        <span className="flex-1">{item.label}</span>
+        <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
+        <span className="flex-1 truncate">{item.label}</span>
         {item.tag && (
+          /* A count that matters is a badge, not loose mono text at the row's
+             edge — a red "3" floating there read as decoration. */
           <span
             className={cn(
-              "font-mono text-[10.5px] font-medium",
-              item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
+              "shrink-0 rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
+              item.tagTone === "danger"
+                ? "bg-error-50 text-error-700"
+                : active
+                  ? "bg-white/15 text-white"
+                  : "bg-brand-200 text-brand-600",
             )}
           >
             {item.tag}

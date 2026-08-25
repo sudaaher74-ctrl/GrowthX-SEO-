@@ -1,6 +1,17 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime } from "@/components/ui/console";
+import {
+  ActionButton,
+  Kpi,
+  PageHeader,
+  Panel,
+  relativeTime,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search, Map } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
 import { GeoGridPanel } from "./GeoGridPanel";
@@ -68,22 +79,7 @@ export default function LocalPage() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-accent-600 text-accent-600"
-                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">

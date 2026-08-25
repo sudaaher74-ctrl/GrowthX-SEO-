@@ -1,6 +1,20 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Table, Th, Tr, Td, Pill, ActionButton, Mono, Kpi, relativeTime } from "@/components/ui/console";
+import {
+  ActionButton,
+  Kpi,
+  Mono,
+  PageHeader,
+  Panel,
+  Pill,
+  relativeTime,
+  StatusNote,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui/console";
 import { Lightbulb, Calendar, Target, Megaphone, Loader2, Sparkles, CheckCircle2, ArrowRight, Award, Zap } from "lucide-react";
 import { useWorkspace, useStrategies, useStrategy, useContentPieces, useOutreach, useGenerateStrategy, usePlanContent } from "@/hooks/use-growthx";
 import { Button } from "@/components/ui/button";
@@ -79,27 +93,10 @@ export default function MarketingPage() {
       />
 
       {statusMessage && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-600 dark:text-emerald-400">
-          {statusMessage}
-        </div>
+        <StatusNote>{statusMessage}</StatusNote>
       )}
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-accent-600 text-accent-600"
-                : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
       <div className="pt-2 flex items-start gap-4">
         <div className="flex-1 space-y-4 w-full">

@@ -10,7 +10,6 @@ function CompetitorsClient() {
   const visibility = useVisibility(projectId, 28);
   const addCompetitor = useAddCompetitor(projectId);
 
-  const [activeTab, setActiveTab] = useState("overview");
   const [domain, setDomain] = useState("");
   const [label, setLabel] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -44,19 +43,6 @@ function CompetitorsClient() {
         }
       />
 
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
-        <button
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "overview"
-              ? "border-brand-950 text-brand-950"
-              : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-          }`}
-        >
-          <Target size={14} />
-          AI Share of Voice
-        </button>
-      </div>
 
       <div className="pt-2">
         {isAdding && (

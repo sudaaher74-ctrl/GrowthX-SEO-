@@ -1,6 +1,13 @@
 "use client";
 import { useState } from "react";
-import { PageHeader, Panel, Pill, NotConnected, relativeTime } from "@/components/ui/console";
+import {
+  NotConnected,
+  PageHeader,
+  Panel,
+  Pill,
+  relativeTime,
+  Tabs,
+} from "@/components/ui/console";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, ArrowRight, ExternalLink, Target } from "lucide-react";
 import {
@@ -56,21 +63,7 @@ export default function ActionQueuePage() {
         />
       ) : (
         <>
-          <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  tab === t.id
-                    ? "border-accent-600 text-accent-600"
-                    : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
           {error && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-400">
