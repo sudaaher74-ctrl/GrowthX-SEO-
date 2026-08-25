@@ -4,6 +4,7 @@ import { LocalSeoService } from './local-seo.service';
 import { GbpAnalyzerService } from './gbp-analyzer.service';
 import { GbpAutofixService } from './gbp-autofix.service';
 import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
+import { ReviewsService } from './reviews.service';
 
 @Controller('api/projects/:projectId/local-seo')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +15,7 @@ export class LocalSeoController {
     private readonly gbpAnalyzer: GbpAnalyzerService,
     private readonly gbpAutofix: GbpAutofixService,
     private readonly geoGridService: GeoGridService,
+    private readonly reviewsService: ReviewsService,
   ) {}
 
   @Get()
@@ -62,5 +64,29 @@ export class LocalSeoController {
   ) {
     const orgId = req.user?.organizationId || req.organizationId;
     return this.geoGridService.runGeoGridScan(projectId, orgId, body);
+  }
+
+  @Get('reviews')
+  async getReviews(@Param('projectId') projectId: string) {
+    return this.reviewsService.getReviews(projectId);
+  }
+
+  @Post('reviews/sync')
+  async syncReviews(@Param('projectId') projectId: string) {
+    return this.reviewsService.syncReviews(projectId);
+  }
+
+  @Post('reviews/:reviewId/draft')
+  async draftReviewReply(@Param('projectId') projectId: string, @Param('reviewId') reviewId: string) {
+    return this.reviewsService.draftReply(projectId, reviewId);
+  }
+
+  @Post('reviews/:reviewId/publish')
+  async publishReviewReply(
+    @Param('projectId') projectId: string,
+    @Param('reviewId') reviewId: string,
+    @Body() body: { replyText: string }
+  ) {
+    return this.reviewsService.publishReply(projectId, reviewId, body.replyText);
   }
 }

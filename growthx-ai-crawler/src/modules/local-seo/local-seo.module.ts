@@ -8,10 +8,12 @@ import { DatabaseModule } from '../../database/database.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 
+import { ReviewsService } from './reviews.service';
+
 @Module({
   imports: [DatabaseModule, AiSearchModule, IntegrationsModule],
   controllers: [LocalSeoController],
-  providers: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService],
-  exports: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService],
+  providers: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService, ReviewsService],
+  exports: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService, ReviewsService],
 })
 export class LocalSeoModule {}

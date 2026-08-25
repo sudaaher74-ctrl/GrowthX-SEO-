@@ -4,6 +4,7 @@ import { PageHeader, Panel, Kpi, Table, Th, Tr, Td, ActionButton, relativeTime }
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search, Map } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
 import { GeoGridPanel } from "./GeoGridPanel";
+import { ReviewsPanel } from "./ReviewsPanel";
 
 interface LocalBusinessPlace {
   placeId: string;
@@ -174,19 +175,22 @@ export default function LocalPage() {
               )}
 
               {(activeTab === "reviews") && (
-                <Panel title="Reviews & Ratings" subtitle="Manage your local reputation">
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* No deltas: nothing records a previous rating or review
-                        count, so any change figure here would be invented. */}
-                    <Kpi
-                      label="Average Rating"
-                      value={localSeo.rating.toFixed(1)}
-                      meter={(localSeo.rating / 5) * 100}
-                      sub="out of 5"
-                    />
-                    <Kpi label="Total Reviews" value={localSeo.reviewCount.toLocaleString()} />
-                  </div>
-                </Panel>
+                <div className="space-y-4">
+                  <Panel title="Reviews & Ratings" subtitle="Overview of your local reputation">
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* No deltas: nothing records a previous rating or review
+                          count, so any change figure here would be invented. */}
+                      <Kpi
+                        label="Average Rating"
+                        value={localSeo.rating.toFixed(1)}
+                        meter={(localSeo.rating / 5) * 100}
+                        sub="out of 5"
+                      />
+                      <Kpi label="Total Reviews" value={localSeo.reviewCount.toLocaleString()} />
+                    </div>
+                  </Panel>
+                  <ReviewsPanel projectId={projectId} />
+                </div>
               )}
 
               {(activeTab === "citations") && (

@@ -597,6 +597,21 @@ export interface GeoGridScanResult {
   model?: string;
 }
 
+export interface LocalReview {
+  id: string;
+  projectId: string;
+  authorName: string;
+  authorPhotoUrl?: string | null;
+  rating: number;
+  text?: string | null;
+  time: string;
+  relativeTime: string;
+  aiDraftedReply?: string | null;
+  replyStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OutreachContact {
   id: string;
   campaignId: string;
@@ -839,6 +854,10 @@ export const api = {
   rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
   runGeoGridScan: (projectId: string, body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: number; radiusKm?: number }) =>
     post<any>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
+  getLocalReviews: (projectId: string) => get<LocalReview[]>(`/api/projects/${projectId}/local-seo/reviews`),
+  syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
+  draftReviewReply: (projectId: string, reviewId: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, {}),
+  publishReviewReply: (projectId: string, reviewId: string, replyText: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/publish`, { replyText }),
 
 
   // ── Market research

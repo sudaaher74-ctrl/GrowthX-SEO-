@@ -149,6 +149,38 @@ export function useRunGeoGridScan(projectId: string | null) {
   });
 }
 
+export function useLocalReviews(projectId: string | null) {
+  return useQuery({
+    queryKey: ["local-reviews", projectId],
+    queryFn: () => api.getLocalReviews(projectId!),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useSyncLocalReviews(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.syncLocalReviews(projectId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
+  });
+}
+
+export function useDraftReviewReply(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => api.draftReviewReply(projectId!, reviewId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
+  });
+}
+
+export function usePublishReviewReply(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reviewId, replyText }: { reviewId: string; replyText: string }) => api.publishReviewReply(projectId!, reviewId, replyText),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
+  });
+}
+
 export function useAnalyzeGbp(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

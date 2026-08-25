@@ -290,6 +290,7 @@ model Project {
   strategies           StrategyReport[]
   prompts              TrackedPrompt[]
   websites             Website[]
+  LocalReview          LocalReview[]
   AgentRun             AgentRun[]
   Evidence             Evidence[]
   Recommendation       Recommendation[]
@@ -597,6 +598,25 @@ model CustomReport {
   updatedAt  DateTime @updatedAt
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
+
+model LocalReview {
+  id              String         @id @default(uuid())
+  projectId       String
+  authorName      String
+  authorPhotoUrl  String?
+  rating          Int
+  text            String?
+  time            String
+  relativeTime    String
+  aiDraftedReply  String?
+  replyStatus     String         @default("PENDING") // PENDING, PUBLISHED
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, replyStatus])
+}
+
 
 model ClientPortalConfig {
   id           String   @id @default(uuid())
