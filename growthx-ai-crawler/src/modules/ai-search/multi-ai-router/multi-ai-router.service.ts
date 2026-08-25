@@ -115,7 +115,7 @@ export class MultiAiRouterService {
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
-    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-oss-20b:free';
+    this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
     this.sarvamModel = this.config.get<string>('SARVAM_MODEL') || 'sarvam-105b';
@@ -426,7 +426,7 @@ export class MultiAiRouterService {
   /**
    * Calls OpenRouter's OpenAI-compatible chat completions endpoint. OpenRouter
    * fronts many vendors (including free-tier models like
-   * `openai/gpt-oss-20b:free`) behind one API, so it is treated as a
+   * `openai/gpt-4o-mini`) behind one API, so it is treated as a
    * last-resort fallback in every task chain.
    */
   private async callOpenRouter(request: AiRequest, modelOverride?: string): Promise<AiCompletion> {

@@ -13,9 +13,10 @@ import { MarketResearchScheduler } from './market-research.scheduler';
 /**
  * GrowthX Market Research.
  *
- * Deliberately does not import the multi-AI router used elsewhere: this area
- * standardises on OpenAI's Responses API through ModelRouterService, so there
- * is exactly one place that decides which model serves which role.
+ * Uses ModelRouterService which standardises on the Chat Completions API,
+ * with Sarvam AI as the primary provider. Deliberately separate from the
+ * multi-AI router used elsewhere: this area has exactly one place that
+ * decides which model serves which role.
  */
 @Module({
   imports: [DatabaseModule, AiVisibilityModule],

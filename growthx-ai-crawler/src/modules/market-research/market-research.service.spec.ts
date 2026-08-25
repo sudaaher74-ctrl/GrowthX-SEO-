@@ -10,7 +10,7 @@ const ORG_B = 'org_b';
 const PROJ_A = 'proj_a';
 
 function usage(step: string) {
-  return { step, role: ModelRole.ANALYST, model: 'gpt-5.6-terra', inputTokens: 10, outputTokens: 20 };
+  return { step, role: ModelRole.ANALYST, model: 'sarvam-105b', inputTokens: 10, outputTokens: 20 };
 }
 
 describe('MarketResearchService', () => {
@@ -49,7 +49,7 @@ describe('MarketResearchService', () => {
     models = {
       generate: jest.fn(),
       embed: jest.fn().mockResolvedValue({ vectors: [[0.1]], model: 'text-embedding-3-small' }),
-      modelFor: jest.fn().mockReturnValue('gpt-5.6-terra'),
+      modelFor: jest.fn().mockReturnValue('sarvam-105b'),
       isConfigured: jest.fn().mockReturnValue(true),
       supportsEmbeddings: jest.fn().mockReturnValue(true),
     };
