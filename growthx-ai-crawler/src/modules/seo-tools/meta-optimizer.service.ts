@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FetcherService } from '../crawler/fetcher.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 const META_JSON_SCHEMA = {
   type: 'object',
@@ -100,9 +101,8 @@ Provide the audit and 3 optimized variations.`;
     return text.replace(/\s+/g, ' ').trim();
   }
 
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try { return JSON.parse(candidate); } catch { return {}; }
+    return parseModelJson(text, 'Meta optimizer');
   }
 }

@@ -3,6 +3,7 @@ import { ContentPieceStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { StrategyService } from '../strategy/strategy.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 /** The shape a generated page must come back in. */
 const PAGE_SCHEMA = {
@@ -199,13 +200,8 @@ export class ContentGenerationService {
       .slice(0, 80);
   }
 
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      return {};
-    }
+    return parseModelJson(text, 'Content generation');
   }
 }

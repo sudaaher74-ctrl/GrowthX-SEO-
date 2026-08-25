@@ -1,6 +1,14 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import {
+  SarvamReasoningEffort,
+  clampSarvamMaxTokens,
+  describeEmptySarvamResponse,
+  readSarvamMessage,
+  resolveSarvamModel,
+  resolveSarvamReasoningEffort,
+} from '../ai-engine/utils/sarvam-request.util';
 
 /**
  * The role a call plays, rather than the model that serves it.
@@ -155,7 +163,17 @@ export class ModelRouterService {
 
   /** The configured id for a role, so callers record what actually ran. */
   modelFor(role: ModelRole): string {
-    return this.config.get<string>(ENV_KEYS[role]) || MODELS[this.provider()][role];
+    const configured = this.config.get<string>(ENV_KEYS[role]) || MODELS[this.provider()][role];
+
+    // Sarvam retired its earlier model generation; an inherited id that the
+    // chat endpoint no longer serves would fail every call in the pipeline.
+    if (this.provider() === 'sarvam' && role !== ModelRole.EMBEDDING) {
+      const { model, warning } = resolveSarvamModel(this.config, configured);
+      if (warning) this.logger.warn(warning);
+      return model;
+    }
+
+    return configured;
   }
 
   isConfigured(): boolean {
@@ -282,18 +300,35 @@ export class ModelRouterService {
     messages.push({ role: 'system', content: systemContent });
     messages.push({ role: 'user', content: options.input });
 
+    // Sarvam charges reasoning against the same budget as the answer and caps
+    // output by plan, so a budget written for the answer alone gets spent
+    // thinking and returns nothing. Both ends are corrected here.
+    const maxTokens =
+      provider === 'sarvam'
+        ? clampSarvamMaxTokens(options.maxOutputTokens, {
+            config: this.config,
+            structured: Boolean(options.jsonSchema),
+          })
+        : options.maxOutputTokens ?? 4000;
+
     const request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
       model,
       messages,
-      max_tokens: options.maxOutputTokens ?? 4000,
+      max_tokens: maxTokens,
       temperature: 0.2,
     };
 
-    // Use response_format for providers that support it. Sarvam uses prompt
-    // engineering only — enforcing json_object on a model that does not
-    // recognise it would cause a 400.
-    if (options.jsonSchema && provider !== 'sarvam') {
+    // Every provider here supports JSON mode, Sarvam included — it documents
+    // both `json_object` and `json_schema` on chat completions.
+    if (options.jsonSchema) {
       request.response_format = { type: 'json_object' };
+    }
+
+    // Sarvam reasons before answering unless told not to, and an explicit null
+    // is the documented way to turn that off. The OpenAI SDK forwards unknown
+    // fields, so the parameter rides along on the same call shape.
+    if (provider === 'sarvam') {
+      (request as unknown as Record<string, unknown>).reasoning_effort = this.sarvamReasoning();
     }
 
     let response: OpenAI.Chat.Completions.ChatCompletion;
@@ -301,18 +336,30 @@ export class ModelRouterService {
       response = await this.openai().chat.completions.create(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Model call failed (${options.step}, ${model}): ${message}`);
-      throw new ServiceUnavailableException(
-        `The research model could not be reached (${options.step}). ${message}`,
-      );
+
+      // A rejection naming an optional parameter is worth one retry without it,
+      // so a provider-side change cannot take Market Research down entirely.
+      const retried = await this.retryWithoutRejectedField(request, message, options.step);
+      if (!retried) {
+        this.logger.error(`Model call failed (${options.step}, ${model}): ${message}`);
+        throw new ServiceUnavailableException(
+          `The research model could not be reached (${options.step}). ${message}`,
+        );
+      }
+      response = retried;
     }
 
-    const text = response.choices?.[0]?.message?.content?.trim() ?? '';
+    const read = readSarvamMessage(response);
+    const text = read.text;
 
     // A response with no content means the model could not produce an answer.
-    if (!text && response.choices?.[0]?.finish_reason === 'length') {
+    // Naming the cause is what makes it fixable — an empty report is not.
+    if (!text) {
       throw new ServiceUnavailableException(
-        `The model ran out of output budget before answering (${options.step}). Raise max_output_tokens or use a stronger model.`,
+        provider === 'sarvam'
+          ? `${describeEmptySarvamResponse(read, maxTokens)} (step: ${options.step})`
+          : `The model ran out of output budget before answering (${options.step}). ` +
+            'Raise max_output_tokens or use a stronger model.',
       );
     }
 
@@ -328,6 +375,41 @@ export class ModelRouterService {
         costUsd: null,
       },
     };
+  }
+
+  /** Reasoning effort for Sarvam calls; null disables thinking entirely. */
+  private sarvamReasoning(): SarvamReasoningEffort {
+    return resolveSarvamReasoningEffort(this.config);
+  }
+
+  /**
+   * Retries a call once with the parameter the provider rejected removed.
+   * Returns null when the error names nothing we know how to give up, leaving
+   * the caller to report the original failure.
+   */
+  private async retryWithoutRejectedField(
+    request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+    errorMessage: string,
+    step: string,
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion | null> {
+    const lowered = errorMessage.toLowerCase();
+    const mutable = request as unknown as Record<string, unknown>;
+
+    const field = ['response_format', 'reasoning_effort'].find(
+      (candidate) => lowered.includes(candidate) && candidate in mutable,
+    );
+    if (!field) return null;
+
+    this.logger.warn(`Provider rejected '${field}' (${step}); retrying without it.`);
+    const { [field]: _dropped, ...rest } = mutable;
+
+    try {
+      return await this.openai().chat.completions.create(
+        rest as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+      );
+    } catch {
+      return null;
+    }
   }
 
   async embed(texts: string[]): Promise<{ vectors: number[][]; model: string }> {

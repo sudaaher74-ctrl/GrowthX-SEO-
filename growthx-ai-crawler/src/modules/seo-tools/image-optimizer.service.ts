@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FetcherService } from '../crawler/fetcher.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 const IMAGE_OPTIMIZER_SCHEMA = {
   type: 'object',
@@ -178,9 +179,8 @@ Generate the complete image optimization audit and suggested alt tags.`;
     };
   }
 
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try { return JSON.parse(candidate); } catch { return {}; }
+    return parseModelJson(text, 'Image optimizer');
   }
 }

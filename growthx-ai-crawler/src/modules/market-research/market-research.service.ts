@@ -19,6 +19,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService, RetrievedSource } from './evidence-retrieval.service';
 import { ModelRole, ModelRouterService, ModelUsage } from './model-router.service';
 import { validateCitations } from './citation-validator';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import {
   ANSWER_INSTRUCTIONS,
   ANSWER_SCHEMA,
@@ -675,30 +676,5 @@ function normaliseConfidence(raw: unknown, verifiedCount: number): 'high' | 'med
 }
 
 export function parseJson(text: string): Record<string, unknown> {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  let candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-  
-  if (!candidate && text.includes('{')) {
-    candidate = text.slice(text.indexOf('{'));
-  }
-
-  try {
-    return JSON.parse(candidate);
-  } catch (err) {
-    // Attempt basic truncation repair
-    const attempts = [
-      candidate + '}',
-      candidate + ']}',
-      candidate + '}]}',
-      candidate + '"]}',
-      candidate.replace(/,[^,]*$/, '') + ']}',
-      candidate.replace(/,[^,]*$/, '') + '}]}'
-    ];
-    
-    for (const attempt of attempts) {
-      try { return JSON.parse(attempt); } catch(e) {}
-    }
-    
-    throw new Error(`The model produced an invalid JSON response. Please try again. Raw text snippet: ${text.slice(0, 100)}...`);
-  }
+  return parseModelJson<Record<string, unknown>>(text, 'Market research');
 }
