@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 const PATTERN_SCHEMA = {
   type: 'object',
@@ -140,9 +141,8 @@ export class PatternDetectionService {
     return lines.slice(0, 150).join('\n'); // cap at 150 items to stay within token budget
   }
 
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try { return JSON.parse(candidate); } catch { return {}; }
+    return parseModelJson(text, 'Pattern detection');
   }
 }

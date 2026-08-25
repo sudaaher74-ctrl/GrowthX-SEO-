@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { FixType, PageContext, planFix, renderFromModel } from './fix-generator';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 export interface GeneratedFixPatch {
   fixType: FixType;
@@ -116,14 +117,9 @@ export class AutoFixService {
   }
 
   /** Tolerates a model that wraps JSON in prose or a code fence. */
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      return {};
-    }
+    return parseModelJson(text, 'Auto fix');
   }
 
   /**

@@ -2,6 +2,18 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { IAiProvider, AiProviderGenerateOptions } from '../interfaces/ai-provider.interface';
 import { extractAndParseJson } from '../utils/json-extractor.util';
+import {
+  SARVAM_CHAT_COMPLETIONS_URL,
+  SarvamReasoningEffort,
+  buildSarvamBody,
+  clampSarvamMaxTokens,
+  describeEmptySarvamResponse,
+  readSarvamMessage,
+  relaxSarvamBody,
+  resolveSarvamMaxOutputTokens,
+  resolveSarvamModel,
+  resolveSarvamReasoningEffort,
+} from '../utils/sarvam-request.util';
 
 @Injectable()
 export class SarvamProvider implements IAiProvider {
@@ -11,14 +23,25 @@ export class SarvamProvider implements IAiProvider {
   private readonly apiKey?: string;
   private readonly defaultModel: string;
   private readonly baseUrl: string;
+  private readonly reasoningEffort: SarvamReasoningEffort;
+  private readonly maxOutputTokens: number;
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = this.config.get<string>('SARVAM_API_KEY') || process.env.SARVAM_API_KEY;
-    this.defaultModel = this.config.get<string>('SARVAM_MODEL') || process.env.SARVAM_MODEL || 'sarvam-105b';
+
+    const { model, warning } = resolveSarvamModel(this.config);
+    this.defaultModel = model;
+    if (warning) this.logger.warn(`SarvamProvider: ${warning}`);
+
     this.baseUrl = this.config.get<string>('SARVAM_BASE_URL') || 'https://api.sarvam.ai/v1';
+    this.reasoningEffort = resolveSarvamReasoningEffort(this.config);
+    this.maxOutputTokens = resolveSarvamMaxOutputTokens(this.config);
 
     if (this.isAvailable()) {
-      this.logger.log(`SarvamProvider initialized with model: ${this.defaultModel}`);
+      this.logger.log(
+        `SarvamProvider initialized with model: ${this.defaultModel} ` +
+          `(reasoning: ${this.reasoningEffort ?? 'disabled'}, max output tokens: ${this.maxOutputTokens})`,
+      );
     } else {
       this.logger.warn('SarvamProvider: SARVAM_API_KEY is not configured or is a placeholder.');
     }
@@ -35,30 +58,7 @@ export class SarvamProvider implements IAiProvider {
     systemPrompt?: string,
     options?: AiProviderGenerateOptions,
   ): Promise<string> {
-    if (!this.isAvailable()) {
-      throw new ServiceUnavailableException('Sarvam AI is not configured. Please provide a valid SARVAM_API_KEY.');
-    }
-
-    const model = options?.model || this.defaultModel;
-    const temperature = options?.temperature ?? 0.2;
-    const maxTokens = options?.maxTokens ?? 4000;
-    const timeoutMs = options?.timeoutMs ?? 60000;
-    const maxRetries = options?.retries ?? 3;
-
-    const messages: Array<{ role: string; content: string }> = [];
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt });
-    }
-    messages.push({ role: 'user', content: prompt });
-
-    const payload = {
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    };
-
-    return this.executeWithRetry(payload, timeoutMs, maxRetries);
+    return this.complete(prompt, systemPrompt, options, false);
   }
 
   async generateStructuredJson<T>(
@@ -75,19 +75,54 @@ export class SarvamProvider implements IAiProvider {
       jsonSchema ? `JSON Schema to conform with:\n${JSON.stringify(jsonSchema, null, 2)}` : '',
     ].filter(Boolean).join('\n\n');
 
-    const raw = await this.generateText(prompt, jsonSystemInstruction, options);
+    const raw = await this.complete(prompt, jsonSystemInstruction, options, true);
     return extractAndParseJson<T>(raw);
+  }
+
+  private async complete(
+    prompt: string,
+    systemPrompt: string | undefined,
+    options: AiProviderGenerateOptions | undefined,
+    structured: boolean,
+  ): Promise<string> {
+    if (!this.isAvailable()) {
+      throw new ServiceUnavailableException('Sarvam AI is not configured. Please provide a valid SARVAM_API_KEY.');
+    }
+
+    const { model } = resolveSarvamModel(this.config, options?.model);
+    const timeoutMs = options?.timeoutMs ?? 60000;
+    const maxRetries = options?.retries ?? 3;
+    const maxTokens = clampSarvamMaxTokens(options?.maxTokens, { config: this.config, structured });
+
+    const messages: Array<{ role: string; content: string }> = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    const payload = buildSarvamBody({
+      model,
+      messages,
+      maxTokens,
+      temperature: options?.temperature,
+      reasoningEffort: this.reasoningEffort,
+      jsonMode: structured,
+    });
+
+    return this.executeWithRetry(payload, timeoutMs, maxRetries, maxTokens);
   }
 
   /**
    * Executes HTTP request with timeout, rate limit handling, and exponential backoff retry.
    */
   private async executeWithRetry(
-    payload: Record<string, any>,
+    initialPayload: Record<string, any>,
     timeoutMs: number,
     maxRetries: number,
+    maxTokens: number,
   ): Promise<string> {
     const url = `${this.baseUrl}/chat/completions`;
+    let payload = initialPayload;
     let attempt = 0;
     let lastError: Error | null = null;
 
@@ -112,14 +147,16 @@ export class SarvamProvider implements IAiProvider {
 
         if (response.ok) {
           const json: any = await response.json();
-          const choice = json?.choices?.[0];
-          const content = choice?.message?.content;
+          const message = readSarvamMessage(json);
 
-          if (typeof content !== 'string') {
-            throw new Error('Sarvam API returned an empty or invalid message content.');
+          // An empty answer is a real failure with a knowable cause — usually
+          // the output budget spent on reasoning. Say which, rather than
+          // handing back a blank string the caller cannot diagnose.
+          if (!message.text) {
+            throw new ServiceUnavailableException(describeEmptySarvamResponse(message, maxTokens));
           }
 
-          return content;
+          return message.text;
         }
 
         // Handle rate limiting (429) or transient server errors (500, 502, 503, 504)
@@ -138,9 +175,25 @@ export class SarvamProvider implements IAiProvider {
           continue;
         }
 
+        // A 400 naming an optional parameter is worth one retry without it, so
+        // an API change cannot take the whole feature down.
+        if (status === 400) {
+          const relaxed = relaxSarvamBody(payload, errorText);
+          if (relaxed) {
+            this.logger.warn(`Sarvam rejected '${relaxed.dropped}'; retrying without it.`);
+            payload = relaxed.body;
+            continue;
+          }
+        }
+
         throw new Error(`Sarvam API error (HTTP ${status}): ${errorText}`);
       } catch (err: any) {
         clearTimeout(timer);
+
+        // A configured refusal or an empty answer is the final word: retrying
+        // an identical request would only spend the budget again.
+        if (err instanceof ServiceUnavailableException) throw err;
+
         lastError = err;
 
         if (err.name === 'AbortError') {

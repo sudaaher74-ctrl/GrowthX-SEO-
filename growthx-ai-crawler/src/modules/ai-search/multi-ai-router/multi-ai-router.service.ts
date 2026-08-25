@@ -4,6 +4,17 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
 import Groq from 'groq-sdk';
+import {
+  SARVAM_CHAT_COMPLETIONS_URL,
+  SarvamReasoningEffort,
+  buildSarvamBody,
+  clampSarvamMaxTokens,
+  describeEmptySarvamResponse,
+  readSarvamMessage,
+  relaxSarvamBody,
+  resolveSarvamModel,
+  resolveSarvamReasoningEffort,
+} from '../../ai-engine/utils/sarvam-request.util';
 
 export enum AiProvider {
   SARVAM = 'SARVAM',
@@ -93,6 +104,7 @@ export class MultiAiRouterService {
   private readonly openrouterMaxTokens: number;
   private readonly sarvamModel: string;
   private readonly sarvamKey?: string;
+  private readonly sarvamReasoningEffort: SarvamReasoningEffort;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
@@ -118,8 +130,11 @@ export class MultiAiRouterService {
     this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
-    this.sarvamModel = this.config.get<string>('SARVAM_MODEL') || 'sarvam-105b';
+    const sarvam = resolveSarvamModel(this.config);
+    this.sarvamModel = sarvam.model;
+    if (sarvam.warning) this.logger.warn(sarvam.warning);
     this.sarvamKey = this.config.get<string>('SARVAM_API_KEY');
+    this.sarvamReasoningEffort = resolveSarvamReasoningEffort(this.config);
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
@@ -480,21 +495,35 @@ export class MultiAiRouterService {
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: request.prompt });
 
-    const maxTokens = request.maxTokens ?? 4000;
-    const response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-subscription-key': this.sarvamKey,
-        Authorization: `Bearer ${this.sarvamKey}`,
-      },
-      body: JSON.stringify({
-        model: this.sarvamModel,
-        messages,
-        temperature: 0.2,
-        max_tokens: maxTokens,
-      }),
+    // Callers ask for anything between 512 and 16000 tokens. Sarvam caps output
+    // by plan and charges reasoning against the same budget, so the request is
+    // clamped to what the account allows and floored high enough that a JSON
+    // answer has room to finish.
+    const maxTokens = clampSarvamMaxTokens(request.maxTokens, {
+      config: this.config,
+      structured: Boolean(request.jsonSchema),
     });
+
+    let body = buildSarvamBody({
+      model: this.sarvamModel,
+      messages,
+      maxTokens,
+      reasoningEffort: this.sarvamReasoningEffort,
+      jsonMode: Boolean(request.jsonSchema),
+    });
+
+    let response = await this.postToSarvam(body);
+
+    if (response.status === 400) {
+      const errText = await response.text().catch(() => '');
+      const relaxed = relaxSarvamBody(body, errText);
+      if (!relaxed) {
+        throw new ServiceUnavailableException(`Sarvam API failed (HTTP 400): ${errText}`);
+      }
+      this.logger.warn(`Sarvam rejected '${relaxed.dropped}'; retrying without it.`);
+      body = relaxed.body;
+      response = await this.postToSarvam(body);
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');
@@ -502,17 +531,34 @@ export class MultiAiRouterService {
     }
 
     const json: any = await response.json();
-    const content = json?.choices?.[0]?.message?.content ?? '';
-    const promptTokens = json?.usage?.prompt_tokens ?? 0;
-    const completionTokens = json?.usage?.completion_tokens ?? 0;
+    const message = readSarvamMessage(json);
+
+    // Returning '' here used to leave every caller parsing an empty string into
+    // an empty object and writing a blank record. The cause is knowable —
+    // usually the output budget spent on reasoning — so it is raised, not hidden.
+    if (!message.text) {
+      throw new ServiceUnavailableException(describeEmptySarvamResponse(message, maxTokens));
+    }
 
     return {
       provider: AiProvider.SARVAM,
       model: json?.model ?? this.sarvamModel,
-      text: content,
-      usage: this.usage(promptTokens, completionTokens),
+      text: message.text,
+      usage: this.usage(message.promptTokens, message.completionTokens),
       refused: false,
     };
+  }
+
+  private postToSarvam(body: Record<string, unknown>): Promise<Response> {
+    return fetch(SARVAM_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-subscription-key': this.sarvamKey!,
+        Authorization: `Bearer ${this.sarvamKey!}`,
+      },
+      body: JSON.stringify(body),
+    });
   }
 
   // -------------------------------------------------------------------- Costs

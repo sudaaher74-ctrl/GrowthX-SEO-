@@ -12,6 +12,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AgentRunService } from '../agents/agent-run.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import {
   buildEvidenceRecords,
   buildStrategyPrompt,
@@ -307,13 +308,8 @@ export class StrategyService {
     return report;
   }
 
+  /** Reads the model's JSON answer, repairing truncation or naming the failure. */
   private parseJson(text: string): Record<string, any> {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      return {};
-    }
+    return parseModelJson(text, 'Strategy');
   }
 }
