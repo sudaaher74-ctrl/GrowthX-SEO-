@@ -325,7 +325,7 @@ export class MultiAiRouterService {
         ? {
             response_format: {
               type: 'json_schema',
-              json_schema: { name: 'growthx_response', schema: request.jsonSchema, strict: true },
+              json_schema: { name: 'growthx_response', schema: request.jsonSchema, strict: false },
             },
           }
         : {}),

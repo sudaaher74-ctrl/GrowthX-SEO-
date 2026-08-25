@@ -75,7 +75,7 @@ export class OpenAiProvider implements IAiProvider {
         ? {
             response_format: {
               type: 'json_schema',
-              json_schema: { name: 'intelligence_response', schema: jsonSchema, strict: true },
+              json_schema: { name: 'intelligence_response', schema: jsonSchema, strict: false },
             },
           }
         : { response_format: { type: 'json_object' } }),
