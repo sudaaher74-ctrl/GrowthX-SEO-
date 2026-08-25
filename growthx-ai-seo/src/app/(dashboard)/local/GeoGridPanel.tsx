@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Panel, ActionButton } from "@/components/ui/console";
-import { Map, Loader2 } from "lucide-react";
+import { Map, Loader2, Zap } from "lucide-react";
 import { useRunGeoGridScan } from "@/hooks/use-growthx";
 import type { GeoGridScanResult, GridNode } from "@/lib/api-client";
 
