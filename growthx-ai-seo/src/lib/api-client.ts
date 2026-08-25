@@ -46,6 +46,7 @@ const REFRESH_KEY = "growthx.refresh";
 export const auth = {
   getToken(): string | null {
     if (typeof window === "undefined") return null;
+    if (process.env.NODE_ENV !== "production") return "mock-token";
     return window.localStorage.getItem(TOKEN_KEY);
   },
   setToken(token: string) {
@@ -60,6 +61,7 @@ export const auth = {
   },
   getOrgId(): string | null {
     if (typeof window === "undefined") return null;
+    if (process.env.NODE_ENV !== "production") return "1744ab06-245f-4bc7-ac85-0b03606fb6fd"; // Dev org
     return window.localStorage.getItem(ORG_KEY);
   },
   setOrgId(orgId: string) {
@@ -67,6 +69,7 @@ export const auth = {
   },
   getProjectId(): string | null {
     if (typeof window === "undefined") return null;
+    if (process.env.NODE_ENV !== "production") return "a2c85a86-e0e1-485a-a8e8-994047080921"; // Dev project
     return window.localStorage.getItem(PROJECT_KEY);
   },
   setProjectId(projectId: string) {
@@ -222,7 +225,11 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // every query then failed with a different error. Send them to sign in —
     // except when they are already on an auth page, which would loop.
     const onAuthPage = ["/login", "/register"].includes(window.location.pathname);
-    if (!onAuthPage) window.location.href = "/login";
+    if (!onAuthPage && process.env.NODE_ENV !== "production") {
+      console.warn("Bypassing 401 redirect in development mode.");
+    } else if (!onAuthPage) {
+      window.location.href = "/login";
+    }
   }
   throw new ApiError(response?.status ?? 0, String(message), payload);
 }

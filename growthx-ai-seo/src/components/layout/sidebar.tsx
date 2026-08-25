@@ -25,6 +25,9 @@ import {
   TrendingUp,
   Telescope,
   Users,
+  ChevronDown,
+  ChevronRight,
+  Bot
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -44,6 +47,7 @@ interface NavItem {
   /** Small right-aligned counter or metric. */
   tag?: string;
   tagTone?: "default" | "danger";
+  children?: { label: string; href: string }[];
 }
 
 export function Sidebar({
@@ -76,18 +80,83 @@ export function Sidebar({
       icon: Globe,
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
+      children: [
+        { label: "Overview", href: "/website" },
+        { label: "Technical SEO", href: "/technical-seo" },
+        { label: "Internal Links", href: "/internal-linking" },
+        { label: "Schema", href: "/schema-generator" },
+      ],
     },
-    { label: "Search", href: "/search", icon: Search },
+    {
+      label: "Search",
+      href: "/search",
+      icon: Search,
+      children: [
+        { label: "Overview", href: "/search" },
+        { label: "Keywords", href: "/keywords" },
+      ],
+    },
+    {
+      label: "Market Research",
+      href: "/market-research",
+      icon: Telescope,
+      children: [
+        { label: "Overview", href: "/market-research" },
+        { label: "Market Trends", href: "/market" },
+      ],
+    },
+    {
+      label: "Competitors",
+      href: "/competitors",
+      icon: Crosshair,
+      children: [
+        { label: "Overview", href: "/competitors" },
+      ],
+    },
+    {
+      label: "Content Intelligence",
+      href: "/content-intelligence",
+      icon: Brain,
+      children: [
+        { label: "Overview", href: "/content-intelligence" },
+        { label: "Content Gaps", href: "/content-intelligence/gaps" },
+        { label: "Topic Intelligence", href: "/content-intelligence/strategy" },
+        { label: "Competitor Content", href: "/content-intelligence/competitors" },
+        { label: "Patterns", href: "/content-intelligence/patterns" },
+      ],
+    },
+    {
+      label: "Content",
+      href: "/content",
+      icon: Edit3,
+      children: [
+        { label: "Overview", href: "/content" },
+        { label: "Content Calendar", href: "/content-intelligence/calendar" },
+        { label: "Content AI", href: "/content-ai" },
+      ],
+    },
     { label: "Local", href: "/local", icon: MapPin },
-    { label: "Market Research", href: "/market-research", icon: Telescope },
-    { label: "Action Queue", href: "/action-queue", icon: ListChecks },
-    { label: "Market", href: "/market", icon: TrendingUp },
-    { label: "Competitors", href: "/competitors", icon: Crosshair },
-    { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
-    { label: "Marketing", href: "/marketing", icon: Megaphone },
-    { label: "Content", href: "/content", icon: Edit3 },
-    { label: "AI Engineer", href: "/engineer", icon: Cpu },
-    { label: "Monitoring", href: "/monitoring", icon: Activity },
+    {
+      label: "Growth",
+      href: "/marketing",
+      icon: Megaphone,
+      children: [
+        { label: "Overview", href: "/marketing" },
+        { label: "Campaigns", href: "/content-intelligence/campaigns" },
+        { label: "Creators", href: "/content-intelligence/creators" },
+        { label: "Outreach", href: "/content-intelligence/outreach" },
+      ],
+    },
+    {
+      label: "AI Agent",
+      href: "/engineer",
+      icon: Cpu, // Alternatively Bot
+      children: [
+        { label: "Overview", href: "/engineer" },
+        { label: "Tasks", href: "/action-queue" },
+      ],
+    },
+    { label: "Monitoring", href: "/monitoring", icon: HeartPulse },
     { label: "Reports", href: "/reports", icon: BarChart },
   ];
 
@@ -238,29 +307,77 @@ function NavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
-  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const isExactActive = pathname === item.href;
+  const isChildActive = item.children?.some(child => pathname === child.href || pathname.startsWith(`${child.href}/`)) ?? false;
+  const isActive = isExactActive || isChildActive || pathname.startsWith(`${item.href}/`);
+  
+  const [isOpen, setIsOpen] = useState(isActive);
+
+  // When active state changes from outside, keep it synced
+  if (isActive && !isOpen && item.children) {
+    setIsOpen(true);
+  }
+
   return (
-    <Link href={item.href} onClick={onNavigate}>
-      <div
-        className={cn(
-          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
-          active ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
-        )}
+    <div>
+      <Link 
+        href={item.href} 
+        onClick={(e) => {
+          if (item.children && item.children.length > 0) {
+            // e.preventDefault(); // Do not prevent default if they want to click the parent overview
+            setIsOpen(!isOpen);
+          }
+          onNavigate();
+        }}
       >
-        <item.icon size={15} className={active ? "text-brand-900" : "text-brand-400"} />
-        <span className="flex-1">{item.label}</span>
-        {item.tag && (
-          <span
-            className={cn(
-              "font-mono text-[10.5px] font-medium",
-              item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
-            )}
-          >
-            {item.tag}
-          </span>
-        )}
-      </div>
-    </Link>
+        <div
+          className={cn(
+            "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] font-medium transition-colors",
+            isActive ? "bg-brand-100 text-brand-950" : "text-brand-600 hover:bg-brand-100",
+          )}
+        >
+          <item.icon size={15} className={isActive ? "text-brand-900" : "text-brand-400"} />
+          <span className="flex-1">{item.label}</span>
+          {item.tag && (
+            <span
+              className={cn(
+                "font-mono text-[10.5px] font-medium",
+                item.tagTone === "danger" ? "text-error-500" : "text-brand-400",
+              )}
+            >
+              {item.tag}
+            </span>
+          )}
+          {item.children && item.children.length > 0 && (
+            <div className="shrink-0 text-brand-400" onClick={(e) => { e.preventDefault(); setIsOpen(!isOpen); }}>
+              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </div>
+          )}
+        </div>
+      </Link>
+      
+      {isOpen && item.children && item.children.length > 0 && (
+        <div className="mt-1 flex flex-col gap-1 pl-7 pr-2">
+          {item.children.map((child) => {
+            const isChildItemActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+            return (
+              <Link key={child.href} href={child.href} onClick={onNavigate}>
+                <div
+                  className={cn(
+                    "rounded-md px-2 py-1.5 text-[11.5px] font-medium transition-colors",
+                    isChildItemActive
+                      ? "bg-brand-50 text-brand-950"
+                      : "text-brand-500 hover:bg-brand-50 hover:text-brand-900"
+                  )}
+                >
+                  {child.label}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

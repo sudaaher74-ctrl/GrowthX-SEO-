@@ -143,7 +143,7 @@ export default function OverviewPage() {
           </div>
         </Panel>
 
-        <Panel title="AI Priority Actions">
+        <Panel title="AI Action Queue">
           <div className="p-5 space-y-5">
             <div className="flex items-center gap-3">
               <span className="w-2.5 h-2.5 rounded-full bg-error-500 shrink-0"></span>
@@ -190,6 +190,12 @@ export default function OverviewPage() {
                 onGenerateFix={() => console.log('Generate Fix clicked')}
                 onCreateTask={() => console.log('Create Task clicked')}
               />
+            </div>
+            
+            <div className="flex justify-center pt-4 border-t border-brand-100">
+              <Link href="/action-queue">
+                <ActionButton variant="secondary">View all actions</ActionButton>
+              </Link>
             </div>
           </div>
         </Panel>
