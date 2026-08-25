@@ -674,12 +674,31 @@ function normaliseConfidence(raw: unknown, verifiedCount: number): 'high' | 'med
   return value;
 }
 
-export function parseJson(text: string): Record<string, any> {
+export function parseJson(text: string): Record<string, unknown> {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  let candidate = fenced ? fenced[1] : text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  
+  if (!candidate && text.includes('{')) {
+    candidate = text.slice(text.indexOf('{'));
+  }
+
   try {
     return JSON.parse(candidate);
-  } catch {
-    return {};
+  } catch (err) {
+    // Attempt basic truncation repair
+    const attempts = [
+      candidate + '}',
+      candidate + ']}',
+      candidate + '}]}',
+      candidate + '"]}',
+      candidate.replace(/,[^,]*$/, '') + ']}',
+      candidate.replace(/,[^,]*$/, '') + '}]}'
+    ];
+    
+    for (const attempt of attempts) {
+      try { return JSON.parse(attempt); } catch(e) {}
+    }
+    
+    throw new Error(`The model produced an invalid JSON response. Please try again. Raw text snippet: ${text.slice(0, 100)}...`);
   }
 }
