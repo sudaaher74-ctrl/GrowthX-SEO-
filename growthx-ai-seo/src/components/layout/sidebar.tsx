@@ -47,7 +47,6 @@ interface NavItem {
   /** Small right-aligned counter or metric. */
   tag?: string;
   tagTone?: "default" | "danger";
-  children?: { label: string; href: string }[];
 }
 
 export function Sidebar({
@@ -80,82 +79,15 @@ export function Sidebar({
       icon: Globe,
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
-      children: [
-        { label: "Overview", href: "/website" },
-        { label: "Technical SEO", href: "/technical-seo" },
-        { label: "Internal Links", href: "/internal-linking" },
-        { label: "Schema", href: "/schema-generator" },
-      ],
     },
-    {
-      label: "Search",
-      href: "/search",
-      icon: Search,
-      children: [
-        { label: "Overview", href: "/search" },
-        { label: "Keywords", href: "/keywords" },
-      ],
-    },
-    {
-      label: "Market Research",
-      href: "/market-research",
-      icon: Telescope,
-      children: [
-        { label: "Overview", href: "/market-research" },
-        { label: "Market Trends", href: "/market" },
-      ],
-    },
-    {
-      label: "Competitors",
-      href: "/competitors",
-      icon: Crosshair,
-      children: [
-        { label: "Overview", href: "/competitors" },
-      ],
-    },
-    {
-      label: "Content Intelligence",
-      href: "/content-intelligence",
-      icon: Brain,
-      children: [
-        { label: "Overview", href: "/content-intelligence" },
-        { label: "Content Gaps", href: "/content-intelligence/gaps" },
-        { label: "Topic Intelligence", href: "/content-intelligence/strategy" },
-        { label: "Competitor Content", href: "/content-intelligence/competitors" },
-        { label: "Patterns", href: "/content-intelligence/patterns" },
-      ],
-    },
-    {
-      label: "Content",
-      href: "/content",
-      icon: Edit3,
-      children: [
-        { label: "Overview", href: "/content" },
-        { label: "Content Calendar", href: "/content-intelligence/calendar" },
-        { label: "Content AI", href: "/content-ai" },
-      ],
-    },
+    { label: "Search", href: "/search", icon: Search },
+    { label: "Market Research", href: "/market-research", icon: Telescope },
+    { label: "Competitors", href: "/competitors", icon: Crosshair },
+    { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
+    { label: "Content", href: "/content", icon: Edit3 },
     { label: "Local", href: "/local", icon: MapPin },
-    {
-      label: "Growth",
-      href: "/marketing",
-      icon: Megaphone,
-      children: [
-        { label: "Overview", href: "/marketing" },
-        { label: "Campaigns", href: "/content-intelligence/campaigns" },
-        { label: "Creators", href: "/content-intelligence/creators" },
-        { label: "Outreach", href: "/content-intelligence/outreach" },
-      ],
-    },
-    {
-      label: "AI Agent",
-      href: "/engineer",
-      icon: Cpu, // Alternatively Bot
-      children: [
-        { label: "Overview", href: "/engineer" },
-        { label: "Tasks", href: "/action-queue" },
-      ],
-    },
+    { label: "Growth", href: "/marketing", icon: Megaphone },
+    { label: "AI Agent", href: "/engineer", icon: Cpu },
     { label: "Monitoring", href: "/monitoring", icon: HeartPulse },
     { label: "Reports", href: "/reports", icon: BarChart },
   ];
@@ -307,111 +239,39 @@ function NavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
-  const isExactActive = pathname === item.href;
-  const isChildActive = item.children?.some(child => pathname === child.href || pathname.startsWith(`${child.href}/`)) ?? false;
-  const isActive = isExactActive || isChildActive || pathname.startsWith(`${item.href}/`);
-
-  const [isOpen, setIsOpen] = useState(isActive);
-  const hasChildren = (item.children?.length ?? 0) > 0;
-
-  // When active state changes from outside, keep it synced
-  if (isActive && !isOpen && item.children) {
-    setIsOpen(true);
-  }
-
+  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
   return (
-    <div>
-      {/* The chevron is a sibling of the link, not a descendant of it: a
-          <button> inside an <a> is invalid nesting, and the old version leaned
-          on preventDefault to stop the navigation it had itself created. */}
+    <Link href={item.href} onClick={onNavigate}>
       <div
         className={cn(
           "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
-          isExactActive
+          /* The active row used brand-100, which is also the hover colour, so
+             hovering any row made it look selected. */
+          active
             ? "bg-brand-950 font-semibold text-white"
-            : isActive
-              ? "bg-brand-100 font-semibold text-brand-950"
-              : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+            : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
         )}
       >
-        <Link
-          href={item.href}
-          onClick={() => {
-            if (hasChildren) setIsOpen(true);
-            onNavigate();
-          }}
-          className="flex min-w-0 flex-1 items-center gap-[9px]"
-        >
-          <item.icon
-            size={15}
-            className={isExactActive ? "text-white" : isActive ? "text-brand-900" : "text-brand-400"}
-          />
-          <span className="flex-1 truncate">{item.label}</span>
-          {item.tag && (
-            /* A count that matters is a badge, not loose mono text beside the
-               label — a red "3" floating at the edge read as decoration. */
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-[5px] py-[1px] font-mono text-[9.5px] font-semibold leading-[14px]",
-                item.tagTone === "danger"
-                  ? "bg-error-50 text-error-700"
-                  : isExactActive
-                    ? "bg-white/15 text-white"
-                    : "bg-brand-200 text-brand-600",
-              )}
-            >
-              {item.tag}
-            </span>
-          )}
-        </Link>
-
-        {hasChildren && (
-          <button
-            type="button"
-            aria-label={`${isOpen ? "Collapse" : "Expand"} ${item.label}`}
-            aria-expanded={isOpen}
-            onClick={() => setIsOpen((open) => !open)}
+        <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
+        <span className="flex-1 truncate">{item.label}</span>
+        {item.tag && (
+          /* A count that matters is a badge, not loose mono text at the row's
+             edge — a red "3" floating there read as decoration. */
+          <span
             className={cn(
-              "-mr-0.5 shrink-0 rounded p-0.5 transition-colors",
-              isExactActive ? "text-white/60 hover:text-white" : "text-brand-400 hover:text-brand-700",
+              "shrink-0 rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
+              item.tagTone === "danger"
+                ? "bg-error-50 text-error-700"
+                : active
+                  ? "bg-white/15 text-white"
+                  : "bg-brand-200 text-brand-600",
             )}
           >
-            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
+            {item.tag}
+          </span>
         )}
       </div>
-
-      {isOpen && hasChildren && (
-        /* The rail ties the group to its parent: without it the four child rows
-           read as four more top-level entries at a smaller size. */
-        <div className="relative mt-1 flex flex-col gap-[2px] py-0.5 pl-[17px] pr-1">
-          <span aria-hidden className="absolute bottom-1 left-[17px] top-1 w-px bg-brand-200" />
-          {item.children?.map((child) => {
-            const isChildItemActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
-            return (
-              <Link key={child.href} href={child.href} onClick={onNavigate} className="relative">
-                {isChildItemActive && (
-                  <span
-                    aria-hidden
-                    className="absolute -left-px top-1/2 h-[14px] w-[2px] -translate-y-1/2 rounded-full bg-brand-950"
-                  />
-                )}
-                <div
-                  className={cn(
-                    "ml-[9px] rounded-md px-2 py-[5px] text-[11.5px] transition-colors",
-                    isChildItemActive
-                      ? "bg-brand-100 font-semibold text-brand-950"
-                      : "font-medium text-brand-500 hover:bg-brand-50 hover:text-brand-900",
-                  )}
-                >
-                  {child.label}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    </Link>
   );
 }
 
