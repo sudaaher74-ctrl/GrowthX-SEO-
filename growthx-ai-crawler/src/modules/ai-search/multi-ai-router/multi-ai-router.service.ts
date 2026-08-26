@@ -183,6 +183,33 @@ export class MultiAiRouterService {
   }
 
   /**
+   * The providers a task will actually try, best first.
+   *
+   * Empty means the call cannot run at all — the single most useful thing to
+   * know when a generated feature comes back blank, and previously only
+   * visible by reading the service's own logs.
+   */
+  chainFor(task: AiTask): AiProvider[] {
+    const allowed = this.configuredProviders();
+    return TASK_PREFERENCE[task].filter((p) => allowed.includes(p));
+  }
+
+  /** The model each configured provider would use. Names only — never key material. */
+  configuredModels(): Record<string, string> {
+    const models: Record<string, string> = {
+      [AiProvider.ANTHROPIC]: this.anthropicModel,
+      [AiProvider.GEMINI]: this.geminiModel,
+      [AiProvider.OPENAI]: this.openaiModel,
+      [AiProvider.SARVAM]: this.sarvamModel,
+      [AiProvider.GROQ]: this.groqModel,
+      [AiProvider.OPENROUTER]: this.openrouterModel,
+    };
+
+    const configured = this.configuredProviders();
+    return Object.fromEntries(configured.map((p) => [p, models[p]]));
+  }
+
+  /**
    * Runs a prompt against the best vendor the caller's plan allows.
    *
    * Selection order: an explicitly requested provider (403 if not in plan) →
@@ -203,7 +230,7 @@ export class MultiAiRouterService {
       return this.invoke(targetProvider, request, task);
     }
 
-    const chain = TASK_PREFERENCE[task].filter((p) => allowed.includes(p));
+    const chain = this.chainFor(task);
     if (chain.length === 0) {
       throw new ServiceUnavailableException(
         'No AI provider is available for this plan. Check plan entitlements and provider API keys.',

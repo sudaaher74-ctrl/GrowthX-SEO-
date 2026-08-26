@@ -1,4 +1,21 @@
 import { Controller, Get, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { AiTask, MultiAiRouterService } from './modules/ai-search/multi-ai-router/multi-ai-router.service';
+
+/**
+ * When this process started. A redeploy resets it, which — together with the
+ * commit below — is what makes "did my push actually go out?" answerable from
+ * outside instead of inferred from response latency.
+ */
+const STARTED_AT = new Date().toISOString();
+
+/** The build serving this process. Render injects these; other hosts vary. */
+function buildInfo() {
+  return {
+    commit: process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? 'unknown',
+    branch: process.env.RENDER_GIT_BRANCH ?? process.env.GIT_BRANCH ?? 'unknown',
+    startedAt: STARTED_AT,
+  };
+}
 
 interface Capability {
   name: string;
@@ -18,12 +35,15 @@ function realKey(value?: string): boolean {
 export class HealthController implements OnApplicationBootstrap {
   private readonly logger = new Logger(HealthController.name);
 
+  constructor(private readonly router: MultiAiRouterService) {}
+
   @Get()
   check() {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
       service: 'growthx-crawler-api',
+      ...buildInfo(),
     };
   }
 
@@ -39,10 +59,30 @@ export class HealthController implements OnApplicationBootstrap {
   capabilities() {
     const list = this.capabilityList();
     return {
+      ...buildInfo(),
       configured: list.filter((c) => c.configured).map((c) => c.name),
       missing: list
         .filter((c) => !c.configured)
         .map(({ name, envVar, consequence }) => ({ name, envVar, consequence })),
+      ai: this.aiStatus(),
+    };
+  }
+
+  /**
+   * Which vendors the generated features can actually reach.
+   *
+   * Every AI feature — content strategy, gap analysis, pattern detection —
+   * routes through one chain, and an empty chain fails all of them the same
+   * silent way. Reported straight from the router so it cannot drift from what
+   * a real call would do. Provider and model names only; no key material.
+   */
+  private aiStatus() {
+    const reasoning = this.router.chainFor(AiTask.REASONING);
+    return {
+      configured: this.router.configuredProviders(),
+      models: this.router.configuredModels(),
+      reasoningChain: reasoning,
+      canGenerate: reasoning.length > 0,
     };
   }
 
