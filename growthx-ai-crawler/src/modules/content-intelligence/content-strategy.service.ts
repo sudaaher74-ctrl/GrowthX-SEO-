@@ -20,9 +20,23 @@ const STRATEGY_SCHEMA = {
         required: ['pillar', 'percentage', 'rationale'],
       },
     },
+    // Declared as an array of pairs rather than a free-form object. A schema
+    // object with no `properties` is unconstrained, and the strict structured
+    // output modes (Gemini's responseSchema, Anthropic's json_schema format)
+    // reject it outright — which failed this call on every provider in the
+    // chain and left the page with nothing to show. It is folded back into a
+    // `{platform: postsPerWeek}` map before it is stored.
     platformFrequency: {
-      type: 'object',
-      description: 'Platform → posts per week, e.g. {"INSTAGRAM": 5, "YOUTUBE": 1}',
+      type: 'array',
+      description: 'Posting cadence per platform.',
+      items: {
+        type: 'object',
+        properties: {
+          platform: { type: 'string', description: 'e.g. INSTAGRAM, YOUTUBE, FACEBOOK, LINKEDIN' },
+          postsPerWeek: { type: 'number', minimum: 0, maximum: 100 },
+        },
+        required: ['platform', 'postsPerWeek'],
+      },
     },
     whatToAvoid: { type: 'array', items: { type: 'string' } },
     whatToTest: { type: 'array', items: { type: 'string' } },
@@ -71,36 +85,70 @@ export class ContentStrategyService {
       this.prisma.creativePattern.findMany({ where: { organizationId, projectId }, orderBy: { marketSaturation: 'desc' }, take: 20 }),
       this.prisma.contentGap.findMany({ where: { organizationId, projectId, status: 'OPEN' }, orderBy: { opportunityScore: 'desc' }, take: 15 }),
       this.prisma.contentIntelligenceConfig.findUnique({ where: { projectId } }),
-      this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+      this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true, websites: { select: { domain: true }, take: 3 } },
+      }),
       // Fetch top 10 owned posts across all platforms
       this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: false }, orderBy: { engagementRate: 'desc' }, take: 10 }),
       // Fetch top 10 competitor posts across all platforms
       this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: true }, orderBy: { engagementRate: 'desc' }, take: 10 }),
     ]);
 
+    if (!project) throw new BadRequestException('That project no longer exists.');
+
     const skill = config?.industrySkill ?? 'GENERIC';
     const industryContext = this.getSkillContext(skill);
+    const domains = project.websites.map((w) => w.domain);
 
-    const prompt = `
-Brand: ${project?.name ?? 'Unknown'}
-Industry Skill: ${skill}
-${industryContext}
+    // What the strategy is actually built on. Recorded alongside the document
+    // so the UI can say which inputs were available rather than presenting a
+    // cold-start strategy as if it were competitive analysis.
+    const dataBasis = {
+      patterns: patterns.length,
+      gaps: gaps.length,
+      ownedPosts: topOwnedPosts.length,
+      competitorPosts: topCompetitorPosts.length,
+    };
+    const hasEvidence = Object.values(dataBasis).some((count) => count > 0);
 
-COMPETITOR CREATIVE PATTERNS (sorted by saturation):
-${patterns.map(p => `- "${p.name}": Saturation ${p.marketSaturation}/100, Opportunity ${p.opportunityScore}/100`).join('\n')}
+    const post = (p: (typeof topOwnedPosts)[number]) =>
+      `- [${p.platform}] ${p.authorHandle}: "${p.content ?? ''}" | Engagement: ${p.engagementRate?.toFixed(2) ?? 'n/a'}% | Likes: ${p.likes}`;
 
-IDENTIFIED CONTENT GAPS & OPPORTUNITIES:
-${gaps.map(g => `- [${g.gapType}] ${g.title}: ${g.description} | Opportunity: ${g.opportunityScore}/100`).join('\n')}
-
-TOP PERFORMING OWNED SOCIAL POSTS:
-${topOwnedPosts.map(p => `- [${p.platform}] ${p.authorHandle}: "${p.content}" | Engagement: ${p.engagementRate?.toFixed(2)}% | Likes: ${p.likes}`).join('\n')}
-
-TOP PERFORMING COMPETITOR SOCIAL POSTS:
-${topCompetitorPosts.map(p => `- [${p.platform}] ${p.authorHandle}: "${p.content}" | Engagement: ${p.engagementRate?.toFixed(2)}% | Likes: ${p.likes}`).join('\n')}
-
-Generate a differentiated content strategy that exploits the highest-opportunity gaps, leverages the formats proven by the top performing competitor posts, and leans into the strengths shown in the brand's own top posts.
-The strategy must be specific to this brand's industry and goals.
-`.trim();
+    const prompt = [
+      `Brand: ${project.name}`,
+      domains.length ? `Website: ${domains.join(', ')}` : null,
+      `Industry Skill: ${skill}`,
+      industryContext || null,
+      '',
+      this.section(
+        'COMPETITOR CREATIVE PATTERNS (sorted by saturation)',
+        patterns.map((p) => `- "${p.name}": Saturation ${p.marketSaturation}/100, Opportunity ${p.opportunityScore}/100`),
+      ),
+      this.section(
+        'IDENTIFIED CONTENT GAPS & OPPORTUNITIES',
+        gaps.map((g) => `- [${g.gapType}] ${g.title}: ${g.description} | Opportunity: ${g.opportunityScore}/100`),
+      ),
+      this.section('TOP PERFORMING OWNED SOCIAL POSTS', topOwnedPosts.map(post)),
+      this.section('TOP PERFORMING COMPETITOR SOCIAL POSTS', topCompetitorPosts.map(post)),
+      '',
+      hasEvidence
+        ? 'Generate a differentiated content strategy that exploits the highest-opportunity gaps, leverages the formats proven by the top performing competitor posts, and leans into the strengths shown in the brand\'s own top posts.'
+        : // Every section above is empty on a new project. Left unsaid, the model
+          // either refuses (the system prompt forbids inventing data) or answers
+          // in prose, and the JSON parse then fails — so the page stayed blank
+          // instead of showing a first strategy. Ask for the cold-start version
+          // explicitly, with the no-invented-numbers rule still in force.
+          'No competitor patterns, gaps, or social posts have been collected for this brand yet. ' +
+          'Build a foundational strategy from the brand and industry context above: pillars, cadence, ' +
+          'campaign concepts, and hooks that suit this kind of business. State no statistics, market ' +
+          'shares, or competitor claims of any kind — you have no data to ground them in. Frame the ' +
+          'campaign ideas as starting positions to validate once competitive data is collected.',
+      'The strategy must be specific to this brand\'s industry and goals.',
+    ]
+      .filter((line) => line !== null)
+      .join('\n')
+      .trim();
 
     const result = await this.router.generate({
       prompt,
@@ -125,10 +173,10 @@ The strategy must be specific to this brand's industry and goals.
       data: {
         organizationId,
         projectId,
-        title: `Content Strategy — ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`,
-        content: parsed,
+        title: `${hasEvidence ? 'Content Strategy' : 'Foundational Content Strategy'} — ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`,
+        content: { ...parsed, dataBasis },
         contentPillars: parsed.contentPillars ?? [],
-        platformFrequency: parsed.platformFrequency ?? {},
+        platformFrequency: this.toFrequencyMap(parsed.platformFrequency),
         campaignIdeas: parsed.campaignIdeas ?? [],
         creatorStrategy: parsed.creatorStrategy,
         generatedByModel: result.model,
@@ -141,14 +189,45 @@ The strategy must be specific to this brand's industry and goals.
     return strategy;
   }
 
+  /** A prompt section, with the empty case said out loud rather than left blank. */
+  private section(title: string, lines: string[]): string {
+    return `${title}:\n${lines.length ? lines.join('\n') : 'None recorded yet.'}\n`;
+  }
+
+  /**
+   * Folds the model's `[{platform, postsPerWeek}]` back into the
+   * `{platform: postsPerWeek}` map the column and the UI already expect.
+   * Tolerates a map coming straight back, in case a provider ignores the shape.
+   */
+  private toFrequencyMap(value: unknown): Record<string, number> {
+    if (!value) return {};
+
+    const entries = Array.isArray(value)
+      ? value.map((row: any) => [row?.platform, row?.postsPerWeek])
+      : Object.entries(value as Record<string, unknown>);
+
+    const map: Record<string, number> = {};
+    for (const [platform, perWeek] of entries) {
+      if (typeof platform !== 'string' || !platform.trim()) continue;
+      const count = Number(perWeek);
+      if (Number.isFinite(count)) map[platform.trim().toUpperCase()] = count;
+    }
+    return map;
+  }
+
   async listStrategies(organizationId: string, projectId: string) {
     return this.prisma.contentStrategy.findMany({
       where: { organizationId, projectId },
       orderBy: { createdAt: 'desc' },
+      // `content` carries the executive summary, hooks and the avoid/test/scale
+      // lists. Leaving it out of this projection meant the strategy detail view
+      // — which renders straight from the list response — had nothing but the
+      // pillars to show, so most of a generated strategy was invisible.
       select: {
         id: true, title: true, status: true, industrySkill: true,
         generatedByModel: true, createdAt: true, updatedAt: true,
         contentPillars: true, platformFrequency: true, campaignIdeas: true,
+        content: true, creatorStrategy: true,
       },
     });
   }

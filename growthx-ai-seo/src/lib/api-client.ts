@@ -1335,6 +1335,7 @@ export interface ContentStrategy {
   contentPillars?: { pillar: string; percentage: number; rationale: string; topics?: string[] }[] | null;
   platformFrequency?: Record<string, number> | null;
   campaignIdeas?: { name: string; objective: string; concept: string; contentTypes?: string[]; differentiator?: string }[] | null;
+  creatorStrategy?: string | null;
   content?: {
     executiveSummary: string;
     whatToAvoid?: string[];
@@ -1342,6 +1343,8 @@ export interface ContentStrategy {
     whatToScale?: string[];
     hooks?: string[];
     ctaStrategy?: string;
+    /** Counts of the inputs the strategy was generated from. All zero on a cold start. */
+    dataBasis?: { patterns: number; gaps: number; ownedPosts: number; competitorPosts: number };
   };
 }
 

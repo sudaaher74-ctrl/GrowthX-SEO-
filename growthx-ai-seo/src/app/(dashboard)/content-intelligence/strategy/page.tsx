@@ -2,10 +2,44 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Sparkles, RefreshCw, Check, ChevronRight, Clock, Cpu } from "lucide-react";
+import { Sparkles, RefreshCw, Check, Clock, Cpu, AlertCircle, Info } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { api, type ContentStrategy } from "@/lib/api-client";
+import { ApiError, api, type ContentStrategy } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+
+/**
+ * Turns a failed request into something the operator can act on.
+ *
+ * Generation reaches a model through a provider chain, so the useful part of a
+ * failure is the backend's own message ("no provider configured", "all
+ * providers failed"). Every failure on this page used to be swallowed, leaving
+ * the empty state on screen as though nothing had been clicked.
+ */
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.isUpgradeRequired) return "Your plan does not include AI content strategy. Upgrade to generate one.";
+    if (error.status === 0) return "Could not reach the GrowthX API. Check your connection and try again.";
+    return error.message;
+  }
+  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+}
+
+function ErrorBanner({ title, error, onRetry }: { title: string; error: unknown; onRetry?: () => void }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border bg-white px-5 py-4" style={{ borderColor: "var(--color-error-500)" }}>
+      <AlertCircle size={16} className="mt-0.5 shrink-0 text-error-500" />
+      <div className="flex-1">
+        <p className="text-[13px] font-medium text-brand-950">{title}</p>
+        <p className="mt-0.5 text-[12px] text-brand-600">{errorMessage(error)}</p>
+      </div>
+      {onRetry && (
+        <button onClick={onRetry} className="shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}
 
 const PILLAR_COLORS = ["var(--color-accent-600)", "var(--color-series-2)", "var(--color-series-6)", "var(--color-warning-500)", "var(--color-success-500)", "var(--color-error-500)", "var(--color-series-7)", "var(--color-series-8)"];
 
@@ -71,8 +105,10 @@ function StrategyCard({ strategy, onView }: { strategy: ContentStrategy; onView:
   );
 }
 
-function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStrategy; onClose: () => void; onApprove: () => void }) {
+function StrategyDetail({ strategy, approveError, onClose, onApprove }: { strategy: ContentStrategy; approveError?: string | null; onClose: () => void; onApprove: () => void }) {
   const content = strategy.content as any;
+  const basis = content?.dataBasis as Record<string, number> | undefined;
+  const cadence = Object.entries(strategy.platformFrequency ?? {});
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30" onClick={onClose}>
       <div className="mx-auto max-w-2xl my-8 rounded-2xl border bg-white shadow-2xl" style={{ borderColor: "var(--color-brand-100)" }} onClick={(e) => e.stopPropagation()}>
@@ -91,6 +127,24 @@ function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStr
           </div>
         </div>
         <div className="px-6 py-5 space-y-5">
+          {approveError && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2.5" style={{ background: "color-mix(in srgb, var(--color-error-500) 8%, transparent)" }}>
+              <AlertCircle size={13} className="mt-0.5 shrink-0 text-error-500" />
+              <p className="text-[11px] text-brand-600">{approveError}</p>
+            </div>
+          )}
+
+          {basis && !Object.values(basis).some((n) => Number(n) > 0) && (
+            <div className="flex items-start gap-2 rounded-lg bg-brand-100 px-3 py-2.5">
+              <Info size={13} className="mt-0.5 shrink-0 text-brand-500" />
+              <p className="text-[11px] text-brand-600">
+                Built from brand and industry context only — no competitor patterns, gaps, or social posts had been
+                collected yet. Run competitor content, pattern detection, and gap analysis, then regenerate for a
+                strategy grounded in your market.
+              </p>
+            </div>
+          )}
+
           {content?.executiveSummary && (
             <div>
               <h3 className="text-[12px] font-semibold text-brand-950 mb-1.5">Executive Summary</h3>
@@ -103,7 +157,7 @@ function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStr
               <h3 className="text-[12px] font-semibold text-brand-950 mb-2">Content Pillars</h3>
               <div className="space-y-2">
                 {strategy.contentPillars!.map((p, i) => (
-                  <div key={p.pillar} className="rounded-lg p-3" style={{ background: `${PILLAR_COLORS[i % PILLAR_COLORS.length]}0d` }}>
+                  <div key={p.pillar} className="rounded-lg p-3" style={{ background: `color-mix(in srgb, ${PILLAR_COLORS[i % PILLAR_COLORS.length]} 8%, transparent)` }}>
                     <div className="flex items-center justify-between">
                       <span className="text-[12px] font-semibold" style={{ color: PILLAR_COLORS[i % PILLAR_COLORS.length] }}>{p.pillar}</span>
                       <span className="text-[12px] font-bold text-brand-950">{p.percentage}%</span>
@@ -132,6 +186,20 @@ function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStr
             </div>
           )}
 
+          {cadence.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-brand-950 mb-2">Posting Cadence</h3>
+              <div className="flex flex-wrap gap-2">
+                {cadence.map(([platform, perWeek]) => (
+                  <div key={platform} className="rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
+                    <span className="text-[11px] font-medium text-brand-600">{platform}</span>
+                    <span className="ml-2 text-[11px] font-semibold text-brand-950">{perWeek}/week</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {content?.whatToAvoid?.length > 0 && (
             <div>
               <h3 className="text-[12px] font-semibold text-brand-950 mb-2">What to Avoid</h3>
@@ -139,10 +207,38 @@ function StrategyDetail({ strategy, onClose, onApprove }: { strategy: ContentStr
             </div>
           )}
 
+          {content?.whatToTest?.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-brand-950 mb-2">What to Test</h3>
+              <ul className="space-y-1">{content.whatToTest.map((item: string) => <li key={item} className="flex items-start gap-2 text-[11px] text-brand-500"><span className="text-warning-500">◆</span>{item}</li>)}</ul>
+            </div>
+          )}
+
+          {content?.whatToScale?.length > 0 && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-brand-950 mb-2">What to Scale</h3>
+              <ul className="space-y-1">{content.whatToScale.map((item: string) => <li key={item} className="flex items-start gap-2 text-[11px] text-brand-500"><span className="text-success-500">↑</span>{item}</li>)}</ul>
+            </div>
+          )}
+
           {content?.hooks?.length > 0 && (
             <div>
               <h3 className="text-[12px] font-semibold text-brand-950 mb-2">Proven Hooks</h3>
               <div className="space-y-1">{content.hooks.map((h: string) => <div key={h} className="rounded-lg bg-brand-100 px-3 py-2 text-[11px] text-brand-600 font-mono">"{h}"</div>)}</div>
+            </div>
+          )}
+
+          {strategy.creatorStrategy && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-brand-950 mb-1.5">Creator Strategy</h3>
+              <p className="text-[12px] text-brand-600 leading-relaxed">{strategy.creatorStrategy}</p>
+            </div>
+          )}
+
+          {content?.ctaStrategy && (
+            <div>
+              <h3 className="text-[12px] font-semibold text-brand-950 mb-1.5">CTA Strategy</h3>
+              <p className="text-[12px] text-brand-600 leading-relaxed">{content.ctaStrategy}</p>
             </div>
           )}
         </div>
@@ -164,12 +260,20 @@ export default function StrategyPage() {
 
   const generateMut = useMutation({
     mutationFn: () => api.generateContentStrategy(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-strategies"] }),
+    onSuccess: (strategy) => {
+      qc.invalidateQueries({ queryKey: ["ci-strategies"] });
+      // Open what was just generated. Without this the list refreshes behind a
+      // page the user has to re-scan to find the new document.
+      if (strategy?.id) setSelected(strategy);
+    },
   });
   const approveMut = useMutation({
     mutationFn: (strategyId: string) => api.approveContentStrategy(projectId!, strategyId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ci-strategies"] }); if (selected) setSelected({ ...selected, status: "APPROVED" }); },
   });
+
+  // A failed approval used to leave the button looking untouched.
+  const approveError = approveMut.isError ? errorMessage(approveMut.error) : null;
 
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
@@ -206,13 +310,30 @@ export default function StrategyPage() {
           </motion.div>
         )}
 
+        {generateMut.isError && (
+          <ErrorBanner
+            title="Could not generate the strategy"
+            error={generateMut.error}
+            onRetry={() => generateMut.reset()}
+          />
+        )}
+
         {strategies.isLoading ? (
           <div className="py-12 text-center text-[12px] text-brand-500">Loading…</div>
+        ) : strategies.isError ? (
+          <ErrorBanner
+            title="Could not load your strategies"
+            error={strategies.error}
+            onRetry={() => strategies.refetch()}
+          />
         ) : !strategies.data?.length ? (
           <div className="rounded-xl border border-dashed bg-white py-16 text-center" style={{ borderColor: "var(--color-brand-200)" }}>
             <Sparkles size={28} className="mx-auto mb-3 text-brand-300" />
             <p className="text-[13px] font-medium text-brand-950">No strategy generated yet</p>
-            <p className="mt-1 text-[12px] text-brand-500">Complete gap analysis first, then generate your strategy.</p>
+            <p className="mt-1 text-[12px] text-brand-500">
+              Gap analysis makes the strategy sharper, but it is not required — generate one now and it will be
+              built from your brand and industry context.
+            </p>
           </div>
         ) : (
           strategies.data.map((strategy) => (
@@ -224,6 +345,7 @@ export default function StrategyPage() {
       {selected && (
         <StrategyDetail
           strategy={selected}
+          approveError={approveError}
           onClose={() => setSelected(null)}
           onApprove={() => approveMut.mutate(selected.id)}
         />
