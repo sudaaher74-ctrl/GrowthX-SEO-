@@ -1,6 +1,8 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaClient } from '@prisma/client';
+import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorator';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +23,12 @@ const prisma = new PrismaClient();
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
+  constructor(private readonly reflector: Reflector) {
+    super();
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (process.env.NODE_ENV !== 'production') {
       const request = context.switchToHttp().getRequest();
@@ -43,6 +51,33 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest();
     request.organizationId = request.user?.organizationId;
 
+    // An account with no membership row resolves to no organization. Letting
+    // that through is worse than refusing it: a read scoped with
+    // `where: { organizationId }` silently drops the filter when the value is
+    // undefined — returning another tenant's rows — while a write that requires
+    // the column fails deep inside Prisma as an unhandled 500 naming nothing.
+    if (!request.organizationId && !this.allowsNoOrganization(context)) {
+      this.logger.warn(
+        `${request.user?.email ?? 'a signed-in user'} belongs to no organization; refused ` +
+          `${request.method} ${request.url}. Repair with: ` +
+          'npx ts-node scripts/check-memberships.ts --attach <email> --org <slug>',
+      );
+      throw new ForbiddenException(
+        'Your account is not a member of any organization, so there is no workspace to act on. ' +
+          'Ask an administrator to attach your account to the workspace.',
+      );
+    }
+
     return true;
+  }
+
+  /** Routes an account must be able to reach before it belongs anywhere. */
+  private allowsNoOrganization(context: ExecutionContext): boolean {
+    return Boolean(
+      this.reflector.getAllAndOverride<boolean>(ALLOW_WITHOUT_ORGANIZATION, [
+        context.getHandler(),
+        context.getClass(),
+      ]),
+    );
   }
 }

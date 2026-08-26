@@ -1,10 +1,15 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Request, UseGuards } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AllowWithoutOrganization } from '../auth/allow-without-organization.decorator';
 import { Prisma, Role } from '@prisma/client';
 
+// Every route here is scoped by the caller's user id rather than by a current
+// workspace, and an account with no membership yet has to reach them — it is
+// the account trying to create or be added to one.
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
+@AllowWithoutOrganization()
 export class OrganizationsController {
   constructor(private organizationsService: OrganizationsService) {}
 
