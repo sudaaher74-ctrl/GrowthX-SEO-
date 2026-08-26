@@ -15,6 +15,7 @@ import {
   resolveSarvamModel,
   resolveSarvamReasoningEffort,
 } from '../../ai-engine/utils/sarvam-request.util';
+import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 
 export enum AiProvider {
   SARVAM = 'SARVAM',
@@ -87,7 +88,6 @@ const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
   [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
   [AiTask.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
-
 
 @Injectable()
 export class MultiAiRouterService {
@@ -246,6 +246,20 @@ export class MultiAiRouterService {
           lastError = new Error(`${provider} declined the request.`);
           continue;
         }
+
+        // Output that will not parse is a failed attempt, not an answer.
+        // Only Anthropic, Gemini and OpenAI are *given* the schema to enforce;
+        // Sarvam, Groq and OpenRouter are merely asked for JSON in the system
+        // text, so any of them can answer in prose or stop mid-document. The
+        // caller parses after this returns, so the first provider in the chain
+        // doing that used to fail the whole request while the providers behind
+        // it — which might have answered perfectly well — were never tried.
+        if (request.jsonSchema && !this.parsesAsJson(completion.text)) {
+          this.logger.warn(`${provider} returned output that is not valid JSON; trying the next provider.`);
+          lastError = new Error(`${provider} returned unparseable JSON.`);
+          continue;
+        }
+
         return completion;
       } catch (error: any) {
         this.logger.warn(`${provider} failed: ${error.message}. Falling through.`);
@@ -256,6 +270,23 @@ export class MultiAiRouterService {
     throw new ServiceUnavailableException(
       `All available AI providers failed. Last error: ${(lastError as Error)?.message ?? 'unknown'}`,
     );
+  }
+
+  /**
+   * Whether the caller will be able to read this answer.
+   *
+   * Uses the same extractor the call sites use — including its repair of a
+   * truncated document — so a completion accepted here cannot fail to parse
+   * one layer up.
+   */
+  private parsesAsJson(text: string): boolean {
+    if (!text?.trim()) return false;
+    try {
+      extractAndParseJson(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Vendors the org's plan permits, intersected with what has credentials. */

@@ -123,4 +123,49 @@ describe('ContentStrategyService', () => {
     expect(select.content).toBe(true);
     expect(select.creatorStrategy).toBe(true);
   });
+  it('does not lose the strategy when the first provider answers with prose', async () => {
+    // The real chain on this deployment is SARVAM -> GROQ -> OPENROUTER, and
+    // none of the three has the schema enforced for it. The router has to treat
+    // unreadable output as a failed attempt, or the providers behind the first
+    // one never get asked.
+    const chain = ['SARVAM', 'GROQ', 'OPENROUTER'];
+    const answers: Record<string, string> = {
+      SARVAM: 'I cannot ground a strategy without competitive data.',
+      GROQ: JSON.stringify(modelAnswer),
+      OPENROUTER: JSON.stringify(modelAnswer),
+    };
+
+    const { MultiAiRouterService: RealRouter, AiTask: RealTask } = jest.requireActual(
+      '../ai-search/multi-ai-router/multi-ai-router.service',
+    );
+    const realRouter = Object.create(RealRouter.prototype);
+    realRouter.logger = { warn: jest.fn(), log: jest.fn() };
+    realRouter.configuredProviders = () => chain;
+    realRouter.invoke = (provider: string) =>
+      Promise.resolve({ provider, model: `${provider}-model`, text: answers[provider], refused: false });
+
+    const completion = await realRouter.generate({
+      prompt: 'p',
+      jsonSchema: { type: 'object' },
+      task: RealTask.REASONING,
+    });
+
+    expect(completion.provider).toBe('GROQ');
+    expect(JSON.parse(completion.text).executiveSummary).toBe('Own the freshness story.');
+  });
+
+  it('reports failure when no provider returns readable JSON', async () => {
+    const { MultiAiRouterService: RealRouter, AiTask: RealTask } = jest.requireActual(
+      '../ai-search/multi-ai-router/multi-ai-router.service',
+    );
+    const realRouter = Object.create(RealRouter.prototype);
+    realRouter.logger = { warn: jest.fn(), log: jest.fn() };
+    realRouter.configuredProviders = () => ['SARVAM', 'GROQ'];
+    realRouter.invoke = (provider: string) =>
+      Promise.resolve({ provider, model: 'm', text: 'sorry, no.', refused: false });
+
+    await expect(
+      realRouter.generate({ prompt: 'p', jsonSchema: { type: 'object' }, task: RealTask.REASONING }),
+    ).rejects.toThrow(/unparseable JSON/);
+  });
 });
