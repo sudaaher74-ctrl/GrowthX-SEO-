@@ -1,10 +1,17 @@
 "use client";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader, Panel, Pill, ActionButton, NotConnected } from "@/components/ui/console";
 import { Loader2, Search, Sparkles, ExternalLink, FileText, Globe, BarChart3, AlertTriangle } from "lucide-react";
 import { useWorkspace, useAskResearch } from "@/hooks/use-growthx";
+import { api } from "@/lib/api-client";
 import type { ResearchAnswer, ResearchSource, ResearchSourceType } from "@/lib/api-client";
 
+/**
+ * Shown until the client's own questions arrive, and kept as the answer for a
+ * project that has not been crawled yet. The API returns this same set in that
+ * case, so the panel never sits empty and never flashes between two lists.
+ */
 const SUGGESTED = [
   "What changed in this market this week?",
   "Which competitors are winning AI citations for our core topic?",
@@ -37,6 +44,16 @@ interface Turn {
 export default function MarketResearchPage() {
   const { projectId } = useWorkspace();
   const ask = useAskResearch(projectId);
+
+  // Derived from the crawl rather than generated, so this costs a query rather
+  // than model tokens and can load with the page.
+  const suggested = useQuery({
+    queryKey: ["research-suggested-questions", projectId],
+    queryFn: () => api.getSuggestedResearchQuestions(projectId!),
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const prompts = suggested.data?.length ? suggested.data : SUGGESTED;
 
   const [question, setQuestion] = useState("");
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
@@ -92,7 +109,7 @@ export default function MarketResearchPage() {
             {turns.length === 0 && !ask.isPending && (
               <Panel title="Start a research question" subtitle="Answers cite only sources retrieved for this run">
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {SUGGESTED.map((s) => (
+                  {prompts.map((s) => (
                     <button
                       key={s}
                       onClick={() => submit(s)}

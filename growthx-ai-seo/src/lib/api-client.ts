@@ -877,6 +877,9 @@ export const api = {
       messages: { id: string; role: "USER" | "ASSISTANT"; content: string; runId: string | null; createdAt: string }[];
       runs: { id: string; question: string; answer: ResearchAnswer | null; sources: ResearchSource[] }[];
     }>(`/api/projects/${projectId}/market-research/threads/${threadId}`),
+  /** Opening prompts written around this client's own business, from its crawl. */
+  getSuggestedResearchQuestions: (projectId: string) =>
+    get<string[]>(`/api/projects/${projectId}/market-research/suggested-questions`),
   askResearch: (projectId: string, body: { question: string; threadId?: string; deepResearch?: boolean }) =>
     post<ResearchAskResult>(`/api/projects/${projectId}/market-research/ask`, body),
   getResearchRunSources: (projectId: string, runId: string) =>

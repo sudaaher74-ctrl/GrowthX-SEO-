@@ -52,6 +52,13 @@ export class MarketResearchController {
     private readonly outcomes: OutcomeMeasurementService,
     private readonly weekly: WeeklyDeltaService,) {}
 
+  @Get('suggested-questions')
+  @ApiOperation({ summary: "Opening questions written around this client's own business" })
+  @ApiParam({ name: 'projectId' })
+  suggestedQuestions(@Req() req: any, @Param('projectId') projectId: string) {
+    return this.research.suggestedQuestions(req.user?.organizationId || req.organizationId, projectId);
+  }
+
   @Get('threads')
   @ApiOperation({ summary: 'Research threads for this project' })
   @ApiParam({ name: 'projectId' })

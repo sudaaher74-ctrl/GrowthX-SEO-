@@ -67,6 +67,86 @@ export class MarketResearchService {
     private readonly evidence: EvidenceRetrievalService,
   ) {}
 
+  /**
+   * Opening questions written around what this client actually sells.
+   *
+   * The four prompts on this page were fixed strings — "our core topic", "this
+   * market" — identical for a fruit pulp exporter and a dentist, and useful to
+   * neither. The crawl already knows the subject, so the questions can name it.
+   *
+   * Derived rather than generated: no model is called, because a page that
+   * spends tokens before the operator has asked anything is a page nobody wants
+   * to open. Falls back to the generic set when a project has not been crawled
+   * yet, so the panel is never empty.
+   */
+  async suggestedQuestions(organizationId: string, projectId: string): Promise<string[]> {
+    const generic = [
+      'What changed in this market this week?',
+      'Which competitors are winning AI citations for our core topic?',
+      'What content should we create to close the biggest visibility gap?',
+      'How is our positioning different from our top competitors?',
+    ];
+
+    try {
+      await this.assertProjectInOrg(organizationId, projectId);
+
+      const [project, recentPages, competitors] = await Promise.all([
+        this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+        // Narrowed below to the shortest URL, which on any site is the
+        // homepage — its title and meta describe the business as a whole
+        // rather than one product.
+        this.prisma.page.findMany({
+          where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
+          orderBy: { crawledAt: 'desc' },
+          select: { url: true, title: true, metaDescription: true },
+          take: 50,
+        }),
+        this.prisma.competitorDomain.findMany({ where: { projectId }, select: { domain: true }, take: 1 }),
+      ]);
+
+      const homepage = [...recentPages].sort((a, b) => a.url.length - b.url.length)[0];
+      const subject = this.subjectFrom(homepage?.title, homepage?.metaDescription, project?.name);
+      if (!subject) return generic;
+
+      const rival = competitors[0]?.domain;
+      return [
+        `What changed for ${subject} buyers this week?`,
+        rival
+          ? `Which competitors are winning AI citations for ${subject}, and where does ${rival} rank?`
+          : `Which competitors are winning AI citations for ${subject}?`,
+        `What content should we create to close our biggest visibility gap in ${subject}?`,
+        `How is our positioning in ${subject} different from our top competitors?`,
+      ];
+    } catch {
+      // Suggestions are decoration. Nothing here is worth failing the page for.
+      return generic;
+    }
+  }
+
+  /**
+   * The business, in a few words, taken from how the site describes itself.
+   *
+   * A title is typically "<what it does> | <brand>" or "<brand> - <what it
+   * does>", so the brand half is dropped and the descriptive half kept. The
+   * meta description is the fallback because it is prose rather than a label,
+   * and a truncated clause reads worse than a slightly generic question.
+   */
+  private subjectFrom(title?: string | null, meta?: string | null, projectName?: string | null): string | null {
+    const brand = (projectName ?? '').trim().toLowerCase();
+
+    const fromTitle = (title ?? '')
+      .split(/[|–—]|\s-\s/)
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 8 && (!brand || !part.toLowerCase().includes(brand)))
+      .sort((a, b) => b.length - a.length)[0];
+
+    const candidate = fromTitle ?? (meta ?? '').split(/[.!?]/)[0]?.trim();
+    if (!candidate || candidate.length < 8) return null;
+
+    // Long enough to be specific, short enough to read inside a question.
+    return candidate.length > 70 ? `${candidate.slice(0, 70).trimEnd()}…` : candidate;
+  }
+
   // ── tenancy ───────────────────────────────────────────────────────────────
 
   /**
