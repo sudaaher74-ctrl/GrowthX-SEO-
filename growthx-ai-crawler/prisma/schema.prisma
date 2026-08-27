@@ -493,30 +493,38 @@ model OutreachContact {
 }
 
 /// A rival the customer wants share-of-voice measured against.
+/// A tracked competitor.
+///
+/// Everything beyond `domain` is discovered rather than typed: the operator
+/// supplies a URL and the discovery pipeline fills the rest in, recording how
+/// confident it is. A field left null means "not discovered yet", never "the
+/// competitor does not have one" — the difference matters when deciding whether
+/// to re-run discovery.
 model CompetitorDomain {
-  id             String             @id @default(uuid())
+  id             String              @id @default(uuid())
   projectId      String
   domain         String
   label          String?
-  createdAt      DateTime           @default(now())
-  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  socialAccounts CompetitorSocial[]
+  /// Business name as published on their own site, when discovered.
+  name           String?
+  industry       String?
+  description    String?
+  phone          String?
+  /// 0-100, how reliably the discovered identity is believed to be this
+  /// competitor. Null until discovery has run. Never assume a match without it.
+  confidenceScore Int?
+  /// PENDING | ANALYZING | ANALYZED | FAILED
+  status         String              @default("PENDING")
+  lastAnalyzedAt DateTime?
+  nextAnalysisAt DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  socialAccounts CompetitorAccount[]
 
   @@unique([projectId, domain])
   @@index([projectId])
-}
-
-model CompetitorSocial {
-  id                 String           @id @default(uuid())
-  competitorDomainId String
-  platform           String           /// INSTAGRAM | FACEBOOK | YOUTUBE
-  handle             String           /// The social media handle or channel ID
-  url                String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  competitorDomain   CompetitorDomain @relation(fields: [competitorDomainId], references: [id], onDelete: Cascade)
-
-  @@unique([competitorDomainId, platform])
+  @@index([projectId, status])
 }
 
 model SocialPost {
@@ -1364,6 +1372,7 @@ model CompetitorAccount {
   projectId      String
   competitorId   String
   /// The CompetitorDomain this account belongs to.
+  competitor     CompetitorDomain  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
   platform       String            /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
   handle         String            /// @handle or channel id
   profileUrl     String?
