@@ -264,6 +264,16 @@ export class ContentIntelligenceController {
     return this.competitorCrawl.getCoverage(req.organizationId, projectId, competitorId);
   }
 
+  /** Both sides of the coverage comparison, by page kind. */
+  @Get('competitors/:competitorId/comparison')
+  async competitorComparison(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.competitorCrawl.getComparison(req.organizationId, projectId, competitorId);
+  }
+
   /** The crawled pages themselves, optionally of one kind. */
   @Get('competitors/:competitorId/pages')
   async competitorPages(

@@ -486,6 +486,34 @@ export interface ContentPiece {
   createdAt: string;
 }
 
+/** One page kind on both sides of the coverage comparison. */
+export interface CoverageRow {
+  pageType: string;
+  /** Null when that side has not been crawled — never substituted with zero. */
+  ours: number | null;
+  theirs: number | null;
+  gap: number | null;
+}
+
+export interface CoverageSide {
+  crawlJobId: string;
+  crawledAt: string | null;
+  totalPages: number;
+  byType: Record<string, number>;
+  /** Present on the competitor side: the crawl stopped at its page ceiling,
+   *  so the counts are a floor rather than their total. */
+  capped?: boolean;
+  domain?: string;
+}
+
+export interface CoverageComparison {
+  ours: CoverageSide | null;
+  theirs: CoverageSide | null;
+  /** Only the kinds where they genuinely lead, largest gap first. */
+  behindOn: CoverageRow[];
+  rows: CoverageRow[];
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1009,6 +1037,22 @@ export const api = {
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/discover-accounts`,
       {},
     ),
+  /**
+   * Crawls the competitor's public website so their page coverage can be
+   * compared with yours. Returns once the crawl is queued, not once it is
+   * done — a few hundred pages at one request per second takes minutes.
+   */
+  crawlCompetitorSite: (projectId: string, competitorId: string) =>
+    post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/crawl`,
+      {},
+    ),
+  /** Both sides of the coverage comparison. Sides are null until crawled. */
+  competitorComparison: (projectId: string, competitorId: string) =>
+    get<CoverageComparison>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/comparison`,
+    ),
+
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),

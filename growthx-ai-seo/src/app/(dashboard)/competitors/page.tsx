@@ -7,6 +7,7 @@ import { QueryState } from "@/components/ui/query-state";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { CoverageComparison } from "./coverage-comparison";
 
 function CompetitorsClient() {
   const { projectId } = useWorkspace();
@@ -207,23 +208,33 @@ function CompetitorsClient() {
             ) : (
               <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
                 {tracked.data.map((competitor) => (
-                  <div key={competitor.id} className="flex items-center justify-between px-5 py-3">
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-medium text-brand-950">
-                        {competitor.label || competitor.domain}
+                  <div key={competitor.id} className="px-5 py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-medium text-brand-950">
+                          {competitor.label || competitor.domain}
+                        </div>
+                        {competitor.label && (
+                          <div className="text-[11px] text-brand-500">{competitor.domain}</div>
+                        )}
                       </div>
-                      {competitor.label && (
-                        <div className="text-[11px] text-brand-500">{competitor.domain}</div>
-                      )}
+                      <button
+                        onClick={() => removeCompetitor.mutate(competitor.id)}
+                        disabled={removeCompetitor.isPending}
+                        className="rounded-md p-1.5 text-brand-400 transition hover:bg-brand-100 hover:text-error-500 disabled:opacity-50"
+                        aria-label={`Stop tracking ${competitor.domain}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeCompetitor.mutate(competitor.id)}
-                      disabled={removeCompetitor.isPending}
-                      className="rounded-md p-1.5 text-brand-400 transition hover:bg-brand-100 hover:text-error-500 disabled:opacity-50"
-                      aria-label={`Stop tracking ${competitor.domain}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Share of voice only answers who AI cites. How much each
+                        of you actually publishes is the other half, and it is
+                        the half a customer can act on this week. */}
+                    <CoverageComparison
+                      projectId={projectId!}
+                      competitorId={competitor.id}
+                      domain={competitor.domain}
+                    />
                   </div>
                 ))}
               </div>

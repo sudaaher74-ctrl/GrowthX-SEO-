@@ -163,6 +163,86 @@ export class CompetitorCrawlService {
     };
   }
 
+  /**
+   * The customer's own page coverage, from their latest completed crawl.
+   *
+   * Scoped through `website.projectId`, which is exactly what a competitor's
+   * site does not have — so a competitor's pages can never be counted here.
+   */
+  private async getOwnCoverage(projectId: string) {
+    const job = await this.prisma.crawlJob.findFirst({
+      where: { status: 'COMPLETED', website: { projectId } },
+      orderBy: { finishedAt: 'desc' },
+      select: { id: true, finishedAt: true, pagesCrawled: true },
+    });
+    if (!job) return null;
+
+    const grouped = await this.prisma.page.groupBy({
+      by: ['pageType'],
+      where: { crawlJobId: job.id, statusCode: { gte: 200, lt: 300 } },
+      _count: { _all: true },
+    });
+
+    return {
+      crawlJobId: job.id,
+      crawledAt: job.finishedAt,
+      totalPages: job.pagesCrawled,
+      byType: Object.fromEntries(grouped.map((row) => [row.pageType, row._count._all])),
+    };
+  }
+
+  /**
+   * Both sides of the coverage comparison, by page kind.
+   *
+   * Returns which side is ahead per kind rather than only the counts, since
+   * that is the question being asked, and returns nulls where a side has not
+   * been crawled instead of substituting zero. A missing crawl rendered as
+   * zero reads as "they publish nothing", which is the opposite of "we have
+   * not looked" and would send someone off writing pages they already have.
+   *
+   * LEGAL is excluded: every site has a privacy policy, and a difference of
+   * one in that count is not an opportunity.
+   */
+  async getComparison(organizationId: string, projectId: string, competitorId: string) {
+    const [theirs, ours] = await Promise.all([
+      this.getCoverage(organizationId, projectId, competitorId),
+      this.getOwnCoverage(projectId),
+    ]);
+
+    const COMPARED: PageType[] = [
+      'SERVICE',
+      'PRODUCT',
+      'LOCATION',
+      'BLOG',
+      'CASE_STUDY',
+      'FAQ',
+      'ABOUT',
+      'CONTACT',
+    ];
+
+    const rows = COMPARED.map((pageType) => {
+      const mine = ours ? (ours.byType[pageType] ?? 0) : null;
+      const theirCount = theirs ? (theirs.byType[pageType] ?? 0) : null;
+      return {
+        pageType,
+        ours: mine,
+        theirs: theirCount,
+        // Null, not zero, when either side is uncrawled: a gap cannot be
+        // computed from a number nobody has measured.
+        gap: mine === null || theirCount === null ? null : theirCount - mine,
+      };
+    });
+
+    return {
+      ours,
+      theirs,
+      // Only where they genuinely lead, largest first. This is the list the
+      // dashboard turns into "they publish 24 service pages, you publish 6".
+      behindOn: rows.filter((r) => (r.gap ?? 0) > 0).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0)),
+      rows,
+    };
+  }
+
   /** The competitor's crawled pages of one kind, for showing what they cover. */
   async listPages(
     organizationId: string,

@@ -159,3 +159,65 @@ describe('CompetitorCrawlService', () => {
     });
   });
 });
+
+/**
+ * The comparison is the product. A gap number that is wrong in either
+ * direction sends someone off writing pages they already have, or leaves a
+ * real gap invisible.
+ */
+describe('CompetitorCrawlService — comparison', () => {
+  const build = (theirs: any, ours: any) => {
+    const service = new CompetitorCrawlService({} as any, {} as any);
+    (service as any).getCoverage = jest.fn().mockResolvedValue(theirs);
+    (service as any).getOwnCoverage = jest.fn().mockResolvedValue(ours);
+    return service;
+  };
+
+  it('reports where the competitor is ahead, largest gap first', async () => {
+    const service = build(
+      { byType: { SERVICE: 24, BLOG: 40, FAQ: 1 } },
+      { byType: { SERVICE: 6, BLOG: 38, FAQ: 3 } },
+    );
+
+    const result = await service.getComparison('org1', 'p1', 'comp1');
+
+    expect(result.behindOn.map((r) => [r.pageType, r.gap])).toEqual([
+      ['SERVICE', 18],
+      ['BLOG', 2],
+    ]);
+    // FAQ is excluded because we are ahead there, not behind.
+    expect(result.behindOn.find((r) => r.pageType === 'FAQ')).toBeUndefined();
+  });
+
+  it('counts a kind they have and we have none of', async () => {
+    // The most actionable gap of all, and the one an inner join would drop.
+    const service = build({ byType: { LOCATION: 12 } }, { byType: {} });
+
+    const result = await service.getComparison('org1', 'p1', 'comp1');
+
+    expect(result.behindOn[0]).toMatchObject({ pageType: 'LOCATION', ours: 0, theirs: 12, gap: 12 });
+  });
+
+  it('will not invent a gap from a side nobody crawled', async () => {
+    // Treating an uncrawled competitor as zero pages says "you are ahead
+    // everywhere", which is a claim made from no data at all.
+    const service = build(null, { byType: { SERVICE: 6 } });
+
+    const result = await service.getComparison('org1', 'p1', 'comp1');
+
+    expect(result.behindOn).toEqual([]);
+    expect(result.rows.every((r) => r.gap === null && r.theirs === null)).toBe(true);
+    expect(result.rows.find((r) => r.pageType === 'SERVICE')?.ours).toBe(6);
+  });
+
+  it('leaves legal boilerplate out of the comparison', async () => {
+    // Every site has a privacy policy; a difference of one there is not an
+    // opportunity, and listing it as one makes the whole list less credible.
+    const service = build({ byType: { LEGAL: 5 } }, { byType: { LEGAL: 1 } });
+
+    const result = await service.getComparison('org1', 'p1', 'comp1');
+
+    expect(result.rows.find((r) => r.pageType === 'LEGAL')).toBeUndefined();
+    expect(result.behindOn).toEqual([]);
+  });
+});
