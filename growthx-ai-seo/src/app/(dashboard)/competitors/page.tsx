@@ -1,9 +1,12 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Target, Loader2, Plus, Zap } from "lucide-react";
+import { Target, Loader2, Plus, Zap, Trash2 } from "lucide-react";
 import { PageHeader, Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
 import { useWorkspace, useVisibility, useAddCompetitor } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { errorMessage } from "@/lib/error-message";
 
 function CompetitorsClient() {
   const { projectId } = useWorkspace();
@@ -13,15 +16,38 @@ function CompetitorsClient() {
   const [domain, setDomain] = useState("");
   const [label, setLabel] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const qc = useQueryClient();
+  // Share of voice is built from prompt citations, so a competitor added a
+  // moment ago is absent from it — nothing has been asked about them yet.
+  // Listing what is tracked is what makes a successful add visible.
+  const tracked = useQuery({
+    queryKey: ["tracked-competitors", projectId],
+    queryFn: () => api.listCompetitors(projectId!),
+    enabled: !!projectId,
+  });
+  const removeCompetitor = useMutation({
+    mutationFn: (competitorId: string) => api.removeCompetitor(projectId!, competitorId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] }),
+  });
 
   const handleAddCompetitor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!domain) return;
     
-    await addCompetitor.mutateAsync({ domain, label: label || undefined });
-    setDomain("");
-    setLabel("");
-    setIsAdding(false);
+    setAddError(null);
+    try {
+      await addCompetitor.mutateAsync({ domain, label: label || undefined });
+      setDomain("");
+      setLabel("");
+      setIsAdding(false);
+      await qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] });
+    } catch (err) {
+      // Previously the form closed either way, so a rejected save looked
+      // exactly like a successful one.
+      setAddError(errorMessage(err));
+    }
   };
 
   const report = visibility.data;
@@ -72,6 +98,9 @@ function CompetitorsClient() {
                   />
                 </div>
               </div>
+              {addError && (
+                <p className="mb-2 text-[12px] text-error-500">{addError}</p>
+              )}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -98,6 +127,52 @@ function CompetitorsClient() {
           error={visibility.error}
           isEmpty={!projectId}
         >
+          {/* Listed separately from share of voice, which only contains brands a
+              tracked prompt has actually cited. A competitor added a moment ago
+              appears in neither that table nor anywhere else, so the save read
+              as a failure even though the row was written. */}
+          <Panel
+            title="Tracked Competitors"
+            subtitle={
+              tracked.data?.length
+                ? `${tracked.data.length} tracked. Share of voice fills in once visibility prompts have been swept.`
+                : "Competitors you add appear here straight away."
+            }
+          >
+            {tracked.isLoading ? (
+              <div className="flex items-center gap-2 px-5 py-6 text-[12px] text-[var(--text-muted)]">
+                <Loader2 size={13} className="animate-spin" /> Loading competitors…
+              </div>
+            ) : !tracked.data?.length ? (
+              <div className="px-5 py-6 text-[12px] text-[var(--text-muted)]">
+                None yet. Add one above to compare AI citations against your own.
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
+                {tracked.data.map((competitor) => (
+                  <div key={competitor.id} className="flex items-center justify-between px-5 py-3">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-brand-950">
+                        {competitor.label || competitor.domain}
+                      </div>
+                      {competitor.label && (
+                        <div className="text-[11px] text-brand-500">{competitor.domain}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeCompetitor.mutate(competitor.id)}
+                      disabled={removeCompetitor.isPending}
+                      className="rounded-md p-1.5 text-brand-400 transition hover:bg-brand-100 hover:text-error-500 disabled:opacity-50"
+                      aria-label={`Stop tracking ${competitor.domain}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
           <Panel title="Share of Voice" subtitle="Percentage of tracked prompts where the brand was cited.">
             {shareOfVoice.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">

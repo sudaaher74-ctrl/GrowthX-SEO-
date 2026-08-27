@@ -486,6 +486,13 @@ export interface ContentPiece {
   createdAt: string;
 }
 
+export interface TrackedCompetitor {
+  id: string;
+  domain: string;
+  label: string | null;
+  createdAt: string;
+}
+
 export interface SiteRepository {
   id: string;
   projectId: string;
@@ -993,6 +1000,13 @@ export const api = {
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   addCompetitor: (projectId: string, domain: string, label?: string) =>
     post(`/api/projects/${projectId}/ai-visibility/competitors`, { domain, label }),
+  /** Tracked competitors, whether or not any prompt has cited them yet. */
+  listCompetitors: (projectId: string) =>
+    get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
+  removeCompetitor: (projectId: string, competitorId: string) =>
+    request<{ removed: number }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
+      method: "DELETE",
+    }),
   runVisibilitySweep: (projectId: string) =>
     post<{ checksRun: number; checksFailed: number; citations: number; skippedAssistants: string[] }>(
       `/api/projects/${projectId}/ai-visibility/sweep`,

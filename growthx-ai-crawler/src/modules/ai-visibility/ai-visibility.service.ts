@@ -304,6 +304,33 @@ export class AiVisibilityService {
     );
   }
 
+  /**
+   * The competitors tracked for this project, whether or not they have been
+   * cited yet.
+   *
+   * Share of voice is built from prompt citations, so a competitor added a
+   * moment ago appears nowhere in it — nothing has been asked about them.
+   * Without this list, adding one produced no visible change and read as a
+   * failed save, when the row had in fact been written.
+   */
+  async listCompetitors(projectId: string) {
+    return this.prisma.competitorDomain.findMany({
+      where: { projectId },
+      select: { id: true, domain: true, label: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async removeCompetitor(projectId: string, competitorId: string) {
+    // Scoped by project as well as id: an id alone would let one project delete
+    // another's row.
+    const deleted = await this.prisma.competitorDomain.deleteMany({
+      where: { id: competitorId, projectId },
+    });
+    if (deleted.count === 0) throw new NotFoundException('Competitor not found for this project.');
+    return { removed: deleted.count };
+  }
+
   async addCompetitor(projectId: string, domain: string, label?: string) {
     const normalized = normalizeDomain(domain);
     if (!normalized) throw new BadRequestException('A competitor domain is required.');

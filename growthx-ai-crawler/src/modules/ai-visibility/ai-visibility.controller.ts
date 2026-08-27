@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AiAssistant, SearchIntent } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -103,6 +103,21 @@ export class AiVisibilityController {
   })
   addPrompts(@Param('projectId') projectId: string, @Body() body: AddPromptsDto) {
     return this.visibility.addPrompts(projectId, body?.prompts ?? []);
+  }
+
+  @Get('competitors')
+  @ApiOperation({ summary: 'Competitors tracked for this project, cited or not' })
+  @ApiParam({ name: 'projectId' })
+  listCompetitors(@Param('projectId') projectId: string) {
+    return this.visibility.listCompetitors(projectId);
+  }
+
+  @Delete('competitors/:competitorId')
+  @ApiOperation({ summary: 'Stop tracking a competitor' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'competitorId' })
+  removeCompetitor(@Param('projectId') projectId: string, @Param('competitorId') competitorId: string) {
+    return this.visibility.removeCompetitor(projectId, competitorId);
   }
 
   @Post('competitors')
