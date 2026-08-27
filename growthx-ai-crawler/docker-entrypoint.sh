@@ -34,5 +34,11 @@ node scripts/baseline-database.js
 echo "Applying database migrations..."
 node node_modules/prisma/build/index.js migrate deploy
 
+# Attaches an account to an organization when REPAIR_ATTACH_EMAIL and
+# REPAIR_ATTACH_ORG are set, and does nothing at all otherwise. Free-plan
+# services have no shell, so this is the only way in to a repair that
+# otherwise needs one. It never fails the boot.
+node scripts/repair-membership.js
+
 echo "Starting API..."
 exec node dist/main.js
