@@ -22,6 +22,20 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+# Prisma runs migrations over `directUrl`, which needs a direct connection:
+# session state and advisory locks do not survive a connection pooler. On Neon
+# that is the same URL with `-pooler` removed from the host. Deriving it here
+# means a deployment only has to set DATABASE_URL — and because a declared
+# `directUrl` is required rather than optional, leaving it unset would
+# otherwise fail schema validation and stop the container from booting at all.
+# On a database with no pooler in its host the substitution matches nothing and
+# DIRECT_URL simply equals DATABASE_URL, which is correct there.
+if [ -z "$DIRECT_URL" ]; then
+  DIRECT_URL=$(printf '%s' "$DATABASE_URL" | sed 's/-pooler\./\./')
+  export DIRECT_URL
+  echo "DIRECT_URL derived from DATABASE_URL for migrations."
+fi
+
 # The production schema was created with `db push`, which writes no migration
 # history, so `migrate deploy` finds tables it cannot account for and stops with
 # P3005 rather than replay CREATE TABLE over live data. This records the

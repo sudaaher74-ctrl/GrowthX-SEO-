@@ -2,9 +2,22 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// On Neon, DATABASE_URL points at the connection pooler (the `-pooler` host),
+// which is what the running app should use: it multiplexes many short-lived
+// connections onto few Postgres backends, which is exactly the shape of web
+// traffic. Migrations are the opposite — they need session state and advisory
+// locks that the pooler does not carry across statements — so Prisma is given a
+// direct, unpooled URL for them via `directUrl`.
+//
+// DIRECT_URL is the same connection string with `-pooler` removed from the
+// host. Prisma treats a declared `directUrl` as required and fails validation
+// when the variable is missing, rather than falling back to `url` — so
+// docker-entrypoint.sh derives it from DATABASE_URL when it is not set, and a
+// deployment that configures only DATABASE_URL still boots.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Website {

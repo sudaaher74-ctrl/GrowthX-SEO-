@@ -49,3 +49,6 @@ yarn-error.log*
 next-env.d.ts
 *.rdb
 dump.rdb
+
+# Neon CLI workspace link (org/project/branch ids)
+.neon
