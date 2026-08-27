@@ -80,4 +80,35 @@ async function bootstrap() {
       : '📚 Swagger documentation disabled (set ENABLE_SWAGGER_DOCS=true to enable)',
   );
 }
-bootstrap();
+
+/**
+ * Boot failures have to explain themselves.
+ *
+ * `bootstrap()` was called bare. Node treats an unhandled rejection as fatal, so
+ * anything thrown on the way to `app.listen` — a module that cannot initialise,
+ * a dependency that will not resolve — ended the process with no message the
+ * platform log could attribute, surfacing only as "Application exited early"
+ * and "No open ports detected".
+ *
+ * The listeners below cover the same gap for failures after the server is up: a
+ * rejected promise in a request handler or a background job should be recorded,
+ * not silently take down an API that is otherwise serving.
+ */
+const bootLogger = new Logger('Bootstrap');
+
+process.on('unhandledRejection', (reason) => {
+  bootLogger.error(`Unhandled promise rejection: ${reason instanceof Error ? reason.stack : String(reason)}`);
+});
+
+process.on('uncaughtException', (error) => {
+  bootLogger.error(`Uncaught exception: ${error.stack ?? error.message}`);
+});
+
+bootstrap().catch((error) => {
+  bootLogger.error(
+    `The API failed to start and never reached app.listen(): ${error instanceof Error ? error.stack : String(error)}`,
+  );
+  // Exit non-zero so the platform restarts rather than holding a dead container
+  // open while it scans for a port that will never be bound.
+  process.exit(1);
+});

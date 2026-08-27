@@ -9,6 +9,36 @@
 # Prisma takes an advisory lock, so concurrent instances booting together is safe.
 set -e
 
+# `set -e` on its own kills the container with no indication of which command
+# failed, which reads in the platform log as "Application exited early" and is
+# indistinguishable from the API itself crashing. Every step below therefore
+# announces itself and, on failure, says so by name before exiting.
+run_step() {
+  description="$1"
+  shift
+  echo "$description"
+  # Captured through `||` rather than read after `if ! "$@"`: inside that form
+  # `$?` is the status of the negation, which is 0 for a failed command — so the
+  # guard reported "exit 0" and then exited 0, letting the boot continue past a
+  # step that had just failed.
+  status=0
+  "$@" || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "FATAL: boot failed during: $description (exit $status)" >&2
+    echo "The API never reached app.listen(), so the platform will report no open ports." >&2
+    exit "$status"
+  fi
+}
+
+# For work that is genuinely optional: a failure is reported and the boot goes on.
+run_optional_step() {
+  description="$1"
+  shift
+  if ! "$@"; then
+    echo "WARN: $description failed; continuing to start the API." >&2
+  fi
+}
+
 # DATABASE_URL is injected at runtime (on Render, from the linked database), so
 # it is present here but absent during the image build — `prisma generate` in
 # the Dockerfile must never depend on it. If it is missing at this point the
@@ -42,17 +72,21 @@ fi
 # migrations the database demonstrably already contains, having checked their
 # tables and enum types are really there, and leaves the rest to be applied
 # normally below. It is a no-op once history exists, and on an empty database.
-echo "Checking migration history..."
-node scripts/baseline-database.js
+run_step "Checking migration history..." node scripts/baseline-database.js
 
-echo "Applying database migrations..."
-node node_modules/prisma/build/index.js migrate deploy
+run_step "Applying database migrations..." node node_modules/prisma/build/index.js migrate deploy
 
 # Attaches an account to an organization when REPAIR_ATTACH_EMAIL and
-# REPAIR_ATTACH_ORG are set, and does nothing at all otherwise. Free-plan
-# services have no shell, so this is the only way in to a repair that
-# otherwise needs one. It never fails the boot.
-node scripts/repair-membership.js
+# REPAIR_ATTACH_ORG are set, and does nothing at all otherwise.
+#
+# It is optional in the strict sense: it must never decide whether the API
+# serves traffic. Under `set -e` it previously could — the script prints nothing
+# on its no-op path, so anything that made node exit non-zero (a missing file, a
+# throw while loading the Prisma client) took the container down leaving
+# "Applying database migrations..." as the last line in the log and no reason
+# anywhere. An unrepaired membership is a broken workspace; a container that
+# will not start is a broken product.
+run_optional_step "Membership repair" node scripts/repair-membership.js
 
 echo "Starting API..."
 exec node dist/main.js
