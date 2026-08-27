@@ -1000,6 +1000,15 @@ export const api = {
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   addCompetitor: (projectId: string, domain: string, label?: string) =>
     post(`/api/projects/${projectId}/ai-visibility/competitors`, { domain, label }),
+  /**
+   * Reads a competitor's own site for the social profiles it links, and
+   * registers them for content ingestion.
+   */
+  discoverCompetitorAccounts: (projectId: string, competitorId: string) =>
+    post<{ discovered: { platform: string; handle: string; profileUrl: string }[]; saved: number }>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/discover-accounts`,
+      {},
+    ),
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),

@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards,
+  Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CompetitorContentService } from './competitor-content.service';
@@ -11,6 +11,7 @@ import { ContentCreationService } from './content-creation.service';
 import { CreatorService } from './creator.service';
 import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
+import { SocialDiscoveryService } from './social-discovery.service';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -35,6 +36,7 @@ export class ContentIntelligenceController {
     private readonly creator: CreatorService,
     private readonly campaign: CampaignService,
     private readonly socialScraper: SocialScraperService,
+    private readonly socialDiscovery: SocialDiscoveryService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -203,6 +205,32 @@ export class ContentIntelligenceController {
     @Body() body: { status: string },
   ) {
     return this.gapAnalysis.updateGapStatus(req.organizationId, gapId, body.status);
+  }
+
+  /**
+   * Reads a competitor's own site for the social profiles it publishes.
+   *
+   * Registering those accounts by hand is the step that stalls the whole
+   * pipeline, and a brand lists its handles in its own footer.
+   */
+  @Post('competitors/:competitorId/discover-accounts')
+  async discoverCompetitorAccounts(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: { id: competitorId, projectId },
+      select: { domain: true },
+    });
+    if (!competitor) throw new NotFoundException('Competitor not found for this project.');
+
+    return this.socialDiscovery.discoverAccounts(
+      req.organizationId,
+      projectId,
+      competitorId,
+      competitor.domain,
+    );
   }
 
   // ── Content Strategy ─────────────────────────────────────────────────────

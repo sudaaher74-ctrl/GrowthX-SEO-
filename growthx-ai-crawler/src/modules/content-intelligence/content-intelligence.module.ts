@@ -10,6 +10,7 @@ import { ContentCreationService } from './content-creation.service';
 import { CreatorService } from './creator.service';
 import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
+import { SocialDiscoveryService } from './social-discovery.service';
 import { ContentIntelligenceController } from './content-intelligence.controller';
 
 /**
@@ -36,7 +37,8 @@ import { ContentIntelligenceController } from './content-intelligence.controller
     CreatorService,
     CampaignService,
     SocialScraperService,
+    SocialDiscoveryService,
   ],
-  exports: [ContentStrategyService, ContentCreationService, SocialScraperService],
+  exports: [ContentStrategyService, ContentCreationService, SocialScraperService, SocialDiscoveryService],
 })
 export class ContentIntelligenceModule {}

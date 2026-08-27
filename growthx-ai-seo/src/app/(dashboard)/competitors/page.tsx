@@ -17,6 +17,9 @@ function CompetitorsClient() {
   const [label, setLabel] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [discovery, setDiscovery] = useState<
+    { status: "running" | "done"; domain: string; found?: string[] } | null
+  >(null);
 
   const qc = useQueryClient();
   // Share of voice is built from prompt citations, so a competitor added a
@@ -37,12 +40,29 @@ function CompetitorsClient() {
     if (!domain) return;
     
     setAddError(null);
+    setDiscovery(null);
     try {
-      await addCompetitor.mutateAsync({ domain, label: label || undefined });
+      const created = (await addCompetitor.mutateAsync({ domain, label: label || undefined })) as
+        | { id?: string }
+        | undefined;
       setDomain("");
       setLabel("");
       setIsAdding(false);
       await qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] });
+
+      // Registering social accounts by hand is the step that stalls the whole
+      // intelligence pipeline, and a brand lists its handles in its own footer.
+      // Reading their site is therefore part of adding them, not a later chore.
+      if (created?.id && projectId) {
+        setDiscovery({ status: "running", domain });
+        try {
+          const result = await api.discoverCompetitorAccounts(projectId, created.id);
+          setDiscovery({ status: "done", domain, found: result.discovered.map((a) => `${a.platform.toLowerCase()} ${a.handle}`) });
+        } catch {
+          // The competitor is saved either way; only the lookup failed.
+          setDiscovery({ status: "done", domain, found: [] });
+        }
+      }
     } catch (err) {
       // Previously the form closed either way, so a rejected save looked
       // exactly like a successful one.
@@ -127,6 +147,43 @@ function CompetitorsClient() {
           error={visibility.error}
           isEmpty={!projectId}
         >
+          {/* What reading the competitor's own site turned up. Reported either
+              way: "we looked and found nothing" is a different fact from "we
+              never looked", and only the first tells you to add handles by
+              hand. */}
+          {discovery && (
+            <div className="mb-4 rounded-xl border bg-white px-5 py-4" style={{ borderColor: "var(--color-brand-100)" }}>
+              {discovery.status === "running" ? (
+                <div className="flex items-center gap-2 text-[12px] text-brand-600">
+                  <Loader2 size={13} className="animate-spin" />
+                  Reading {discovery.domain} for the social profiles it links…
+                </div>
+              ) : discovery.found?.length ? (
+                <div className="text-[12px] text-brand-600">
+                  <span className="font-medium text-brand-950">
+                    Found {discovery.found.length} social {discovery.found.length === 1 ? "profile" : "profiles"} on {discovery.domain}
+                  </span>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {discovery.found.map((f) => (
+                      <span key={f} className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] text-brand-700">{f}</span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] text-brand-500">
+                    Registered for content ingestion. Content Intelligence can now classify their posts.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-[12px] text-brand-600">
+                  <span className="font-medium text-brand-950">No social profiles linked on {discovery.domain}.</span>
+                  <p className="mt-1 text-[11px] text-brand-500">
+                    Plenty of sites show social icons that link nowhere, or load them with JavaScript. Add their
+                    handles by hand under Content Intelligence → Competitors.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Listed separately from share of voice, which only contains brands a
               tracked prompt has actually cited. A competitor added a moment ago
               appears in neither that table nor anywhere else, so the save read
