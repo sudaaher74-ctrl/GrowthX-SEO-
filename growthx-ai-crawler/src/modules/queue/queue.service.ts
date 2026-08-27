@@ -31,6 +31,28 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   public crawlJobsQueue?: Queue<CrawlJobPayload>;
   public pageFetchQueue?: Queue<PageFetchPayload>;
 
+  private markReady!: () => void;
+
+  /**
+   * Resolves once this service has finished deciding whether Redis is usable —
+   * whether it connected or not.
+   *
+   * Connecting is asynchronous, but a consumer's `onModuleInit` can run before
+   * this one finishes, and QueueModule being `@Global()` means nothing imports
+   * it, so no dependency edge orders the two. CrawlerProcessor read
+   * `getRedisClient()` in that window, found nothing, and returned without ever
+   * starting its BullMQ workers — while the queue finished connecting a moment
+   * later and happily accepted jobs. Crawls were then enqueued into Redis with
+   * no consumer, and `startCrawlJob`'s synchronous fallback was skipped because
+   * by then the queue existed. Jobs sat at PENDING forever, untouched and with
+   * no error to show for it.
+   *
+   * Awaiting this makes the decision deterministic regardless of module order.
+   */
+  readonly ready: Promise<void> = new Promise<void>((resolve) => {
+    this.markReady = resolve;
+  });
+
   async onModuleInit() {
     const redisUrl = process.env.REDIS_URL;
     const host = process.env.REDIS_HOST || 'localhost';
@@ -76,6 +98,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.redisConnection.disconnect();
         this.redisConnection = undefined;
       }
+    } finally {
+      // Released on both paths. A consumer awaiting this must proceed to its
+      // synchronous fallback when Redis is unreachable, not hang the boot.
+      this.markReady();
     }
   }
 

@@ -14,7 +14,13 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
     private readonly crawlerService: CrawlerService
   ) {}
 
-  onModuleInit() {
+  async onModuleInit() {
+    // The queue connects asynchronously and nothing orders these two hooks —
+    // QueueModule is global, so no import edge exists. Reading the client
+    // before that settles is how workers ended up never starting while the
+    // queue went on accepting jobs, leaving crawls enqueued with no consumer.
+    await this.queue.ready;
+
     const redisConnection = this.queue.getRedisClient();
     if (!redisConnection) {
       this.logger.warn('Redis connection unavailable. BullMQ workers will not start; operating in synchronous fallback mode.');
