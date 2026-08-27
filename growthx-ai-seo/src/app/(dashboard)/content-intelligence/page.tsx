@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   Brain, Sparkles, TrendingUp, Eye, Zap, ChevronRight,
   BarChart3, Target, Users, Calendar, Crosshair, Layers,
-  ArrowUpRight, Play, RefreshCw, Settings
+  ArrowUpRight, Play, RefreshCw, Settings, Info
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
@@ -55,6 +55,10 @@ export default function ContentIntelligencePage() {
   });
 
   const stats = dashboard.data?.stats;
+
+  // Every step of the pipeline reads competitor content, so this one number
+  // decides whether it can do anything at all.
+  const needsCompetitors = (stats?.competitorsTracked ?? 0) === 0;
 
   const statCards = [
     { label: "Competitors Tracked", value: stats?.competitorsTracked ?? 0, icon: Crosshair, href: "/content-intelligence/competitors", color: "var(--color-accent-600)" },
@@ -129,6 +133,28 @@ export default function ContentIntelligencePage() {
               <p className="text-[11.5px] text-brand-500">Run each step to build the intelligence layer</p>
             </div>
           </div>
+
+          {/* This layer reads competitor social content, which the site crawl
+              does not produce. With none tracked, all three steps below run
+              correctly and return zero — a result indistinguishable from a
+              broken pipeline unless the page says which input is missing. */}
+          {needsCompetitors && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg px-3.5 py-3" style={{ background: "color-mix(in srgb, var(--color-warning-500) 8%, transparent)" }}>
+              <Info size={14} className="mt-0.5 shrink-0 text-warning-500" />
+              <div className="text-[11.5px] leading-relaxed text-brand-600">
+                <span className="font-semibold text-brand-950">No competitors tracked yet.</span>{" "}
+                These steps analyse competitors&rsquo; social content, which is separate from your site crawl — so
+                they will return zero until there is something to read.{" "}
+                <Link href="/content-intelligence/competitors" className="font-medium text-accent-600 underline underline-offset-2">
+                  Add competitors
+                </Link>{" "}
+                to start.
+                <div className="mt-1.5 text-brand-500">
+                  AI Content Strategy does not need them: it builds from your brand and crawled pages, and works now.
+                </div>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               {
@@ -154,7 +180,8 @@ export default function ContentIntelligencePage() {
                 <p className="mb-3 text-[11px] text-brand-500">{s.desc}</p>
                 <button
                   onClick={() => s.mut.mutate()}
-                  disabled={s.mut.isPending}
+                  disabled={s.mut.isPending || needsCompetitors}
+                  title={needsCompetitors ? "Add competitors first — there is no content to analyse yet." : undefined}
                   className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:opacity-90 disabled:opacity-60"
                   style={{ background: s.color }}
                 >
