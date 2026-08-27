@@ -106,8 +106,11 @@ run_migrations_in_background() {
   echo "Database migrations applied."
 
   # Sequenced behind the migrations rather than backgrounded alongside them:
-  # it reads and writes tables the migrations are responsible for creating.
+  # they read and write tables and columns the migrations are responsible for
+  # creating. Optional in the strict sense — neither may decide whether the API
+  # serves traffic.
   run_optional_step "Membership repair" node scripts/repair-membership.js
+  run_optional_step "Page type backfill" node scripts/backfill-page-types.js
 }
 
 run_migrations_in_background &

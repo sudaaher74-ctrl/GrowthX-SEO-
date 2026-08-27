@@ -5,6 +5,7 @@ import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.
 import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
+import { classifyPageType } from './page-type';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -323,9 +324,15 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         }
 
         // 2. Upsert Page with full metrics
+        // Derived once and written on both paths: a re-crawl that changed a
+        // page's URL shape or headings should re-type it, not keep the old
+        // answer.
+        const pageType = classifyPageType({ url: normUrl, title: htmlData.title, h1: htmlData.h1 });
+
         const page = await this.prisma.page.upsert({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
           update: {
+            pageType,
             finalUrl: fetchRes.finalUrl,
             statusCode: fetchRes.statusCode,
             responseTimeMs: fetchRes.responseTimeMs,
@@ -346,6 +353,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           create: {
             crawlJobId: payload.jobId,
             url: normUrl,
+            pageType,
             finalUrl: fetchRes.finalUrl,
             statusCode: fetchRes.statusCode,
             responseTimeMs: fetchRes.responseTimeMs,

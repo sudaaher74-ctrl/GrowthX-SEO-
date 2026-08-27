@@ -88,6 +88,11 @@ model Page {
   duplicateScore  Float        @default(0)
   contentHash     String?
   simHash         String?
+  /// HOME | SERVICE | PRODUCT | LOCATION | BLOG | CASE_STUDY | FAQ | ABOUT |
+  /// CONTACT | LEGAL | OTHER. Derived from the URL and headings at crawl time.
+  /// Every gap comparison counts pages by kind, so this is what makes "they
+  /// have 24 service pages you do not" answerable rather than a URL total.
+  pageType        String       @default("OTHER")
   htmlSnapshotUrl String?
   screenshotUrl   String?
   crawledAt       DateTime     @default(now())
@@ -101,6 +106,7 @@ model Page {
 
   @@unique([crawlJobId, url])
   @@index([crawlJobId, statusCode])
+  @@index([crawlJobId, pageType])
   @@index([url])
   @@index([contentHash])
 }
