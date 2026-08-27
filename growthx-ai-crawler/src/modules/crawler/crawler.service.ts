@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
@@ -18,10 +18,19 @@ import { CrawlerGateway } from '../socket/crawler.gateway';
 import * as url from 'url';
 
 @Injectable()
-export class CrawlerService {
+export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CrawlerService.name);
   private readonly localVisited = new Map<string, Set<string>>();
   private readonly jobSitemapUrls = new Map<string, Set<string>>();
+
+  /**
+   * How long a job may go without recording a page before it is treated as
+   * abandoned. Comfortably longer than a slow page fetch plus its retries, so a
+   * crawl that is merely slow is never cut short.
+   */
+  private static readonly STALL_TIMEOUT_MS = 5 * 60 * 1000;
+  private static readonly STALL_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
+  private stallSweep?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -44,6 +53,80 @@ export class CrawlerService {
   /**
    * Initiates a new crawl job for a verified website
    */
+  onModuleInit(): void {
+    // Swept immediately as well as on a timer: a restart is the single most
+    // likely reason for an abandoned job, and the jobs it abandoned should not
+    // wait out a full interval before being cleared.
+    void this.finalizeStalledJobs();
+    this.stallSweep = setInterval(() => {
+      void this.finalizeStalledJobs();
+    }, CrawlerService.STALL_SWEEP_INTERVAL_MS);
+    // Do not hold the process open on this timer alone.
+    this.stallSweep.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.stallSweep) clearInterval(this.stallSweep);
+  }
+
+  /**
+   * Closes out crawls that stopped making progress and will never close
+   * themselves.
+   *
+   * A job finishes when its pending-task counter reaches zero, decremented as
+   * each page is processed. Nothing decrements it for work that is never
+   * processed — a container restart mid-crawl, a page-fetch job dropped from
+   * the queue — so the counter stays above zero, `completeJob` is never
+   * reached, and the job sits at RUNNING permanently. The UI reads the most
+   * recent COMPLETED crawl, so one lost page keeps a whole crawl invisible and
+   * the site reads "crawl never" while its pages sit in the database.
+   *
+   * Anything that has recorded no page for STALL_TIMEOUT_MS is therefore
+   * finalised on the evidence already stored: COMPLETED when it crawled
+   * something, since those pages and issues are real and worth showing, and
+   * FAILED when it never got started. The count on the job stays exactly what
+   * was crawled, so a partial crawl is never reported as more than it was.
+   *
+   * Only jobs idle beyond the timeout are touched, so a second instance's live
+   * crawl is never finalised out from under it.
+   */
+  private async finalizeStalledJobs(): Promise<void> {
+    const idleSince = new Date(Date.now() - CrawlerService.STALL_TIMEOUT_MS);
+
+    try {
+      const stalled = await this.prisma.crawlJob.findMany({
+        where: { status: { in: ['RUNNING', 'PENDING'] }, updatedAt: { lt: idleSince } },
+        select: { id: true, pagesCrawled: true, status: true },
+      });
+      if (stalled.length === 0) return;
+
+      this.logger.warn(
+        `Found ${stalled.length} crawl job(s) with no progress since ${idleSince.toISOString()}; finalising them.`,
+      );
+
+      for (const job of stalled) {
+        try {
+          if (job.pagesCrawled > 0) {
+            // completeJob runs the graph analysis and flips the status, so the
+            // crawl surfaces with exactly the pages it managed to record.
+            await this.completeJob(job.id);
+          } else {
+            await this.prisma.crawlJob.update({
+              where: { id: job.id },
+              data: { status: 'FAILED', finishedAt: new Date() },
+            });
+            this.logger.warn(`[JOB ${job.id}] Abandoned before any page was crawled; marked FAILED.`);
+          }
+        } catch (error) {
+          this.logger.error(`[JOB ${job.id}] Could not finalise stalled crawl job`, error);
+        }
+      }
+    } catch (error) {
+      // A sweep failure must never disturb crawling itself.
+      this.logger.error('Stalled crawl job sweep failed', error);
+    }
+  }
+
   async startCrawlJob(websiteId: string, options: { maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean } = {}): Promise<string> {
     const website = await this.prisma.website.findUnique({ where: { id: websiteId } });
     if (!website) {
