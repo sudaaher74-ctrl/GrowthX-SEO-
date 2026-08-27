@@ -4,25 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Sparkles, RefreshCw, Check, Clock, Cpu, AlertCircle, Info } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { ApiError, api, type ContentStrategy } from "@/lib/api-client";
+import { api, type ContentStrategy } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
-
-/**
- * Turns a failed request into something the operator can act on.
- *
- * Generation reaches a model through a provider chain, so the useful part of a
- * failure is the backend's own message ("no provider configured", "all
- * providers failed"). Every failure on this page used to be swallowed, leaving
- * the empty state on screen as though nothing had been clicked.
- */
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.isUpgradeRequired) return "Your plan does not include AI content strategy. Upgrade to generate one.";
-    if (error.status === 0) return "Could not reach the GrowthX API. Check your connection and try again.";
-    return error.message;
-  }
-  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
-}
+import { errorMessage } from "@/lib/error-message";
 
 function ErrorBanner({ title, error, onRetry }: { title: string; error: unknown; onRetry?: () => void }) {
   return (

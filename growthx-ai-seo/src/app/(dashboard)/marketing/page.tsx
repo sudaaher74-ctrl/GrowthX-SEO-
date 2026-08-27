@@ -18,6 +18,7 @@ import {
 import { Lightbulb, Calendar, Target, Megaphone, Loader2, Sparkles, CheckCircle2, ArrowRight, Award, Zap } from "lucide-react";
 import { useWorkspace, useStrategies, useStrategy, useContentPieces, useOutreach, useGenerateStrategy, usePlanContent } from "@/hooks/use-growthx";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/error-message";
 
 export default function MarketingPage() {
   const { projectId } = useWorkspace();
@@ -30,7 +31,9 @@ export default function MarketingPage() {
   const planContent = usePlanContent(projectId);
 
   const [activeTab, setActiveTab] = useState("strategy");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Tone travels with the text. Every outcome used to render through the
+  // default "good" styling, so a failure arrived as a green success note.
+  const [status, setStatus] = useState<{ text: string; tone: "good" | "bad" } | null>(null);
 
   const tabs = [
     { id: "strategy", label: "Marketing Strategy", icon: Lightbulb },
@@ -41,27 +44,33 @@ export default function MarketingPage() {
 
   const handleGenerateStrategy = async () => {
     if (!projectId) return;
-    setStatusMessage(null);
+    setStatus(null);
     try {
       await generateStrategy.mutateAsync();
       await strategies.refetch();
       await report.refetch();
-      setStatusMessage("AI Marketing Strategy generated successfully!");
+      setStatus({ text: "AI Marketing Strategy generated successfully!", tone: "good" });
     } catch (err) {
       console.error(err);
-      setStatusMessage("Failed to generate strategy. (Ensure site has been crawled)");
+      // This used to read "Ensure site has been crawled" for every failure,
+      // whatever it was — so a crawled site hitting a model or provider error
+      // was told to go and crawl. The backend already explains itself; show it.
+      setStatus({ text: errorMessage(err), tone: "bad" });
     }
   };
 
   const handlePlanContent = async () => {
     if (!projectId) return;
-    setStatusMessage(null);
+    setStatus(null);
     try {
       await planContent.mutateAsync();
       await contentPieces.refetch();
-      setStatusMessage("New content campaign planned!");
+      setStatus({ text: "New content campaign planned!", tone: "good" });
     } catch (err) {
       console.error(err);
+      // Previously logged to the console and nothing else: the button simply
+      // did nothing.
+      setStatus({ text: errorMessage(err), tone: "bad" });
     }
   };
 
@@ -92,8 +101,8 @@ export default function MarketingPage() {
         }
       />
 
-      {statusMessage && (
-        <StatusNote>{statusMessage}</StatusNote>
+      {status && (
+        <StatusNote tone={status.tone}>{status.text}</StatusNote>
       )}
 
       <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
