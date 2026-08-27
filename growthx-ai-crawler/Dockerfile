@@ -50,6 +50,18 @@ COPY --from=deps --chown=node:node /app/node_modules/@prisma/engines ./node_modu
 COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
+# Crawl snapshots are written here at runtime, by the `node` user set below.
+#
+# `WORKDIR /app` creates /app as root, and `COPY --chown` only sets ownership on
+# what it copies — not on the directory itself — so /app stays root-owned and
+# mode 755. StorageService's own recursive mkdir then fails with EACCES, which
+# it logs as a warning and continues past, and every snapshot write afterwards
+# fails with ENOENT against a directory that was never created.
+#
+# Creating it here with the right owner is what makes the runtime mkdir a no-op
+# rather than a permission error.
+RUN mkdir -p /app/storage/snapshots && chown -R node:node /app/storage
+
 # Install Playwright chromium browser for dynamic SPA rendering
 # Setting PLAYWRIGHT_BROWSERS_PATH guarantees they are cached securely
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
