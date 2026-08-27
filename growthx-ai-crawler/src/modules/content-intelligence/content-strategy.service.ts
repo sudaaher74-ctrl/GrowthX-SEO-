@@ -81,7 +81,7 @@ export class ContentStrategyService {
 
   /** Generate a content strategy from patterns, gaps, and project context. */
   async generateStrategy(projectId: string, organizationId: string) {
-    const [patterns, gaps, config, project, topOwnedPosts, topCompetitorPosts] = await Promise.all([
+    const [patterns, gaps, config, project, topOwnedPosts, topCompetitorPosts, crawledPages] = await Promise.all([
       this.prisma.creativePattern.findMany({ where: { organizationId, projectId }, orderBy: { marketSaturation: 'desc' }, take: 20 }),
       this.prisma.contentGap.findMany({ where: { organizationId, projectId, status: 'OPEN' }, orderBy: { opportunityScore: 'desc' }, take: 15 }),
       this.prisma.contentIntelligenceConfig.findUnique({ where: { projectId } }),
@@ -93,6 +93,16 @@ export class ContentStrategyService {
       this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: false }, orderBy: { engagementRate: 'desc' }, take: 10 }),
       // Fetch top 10 competitor posts across all platforms
       this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: true }, orderBy: { engagementRate: 'desc' }, take: 10 }),
+      // What the brand actually says it does, taken from its own crawled pages.
+      // Without this the model has a name and a domain to work from and infers
+      // the rest: a probe against a fresh-milk brand produced a strategy for a
+      // food delivery app, which is confidently wrong rather than merely thin.
+      this.prisma.page.findMany({
+        where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
+        select: { url: true, title: true, metaDescription: true, h1: true },
+        orderBy: { crawledAt: 'desc' },
+        take: 60,
+      }),
     ]);
 
     if (!project) throw new BadRequestException('That project no longer exists.');
@@ -104,13 +114,33 @@ export class ContentStrategyService {
     // What the strategy is actually built on. Recorded alongside the document
     // so the UI can say which inputs were available rather than presenting a
     // cold-start strategy as if it were competitive analysis.
+    // Many pages on a site repeat one title — a shared homepage tag, a
+    // paginated listing — so the raw list is mostly duplicates and would crowd
+    // the genuinely distinct pages out of the prompt.
+    const seenTitles = new Set<string>();
+    const distinctPages = crawledPages
+      .filter((page) => {
+        const key = (page.title ?? '').trim().toLowerCase();
+        if (!key || seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      })
+      .slice(0, 15);
+
     const dataBasis = {
       patterns: patterns.length,
       gaps: gaps.length,
       ownedPosts: topOwnedPosts.length,
       competitorPosts: topCompetitorPosts.length,
+      crawledPages: distinctPages.length,
     };
-    const hasEvidence = Object.values(dataBasis).some((count) => count > 0);
+    // Crawled pages say what the brand is; they say nothing about its market.
+    // Only competitive inputs decide whether a differentiation strategy can be
+    // asked for, so a freshly crawled site with no competitor data still gets
+    // the foundational treatment — grounded in its real business rather than in
+    // a guess at it.
+    const hasEvidence =
+      patterns.length > 0 || gaps.length > 0 || topOwnedPosts.length > 0 || topCompetitorPosts.length > 0;
 
     const post = (p: (typeof topOwnedPosts)[number]) =>
       `- [${p.platform}] ${p.authorHandle}: "${p.content ?? ''}" | Engagement: ${p.engagementRate?.toFixed(2) ?? 'n/a'}% | Likes: ${p.likes}`;
@@ -121,6 +151,17 @@ export class ContentStrategyService {
       `Industry Skill: ${skill}`,
       industryContext || null,
       '',
+      this.section(
+        "WHAT THE BRAND SAYS IT DOES (from its own crawled pages)",
+        distinctPages.map((page) => {
+          const heading = page.h1?.[0]?.trim();
+          return [
+            `- ${page.title?.trim()}`,
+            page.metaDescription?.trim() ? ` | ${page.metaDescription.trim()}` : '',
+            heading && heading !== page.title?.trim() ? ` | H1: ${heading}` : '',
+          ].join('');
+        }),
+      ),
       this.section(
         'COMPETITOR CREATIVE PATTERNS (sorted by saturation)',
         patterns.map((p) => `- "${p.name}": Saturation ${p.marketSaturation}/100, Opportunity ${p.opportunityScore}/100`),
@@ -144,6 +185,10 @@ export class ContentStrategyService {
           'campaign concepts, and hooks that suit this kind of business. State no statistics, market ' +
           'shares, or competitor claims of any kind — you have no data to ground them in. Frame the ' +
           'campaign ideas as starting positions to validate once competitive data is collected.',
+      distinctPages.length
+        ? 'Read the crawled pages above as the authority on what this business actually sells and to whom. ' +
+          'Do not infer the sector from the brand name; the pages say what it is.'
+        : null,
       'The strategy must be specific to this brand\'s industry and goals.',
     ]
       .filter((line) => line !== null)

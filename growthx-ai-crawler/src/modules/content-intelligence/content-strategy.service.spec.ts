@@ -55,6 +55,7 @@ describe('ContentStrategyService', () => {
         findUnique: jest.fn().mockResolvedValue({ name: 'milquufresh', websites: [{ domain: 'milquufresh.in' }] }),
       },
       socialPost: { findMany: jest.fn().mockResolvedValue([]) },
+      page: { findMany: jest.fn().mockResolvedValue([]) },
       contentStrategy: {
         create: jest.fn().mockImplementation(({ data }: any) => {
           created = data;
@@ -99,7 +100,7 @@ describe('ContentStrategyService', () => {
     expect(prompt).toContain('None recorded yet.');
     expect(prompt).toContain('No competitor patterns, gaps, or social posts have been collected');
     expect(created.title).toContain('Foundational');
-    expect(created.content.dataBasis).toEqual({ patterns: 0, gaps: 0, ownedPosts: 0, competitorPosts: 0 });
+    expect(created.content.dataBasis).toEqual({ patterns: 0, gaps: 0, ownedPosts: 0, competitorPosts: 0, crawledPages: 0 });
   });
 
   it('asks for a gap-driven strategy once there is evidence to work from', async () => {
@@ -207,5 +208,57 @@ describe('ContentStrategyService', () => {
     expect(created.contentPillars).toEqual([
       { pillar: 'PRODUCT', percentage: 100, rationale: 'Core range.', topics: undefined },
     ]);
+  });
+  it('tells the model what the business is, from its own crawled pages', async () => {
+    // Without this the prompt carries a name and a domain, and the model infers
+    // the sector: a probe against a fresh-milk brand produced a strategy for a
+    // food delivery app.
+    prisma.page.findMany.mockResolvedValue([
+      {
+        url: 'https://aivaenterprises.com/',
+        title: 'Premium Fruit Pulp Exporter India | AIVA Enterprises',
+        metaDescription: 'AIVA Enterprises exports premium aseptic fruit pulps and purees.',
+        h1: ['Aseptic Fruit Pulp Export'],
+      },
+    ]);
+
+    await service.generateStrategy(PROJ, ORG);
+
+    const { prompt } = router.generate.mock.calls[0][0];
+    expect(prompt).toContain('Premium Fruit Pulp Exporter India');
+    expect(prompt).toContain('aseptic fruit pulps');
+    expect(prompt).toContain('H1: Aseptic Fruit Pulp Export');
+    expect(prompt).toContain('Do not infer the sector from the brand name');
+    expect(created.content.dataBasis.crawledPages).toBe(1);
+  });
+
+  it('collapses repeated titles so one shared tag cannot crowd out the rest', async () => {
+    const shared = { title: 'AIVA Enterprises', metaDescription: 'Exporter.', h1: [], url: 'https://x/1' };
+    prisma.page.findMany.mockResolvedValue([
+      shared,
+      { ...shared, url: 'https://x/2' },
+      { ...shared, url: 'https://x/3' },
+      { title: 'Alphonso Mango Pulp', metaDescription: 'Product page.', h1: [], url: 'https://x/4' },
+    ]);
+
+    await service.generateStrategy(PROJ, ORG);
+
+    const { prompt } = router.generate.mock.calls[0][0];
+    expect(prompt.match(/- AIVA Enterprises/g) ?? []).toHaveLength(1);
+    expect(prompt).toContain('Alphonso Mango Pulp');
+    expect(created.content.dataBasis.crawledPages).toBe(2);
+  });
+
+  it('still treats a crawled site with no competitor data as a foundational strategy', async () => {
+    // Crawled pages say what the brand is; they say nothing about its market.
+    prisma.page.findMany.mockResolvedValue([
+      { title: 'Fruit Pulp Exporter', metaDescription: null, h1: [], url: 'https://x/1' },
+    ]);
+
+    await service.generateStrategy(PROJ, ORG);
+
+    expect(created.title).toContain('Foundational');
+    const { prompt } = router.generate.mock.calls[0][0];
+    expect(prompt).toContain('No competitor patterns, gaps, or social posts have been collected');
   });
 });
