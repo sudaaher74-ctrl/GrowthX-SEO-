@@ -77,6 +77,40 @@ export default function MarketingPage() {
   const isLoading = strategies.isLoading || report.isLoading || contentPieces.isLoading || outreach.isLoading;
   const strategyContent = report.data?.content;
   const pieces = contentPieces.data ?? [];
+
+  // Where each piece stands, so the planner reads as a pipeline rather than a
+  // flat list. COMMITTED and PUBLISHED both mean the page exists on the site.
+  const pipeline = {
+    planned: pieces.filter((p) => p.status === "PLANNED").length,
+    drafted: pieces.filter((p) => p.status === "DRAFTED").length,
+    live: pieces.filter((p) => p.status === "COMMITTED" || p.status === "PUBLISHED").length,
+  };
+
+  // The strategy's roadmap arrives as a flat list carrying a horizon per item.
+  // Grouping it is what turns "13 actions" into a sequence someone can work
+  // through. Unrecognised horizons keep their own bucket rather than being
+  // dropped, and the order below is the order they are worked in.
+  const HORIZON_ORDER = ["DAYS_30", "DAYS_60", "DAYS_90", "QUARTER_2", "YEAR_1"];
+  const HORIZON_LABEL: Record<string, string> = {
+    DAYS_30: "First 30 days",
+    DAYS_60: "Days 30–60",
+    DAYS_90: "Days 60–90",
+    QUARTER_2: "Next quarter",
+    YEAR_1: "This year",
+  };
+  const roadmap = strategyContent?.seoRoadmap ?? [];
+  const phases = Array.from(new Set(roadmap.map((r) => r.horizon)))
+    .sort((a, b) => {
+      const ia = HORIZON_ORDER.indexOf(a);
+      const ib = HORIZON_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    })
+    .map((horizon) => ({
+      horizon,
+      label: HORIZON_LABEL[horizon] ?? horizon.replace(/_/g, " ").toLowerCase(),
+      items: roadmap.filter((r) => r.horizon === horizon),
+    }));
+
   const campaigns = outreach.data ?? [];
   const totalSent = campaigns.reduce((acc, c) => acc + c.sentCount, 0);
   const totalReplies = campaigns.reduce((acc, c) => acc + c.replyCount, 0);
@@ -215,36 +249,112 @@ export default function MarketingPage() {
                     </Button>
                   </div>
 
-                  <Panel title="Content Campaign Planner" subtitle={`${pieces.length} active campaigns planned`}>
+                  {pieces.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <Kpi label="Planned" value={String(pipeline.planned)} sub="brief written, page not yet drafted" />
+                      <Kpi label="Drafted" value={String(pipeline.drafted)} sub="copy written, awaiting review" />
+                      <Kpi label="Live" value={String(pipeline.live)} sub="committed or published to the site" tone={pipeline.live > 0 ? "good" : "default"} />
+                    </div>
+                  )}
+
+                  {/* The roadmap already exists on the strategy, carrying a horizon,
+                      effort, impact and owner per action. None of it reached this
+                      tab, so a planner built from it read as four columns of
+                      titles with no plan attached. */}
+                  <Panel
+                    title="Execution roadmap"
+                    subtitle={phases.length ? "What to work through, in order, and why each step earns its place" : undefined}
+                  >
+                    {!phases.length ? (
+                      <div className="p-8 text-center text-xs text-[var(--text-muted)]">
+                        No roadmap yet. Generate an AI strategy on the Marketing Strategy tab — the phases below are
+                        built from your own crawl and visibility data, not from a template.
+                      </div>
+                    ) : (
+                      <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
+                        {phases.map((phase, phaseIndex) => (
+                          <div key={phase.horizon} className="px-5 py-4">
+                            <div className="mb-3 flex items-center gap-2">
+                              <span
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold text-brand-700"
+                                aria-hidden
+                              >
+                                {phaseIndex + 1}
+                              </span>
+                              <h4 className="text-[13px] font-semibold capitalize text-brand-950">{phase.label}</h4>
+                              <span className="text-[11px] text-brand-500">
+                                {phase.items.length} {phase.items.length === 1 ? "action" : "actions"}
+                              </span>
+                            </div>
+                            <ol className="space-y-3">
+                              {phase.items.map((item, i) => (
+                                <li key={`${phase.horizon}-${i}`} className="rounded-lg border p-3" style={{ borderColor: "var(--color-brand-100)" }}>
+                                  <div className="text-[13px] font-medium text-brand-950">{item.action}</div>
+                                  {item.why && <p className="mt-1 text-[12px] leading-relaxed text-brand-600">{item.why}</p>}
+                                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                    {item.effort && <Pill tone="default">{item.effort} effort</Pill>}
+                                    {(item.impact ?? item.expectedImpact) && (
+                                      <Pill tone="info">{item.impact ?? item.expectedImpact} impact</Pill>
+                                    )}
+                                    {item.owner && <Pill tone="default">{item.owner}</Pill>}
+                                  </div>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
+
+                  <Panel
+                    title="Content Campaign Planner"
+                    subtitle={pieces.length ? `${pieces.length} ${pieces.length === 1 ? "campaign" : "campaigns"} planned, each with the reasoning it came from` : undefined}
+                  >
                     {pieces.length === 0 ? (
                       <div className="p-8 text-center text-xs text-[var(--text-muted)]">
                         No content campaigns planned for this project yet. Use &ldquo;Plan New Content Campaign&rdquo; above to create one.
                       </div>
                     ) : (
-                      <Table minWidth={700}>
-                        <thead>
-                          <tr>
-                            <Th>Campaign Title</Th>
-                            <Th>Target Query</Th>
-                            <Th>Format</Th>
-                            <Th>Status</Th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pieces.map((piece) => (
-                            <Tr key={piece.id}>
-                              <Td><span className="font-medium text-brand-950">{piece.title}</span></Td>
-                              <Td><Mono tone="soft">{piece.targetQuery || "N/A"}</Mono></Td>
-                              <Td><span className="text-[13px] text-brand-700">{piece.format || "Blog Post"}</span></Td>
-                              <Td>
-                                <Pill tone={piece.status === "PUBLISHED" ? "good" : piece.status === "PLANNED" ? "info" : "warn"}>
-                                  {piece.status}
-                                </Pill>
-                              </Td>
-                            </Tr>
-                          ))}
-                        </tbody>
-                      </Table>
+                      <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
+                        {pieces.map((piece) => (
+                          <div key={piece.id} className="px-5 py-4">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-medium text-brand-950">{piece.title}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-brand-500">
+                                  <span>{piece.format || "Blog Post"}</span>
+                                  {piece.targetQuery && (
+                                    <span className="flex items-center gap-1">
+                                      ranking for <Mono tone="soft">{piece.targetQuery}</Mono>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <Pill tone={piece.status === "PUBLISHED" || piece.status === "COMMITTED" ? "good" : piece.status === "PLANNED" ? "info" : "warn"}>
+                                {piece.status}
+                              </Pill>
+                            </div>
+
+                            {/* Stored on every piece since it was planned, and never
+                                once shown — it is the whole answer to "why this page". */}
+                            {piece.rationale && (
+                              <p className="mt-2.5 text-[12px] leading-relaxed text-brand-600">{piece.rationale}</p>
+                            )}
+
+                            {piece.metaDescription && (
+                              <p className="mt-2 rounded-lg bg-brand-100 px-3 py-2 text-[11px] italic text-brand-600">
+                                {piece.metaDescription}
+                              </p>
+                            )}
+
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-brand-400">
+                              {piece.filePath && <Mono tone="soft">{piece.filePath}</Mono>}
+                              {piece.status === "PLANNED" && <span>Next: draft the page.</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </Panel>
                 </div>
