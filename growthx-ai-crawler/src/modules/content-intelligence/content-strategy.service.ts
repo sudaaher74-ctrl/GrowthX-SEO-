@@ -162,9 +162,9 @@ export class ContentStrategyService {
     if (!result.text?.trim()) throw new BadRequestException('Strategy generation failed. Please retry.');
 
     const parsed = this.parseJson(result.text);
+    const contentPillars = this.normalizePillars(parsed.contentPillars, projectId);
 
-    // Validate pillars sum to ~100
-    const sum = (parsed.contentPillars ?? []).reduce((a: number, p: any) => a + (p.percentage ?? 0), 0);
+    const sum = contentPillars.reduce((a, p) => a + p.percentage, 0);
     if (Math.abs(sum - 100) > 5) {
       this.logger.warn(`Pillar percentages sum to ${sum} for project ${projectId}`);
     }
@@ -174,8 +174,8 @@ export class ContentStrategyService {
         organizationId,
         projectId,
         title: `${hasEvidence ? 'Content Strategy' : 'Foundational Content Strategy'} — ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`,
-        content: { ...parsed, dataBasis },
-        contentPillars: parsed.contentPillars ?? [],
+        content: { ...parsed, contentPillars, dataBasis },
+        contentPillars,
         platformFrequency: this.toFrequencyMap(parsed.platformFrequency),
         campaignIdeas: parsed.campaignIdeas ?? [],
         creatorStrategy: parsed.creatorStrategy,
@@ -187,6 +187,62 @@ export class ContentStrategyService {
 
     this.logger.log(`Generated content strategy ${strategy.id} for project ${projectId}`);
     return strategy;
+  }
+
+  /**
+   * Forces the pillars into the shape the column and the UI rely on.
+   *
+   * Only Anthropic, Gemini and OpenAI have the schema enforced for them. The
+   * providers actually configured here — Sarvam, Groq, OpenRouter — are asked
+   * for it in prose, so a field can come back in the wrong shape while the
+   * document still parses. Observed in production: a pillar arrived with its
+   * rationale written into `percentage` and `rationale` left null, which reached
+   * the chart as a paragraph where a number belonged and rendered as
+   * "<entire paragraph>%".
+   *
+   * A percentage that is not a usable number is therefore not trusted. Text
+   * found there is recovered as the rationale when the rationale is missing —
+   * it is the sentence the model meant to write — and the unaccounted share is
+   * split across the pillars left without a figure, so the set still sums to
+   * roughly 100 and the donut stays readable.
+   */
+  private normalizePillars(
+    raw: unknown,
+    projectId: string,
+  ): { pillar: string; percentage: number; rationale: string; topics?: string[] }[] {
+    const rows = Array.isArray(raw) ? raw : [];
+
+    const cleaned = rows
+      .map((p: any) => {
+        const value = Number(p?.percentage);
+        const usable = Number.isFinite(value) && value >= 0 && value <= 100;
+        const strayText =
+          !usable && typeof p?.percentage === 'string' ? p.percentage.trim() : '';
+
+        return {
+          pillar: String(p?.pillar ?? '').trim(),
+          percentage: usable ? Math.round(value) : null,
+          rationale: String(p?.rationale ?? '').trim() || strayText,
+          topics: Array.isArray(p?.topics) ? p.topics.map(String) : undefined,
+        };
+      })
+      .filter((p) => p.pillar);
+
+    const missing = cleaned.filter((p) => p.percentage === null);
+    if (missing.length) {
+      this.logger.warn(
+        `${missing.length} of ${cleaned.length} content pillars came back without a usable ` +
+          `percentage for project ${projectId} (${missing.map((p) => p.pillar).join(', ')}); ` +
+          'sharing the remainder between them.',
+      );
+      const claimed = cleaned.reduce((a, p) => a + (p.percentage ?? 0), 0);
+      const share = Math.max(0, Math.round((100 - claimed) / missing.length));
+      missing.forEach((p) => {
+        p.percentage = share;
+      });
+    }
+
+    return cleaned as { pillar: string; percentage: number; rationale: string; topics?: string[] }[];
   }
 
   /** A prompt section, with the empty case said out loud rather than left blank. */

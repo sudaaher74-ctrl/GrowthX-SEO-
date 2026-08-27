@@ -168,4 +168,44 @@ describe('ContentStrategyService', () => {
       realRouter.generate({ prompt: 'p', jsonSchema: { type: 'object' }, task: RealTask.REASONING }),
     ).rejects.toThrow(/unparseable JSON/);
   });
+  it('rescues a pillar whose percentage came back as its rationale', async () => {
+    // The exact shape sarvam-105b returned in production: PROMOTIONAL carried
+    // the rationale text in `percentage` and null in `rationale`, which reached
+    // the donut as a string and rendered as "<paragraph>%".
+    const promotionalRationale =
+      'Promotional content is intentionally kept low to avoid appearing sales-heavy at launch.';
+    router.generate.mockResolvedValue({
+      model: 'sarvam-105b',
+      text: JSON.stringify({
+        ...modelAnswer,
+        contentPillars: [
+          { pillar: 'PRODUCT', percentage: 25, rationale: 'Core range.' },
+          { pillar: 'EDUCATIONAL', percentage: 35, rationale: 'Teach first.' },
+          { pillar: 'LIFESTYLE', percentage: 20, rationale: 'Show the day.' },
+          { pillar: 'PROMOTIONAL', percentage: promotionalRationale, rationale: null },
+          { pillar: 'CREATOR', percentage: 5, rationale: 'Borrow trust.' },
+        ],
+      }),
+    });
+
+    await service.generateStrategy(PROJ, ORG);
+
+    const pillars = created.contentPillars;
+    // Every percentage must be a number, or the chart cannot plot it.
+    pillars.forEach((p: any) => expect(typeof p.percentage).toBe('number'));
+
+    const promotional = pillars.find((p: any) => p.pillar === 'PROMOTIONAL');
+    // The stray text is the sentence the model meant as the rationale.
+    expect(promotional.rationale).toBe(promotionalRationale);
+    // 25+35+20+5 = 85 claimed, so the one pillar without a figure takes 15.
+    expect(promotional.percentage).toBe(15);
+    expect(pillars.reduce((a: number, p: any) => a + p.percentage, 0)).toBe(100);
+  });
+
+  it('keeps well-formed pillars exactly as the model wrote them', async () => {
+    await service.generateStrategy(PROJ, ORG);
+    expect(created.contentPillars).toEqual([
+      { pillar: 'PRODUCT', percentage: 100, rationale: 'Core range.', topics: undefined },
+    ]);
+  });
 });
