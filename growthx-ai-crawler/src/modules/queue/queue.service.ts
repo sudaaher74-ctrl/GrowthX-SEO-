@@ -11,6 +11,8 @@ export interface CrawlJobPayload {
   maxDepth: number;
   rateLimitDelayMs: number;
   useSitemap: boolean;
+  /** Ceiling on pages fetched. Undefined means no ceiling. */
+  pageLimit?: number;
 }
 
 export interface PageFetchPayload {
@@ -22,6 +24,8 @@ export interface PageFetchPayload {
   depth: number;
   maxDepth: number;
   rateLimitDelayMs: number;
+  /** Ceiling on pages fetched by the whole job. Undefined means no ceiling. */
+  pageLimit?: number;
 }
 
 @Injectable()

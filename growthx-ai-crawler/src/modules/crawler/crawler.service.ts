@@ -128,7 +128,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async startCrawlJob(websiteId: string, options: { maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean } = {}): Promise<string> {
+  async startCrawlJob(
+    websiteId: string,
+    options: {
+      maxConcurrency?: number;
+      maxDepth?: number;
+      useSitemap?: boolean;
+      /** Ceiling on pages fetched. Omitted means no ceiling. */
+      pageLimit?: number;
+      /** Slowest of this and the site's own setting wins, so a caller can be
+       *  politer than the site's configuration but never ruder. */
+      rateLimitDelayMs?: number;
+    } = {}
+  ): Promise<string> {
     const website = await this.prisma.website.findUnique({ where: { id: websiteId } });
     if (!website) {
       throw new NotFoundException(`Website with ID ${websiteId} not found`);
@@ -140,6 +152,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         status: 'PENDING',
         concurrency: options.maxConcurrency || website.maxConcurrency || 5,
         depthLimit: options.maxDepth || website.maxDepth || 10,
+        pageLimit: options.pageLimit ?? null,
         startedAt: new Date(),
       },
     });
@@ -156,8 +169,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       startUrl,
       maxConcurrency: job.concurrency,
       maxDepth: job.depthLimit,
-      rateLimitDelayMs: website.rateLimitDelayMs || 500,
+      rateLimitDelayMs: Math.max(website.rateLimitDelayMs || 500, options.rateLimitDelayMs ?? 0),
       useSitemap: options.useSitemap !== false,
+      pageLimit: job.pageLimit ?? undefined,
     };
 
     this.logger.log(`Created crawl job ${job.id} for ${website.domain}. Dispatching to queue...`);
@@ -219,6 +233,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           depth: 0,
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: delayMs,
+          pageLimit: payload.pageLimit,
         }, 0);
       }
     } 
@@ -238,6 +253,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           depth: 0,
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: delayMs,
+          pageLimit: payload.pageLimit,
         });
       }
 
@@ -285,7 +301,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     try {
       const normUrl = this.normalizeUrl(payload.targetUrl);
 
-      const isVisited = await this.markUrlVisited(payload.jobId, normUrl);
+      const isVisited = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
       if (isVisited) {
         return;
       }
@@ -477,6 +493,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           depth: payload.depth + 1,
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: payload.rateLimitDelayMs,
+          pageLimit: payload.pageLimit,
         };
         
         if (this.queue.pageFetchQueue) {
@@ -491,11 +508,27 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async markUrlVisited(jobId: string, targetUrl: string): Promise<boolean> {
+  /**
+   * Claims a URL for this job, returning true when it must not be fetched.
+   *
+   * Every fetch passes through here in both the Redis and in-memory paths,
+   * which is why the page ceiling is enforced here rather than at each of the
+   * places that enqueue work. A cap checked at enqueue time would not hold:
+   * links are discovered while the crawl runs, so the only number that can be
+   * trusted is the count of URLs already claimed.
+   *
+   * Under concurrency the count can be read by several workers before any of
+   * them adds, so a job may overshoot its ceiling by up to the worker count.
+   * That is deliberate — the alternative is a Lua script or a lock on the hot
+   * path of every fetch, and a handful of extra pages on a cap of a few
+   * hundred is not worth either.
+   */
+  private async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<boolean> {
     const redisClient = this.queue.getRedisClient();
     const key = `job:${jobId}:visited`;
 
     if (redisClient) {
+      if (pageLimit && (await redisClient.scard(key)) >= pageLimit) return true;
       const added = await redisClient.sadd(key, targetUrl);
       if (added === 1) {
         await redisClient.expire(key, 86400);
@@ -509,6 +542,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       visitedSet = new Set<string>();
       this.localVisited.set(jobId, visitedSet);
     }
+    if (pageLimit && visitedSet.size >= pageLimit) return true;
     if (visitedSet.has(targetUrl)) return true;
     visitedSet.add(targetUrl);
     return false;

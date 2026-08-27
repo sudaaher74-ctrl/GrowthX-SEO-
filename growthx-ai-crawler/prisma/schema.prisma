@@ -41,6 +41,15 @@ model Website {
   projectId         String?
   crawlJobs         CrawlJob[]
   project           Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Competitors, across any project, whose domain this is.
+  ///
+  /// A competitor's site is stored with projectId left null. That is what
+  /// keeps it out of the customer's own analysis for free: every query that
+  /// reads a project's pages filters on `website.projectId`, so a null one
+  /// can never be mistaken for the customer's own content. Marking it with a
+  /// flag instead would have made correctness depend on remembering to
+  /// exclude it in a dozen places.
+  competitors       CompetitorDomain[]
 
   @@index([domain])
   @@index([isVerified, crawlFrequency])
@@ -54,6 +63,11 @@ model CrawlJob {
   issuesFound    Int             @default(0)
   concurrency    Int             @default(5)
   depthLimit     Int             @default(10)
+  /// Hard ceiling on pages fetched by this job. Null means no ceiling, which
+  /// is the right answer for a customer's own site and the wrong one for a
+  /// competitor's: that is a third party who never asked to be crawled, and
+  /// their bandwidth is not ours to spend without a bound.
+  pageLimit      Int?
   startedAt      DateTime?
   finishedAt     DateTime?
   errorMessage   String?
@@ -523,6 +537,14 @@ model CompetitorDomain {
   status         String              @default("PENDING")
   lastAnalyzedAt DateTime?
   nextAnalysisAt DateTime?
+  /// The crawled site behind this domain, once it has been crawled at least
+  /// once. Shared: two projects tracking the same competitor point at one
+  /// Website rather than crawling that third party twice.
+  ///
+  /// SetNull rather than Cascade — deleting a crawled site must not delete
+  /// the competitor the customer added.
+  websiteId      String?
+  website        Website?            @relation(fields: [websiteId], references: [id], onDelete: SetNull)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)

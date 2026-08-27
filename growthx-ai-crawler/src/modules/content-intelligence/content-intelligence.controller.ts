@@ -12,6 +12,7 @@ import { CreatorService } from './creator.service';
 import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
 import { SocialDiscoveryService } from './social-discovery.service';
+import { CompetitorCrawlService } from './competitor-crawl.service';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -37,6 +38,7 @@ export class ContentIntelligenceController {
     private readonly campaign: CampaignService,
     private readonly socialScraper: SocialScraperService,
     private readonly socialDiscovery: SocialDiscoveryService,
+    private readonly competitorCrawl: CompetitorCrawlService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -231,6 +233,50 @@ export class ContentIntelligenceController {
       competitorId,
       competitor.domain,
     );
+  }
+
+  // ── Competitor Website Coverage ──────────────────────────────────────────
+
+  /**
+   * Crawls the competitor's public website so their page coverage can be
+   * compared with the customer's.
+   *
+   * Returns as soon as the job is queued. A crawl of a few hundred pages at
+   * one request per second takes minutes, and holding the request open for it
+   * would time out long before it finished; the client polls `coverage`.
+   */
+  @Post('competitors/:competitorId/crawl')
+  async crawlCompetitorSite(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.competitorCrawl.startCrawl(req.organizationId, projectId, competitorId);
+  }
+
+  /** What the last completed crawl found, by page kind. Null until one has. */
+  @Get('competitors/:competitorId/coverage')
+  async competitorCoverage(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.competitorCrawl.getCoverage(req.organizationId, projectId, competitorId);
+  }
+
+  /** The crawled pages themselves, optionally of one kind. */
+  @Get('competitors/:competitorId/pages')
+  async competitorPages(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+    @Query('pageType') pageType?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.competitorCrawl.listPages(req.organizationId, projectId, competitorId, {
+      pageType,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
   // ── Content Strategy ─────────────────────────────────────────────────────
