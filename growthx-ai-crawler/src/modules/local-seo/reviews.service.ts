@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
@@ -11,59 +11,30 @@ export class ReviewsService {
     private readonly router: MultiAiRouterService,
   ) {}
 
+  /**
+   * Pulls reviews from the connected Google Business Profile.
+   *
+   * There is no such connection yet, and this used to paper over that by
+   * writing invented reviews into LocalReview — named authors, written
+   * testimonials, plausible timestamps. Once stored they were indistinguishable
+   * from real ones: they counted toward review totals, fed the review-theme
+   * analysis, and the AI reply drafter would compose replies to customers who
+   * do not exist. A reply sent to a fabricated review is a reply the operator
+   * would have had no way to know was fictional.
+   *
+   * Refusing is the only correct behaviour while the integration is missing.
+   * Reviews already stored are left alone: this cannot know which are real.
+   */
   async syncReviews(projectId: string) {
-    const existingCount = await this.prisma.localReview.count({
-      where: { projectId },
-    });
+    const existingCount = await this.prisma.localReview.count({ where: { projectId } });
 
-    if (existingCount > 0) {
-      return { message: 'Reviews are already synced.', count: existingCount };
-    }
-
-    // Generate mock reviews since we don't have OAuth setup for real GBP yet.
-    const mockReviews = [
-      {
-        authorName: 'Sarah Jenkins',
-        rating: 5,
-        text: 'Absolutely fantastic service! The team was prompt, professional, and went above and beyond my expectations.',
-        time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-        relativeTime: '2 days ago',
-      },
-      {
-        authorName: 'Michael Chen',
-        rating: 4,
-        text: 'Great experience overall. Just wish the onboarding process was slightly faster, but otherwise very satisfied.',
-        time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-        relativeTime: '1 week ago',
-      },
-      {
-        authorName: 'Amanda Roberts',
-        rating: 1,
-        text: 'Very disappointed. Did not return my calls and when they finally did, the person on the phone was rude.',
-        time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        relativeTime: '2 weeks ago',
-      },
-      {
-        authorName: 'David Wright',
-        rating: 5,
-        text: 'Best in the business. Highly recommended for anyone looking for reliable experts.',
-        time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-        relativeTime: '1 month ago',
-      },
-      {
-        authorName: 'Emma Thompson',
-        rating: 3,
-        text: 'Decent, but a bit pricey for what you get. The quality is there though.',
-        time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45).toISOString(),
-        relativeTime: '1 month ago',
-      }
-    ];
-
-    await this.prisma.localReview.createMany({
-      data: mockReviews.map((r) => ({ ...r, projectId })),
-    });
-
-    return { message: 'Synced mock reviews successfully.', count: mockReviews.length };
+    throw new ServiceUnavailableException(
+      'Review sync is unavailable: no Google Business Profile connection is configured for this project. ' +
+        'Connect a Google Business Profile to import reviews. ' +
+        (existingCount > 0
+          ? `${existingCount} review(s) already stored are unaffected.`
+          : 'No reviews can be imported until then.'),
+    );
   }
 
   async getReviews(projectId: string) {

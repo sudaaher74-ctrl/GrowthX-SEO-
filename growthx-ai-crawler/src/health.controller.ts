@@ -154,6 +154,28 @@ export class HealthController implements OnApplicationBootstrap {
           'matching wording, weaker for synonyms and paraphrases.',
       },
       {
+        name: 'Local business lookup (Google Places)',
+        envVar: 'GOOGLE_PLACES_API_KEY',
+        configured: realKey(process.env.GOOGLE_PLACES_API_KEY),
+        // Until this was reported, an unset key was invisible: the search
+        // returned two invented businesses rather than an error, so the gap
+        // looked like working software.
+        consequence:
+          'Business search and Google Business Profile lookups are unavailable, and return an explicit ' +
+          'error rather than results. Local rankings, ratings and review counts cannot be measured, and ' +
+          'a competitor cannot be matched to a local profile.',
+      },
+      {
+        name: 'Google Business Profile reviews',
+        envVar: 'Google Business Profile connection (OAuth)',
+        // No integration exists yet; naming it keeps the absence visible rather
+        // than leaving review sync looking merely broken.
+        configured: false,
+        consequence:
+          'Reviews cannot be imported, so review themes, rating trends and AI reply drafting have nothing ' +
+          'to work from. Review sync refuses rather than inventing reviews to fill the gap.',
+      },
+      {
         name: 'Competitor content ingestion (YouTube)',
         envVar: 'YOUTUBE_API_KEY',
         configured: realKey(process.env.YOUTUBE_API_KEY),

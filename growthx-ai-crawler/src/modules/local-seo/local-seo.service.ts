@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -33,11 +33,16 @@ export class LocalSeoService {
   async searchBusiness(query: string) {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
-      this.logger.warn('GOOGLE_PLACES_API_KEY is not set. Returning mock search results.');
-      return [
-        { placeId: 'mock_1', name: 'GrowthX Corp.', address: '123 Market St, San Francisco', rating: 4.8, userRatingsTotal: 142 },
-        { placeId: 'mock_2', name: 'GrowthX Agency', address: '456 Main St, New York', rating: 4.5, userRatingsTotal: 89 },
-      ];
+      // This returned two invented businesses — "GrowthX Corp., 123 Market St,
+      // San Francisco, rating 4.8, 142 reviews" — whenever the key was absent,
+      // which it is on this deployment. An operator searching for their own
+      // business got fabricated results indistinguishable from real ones, and
+      // could attach one to a project. Saying the search is unavailable is the
+      // only honest answer when there is nothing to search with.
+      throw new ServiceUnavailableException(
+        'Business search is unavailable: GOOGLE_PLACES_API_KEY is not configured. ' +
+          'Set it to enable Google Places lookups; no results can be returned without it.',
+      );
     }
     
     try {
@@ -91,7 +96,10 @@ export class LocalSeoService {
         address: placeData.address,
         rating: placeData.rating,
         reviewCount: placeData.reviewCount,
-        citationsCount: Math.floor(Math.random() * 50) + 10, // Mocked citations count for now
+        // citationsCount is left at its column default of 0. It was previously
+        // seeded with `Math.random() * 50 + 10` — a number with no relationship
+        // to any citation, stored and then displayed as a measured figure.
+        // Zero is honest until a citation source exists to populate it.
       },
     });
   }
