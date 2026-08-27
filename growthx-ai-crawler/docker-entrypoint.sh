@@ -72,9 +72,45 @@ fi
 # migrations the database demonstrably already contains, having checked their
 # tables and enum types are really there, and leaves the rest to be applied
 # normally below. It is a no-op once history exists, and on an empty database.
-run_step "Checking migration history..." node scripts/baseline-database.js
+# Migrations run beside the API rather than in front of it.
+#
+# The platform starts scanning for a bound port as soon as the container is up
+# and gives up after a fixed window. Anything slow or stuck ahead of
+# `app.listen` — a migration waiting on an advisory lock, a cold database
+# endpoint refusing connections — spends that window and the deploy is failed
+# for "no open ports", which says nothing about the migration that actually hung.
+#
+# The trade-off is deliberate and worth naming: for the moments before this
+# finishes, the API can serve requests against a schema that is not yet fully
+# migrated. That is acceptable here because `migrate deploy` replays only
+# migrations absent from _prisma_migrations, so on an up-to-date database it is
+# a single fast query and this window is effectively nil. It would not be
+# acceptable if the app were shipped with pending destructive migrations.
+run_migrations_in_background() {
+  status=0
+  echo "Checking migration history..."
+  node scripts/baseline-database.js || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "ERROR: migration history check failed (exit $status). The API is running, but the schema may be stale." >&2
+    return
+  fi
 
-run_step "Applying database migrations..." node node_modules/prisma/build/index.js migrate deploy
+  echo "Applying database migrations..."
+  node node_modules/prisma/build/index.js migrate deploy || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "ERROR: 'prisma migrate deploy' failed (exit $status). The API is running against a schema that may be stale;" >&2
+    echo "       queries touching a missing table or column will fail until this is resolved." >&2
+    return
+  fi
+
+  echo "Database migrations applied."
+
+  # Sequenced behind the migrations rather than backgrounded alongside them:
+  # it reads and writes tables the migrations are responsible for creating.
+  run_optional_step "Membership repair" node scripts/repair-membership.js
+}
+
+run_migrations_in_background &
 
 # Attaches an account to an organization when REPAIR_ATTACH_EMAIL and
 # REPAIR_ATTACH_ORG are set, and does nothing at all otherwise.
@@ -86,7 +122,8 @@ run_step "Applying database migrations..." node node_modules/prisma/build/index.
 # "Applying database migrations..." as the last line in the log and no reason
 # anywhere. An unrepaired membership is a broken workspace; a container that
 # will not start is a broken product.
-run_optional_step "Membership repair" node scripts/repair-membership.js
-
+# Nothing above blocks: the API is the container's foreground process and binds
+# its port immediately, which is the only thing the platform's health scan is
+# waiting for.
 echo "Starting API..."
 exec node dist/main.js

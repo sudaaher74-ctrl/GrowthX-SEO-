@@ -40,12 +40,12 @@ describe('CrawlerProcessor — worker startup', () => {
     const queue = slowQueue({ host: 'redis' });
     const processor = new CrawlerProcessor(queue as any, {} as any);
 
-    const started = processor.onModuleInit();
-    // Reading the client at this instant is what the old code did.
+    processor.onModuleInit();
+    // Reading the client at this instant is what the original code did.
     expect(queue.getRedisClient()).toBeUndefined();
 
     queue.finish();
-    await started;
+    await new Promise(process.nextTick);
 
     expect(workerInstances.map((w) => w.name).sort()).toEqual(['crawl-jobs', 'page-fetch']);
   });
@@ -54,9 +54,9 @@ describe('CrawlerProcessor — worker startup', () => {
     const queue = slowQueue(undefined);
     const processor = new CrawlerProcessor(queue as any, {} as any);
 
-    const started = processor.onModuleInit();
+    processor.onModuleInit();
     queue.finish();
-    await started;
+    await new Promise(process.nextTick);
 
     expect(workerInstances).toHaveLength(0);
   });
@@ -65,12 +65,28 @@ describe('CrawlerProcessor — worker startup', () => {
     const queue = slowQueue({ host: 'redis' });
     const processor = new CrawlerProcessor(queue as any, {} as any);
 
-    const started = processor.onModuleInit();
-    await Promise.resolve(); // let any un-awaited path run to completion
+    processor.onModuleInit();
+    await Promise.resolve();
     expect(workerInstances).toHaveLength(0);
 
     queue.finish();
-    await started;
+    await new Promise(process.nextTick);
     expect(workerInstances).toHaveLength(2);
+  });
+  it('returns from onModuleInit even when the queue never initialises', async () => {
+    // Nest runs module hooks in sequence. If CrawlerModule goes first, awaiting
+    // the queue's readiness here waits on a promise only QueueService's own hook
+    // can resolve — and that hook cannot run until this one returns. The boot
+    // deadlocks, no port is bound, and the platform reports the container as
+    // having exited early. This hook must therefore never block.
+    const queue = slowQueue({ host: 'redis' }); // deliberately never finished
+    const processor = new CrawlerProcessor(queue as any, {} as any);
+
+    const returned = await Promise.race([
+      Promise.resolve(processor.onModuleInit()).then(() => 'returned'),
+      new Promise((r) => setTimeout(() => r('DEADLOCKED'), 50)),
+    ]);
+
+    expect(returned).toBe('returned');
   });
 });
