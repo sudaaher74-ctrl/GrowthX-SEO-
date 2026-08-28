@@ -52,6 +52,44 @@ function pageName(url: string, title: string | null | undefined): string {
 }
 
 /**
+ * Drops the site's own name off the end of its page titles.
+ *
+ * Nearly every CMS appends it, so a list of one site's pages reads "Guava Pulp
+ * - Indian Fruits Pulp / Mango Pulp - Indian Fruits Pulp / Papaya Pulp -
+ * Indian Fruits Pulp" — the same eighteen characters on every row, pushing the
+ * part that differs to the left of a fold on narrow screens.
+ *
+ * Derived from the titles themselves rather than from the domain, because what
+ * a site calls itself in its title tag is often not its domain. A suffix is
+ * only removed when most of the titles share it, so a genuine title that
+ * happens to contain a dash is left alone.
+ */
+function siteSuffixStripper(titles: (string | null | undefined)[]): (title: string) => string {
+  const present = titles.filter((t): t is string => Boolean(t?.trim()));
+  if (present.length < 3) return (t) => t;
+
+  const tails = new Map<string, number>();
+  for (const title of present) {
+    const match = title.match(/^(.*\S)\s+[-–—|:]\s+(\S.*)$/);
+    if (match) tails.set(match[2], (tails.get(match[2]) ?? 0) + 1);
+  }
+
+  const [suffix, count] = [...tails].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+  if (!suffix || count < present.length * 0.6) return (t) => t;
+
+  return (title) => {
+    const stripped = title.replace(new RegExp(`\\s+[-–—|:]\\s+${escapeRegExp(suffix)}$`), "");
+    // Never return an empty string: a page genuinely titled with nothing but
+    // the site name keeps it rather than rendering as a blank row.
+    return stripped.trim() || title;
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Page coverage on both sides, for one competitor.
  *
  * The counts come from crawling both public sites and typing each page. That
@@ -234,6 +272,7 @@ function RecentChanges({ projectId, competitorId }: { projectId: string; competi
   if (moved === 0) return null;
 
   const since = data.since ? new Date(data.since).toLocaleDateString() : null;
+  const strip = siteSuffixStripper(data.added.map((p) => p.title));
 
   return (
     <div className="mt-3 border-t pt-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
@@ -265,7 +304,7 @@ function RecentChanges({ projectId, competitorId }: { projectId: string; competi
         <ul className="mt-2 space-y-1">
           {data.added.slice(0, 5).map((page) => (
             <li key={page.url} className="truncate text-[11px] text-brand-600">
-              {pageName(page.url, page.title)}
+              {strip(pageName(page.url, page.title))}
               {KIND[page.pageType] && (
                 <span className="text-brand-400"> · {KIND[page.pageType].one.toLowerCase()}</span>
               )}
@@ -316,6 +355,11 @@ function Opportunities({ projectId, competitorId }: { projectId: string; competi
     groups.set(item.pageType, bucket);
   }
 
+  // Two sites, two suffixes: theirs on the page names, the customer's own on
+  // the "closest thing on your site" line beneath each.
+  const theirTitle = siteSuffixStripper(data.opportunities.map((o) => o.title));
+  const ourTitle = siteSuffixStripper(data.opportunities.map((o) => o.closestOwnPage?.title));
+
   return (
     <div className="mt-3 border-t pt-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
       <button
@@ -355,12 +399,13 @@ function Opportunities({ projectId, competitorId }: { projectId: string; competi
                         rel="noopener noreferrer"
                         className="group inline-flex max-w-full items-center gap-1 text-[12px] font-medium text-brand-950 underline-offset-2 hover:underline"
                       >
-                        <span className="truncate">{pageName(item.url, item.title)}</span>
+                        <span className="truncate">{theirTitle(pageName(item.url, item.title))}</span>
                         <ExternalLink size={10} className="shrink-0 text-brand-300 group-hover:text-brand-500" />
                       </a>
                       {item.closestOwnPage ? (
                         <div className="truncate text-[11px] text-brand-500">
-                          Closest thing on your site: {pageName(item.closestOwnPage.url, item.closestOwnPage.title)}
+                          Closest thing on your site:{" "}
+                          {ourTitle(pageName(item.closestOwnPage.url, item.closestOwnPage.title))}
                         </div>
                       ) : (
                         <div className="text-[11px] text-brand-500">Nothing similar on your site.</div>

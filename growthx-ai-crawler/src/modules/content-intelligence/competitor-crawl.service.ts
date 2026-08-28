@@ -241,16 +241,15 @@ export class CompetitorCrawlService {
       this.getOwnCoverage(projectId),
     ]);
 
-    const COMPARED: PageType[] = [
-      'SERVICE',
-      'PRODUCT',
-      'LOCATION',
-      'BLOG',
-      'CASE_STUDY',
-      'FAQ',
-      'ABOUT',
-      'CONTACT',
-    ];
+    // The kinds where publishing more of them is worth doing. Structural
+    // pages are left out for the same reason getOpportunities leaves them out,
+    // and the two lists disagreeing was visible on real data: the tracked
+    // competitor has four pages that type as ABOUT — about us, infrastructure,
+    // our team, our clients — against the customer's one, so the single row
+    // under "they publish more of these" was "About pages: 3 more". Nobody's
+    // next move is to write three more about pages, and a panel whose only
+    // finding is noise teaches the reader to stop reading it.
+    const COMPARED: PageType[] = ['SERVICE', 'PRODUCT', 'LOCATION', 'BLOG', 'CASE_STUDY', 'FAQ'];
 
     const rows = COMPARED.map((pageType) => {
       const mine = ours ? (ours.byType[pageType] ?? 0) : null;

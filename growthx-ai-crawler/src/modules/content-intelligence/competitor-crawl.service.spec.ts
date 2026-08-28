@@ -265,6 +265,30 @@ describe('CompetitorCrawlService — comparison', () => {
     expect(result.rows.find((r) => r.pageType === 'LEGAL')).toBeUndefined();
     expect(result.behindOn).toEqual([]);
   });
+
+  it('leaves structural pages out for the same reason', async () => {
+    // The gap list is headed "they publish more of these", so every row has to
+    // be something worth publishing more of. On the real tracked competitor
+    // this was the entire finding: they have four pages that type as ABOUT —
+    // about us, infrastructure, our team, our clients — against the customer's
+    // one, so the only row shown was "About pages: 3 more". Nobody's next move
+    // is three more about pages, and a panel whose one finding is noise teaches
+    // the reader to ignore the panel.
+    //
+    // getOpportunities already skipped these kinds. The two disagreeing is what
+    // put the row on screen.
+    const service = build(
+      { byType: { ABOUT: 4, CONTACT: 2, HOME: 1, PRODUCT: 9 } },
+      { byType: { ABOUT: 1, CONTACT: 1, HOME: 1, PRODUCT: 3 } },
+    );
+
+    const result = await service.getComparison('org1', 'p1', 'comp1');
+
+    expect(result.behindOn.map((r) => r.pageType)).toEqual(['PRODUCT']);
+    for (const structural of ['ABOUT', 'CONTACT', 'HOME']) {
+      expect(result.rows.find((r) => r.pageType === structural)).toBeUndefined();
+    }
+  });
 });
 
 /**
