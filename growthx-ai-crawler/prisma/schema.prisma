@@ -1756,18 +1756,81 @@ model SocialMetric {
 }
 
 
+/// One customer's connection to one external data source.
+///
+/// Tokens are stored encrypted (see token-crypto.ts) — a refresh token is a
+/// long-lived key to a customer's Google data, and these columns were
+/// previously plaintext.
 model Integration {
   id           String   @id @default(uuid())
   projectId    String
-  provider     String   // e.g. "google_business"
+  provider     String   // search_console | analytics | business_profile | google_business
+  /// AES-256-GCM ciphertext, never the raw token.
   accessToken  String
   refreshToken String?
   expiresAt    DateTime?
+
+  /// The Google account that authorized this, for showing whose data it is.
+  /// An email, not a token — safe to display.
+  googleAccountEmail String?
+  /// Scopes Google actually granted, which can be narrower than those asked
+  /// for: a customer may untick one on the consent screen, and the connector
+  /// has to find out before a call fails rather than after.
+  grantedScopes String[] @default([])
+
+  /// What the customer picked after authorizing — a GSC property, a GA4
+  /// property, a GBP location. Null until they choose, which is a real state:
+  /// authorized but not yet usable.
+  selectedResourceId   String?
+  /// Human-readable form of the same thing, for the UI.
+  selectedResourceName String?
+
+  /// CONNECTED | NEEDS_SELECTION | NEEDS_REAUTH | ERROR | DISCONNECTED
+  ///
+  /// Held rather than inferred, because "the token expired and the refresh
+  /// failed" is not visible from the row's other columns and is exactly what
+  /// the customer needs told: one broken integration must show as broken
+  /// without making the rest of the dashboard look broken too.
+  status       String   @default("NEEDS_SELECTION")
+  /// Why, when status is ERROR or NEEDS_REAUTH. Shown to the customer, so it
+  /// must never carry a token or a raw API payload.
+  statusMessage String?
+
+  lastSyncedAt DateTime?
+  nextSyncAt   DateTime?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditEvents  IntegrationAuditEvent[]
 
   @@unique([projectId, provider])
   @@index([projectId])
+  @@index([status])
+}
+
+/// An append-only record of what happened to a connection.
+///
+/// Connecting, disconnecting and reauthorizing all change who can read a
+/// customer's Google data, so each one is recorded with who did it. Kept
+/// separate from the Integration row because that row is overwritten on every
+/// token refresh and an audit trail that can be overwritten is not one.
+model IntegrationAuditEvent {
+  id            String   @id @default(uuid())
+  integrationId String
+  projectId     String
+  /// CONNECTED | RESOURCE_SELECTED | REFRESHED | REAUTH_REQUIRED | SYNC_FAILED | DISCONNECTED
+  event         String
+  /// The account that performed it, where a person did. Sync and refresh have
+  /// no actor, which is itself worth being able to tell apart.
+  actorUserId   String?
+  /// Never a token, never a raw response — this is readable by anyone with
+  /// access to the project.
+  detail        String?
+  createdAt     DateTime @default(now())
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([integrationId, createdAt])
 }
 

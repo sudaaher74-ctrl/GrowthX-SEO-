@@ -8,12 +8,15 @@ import { FacebookController } from './facebook.controller';
 import { YoutubeService } from './youtube.service';
 import { YoutubeController } from './youtube.controller';
 import { GbpService } from './gbp.service';
+import { GoogleOAuthService } from './google/google-oauth.service';
+import { GoogleOAuthController, GoogleOAuthCallbackController } from './google/google-oauth.controller';
 import { DatabaseModule } from '../../database/database.module';
 
 @Module({
   imports: [DatabaseModule],
   providers: [
     IntegrationsService, 
+    GoogleOAuthService,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,
@@ -21,11 +24,14 @@ import { DatabaseModule } from '../../database/database.module';
   ],
   controllers: [
     IntegrationsController, 
+    GoogleOAuthController,
+    GoogleOAuthCallbackController,
     GoogleBusinessController,
     FacebookController,
     YoutubeController
   ],
   exports: [
+    GoogleOAuthService,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,
