@@ -1,4 +1,11 @@
-import { closestMatch, MATCH_THRESHOLD, siteBoilerplate, topicOverlap, topicTokens } from './topic-match';
+import {
+  closestMatch,
+  distinctiveTokens,
+  MATCH_THRESHOLD,
+  siteBoilerplate,
+  topicOverlap,
+  topicTokens,
+} from './topic-match';
 
 /**
  * This decides which competitor pages are shown as opportunities. Both errors
@@ -169,5 +176,37 @@ describe('closestMatch across two brands', () => {
   it('does not match guava pulp to mango pulp on the shared word alone', () => {
     const match = closestMatch(theirPages[1], ourPages, boilerplate);
     expect(match!.score).toBeLessThan(MATCH_THRESHOLD);
+  });
+});
+
+/**
+ * Found by running the real competitor through the matcher: their front page
+ * has no topic beyond the company name, closestMatch returned null, the
+ * service read that null as "nothing of ours is close", and their home page
+ * was listed as a page the customer should go and write.
+ */
+describe('distinctiveTokens', () => {
+  const pages = [
+    { url: 'https://ifp.com/', title: 'Indian Fruits Pulp' },
+    { url: 'https://ifp.com/mango-pulp/', title: 'Mango Pulp | Indian Fruits Pulp' },
+    { url: 'https://ifp.com/guava-pulp/', title: 'Guava Pulp | Indian Fruits Pulp' },
+    { url: 'https://ifp.com/banana-pulp/', title: 'Banana Pulp | Indian Fruits Pulp' },
+    { url: 'https://ifp.com/about-us/', title: 'About Us | Indian Fruits Pulp' },
+    { url: 'https://ifp.com/contact-us/', title: 'Contact Us | Indian Fruits Pulp' },
+  ];
+  const boilerplate = siteBoilerplate(pages);
+
+  it('is empty for a page whose only words are the company name', () => {
+    // Not a degenerate case to paper over — it is the answer. This page has no
+    // topic, so it is neither matchable nor missing.
+    expect(distinctiveTokens(pages[0], boilerplate).size).toBe(0);
+  });
+
+  it('keeps what makes a real page distinct', () => {
+    expect([...distinctiveTokens(pages[1], boilerplate)]).toContain('mango');
+  });
+
+  it('makes closestMatch return null for a page with no topic', () => {
+    expect(closestMatch(pages[0], pages.slice(1), { theirs: boilerplate, ours: boilerplate })).toBeNull();
   });
 });

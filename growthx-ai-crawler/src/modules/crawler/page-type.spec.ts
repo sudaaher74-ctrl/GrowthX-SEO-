@@ -65,3 +65,43 @@ describe('classifyPageType', () => {
     expect(type('https://x.com/blog/post?utm_source=x#top')).toBe('BLOG');
   });
 });
+
+/**
+ * The rules originally anchored each keyword to a leading slash, so a segment
+ * with any prefix missed entirely. Caught on the real competitor: they publish
+ * /our-products/ and /our-team/ and both typed as OTHER, so their catalogue
+ * read as zero product pages against a customer whose own URLs happen to be
+ * /products/... — a 32-page lead the comparison announced and that does not
+ * exist.
+ */
+describe('classifyPageType — keywords anywhere in a segment', () => {
+  it('types the prefixed segments a real site actually uses', () => {
+    // Every one of these is a live URL on indianfruitspulp.com.
+    expect(type('https://indianfruitspulp.com/our-products/')).toBe('PRODUCT');
+    expect(type('https://indianfruitspulp.com/our-team/')).toBe('ABOUT');
+    expect(type('https://indianfruitspulp.com/about-us/')).toBe('ABOUT');
+    expect(type('https://indianfruitspulp.com/contact-us/')).toBe('CONTACT');
+    expect(type('https://indianfruitspulp.com/our-clients/')).toBe('ABOUT');
+  });
+
+  it('matches whole words only', () => {
+    // The reason this is word-boundary matching rather than a substring
+    // search: a wrong type lands silently in a gap count, so recovering
+    // /our-products/ is not worth typing /restore-data/ as a product page.
+    expect(type('https://x.com/restore-data')).toBe('OTHER');
+    expect(type('https://x.com/newsletter')).toBe('OTHER');
+    expect(type('https://x.com/teamster-union-history')).toBe('OTHER');
+  });
+
+  it('still prefers the more specific rule when two could match', () => {
+    expect(type('https://x.com/services/kitchens-in-mumbai')).toBe('SERVICE');
+    expect(type('https://x.com/our-services')).toBe('SERVICE');
+  });
+
+  it('leaves a flat product URL as OTHER rather than guessing', () => {
+    // /mango-pulp/ is a product page, and nothing in the URL says so. OTHER is
+    // the honest answer; the alternative is inventing a type from the topic.
+    expect(type('https://indianfruitspulp.com/mango-pulp/')).toBe('OTHER');
+    expect(type('https://indianfruitspulp.com/tomato-puree/')).toBe('OTHER');
+  });
+});

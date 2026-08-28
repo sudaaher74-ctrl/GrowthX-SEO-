@@ -393,13 +393,27 @@ describe('CompetitorCrawlService — opportunities', () => {
     expect(result!.opportunities.map((o) => o.url)).not.toContain('https://acme.com/products/tomato-paste');
   });
 
-  it('leaves out legal boilerplate and pages with no readable topic', async () => {
+  it('leaves out legal boilerplate', async () => {
     const { service } = build();
 
     const result = await service.getOpportunities('org1', 'p1', 'comp1');
 
     expect(result!.opportunities.map((o) => o.pageType)).not.toContain('LEGAL');
-    expect(result!.opportunities.map((o) => o.pageType)).not.toContain('OTHER');
+  });
+
+  it('keeps a page whose kind is unknown but whose subject is not', async () => {
+    // This assertion used to read `not.toContain('OTHER')`, which was wrong.
+    // OTHER means the crawler could not work out the page's kind, not its
+    // subject: the real competitor publishes /guava-pulp/ and /papaya-pulp/ as
+    // flat URLs, so they type as OTHER while what they are about is obvious.
+    // Excluding them dropped the eight product pages that are the most useful
+    // thing on that site. Pages with genuinely no subject are excluded by the
+    // distinctive-topic check instead.
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+
+    expect(result!.opportunities.map((o) => o.pageType)).toContain('OTHER');
   });
 
   it('shows the closest page we do have, so a near miss is visible', async () => {
@@ -440,5 +454,64 @@ describe('CompetitorCrawlService — opportunities', () => {
 
     expect(result!.opportunities.every((o) => o.pageType === 'LOCATION')).toBe(true);
     expect(result!.opportunities.length).toBe(1);
+  });
+});
+
+/**
+ * Both of these came out of running the real tracked competitor through the
+ * pipeline rather than from a fixture, and neither was caught by the tests
+ * written alongside the feature.
+ */
+describe('CompetitorCrawlService — opportunities, found against the real competitor', () => {
+  const build = (theirPages: any[], ourPages: any[]) => {
+    const prisma = {
+      competitorDomain: { findFirst: jest.fn().mockResolvedValue({ websiteId: 'w1', domain: 'ifp.com' }) },
+      crawlJob: { findFirst: jest.fn(async ({ where }: any) => (where.website?.projectId ? { id: 'oj' } : { id: 'tj' })) },
+      page: { findMany: jest.fn(async ({ where }: any) => (where.crawlJobId === 'tj' ? theirPages : ourPages)) },
+    };
+    return new CompetitorCrawlService(prisma as any, {} as any);
+  };
+
+  const theirs = [
+    { url: 'https://ifp.com/', title: 'Indian Fruits Pulp', pageType: 'HOME' },
+    { url: 'https://ifp.com/about-us/', title: 'About Us | Indian Fruits Pulp', pageType: 'ABOUT' },
+    { url: 'https://ifp.com/contact-us/', title: 'Contact Us | Indian Fruits Pulp', pageType: 'CONTACT' },
+    { url: 'https://ifp.com/our-products/', title: 'Our Products | Indian Fruits Pulp', pageType: 'PRODUCT' },
+    { url: 'https://ifp.com/guava-pulp/', title: 'Guava Pulp | Indian Fruits Pulp', pageType: 'PRODUCT' },
+    { url: 'https://ifp.com/papaya-pulp/', title: 'Papaya Pulp | Indian Fruits Pulp', pageType: 'PRODUCT' },
+  ];
+  const ours = [
+    { url: 'https://aiva.com/', title: 'AIVA Enterprises', pageType: 'HOME' },
+    { url: 'https://aiva.com/about', title: 'About | AIVA Enterprises', pageType: 'ABOUT' },
+    { url: 'https://aiva.com/contact', title: 'Contact | AIVA Enterprises', pageType: 'CONTACT' },
+    { url: 'https://aiva.com/products/mango-pulp', title: 'Mango Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
+    { url: 'https://aiva.com/products/banana-pulp', title: 'Banana Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
+    { url: 'https://aiva.com/products/tomato-paste', title: 'Tomato Paste | AIVA Enterprises', pageType: 'PRODUCT' },
+  ];
+
+  it('does not tell the customer to write a home page', async () => {
+    // Their front page has no topic beyond the company name, so nothing of
+    // ours matched it, and it was listed as an opportunity. Every site has a
+    // home page; suggesting one makes the real rows look less credible.
+    const result = await build(theirs, ours).getOpportunities('org1', 'p1', 'comp1');
+
+    expect(result!.opportunities.map((o) => o.url)).not.toContain('https://ifp.com/');
+    expect(result!.opportunities.map((o) => o.pageType)).not.toContain('HOME');
+  });
+
+  it('leaves out about and contact pages too', async () => {
+    const result = await build(theirs, ours).getOpportunities('org1', 'p1', 'comp1');
+
+    const types = result!.opportunities.map((o) => o.pageType);
+    expect(types).not.toContain('ABOUT');
+    expect(types).not.toContain('CONTACT');
+  });
+
+  it('still finds the product topics we do not cover', async () => {
+    const result = await build(theirs, ours).getOpportunities('org1', 'p1', 'comp1');
+
+    const urls = result!.opportunities.map((o) => o.url);
+    expect(urls).toContain('https://ifp.com/guava-pulp/');
+    expect(urls).toContain('https://ifp.com/papaya-pulp/');
   });
 });

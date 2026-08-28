@@ -140,14 +140,22 @@ export function siteBoilerplate(pages: MatchablePage[]): Set<string> {
   return boilerplate;
 }
 
-function withoutBoilerplate(tokens: Set<string>, boilerplate: Set<string>): Set<string> {
+/**
+ * A page's topic words with the site's own boilerplate taken out.
+ *
+ * Empty means the page has no topic of its own — a home page titled with just
+ * the company name is the usual case. That is a meaningful answer, not a
+ * degenerate one: such a page must not be matched against anything, and must
+ * not be reported as a topic the customer is missing. On the real competitor,
+ * treating their front page as "no match found" listed it as a page to go and
+ * write.
+ */
+export function distinctiveTokens(page: MatchablePage, boilerplate: Set<string> = new Set()): Set<string> {
+  const tokens = topicTokens(page.url, page.title);
   if (boilerplate.size === 0) return tokens;
   const kept = new Set<string>();
   for (const token of tokens) if (!boilerplate.has(token)) kept.add(token);
-  // A page whose every word is boilerplate — a bare home page — keeps its
-  // tokens rather than becoming empty. Empty means "no topic", which would
-  // silently exclude it from matching in both directions.
-  return kept.size > 0 ? kept : tokens;
+  return kept;
 }
 
 export interface ClosestMatch {
@@ -173,20 +181,15 @@ export function closestMatch(
    */
   boilerplate: { theirs?: Set<string>; ours?: Set<string> } = {},
 ): ClosestMatch | null {
-  const empty = new Set<string>();
-  const theirTokens = withoutBoilerplate(
-    topicTokens(theirPage.url, theirPage.title),
-    boilerplate.theirs ?? empty,
-  );
+  const theirTokens = distinctiveTokens(theirPage, boilerplate.theirs);
+  // No topic of their own, so there is nothing to look for. Returning null
+  // here rather than matching on brand words is what keeps a bare home page
+  // from being paired with an arbitrary page of ours.
   if (theirTokens.size === 0) return null;
 
   let best: ClosestMatch | null = null;
   for (const ourPage of ourPages) {
-    const ourTokens = withoutBoilerplate(
-      topicTokens(ourPage.url, ourPage.title),
-      boilerplate.ours ?? empty,
-    );
-    const score = topicOverlap(theirTokens, ourTokens);
+    const score = topicOverlap(theirTokens, distinctiveTokens(ourPage, boilerplate.ours));
     if (score > 0 && (!best || score > best.score)) best = { page: ourPage, score };
   }
   return best;

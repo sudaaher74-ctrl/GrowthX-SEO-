@@ -3,7 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { PageType } from '../crawler/page-type';
 import { canonicalUrl } from '../crawler/canonical-url';
-import { closestMatch, MATCH_THRESHOLD, siteBoilerplate } from './topic-match';
+import { closestMatch, distinctiveTokens, MATCH_THRESHOLD, siteBoilerplate } from './topic-match';
 
 /**
  * Crawls a competitor's public website so their coverage can be compared with
@@ -159,6 +159,17 @@ export class CompetitorCrawlService {
       // to say so.
       capped: job.pageLimit != null && job.pagesCrawled >= job.pageLimit,
       byType,
+      // How many of their pages the crawler could not assign a kind to.
+      //
+      // This is what makes the by-kind table honest. Page kind comes from the
+      // URL, and a site with flat URLs gives it nothing to read: the real
+      // competitor tracked here publishes /guava-pulp/ and /mango-pulp/ at the
+      // root, so eight product pages type as OTHER. Against a customer whose
+      // own URLs happen to be /products/..., the table then reads "products:
+      // you 32, them 1" — a lead that is an artefact of their URL scheme, not
+      // a fact about their catalogue. The client shows this count so the
+      // comparison can be read with the doubt it deserves.
+      untyped: byType.OTHER ?? 0,
     };
   }
 
@@ -323,7 +334,22 @@ export class CompetitorCrawlService {
 
     const ourList = [...ourPages.values()];
     const theirList = [...theirPages.values()];
-    const skipped = new Set(['LEGAL', 'OTHER']);
+    // Structural pages, not content opportunities. Every site has a home page,
+    // an about page and a contact page; suggesting the customer write one is
+    // noise that makes the real rows look less credible, and LEGAL is here for
+    // the same reason.
+    //
+    // OTHER is deliberately NOT skipped, though an earlier version did skip it
+    // on the reasoning that a page whose kind is unknown cannot be described.
+    // That conflated two different things. OTHER means the crawler could not
+    // work out the page's *kind*, not its *subject*: the real competitor
+    // publishes /guava-pulp/ and /papaya-pulp/ as flat URLs with no structural
+    // word in them, so they type as OTHER while their subject is perfectly
+    // clear. Skipping them dropped the eight product pages that are the single
+    // most useful thing on that competitor's site. Pages with no readable
+    // subject are excluded a few lines down, which is the check that was
+    // actually wanted.
+    const skipped = new Set(['LEGAL', 'HOME', 'ABOUT', 'CONTACT']);
 
     // Each site's own name and tagline, dropped before comparing. Without
     // this, two pages on the same topic score around 0.5 purely because half
@@ -334,8 +360,18 @@ export class CompetitorCrawlService {
     const opportunities = theirList
       .filter((page) => !skipped.has(page.pageType))
       .filter((page) => !options.pageType || page.pageType === options.pageType)
-      .map((page) => ({ page, match: closestMatch(page, ourList, boilerplate) }))
-      .filter(({ match }) => !match || match.score < MATCH_THRESHOLD)
+      .map((page) => ({
+        page,
+        match: closestMatch(page, ourList, boilerplate),
+        // closestMatch returns null for two different reasons and only one of
+        // them is a gap: their page has no readable topic at all, or it has
+        // one and nothing of ours shares a word. Telling them apart matters —
+        // the real competitor's home page has no topic words, and treating
+        // that null as "no match found" listed their front page as a page the
+        // customer should go and write.
+        readable: distinctiveTokens(page, boilerplate.theirs).size > 0,
+      }))
+      .filter(({ match, readable }) => readable && (!match || match.score < MATCH_THRESHOLD))
       .map(({ page, match }) => ({
         url: page.url,
         title: page.title,
