@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/console";
 import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search, Map } from "lucide-react";
 import { useWorkspace, useLocalSeo, useSearchLocalBusiness, useConnectLocalBusiness, useGbpProposals, useAnalyzeGbp, useApproveGbpFix, useRejectGbpFix } from "@/hooks/use-growthx";
+import { errorMessage } from "@/lib/error-message";
 import { GeoGridPanel } from "./GeoGridPanel";
 import { ReviewsPanel } from "./ReviewsPanel";
 
@@ -141,8 +142,13 @@ export default function LocalPage() {
                 {searchMutation.data && searchMutation.data.length === 0 && (
                   <p className="text-sm text-brand-500">No businesses found matching that query.</p>
                 )}
+                {/* The server already says exactly what is wrong and what to
+                    set — "GOOGLE_PLACES_API_KEY is not configured", and so on.
+                    Replacing that with "Check API key" threw away the only
+                    useful part: which key, and that this is Places, not the
+                    Google account the customer just connected. */}
                 {searchMutation.isError && (
-                  <p className="text-sm text-red-500">Failed to search for businesses. Check API key.</p>
+                  <p className="text-sm leading-relaxed text-error-500">{errorMessage(searchMutation.error)}</p>
                 )}
               </div>
             </Panel>
