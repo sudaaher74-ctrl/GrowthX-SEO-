@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service';
 import { SearchConsoleService } from './search-console.service';
+import { AnalyticsService } from './analytics.service';
 
 /**
- * Keeps connected Google sources up to date, off the request path.
+ * Keeps connected Google sources — Search Console and Analytics — up to
+ * date, off the request path.
  *
  * A sync paginates through months of rows and can take minutes; doing it
  * inside a page request would time out and would re-fetch the same data for
@@ -30,6 +32,7 @@ export class GoogleSyncScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly searchConsole: SearchConsoleService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   /**
@@ -47,35 +50,38 @@ export class GoogleSyncScheduler {
     try {
       const connections = await this.prisma.integration.findMany({
         where: {
-          provider: 'search_console',
+          provider: { in: ['search_console', 'analytics'] },
           // Only connections that can actually be read. NEEDS_REAUTH and
           // NEEDS_SELECTION are states a person has to resolve; retrying them
           // on a timer burns quota and buries the real failures in the log.
           status: 'CONNECTED',
           selectedResourceId: { not: null },
         },
-        select: { projectId: true },
+        select: { projectId: true, provider: true },
       });
 
       if (connections.length === 0) return;
-      this.logger.log(`Syncing Search Console for ${connections.length} project(s).`);
+      this.logger.log(`Syncing ${connections.length} Google connection(s).`);
 
       // Sequential. Google's quota is per application as well as per property,
       // and running every customer's sync at once is the reliable way to
       // exhaust it and fail all of them instead of some.
-      for (const { projectId } of connections) {
+      for (const { projectId, provider } of connections) {
         try {
-          const result = await this.searchConsole.sync(projectId);
+          const result =
+            provider === 'analytics'
+              ? await this.analytics.sync(projectId)
+              : await this.searchConsole.sync(projectId);
           await this.prisma.integration.update({
-            where: { projectId_provider: { projectId, provider: 'search_console' } },
+            where: { projectId_provider: { projectId, provider } },
             data: { nextSyncAt: nextRun() },
           });
-          this.logger.log(`[GSC ${projectId}] ${result.status}, ${result.rowsWritten} rows.`);
+          this.logger.log(`[${provider} ${projectId}] ${result.status}, ${result.rowsWritten} rows.`);
         } catch (error: any) {
-          // One customer's failure must not stop the rest. The connector has
-          // already recorded why against that project, and marked the
-          // connection as needing reauthorization if that is the reason.
-          this.logger.error(`[GSC ${projectId}] sync failed: ${error.message}`);
+          // One customer's failure, or one provider's, must not stop the rest.
+          // The connector has already recorded why against that project, and
+          // marked the connection as needing reauthorization if that is why.
+          this.logger.error(`[${provider} ${projectId}] sync failed: ${error.message}`);
         }
       }
     } finally {

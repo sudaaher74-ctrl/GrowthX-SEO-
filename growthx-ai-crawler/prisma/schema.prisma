@@ -1984,3 +1984,45 @@ model GrowthOpportunity {
   @@index([projectId, source])
   @@index([organizationId, projectId])
 }
+
+/// One row of Google Analytics 4 data.
+///
+/// Same shape as GscDailyMetric and for the same reason: the GA4 Data API
+/// returns rows keyed by whichever dimensions were requested, so a table per
+/// dimension would be several copies of one sync.
+///
+/// The metrics are nullable rather than defaulted to zero, and that is the
+/// important part. A great many GA4 properties have no conversion tracking
+/// configured and no revenue at all; storing those as 0 makes "not measured"
+/// indistinguishable from "measured, and it was none", and every screen above
+/// would then report a real business as having zero conversions.
+model Ga4DailyMetric {
+  id         String   @id @default(uuid())
+  projectId  String
+  /// The GA4 property, kept on the row so switching property does not blend
+  /// two sites' history.
+  propertyId String
+  date       DateTime @db.Date
+
+  /// TOTAL | LANDING_PAGE | CHANNEL | COUNTRY | DEVICE
+  grain       String
+  landingPage String?
+  channel     String?
+  country     String?
+  device      String?
+
+  users       Int
+  sessions    Int
+  /// 0-1 as GA4 reports it.
+  engagementRate Float
+  /// Null when the property has no key events configured — not zero.
+  conversions Int?
+  /// Null unless ecommerce or a revenue-bearing event is set up.
+  revenue     Float?
+
+  createdAt DateTime @default(now())
+
+  @@unique([propertyId, date, grain, landingPage, channel, country, device])
+  @@index([projectId, grain, date])
+  @@index([projectId, landingPage])
+}

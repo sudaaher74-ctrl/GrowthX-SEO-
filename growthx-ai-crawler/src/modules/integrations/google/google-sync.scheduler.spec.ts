@@ -16,7 +16,13 @@ describe('GoogleSyncScheduler', () => {
     const searchConsole = {
       sync: syncImpl ?? jest.fn().mockResolvedValue({ status: 'SUCCEEDED', rowsWritten: 10 }),
     };
-    return { prisma, searchConsole, scheduler: new GoogleSyncScheduler(prisma as any, searchConsole as any) };
+    const analytics = { sync: jest.fn().mockResolvedValue({ status: 'SUCCEEDED', rowsWritten: 7 }) };
+    return {
+      prisma,
+      searchConsole,
+      analytics,
+      scheduler: new GoogleSyncScheduler(prisma as any, searchConsole as any, analytics as any),
+    };
   };
 
   it('only syncs connections that can actually be read', async () => {
@@ -38,7 +44,11 @@ describe('GoogleSyncScheduler', () => {
       .fn()
       .mockRejectedValueOnce(new Error('revoked'))
       .mockResolvedValue({ status: 'SUCCEEDED', rowsWritten: 5 });
-    const { scheduler } = build([{ projectId: 'a' }, { projectId: 'b' }, { projectId: 'c' }], sync);
+    const { scheduler } = build([
+      { projectId: 'a', provider: 'search_console' },
+      { projectId: 'b', provider: 'search_console' },
+      { projectId: 'c', provider: 'search_console' },
+    ], sync);
 
     await scheduler.syncConnectedSources();
 
@@ -50,7 +60,7 @@ describe('GoogleSyncScheduler', () => {
     // runs writing the same window.
     let release: () => void;
     const sync = jest.fn(() => new Promise((resolve) => { release = () => resolve({ status: 'SUCCEEDED', rowsWritten: 0 }); }));
-    const { scheduler } = build([{ projectId: 'a' }], sync as any);
+    const { scheduler } = build([{ projectId: 'a', provider: 'search_console' }], sync as any);
 
     const first = scheduler.syncConnectedSources();
     await scheduler.syncConnectedSources();
@@ -72,11 +82,25 @@ describe('GoogleSyncScheduler', () => {
   });
 
   it('records when the next refresh is due', async () => {
-    const { prisma, scheduler } = build([{ projectId: 'a' }]);
+    const { prisma, scheduler } = build([{ projectId: 'a', provider: 'search_console' }]);
 
     await scheduler.syncConnectedSources();
 
     const next = prisma.integration.update.mock.calls[0][0].data.nextSyncAt;
     expect(next.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('routes each connection to the connector that owns it', async () => {
+    // One loop over both providers, so a customer with Analytics but no
+    // Search Console is still synced.
+    const { searchConsole, analytics, scheduler } = build([
+      { projectId: 'a', provider: 'search_console' },
+      { projectId: 'b', provider: 'analytics' },
+    ]);
+
+    await scheduler.syncConnectedSources();
+
+    expect(searchConsole.sync).toHaveBeenCalledWith('a');
+    expect(analytics.sync).toHaveBeenCalledWith('b');
   });
 });

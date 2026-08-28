@@ -14,6 +14,9 @@ import { SearchConsoleService } from './google/search-console.service';
 import { SearchConsoleInsightsService } from './google/search-console-insights.service';
 import { SearchConsoleController } from './google/search-console.controller';
 import { GoogleSyncScheduler } from './google/google-sync.scheduler';
+import { AnalyticsService } from './google/analytics.service';
+import { AnalyticsInsightsService } from './google/analytics-insights.service';
+import { AnalyticsController } from './google/analytics.controller';
 import { DatabaseModule } from '../../database/database.module';
 
 @Module({
@@ -23,6 +26,8 @@ import { DatabaseModule } from '../../database/database.module';
     GoogleOAuthService,
     SearchConsoleService,
     SearchConsoleInsightsService,
+    AnalyticsService,
+    AnalyticsInsightsService,
     GoogleSyncScheduler,
     GoogleBusinessService,
     FacebookService,
@@ -34,6 +39,7 @@ import { DatabaseModule } from '../../database/database.module';
     GoogleOAuthController,
     GoogleOAuthCallbackController,
     SearchConsoleController,
+    AnalyticsController,
     GoogleBusinessController,
     FacebookController,
     YoutubeController
@@ -45,6 +51,8 @@ import { DatabaseModule } from '../../database/database.module';
     // Executive Dashboard read search data from one place rather than each
     // calling Google.
     SearchConsoleInsightsService,
+    AnalyticsService,
+    AnalyticsInsightsService,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,
