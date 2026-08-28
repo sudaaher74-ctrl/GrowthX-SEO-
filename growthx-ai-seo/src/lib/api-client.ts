@@ -559,6 +559,85 @@ export interface CoverageOpportunities {
   opportunities: CoverageOpportunity[];
 }
 
+/** A metric with its change against the period before, or null when there is none. */
+export interface GscMetric {
+  current: number;
+  previous: number | null;
+  /** Null when the earlier period predates the synced data — never a made-up zero. */
+  change: number | null;
+  changePct: number | null;
+  /** Set on average position, where a smaller number is an improvement. */
+  lowerIsBetter?: boolean;
+}
+
+export interface GscSummary {
+  range: { start: string; end: string };
+  comparisonRange: { start: string; end: string } | null;
+  clicks: GscMetric;
+  impressions: GscMetric;
+  ctr: GscMetric;
+  position: GscMetric;
+  daysWithData: number;
+}
+
+export interface GscPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscRow {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+export interface GscStrikingDistanceRow extends GscRow {
+  /** The thresholds this row was selected by, so the judgement is visible. */
+  criteria: { minPosition: number; maxPosition: number; minImpressions: number; days: number };
+}
+
+export interface GscCtrOpportunity extends GscRow {
+  expectedCtr: number;
+  shortfall: number;
+  estimatedMissedClicks: number;
+}
+
+export interface GscDecliningRow {
+  query: string;
+  previousPosition: number;
+  currentPosition: number;
+  positionChange: number;
+  previousClicks: number;
+  currentClicks: number;
+  impressions: number;
+}
+
+export interface GoogleProviderStatus {
+  id: "search_console" | "analytics" | "business_profile";
+  label: string;
+  /** Google gates this API behind its own approval; a Connect button would 403. */
+  requiresGoogleApproval: boolean;
+  selectionLabel: string;
+  status: "NOT_CONNECTED" | "NEEDS_SELECTION" | "CONNECTED" | "NEEDS_REAUTH" | "ERROR" | "DISCONNECTED";
+  statusMessage: string | null;
+  selectedResourceId: string | null;
+  selectedResourceName: string | null;
+  googleAccountEmail: string | null;
+  lastSyncedAt: string | null;
+  nextSyncAt: string | null;
+}
+
+export interface GoogleConnectionStatus {
+  /** Whether this deployment has Google credentials at all. */
+  configuration: { configured: boolean; missing: string[] };
+  providers: GoogleProviderStatus[];
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1118,6 +1197,57 @@ export const api = {
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/opportunities${qs}`,
     );
   },
+
+  // ── Google connections ───────────────────────────────────────────────────
+  googleConnections: (projectId: string) =>
+    get<GoogleConnectionStatus>(`/api/projects/${projectId}/integrations/google`),
+  googleAuthorizeUrl: (projectId: string, provider: string, returnTo?: string) =>
+    post<{ authorizationUrl: string }>(
+      `/api/projects/${projectId}/integrations/google/${provider}/authorize${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`,
+      {},
+    ),
+  googleSelectResource: (projectId: string, provider: string, resourceId: string, resourceName: string) =>
+    post(
+      `/api/projects/${projectId}/integrations/google/${provider}/select?resourceId=${encodeURIComponent(resourceId)}&resourceName=${encodeURIComponent(resourceName)}`,
+      {},
+    ),
+  googleDisconnect: (projectId: string, provider: string) =>
+    request<{ disconnected: boolean; revoked?: boolean }>(
+      `/api/projects/${projectId}/integrations/google/${provider}`,
+      { method: "DELETE" },
+    ),
+
+  // ── Search Console ───────────────────────────────────────────────────────
+  gscProperties: (projectId: string) =>
+    get<{ propertyId: string; kind: "DOMAIN" | "URL_PREFIX"; permissionLevel?: string }[]>(
+      `/api/projects/${projectId}/search-console/properties`,
+    ),
+  gscSync: (projectId: string, days?: number) =>
+    post<{ status: string; rowsWritten: number; failedGrains: string[] }>(
+      `/api/projects/${projectId}/search-console/sync${days ? `?days=${days}` : ""}`,
+      {},
+    ),
+  /** Null until a sync has stored something — the caller must not render zeroes. */
+  gscCoverage: (projectId: string) =>
+    get<{ newestDate: string; oldestDate: string } | null>(`/api/projects/${projectId}/search-console/coverage`),
+  gscSummary: (projectId: string, days: number) =>
+    get<GscSummary | null>(`/api/projects/${projectId}/search-console/summary?days=${days}`),
+  gscTimeseries: (projectId: string, days: number) =>
+    get<GscPoint[]>(`/api/projects/${projectId}/search-console/timeseries?days=${days}`),
+  gscQueries: (projectId: string, days: number, limit = 50) =>
+    get<GscRow[]>(`/api/projects/${projectId}/search-console/queries?days=${days}&limit=${limit}`),
+  gscPages: (projectId: string, days: number, limit = 50) =>
+    get<GscRow[]>(`/api/projects/${projectId}/search-console/pages?days=${days}&limit=${limit}`),
+  gscPageQueries: (projectId: string, page: string, days: number) =>
+    get<GscRow[]>(
+      `/api/projects/${projectId}/search-console/page-queries?page=${encodeURIComponent(page)}&days=${days}`,
+    ),
+  gscStrikingDistance: (projectId: string, days: number) =>
+    get<GscStrikingDistanceRow[]>(`/api/projects/${projectId}/search-console/striking-distance?days=${days}`),
+  gscCtrOpportunities: (projectId: string, days: number) =>
+    get<GscCtrOpportunity[]>(`/api/projects/${projectId}/search-console/ctr-opportunities?days=${days}`),
+  gscDeclining: (projectId: string, days: number) =>
+    get<GscDecliningRow[]>(`/api/projects/${projectId}/search-console/declining?days=${days}`),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>

@@ -81,6 +81,10 @@ export function Sidebar({
       tagTone: "danger",
     },
     { label: "Search", href: "/search", icon: Search },
+    // A sub-entry rather than a top-level item: Search Console answers the
+    // same question as AI Visibility above it — where the site shows up — for
+    // a different search engine.
+    { label: "Search Console", href: "/search/search-console", icon: TrendingUp },
     { label: "Market Research", href: "/market-research", icon: Telescope },
     { label: "Competitors", href: "/competitors", icon: Crosshair },
     { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },

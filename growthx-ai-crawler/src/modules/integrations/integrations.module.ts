@@ -13,6 +13,7 @@ import { GoogleOAuthController, GoogleOAuthCallbackController } from './google/g
 import { SearchConsoleService } from './google/search-console.service';
 import { SearchConsoleInsightsService } from './google/search-console-insights.service';
 import { SearchConsoleController } from './google/search-console.controller';
+import { GoogleSyncScheduler } from './google/google-sync.scheduler';
 import { DatabaseModule } from '../../database/database.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { DatabaseModule } from '../../database/database.module';
     GoogleOAuthService,
     SearchConsoleService,
     SearchConsoleInsightsService,
+    GoogleSyncScheduler,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,
