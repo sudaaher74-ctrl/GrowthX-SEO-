@@ -104,13 +104,19 @@ describe('CompetitorCrawlService', () => {
   });
 
   describe('coverage', () => {
-    const buildWith = (job: any, grouped: any[] = []) => {
+    // Counts come back from $queryRaw, which deduplicates a page linked both
+    // with and without www. bigint is what the driver actually returns for a
+    // count, so the mock returns it too — Number() on a bigint is the bug this
+    // would otherwise hide.
+    const buildWith = (job: any, counts: Record<string, number> = {}) => {
       const prisma = {
         competitorDomain: {
           findFirst: jest.fn().mockResolvedValue({ id: 'comp1', domain: 'acme.com', websiteId: 'w1' }),
         },
         crawlJob: { findFirst: jest.fn().mockResolvedValue(job) },
-        page: { groupBy: jest.fn().mockResolvedValue(grouped) },
+        $queryRaw: jest
+          .fn()
+          .mockResolvedValue(Object.entries(counts).map(([pageType, n]) => ({ pageType, n: BigInt(n) }))),
       };
       return { prisma, service: new CompetitorCrawlService(prisma as any, {} as any) };
     };
@@ -131,16 +137,16 @@ describe('CompetitorCrawlService', () => {
 
     it('counts the pages by kind', async () => {
       const { service } = buildWith(
-        { id: 'j1', finishedAt: new Date('2026-08-27'), pagesCrawled: 30, pageLimit: 300 },
-        [
-          { pageType: 'SERVICE', _count: { _all: 24 } },
-          { pageType: 'BLOG', _count: { _all: 6 } },
-        ],
+        { id: 'j1', finishedAt: new Date('2026-08-27'), pagesCrawled: 44, pageLimit: 300 },
+        { SERVICE: 24, BLOG: 6 },
       );
 
       const coverage = await service.getCoverage('org1', 'p1', 'comp1');
 
       expect(coverage?.byType).toEqual({ SERVICE: 24, BLOG: 6 });
+      // The total is the sum of what is shown, not pagesCrawled — that counts
+      // every fetch, including redirects, errors and two spellings of one URL.
+      // Reporting 44 above a breakdown adding to 30 is a visible contradiction.
       expect(coverage?.totalPages).toBe(30);
     });
 

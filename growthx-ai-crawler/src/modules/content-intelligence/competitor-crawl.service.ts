@@ -138,29 +138,55 @@ export class CompetitorCrawlService {
     });
     if (!job) return null;
 
-    const grouped = await this.prisma.page.groupBy({
-      by: ['pageType'],
-      where: { crawlJobId: job.id, statusCode: { gte: 200, lt: 300 } },
-      _count: { _all: true },
-    });
-
-    const byType = Object.fromEntries(grouped.map((row) => [row.pageType, row._count._all])) as Record<
-      PageType,
-      number
-    >;
+    const byType = (await this.countByType(job.id)) as Record<PageType, number>;
+    const totalPages = Object.values(byType).reduce((sum, n) => sum + n, 0);
 
     return {
       competitorId: competitor.id,
       domain: competitor.domain,
       crawlJobId: job.id,
       crawledAt: job.finishedAt,
-      totalPages: job.pagesCrawled,
+      // The sum of what is shown below it, so the header and the rows agree.
+      // Deliberately not job.pagesCrawled, which counts every fetch including
+      // redirects, errors and duplicate spellings of one page.
+      totalPages,
       // True when the crawl stopped at its ceiling rather than at the end of
-      // the site. Counts from a capped crawl are a floor, not a total, and the
-      // client has to be able to say so.
+      // the site. Measured against pagesCrawled, since the ceiling limits
+      // fetches rather than the pages that survive to be counted. Counts from
+      // a capped crawl are a floor, not a total, and the client has to be able
+      // to say so.
       capped: job.pageLimit != null && job.pagesCrawled >= job.pageLimit,
       byType,
     };
+  }
+
+  /**
+   * Pages of each kind in one crawl, counting a page once however it was
+   * linked.
+   *
+   * Counting rows would overcount. A site links itself both with and without
+   * `www.`, and crawls recorded before the crawler deduplicated those stored
+   * the same page under each spelling — on the site crawled here, 35 pages as
+   * 44 rows. Two sites link themselves each way in different proportions, so
+   * the inflation differs per site and the gap between two inflated counts is
+   * wrong by an amount nobody can predict.
+   *
+   * The host normalisation below deliberately mirrors `visitKey` in
+   * CrawlerService, which is what prevents the duplicates being written in the
+   * first place. It is kept for crawls recorded before that existed; for
+   * anything crawled since, it finds nothing to collapse and costs one regex
+   * per row.
+   */
+  private async countByType(crawlJobId: string): Promise<Record<string, number>> {
+    const rows = await this.prisma.$queryRaw<{ pageType: string; n: bigint }[]>`
+      SELECT "pageType",
+             count(DISTINCT regexp_replace(url, '^https?://(www\.)?', '')) AS n
+      FROM "Page"
+      WHERE "crawlJobId" = ${crawlJobId}
+        AND "statusCode" >= 200 AND "statusCode" < 300
+      GROUP BY "pageType"
+    `;
+    return Object.fromEntries(rows.map((row) => [row.pageType, Number(row.n)]));
   }
 
   /**
@@ -177,17 +203,13 @@ export class CompetitorCrawlService {
     });
     if (!job) return null;
 
-    const grouped = await this.prisma.page.groupBy({
-      by: ['pageType'],
-      where: { crawlJobId: job.id, statusCode: { gte: 200, lt: 300 } },
-      _count: { _all: true },
-    });
+    const byType = await this.countByType(job.id);
 
     return {
       crawlJobId: job.id,
       crawledAt: job.finishedAt,
-      totalPages: job.pagesCrawled,
-      byType: Object.fromEntries(grouped.map((row) => [row.pageType, row._count._all])),
+      totalPages: Object.values(byType).reduce((sum, n) => sum + n, 0),
+      byType,
     };
   }
 

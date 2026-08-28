@@ -145,7 +145,9 @@ describe('CrawlerService', () => {
         const visited = await (service as any).markUrlVisited('job1', 'https://example.com/a');
 
         expect(visited).toBe(false);
-        expect(sadd).toHaveBeenCalledWith('job:job1:visited', 'https://example.com/a');
+        // The member is the canonical key, not the URL as linked, so the same
+        // page reached via www. or http:// claims the same slot in the set.
+        expect(sadd).toHaveBeenCalledWith('job:job1:visited', 'example.com/a');
         // Without the TTL the set would outlive the crawl and suppress the
         // next one for the same job id.
         expect(expire).toHaveBeenCalledWith('job:job1:visited', 86400);

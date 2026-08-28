@@ -107,3 +107,55 @@ describe('CrawlerService — page ceiling', () => {
     });
   });
 });
+
+/**
+ * A site links itself both ways: the footer uses example.com/about, the nav
+ * uses www.example.com/about. Both were fetched and both were stored, so one
+ * page became two rows and every page-kind count inflated with it — on the
+ * first site crawled in production, 35 pages recorded as 44 rows.
+ *
+ * That is worse than a wasted fetch. How often a site links itself each way
+ * varies per site, so the inflation varies too, and a competitor comparison
+ * was subtracting two differently-wrong numbers.
+ */
+describe('CrawlerService — one page, however it is linked', () => {
+  const build = () => {
+    const service: any = new (CrawlerService as any)({}, {}, { getRedisClient: () => null }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    service.onModuleDestroy?.();
+    return service;
+  };
+
+  it('does not fetch the same page under both host spellings', async () => {
+    const service = build();
+
+    expect(await service.markUrlVisited('j', 'https://aivaenterprises.com/about')).toBe(false);
+    expect(await service.markUrlVisited('j', 'https://www.aivaenterprises.com/about')).toBe(true);
+  });
+
+  it('treats http and https as the same page', async () => {
+    const service = build();
+
+    expect(await service.markUrlVisited('j', 'http://x.com/a')).toBe(false);
+    expect(await service.markUrlVisited('j', 'https://x.com/a')).toBe(true);
+  });
+
+  it('keeps genuinely different pages apart', async () => {
+    // Over-collapsing is the opposite failure and just as bad: a subdomain is
+    // a different site, and a query string can be the whole page.
+    const service = build();
+
+    expect(await service.markUrlVisited('j', 'https://x.com/a')).toBe(false);
+    expect(await service.markUrlVisited('j', 'https://x.com/b')).toBe(false);
+    expect(await service.markUrlVisited('j', 'https://shop.x.com/a')).toBe(false);
+    expect(await service.markUrlVisited('j', 'https://x.com/a?page=2')).toBe(false);
+  });
+
+  it('still fetches the URL the site actually published', async () => {
+    // Only the deduplication key is canonicalised. Rewriting the request would
+    // break every site that serves one spelling and redirects the other.
+    const service = build();
+
+    expect(service.visitKey('https://www.x.com/a')).toBe('x.com/a');
+    expect(service.normalizeUrl('https://www.x.com/a')).toBe('https://www.x.com/a');
+  });
+});

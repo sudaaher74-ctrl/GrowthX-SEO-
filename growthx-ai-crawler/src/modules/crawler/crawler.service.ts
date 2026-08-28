@@ -526,10 +526,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<boolean> {
     const redisClient = this.queue.getRedisClient();
     const key = `job:${jobId}:visited`;
+    const member = this.visitKey(targetUrl);
 
     if (redisClient) {
       if (pageLimit && (await redisClient.scard(key)) >= pageLimit) return true;
-      const added = await redisClient.sadd(key, targetUrl);
+      const added = await redisClient.sadd(key, member);
       if (added === 1) {
         await redisClient.expire(key, 86400);
         return false;
@@ -543,8 +544,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       this.localVisited.set(jobId, visitedSet);
     }
     if (pageLimit && visitedSet.size >= pageLimit) return true;
-    if (visitedSet.has(targetUrl)) return true;
-    visitedSet.add(targetUrl);
+    if (visitedSet.has(member)) return true;
+    visitedSet.add(member);
     return false;
   }
 
@@ -578,6 +579,36 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);
+  }
+
+  /**
+   * The key a URL is deduplicated under within a crawl.
+   *
+   * Distinct from the URL we fetch. A site links itself both ways — the footer
+   * uses https://example.com/about, the nav uses https://www.example.com/about
+   * — and normalizeUrl treats those as two pages, so both were fetched and both
+   * were stored. On the site crawled here that turned 35 pages into 44 rows,
+   * and page-kind counts inflated with them: coverage read 12 product pages
+   * where there were 9. Because how often a site links itself each way varies
+   * per site, the inflation differs per site too, so a competitor comparison
+   * was comparing two differently-wrong numbers.
+   *
+   * Only the key is canonicalised, never the URL we request. Plenty of sites
+   * serve one host spelling and redirect the other, so rewriting the request
+   * would turn a working fetch into a redirect chase or a 404; the fetcher
+   * follows whatever redirect the site issues and records the result in
+   * finalUrl.
+   */
+  private visitKey(normalizedUrl: string): string {
+    try {
+      const parsed = new URL(normalizedUrl);
+      // Scheme folded in for the same reason as the host: http://x/a and
+      // https://x/a are one page, and a site that links itself both ways would
+      // otherwise store it twice.
+      return `${parsed.hostname.toLowerCase().replace(/^www\./, '')}${parsed.pathname}${parsed.search}`;
+    } catch {
+      return normalizedUrl;
+    }
   }
 
   private normalizeUrl(rawUrl: string): string {
