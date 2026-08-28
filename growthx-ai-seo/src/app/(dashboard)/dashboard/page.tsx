@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
 import type { CrawlIssue } from "@/lib/api-client";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { MeasureKpi } from "@/components/ui/measure-kpi";
 import { useCrawlIssues, useLatestCrawl, usePortfolio, useVisibility, useWorkspace } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
@@ -24,10 +27,50 @@ import { QueryState } from "@/components/ui/query-state";
  * Client Overview — the first screen after choosing a client in the switcher.
  * Everything here is that one client's real data.
  */
+/** Shown while the real figures are still in flight — never a zero. */
+const loading = { state: "NO_DATA", reason: "Loading…" } as const;
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "default" | "danger" | "good" | "accent";
+}) {
+  const colour =
+    tone === "danger"
+      ? "text-error-500"
+      : tone === "good"
+        ? "text-success-500"
+        : tone === "accent"
+          ? "text-accent-600"
+          : "text-brand-950";
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[13px] font-medium text-brand-500">{label}</span>
+      <span className={`text-xl font-bold ${colour}`}>{value}</span>
+      {sub && <span className="text-[11px] text-brand-400">{sub}</span>}
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const visibility = useVisibility(projectId);
+  // Every headline figure below comes from here. The four hardcoded scores and
+  // the five hardcoded percentages this replaces were the same for every
+  // customer and had no source at all.
+  const executive = useQuery({
+    queryKey: ["executive-summary", projectId],
+    queryFn: () => api.executiveSummary(projectId!),
+    enabled: !!projectId,
+  });
+  const connectHref = { search_console: "/search/search-console", analytics: "/analytics" };
 
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
@@ -90,56 +133,69 @@ export default function OverviewPage() {
         emptyTitle="No client selected"
         emptyBody="Add a client from the Clients page, then pick it in the workspace switcher."
       >
+        {/* No blended "Growth Score". A single number over unrelated
+            measurements is a judgement presented as an observation, and the
+            one here was a literal. These four are each measured or each say
+            why they are not. */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi
-            label="Growth Score"
-            value="78"
-            delta={12}
-            deltaSuffix="%"
+          <MeasureKpi
+            label="Search clicks"
+            measure={executive.data?.headline.searchClicks ?? loading}
+            connectHref={connectHref}
           />
-          <Kpi
-            label="SEO Health"
-            value="82"
-            delta={8}
-            deltaSuffix="%"
+          <MeasureKpi
+            label="Impressions"
+            measure={executive.data?.headline.impressions ?? loading}
+            connectHref={connectHref}
           />
-          <Kpi
-            label="Local SEO"
-            value="74"
-            delta={14}
-            deltaSuffix="%"
+          <MeasureKpi
+            label="Sessions"
+            measure={executive.data?.headline.sessions ?? loading}
+            connectHref={connectHref}
           />
-          <Kpi
-            label="Performance"
-            value="86"
-            delta={-2}
-            deltaSuffix="%"
-            tone="danger"
+          <MeasureKpi
+            label="Conversions"
+            measure={executive.data?.headline.conversions ?? loading}
+            connectHref={connectHref}
           />
         </div>
 
-        <Panel title="Business Impact">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-6 text-center">
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-brand-500 font-medium">Organic Traffic</span>
-              <span className="text-xl font-bold text-success-500">+18%</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-brand-500 font-medium">Leads</span>
-              <span className="text-xl font-bold text-success-500">+21%</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-brand-500 font-medium">Conversions</span>
-              <span className="text-xl font-bold text-success-500">+14%</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[13px] text-brand-500 font-medium">Search Visibility</span>
-              <span className="text-xl font-bold text-success-500">+17%</span>
-            </div>
-            <div className="flex flex-col gap-1 border-l pl-4 border-brand-100">
-              <span className="text-[13px] text-brand-500 font-medium">Estimated Opportunity</span>
-              <span className="text-xl font-bold text-accent-600">₹2.4L/mo</span>
-            </div>
+        <Panel
+          title="Where you stand"
+          subtitle="Counted from your last crawl and the opportunities found across your data."
+        >
+          <div className="grid grid-cols-2 gap-4 p-6 text-center lg:grid-cols-4">
+            {/* Real counts from the last crawl. The five green percentages
+                that were here — organic traffic, leads, conversions, search
+                visibility, and an "Estimated Opportunity" of ₹2.4L/mo — were
+                string literals, identical for every customer. A currency
+                figure in particular needs revenue attached to a page, which
+                nothing in this product has. */}
+            {executive.data?.siteHealth.state === "MEASURED" ? (
+              <>
+                <Stat label="Pages crawled" value={executive.data.siteHealth.pagesCrawled.toLocaleString()} />
+                <Stat
+                  label="Critical issues"
+                  value={executive.data.siteHealth.criticalIssues.toLocaleString()}
+                  tone={executive.data.siteHealth.criticalIssues > 0 ? "danger" : "good"}
+                />
+                <Stat label="Total issues" value={executive.data.siteHealth.totalIssues.toLocaleString()} />
+              </>
+            ) : (
+              <div className="col-span-2 text-[13px] text-brand-500 lg:col-span-3">
+                {executive.data?.siteHealth.reason ?? "Loading…"}
+              </div>
+            )}
+            <Stat
+              label="Open opportunities"
+              value={String(executive.data?.openOpportunities.total ?? 0)}
+              sub={
+                executive.data?.openOpportunities.highPotential
+                  ? `${executive.data.openOpportunities.highPotential} high potential`
+                  : undefined
+              }
+              tone="accent"
+            />
           </div>
         </Panel>
 

@@ -5,6 +5,7 @@ import { OpportunitiesService } from './opportunities.service';
 import { OpportunityDetectionService } from './opportunity-detection.service';
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunityDetectionScheduler } from './opportunity-detection.scheduler';
+import { ExecutiveSummaryService } from './executive-summary.service';
 
 /**
  * The unified opportunity surface.
@@ -16,8 +17,13 @@ import { OpportunityDetectionScheduler } from './opportunity-detection.scheduler
  */
 @Module({
   imports: [DatabaseModule, IntegrationsModule],
-  providers: [OpportunitiesService, OpportunityDetectionService, OpportunityDetectionScheduler],
+  providers: [
+    OpportunitiesService,
+    OpportunityDetectionService,
+    OpportunityDetectionScheduler,
+    ExecutiveSummaryService,
+  ],
   controllers: [OpportunitiesController],
-  exports: [OpportunitiesService, OpportunityDetectionService],
+  exports: [OpportunitiesService, OpportunityDetectionService, ExecutiveSummaryService],
 })
 export class OpportunitiesModule {}

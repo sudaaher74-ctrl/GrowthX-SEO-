@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OpportunitiesService } from './opportunities.service';
 import { OpportunityDetectionService } from './opportunity-detection.service';
+import { ExecutiveSummaryService } from './executive-summary.service';
 
 @ApiTags('Growth Opportunities')
 @ApiBearerAuth()
@@ -12,7 +13,20 @@ export class OpportunitiesController {
   constructor(
     private readonly opportunities: OpportunitiesService,
     private readonly detection: OpportunityDetectionService,
+    private readonly executive: ExecutiveSummaryService,
   ) {}
+
+  /**
+   * The executive dashboard's figures — only the ones that are real.
+   *
+   * Lives here rather than in its own module because it is the same question
+   * the opportunity list answers, asked at a summary level.
+   */
+  @Get('executive-summary')
+  @ApiOperation({ summary: 'Headline measurements, with an honest reason wherever there is none' })
+  executiveSummary(@Req() req: any, @Param('projectId') projectId: string, @Query('days') days?: string) {
+    return this.executive.summary(req.organizationId, projectId, days ? parseInt(days, 10) : 28);
+  }
 
   @Get()
   @ApiOperation({ summary: 'The unified opportunity list' })

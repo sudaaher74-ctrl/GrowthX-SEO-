@@ -720,6 +720,36 @@ export interface PageValue {
   hasAnalyticsData: boolean;
 }
 
+/**
+ * One measurement, or an honest reason there is none.
+ *
+ * A union rather than `number | null` on purpose: "not connected", "connected
+ * but never synced" and "connected, synced, and not being measured" need three
+ * different things said to the customer, and a nullable number can only say
+ * one.
+ */
+export type Measure =
+  | { state: "MEASURED"; value: number; changePct: number | null; source: string }
+  | { state: "NOT_CONNECTED"; connect: string; reason: string }
+  | { state: "NO_DATA"; reason: string };
+
+export interface SiteHealth {
+  state: "MEASURED";
+  pagesCrawled: number;
+  criticalIssues: number;
+  totalIssues: number;
+  crawledAt: string | null;
+  source: string;
+}
+
+export interface ExecutiveSummary {
+  range: { days: number };
+  connections: { searchConsole: boolean; analytics: boolean; businessProfile: boolean };
+  headline: { searchClicks: Measure; impressions: Measure; sessions: Measure; conversions: Measure };
+  siteHealth: SiteHealth | { state: "NO_DATA"; reason: string };
+  openOpportunities: { total: number; highPotential: number };
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1364,6 +1394,10 @@ export const api = {
   /** Organic clicks joined to sessions and conversions, per page. */
   ga4PageValue: (projectId: string, days: number) =>
     get<PageValue>(`/api/projects/${projectId}/analytics/page-value?days=${days}`),
+
+  /** Headline figures for the executive dashboard — only the real ones. */
+  executiveSummary: (projectId: string, days = 28) =>
+    get<ExecutiveSummary>(`/api/projects/${projectId}/opportunities/executive-summary?days=${days}`),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
