@@ -7,6 +7,7 @@ import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
 import { canonicalUrl } from './canonical-url';
+import { isCrawlablePage, isHtmlResponse } from './crawlable';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -319,6 +320,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
       const fetchRes = await this.fetcher.fetchPage(normUrl);
 
+      // A file is not a page. The extension filter at enqueue time catches
+      // most of these before the request is even made; this catches the ones
+      // with no extension to judge by — a CMS serving a PDF from
+      // /downloads/latest, say.
+      //
+      // Storing them was not a cosmetic problem. On the first competitor
+      // crawled, 76 of 92 stored "pages" were images and PDFs, so every count
+      // was six times too large and the site's own name fell below the
+      // frequency threshold that marks a word as boilerplate — which silently
+      // broke topic matching and produced a recommendation to write a page
+      // about a JPEG filename.
+      if (!isHtmlResponse(fetchRes.contentType)) {
+        // A plain return is correct here: the pending-task accounting that
+        // finishes the job lives in the finally block below, so returning
+        // early still decrements and still completes the crawl.
+        this.logger.debug(`[JOB ${payload.jobId}] Skipping ${normUrl}: ${fetchRes.contentType} is not a page.`);
+        return;
+      }
+
       let snapshotUrl: string | undefined;
       if (fetchRes.html) {
         snapshotUrl = await this.storage.saveSnapshot(payload.jobId, Buffer.from(normUrl).toString('base64').substring(0, 16), fetchRes.html);
@@ -483,6 +503,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           isNofollow: link.isNofollow || false,
         },
       }).catch(() => {});
+
+      // The link is still recorded above — it exists on the page and the graph
+      // should know about it — but a file is not fetched. This is the half of
+      // the fix that saves a third party's bandwidth rather than just our
+      // counts: a page ceiling bounds how many requests are made and says
+      // nothing about their weight, and 74 images is a great deal heavier than
+      // the HTML the limit was meant to protect.
+      if (!isCrawlablePage(targetClean)) continue;
 
       if (payload.depth + 1 <= payload.maxDepth) {
         const newPayload: PageFetchPayload = {
