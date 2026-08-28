@@ -296,3 +296,69 @@ describe('GoogleOAuthService', () => {
     });
   });
 });
+
+/**
+ * Found in production, and the least obvious dead end available: opening the
+ * property picker calls listProperties, which builds an auth client, which
+ * refreshes the token, which flipped NEEDS_SELECTION to CONNECTED. The picker
+ * then vanished, every sync failed with "no property selected", and there was
+ * no route back to the screen that sets one. Looking at the picker destroyed
+ * the picker.
+ */
+describe('GoogleOAuthService — a token refresh must not promote the connection', () => {
+  const env = { ...process.env };
+  beforeEach(() => {
+    process.env.GOOGLE_CLIENT_ID = 'id';
+    process.env.GOOGLE_CLIENT_SECRET = 'secret';
+    process.env.GOOGLE_REDIRECT_URI = 'https://api.example.com/api/integrations/google/callback';
+    process.env.INTEGRATION_TOKEN_KEY = 'C1PS0y3rGHb0mAtwGDbTeoiSMkR8CQrRD1z0jFYqQ7Y=';
+  });
+  afterAll(() => {
+    process.env = env;
+  });
+
+  const refreshWith = async (row: any) => {
+    const prisma = {
+      integration: { findUnique: jest.fn().mockResolvedValue(row), update: jest.fn().mockResolvedValue({}) },
+      integrationAuditEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new GoogleOAuthService(prisma as any);
+    const client = await service.clientFor('p1', 'search_console');
+    // What google-auth-library emits after it renews an access token.
+    client.emit('tokens', { access_token: 'ya29.fresh', expiry_date: Date.now() + 3600_000 });
+    await new Promise((r) => setImmediate(r));
+    return prisma.integration.update.mock.calls[0]?.[0]?.data ?? {};
+  };
+
+  it('leaves NEEDS_SELECTION alone when no property has been chosen', async () => {
+    const written = await refreshWith({
+      id: 'i1',
+      status: 'NEEDS_SELECTION',
+      selectedResourceId: null,
+      accessToken: encryptToken('ya29.old'),
+      refreshToken: encryptToken('1//r'),
+    });
+
+    expect(written).not.toHaveProperty('status');
+    // The token itself is still persisted; only the promotion is withheld.
+    expect(written).toHaveProperty('accessToken');
+  });
+
+  it('does confirm the connection once a property is selected', async () => {
+    // A NEEDS_REAUTH row cannot reach here — clientFor refuses it before a
+    // client is ever built, because a dead grant cannot refresh itself. The
+    // case that matters is a working connection whose access token expired:
+    // the refresh confirms it, and clears any transient message on it.
+    const written = await refreshWith({
+      id: 'i1',
+      status: 'CONNECTED',
+      statusMessage: 'a transient failure recorded earlier',
+      selectedResourceId: 'sc-domain:example.com',
+      accessToken: encryptToken('ya29.old'),
+      refreshToken: encryptToken('1//r'),
+    });
+
+    expect(written.status).toBe('CONNECTED');
+    expect(written.statusMessage).toBeNull();
+  });
+});

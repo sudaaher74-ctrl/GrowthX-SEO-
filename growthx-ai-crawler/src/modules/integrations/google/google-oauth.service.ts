@@ -226,8 +226,19 @@ export class GoogleOAuthService {
             ...(fresh.access_token ? { accessToken: encryptToken(fresh.access_token) } : {}),
             ...(fresh.refresh_token ? { refreshToken: encryptToken(fresh.refresh_token) } : {}),
             ...(fresh.expiry_date ? { expiresAt: new Date(fresh.expiry_date) } : {}),
-            status: 'CONNECTED',
-            statusMessage: null,
+            // A refresh only proves the authorization still works. It says
+            // nothing about whether a property has been chosen, so it must not
+            // promote the connection to CONNECTED.
+            //
+            // Setting it unconditionally made the connect flow a dead end, and
+            // in the least obvious way possible: opening the property picker
+            // calls listProperties, which builds this client, which refreshes
+            // the token, which flipped NEEDS_SELECTION to CONNECTED. On the
+            // next load the picker was gone — the page thought the job was
+            // done — and every sync then failed with "no property selected",
+            // with no way back to the screen that sets one. Merely looking at
+            // the picker destroyed the state that shows the picker.
+            ...(integration.selectedResourceId ? { status: 'CONNECTED', statusMessage: null } : {}),
           },
         })
         .catch((error) => this.logger.error(`Could not persist refreshed Google token: ${error.message}`));
