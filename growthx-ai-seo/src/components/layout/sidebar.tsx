@@ -87,6 +87,9 @@ export function Sidebar({
     { label: "Search Console", href: "/search/search-console", icon: TrendingUp },
     { label: "Market Research", href: "/market-research", icon: Telescope },
     { label: "Competitors", href: "/competitors", icon: Crosshair },
+    // Sits directly after Competitors because most of what it surfaces is the
+    // join between competitor coverage and the customer's own search data.
+    { label: "Opportunities", href: "/opportunities", icon: ListChecks },
     { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
     { label: "Content", href: "/content", icon: Edit3 },
     { label: "Local", href: "/local", icon: MapPin },

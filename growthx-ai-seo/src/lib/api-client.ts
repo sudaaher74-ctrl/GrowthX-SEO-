@@ -638,6 +638,39 @@ export interface GoogleConnectionStatus {
   providers: GoogleProviderStatus[];
 }
 
+/** One thing the evidence for an opportunity rests on. */
+export interface OpportunityEvidence {
+  label: string;
+  value: string;
+  /** Which system said so. Never blank — a claim with no source is a guess. */
+  source: string;
+}
+
+export interface GrowthOpportunity {
+  id: string;
+  source: "SEARCH_CONSOLE" | "COMPETITOR" | "WEBSITE" | "ANALYTICS" | "LOCAL" | "MARKET";
+  category: "SEO" | "CONTENT" | "LOCAL" | "TECHNICAL" | "MARKETING" | "BUSINESS" | "COMPETITOR";
+  title: string;
+  summary: string;
+  evidence: OpportunityEvidence[];
+  recommendedAction: string;
+  /** A band, never a currency figure — see the detection service. */
+  potential: "HIGH" | "MEDIUM" | "LOW";
+  effort: "HIGH" | "MEDIUM" | "LOW";
+  confidence: number;
+  priority: number;
+  affectedPages: string[];
+  status: "OPEN" | "ACTIONED" | "DISMISSED";
+  detectedAt: string;
+  lastSeenAt: string;
+}
+
+export interface OpportunityList {
+  total: number;
+  byCategory: Record<string, number>;
+  opportunities: GrowthOpportunity[];
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1248,6 +1281,22 @@ export const api = {
     get<GscCtrOpportunity[]>(`/api/projects/${projectId}/search-console/ctr-opportunities?days=${days}`),
   gscDeclining: (projectId: string, days: number) =>
     get<GscDecliningRow[]>(`/api/projects/${projectId}/search-console/declining?days=${days}`),
+
+  // ── Growth opportunities ─────────────────────────────────────────────────
+  opportunities: (projectId: string, filters: { category?: string; status?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.category) params.set("category", filters.category);
+    if (filters.status) params.set("status", filters.status);
+    const qs = params.toString();
+    return get<OpportunityList>(`/api/projects/${projectId}/opportunities${qs ? `?${qs}` : ""}`);
+  },
+  detectOpportunities: (projectId: string) =>
+    post<{ detected: number; failedDetectors: string[] }>(`/api/projects/${projectId}/opportunities/detect`, {}),
+  setOpportunityStatus: (projectId: string, id: string, status: "OPEN" | "ACTIONED" | "DISMISSED") =>
+    request<GrowthOpportunity>(`/api/projects/${projectId}/opportunities/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
