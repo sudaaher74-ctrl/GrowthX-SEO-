@@ -233,7 +233,11 @@ export class MultiAiRouterService {
     const chain = this.chainFor(task);
     if (chain.length === 0) {
       throw new ServiceUnavailableException(
-        'No AI provider is available for this plan. Check plan entitlements and provider API keys.',
+        // Was "check plan entitlements", which pointed at a billing system
+        // that no longer exists and sent whoever read it looking for a
+        // subscription setting. The only cause now is missing or placeholder
+        // API keys.
+        'No AI provider is configured. Set at least one provider API key (Anthropic, OpenAI, Gemini or Sarvam).',
       );
     }
 

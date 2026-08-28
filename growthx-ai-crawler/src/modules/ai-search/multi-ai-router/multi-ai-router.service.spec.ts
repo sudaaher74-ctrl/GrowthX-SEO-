@@ -79,8 +79,14 @@ describe('MultiAiRouterService', () => {
     });
   });
 
-  describe('plan-aware model selection', () => {
-    it('routes a Pro org to Claude for reasoning', async () => {
+  /**
+   * Was "plan-aware model selection". The three tests here that asserted plan
+   * gating went with the billing system — Subscription and UsageRecord are
+   * dropped and no EntitlementsService exists. What is left is the routing
+   * that still happens: which vendor a task goes to, and in what order.
+   */
+  describe('task-based model selection', () => {
+    it('sends reasoning work to Claude first', async () => {
       const { service } = build();
       const anthropic = anthropicStub();
       stubClients(service, { anthropic, openai: openAiStub(), gemini: geminiStub() });
@@ -91,37 +97,10 @@ describe('MultiAiRouterService', () => {
       expect(result.text).toBe('claude answer');
     });
 
-    it('routes a Starter org to Gemini, never Claude or GPT', async () => {
-      const { service } = build({}, {
-        getEntitlements: jest.fn().mockResolvedValue({ plan: 'STARTER', features: [] }),
-      } as any);
-      const anthropic = anthropicStub();
-      const openai = openAiStub();
-      const gemini = geminiStub();
-      stubClients(service, { anthropic, openai, gemini });
-
-      const result = await service.generate({ prompt: 'what should I fix', organizationId: 'org_starter' });
-
-      expect(result.provider).toBe(AiProvider.GEMINI);
-      expect(anthropic.create).not.toHaveBeenCalled();
-      expect(openai.create).not.toHaveBeenCalled();
-    });
-
-    it('denies an explicit Claude request on Starter with the upgrade error', async () => {
-      const assertFeature = jest.fn().mockRejectedValue(new ForbiddenException({ error: 'FEATURE_NOT_IN_PLAN' }));
-      const { service } = build({}, {
-        getEntitlements: jest.fn().mockResolvedValue({ plan: 'STARTER', features: [] }),
-        assertFeature,
-      } as any);
-      stubClients(service, { anthropic: anthropicStub(), openai: openAiStub(), gemini: geminiStub() });
-
-      await expect(
-        service.generate({ prompt: 'x', organizationId: 'org_starter', provider: AiProvider.ANTHROPIC }),
-      ).rejects.toThrow(ForbiddenException);
-      expect(assertFeature).toHaveBeenCalledWith('org_starter',);
-    });
-
-    it('prefers Gemini for cheap high-volume work even on Pro', async () => {
+    it('prefers Gemini for cheap high-volume work', async () => {
+      // Classification and extraction run across every page of a crawl. Paying
+      // reasoning rates for that is the difference between a viable unit cost
+      // and not.
       const { service } = build();
       const gemini = geminiStub();
       stubClients(service, { anthropic: anthropicStub(), openai: openAiStub(), gemini });
@@ -130,25 +109,28 @@ describe('MultiAiRouterService', () => {
       expect(result.provider).toBe(AiProvider.GEMINI);
     });
 
-    it('uses every configured vendor when no organization is given', async () => {
-      const { service, entitlements } = build();
+    it('uses every configured vendor for an internal job with no organization', async () => {
+      const { service } = build();
       stubClients(service, { anthropic: anthropicStub(), openai: openAiStub(), gemini: geminiStub() });
 
       const result = await service.generate({ prompt: 'internal job' });
 
       expect(result.provider).toBe(AiProvider.ANTHROPIC);
-      expect(entitlements.getEntitlements).not.toHaveBeenCalled();
     });
 
-    it('fails clearly when the plan allows nothing that is configured', async () => {
-      const { service } = build({ GEMINI_API_KEY: 'your_gemini_api_key_here' }, {
-        getEntitlements: jest.fn().mockResolvedValue({ plan: 'STARTER', features: [] }),
-      } as any);
-      stubClients(service, { anthropic: anthropicStub(), openai: openAiStub() });
+    it('fails clearly when nothing is configured', async () => {
+      // A placeholder value left in an env file is not a configured vendor,
+      // and the difference has to reach the caller as an error rather than a
+      // silent empty answer.
+      const { service } = build({
+        ANTHROPIC_API_KEY: '',
+        OPENAI_API_KEY: '',
+        GEMINI_API_KEY: 'your_gemini_api_key_here',
+        SARVAM_API_KEY: '',
+      });
+      stubClients(service, {});
 
-      await expect(service.generate({ prompt: 'x', organizationId: 'org_starter' })).rejects.toThrow(
-        ServiceUnavailableException,
-      );
+      await expect(service.generate({ prompt: 'x' })).rejects.toThrow(ServiceUnavailableException);
     });
   });
 

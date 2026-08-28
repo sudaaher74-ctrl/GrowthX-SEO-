@@ -61,15 +61,6 @@ describe('SchedulerService', () => {
       expect(crawledDomains()).toEqual(['a.test', 'b.test']);
     });
 
-    it('skips a site whose plan does not include scheduled crawls', async () => {
-      prisma.website.findMany.mockResolvedValue([site('paid.test', 'org_paid'), site('free.test', 'org_free')]);
-      entitlements.hasFeature.mockImplementation(async (orgId: string) => orgId === 'org_paid');
-
-      await scheduler.handleDailyScheduledCrawls();
-
-      expect(crawledDomains()).toEqual(['paid.test']);
-    });
-
     it('skips a site with no owning organization', async () => {
       prisma.website.findMany.mockResolvedValue([site('orphan.test', null), site('owned.test')]);
 

@@ -250,12 +250,6 @@ describe('StrategyService', () => {
 
     });
 
-    it('checks entitlement before doing any work', async () => {
-      entitlements.assertFeature.mockRejectedValue(new ForbiddenException());
-      await expect(service.generate('proj_1', 'org_1')).rejects.toThrow(ForbiddenException);
-      expect(router.generate).not.toHaveBeenCalled();
-    });
-
     it('refuses to invent a strategy for a site that was never crawled', async () => {
       prisma.crawlJob.findFirst.mockResolvedValue(null);
 
@@ -305,10 +299,12 @@ describe('StrategyService', () => {
     });
 
     it('gives the model room for a long plan', async () => {
+      // A truncated plan is worse than none: it reads as complete and stops
+      // mid-roadmap. The organizationId assertion that used to sit alongside
+      // this was about plan-based provider routing, which went with the
+      // billing system.
       await service.generate('proj_1', 'org_1');
-      expect(router.generate).toHaveBeenCalledWith(
-        expect.objectContaining({ maxTokens: 16000, organizationId: 'org_1' }),
-      );
+      expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 16000 }));
     });
   });
 });

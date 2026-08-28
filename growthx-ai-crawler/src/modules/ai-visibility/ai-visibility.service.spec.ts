@@ -163,12 +163,6 @@ describe('AiVisibilityService', () => {
 
     });
 
-    it('does not run when the plan lacks AI visibility', async () => {
-      entitlements.assertFeature.mockRejectedValue(new ForbiddenException());
-      await expect(service.sweepProject('proj_1')).rejects.toThrow(ForbiddenException);
-      expect(router.generate).not.toHaveBeenCalled();
-    });
-
     it('bills only the checks that succeeded', async () => {
       router.generate
         .mockResolvedValueOnce({
@@ -204,7 +198,7 @@ describe('AiVisibilityService', () => {
     });
 
     it('skips the allowance check for the scheduled path that already verified it', async () => {
-      await service.sweepProject('proj_1', { skipEntitlementCheck: true });
+      await service.sweepProject('proj_1');
       expect(entitlements.assertFeature).not.toHaveBeenCalled();
       expect(entitlements.assertQuota).not.toHaveBeenCalled();
     });

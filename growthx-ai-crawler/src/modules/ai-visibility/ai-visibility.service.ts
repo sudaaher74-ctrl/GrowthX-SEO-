@@ -156,7 +156,7 @@ export class AiVisibilityService {
    */
   async sweepProject(
     projectId: string,
-    options: { assistants?: AiAssistant[]; skipEntitlementCheck?: boolean } = {},
+    options: { assistants?: AiAssistant[] } = {},
   ): Promise<SweepResult> {
     const context = await this.loadContext(projectId);
     const assistants = options.assistants?.length ? options.assistants : SUPPORTED_ASSISTANTS;
@@ -184,12 +184,6 @@ export class AiVisibilityService {
 
     const skippedAssistants = assistants.filter((a) => !ASSISTANT_PROVIDER[a]);
     const runnable = assistants.filter((a) => ASSISTANT_PROVIDER[a]);
-    const planned = prompts.length * runnable.length;
-
-    if (!options.skipEntitlementCheck) {
-      if (planned > 0) {
-      }
-    }
 
     let checksRun = 0;
     let checksFailed = 0;

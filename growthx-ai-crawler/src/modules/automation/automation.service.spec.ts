@@ -150,12 +150,6 @@ describe('AutomationService', () => {
 
     });
 
-    it('does nothing when the plan does not allow it', async () => {
-      entitlements.assertFeature.mockRejectedValue(new ForbiddenException());
-      await expect(service.runFixes('proj_1', 'org_1')).rejects.toThrow(ForbiddenException);
-      expect(git.cloneRepository).not.toHaveBeenCalled();
-    });
-
     it('refuses to run without a connected repository', async () => {
       prisma.siteRepository.findUnique.mockResolvedValue(null);
       await expect(service.runFixes('proj_1', 'org_1')).rejects.toThrow(BadRequestException);
