@@ -10,6 +10,9 @@ import { YoutubeController } from './youtube.controller';
 import { GbpService } from './gbp.service';
 import { GoogleOAuthService } from './google/google-oauth.service';
 import { GoogleOAuthController, GoogleOAuthCallbackController } from './google/google-oauth.controller';
+import { SearchConsoleService } from './google/search-console.service';
+import { SearchConsoleInsightsService } from './google/search-console-insights.service';
+import { SearchConsoleController } from './google/search-console.controller';
 import { DatabaseModule } from '../../database/database.module';
 
 @Module({
@@ -17,6 +20,8 @@ import { DatabaseModule } from '../../database/database.module';
   providers: [
     IntegrationsService, 
     GoogleOAuthService,
+    SearchConsoleService,
+    SearchConsoleInsightsService,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,
@@ -26,12 +31,18 @@ import { DatabaseModule } from '../../database/database.module';
     IntegrationsController, 
     GoogleOAuthController,
     GoogleOAuthCallbackController,
+    SearchConsoleController,
     GoogleBusinessController,
     FacebookController,
     YoutubeController
   ],
   exports: [
     GoogleOAuthService,
+    SearchConsoleService,
+    // Exported so Keyword Intelligence, the Opportunity Center and the
+    // Executive Dashboard read search data from one place rather than each
+    // calling Google.
+    SearchConsoleInsightsService,
     GoogleBusinessService,
     FacebookService,
     YoutubeService,

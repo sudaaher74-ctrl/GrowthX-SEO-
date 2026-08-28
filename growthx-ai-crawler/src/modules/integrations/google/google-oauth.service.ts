@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { OAuth2Client } from 'google-auth-library';
+// Deliberately the class googleapis re-exports, not the top-level
+// google-auth-library one. The package tree contains both — googleapis-common
+// nests its own copy — and they are structurally identical but nominally
+// different types, so mixing them makes every google.<api>() call reject the
+// client it was just handed.
+import { google } from 'googleapis';
+import type { OAuth2Client } from 'googleapis-common';
 import { PrismaService } from '../../../database/prisma.service';
 import { decryptToken, encryptToken, tokenEncryptionAvailable } from './token-crypto';
 import { decodeState, encodeState } from './oauth-state';
@@ -59,7 +65,11 @@ export class GoogleOAuthService {
         `Google integrations are not configured on this deployment. Missing: ${missing.join(', ')}.`,
       );
     }
-    return new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, this.redirectUri());
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      this.redirectUri(),
+    );
   }
 
   /** The URL to send the customer to. */

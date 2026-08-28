@@ -1834,3 +1834,86 @@ model IntegrationAuditEvent {
   @@index([integrationId, createdAt])
 }
 
+
+/// One row of Google Search Console performance data.
+///
+/// The spec sketches ten separate entities — GSCQuery, GSCPage, GSCCountry,
+/// GSCDevice and so on. This is one table instead, because that is the shape
+/// the API actually returns: a Search Analytics response is rows keyed by
+/// whichever dimension tuple was requested, and the metrics are identical
+/// across all of them. Splitting by dimension would mean five copies of the
+/// same sync, fetch and aggregation code, and it would make the query-and-page
+/// grain — the one that links a search term to the page that answered it, and
+/// later to a GA4 conversion — need a sixth table joining the others.
+///
+/// `grain` says which dimensions this row is keyed by, so a query total and a
+/// query-on-one-page row can never be summed together by accident.
+model GscDailyMetric {
+  id         String   @id @default(uuid())
+  projectId  String
+  /// The GSC property this came from, kept on the row so a project that
+  /// switches property does not silently blend two sites' history.
+  propertyId String
+  /// The day, as Google reports it. GSC works in PST regardless of where the
+  /// business is, so this is stored as the date string Google returned rather
+  /// than a timestamp that a timezone conversion could shift by a day.
+  date       DateTime @db.Date
+
+  /// TOTAL | QUERY | PAGE | QUERY_PAGE | COUNTRY | DEVICE
+  grain      String
+  query      String?
+  page       String?
+  country    String?
+  device     String?
+
+  clicks      Int
+  impressions Int
+  /// Stored as Google returns it — a ratio, not a percentage. Recomputing it
+  /// from clicks/impressions would disagree with the Search Console UI on rows
+  /// where Google anonymised rare queries out of the totals.
+  ctr         Float
+  /// Average position across impressions. Cannot be summed, only re-averaged
+  /// weighted by impressions.
+  position    Float
+
+  createdAt DateTime @default(now())
+
+  /// One row per property, day and dimension tuple. This is what makes a
+  /// re-sync of an already-fetched day an upsert rather than a duplicate —
+  /// Google restates recent days as data finalises, so the same day is
+  /// deliberately fetched more than once.
+  @@unique([propertyId, date, grain, query, page, country, device])
+  @@index([projectId, grain, date])
+  @@index([projectId, grain, clicks])
+  @@index([projectId, page])
+}
+
+/// One run of a data-source sync.
+///
+/// Separate from the Integration row because that is overwritten constantly
+/// and a failure history that gets overwritten is not one. This is what the
+/// Data Health page reads.
+model DataSyncJob {
+  id        String   @id @default(uuid())
+  projectId String
+  /// search_console | analytics | business_profile
+  provider  String
+
+  /// RUNNING | SUCCEEDED | PARTIAL | FAILED
+  status    String   @default("RUNNING")
+  /// The window actually requested, so a gap in coverage is visible rather
+  /// than being inferred from what happens to be in the fact table.
+  rangeStart DateTime? @db.Date
+  rangeEnd   DateTime? @db.Date
+
+  rowsWritten Int      @default(0)
+  /// PARTIAL exists because a sync that got three of four dimensions is worth
+  /// keeping and worth flagging; recording it as SUCCEEDED hides a gap and as
+  /// FAILED throws away real data.
+  errorMessage String?
+
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  @@index([projectId, provider, startedAt])
+}
