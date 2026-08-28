@@ -6,6 +6,10 @@ import { OpportunityDetectionService } from './opportunity-detection.service';
 import { OpportunitiesController } from './opportunities.controller';
 import { OpportunityDetectionScheduler } from './opportunity-detection.scheduler';
 import { ExecutiveSummaryService } from './executive-summary.service';
+import { GrowthContextService } from './growth-context.service';
+import { GrowthConsultantService } from './growth-consultant.service';
+import { GrowthConsultantController } from './growth-consultant.controller';
+import { AiSearchModule } from '../ai-search/ai-search.module';
 
 /**
  * The unified opportunity surface.
@@ -16,14 +20,16 @@ import { ExecutiveSummaryService } from './executive-summary.service';
  * on.
  */
 @Module({
-  imports: [DatabaseModule, IntegrationsModule],
+  imports: [DatabaseModule, IntegrationsModule, AiSearchModule],
   providers: [
     OpportunitiesService,
     OpportunityDetectionService,
     OpportunityDetectionScheduler,
     ExecutiveSummaryService,
+    GrowthContextService,
+    GrowthConsultantService,
   ],
-  controllers: [OpportunitiesController],
-  exports: [OpportunitiesService, OpportunityDetectionService, ExecutiveSummaryService],
+  controllers: [OpportunitiesController, GrowthConsultantController],
+  exports: [OpportunitiesService, OpportunityDetectionService, ExecutiveSummaryService, GrowthContextService],
 })
 export class OpportunitiesModule {}
