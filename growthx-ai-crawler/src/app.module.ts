@@ -42,6 +42,7 @@ import { ReportingModule } from './modules/reporting/reporting.module';
 import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
 import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
 import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
@@ -106,6 +107,7 @@ import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
     MarketIntelligenceModule,
     MonitoringModule,
     IntegrationsModule,
+    OpportunitiesModule,
     MarketResearchModule,
     ContentIntelligenceModule,
     SeoToolsModule,

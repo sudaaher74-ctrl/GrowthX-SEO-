@@ -339,6 +339,7 @@ model Project {
   gbpFixProposals      GbpFixProposal[]
 
   @@index([organizationId])
+  growthOpportunities GrowthOpportunity[]
 }
 
 
@@ -1916,4 +1917,70 @@ model DataSyncJob {
   finishedAt DateTime?
 
   @@index([projectId, provider, startedAt])
+}
+
+/// A single thing the customer could do, from any source.
+///
+/// The product already has MarketOpportunity (from a research run) and
+/// ContentGap (from social patterns), each shaped for the engine that made it
+/// and neither carrying evidence, effort or a dismissal. This is the unified
+/// surface: search, competitor, website, local and analytics findings in one
+/// list a person can work through.
+///
+/// Not an engine. Nothing here analyses anything — detectors owned by the
+/// existing engines write rows, and this is where they land.
+model GrowthOpportunity {
+  id             String @id @default(uuid())
+  organizationId String
+  projectId      String
+
+  /// Stable identity across detection runs, derived from source, category and
+  /// subject. Detection re-runs daily, and without this the same finding
+  /// would either duplicate or come back OPEN after the customer dismissed
+  /// it — the fastest way to make the list worthless.
+  fingerprint String
+
+  /// SEARCH_CONSOLE | COMPETITOR | WEBSITE | ANALYTICS | LOCAL | MARKET
+  source   String
+  /// SEO | CONTENT | LOCAL | TECHNICAL | MARKETING | BUSINESS | COMPETITOR
+  category String
+
+  title            String
+  summary          String
+  /// What this claim rests on: [{ label, value, source }]. Every row carries
+  /// its evidence because a recommendation nobody can check is a guess with
+  /// better formatting.
+  evidence         Json
+  recommendedAction String
+
+  /// HIGH | MEDIUM | LOW. Deliberately a band, not a currency figure —
+  /// without reliable revenue data attached to a page, a number would be
+  /// invented precision.
+  potential  String @default("MEDIUM")
+  effort     String @default("MEDIUM")
+  /// 0-100, how much the underlying evidence supports the claim.
+  confidence Int    @default(50)
+  /// Derived from potential, confidence and effort so the list can be ordered
+  /// without recomputing per request.
+  priority   Float  @default(0)
+
+  /// Pages this concerns, where it concerns specific pages.
+  affectedPages String[] @default([])
+
+  /// OPEN | ACTIONED | DISMISSED
+  status      String    @default("OPEN")
+  dismissedAt DateTime?
+
+  detectedAt DateTime @default(now())
+  /// Refreshed each time detection still finds it. A row whose lastSeenAt has
+  /// stopped moving is a finding that resolved itself, which is worth being
+  /// able to tell from one nobody has looked at.
+  lastSeenAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fingerprint])
+  @@index([projectId, status, priority])
+  @@index([projectId, source])
+  @@index([organizationId, projectId])
 }
