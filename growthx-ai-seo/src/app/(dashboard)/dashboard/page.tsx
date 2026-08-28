@@ -71,6 +71,14 @@ export default function OverviewPage() {
     enabled: !!projectId,
   });
   const connectHref = { search_console: "/search/search-console", analytics: "/analytics" };
+  // The five highest-priority open findings, from the same detection that
+  // feeds the Opportunity Center — not a second, divergent list.
+  const opportunities = useQuery({
+    queryKey: ["opportunities", projectId, undefined],
+    queryFn: () => api.opportunities(projectId!),
+    enabled: !!projectId,
+  });
+  const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 5);
 
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
@@ -199,62 +207,62 @@ export default function OverviewPage() {
           </div>
         </Panel>
 
-        <Panel title="AI Action Queue">
-          <div className="p-5 space-y-5">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-error-500 shrink-0"></span>
-              <span className="text-[13px] font-medium text-brand-950">Fix 7 indexability problems</span>
-              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-series-7 shrink-0"></span>
-              <span className="text-[13px] font-medium text-brand-950">Optimize 12 declining pages</span>
-              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-series-7 shrink-0"></span>
-              <span className="text-[13px] font-medium text-brand-950">Improve Google Business Profile</span>
-              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">High Priority</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-warning-500 shrink-0"></span>
-              <span className="text-[13px] font-medium text-brand-950">Create 8 missing service pages</span>
-              <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">Medium</span>
-            </div>
-            
-            <div className="border-t pt-5 mt-5 border-brand-100">
-              <div className="flex gap-3 mb-4 items-center">
-                <span className="w-2.5 h-2.5 rounded-full bg-success-500 shrink-0"></span>
-                <span className="text-[13px] font-medium text-brand-950">Improve CTR on 17 keywords</span>
-                <span className="ml-auto text-[11px] font-medium text-brand-400 uppercase tracking-wider">Opportunity</span>
-              </div>
-              <OpportunityDetailPanel 
-                title="Improve CTR for 17 pages"
-                evidence={[
-                  "17 pages have:",
-                  "High impressions",
-                  "Low CTR",
-                  "Positions 4–15"
-                ]}
-                businessImpact="Potential additional organic traffic."
-                recommendedAction="Rewrite titles and meta descriptions."
-                aiRecommendation="Generate optimized metadata."
-                affectedPagesCount={17}
-                estimatedImpact="Medium / High confidence"
-                onAnalyze={() => console.log('Analyze clicked')}
-                onGenerateContent={() => console.log('Generate Content clicked')}
-                onGenerateFix={() => console.log('Generate Fix clicked')}
-                onCreateTask={() => console.log('Create Task clicked')}
-              />
-            </div>
-            
-            <div className="flex justify-center pt-4 border-t border-brand-100">
-              <Link href="/action-queue">
-                <ActionButton variant="secondary">View all actions</ActionButton>
+        <Panel
+          title="What to do next"
+          subtitle="The highest-priority findings across your site, competitors and search data."
+          actions={
+            <Link href="/opportunities" className="text-[11px] font-medium text-accent-600 hover:underline">
+              See all
+            </Link>
+          }
+        >
+          {/* Real findings. What was here was a hardcoded list — "Fix 7
+              indexability problems", "Create 8 missing service pages",
+              "Improve CTR on 17 keywords" — taken verbatim from the
+              specification's illustration and shown identically to every
+              customer. A fabricated dashboard number is misleading; a
+              fabricated task list is worse, because someone acts on it. */}
+          {executive.isLoading ? (
+            <div className="px-5 py-6 text-[12px] text-brand-500">Loading…</div>
+          ) : topOpportunities.length === 0 ? (
+            <div className="px-5 py-6 text-[12px] text-brand-500">
+              Nothing found yet. Crawl your site, add a competitor, and connect Search Console — then{" "}
+              <Link href="/opportunities" className="font-medium text-accent-600 hover:underline">
+                run an analysis
               </Link>
+              .
             </div>
-          </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
+              {topOpportunities.map((item) => (
+                <Link
+                  key={item.id}
+                  href="/opportunities"
+                  className="flex items-center gap-3 px-5 py-3.5 transition hover:bg-brand-50"
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        item.potential === "HIGH"
+                          ? "var(--color-error-500)"
+                          : item.potential === "MEDIUM"
+                            ? "var(--color-warning-500)"
+                            : "var(--color-brand-300)",
+                    }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-brand-950">
+                    {item.title}
+                  </span>
+                  <span className="shrink-0 text-[11px] font-medium uppercase tracking-wider text-brand-400">
+                    {item.potential === "HIGH" ? "High priority" : item.potential === "MEDIUM" ? "Medium" : "Low"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
         </Panel>
+
 
         <Panel title="GrowthX AI Engine System" subtitle="The 15 connected engines powering your growth.">
           <div className="p-6 bg-brand-50 rounded-b-xl border-t border-brand-100 space-y-6">

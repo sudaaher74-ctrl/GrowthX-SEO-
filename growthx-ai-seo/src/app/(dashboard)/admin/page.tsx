@@ -6,7 +6,7 @@ import { Badge, StatusDot } from "@/components/ui/badge";
 import { MetricCard } from "@/components/ui/metric-card";
 import { cn, formatNumber } from "@/lib/utils";
 import {
-  ShieldAlert, Cpu, DollarSign, Users, Database, Play, Pause,
+  ShieldAlert, Cpu, Users, Database, Play, Pause,
   RefreshCw, AlertTriangle, CheckCircle2, MoreHorizontal, Eye,
   Ban, ArrowUpRight, Zap, Server
 } from "lucide-react";
@@ -80,12 +80,29 @@ export default function AdminPage() {
         </div>
       </motion.div>
 
-      {/* 4 Executive Metric Cards */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Monthly Recurring Revenue" value="24,800" prefix="$" delta={18.4} deltaLabel="vs last month" icon={<DollarSign size={16} />} delay={0.05} />
-        <MetricCard title="Active SaaS Tenants" value={tenants.length} delta={0} deltaLabel="new this month" icon={<Users size={16} />} delay={0.1} />
-        <MetricCard title="BullMQ Jobs Processed" value={workerQueues.reduce((acc, q) => acc + q.completed, 0)} delta={14.2} deltaLabel="today · 99.99% success" icon={<Cpu size={16} />} delay={0.15} />
-        <MetricCard title="AI API Cost MTD" value={apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)} prefix="$" delta={-4.2} deltaLabel="of budget cap" icon={<Zap size={16} />} delay={0.2} />
+      {/* Three cards, all counted from what the API returns.
+          A fourth showed "Monthly Recurring Revenue $24,800, +18.4% vs last
+          month" — nothing in this product tracks revenue, and billing was
+          removed from the schema entirely, so the figure was invented and
+          could not have been anything else. The deltas on the others were
+          invented too, including a "99.99% success" rate nothing measured. A
+          count with no trend is honest; a count with a made-up trend is not. */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <MetricCard title="Active SaaS Tenants" value={tenants.length} icon={<Users size={16} />} delay={0.05} />
+        <MetricCard
+          title="BullMQ Jobs Completed"
+          value={workerQueues.reduce((acc, q) => acc + q.completed, 0)}
+          deltaLabel="last 24 hours"
+          icon={<Cpu size={16} />}
+          delay={0.1}
+        />
+        <MetricCard
+          title="AI API Cost MTD"
+          value={apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)}
+          prefix="$"
+          icon={<Zap size={16} />}
+          delay={0.15}
+        />
       </div>
 
       {/* Middle Grid: Queues & AI Costs */}
@@ -140,10 +157,18 @@ export default function AdminPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">AI & API Cost Breakdown</h3>
-              <Badge variant="info">July 2026</Badge>
+              <Badge variant="info">
+                {new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+              </Badge>
             </div>
-            <div className="text-3xl font-bold gradient-text-brand mb-1">$264.80</div>
-            <p className="text-xs text-[var(--text-muted)] mb-6">Total spend across 4 external LLM & SERP APIs</p>
+            {/* Summed from the same rows listed below, so the headline and the
+                breakdown cannot disagree. It was a literal $264.80. */}
+            <div className="text-3xl font-bold gradient-text-brand mb-1">
+              ${apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)}
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mb-6">
+              Total spend across {apiCosts.length} external {apiCosts.length === 1 ? "API" : "APIs"}
+            </p>
 
             <div className="space-y-4">
               {apiCosts.map(item => (
@@ -165,9 +190,11 @@ export default function AdminPage() {
           <div className="mt-6 pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-[var(--text-primary)]">Monthly Budget Cap</div>
-              <div className="text-[11px] text-[var(--text-muted)]">Alerts trigger at 80% ($400.00)</div>
+              {/* Stated as unset rather than showing $400.00, which was a
+                  literal — no cap is configured anywhere and no alert fires. */}
+              <div className="text-[11px] text-[var(--text-muted)]">Not configured — no spend alerts are active.</div>
             </div>
-            <Button variant="outline" size="sm">Adjust Cap</Button>
+            <Button variant="outline" size="sm">Set Cap</Button>
           </div>
         </motion.div>
       </div>
