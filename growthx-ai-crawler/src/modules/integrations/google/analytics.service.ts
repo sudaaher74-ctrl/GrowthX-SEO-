@@ -326,11 +326,21 @@ export class AnalyticsService {
     }
   }
 
+  /** Same distinction as the Search Console connector — see the note there. */
   private async handleApiError(projectId: string, error: any) {
     const status = error?.response?.status ?? error?.code;
-    if (status === 401 || status === 403) {
-      await this.oauth.markNeedsReauth(projectId, 'analytics', `Google returned ${status} for Analytics.`);
+    if (status !== 401 && status !== 403) return;
+
+    const message: string = error?.response?.data?.error?.message ?? error?.message ?? '';
+    if (/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) {
+      this.logger.error(
+        `[GA4 ${projectId}] The Analytics Data or Admin API is not enabled on this deployment's Google Cloud ` +
+          'project. This is a configuration problem, not an expired authorization.',
+      );
+      return;
     }
+
+    await this.oauth.markNeedsReauth(projectId, 'analytics', `Google returned ${status} for Analytics.`);
   }
 }
 

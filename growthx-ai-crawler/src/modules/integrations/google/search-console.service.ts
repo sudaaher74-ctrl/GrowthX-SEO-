@@ -62,9 +62,11 @@ export class SearchConsoleService {
     const api = await this.api(projectId);
     try {
       const { data } = await api.sites.list();
-      return (data.siteEntry ?? [])
-        // Properties where permission was granted but never accepted return
-        // nothing; offering them leads to an empty dashboard with no reason.
+      const all = data.siteEntry ?? [];
+
+      const usable = all
+        // Permission granted but never accepted. Offering one leads to an
+        // empty dashboard with nothing to explain it.
         .filter((site) => site.permissionLevel !== 'siteUnverifiedUser')
         .map((site) => ({
           propertyId: site.siteUrl!,
@@ -73,6 +75,21 @@ export class SearchConsoleService {
           kind: site.siteUrl?.startsWith('sc-domain:') ? 'DOMAIN' : 'URL_PREFIX',
           permissionLevel: site.permissionLevel,
         }));
+
+      // Returned even when the list is usable, because an empty result has
+      // several very different causes and the customer cannot tell them apart
+      // from the outside. "Google returned nothing" means the site is not
+      // verified on this account; "Google returned three, all unverified"
+      // means an invitation was never accepted. Same empty picker, opposite
+      // fixes, and guessing wrong costs someone an afternoon.
+      return {
+        properties: usable,
+        diagnostics: {
+          returnedByGoogle: all.length,
+          excludedAsUnverified: all.length - usable.length,
+          googleAccountHasAnyProperty: all.length > 0,
+        },
+      };
     } catch (error) {
       await this.handleApiError(projectId, error);
       throw error;
@@ -304,15 +321,31 @@ export class SearchConsoleService {
    * a retry, and saying so is the difference between a customer fixing it and
    * watching an integration silently stop.
    */
+  /**
+   * Turns a Google error into a connection state the customer can act on.
+   *
+   * Not every 403 is a revoked grant, and treating them alike is how someone
+   * ends up reconnecting forever. Google returns 403 both when a token is no
+   * longer valid and when the Search Console API is simply not enabled on the
+   * Cloud project — the second is the operator's job and no amount of
+   * reconnecting will fix it, so marking it NEEDS_REAUTH sends the customer
+   * round a loop that cannot terminate. The two are told apart by the message,
+   * which names the API and the word "disabled" in the second case.
+   */
   private async handleApiError(projectId: string, error: any) {
     const status = error?.response?.status ?? error?.code;
-    if (status === 401 || status === 403) {
-      await this.oauth.markNeedsReauth(
-        projectId,
-        'search_console',
-        `Google returned ${status} for Search Console.`,
+    if (status !== 401 && status !== 403) return;
+
+    const message: string = error?.response?.data?.error?.message ?? error?.message ?? '';
+    if (/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) {
+      this.logger.error(
+        `[GSC ${projectId}] The Search Console API is not enabled on this deployment's Google Cloud project. ` +
+          'This is a configuration problem, not an expired authorization.',
       );
+      return;
     }
+
+    await this.oauth.markNeedsReauth(projectId, 'search_console', `Google returned ${status} for Search Console.`);
   }
 }
 

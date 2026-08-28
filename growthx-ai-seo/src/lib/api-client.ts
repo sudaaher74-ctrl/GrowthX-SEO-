@@ -1331,9 +1331,11 @@ export const api = {
 
   // ── Search Console ───────────────────────────────────────────────────────
   gscProperties: (projectId: string) =>
-    get<{ propertyId: string; kind: "DOMAIN" | "URL_PREFIX"; permissionLevel?: string }[]>(
-      `/api/projects/${projectId}/search-console/properties`,
-    ),
+    get<{
+      properties: { propertyId: string; kind: "DOMAIN" | "URL_PREFIX"; permissionLevel?: string }[];
+      /** Why the list is empty, when it is — the causes need opposite fixes. */
+      diagnostics: { returnedByGoogle: number; excludedAsUnverified: number; googleAccountHasAnyProperty: boolean };
+    }>(`/api/projects/${projectId}/search-console/properties`),
   gscSync: (projectId: string, days?: number) =>
     post<{ status: string; rowsWritten: number; failedGrains: string[] }>(
       `/api/projects/${projectId}/search-console/sync${days ? `?days=${days}` : ""}`,

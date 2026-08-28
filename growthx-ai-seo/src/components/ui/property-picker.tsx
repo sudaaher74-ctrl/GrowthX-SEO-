@@ -40,14 +40,27 @@ export function PropertyPicker({
 
   const properties = useQuery({
     queryKey: ["google-properties", projectId, provider],
-    queryFn: () =>
-      provider === "search_console"
-        ? api.gscProperties(projectId).then((rows) =>
-            rows.map((row) => ({ id: row.propertyId, label: row.propertyId, hint: row.kind === "DOMAIN" ? "Domain property — covers every subdomain and protocol" : "URL prefix" })),
-          )
-        : api.ga4Properties(projectId).then((rows) =>
-            rows.map((row) => ({ id: row.propertyId, label: row.displayName, hint: row.accountName })),
-          ),
+    queryFn: async () => {
+      if (provider === "search_console") {
+        const result = await api.gscProperties(projectId);
+        return {
+          items: result.properties.map((row) => ({
+            id: row.propertyId,
+            label: row.propertyId,
+            hint:
+              row.kind === "DOMAIN"
+                ? "Domain property — covers every subdomain and protocol"
+                : "URL prefix",
+          })),
+          diagnostics: result.diagnostics,
+        };
+      }
+      const rows = await api.ga4Properties(projectId);
+      return {
+        items: rows.map((row) => ({ id: row.propertyId, label: row.displayName, hint: row.accountName })),
+        diagnostics: undefined,
+      };
+    },
   });
 
   const choose = useMutation({
@@ -84,18 +97,41 @@ export function PropertyPicker({
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-error-500" />
             <p className="text-[12px] leading-relaxed text-brand-600">{errorMessage(properties.error)}</p>
           </div>
-        ) : !properties.data?.length ? (
+        ) : !properties.data?.items.length ? (
           // An empty list is almost never an empty account — it is nearly
           // always that the site is verified under a different Google account.
           // Saying "no properties" without saying that leaves someone stuck.
           <div className="mt-5 rounded-lg bg-brand-100 px-4 py-3">
-            <p className="text-[13px] font-medium text-brand-950">No properties found on this Google account</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-brand-600">{emptyHelp}</p>
+            {/* An empty picker has two opposite causes and the same appearance.
+                Google returning nothing means the site is not verified on this
+                account; Google returning properties that were all filtered out
+                means an access invitation was never accepted. Telling someone
+                "no properties found" for both sends half of them to fix the
+                wrong thing. */}
+            {properties.data?.diagnostics?.excludedAsUnverified ? (
+              <>
+                <p className="text-[13px] font-medium text-brand-950">
+                  {properties.data.diagnostics.excludedAsUnverified} propert
+                  {properties.data.diagnostics.excludedAsUnverified === 1 ? "y is" : "ies are"} pending verification
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-brand-600">
+                  Google returned {properties.data.diagnostics.returnedByGoogle} propert
+                  {properties.data.diagnostics.returnedByGoogle === 1 ? "y" : "ies"} for this account, but the
+                  verification was never completed or the access invitation was never accepted. Open Search Console,
+                  finish verifying, then come back and reload this page.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[13px] font-medium text-brand-950">No properties found on this Google account</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-brand-600">{emptyHelp}</p>
+              </>
+            )}
           </div>
         ) : (
           <>
             <div className="mt-5 space-y-2">
-              {properties.data.map((property) => (
+              {properties.data.items.map((property) => (
                 <label
                   key={property.id}
                   className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition ${
@@ -119,7 +155,7 @@ export function PropertyPicker({
 
             <button
               onClick={() => {
-                const property = properties.data!.find((p) => p.id === selected);
+                const property = properties.data!.items.find((p) => p.id === selected);
                 if (property) choose.mutate({ id: property.id, label: property.label });
               }}
               disabled={!selected || choose.isPending}
