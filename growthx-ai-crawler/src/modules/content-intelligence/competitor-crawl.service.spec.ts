@@ -337,3 +337,108 @@ describe('CompetitorCrawlService — what changed since last crawl', () => {
     expect(changes?.removed).toEqual([]);
   });
 });
+
+/**
+ * The gap counts turned into a list of pages. This is the screen someone works
+ * from, so a wrong row costs real time — either a page written that already
+ * existed, or a gap never surfaced at all.
+ */
+describe('CompetitorCrawlService — opportunities', () => {
+  const theirPages = [
+    { url: 'https://acme.com/products/tomato-paste', title: 'Tomato Paste | Acme Foods', pageType: 'PRODUCT' },
+    { url: 'https://acme.com/products/dragon-fruit-puree', title: 'Dragon Fruit Puree | Acme Foods', pageType: 'PRODUCT' },
+    { url: 'https://acme.com/locations/nashik', title: 'Nashik Facility | Acme Foods', pageType: 'LOCATION' },
+    { url: 'https://acme.com/privacy-policy', title: 'Privacy Policy | Acme Foods', pageType: 'LEGAL' },
+    { url: 'https://acme.com/xyz', title: 'Acme Foods', pageType: 'OTHER' },
+  ];
+  const ourPages = [
+    { url: 'https://aiva.com/products/tomato-paste', title: 'Tomato Paste | AIVA Enterprises', pageType: 'PRODUCT' },
+    { url: 'https://aiva.com/products/mango-pulp', title: 'Mango Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
+    { url: 'https://aiva.com/about', title: 'About | AIVA Enterprises', pageType: 'ABOUT' },
+    { url: 'https://aiva.com/contact', title: 'Contact | AIVA Enterprises', pageType: 'CONTACT' },
+    { url: 'https://aiva.com/products/banana-pulp', title: 'Banana Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
+  ];
+
+  const build = ({ theirJob = { id: 'tj' }, ourJob = { id: 'oj' } } = {}) => {
+    const prisma = {
+      competitorDomain: { findFirst: jest.fn().mockResolvedValue({ websiteId: 'w1', domain: 'acme.com' }) },
+      crawlJob: {
+        findFirst: jest.fn(async ({ where }: any) => (where.website?.projectId ? ourJob : theirJob)),
+      },
+      page: {
+        findMany: jest.fn(async ({ where }: any) => (where.crawlJobId === 'tj' ? theirPages : ourPages)),
+      },
+    };
+    return { prisma, service: new CompetitorCrawlService(prisma as any, {} as any) };
+  };
+
+  it('lists what they cover and we do not', async () => {
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+
+    const urls = result!.opportunities.map((o) => o.url);
+    expect(urls).toContain('https://acme.com/products/dragon-fruit-puree');
+    expect(urls).toContain('https://acme.com/locations/nashik');
+  });
+
+  it('does not list a page we already have under a different brand', async () => {
+    // Both sides title their pages "<topic> | <brand>". Without each site's
+    // own name removed the match scores 0.5 and this page — which we have —
+    // would be listed as one to go and write.
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+
+    expect(result!.opportunities.map((o) => o.url)).not.toContain('https://acme.com/products/tomato-paste');
+  });
+
+  it('leaves out legal boilerplate and pages with no readable topic', async () => {
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+
+    expect(result!.opportunities.map((o) => o.pageType)).not.toContain('LEGAL');
+    expect(result!.opportunities.map((o) => o.pageType)).not.toContain('OTHER');
+  });
+
+  it('shows the closest page we do have, so a near miss is visible', async () => {
+    // Without this the list is a set of assertions the reader cannot check.
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+    const dragonFruit = result!.opportunities.find((o) => o.url.includes('dragon-fruit'));
+
+    expect(dragonFruit!.closestOwnPage).not.toBeUndefined();
+    if (dragonFruit!.closestOwnPage) {
+      expect(dragonFruit!.closestOwnPage.score).toBeLessThan(1);
+    }
+  });
+
+  it('says how the list was produced', async () => {
+    // A list headed "gaps" with no stated basis is read as fact. It is a word
+    // overlap heuristic and the payload has to carry that.
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1');
+
+    expect(result!.basis).toMatch(/URL and title/i);
+  });
+
+  it('refuses to report anything when our own site has not been crawled', async () => {
+    // Every page they have would qualify, which is not a finding about their
+    // site — it is a report that we never looked at ours.
+    const { service } = build({ ourJob: null as any });
+
+    expect(await service.getOpportunities('org1', 'p1', 'comp1')).toBeNull();
+  });
+
+  it('can be narrowed to one page kind', async () => {
+    const { service } = build();
+
+    const result = await service.getOpportunities('org1', 'p1', 'comp1', { pageType: 'LOCATION' });
+
+    expect(result!.opportunities.every((o) => o.pageType === 'LOCATION')).toBe(true);
+    expect(result!.opportunities.length).toBe(1);
+  });
+});

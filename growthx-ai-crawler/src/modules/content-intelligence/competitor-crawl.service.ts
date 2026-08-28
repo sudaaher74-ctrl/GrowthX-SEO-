@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { PageType } from '../crawler/page-type';
 import { canonicalUrl } from '../crawler/canonical-url';
+import { closestMatch, MATCH_THRESHOLD, siteBoilerplate } from './topic-match';
 
 /**
  * Crawls a competitor's public website so their coverage can be compared with
@@ -263,6 +264,96 @@ export class CompetitorCrawlService {
       // dashboard turns into "they publish 24 service pages, you publish 6".
       behindOn: rows.filter((r) => (r.gap ?? 0) > 0).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0)),
       rows,
+    };
+  }
+
+  /**
+   * The competitor's pages with no close counterpart on the customer's site.
+   *
+   * This is the actionable form of the coverage gap. "They have 18 more
+   * service pages" is a number; this is the list, and every row carries the
+   * closest thing found on the customer's own site so the reader can see for
+   * themselves whether it is really missing.
+   *
+   * Deliberately never phrased as a certainty. Matching is done on words in
+   * the URL and title, which is right often enough to be worth showing and
+   * wrong often enough that claiming "you are missing this page" would be
+   * dishonest — the customer may well cover the topic in wording this cannot
+   * see. The field is named `closestOwnPage` and carries its score for exactly
+   * that reason.
+   *
+   * LEGAL and OTHER are excluded. Nobody needs a privacy policy suggested to
+   * them, and OTHER is by definition a page whose subject the crawler could
+   * not determine, so it cannot be described as an opportunity.
+   */
+  async getOpportunities(
+    organizationId: string,
+    projectId: string,
+    competitorId: string,
+    options: { pageType?: string; limit?: number } = {},
+  ) {
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: { id: competitorId, projectId, project: { organizationId } },
+      select: { websiteId: true, domain: true },
+    });
+    if (!competitor) throw new NotFoundException('Competitor not found for this project.');
+    if (!competitor.websiteId) return null;
+
+    const [theirJob, ourJob] = await Promise.all([
+      this.prisma.crawlJob.findFirst({
+        where: { websiteId: competitor.websiteId, status: 'COMPLETED' },
+        orderBy: { finishedAt: 'desc' },
+        select: { id: true },
+      }),
+      this.prisma.crawlJob.findFirst({
+        where: { status: 'COMPLETED', website: { projectId } },
+        orderBy: { finishedAt: 'desc' },
+        select: { id: true },
+      }),
+    ]);
+    // Both sides are required. Against an uncrawled own site every page they
+    // have would be listed as an opportunity, which is not a finding about
+    // their site at all — it is a report that we have not looked at ours.
+    if (!theirJob || !ourJob) return null;
+
+    const [theirPages, ourPages] = await Promise.all([
+      this.pagesFor(theirJob.id),
+      this.pagesFor(ourJob.id),
+    ]);
+
+    const ourList = [...ourPages.values()];
+    const theirList = [...theirPages.values()];
+    const skipped = new Set(['LEGAL', 'OTHER']);
+
+    // Each site's own name and tagline, dropped before comparing. Without
+    // this, two pages on the same topic score around 0.5 purely because half
+    // of each title is a different brand name, and a topic the customer
+    // already covers is reported as a gap.
+    const boilerplate = { theirs: siteBoilerplate(theirList), ours: siteBoilerplate(ourList) };
+
+    const opportunities = theirList
+      .filter((page) => !skipped.has(page.pageType))
+      .filter((page) => !options.pageType || page.pageType === options.pageType)
+      .map((page) => ({ page, match: closestMatch(page, ourList, boilerplate) }))
+      .filter(({ match }) => !match || match.score < MATCH_THRESHOLD)
+      .map(({ page, match }) => ({
+        url: page.url,
+        title: page.title,
+        pageType: page.pageType,
+        closestOwnPage: match
+          ? { url: match.page.url, title: match.page.title ?? null, score: Number(match.score.toFixed(2)) }
+          : null,
+      }))
+      // Weakest match first: the topics with nothing like them on the
+      // customer's site are the ones worth reading first.
+      .sort((a, b) => (a.closestOwnPage?.score ?? 0) - (b.closestOwnPage?.score ?? 0));
+
+    return {
+      domain: competitor.domain,
+      /** How the list was produced, so the number is never read as more than it is. */
+      basis: 'Compared by words in each page URL and title. Pages we could not match may still be covered on your site in different wording.',
+      total: opportunities.length,
+      opportunities: opportunities.slice(0, Math.min(options.limit ?? 50, 200)),
     };
   }
 

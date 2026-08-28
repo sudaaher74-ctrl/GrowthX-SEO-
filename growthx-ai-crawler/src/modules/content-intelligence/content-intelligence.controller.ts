@@ -288,6 +288,25 @@ export class ContentIntelligenceController {
     return this.competitorCrawl.getChanges(req.organizationId, projectId, competitorId);
   }
 
+  /**
+   * Their pages with no close counterpart on your site — the gap counts turned
+   * into a list. Each row carries the closest match found on your own site, so
+   * a topic you already cover in different wording is visible as such.
+   */
+  @Get('competitors/:competitorId/opportunities')
+  async competitorOpportunities(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+    @Query('pageType') pageType?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.competitorCrawl.getOpportunities(req.organizationId, projectId, competitorId, {
+      pageType,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
   /** The crawled pages themselves, optionally of one kind. */
   @Get('competitors/:competitorId/pages')
   async competitorPages(

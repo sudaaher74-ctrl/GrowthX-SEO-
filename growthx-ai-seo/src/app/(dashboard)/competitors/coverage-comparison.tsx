@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Globe, ArrowRight } from "lucide-react";
+import { Loader2, Globe, ArrowRight, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
@@ -120,6 +120,7 @@ export function CoverageComparison({
           )}
 
           <RecentChanges projectId={projectId} competitorId={competitorId} />
+          <Opportunities projectId={projectId} competitorId={competitorId} />
 
           {!ours ? (
             <p className="mt-2 text-[11px] text-brand-500">
@@ -213,6 +214,83 @@ function RecentChanges({ projectId, competitorId }: { projectId: string; competi
             <li className="text-[11px] text-brand-400">and {data.added.length - 5} more</li>
           )}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Their pages with no close counterpart on yours — the gap counts as a list.
+ *
+ * Every row shows the closest thing found on the customer's own site and how
+ * close it was. That is not a detail: matching is done on words in the URL and
+ * title, which is right often enough to be worth showing and wrong often
+ * enough that a bare "you are missing this" would be a claim the data does not
+ * support. Showing the near-miss lets the reader see in a glance when they
+ * already cover the topic in different wording.
+ *
+ * Collapsed by default. This can be a long list, and it sits underneath the
+ * counts that summarise it.
+ */
+function Opportunities({ projectId, competitorId }: { projectId: string; competitorId: string }) {
+  const [open, setOpen] = useState(false);
+
+  const query = useQuery({
+    queryKey: ["competitor-opportunities", projectId, competitorId],
+    queryFn: () => api.competitorOpportunities(projectId, competitorId),
+  });
+
+  const data = query.data;
+  if (!data || data.total === 0) return null;
+
+  return (
+    <div className="mt-2.5 border-t pt-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 text-left text-[12px] font-medium text-brand-950"
+      >
+        <ChevronDown
+          size={12}
+          className={`shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
+        />
+        {data.total} {data.total === 1 ? "page" : "pages"} on {data.domain} with no close match on yours
+      </button>
+
+      {open && (
+        <>
+          {/* The method, stated where the list is read rather than in a
+              tooltip. A list headed "gaps" with no stated basis gets treated
+              as fact; this one is a word-overlap heuristic and says so. */}
+          <p className="mt-1.5 text-[11px] text-brand-500">{data.basis}</p>
+
+          <ul className="mt-2 space-y-2">
+            {data.opportunities.map((item) => (
+              <li key={item.url}>
+                <div className="flex items-baseline gap-2">
+                  <span className="shrink-0 font-mono text-[10px] text-brand-400">{item.pageType}</span>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate text-[12px] text-brand-950 underline-offset-2 hover:underline"
+                  >
+                    {item.title || item.url}
+                  </a>
+                </div>
+                {item.closestOwnPage ? (
+                  <div className="mt-0.5 truncate pl-[3.1rem] text-[11px] text-brand-500">
+                    closest of yours ({Math.round(item.closestOwnPage.score * 100)}% word overlap):{" "}
+                    {item.closestOwnPage.title || item.closestOwnPage.url}
+                  </div>
+                ) : (
+                  <div className="mt-0.5 pl-[3.1rem] text-[11px] text-brand-500">
+                    nothing on your site shares a topic word with this
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

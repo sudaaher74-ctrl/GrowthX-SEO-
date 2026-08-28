@@ -538,6 +538,27 @@ export interface CompetitorChanges {
   byType: Record<string, { added: number; removed: number }>;
 }
 
+/** One of their pages with no close counterpart found on your site. */
+export interface CoverageOpportunity {
+  url: string;
+  title: string | null;
+  pageType: string;
+  /**
+   * The nearest thing found on your own site, with how close it was (0-1).
+   * Null when nothing shared a topic word. Shown rather than hidden so a topic
+   * you cover in different wording is visible as such.
+   */
+  closestOwnPage: { url: string; title: string | null; score: number } | null;
+}
+
+export interface CoverageOpportunities {
+  domain: string;
+  /** How the list was produced, so it is never read as more certain than it is. */
+  basis: string;
+  total: number;
+  opportunities: CoverageOpportunity[];
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1085,6 +1106,18 @@ export const api = {
     get<CompetitorChanges | null>(
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/changes`,
     ),
+
+  /**
+   * Their pages with no close counterpart on yours. Null until both sites have
+   * been crawled — against an uncrawled own site every page they have would
+   * look like an opportunity.
+   */
+  competitorOpportunities: (projectId: string, competitorId: string, pageType?: string) => {
+    const qs = pageType ? `?pageType=${encodeURIComponent(pageType)}` : "";
+    return get<CoverageOpportunities | null>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/opportunities${qs}`,
+    );
+  },
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
