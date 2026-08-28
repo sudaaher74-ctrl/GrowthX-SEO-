@@ -20,7 +20,14 @@ import type { CrawlIssue } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { MeasureKpi } from "@/components/ui/measure-kpi";
-import { useCrawlIssues, useLatestCrawl, usePortfolio, useVisibility, useWorkspace } from "@/hooks/use-growthx";
+import {
+  useCrawlIssues,
+  useExecutiveSummary,
+  useLatestCrawl,
+  usePortfolio,
+  useVisibility,
+  useWorkspace,
+} from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
 /**
@@ -65,11 +72,7 @@ export default function OverviewPage() {
   // Every headline figure below comes from here. The four hardcoded scores and
   // the five hardcoded percentages this replaces were the same for every
   // customer and had no source at all.
-  const executive = useQuery({
-    queryKey: ["executive-summary", projectId],
-    queryFn: () => api.executiveSummary(projectId!),
-    enabled: !!projectId,
-  });
+  const executive = useExecutiveSummary(projectId);
   const connectHref = { search_console: "/search/search-console", analytics: "/analytics" };
   // The five highest-priority open findings, from the same detection that
   // feeds the Opportunity Center — not a second, divergent list.

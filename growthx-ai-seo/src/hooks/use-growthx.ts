@@ -617,3 +617,22 @@ export function useMarketOutcomes(projectId: string | null) {
     retry: false,
   });
 }
+
+/**
+ * The headline figures, computed on the server.
+ *
+ * Shared rather than redefined per page on purpose. The reports page used to
+ * derive its own version of site health from a client-side formula, and the
+ * two disagreed: the server reports what it counted and says why when it
+ * counted nothing, while the page scored a site it had never crawled at 100
+ * out of 100. Two definitions of the same number is how a client ends up with
+ * a PDF that contradicts the dashboard it was exported from.
+ */
+export function useExecutiveSummary(projectId: string | null, days = 28) {
+  return useQuery({
+    queryKey: ["executive-summary", projectId, days],
+    queryFn: () => api.executiveSummary(projectId!, days),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}

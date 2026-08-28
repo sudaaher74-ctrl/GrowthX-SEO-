@@ -104,22 +104,26 @@ describe('CompetitorCrawlService', () => {
   });
 
   describe('coverage', () => {
-    // Counts come back from $queryRaw, which deduplicates a page linked both
-    // with and without www. bigint is what the driver actually returns for a
-    // count, so the mock returns it too — Number() on a bigint is the bug this
-    // would otherwise hide.
-    const buildWith = (job: any, counts: Record<string, number> = {}) => {
+    /**
+     * Counts are derived from the stored pages themselves rather than from a
+     * COUNT in SQL, so the mock supplies rows. That is the point of the change
+     * this now covers: counting used to run its own query with its own host
+     * regex while the gap list read the rows through a different one, and the
+     * two could disagree about what a page is.
+     */
+    const buildWith = (job: any, pages: { url: string; pageType: string }[] = []) => {
       const prisma = {
         competitorDomain: {
           findFirst: jest.fn().mockResolvedValue({ id: 'comp1', domain: 'acme.com', websiteId: 'w1' }),
         },
         crawlJob: { findFirst: jest.fn().mockResolvedValue(job) },
-        $queryRaw: jest
-          .fn()
-          .mockResolvedValue(Object.entries(counts).map(([pageType, n]) => ({ pageType, n: BigInt(n) }))),
+        page: { findMany: jest.fn().mockResolvedValue(pages.map((p) => ({ title: null, ...p }))) },
       };
       return { prisma, service: new CompetitorCrawlService(prisma as any, {} as any) };
     };
+
+    const pages = (pageType: string, count: number, prefix = 'p') =>
+      Array.from({ length: count }, (_, i) => ({ url: `https://acme.com/${prefix}${i}`, pageType }));
 
     it('says nothing rather than zero when the site has not been crawled', async () => {
       // Zero service pages and "we have not looked" read identically on a
@@ -136,10 +140,10 @@ describe('CompetitorCrawlService', () => {
     });
 
     it('counts the pages by kind', async () => {
-      const { service } = buildWith(
-        { id: 'j1', finishedAt: new Date('2026-08-27'), pagesCrawled: 44, pageLimit: 300 },
-        { SERVICE: 24, BLOG: 6 },
-      );
+      const { service } = buildWith({ id: 'j1', finishedAt: new Date('2026-08-27'), pagesCrawled: 44, pageLimit: 300 }, [
+        ...pages('SERVICE', 24, 's'),
+        ...pages('BLOG', 6, 'b'),
+      ]);
 
       const coverage = await service.getCoverage('org1', 'p1', 'comp1');
 
@@ -148,6 +152,41 @@ describe('CompetitorCrawlService', () => {
       // every fetch, including redirects, errors and two spellings of one URL.
       // Reporting 44 above a breakdown adding to 30 is a visible contradiction.
       expect(coverage?.totalPages).toBe(30);
+    });
+
+    it('counts one page once however the site spells its own URL', async () => {
+      // A site links itself both with and without www. and both with and
+      // without a trailing slash. Four spellings of one page counted four
+      // times is how a 16-page site was reported as having 92 pages.
+      const { service } = buildWith({ id: 'j1', finishedAt: new Date(), pagesCrawled: 4, pageLimit: 300 }, [
+        { url: 'https://acme.com/mango-pulp', pageType: 'PRODUCT' },
+        { url: 'https://www.acme.com/mango-pulp', pageType: 'PRODUCT' },
+        { url: 'https://acme.com/mango-pulp/', pageType: 'PRODUCT' },
+        { url: 'http://www.acme.com/mango-pulp/', pageType: 'PRODUCT' },
+      ]);
+
+      expect((await service.getCoverage('org1', 'p1', 'comp1'))?.totalPages).toBe(1);
+    });
+
+    it('does not count files as pages', async () => {
+      // The crawl that produced this had already been stored before the
+      // crawler learned to skip files, and every read path trusted the table:
+      // 76 of 92 rows were images and PDFs, so a 16-page site was reported as
+      // 92 pages and the customer was shown "mangopulp-1.jpg" as a page they
+      // were missing. Filtering on read is what repairs crawls already stored.
+      const { service } = buildWith({ id: 'j1', finishedAt: new Date(), pagesCrawled: 92, pageLimit: 300 }, [
+        { url: 'https://acme.com/mango-pulp', pageType: 'PRODUCT' },
+        { url: 'https://acme.com/guava-pulp', pageType: 'PRODUCT' },
+        { url: 'https://acme.com/wp-content/uploads/2026/03/mangopulp-1.jpg', pageType: 'OTHER' },
+        { url: 'https://acme.com/wp-content/uploads/2026/03/Mangopulp-part-1.jpeg', pageType: 'OTHER' },
+        { url: 'https://acme.com/wp-content/uploads/2025/03/FSSAI-New-License-2025.pdf', pageType: 'OTHER' },
+        { url: 'https://acme.com/wp-content/uploads/2024/01/CONTAINER-LOADING-3.png', pageType: 'OTHER' },
+      ]);
+
+      const coverage = await service.getCoverage('org1', 'p1', 'comp1');
+
+      expect(coverage?.totalPages).toBe(2);
+      expect(coverage?.byType).toEqual({ PRODUCT: 2 });
     });
 
     it('flags a crawl that stopped at its ceiling', async () => {

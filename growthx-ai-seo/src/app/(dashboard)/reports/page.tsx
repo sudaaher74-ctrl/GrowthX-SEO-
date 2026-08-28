@@ -13,9 +13,19 @@ import {
   Th,
   Tr,
 } from "@/components/ui/console";
+import { MeasureKpi } from "@/components/ui/measure-kpi";
 import { LayoutDashboard, FileBarChart, Users, FileSignature, Download, Loader2 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
-import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts, useReporting } from "@/hooks/use-growthx";
+import {
+  useWorkspace,
+  usePortfolio,
+  useLatestCrawl,
+  useCrawlIssues,
+  useExecutiveSummary,
+  useVisibility,
+  useTrackedPrompts,
+  useReporting,
+} from "@/hooks/use-growthx";
 
 export default function ReportsPage() {
   const { orgId, projectId, projects } = useWorkspace();
@@ -23,6 +33,7 @@ export default function ReportsPage() {
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null);
+  const executive = useExecutiveSummary(projectId);
   const visibility = useVisibility(projectId);
   const prompts = useTrackedPrompts(projectId);
   const reporting = useReporting(projectId);
@@ -37,21 +48,42 @@ export default function ReportsPage() {
     { id: "whitelabel", label: "White-label", icon: FileSignature },
   ];
 
-  const isLoading = portfolio.isLoading || crawl.isLoading || issues.isLoading || visibility.isLoading || prompts.isLoading || reporting.isLoading;
+  const isLoading = portfolio.isLoading || crawl.isLoading || issues.isLoading || executive.isLoading || visibility.isLoading || prompts.isLoading || reporting.isLoading;
 
-  // Calculate KPIs
-  const allIssues = issues.data?.data ?? [];
-  const criticalCount = allIssues.filter(i => i.severity === "CRITICAL").length;
-  const highCount = allIssues.filter(i => i.severity === "HIGH").length;
-  const technicalHealth = Math.max(0, 100 - (criticalCount * 5) - (highCount * 2));
+  // Site health, counted on the server. What was here was a client-side score:
+  //
+  //   technicalHealth = Math.max(0, 100 - criticalCount * 5 - highCount * 2)
+  //
+  // which was wrong in two directions at once. A project with no crawl at all
+  // has no issues, so it scored 100 out of 100 with a full green meter — the
+  // absence of any measurement rendered as a perfect result, on the one page
+  // with an Export PDF button on it. And the counts came from a single
+  // hundred-row page of issues, so past a hundred findings the score stopped
+  // falling and a site that got worse could score better, depending only on
+  // which hundred came back first.
+  //
+  // The server already counts this without a cap and says why when it has
+  // nothing, so this reports what it counted — the same figures the dashboard
+  // shows — rather than a second, disagreeing composite of its own invention.
+  const siteHealth = executive.data?.siteHealth ?? null;
 
   const trackedPrompts = prompts.data ?? [];
-  const totalVolume = trackedPrompts.reduce((acc, curr) => acc + (curr.estimatedVolume ?? 0), 0);
-  
-  const citationShare = visibility.data?.summary?.citationSharePct ?? 0;
+  // Nulls are excluded rather than counted as zero: `?? 0` silently turns "no
+  // estimate for this prompt" into "this prompt has no search volume", which
+  // understates the total without saying so. How many prompts actually carry
+  // an estimate is shown alongside it, so the figure can be read for what it
+  // covers.
+  const estimatedPrompts = trackedPrompts.filter((p) => p.estimatedVolume != null);
+  const totalVolume = estimatedPrompts.reduce((acc, curr) => acc + (curr.estimatedVolume ?? 0), 0);
+
+  // Null, not zero, when no sweep has run. "0.0% citation share" reads as "AI
+  // never mentions this client" when it means "nobody has checked" — and the
+  // chart directly beneath already said "No visibility history yet", so the
+  // two halves of the same panel contradicted each other.
+  const citationShare = visibility.data?.summary?.citationSharePct ?? null;
 
   const severityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-  const topIssues = [...allIssues]
+  const topIssues = [...(issues.data?.data ?? [])]
     .sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9))
     .slice(0, 5);
 
@@ -71,7 +103,12 @@ export default function ReportsPage() {
         title="Automated Reporting"
         subtitle="Executive summaries, custom reports, and client portal settings."
         actions={
-          <ActionButton variant="primary" icon={<Download size={12} />}>
+          // Was a button with no onClick — it looked live and did nothing at
+          // all when clicked, which is the worst of the three options. The
+          // browser's own print dialogue saves a real PDF of exactly what is
+          // on screen, so what the client receives is what the page says,
+          // including every "not measured yet" on it.
+          <ActionButton variant="primary" icon={<Download size={12} />} onClick={() => window.print()}>
             Export PDF Report
           </ActionButton>
         }
@@ -98,24 +135,69 @@ export default function ReportsPage() {
                 </div>
               ) : (
                 <div className="space-y-6 mt-4 p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {/* deltaSuffix only renders alongside a delta, and nothing
                         here records a previous value — so the units it was
                         carrying never reached the screen. They belong on the
                         value and the sub-line instead. */}
-                    <Kpi
-                      label="Technical Health"
-                      value={technicalHealth.toString()}
-                      meter={technicalHealth}
-                      sub="out of 100"
-                    />
-                    <Kpi
-                      label="Citation Share"
-                      value={`${citationShare.toFixed(1)}%`}
-                      meter={citationShare}
-                      sub="of tracked prompts citing this client"
-                    />
-                    <Kpi label="Search Volume Pot." value={totalVolume.toLocaleString()} />
+                    {siteHealth?.state === "MEASURED" ? (
+                      <>
+                        <Kpi
+                          label="Critical Issues"
+                          value={siteHealth.criticalIssues.toLocaleString()}
+                          tone={siteHealth.criticalIssues > 0 ? "danger" : "good"}
+                          sub={`of ${siteHealth.totalIssues.toLocaleString()} found across ${siteHealth.pagesCrawled.toLocaleString()} pages`}
+                        />
+                        <Kpi
+                          label="Pages Crawled"
+                          value={siteHealth.pagesCrawled.toLocaleString()}
+                          sub={siteHealth.source}
+                        />
+                      </>
+                    ) : (
+                      <MeasureKpi
+                        label="Site Health"
+                        className="md:col-span-2"
+                        measure={{
+                          state: "NO_DATA",
+                          reason: siteHealth?.reason ?? "No completed crawl for this project yet.",
+                        }}
+                      />
+                    )}
+                    {citationShare == null ? (
+                      <MeasureKpi
+                        label="Citation Share"
+                        measure={{
+                          state: "NO_DATA",
+                          reason: "No visibility sweep has run for this client yet, so nothing has been measured.",
+                        }}
+                      />
+                    ) : (
+                      <Kpi
+                        label="Citation Share"
+                        value={`${citationShare.toFixed(1)}%`}
+                        meter={citationShare}
+                        sub="of tracked prompts citing this client"
+                      />
+                    )}
+                    {estimatedPrompts.length === 0 ? (
+                      <MeasureKpi
+                        label="Estimated Search Volume"
+                        measure={{
+                          state: "NO_DATA",
+                          reason:
+                            trackedPrompts.length === 0
+                              ? "No prompts are being tracked for this client yet."
+                              : `None of the ${trackedPrompts.length} tracked prompts carry a volume estimate.`,
+                        }}
+                      />
+                    ) : (
+                      <Kpi
+                        label="Estimated Search Volume"
+                        value={totalVolume.toLocaleString()}
+                        sub={`monthly, across ${estimatedPrompts.length} of ${trackedPrompts.length} tracked prompts`}
+                      />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,7 +272,15 @@ export default function ReportsPage() {
                             <Tr key={prompt.id}>
                               <Td><Mono>{prompt.text}</Mono></Td>
                               <Td><Pill tone={prompt.intent === "TRANSACTIONAL" ? "good" : "default"}>{prompt.intent}</Pill></Td>
-                              <Td><span className="text-[13px] text-brand-700">{prompt.estimatedVolume?.toLocaleString()}</span></Td>
+                              <Td>
+                                <span className="text-[13px] text-brand-700">
+                                  {/* An empty cell reads as zero. It means nobody
+                                      estimated this one. */}
+                                  {prompt.estimatedVolume?.toLocaleString() ?? (
+                                    <span className="text-brand-400">not estimated</span>
+                                  )}
+                                </span>
+                              </Td>
                             </Tr>
                           ))
                         ) : (

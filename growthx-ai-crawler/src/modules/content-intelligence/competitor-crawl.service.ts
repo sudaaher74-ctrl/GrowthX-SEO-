@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { PageType } from '../crawler/page-type';
 import { canonicalUrl } from '../crawler/canonical-url';
+import { isCrawlablePage } from '../crawler/crawlable';
 import { closestMatch, distinctiveTokens, MATCH_THRESHOLD, siteBoilerplate } from './topic-match';
 
 /**
@@ -191,15 +192,11 @@ export class CompetitorCrawlService {
    * per row.
    */
   private async countByType(crawlJobId: string): Promise<Record<string, number>> {
-    const rows = await this.prisma.$queryRaw<{ pageType: string; n: bigint }[]>`
-      SELECT "pageType",
-             count(DISTINCT regexp_replace(url, '^https?://(www\.)?', '')) AS n
-      FROM "Page"
-      WHERE "crawlJobId" = ${crawlJobId}
-        AND "statusCode" >= 200 AND "statusCode" < 300
-      GROUP BY "pageType"
-    `;
-    return Object.fromEntries(rows.map((row) => [row.pageType, Number(row.n)]));
+    const byType: Record<string, number> = {};
+    for (const page of (await this.pagesFor(crawlJobId)).values()) {
+      byType[page.pageType] = (byType[page.pageType] ?? 0) + 1;
+    }
+    return byType;
   }
 
   /**
@@ -457,6 +454,24 @@ export class CompetitorCrawlService {
     };
   }
 
+  /**
+   * The pages of one crawl, deduplicated and with files excluded.
+   *
+   * Every read path goes through here — the coverage counts, the gap list and
+   * the change diff — so that all three agree on what a page is. They did not
+   * before: counting used its own SQL with its own host regex, which stripped
+   * `www.` but not a trailing slash, so the same site could be counted as two
+   * different totals depending on which method asked.
+   *
+   * Files are filtered here and not only in the crawler because the database
+   * already holds crawls recorded before the crawler learned to skip them. On
+   * the first competitor crawled, 76 of 92 stored rows are images and PDFs, and
+   * every one of them was rendered to the customer as a page they were missing
+   * — a list headed by "mangopulp-1.jpg". Fixing only the crawler would have
+   * left that on screen until somebody thought to re-crawl. Filtering on read
+   * repairs the existing rows in place, and costs one string check per row for
+   * crawls recorded since.
+   */
   private async pagesFor(crawlJobId: string) {
     const pages = await this.prisma.page.findMany({
       where: { crawlJobId, statusCode: { gte: 200, lt: 300 } },
@@ -468,6 +483,7 @@ export class CompetitorCrawlService {
     // that was removed and a different one added.
     const byKey = new Map<string, { key: string; url: string; title: string | null; pageType: string }>();
     for (const page of pages) {
+      if (!isCrawlablePage(page.url)) continue;
       const key = canonicalUrl(page.url);
       if (!byKey.has(key)) byKey.set(key, { key, ...page });
     }

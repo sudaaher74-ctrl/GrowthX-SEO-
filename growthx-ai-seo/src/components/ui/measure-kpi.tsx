@@ -23,12 +23,15 @@ export function MeasureKpi({
   measure,
   format = (value: number) => value.toLocaleString(),
   connectHref,
+  className,
 }: {
   label: string;
   measure: Measure;
   format?: (value: number) => string;
   /** Where "Connect" goes. Omitted, the reason is shown without a link. */
   connectHref?: Partial<Record<string, string>>;
+  /** Grid placement, for rows where an explanation is wider than a figure. */
+  className?: string;
 }) {
   if (measure.state === "MEASURED") {
     return (
@@ -48,7 +51,7 @@ export function MeasureKpi({
 
   return (
     <div
-      className="rounded-xl border bg-white px-4 py-3.5"
+      className={`rounded-xl border bg-white px-4 py-3.5${className ? ` ${className}` : ""}`}
       style={{ borderColor: "var(--color-brand-100)" }}
     >
       <div className="text-[11px] font-medium text-brand-500">{label}</div>
