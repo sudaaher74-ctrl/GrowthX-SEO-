@@ -8,6 +8,7 @@ import { ActionButton, Kpi, Panel, PageHeader, Table, Td, Th, Tr } from "@/compo
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api, type GscPoint } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { PropertyPicker } from "@/components/ui/property-picker";
 
 /**
  * Only the ranges Search Console can actually answer.
@@ -132,6 +133,16 @@ function SearchConsoleClient() {
         <div className="flex items-center gap-2 py-10 text-[13px] text-brand-500">
           <Loader2 size={14} className="animate-spin" /> Checking your Google connection…
         </div>
+      ) : gsc?.status === "NEEDS_SELECTION" ? (
+        // Authorized, but no property chosen yet. Without this branch the page
+        // fell through to the Connect prompt and the flow could never finish —
+        // authorize, come back, see "not connected", authorize again.
+        <PropertyPicker
+          projectId={projectId}
+          provider="search_console"
+          title="Choose your Search Console property"
+          emptyHelp="Your site needs to be verified in Search Console under the Google account you just authorized. If it is verified under a different account, disconnect and connect again with that one."
+        />
       ) : !connected ? (
         <ConnectPrompt
           status={gsc?.status ?? "NOT_CONNECTED"}

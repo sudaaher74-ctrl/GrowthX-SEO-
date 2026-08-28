@@ -8,6 +8,7 @@ import { ActionButton, Kpi, Panel, PageHeader, Table, Td, Th, Tr } from "@/compo
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api, type Ga4Point } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { PropertyPicker } from "@/components/ui/property-picker";
 
 const RANGES = [
   { label: "7 days", days: 7 },
@@ -99,6 +100,13 @@ function AnalyticsClient() {
         <div className="flex items-center gap-2 py-10 text-[13px] text-brand-500">
           <Loader2 size={14} className="animate-spin" /> Checking your Google connection…
         </div>
+      ) : ga4?.status === "NEEDS_SELECTION" ? (
+        <PropertyPicker
+          projectId={projectId}
+          provider="analytics"
+          title="Choose your Analytics property"
+          emptyHelp="The Google account you authorized has no GA4 properties it can read. Check you authorized with the account that has access to your Analytics."
+        />
       ) : !connected ? (
         <ConnectPrompt
           status={ga4?.status ?? "NOT_CONNECTED"}
