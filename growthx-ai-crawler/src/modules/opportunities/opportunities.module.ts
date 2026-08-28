@@ -4,6 +4,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { OpportunitiesService } from './opportunities.service';
 import { OpportunityDetectionService } from './opportunity-detection.service';
 import { OpportunitiesController } from './opportunities.controller';
+import { OpportunityDetectionScheduler } from './opportunity-detection.scheduler';
 
 /**
  * The unified opportunity surface.
@@ -15,7 +16,7 @@ import { OpportunitiesController } from './opportunities.controller';
  */
 @Module({
   imports: [DatabaseModule, IntegrationsModule],
-  providers: [OpportunitiesService, OpportunityDetectionService],
+  providers: [OpportunitiesService, OpportunityDetectionService, OpportunityDetectionScheduler],
   controllers: [OpportunitiesController],
   exports: [OpportunitiesService, OpportunityDetectionService],
 })
