@@ -274,6 +274,20 @@ export class ContentIntelligenceController {
     return this.competitorCrawl.getComparison(req.organizationId, projectId, competitorId);
   }
 
+  /**
+   * What changed on their site between the last two crawls. Null until there
+   * are two — a first crawl diffed against nothing reads as "they added 35
+   * pages", which would announce a site's whole existence as news.
+   */
+  @Get('competitors/:competitorId/changes')
+  async competitorChanges(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.competitorCrawl.getChanges(req.organizationId, projectId, competitorId);
+  }
+
   /** The crawled pages themselves, optionally of one kind. */
   @Get('competitors/:competitorId/pages')
   async competitorPages(

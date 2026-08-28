@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { PageType } from '../crawler/page-type';
+import { canonicalUrl } from '../crawler/canonical-url';
 
 /**
  * Crawls a competitor's public website so their coverage can be compared with
@@ -263,6 +264,103 @@ export class CompetitorCrawlService {
       behindOn: rows.filter((r) => (r.gap ?? 0) > 0).sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0)),
       rows,
     };
+  }
+
+  /**
+   * What changed on the competitor's site between their last two crawls.
+   *
+   * Diffed straight from the two crawls rather than from a stored snapshot.
+   * Every crawl already keeps its own pages, so a snapshot table would be a
+   * second copy of data we have — and a copy that can disagree with the pages
+   * it was derived from, which is the worst kind of wrong on a screen that
+   * exists to report changes.
+   *
+   * Returns null until there are two completed crawls. A first crawl looks
+   * exactly like "they added 35 pages" if it is diffed against nothing, which
+   * would announce a site's entire existence as this week's news.
+   */
+  async getChanges(organizationId: string, projectId: string, competitorId: string) {
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: { id: competitorId, projectId, project: { organizationId } },
+      select: { websiteId: true, domain: true },
+    });
+    if (!competitor) throw new NotFoundException('Competitor not found for this project.');
+    if (!competitor.websiteId) return null;
+
+    const jobs = await this.prisma.crawlJob.findMany({
+      where: { websiteId: competitor.websiteId, status: 'COMPLETED' },
+      orderBy: { finishedAt: 'desc' },
+      take: 2,
+      select: { id: true, finishedAt: true },
+    });
+    if (jobs.length < 2) return null;
+
+    const [current, previous] = jobs;
+    const [currentPages, previousPages] = await Promise.all([
+      this.pagesFor(current.id),
+      this.pagesFor(previous.id),
+    ]);
+
+    const added = [...currentPages.values()].filter((page) => !previousPages.has(page.key));
+    const removed = [...previousPages.values()].filter((page) => !currentPages.has(page.key));
+
+    // Only pages present in both, so a retitle is never confused with a page
+    // that was replaced by a different one at the same address.
+    const retitled = [...currentPages.values()]
+      .map((page) => ({ page, before: previousPages.get(page.key) }))
+      .filter(({ page, before }) => before && before.title && page.title && before.title !== page.title)
+      .map(({ page, before }) => ({
+        url: page.url,
+        pageType: page.pageType,
+        from: before!.title,
+        to: page.title,
+      }));
+
+    return {
+      domain: competitor.domain,
+      since: previous.finishedAt,
+      until: current.finishedAt,
+      added: added.map((p) => ({ url: p.url, title: p.title, pageType: p.pageType })),
+      removed: removed.map((p) => ({ url: p.url, title: p.title, pageType: p.pageType })),
+      retitled,
+      // Net movement by page kind — the shape of what they are investing in.
+      // A site that added six service pages and dropped two blog posts is
+      // doing something a single "8 changes" number would hide.
+      byType: this.netByType(added, removed),
+    };
+  }
+
+  private async pagesFor(crawlJobId: string) {
+    const pages = await this.prisma.page.findMany({
+      where: { crawlJobId, statusCode: { gte: 200, lt: 300 } },
+      select: { url: true, title: true, pageType: true },
+    });
+
+    // Keyed canonically for the same reason coverage counts canonically: a
+    // page linked as www. in one crawl and bare in the next is not a page
+    // that was removed and a different one added.
+    const byKey = new Map<string, { key: string; url: string; title: string | null; pageType: string }>();
+    for (const page of pages) {
+      const key = canonicalUrl(page.url);
+      if (!byKey.has(key)) byKey.set(key, { key, ...page });
+    }
+    return byKey;
+  }
+
+  private netByType(
+    added: { pageType: string }[],
+    removed: { pageType: string }[],
+  ): Record<string, { added: number; removed: number }> {
+    const net: Record<string, { added: number; removed: number }> = {};
+    for (const page of added) {
+      net[page.pageType] ??= { added: 0, removed: 0 };
+      net[page.pageType].added += 1;
+    }
+    for (const page of removed) {
+      net[page.pageType] ??= { added: 0, removed: 0 };
+      net[page.pageType].removed += 1;
+    }
+    return net;
   }
 
   /** The competitor's crawled pages of one kind, for showing what they cover. */

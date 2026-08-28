@@ -6,6 +6,7 @@ import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
+import { canonicalUrl } from './canonical-url';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -600,15 +601,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * finalUrl.
    */
   private visitKey(normalizedUrl: string): string {
-    try {
-      const parsed = new URL(normalizedUrl);
-      // Scheme folded in for the same reason as the host: http://x/a and
-      // https://x/a are one page, and a site that links itself both ways would
-      // otherwise store it twice.
-      return `${parsed.hostname.toLowerCase().replace(/^www\./, '')}${parsed.pathname}${parsed.search}`;
-    } catch {
-      return normalizedUrl;
-    }
+    return canonicalUrl(normalizedUrl);
   }
 
   private normalizeUrl(rawUrl: string): string {

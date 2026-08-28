@@ -119,6 +119,8 @@ export function CoverageComparison({
             </p>
           )}
 
+          <RecentChanges projectId={projectId} competitorId={competitorId} />
+
           {!ours ? (
             <p className="mt-2 text-[11px] text-brand-500">
               Your own site has not been crawled yet, so there is nothing to compare against. Run a
@@ -147,6 +149,71 @@ export function CoverageComparison({
       )}
 
       {error && <p className="mt-2 text-[11px] text-error-500">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * What moved on their site since the crawl before this one.
+ *
+ * Renders nothing at all until there have been two crawls. A first crawl
+ * diffed against nothing would read as "they added 35 pages", announcing the
+ * site's whole existence as this week's news, and an empty "no changes" box
+ * would say we checked when we did not.
+ */
+function RecentChanges({ projectId, competitorId }: { projectId: string; competitorId: string }) {
+  const changes = useQuery({
+    queryKey: ["competitor-changes", projectId, competitorId],
+    queryFn: () => api.competitorChanges(projectId, competitorId),
+  });
+
+  const data = changes.data;
+  if (!data) return null;
+
+  const moved = data.added.length + data.removed.length + data.retitled.length;
+  if (moved === 0) return null;
+
+  const since = data.since ? new Date(data.since).toLocaleDateString() : null;
+
+  return (
+    <div className="mt-2.5 border-t pt-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
+      <div className="text-[11px] font-medium text-brand-950">
+        Since {since ?? "the previous crawl"}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {data.added.length > 0 && (
+          <span className="rounded-full bg-[#10b98118] px-2 py-0.5 text-[11px] text-success-500">
+            +{data.added.length} new {data.added.length === 1 ? "page" : "pages"}
+          </span>
+        )}
+        {data.removed.length > 0 && (
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] text-brand-600">
+            −{data.removed.length} removed
+          </span>
+        )}
+        {data.retitled.length > 0 && (
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] text-brand-600">
+            {data.retitled.length} retitled
+          </span>
+        )}
+      </div>
+      {/* The pages themselves, not just a count — "they added 6 pages" is a
+          notification, "they added 6 service pages for cities you don't cover"
+          is something to act on. Capped so one big relaunch cannot push the
+          rest of the panel off the screen. */}
+      {data.added.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5">
+          {data.added.slice(0, 5).map((page) => (
+            <li key={page.url} className="truncate text-[11px] text-brand-500">
+              <span className="font-mono text-[10px] text-brand-400">{page.pageType}</span>{" "}
+              {page.title || page.url}
+            </li>
+          ))}
+          {data.added.length > 5 && (
+            <li className="text-[11px] text-brand-400">and {data.added.length - 5} more</li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

@@ -514,6 +514,30 @@ export interface CoverageComparison {
   rows: CoverageRow[];
 }
 
+/** One page that appeared, disappeared, or was retitled between two crawls. */
+export interface ChangedPage {
+  url: string;
+  title?: string | null;
+  pageType: string;
+}
+
+export interface RetitledPage {
+  url: string;
+  pageType: string;
+  from: string | null;
+  to: string | null;
+}
+
+export interface CompetitorChanges {
+  domain: string;
+  since: string | null;
+  until: string | null;
+  added: ChangedPage[];
+  removed: ChangedPage[];
+  retitled: RetitledPage[];
+  byType: Record<string, { added: number; removed: number }>;
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1051,6 +1075,15 @@ export const api = {
   competitorComparison: (projectId: string, competitorId: string) =>
     get<CoverageComparison>(
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/comparison`,
+    ),
+
+  /**
+   * What changed on their site between the last two crawls. Null until there
+   * are two — a first crawl has nothing to be compared against.
+   */
+  competitorChanges: (projectId: string, competitorId: string) =>
+    get<CompetitorChanges | null>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/changes`,
     ),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */

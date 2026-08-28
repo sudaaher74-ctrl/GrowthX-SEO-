@@ -227,3 +227,113 @@ describe('CompetitorCrawlService — comparison', () => {
     expect(result.behindOn).toEqual([]);
   });
 });
+
+/**
+ * The point of re-crawling a competitor is to see what they did since last
+ * time. A change list that reports movement that did not happen is worse than
+ * no change list — someone reacts to it.
+ */
+describe('CompetitorCrawlService — what changed since last crawl', () => {
+  const build = (jobs: any[], pagesByJob: Record<string, any[]> = {}) => {
+    const prisma = {
+      competitorDomain: {
+        findFirst: jest.fn().mockResolvedValue({ websiteId: 'w1', domain: 'acme.com' }),
+      },
+      crawlJob: { findMany: jest.fn().mockResolvedValue(jobs) },
+      page: {
+        findMany: jest.fn(async ({ where }: any) => pagesByJob[where.crawlJobId] ?? []),
+      },
+    };
+    return { prisma, service: new CompetitorCrawlService(prisma as any, {} as any) };
+  };
+
+  const page = (url: string, pageType = 'SERVICE', title: string | null = null) => ({ url, pageType, title });
+
+  it('says nothing after a single crawl', async () => {
+    // Diffed against nothing, a first crawl reads as "they added 35 pages" —
+    // announcing the site's whole existence as this week's news.
+    const { service } = build([{ id: 'j2', finishedAt: new Date() }]);
+    expect(await service.getChanges('org1', 'p1', 'comp1')).toBeNull();
+  });
+
+  it('reports pages added and removed between the last two crawls', async () => {
+    const { service } = build(
+      [
+        { id: 'new', finishedAt: new Date('2026-08-27') },
+        { id: 'old', finishedAt: new Date('2026-08-01') },
+      ],
+      {
+        old: [page('https://acme.com/a'), page('https://acme.com/gone')],
+        new: [page('https://acme.com/a'), page('https://acme.com/fresh', 'BLOG')],
+      },
+    );
+
+    const changes = await service.getChanges('org1', 'p1', 'comp1');
+
+    expect(changes?.added.map((p) => p.url)).toEqual(['https://acme.com/fresh']);
+    expect(changes?.removed.map((p) => p.url)).toEqual(['https://acme.com/gone']);
+    expect(changes?.byType).toEqual({ BLOG: { added: 1, removed: 0 }, SERVICE: { added: 0, removed: 1 } });
+  });
+
+  it('does not invent a change when a link spelling changed', async () => {
+    // The single most likely false positive: the same page linked as www. in
+    // one crawl and bare in the next would otherwise report one page removed
+    // and a different one added, every crawl, forever.
+    const { service } = build(
+      [
+        { id: 'new', finishedAt: new Date() },
+        { id: 'old', finishedAt: new Date() },
+      ],
+      {
+        old: [page('https://acme.com/about')],
+        new: [page('https://www.acme.com/about/')],
+      },
+    );
+
+    const changes = await service.getChanges('org1', 'p1', 'comp1');
+
+    expect(changes?.added).toEqual([]);
+    expect(changes?.removed).toEqual([]);
+  });
+
+  it('reports a retitled page as retitled, not as replaced', async () => {
+    const { service } = build(
+      [
+        { id: 'new', finishedAt: new Date() },
+        { id: 'old', finishedAt: new Date() },
+      ],
+      {
+        old: [page('https://acme.com/a', 'SERVICE', 'Kitchen Fitting')],
+        new: [page('https://acme.com/a', 'SERVICE', 'Kitchen Fitting in Mumbai')],
+      },
+    );
+
+    const changes = await service.getChanges('org1', 'p1', 'comp1');
+
+    expect(changes?.added).toEqual([]);
+    expect(changes?.removed).toEqual([]);
+    expect(changes?.retitled).toEqual([
+      { url: 'https://acme.com/a', pageType: 'SERVICE', from: 'Kitchen Fitting', to: 'Kitchen Fitting in Mumbai' },
+    ]);
+  });
+
+  it('does not report a retitle when a crawl simply captured no title', async () => {
+    // A missing title is a fetch that did not parse, not an editorial change.
+    const { service } = build(
+      [
+        { id: 'new', finishedAt: new Date() },
+        { id: 'old', finishedAt: new Date() },
+      ],
+      {
+        old: [page('https://acme.com/a', 'SERVICE', 'Kitchens')],
+        new: [page('https://acme.com/a', 'SERVICE', null)],
+      },
+    );
+
+    const changes = await service.getChanges('org1', 'p1', 'comp1');
+
+    expect(changes?.retitled).toEqual([]);
+    // Nor as the page having gone: it is in both crawls.
+    expect(changes?.removed).toEqual([]);
+  });
+});
