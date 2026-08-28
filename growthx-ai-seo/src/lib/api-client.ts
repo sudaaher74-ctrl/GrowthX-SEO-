@@ -671,6 +671,55 @@ export interface OpportunityList {
   opportunities: GrowthOpportunity[];
 }
 
+export interface Ga4Metric {
+  current: number;
+  previous: number | null;
+  change: number | null;
+  changePct: number | null;
+}
+
+export interface Ga4Summary {
+  range: { start: string; end: string };
+  comparisonRange: { start: string; end: string } | null;
+  users: Ga4Metric;
+  sessions: Ga4Metric;
+  engagementRate: Ga4Metric;
+  /** Null when the property has no key events configured — never a zero. */
+  conversions: Ga4Metric | null;
+  revenue: Ga4Metric | null;
+  conversionTrackingConfigured: boolean;
+  revenueTrackingConfigured: boolean;
+  daysWithData: number;
+}
+
+export interface Ga4Point {
+  date: string;
+  users: number;
+  sessions: number;
+  engagementRate: number;
+  conversions: number | null;
+  revenue: number | null;
+}
+
+/** A page with its search performance and its business outcome side by side. */
+export interface PageValueRow {
+  page: string;
+  clicks: number;
+  impressions: number;
+  position: number;
+  /** Null when the page has no GA4 landing-page row — it ranked but was never landed on. */
+  sessions: number | null;
+  conversions: number | null;
+  revenue: number | null;
+  conversionRate: number | null;
+}
+
+export interface PageValue {
+  rows: PageValueRow[];
+  hasSearchData: boolean;
+  hasAnalyticsData: boolean;
+}
+
 export interface TrackedCompetitor {
   id: string;
   domain: string;
@@ -1297,6 +1346,24 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+
+  // ── Analytics (GA4) ──────────────────────────────────────────────────────
+  ga4Properties: (projectId: string) =>
+    get<{ propertyId: string; displayName: string; accountName: string }[]>(
+      `/api/projects/${projectId}/analytics/properties`,
+    ),
+  ga4Sync: (projectId: string, days?: number) =>
+    post<{ status: string; rowsWritten: number }>(
+      `/api/projects/${projectId}/analytics/sync${days ? `?days=${days}` : ""}`,
+      {},
+    ),
+  ga4Summary: (projectId: string, days: number) =>
+    get<Ga4Summary | null>(`/api/projects/${projectId}/analytics/summary?days=${days}`),
+  ga4Timeseries: (projectId: string, days: number) =>
+    get<Ga4Point[]>(`/api/projects/${projectId}/analytics/timeseries?days=${days}`),
+  /** Organic clicks joined to sessions and conversions, per page. */
+  ga4PageValue: (projectId: string, days: number) =>
+    get<PageValue>(`/api/projects/${projectId}/analytics/page-value?days=${days}`),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>

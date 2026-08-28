@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { SearchConsoleInsightsService } from '../integrations/google/search-console-insights.service';
+import { AnalyticsInsightsService } from '../integrations/google/analytics-insights.service';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { closestMatch, distinctiveTokens, MATCH_THRESHOLD, siteBoilerplate, topicTokens } from '../content-intelligence/topic-match';
 
@@ -41,6 +42,7 @@ export class OpportunityDetectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly search: SearchConsoleInsightsService,
+    private readonly analytics: AnalyticsInsightsService,
   ) {}
 
   /**
@@ -56,6 +58,8 @@ export class OpportunityDetectionService {
       { name: 'striking-distance', run: () => this.strikingDistance(projectId) },
       { name: 'ctr-shortfall', run: () => this.ctrShortfall(projectId) },
       { name: 'declining-queries', run: () => this.decliningQueries(projectId) },
+      { name: 'high-value-pages', run: () => this.highValuePages(projectId) },
+      { name: 'traffic-without-conversion', run: () => this.trafficWithoutConversion(projectId) },
     ];
 
     const found: Detected[] = [];
@@ -297,6 +301,89 @@ export class OpportunityDetectionService {
       effort: 'MEDIUM',
       confidence: 85,
     }));
+  }
+
+  /**
+   * Pages that already earn, and still rank below where they could.
+   *
+   * The most valuable thing in the product: a page with proven conversions and
+   * a position outside the top few is a known-good asset with headroom, which
+   * is a far safer bet than writing something new and hoping.
+   *
+   * Requires measured conversions. A page with traffic and unknown conversions
+   * is not evidence of value, and calling it high-value would be a guess
+   * wearing the same badge as a measured finding.
+   */
+  private async highValuePages(projectId: string): Promise<Detected[]> {
+    const { rows, hasAnalyticsData } = await this.analytics.pageValue(projectId, 28, 200);
+    if (!hasAnalyticsData) return [];
+
+    return rows
+      .filter((row) => row.conversions != null && row.conversions > 0 && row.position > 3)
+      .sort((a, b) => (b.conversions ?? 0) - (a.conversions ?? 0))
+      .slice(0, 10)
+      .map((row) => ({
+        fingerprint: fingerprint('high-value-page', canonicalUrl(row.page)),
+        source: 'ANALYTICS',
+        category: 'SEO',
+        title: `Improve the ranking of ${shortPath(row.page)} — it already converts`,
+        summary: `This page converts ${row.conversions} of ${row.sessions?.toLocaleString()} sessions and ranks at ${row.position.toFixed(1)}. Moving it up puts more people in front of something already known to work.`,
+        evidence: [
+          { label: 'Conversions', value: String(row.conversions), source: 'Google Analytics' },
+          {
+            label: 'Conversion rate',
+            value: row.conversionRate != null ? `${(row.conversionRate * 100).toFixed(1)}%` : 'unknown',
+            source: 'Google Analytics',
+          },
+          { label: 'Organic clicks', value: row.clicks.toLocaleString(), source: 'Google Search Console' },
+          { label: 'Average position', value: row.position.toFixed(1), source: 'Google Search Console' },
+        ],
+        recommendedAction: 'Strengthen this page for the queries it already ranks for: depth, internal links from related pages, and a title matching the search.',
+        // The rarest combination on this list — measured revenue-adjacent
+        // outcome plus measured headroom.
+        potential: 'HIGH',
+        effort: 'MEDIUM',
+        confidence: 92,
+        affectedPages: [row.page],
+      }));
+  }
+
+  /**
+   * Pages with real traffic and no conversions.
+   *
+   * Only where conversions are actually tracked. Without that, every page on
+   * the site would qualify and the list would be a report about the customer's
+   * Analytics configuration dressed up as a finding about their pages.
+   */
+  private async trafficWithoutConversion(projectId: string): Promise<Detected[]> {
+    const { rows, hasAnalyticsData } = await this.analytics.pageValue(projectId, 28, 200);
+    if (!hasAnalyticsData) return [];
+
+    return rows
+      .filter((row) => row.conversions === 0 && (row.sessions ?? 0) >= 200)
+      .sort((a, b) => (b.sessions ?? 0) - (a.sessions ?? 0))
+      .slice(0, 10)
+      .map((row) => ({
+        fingerprint: fingerprint('no-conversion', canonicalUrl(row.page)),
+        source: 'ANALYTICS',
+        category: 'CONTENT',
+        title: `${shortPath(row.page)} gets ${row.sessions?.toLocaleString()} sessions and converts none of them`,
+        summary: `Search is doing its job for this page — it is found and clicked. What happens after the click is not.`,
+        evidence: [
+          { label: 'Sessions', value: (row.sessions ?? 0).toLocaleString(), source: 'Google Analytics' },
+          { label: 'Conversions', value: '0', source: 'Google Analytics' },
+          { label: 'Organic clicks', value: row.clicks.toLocaleString(), source: 'Google Search Console' },
+          { label: 'Average position', value: row.position.toFixed(1), source: 'Google Search Console' },
+        ],
+        recommendedAction: 'Check what this page asks the visitor to do. A page that ranks and is read but has no clear next step converts nobody however much traffic it gets.',
+        potential: (row.sessions ?? 0) >= 1000 ? 'HIGH' : 'MEDIUM',
+        effort: 'MEDIUM',
+        // Lower than the high-value finding: the numbers are certain, but
+        // whether the page is *meant* to convert is not something Analytics
+        // can say. A guide that informs and sends people elsewhere is working.
+        confidence: 70,
+        affectedPages: [row.page],
+      }));
   }
 
   /** Pages from the most recent completed crawl of a website. */

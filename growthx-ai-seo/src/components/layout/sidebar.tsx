@@ -85,6 +85,7 @@ export function Sidebar({
     // same question as AI Visibility above it — where the site shows up — for
     // a different search engine.
     { label: "Search Console", href: "/search/search-console", icon: TrendingUp },
+    { label: "Analytics", href: "/analytics", icon: BarChart },
     { label: "Market Research", href: "/market-research", icon: Telescope },
     { label: "Competitors", href: "/competitors", icon: Crosshair },
     // Sits directly after Competitors because most of what it surfaces is the

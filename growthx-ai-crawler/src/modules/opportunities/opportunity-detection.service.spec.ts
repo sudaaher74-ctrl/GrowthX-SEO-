@@ -48,7 +48,18 @@ describe('OpportunityDetectionService', () => {
       ctrOpportunities: jest.fn().mockResolvedValue([]),
       declining: jest.fn().mockResolvedValue([]),
     };
-    return { prisma, search, written, service: new OpportunityDetectionService(prisma as any, search as any) };
+    // Defaults to a property with no analytics synced, so the existing tests
+    // exercise the no-GA4 path; the GA4 tests below override it.
+    const analytics = {
+      pageValue: jest.fn().mockResolvedValue({ rows: [], hasSearchData: false, hasAnalyticsData: false }),
+    };
+    return {
+      prisma,
+      search,
+      analytics,
+      written,
+      service: new OpportunityDetectionService(prisma as any, search as any, analytics as any),
+    };
   };
 
   const created = (written: any[]) => written.map((w) => w.create);
@@ -251,6 +262,97 @@ describe('OpportunityDetectionService', () => {
       const decline = created(written).find((o: any) => /fell from position/i.test(o.title));
       expect(decline.summary).not.toMatch(/because|caused|due to/i);
       expect(decline.recommendedAction).toMatch(/check/i);
+    });
+  });
+
+  describe('analytics-backed findings', () => {
+    const page = (over: any = {}) => ({
+      page: 'https://aiva.com/services/kitchens',
+      clicks: 400,
+      impressions: 9000,
+      position: 7.2,
+      sessions: 380,
+      conversions: 21,
+      revenue: null,
+      conversionRate: 21 / 380,
+      ...over,
+    });
+
+    it('finds a page that already converts and still has ranking headroom', async () => {
+      // The safest bet in the product: a known-good asset with room to move,
+      // rather than something new written on a hunch.
+      const { service, analytics, written } = build();
+      analytics.pageValue.mockResolvedValue({ rows: [page()], hasSearchData: true, hasAnalyticsData: true });
+
+      await service.detect('o1', 'p1');
+
+      const found = created(written).find((o: any) => /already converts/i.test(o.title));
+      expect(found).toBeTruthy();
+      expect(found.confidence).toBeGreaterThan(90);
+      expect(found.source).toBe('ANALYTICS');
+    });
+
+    it('leaves a page alone when it already ranks at the top', async () => {
+      // No headroom, so nothing to recommend.
+      const { service, analytics, written } = build();
+      analytics.pageValue.mockResolvedValue({ rows: [page({ position: 1.4 })], hasSearchData: true, hasAnalyticsData: true });
+
+      await service.detect('o1', 'p1');
+
+      expect(created(written).some((o: any) => /already converts/i.test(o.title))).toBe(false);
+    });
+
+    it('will not call a page high-value on unmeasured conversions', async () => {
+      // Traffic with unknown conversions is not evidence of value, and saying
+      // so would put a guess next to measured findings wearing the same badge.
+      const { service, analytics, written } = build();
+      analytics.pageValue.mockResolvedValue({
+        rows: [page({ conversions: null, conversionRate: null })],
+        hasSearchData: true,
+        hasAnalyticsData: true,
+      });
+
+      await service.detect('o1', 'p1');
+
+      expect(created(written).some((o: any) => /already converts/i.test(o.title))).toBe(false);
+    });
+
+    it('flags a page with real traffic and a measured zero conversions', async () => {
+      const { service, analytics, written } = build();
+      analytics.pageValue.mockResolvedValue({
+        rows: [page({ conversions: 0, sessions: 1500, conversionRate: 0 })],
+        hasSearchData: true,
+        hasAnalyticsData: true,
+      });
+
+      await service.detect('o1', 'p1');
+
+      const found = created(written).find((o: any) => /converts none of them/i.test(o.title));
+      expect(found).toBeTruthy();
+      expect(found.potential).toBe('HIGH');
+    });
+
+    it('does not flag zero conversions when conversions are not tracked at all', async () => {
+      // Otherwise every page qualifies and the list is a report about the
+      // customer's Analytics setup dressed as a finding about their pages.
+      const { service, analytics, written } = build();
+      analytics.pageValue.mockResolvedValue({
+        rows: [page({ conversions: null, sessions: 1500, conversionRate: null })],
+        hasSearchData: true,
+        hasAnalyticsData: true,
+      });
+
+      await service.detect('o1', 'p1');
+
+      expect(created(written).some((o: any) => /converts none of them/i.test(o.title))).toBe(false);
+    });
+
+    it('produces no analytics findings when GA4 has never synced', async () => {
+      const { service, written } = build();
+
+      await service.detect('o1', 'p1');
+
+      expect(created(written).every((o: any) => o.source !== 'ANALYTICS')).toBe(true);
     });
   });
 });
