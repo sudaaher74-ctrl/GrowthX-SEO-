@@ -2007,6 +2007,7 @@ export interface ContentStrategy {
     whatToTest?: string[];
     whatToScale?: string[];
     hooks?: string[];
+    ctaStrategy?: string;
     /** Counts of the inputs the strategy was generated from. All zero on a cold start. */
     dataBasis?: { patterns: number; gaps: number; ownedPosts: number; competitorPosts: number };
     platformStrategy?: any;
