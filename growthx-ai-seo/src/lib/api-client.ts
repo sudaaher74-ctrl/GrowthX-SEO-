@@ -1564,6 +1564,39 @@ export const api = {
   approveContentStrategy: (projectId: string, strategyId: string) =>
     post<{ count: number }>(`/api/projects/${projectId}/content-intelligence/strategy/${strategyId}/approve`, {}),
 
+  // ── Competitor Social Video Intelligence Endpoints ───────────────────────
+  discoverSocialProfiles: (projectId: string, body: { website: string; businessName?: string; location?: string; industry?: string }) =>
+    post<{ competitorDomain: any; accounts: CompetitorAccount[] }>(`/api/projects/${projectId}/content-intelligence/discover-profiles`, body),
+
+  ingestAndAnalyzeVideo: (projectId: string, body: any) =>
+    post<{ content: CompetitorContent; analysis: any }>(`/api/projects/${projectId}/content-intelligence/analyze-video`, body),
+
+  getVideoDetails: (projectId: string, contentId: string) =>
+    get<CompetitorContent>(`/api/projects/${projectId}/content-intelligence/video-details/${contentId}`),
+
+  getCrossCompetitorMatrix: (projectId: string) =>
+    get<CrossCompetitorMatrix>(`/api/projects/${projectId}/content-intelligence/cross-competitor-matrix`),
+
+  getEnrichedOpportunities: (projectId: string) =>
+    get<EnrichedOpportunity[]>(`/api/projects/${projectId}/content-intelligence/enriched-opportunities`),
+
+  generateVideoScript: (projectId: string, body: { topic: string; platform?: string; opportunityContext?: string }) =>
+    post<VideoBriefAndScript>(`/api/projects/${projectId}/content-intelligence/generate-video-script`, body),
+
+  saveVideoScriptToCalendar: (projectId: string, body: { scriptData: VideoBriefAndScript; scheduledDate?: string }) =>
+    post<CalendarItem>(`/api/projects/${projectId}/content-intelligence/save-video-script`, body),
+
+  getCompetitorAlerts: (projectId: string) =>
+    get<CompetitorChangeAlert[]>(`/api/projects/${projectId}/content-intelligence/competitor-alerts`),
+
+  recordOutcome: (projectId: string, body: any) =>
+    post<{ success: boolean; message: string; outcomeSummary: any }>(`/api/projects/${projectId}/content-intelligence/record-outcome`, body),
+
+  updateAlertStatus: (projectId: string, alertId: string, status: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/competitor-alerts/${alertId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    }),
+
   // Content Calendar
   generateContent: (projectId: string, body: GenerateContentBody) =>
     post<CalendarItem>(`/api/projects/${projectId}/content-intelligence/generate-content`, body),
@@ -1655,6 +1688,13 @@ export interface CompetitorAccount {
   handle: string;
   profileUrl: string | null;
   displayName: string | null;
+  businessName?: string | null;
+  website?: string | null;
+  location?: string | null;
+  industry?: string | null;
+  discoverySource?: string | null;
+  verificationStatus?: string | null;
+  matchConfidence?: number | null;
   followerCount: number | null;
   isActive: boolean;
   lastSyncedAt: string | null;
@@ -1669,6 +1709,64 @@ export interface AddCompetitorAccountBody {
   displayName?: string;
   followerCount?: number;
   profileUrl?: string;
+  website?: string;
+  location?: string;
+  industry?: string;
+}
+
+export interface TranscriptSegment {
+  timestamp: string;
+  text: string;
+  type: 'HOOK' | 'PROBLEM' | 'EDUCATION' | 'SOLUTION' | 'CTA' | string;
+}
+
+export interface VideoScene {
+  sceneNumber: number;
+  timeRange: string;
+  visualFormat: string;
+  description: string;
+  onScreenText?: string;
+}
+
+export interface VideoHookAnalysis {
+  hook: string;
+  hookType: string;
+  durationSeconds: number;
+  strength: string;
+}
+
+export interface VideoStructureAnalysis {
+  hookDuration: number;
+  intro: string;
+  problem: string;
+  solution: string;
+  ctaPlacement: string;
+  conclusion: string;
+}
+
+export interface ContentClassification {
+  contentCategory: string | null;
+  contentPillar?: string | null;
+  topic?: string | null;
+  subtopic?: string | null;
+  format?: string | null;
+  visualFormat: string | null;
+  detectedTopics: string[];
+  detectedObjects: string[];
+  storytellingStyle: string | null;
+  hookType: string | null;
+  ctaType: string | null;
+  ctaText?: string | null;
+  audience?: string | null;
+  searchIntent?: string | null;
+  marketingIntent?: string | null;
+  funnelStage?: string | null;
+  tone?: string | null;
+  language?: string | null;
+  visualStyle?: string | null;
+  contentObjective?: string | null;
+  confidence?: number | null;
+  creativityScore: number | null;
 }
 
 export interface CompetitorContent {
@@ -1678,14 +1776,147 @@ export interface CompetitorContent {
   publishedAt: string | null;
   caption: string | null;
   title: string | null;
+  description?: string | null;
   hashtags: string[];
   thumbnailUrl: string | null;
   contentUrl: string | null;
+  duration?: number | null;
+  transcript?: string | null;
+  transcriptSegments?: TranscriptSegment[] | null;
+  ocrText?: string | null;
+  scenes?: VideoScene[] | null;
+  hookAnalysis?: VideoHookAnalysis | null;
+  structureAnalysis?: VideoStructureAnalysis | null;
+  whyItWorks?: string | null;
+  dataSourceType?: string | null;
+  confidenceLevel?: string | null;
   likesCount: number | null;
   commentsCount: number | null;
   viewsCount: number | null;
+  sharesCount?: number | null;
   classification?: ContentClassification | null;
-  account?: { displayName: string | null; platform: string; handle: string };
+  account?: {
+    displayName: string | null;
+    businessName?: string | null;
+    platform: string;
+    handle: string;
+    location?: string | null;
+    matchConfidence?: number | null;
+    verificationStatus?: string | null;
+  };
+}
+
+export interface CrossCompetitorMatrix {
+  competitors: Array<{ id: string; handle: string; name: string; platform: string }>;
+  matrixRows: Array<{
+    topicOrPillar: string;
+    categoryType: 'PILLAR' | 'TOPIC' | 'FORMAT' | 'FUNNEL';
+    competitorCoverage: Record<string, boolean>;
+    competitorFrequency: Record<string, number>;
+    customerCoverage: boolean;
+    customerFrequency: number;
+    gapStatus: 'SATURATED' | 'COMPETITOR_WINNING' | 'CUSTOMER_WINNING' | 'CUSTOMER_MISSING' | 'MARKET_GAP';
+    opportunityScore: number;
+  }>;
+  winningContent: Array<{
+    id: string;
+    title: string;
+    platform: string;
+    contentType: string | null;
+    views: number;
+    likes: number;
+    comments: number;
+    thumbnailUrl: string | null;
+    publishedAt: string | null;
+    topic: string;
+    contentPillar: string;
+    hookType: string;
+    whyItWorks?: string | null;
+    competitorName?: string;
+  }>;
+  commonPatterns: Array<{
+    pattern: string;
+    prevalence: string;
+    averagePerformance: string;
+    format: string;
+    recommendation: string;
+  }>;
+  campaigns: Array<{
+    id: string;
+    competitorName: string;
+    competitorHandle: string;
+    theme: string;
+    objective: string;
+    startDate?: string;
+    endDate?: string;
+    contentCount: number;
+    platforms: string[];
+    sampleTitles: string[];
+    performanceSignal: 'HIGH' | 'MEDIUM' | 'EMERGING';
+  }>;
+  totalCompetitorVideosAnalyzed: number;
+}
+
+export interface EnrichedOpportunity {
+  id: string;
+  topic: string;
+  pillar: string;
+  opportunityScore: number;
+  breakdown: {
+    businessRelevance: number;
+    searchOpportunity: number;
+    competitorEvidence: number;
+    contentGap: number;
+    confidence: number;
+    effort: 'LOW' | 'MEDIUM' | 'HIGH';
+  };
+  targetMarket: string;
+  competitorEvidenceSummary: string;
+  relatedKeywords: Array<{ keyword: string; searchVolume?: number; intent: string }>;
+  suggestedFormats: string[];
+  recommendedAction: string;
+}
+
+export interface VideoScriptScene {
+  sceneNumber: number;
+  timeRange: string;
+  sectionName: 'HOOK' | 'PROBLEM' | 'POINT_1' | 'POINT_2' | 'SOLUTION' | 'CTA';
+  spokenScript: string;
+  visualDirection: string;
+  onScreenText: string;
+  audioMusicCue?: string;
+}
+
+export interface VideoBriefAndScript {
+  title: string;
+  hook: string;
+  platform: 'INSTAGRAM_REEL' | 'YOUTUBE_SHORTS' | 'YOUTUBE_VIDEO' | 'OMNICHANNEL';
+  targetDuration: string;
+  contentPillar: string;
+  targetAudience: string;
+  coreProblem: string;
+  solutionSummary: string;
+  callToAction: string;
+  scenes: VideoScriptScene[];
+  visualChecklist: string[];
+  caption: string;
+  hashtags: string[];
+  originalityGuarantee: string;
+}
+
+export interface CompetitorChangeAlert {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  competitorId?: string | null;
+  accountHandle?: string | null;
+  alertType: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  title: string;
+  description: string;
+  metricChange?: string | null;
+  detectedAt: string;
+  status: 'ACTIVE' | 'DISMISSED' | 'ACTIONED';
 }
 
 export interface IngestContentBody {
@@ -1701,17 +1932,9 @@ export interface IngestContentBody {
   likesCount?: number;
   commentsCount?: number;
   viewsCount?: number;
-}
-
-export interface ContentClassification {
-  contentCategory: string | null;
-  visualFormat: string | null;
-  detectedTopics: string[];
-  detectedObjects: string[];
-  storytellingStyle: string | null;
-  hookType: string | null;
-  ctaType: string | null;
-  creativityScore: number | null;
+  duration?: number;
+  rawTranscript?: string;
+  rawOcrText?: string;
 }
 
 export interface CreativePattern {
@@ -1736,6 +1959,15 @@ export interface ContentGap {
   description: string;
   competitionLevel: string;
   opportunityScore: number;
+  businessRelevanceScore?: number | null;
+  searchOpportunityScore?: number | null;
+  competitorEvidenceScore?: number | null;
+  contentGapScore?: number | null;
+  confidenceScore?: number | null;
+  effortLevel?: string | null;
+  relatedKeywords?: string[];
+  platforms?: string[];
+  suggestedFormats?: string[];
   recommendedAction: string | null;
   status: string;
   createdAt: string;
@@ -1752,6 +1984,21 @@ export interface ContentStrategy {
   updatedAt: string;
   contentPillars?: { pillar: string; percentage: number; rationale: string; topics?: string[] }[] | null;
   platformFrequency?: Record<string, number> | null;
+  platformStrategy?: {
+    instagramReels?: string;
+    youtubeLongForm?: string;
+    youtubeShorts?: string;
+    seoArticles?: string;
+    carousels?: string;
+  } | null;
+  roadmap30Day?: {
+    week1_Foundation?: string[];
+    week2_ProofAndProjects?: string[];
+    week3_PricingAndComparison?: string[];
+    week4_Conversion?: string[];
+  } | null;
+  roadmap60Day?: string | null;
+  roadmap90Day?: string | null;
   campaignIdeas?: { name: string; objective: string; concept: string; contentTypes?: string[]; differentiator?: string }[] | null;
   creatorStrategy?: string | null;
   content?: {
@@ -1760,9 +2007,12 @@ export interface ContentStrategy {
     whatToTest?: string[];
     whatToScale?: string[];
     hooks?: string[];
-    ctaStrategy?: string;
     /** Counts of the inputs the strategy was generated from. All zero on a cold start. */
     dataBasis?: { patterns: number; gaps: number; ownedPosts: number; competitorPosts: number };
+    platformStrategy?: any;
+    roadmap30Day?: any;
+    roadmap60Day?: string;
+    roadmap90Day?: string;
   };
 }
 

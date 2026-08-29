@@ -12,18 +12,19 @@ import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
 import { SocialDiscoveryService } from './social-discovery.service';
 import { CompetitorCrawlService } from './competitor-crawl.service';
+import { VideoIntelligenceService } from './video-intelligence.service';
+import { CrossCompetitorMatrixService } from './cross-competitor-matrix.service';
+import { KeywordBusinessBridgeService } from './keyword-business-bridge.service';
+import { VideoScriptGeneratorService } from './video-script-generator.service';
+import { CompetitorMonitorService } from './competitor-monitor.service';
 import { ContentIntelligenceController } from './content-intelligence.controller';
 
 /**
- * GrowthX Content Intelligence & Creative Engine.
+ * GrowthX Content Intelligence & Competitor Social Video Intelligence Engine.
  *
- * Competitor Intelligence → Pattern Detection → Gap Analysis → AI Strategy
- * → Content Generation → Creator Discovery → Collaboration → Publishing
- * → Performance Analytics → Company Brain Learning.
- *
- * Uses MultiAiRouterService (via AiSearchModule) for all AI calls so model
- * selection, cost tracking, and fallbacks are handled centrally.
- * BillingModule provides used on the controller.
+ * Competitor Social Discovery → Video Intelligence & Multi-modal Analysis
+ * → Pattern Detection → Cross-Competitor Matrix → Gap Analysis → AI Strategy
+ * → Content Script Studio → Creator Discovery → Monitoring & Learning Loop.
  */
 @Module({
   imports: [DatabaseModule, AiSearchModule],
@@ -40,7 +41,23 @@ import { ContentIntelligenceController } from './content-intelligence.controller
     SocialScraperService,
     SocialDiscoveryService,
     CompetitorCrawlService,
+    VideoIntelligenceService,
+    CrossCompetitorMatrixService,
+    KeywordBusinessBridgeService,
+    VideoScriptGeneratorService,
+    CompetitorMonitorService,
   ],
-  exports: [ContentStrategyService, ContentCreationService, SocialScraperService, SocialDiscoveryService, CompetitorCrawlService],
+  exports: [
+    ContentStrategyService,
+    ContentCreationService,
+    SocialScraperService,
+    SocialDiscoveryService,
+    CompetitorCrawlService,
+    VideoIntelligenceService,
+    CrossCompetitorMatrixService,
+    KeywordBusinessBridgeService,
+    VideoScriptGeneratorService,
+    CompetitorMonitorService,
+  ],
 })
 export class ContentIntelligenceModule {}

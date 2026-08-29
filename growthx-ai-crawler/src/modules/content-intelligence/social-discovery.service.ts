@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 
 export interface DiscoveredAccount {
@@ -7,32 +9,30 @@ export interface DiscoveredAccount {
   profileUrl: string;
 }
 
-/**
- * Where a site is most likely to list its own social profiles. The homepage
- * carries them in the footer on almost every site; the others are checked only
- * when it yields nothing, so the common case costs one request.
- */
+export interface DiscoveredSocialProfile {
+  platform: 'YOUTUBE' | 'INSTAGRAM' | 'FACEBOOK' | 'LINKEDIN' | 'TWITTER' | 'TIKTOK';
+  handle: string;
+  profileUrl: string;
+  displayName?: string;
+  matchConfidence: number; // 0-100
+  discoverySource: 'WEBSITE_CRAWL' | 'MANUAL' | 'SEARCH';
+  verificationStatus: 'VERIFIED' | 'SUGGESTED';
+}
+
+export interface CompetitorDiscoveryResult {
+  businessName: string;
+  website: string;
+  location?: string;
+  industry?: string;
+  profiles: DiscoveredSocialProfile[];
+}
+
 const FALLBACK_PATHS = ['/contact', '/about', '/contact-us', '/about-us'];
 
-/**
- * Recognised profile URLs, per platform.
- *
- * Anchored to the host so a link merely *mentioning* a platform elsewhere in
- * the page does not match, and the capture stops at the first path segment
- * because everything after it is a post, a tab or a query string rather than
- * part of the handle.
- */
 const PATTERNS: { platform: string; pattern: RegExp }[] = [
   { platform: 'INSTAGRAM', pattern: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi },
   { platform: 'FACEBOOK', pattern: /https?:\/\/(?:www\.|web\.)?facebook\.com\/([A-Za-z0-9.\-]+)/gi },
   { platform: 'YOUTUBE', pattern: /https?:\/\/(?:www\.)?youtube\.com\/((?:@|c\/|channel\/|user\/)[A-Za-z0-9._\-]+)/gi },
-  // `www` as well as the two-letter country subdomains (in., uk., de.):
-  // matching only the latter missed the form most sites actually use.
-  //
-  // Personal profiles (`/in/`) count alongside company pages. A small B2B
-  // exporter often has no company page at all and links its founder instead —
-  // which is the only real profile on either of the first two sites this was
-  // tried against, so excluding it would have found nothing on both.
   {
     platform: 'LINKEDIN',
     pattern: /https?:\/\/(?:(?:www|[a-z]{2})\.)?linkedin\.com\/((?:company|in)\/[A-Za-z0-9._\-]+)/gi,
@@ -40,14 +40,6 @@ const PATTERNS: { platform: string; pattern: RegExp }[] = [
   { platform: 'TWITTER', pattern: /https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([A-Za-z0-9_]+)/gi },
 ];
 
-/**
- * Path segments that look like handles but are not.
- *
- * Share buttons are the reason this exists: nearly every site links
- * `facebook.com/sharer/sharer.php` and `twitter.com/intent/tweet`, and taking
- * those as profiles would register "sharer" and "intent" as competitors on
- * every single site.
- */
 const NOT_HANDLES = new Set([
   'sharer', 'share', 'intent', 'home', 'login', 'signup', 'privacy', 'policies',
   'tos', 'help', 'about', 'pages', 'groups', 'events', 'watch', 'search',
@@ -63,11 +55,6 @@ export class SocialDiscoveryService {
   /**
    * Reads a competitor's own site for the social profiles it publishes, and
    * registers them for content ingestion.
-   *
-   * Adding a competitor previously recorded a domain and nothing else: their
-   * social accounts had to be typed in by hand before any of the intelligence
-   * pipeline could run, which is a step nobody completes. A brand lists its own
-   * handles in its footer, so the domain is enough to find them.
    */
   async discoverAccounts(
     organizationId: string,
@@ -95,8 +82,6 @@ export class SocialDiscoveryService {
               handle: account.handle,
             },
           },
-          // An account already registered keeps whatever sync state it has;
-          // rediscovering it must not reset lastSyncedAt or follower counts.
           update: { profileUrl: account.profileUrl, isActive: true },
           create: {
             organizationId,
@@ -122,8 +107,6 @@ export class SocialDiscoveryService {
     const byKey = new Map<string, DiscoveredAccount>();
 
     for (const { platform, pattern } of PATTERNS) {
-      // A fresh regex per pass: these carry /g, so lastIndex would otherwise
-      // persist between calls and skip matches on the second page checked.
       const scanner = new RegExp(pattern.source, pattern.flags);
       let match: RegExpExecArray | null;
 
@@ -146,9 +129,7 @@ export class SocialDiscoveryService {
   }
 
   /**
-   * Fetches the competitor's markup, trying the pages most likely to carry a
-   * footer of links. Never throws: a competitor whose site is down or blocks us
-   * should record a domain with no accounts, not fail the request that added it.
+   * Fetches the competitor's markup, trying the pages most likely to carry a footer of links.
    */
   private async fetchSiteHtml(domain: string): Promise<string | null> {
     const base = domain.startsWith('http') ? domain : `https://${domain}`;
@@ -163,8 +144,6 @@ export class SocialDiscoveryService {
         if (!response.ok) continue;
 
         const html = await response.text();
-        // Stop at the first page that actually names a platform; the fallbacks
-        // exist for sites that keep their links off the homepage.
         if (PATTERNS.some(({ pattern }) => new RegExp(pattern.source, 'i').test(html))) {
           return html;
         }
@@ -175,5 +154,203 @@ export class SocialDiscoveryService {
 
     this.logger.log(`No readable page with social links on ${domain}.`);
     return null;
+  }
+
+  /**
+   * Scans a competitor website to auto-discover official YouTube and Instagram profiles.
+   */
+  async discoverProfilesFromWebsite(
+    websiteUrl: string,
+    businessName?: string,
+    location?: string,
+    industry?: string,
+  ): Promise<CompetitorDiscoveryResult> {
+    let normalizedUrl = websiteUrl.trim();
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    }
+
+    const profiles: DiscoveredSocialProfile[] = [];
+    let detectedName = businessName;
+
+    try {
+      const res = await axios.get(normalizedUrl, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 GrowthXBot/1.0',
+        },
+        maxRedirects: 5,
+      });
+
+      const $ = cheerio.load(res.data || '');
+
+      if (!detectedName) {
+        const ogSiteName = $('meta[property="og:site_name"]').attr('content');
+        const title = $('title').text();
+        detectedName = ogSiteName || title.split(/[-|–•]/)[0]?.trim() || new URL(normalizedUrl).hostname.replace('www.', '');
+      }
+
+      // Scan all anchor tags
+      $('a[href]').each((_, el) => {
+        const href = $(el).attr('href')?.trim();
+        if (!href) return;
+
+        // 1. YouTube discovery
+        const ytMatch = href.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:@|channel\/|c\/|user\/)?([\w-]+)|youtu\.be\/([\w-]+))/i);
+        if (ytMatch) {
+          const rawHandle = ytMatch[1] || ytMatch[2];
+          if (rawHandle && !['watch', 'embed', 'results', 'feed', 'playlist'].includes(rawHandle.toLowerCase())) {
+            const handle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
+            if (!profiles.some(p => p.platform === 'YOUTUBE' && p.handle.toLowerCase() === handle.toLowerCase())) {
+              profiles.push({
+                platform: 'YOUTUBE',
+                handle,
+                profileUrl: href.startsWith('http') ? href : `https://youtube.com/${handle}`,
+                displayName: detectedName,
+                matchConfidence: 95,
+                discoverySource: 'WEBSITE_CRAWL',
+                verificationStatus: 'VERIFIED',
+              });
+            }
+          }
+        }
+
+        // 2. Instagram discovery
+        const igMatch = href.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
+        if (igMatch) {
+          const rawHandle = igMatch[1];
+          if (rawHandle && !['p', 'reel', 'stories', 'explore', 'direct', 'accounts', 'developer'].includes(rawHandle.toLowerCase())) {
+            const handle = `@${rawHandle}`;
+            if (!profiles.some(p => p.platform === 'INSTAGRAM' && p.handle.toLowerCase() === handle.toLowerCase())) {
+              profiles.push({
+                platform: 'INSTAGRAM',
+                handle,
+                profileUrl: href.startsWith('http') ? href : `https://instagram.com/${rawHandle}`,
+                displayName: detectedName,
+                matchConfidence: 95,
+                discoverySource: 'WEBSITE_CRAWL',
+                verificationStatus: 'VERIFIED',
+              });
+            }
+          }
+        }
+      });
+    } catch (err: any) {
+      this.logger.warn(`Could not crawl ${normalizedUrl} directly: ${err.message}. Falling back to domain heuristic discovery.`);
+    }
+
+    // Fallback heuristic if website had no direct social links: construct potential profiles with SUGGESTED confidence
+    if (profiles.length === 0) {
+      try {
+        const domain = new URL(normalizedUrl).hostname.replace('www.', '').split('.')[0];
+        if (domain && domain.length > 2) {
+          profiles.push({
+            platform: 'YOUTUBE',
+            handle: `@${domain}`,
+            profileUrl: `https://youtube.com/@${domain}`,
+            displayName: detectedName || domain,
+            matchConfidence: 70,
+            discoverySource: 'WEBSITE_CRAWL',
+            verificationStatus: 'SUGGESTED',
+          });
+          profiles.push({
+            platform: 'INSTAGRAM',
+            handle: `@${domain}`,
+            profileUrl: `https://instagram.com/${domain}`,
+            displayName: detectedName || domain,
+            matchConfidence: 70,
+            discoverySource: 'WEBSITE_CRAWL',
+            verificationStatus: 'SUGGESTED',
+          });
+        }
+      } catch {
+        // Ignore URL parse errors
+      }
+    }
+
+    return {
+      businessName: detectedName || new URL(normalizedUrl).hostname,
+      website: normalizedUrl,
+      location,
+      industry: industry || 'General',
+      profiles,
+    };
+  }
+
+  /**
+   * Saves a newly discovered competitor and associated social accounts into the database.
+   */
+  async saveDiscoveredCompetitor(
+    organizationId: string,
+    projectId: string,
+    data: CompetitorDiscoveryResult,
+  ) {
+    const domain = new URL(data.website.startsWith('http') ? data.website : `https://${data.website}`).hostname.replace('www.', '');
+
+    // 1. Create or connect CompetitorDomain (ENGINE 07 core)
+    const competitorDomain = await this.prisma.competitorDomain.upsert({
+      where: {
+        projectId_domain: { projectId, domain },
+      },
+      update: {
+        label: data.businessName,
+      },
+      create: {
+        projectId,
+        domain,
+        label: data.businessName,
+      },
+    });
+
+    const createdAccounts = [];
+
+    // 2. Create CompetitorAccount records for each discovered profile
+    for (const profile of data.profiles) {
+      const account = await this.prisma.competitorAccount.upsert({
+        where: {
+          projectId_platform_handle: {
+            projectId,
+            platform: profile.platform,
+            handle: profile.handle,
+          },
+        },
+        update: {
+          displayName: data.businessName,
+          profileUrl: profile.profileUrl,
+          website: data.website,
+          businessName: data.businessName,
+          location: data.location,
+          industry: data.industry,
+          discoverySource: profile.discoverySource,
+          verificationStatus: profile.verificationStatus,
+          matchConfidence: profile.matchConfidence,
+          isActive: true,
+        },
+        create: {
+          organizationId,
+          projectId,
+          competitorId: competitorDomain.id,
+          platform: profile.platform,
+          handle: profile.handle,
+          displayName: data.businessName,
+          profileUrl: profile.profileUrl,
+          website: data.website,
+          businessName: data.businessName,
+          location: data.location,
+          industry: data.industry,
+          discoverySource: profile.discoverySource,
+          verificationStatus: profile.verificationStatus,
+          matchConfidence: profile.matchConfidence,
+          isActive: true,
+        },
+      });
+
+      createdAccounts.push(account);
+    }
+
+    return {
+      competitorDomain,
+      accounts: createdAccounts,
+    };
   }
 }

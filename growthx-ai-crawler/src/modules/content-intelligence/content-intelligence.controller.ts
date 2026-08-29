@@ -13,19 +13,20 @@ import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
 import { SocialDiscoveryService } from './social-discovery.service';
 import { CompetitorCrawlService } from './competitor-crawl.service';
+import { VideoIntelligenceService, IngestVideoPayload } from './video-intelligence.service';
+import { CrossCompetitorMatrixService } from './cross-competitor-matrix.service';
+import { KeywordBusinessBridgeService } from './keyword-business-bridge.service';
+import { VideoScriptGeneratorService, VideoBriefAndScript } from './video-script-generator.service';
+import { CompetitorMonitorService, RecordCustomerOutcomeDto } from './competitor-monitor.service';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
- * GrowthX Content Intelligence & Creative Engine REST API.
+ * GrowthX Content Intelligence & Competitor Social Video Intelligence REST API.
  *
- * Every route is project-scoped. organizationId is resolved by * and injected onto req.organizationId — matching the pattern used in
- * MarketResearchController.
+ * Every route is project-scoped. organizationId is resolved and injected onto req.organizationId.
  */
 @Controller('api/projects/:projectId/content-intelligence')
 @UseGuards(JwtAuthGuard)
-// The whole surface is the paid content/social strategy layer. Read routes
-// inherit this gate; the routes below that spend model tokens override it with
-// @Metered so the work is also counted against the plan's allowance.
 export class ContentIntelligenceController {
   constructor(
     private readonly competitorContent: CompetitorContentService,
@@ -39,6 +40,11 @@ export class ContentIntelligenceController {
     private readonly socialScraper: SocialScraperService,
     private readonly socialDiscovery: SocialDiscoveryService,
     private readonly competitorCrawl: CompetitorCrawlService,
+    private readonly videoIntelligence: VideoIntelligenceService,
+    private readonly matrixService: CrossCompetitorMatrixService,
+    private readonly keywordBridge: KeywordBusinessBridgeService,
+    private readonly scriptGenerator: VideoScriptGeneratorService,
+    private readonly competitorMonitor: CompetitorMonitorService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -456,5 +462,111 @@ export class ContentIntelligenceController {
     @Body() body: { stage: string },
   ) {
     return this.creator.updateOutreachStage(req.organizationId, outreachId, body.stage);
+  }
+
+  // ── Competitor Social Video Intelligence ─────────────────────────────────
+
+  @Post('discover-profiles')
+  async discoverSocialProfiles(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { website: string; businessName?: string; location?: string; industry?: string },
+  ) {
+    const discovery = await this.socialDiscovery.discoverProfilesFromWebsite(
+      body.website,
+      body.businessName,
+      body.location,
+      body.industry,
+    );
+    return this.socialDiscovery.saveDiscoveredCompetitor(req.organizationId, projectId, discovery);
+  }
+
+  @Post('analyze-video')
+  async ingestAndAnalyzeVideo(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: IngestVideoPayload,
+  ) {
+    return this.videoIntelligence.ingestAndAnalyzeVideo(req.organizationId, projectId, body);
+  }
+
+  @Get('video-details/:contentId')
+  async getVideoDetails(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Param('contentId') contentId: string,
+  ) {
+    return this.videoIntelligence.getVideoDetails(req.organizationId, contentId);
+  }
+
+  @Get('cross-competitor-matrix')
+  async getCrossCompetitorMatrix(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.matrixService.getCrossCompetitorMatrix(req.organizationId, projectId);
+  }
+
+  @Get('enriched-opportunities')
+  async getEnrichedOpportunities(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.keywordBridge.getEnrichedOpportunities(req.organizationId, projectId);
+  }
+
+  @Post('generate-video-script')
+  async generateVideoScript(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { topic: string; platform?: 'INSTAGRAM_REEL' | 'YOUTUBE_SHORTS' | 'YOUTUBE_VIDEO'; opportunityContext?: string },
+  ) {
+    return this.scriptGenerator.generateVideoScript(
+      req.organizationId,
+      projectId,
+      body.topic,
+      body.platform,
+      body.opportunityContext,
+    );
+  }
+
+  @Post('save-video-script')
+  async saveVideoScriptToCalendar(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { scriptData: VideoBriefAndScript; scheduledDate?: string },
+  ) {
+    return this.scriptGenerator.saveToContentCalendar(
+      req.organizationId,
+      projectId,
+      body.scriptData,
+      body.scheduledDate ? new Date(body.scheduledDate) : undefined,
+    );
+  }
+
+  @Get('competitor-alerts')
+  async getCompetitorAlerts(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.competitorMonitor.runCompetitorChangeDetection(req.organizationId, projectId);
+  }
+
+  @Post('record-outcome')
+  async recordOutcome(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: RecordCustomerOutcomeDto,
+  ) {
+    return this.competitorMonitor.recordCustomerOutcome(req.organizationId, projectId, body);
+  }
+
+  @Patch('competitor-alerts/:alertId/status')
+  async updateAlertStatus(
+    @Req() req: any,
+    @Param('alertId') alertId: string,
+    @Body() body: { status: string },
+  ) {
+    return this.competitorMonitor.updateAlertStatus(req.organizationId, alertId, body.status);
   }
 }

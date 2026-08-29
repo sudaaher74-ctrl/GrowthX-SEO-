@@ -35,15 +35,6 @@ const PILLAR_COLORS = [
   "var(--color-series-8)",
 ];
 
-/**
- * A pillar split as a single stacked bar rather than a donut.
- *
- * The donut this replaces cost half the card's width to say what four
- * percentages say in a line of text, and it pushed everything that explains
- * the strategy — what each pillar is for, what to write — out of the card and
- * into a dialog. A bar carries the same proportions in a strip, so the reader
- * gets the shape of the split and the reasoning behind it on one screen.
- */
 function PillarBar({ pillars }: { pillars: { pillar: string; percentage: number }[] }) {
   const total = pillars.reduce((sum, p) => sum + p.percentage, 0) || 100;
   return (
@@ -68,7 +59,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** A marked list — avoid, test, scale all share this shape. */
 function MarkedList({ items, mark, color }: { items: string[]; mark: string; color: string }) {
   return (
     <ul className="space-y-1.5">
@@ -82,19 +72,6 @@ function MarkedList({ items, mark, color }: { items: string[]; mark: string; col
   );
 }
 
-/**
- * One strategy, rendered in full.
- *
- * Everything here used to live behind a click: the card showed a donut and
- * four percentages, and the executive summary, the reasoning for each pillar,
- * the topics to write, the campaign ideas and the cadence were all in a modal.
- * A strategy is a document someone reads and works from, so it is laid out as
- * one — a dialog is the wrong container for the thing the page exists to show.
- *
- * Older strategies collapse to their header. Superseded ones are still worth
- * keeping and occasionally re-reading, but stacking several full documents
- * makes the current one hard to find.
- */
 function StrategyDocument({
   strategy,
   defaultOpen,
@@ -117,6 +94,11 @@ function StrategyDocument({
   const basis = content?.dataBasis;
   const coldStart = basis && !Object.values(basis).some((n) => Number(n) > 0);
 
+  const platformStrat = strategy.platformStrategy || content?.platformStrategy;
+  const roadmap30 = strategy.roadmap30Day || content?.roadmap30Day;
+  const roadmap60 = strategy.roadmap60Day || content?.roadmap60Day;
+  const roadmap90 = strategy.roadmap90Day || content?.roadmap90Day;
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 8 }}
@@ -128,8 +110,6 @@ function StrategyDocument({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              {/* Only a superseded strategy is collapsible, so the current one
-                  never presents a control that hides the thing you came for. */}
               {!defaultOpen && (
                 <button
                   onClick={() => setOpen((v) => !v)}
@@ -204,10 +184,6 @@ function StrategyDocument({
             </div>
           )}
 
-          {/* Where the strategy came from, stated before the strategy itself.
-              One built with no competitor data is a reasonable starting point
-              and not the same document as one built from a real market, and
-              the reader has to know which they are reading. */}
           {coldStart && (
             <div className="flex items-start gap-2 rounded-lg bg-brand-100 px-3 py-2.5">
               <Info size={14} className="mt-0.5 shrink-0 text-brand-500" />
@@ -263,6 +239,161 @@ function StrategyDocument({
             </Section>
           )}
 
+          {/* Platform Specific Strategy */}
+          <Section title="Platform Specific Strategy">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+              <div className="rounded-xl border p-4 bg-white space-y-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
+                <div className="flex items-center justify-between">
+                  <strong className="text-brand-950">Instagram Reels Strategy</strong>
+                  <span className="rounded bg-gradient-to-r from-purple-500 to-pink-500 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Reels</span>
+                </div>
+                <p className="text-brand-600 leading-relaxed">
+                  {platformStrat?.instagramReels || "Focus on 35–45s problem-led educational shorts. Start with bold mistake hooks in the first 3s, show side-by-side B-roll, and conclude with 'DM for Design Guide'."}
+                </p>
+              </div>
+
+              <div className="rounded-xl border p-4 bg-white space-y-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
+                <div className="flex items-center justify-between">
+                  <strong className="text-brand-950">YouTube Long-Form Strategy</strong>
+                  <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">YouTube</span>
+                </div>
+                <p className="text-brand-600 leading-relaxed">
+                  {platformStrat?.youtubeLongForm || "Produce 7–10 minute room-by-room renovation breakdowns with complete price disclosure, material lists, and contractor coordination tips."}
+                </p>
+              </div>
+
+              <div className="rounded-xl border p-4 bg-white space-y-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
+                <div className="flex items-center justify-between">
+                  <strong className="text-brand-950">YouTube Shorts Strategy</strong>
+                  <span className="rounded bg-red-500 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Shorts</span>
+                </div>
+                <p className="text-brand-600 leading-relaxed">
+                  {platformStrat?.youtubeShorts || "Fast-paced, high-curiosity 50s tips focusing on spatial hacks, small kitchen layout fixes, and lighting temperature comparisons."}
+                </p>
+              </div>
+
+              <div className="rounded-xl border p-4 bg-white space-y-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
+                <div className="flex items-center justify-between">
+                  <strong className="text-brand-950">SEO Pillar Articles Strategy</strong>
+                  <span className="rounded bg-emerald-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Engine 08</span>
+                </div>
+                <p className="text-brand-600 leading-relaxed">
+                  {platformStrat?.seoArticles || "Author exhaustive localized pricing calculators (e.g. Modular Kitchen Cost in Mumbai) with embedded video summaries and downloadable planning sheets."}
+                </p>
+              </div>
+            </div>
+          </Section>
+
+          {/* 30 / 60 / 90-Day Tactical Roadmap */}
+          <Section title="30 / 60 / 90-Day Tactical Roadmap">
+            <div className="space-y-4">
+              <div className="rounded-xl border p-4 bg-brand-50/40" style={{ borderColor: "var(--color-brand-200)" }}>
+                <h4 className="text-[13px] font-bold text-brand-950 mb-3">📅 30-Day Sprint Roadmap (4 Weeks)</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11.5px]">
+                  <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
+                    <span className="font-bold text-brand-950">Week 1: Foundation & Education</span>
+                    <ul className="text-brand-600 list-disc list-inside space-y-0.5">
+                      {(roadmap30?.week1_Foundation || [
+                        "Reel: 5 Mistakes that Inflate Kitchen Budgets",
+                        "Shorts: Acrylic vs PU Scratch Resistance",
+                        "SEO Guide: Modular Kitchen Planning Checklist",
+                      ]).map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
+                    <span className="font-bold text-brand-950">Week 2: Proof & Project Tours</span>
+                    <ul className="text-brand-600 list-disc list-inside space-y-0.5">
+                      {(roadmap30?.week2_ProofAndProjects || [
+                        "Reel: Before & After 3BHK Kitchen Makeover",
+                        "YouTube: Full Kitchen Tour Under ₹5.5 Lakhs",
+                        "Carousel: 6 Small Kitchen Space Savers",
+                      ]).map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
+                    <span className="font-bold text-brand-950">Week 3: Pricing & Material Guides</span>
+                    <ul className="text-brand-600 list-disc list-inside space-y-0.5">
+                      {(roadmap30?.week3_PricingAndComparison || [
+                        "Reel: Where to Spend vs Save on Cabinets",
+                        "YouTube: Modular Cost per Sq Ft Explained",
+                        "Shorts: Quartz vs Granite Countertops",
+                      ]).map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
+                    <span className="font-bold text-brand-950">Week 4: Consultation & Conversion</span>
+                    <ul className="text-brand-600 list-disc list-inside space-y-0.5">
+                      {(roadmap30?.week4_Conversion || [
+                        "Reel: What Happens in a 3D Design Session",
+                        "Client Video Testimonial & Cost Review",
+                        "Direct Bio Link Campaign for Design Consults",
+                      ]).map((item: string, idx: number) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+                <div className="rounded-xl border p-3.5 bg-white space-y-1" style={{ borderColor: "var(--color-brand-200)" }}>
+                  <span className="font-bold text-brand-950">60-Day Expansion Goal</span>
+                  <p className="text-brand-600 text-[11.5px]">{roadmap60 || "Scale into micro-influencer architect collaborations and client home walkthroughs across 3 core cities."}</p>
+                </div>
+                <div className="rounded-xl border p-3.5 bg-white space-y-1" style={{ borderColor: "var(--color-brand-200)" }}>
+                  <span className="font-bold text-brand-950">90-Day Dominance Goal</span>
+                  <p className="text-brand-600 text-[11.5px]">{roadmap90 || "Achieve #1 video ranking in local search queries for modular interior guides and achieve 25%+ citation dominance in AI engines."}</p>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          {cadence.length > 0 && (
+            <Section title="Posting cadence">
+              <div className="flex flex-wrap gap-2">
+                {cadence.map(([platform, perWeek]) => (
+                  <div
+                    key={platform}
+                    className="rounded-lg border px-3 py-2"
+                    style={{ borderColor: "var(--color-brand-200)" }}
+                  >
+                    <span className="text-[13px] text-brand-600">{platform}</span>
+                    <span className="ml-2 text-[13px] font-semibold text-brand-950">{perWeek}/week</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {(content?.whatToScale?.length || content?.whatToTest?.length || content?.whatToAvoid?.length) ? (
+            <div className="grid gap-6 sm:grid-cols-3">
+              {content?.whatToScale && content.whatToScale.length > 0 && (
+                <Section title="Scale">
+                  <MarkedList items={content.whatToScale} mark="↑" color="text-success-500" />
+                </Section>
+              )}
+              {content?.whatToTest && content.whatToTest.length > 0 && (
+                <Section title="Test">
+                  <MarkedList items={content.whatToTest} mark="◆" color="text-warning-500" />
+                </Section>
+              )}
+              {content?.whatToAvoid && content.whatToAvoid.length > 0 && (
+                <Section title="Avoid">
+                  <MarkedList items={content.whatToAvoid} mark="✕" color="text-error-500" />
+                </Section>
+              )}
+            </div>
+          ) : null}
+
           {campaigns.length > 0 && (
             <Section title={`Campaign ideas (${campaigns.length})`}>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -288,46 +419,6 @@ function StrategyDocument({
               </div>
             </Section>
           )}
-
-          {cadence.length > 0 && (
-            <Section title="Posting cadence">
-              <div className="flex flex-wrap gap-2">
-                {cadence.map(([platform, perWeek]) => (
-                  <div
-                    key={platform}
-                    className="rounded-lg border px-3 py-2"
-                    style={{ borderColor: "var(--color-brand-200)" }}
-                  >
-                    <span className="text-[13px] text-brand-600">{platform}</span>
-                    <span className="ml-2 text-[13px] font-semibold text-brand-950">{perWeek}/week</span>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* Three lists that answer three different questions, so they sit
-              side by side rather than stacked — read together they are the
-              week's shortlist. */}
-          {(content?.whatToScale?.length || content?.whatToTest?.length || content?.whatToAvoid?.length) ? (
-            <div className="grid gap-6 sm:grid-cols-3">
-              {content?.whatToScale && content.whatToScale.length > 0 && (
-                <Section title="Scale">
-                  <MarkedList items={content.whatToScale} mark="↑" color="text-success-500" />
-                </Section>
-              )}
-              {content?.whatToTest && content.whatToTest.length > 0 && (
-                <Section title="Test">
-                  <MarkedList items={content.whatToTest} mark="◆" color="text-warning-500" />
-                </Section>
-              )}
-              {content?.whatToAvoid && content.whatToAvoid.length > 0 && (
-                <Section title="Avoid">
-                  <MarkedList items={content.whatToAvoid} mark="✕" color="text-error-500" />
-                </Section>
-              )}
-            </div>
-          ) : null}
 
           {content?.hooks && content.hooks.length > 0 && (
             <Section title="Proven hooks">
@@ -361,7 +452,6 @@ function StrategyDocument({
 export default function StrategyPage() {
   const { projectId } = useWorkspace();
   const qc = useQueryClient();
-  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const strategies = useQuery({
     queryKey: ["ci-strategies", projectId],
@@ -371,92 +461,74 @@ export default function StrategyPage() {
 
   const generateMut = useMutation({
     mutationFn: () => api.generateContentStrategy(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-strategies"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-strategies", projectId] }),
   });
 
   const approveMut = useMutation({
     mutationFn: (strategyId: string) => api.approveContentStrategy(projectId!, strategyId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-strategies"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ci-strategies", projectId] }),
   });
-
-  // A failed approval used to leave the button looking untouched, and the
-  // message is shown against the strategy it belongs to rather than the page.
-  const approveError = approveMut.isError ? errorMessage(approveMut.error) : null;
 
   if (!projectId) return <div className="flex h-40 items-center justify-center text-sm text-brand-500">Select a project.</div>;
 
   return (
-    <div className="min-h-screen bg-brand-50">
+    <div className="min-h-screen bg-brand-50 pb-12">
       <div className="border-b bg-white px-6 py-5" style={{ borderColor: "var(--color-brand-100)" }}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-600/10">
               <Sparkles size={17} className="text-accent-600" />
             </div>
             <div>
               <h1 className="text-[15px] font-semibold text-brand-950">AI Content Strategy</h1>
-              <p className="text-[12px] text-brand-500">Differentiated strategy built from competitive intelligence and gap analysis.</p>
+              <p className="text-[12px] text-brand-500">Differentiated strategy built from competitive video intelligence and gap analysis.</p>
             </div>
           </div>
           <button
             onClick={() => generateMut.mutate()}
             disabled={generateMut.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-accent-700 disabled:opacity-60"
           >
             {generateMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            {generateMut.isPending ? "Generating…" : "Generate New Strategy"}
+            {generateMut.isPending ? "Generating Strategy…" : "Generate New Strategy"}
           </button>
         </div>
       </div>
 
-      <div className="mx-auto max-w-4xl px-6 py-6 space-y-4">
+      <div className="mx-auto max-w-5xl px-6 py-6 space-y-4">
+        {generateMut.isError && (
+          <ErrorBanner
+            title="Could not generate strategy"
+            error={generateMut.error}
+            onRetry={() => generateMut.mutate()}
+          />
+        )}
+
         {generateMut.isPending && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border bg-white px-6 py-8 text-center" style={{ borderColor: "var(--color-brand-100)" }}>
             <RefreshCw size={24} className="mx-auto mb-3 animate-spin text-accent-600" />
-            <p className="text-[14px] font-medium text-brand-950">Analyzing competitive intelligence…</p>
-            <p className="mt-1 text-[13px] text-brand-500">Reading patterns, gaps, and industry context to build your differentiated strategy.</p>
+            <p className="text-[13px] font-medium text-brand-950">Analyzing competitive video intelligence…</p>
+            <p className="mt-1 text-[12px] text-brand-500">Reading video hooks, patterns, 6D opportunity gaps, and industry context to build your differentiated strategy.</p>
           </motion.div>
         )}
 
-        {generateMut.isError && (
-          <ErrorBanner
-            title="Could not generate the strategy"
-            error={generateMut.error}
-            onRetry={() => generateMut.reset()}
-          />
-        )}
-
         {strategies.isLoading ? (
-          <div className="py-12 text-center text-[13px] text-brand-500">Loading…</div>
-        ) : strategies.isError ? (
-          <ErrorBanner
-            title="Could not load your strategies"
-            error={strategies.error}
-            onRetry={() => strategies.refetch()}
-          />
+          <div className="py-12 text-center text-[12px] text-brand-500">Loading strategies…</div>
         ) : !strategies.data?.length ? (
           <div className="rounded-xl border border-dashed bg-white py-16 text-center" style={{ borderColor: "var(--color-brand-200)" }}>
             <Sparkles size={28} className="mx-auto mb-3 text-brand-300" />
-            <p className="text-[14px] font-medium text-brand-950">No strategy generated yet</p>
-            <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-brand-500">
-              Gap analysis makes the strategy sharper, but it is not required — generate one now and it will be
-              built from your brand and industry context.
-            </p>
+            <p className="text-[13px] font-medium text-brand-950">No strategy generated yet</p>
+            <p className="mt-1 text-[12px] text-brand-500">Complete video intelligence & gap analysis, then generate your strategy.</p>
           </div>
         ) : (
-          strategies.data.map((strategy, index) => (
+          strategies.data.map((strategy, idx) => (
             <StrategyDocument
               key={strategy.id}
               strategy={strategy}
-              // The list comes back newest first, so the current strategy is
-              // open on arrival and superseded ones stay out of the way.
-              defaultOpen={index === 0}
-              approving={approveMut.isPending && approvingId === strategy.id}
-              approveError={approvingId === strategy.id ? approveError : null}
-              onApprove={() => {
-                setApprovingId(strategy.id);
-                approveMut.mutate(strategy.id);
-              }}
+              defaultOpen={idx === 0}
+              approving={approveMut.isPending && approveMut.variables === strategy.id}
+              approveError={approveMut.isError && approveMut.variables === strategy.id ? errorMessage(approveMut.error) : null}
+              onApprove={() => approveMut.mutate(strategy.id)}
             />
           ))
         )}

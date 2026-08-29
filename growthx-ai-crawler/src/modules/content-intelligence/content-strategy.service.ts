@@ -38,6 +38,29 @@ const STRATEGY_SCHEMA = {
         required: ['platform', 'postsPerWeek'],
       },
     },
+    platformStrategy: {
+      type: 'object',
+      properties: {
+        instagramReels: { type: 'string', description: 'Strategy for short-form Reels' },
+        youtubeLongForm: { type: 'string', description: 'Strategy for long-form authority videos' },
+        youtubeShorts: { type: 'string', description: 'Strategy for 60s Shorts' },
+        seoArticles: { type: 'string', description: 'Strategy for SEO written pillar guides' },
+        carousels: { type: 'string', description: 'Strategy for Instagram educational carousels' },
+      },
+      required: ['instagramReels', 'youtubeLongForm', 'youtubeShorts', 'seoArticles'],
+    },
+    roadmap30Day: {
+      type: 'object',
+      properties: {
+        week1_Foundation: { type: 'array', items: { type: 'string' } },
+        week2_ProofAndProjects: { type: 'array', items: { type: 'string' } },
+        week3_PricingAndComparison: { type: 'array', items: { type: 'string' } },
+        week4_Conversion: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['week1_Foundation', 'week2_ProofAndProjects', 'week3_PricingAndComparison', 'week4_Conversion'],
+    },
+    roadmap60Day: { type: 'string', description: 'Month 2 Authority & Keyword Cluster Expansion Plan' },
+    roadmap90Day: { type: 'string', description: 'Month 3 Conversion Scale & Retargeting Plan' },
     whatToAvoid: { type: 'array', items: { type: 'string' } },
     whatToTest: { type: 'array', items: { type: 'string' } },
     whatToScale: { type: 'array', items: { type: 'string' } },
@@ -59,7 +82,7 @@ const STRATEGY_SCHEMA = {
     hooks: { type: 'array', items: { type: 'string' }, description: '5-10 proven hook formulas for this brand' },
     ctaStrategy: { type: 'string' },
   },
-  required: ['executiveSummary', 'contentPillars', 'campaignIdeas'],
+  required: ['executiveSummary', 'contentPillars', 'platformStrategy', 'roadmap30Day', 'campaignIdeas'],
   additionalProperties: false,
 } as const;
 
@@ -67,6 +90,8 @@ const SYSTEM = `You are GrowthX AI Content Strategist.
 Your role is to create a differentiated content strategy that sets the brand apart from its competitors.
 Do NOT recommend copying competitors. Recommend strategies that exploit gaps and opportunities.
 Content pillar percentages must sum to exactly 100%.
+Adapt the strategy by platform (Reels, YouTube long-form, YouTube Shorts, SEO articles, Carousels).
+Generate a week-by-week 30-day plan, 60-day expansion, and 90-day growth roadmap.
 All recommendations must be grounded in the data provided — never invent statistics.
 Respond only with JSON matching the schema.`;
 

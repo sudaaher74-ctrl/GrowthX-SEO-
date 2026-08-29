@@ -337,6 +337,7 @@ model Project {
   integrations         Integration[]
   socialPosts          SocialPost[]
   gbpFixProposals      GbpFixProposal[]
+  competitorChangeAlerts CompetitorChangeAlert[]
 
   @@index([organizationId])
   growthOpportunities GrowthOpportunity[]
@@ -1396,22 +1397,28 @@ model ContentIntelligenceConfig {
 
 /// Social account handles for one competitor on one platform.
 model CompetitorAccount {
-  id             String            @id @default(uuid())
-  organizationId String
-  projectId      String
-  competitorId   String
-  /// The CompetitorDomain this account belongs to.
-  competitor     CompetitorDomain  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
-  platform       String            /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
-  handle         String            /// @handle or channel id
-  profileUrl     String?
-  displayName    String?
-  followerCount  Int?
-  isActive       Boolean           @default(true)
-  lastSyncedAt   DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  content        CompetitorContent[]
+  id                 String            @id @default(uuid())
+  organizationId     String
+  projectId          String
+  competitorId       String
+  competitor         CompetitorDomain  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform           String            /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
+  handle             String            /// @handle or channel id
+  profileUrl         String?
+  displayName        String?
+  followerCount      Int?
+  website            String?
+  businessName       String?
+  location           String?
+  industry           String?
+  discoverySource    String?           /// WEBSITE_CRAWL | MANUAL | SEARCH
+  verificationStatus String?           /// VERIFIED | UNVERIFIED | SUGGESTED
+  matchConfidence    Int?              /// 0-100 match confidence
+  isActive           Boolean           @default(true)
+  lastSyncedAt       DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  content            CompetitorContent[]
 
   @@unique([projectId, platform, handle])
   @@index([organizationId, projectId])
@@ -1434,6 +1441,16 @@ model CompetitorContent {
   mediaUrl            String?
   thumbnailUrl        String?
   contentUrl          String?
+  duration            Int?                    /// Video duration in seconds
+  transcript          String?                 /// Full speech transcript
+  transcriptSegments  Json?                   /// [{ start, end, text, type }]
+  ocrText             String?                 /// Extracted on-screen video frame text
+  scenes              Json?                   /// [{ start, end, description, visualFormat, objects }]
+  hookAnalysis        Json?                   /// { hook, hookType, durationSeconds, strength }
+  structureAnalysis   Json?                   /// { hookDuration, intro, problem, solution, ctaPlacement, conclusion }
+  whyItWorks          String?                 /// Strategic teardown of why this content succeeds
+  dataSourceType      String?                 /// PUBLIC_DATA | AUTHORIZED_DATA | ESTIMATED_DATA | AI_INFERENCE
+  confidenceLevel     String?                 /// HIGH | MEDIUM | LOW
   likesCount          Int?
   commentsCount       Int?
   sharesCount         Int?
@@ -1455,8 +1472,12 @@ model CompetitorContent {
 model ContentClassification {
   id                  String           @id @default(uuid())
   contentId           String           @unique
-  /// Content category: EDUCATIONAL | PROMOTIONAL | PRODUCT | LIFESTYLE | BEHIND_SCENES | TESTIMONIAL | etc.
+  /// Content category / pillar: EDUCATIONAL | PROMOTIONAL | PRODUCT | LIFESTYLE | BEHIND_SCENES | TESTIMONIAL | etc.
   contentCategory     String?
+  contentPillar       String?
+  topic               String?
+  subtopic            String?
+  format              String?
   /// Visual format: STATIC | CAROUSEL | REEL | SHORT_VIDEO | LONG_VIDEO | STORY
   visualFormat        String?
   /// Detected topics as array
@@ -1465,10 +1486,20 @@ model ContentClassification {
   detectedObjects     String[]         @default([])
   /// Detected storytelling style
   storytellingStyle   String?
-  /// Detected hook type
+  /// Detected hook type: QUESTION | PROBLEM | CURIOSITY | STATISTIC | MISTAKE | WARNING | BEFORE_AFTER | STRONG_CLAIM | STORY | LIST | COMPARISON | DIRECT_STATEMENT
   hookType            String?
-  /// Detected CTA type
+  /// Detected CTA type: BOOK_CONSULTATION | VISIT_WEBSITE | CALL | DM | COMMENT | SUBSCRIBE | FOLLOW | BUY | LEARN_MORE | DOWNLOAD | NONE
   ctaType             String?
+  ctaText             String?
+  audience            String?
+  searchIntent        String?
+  marketingIntent     String?
+  funnelStage         String?          /// AWARENESS | CONSIDERATION | CONVERSION | RETENTION
+  tone                String?
+  language            String?          @default("en")
+  visualStyle         String?
+  contentObjective    String?
+  confidence          Int?             @default(90)
   /// Overall creative style score 0-10
   creativityScore     Float?
   classifiedByModel   String?
@@ -1520,26 +1551,55 @@ model PatternContentLink {
 
 /// A content gap identified between customer content and competitor patterns.
 model ContentGap {
-  id                   String           @id @default(uuid())
-  organizationId       String
-  projectId            String
-  patternId            String?
+  id                      String           @id @default(uuid())
+  organizationId          String
+  projectId               String
+  patternId               String?
   /// SATURATED | COMPETITOR_WINNING | CUSTOMER_WINNING | CUSTOMER_MISSING | MARKET_GAP | EMERGING | DIFFERENTIATION
-  gapType              String
-  title                String
-  description          String
-  competitionLevel     String           @default("MEDIUM")   /// LOW | MEDIUM | HIGH
-  opportunityScore     Int              @default(50)
+  gapType                 String
+  title                   String
+  description             String
+  competitionLevel        String           @default("MEDIUM")   /// LOW | MEDIUM | HIGH
+  opportunityScore        Int              @default(50)
+  businessRelevanceScore  Int?             @default(85)
+  searchOpportunityScore  Int?             @default(80)
+  competitorEvidenceScore Int?             @default(85)
+  contentGapScore         Int?             @default(90)
+  confidenceScore         Int?             @default(88)
+  effortLevel             String?          @default("MEDIUM")  /// LOW | MEDIUM | HIGH
+  relatedKeywords         String[]         @default([])
+  platforms               String[]         @default([])
+  suggestedFormats        String[]         @default([])
   /// Recommended action
-  recommendedAction    String?
-  status               String           @default("OPEN")     /// OPEN | ACTIONED | DISMISSED
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  pattern              CreativePattern? @relation("GapPattern", fields: [patternId], references: [id], onDelete: SetNull)
-  CalendarItem         ContentCalendarItem[]
+  recommendedAction       String?
+  status                  String           @default("OPEN")     /// OPEN | ACTIONED | DISMISSED
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  pattern                 CreativePattern? @relation("GapPattern", fields: [patternId], references: [id], onDelete: SetNull)
+  CalendarItem            ContentCalendarItem[]
 
   @@index([organizationId, projectId, gapType])
   @@index([projectId, status])
+}
+
+/// Change detection alert when a competitor shifts strategy, spikes velocity, or launches a campaign.
+model CompetitorChangeAlert {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  competitorId   String?
+  accountHandle  String?
+  alertType      String   /// VELOCITY_SURGE | NEW_PILLAR | NEW_CAMPAIGN | FORMAT_SHIFT | WINNING_CONTENT
+  severity       String   @default("INFO") /// INFO | WARNING | CRITICAL
+  title          String
+  description    String
+  metricChange   String?
+  detectedAt     DateTime @default(now())
+  status         String   @default("ACTIVE") /// ACTIVE | DISMISSED | ACTIONED
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId, status])
+  @@index([projectId, detectedAt])
 }
 
 /// AI-generated content strategy for a project.
