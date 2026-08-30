@@ -337,7 +337,10 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
    */
   async getVideoDetails(organizationId: string, contentId: string) {
     const item = await this.prisma.competitorContent.findFirst({
-      where: { id: contentId, organizationId },
+      where: {
+        id: contentId,
+        ...(organizationId ? { organizationId } : {}),
+      },
       include: {
         account: {
           select: {

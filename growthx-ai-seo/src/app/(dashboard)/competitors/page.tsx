@@ -239,14 +239,31 @@ function CompetitorConsoleClient() {
   const currentCompetitor = useMemo(() => {
     if (!accounts.length) return null;
     if (selectedCompetitorId) {
-      return accounts.find(a => a.id === selectedCompetitorId) || accounts[0];
+      return accounts.find(a => a.id === selectedCompetitorId || a.handle === selectedCompetitorId || (a.website && a.website.includes(selectedCompetitorId))) || accounts[0];
     }
     return accounts[0];
   }, [accounts, selectedCompetitorId]);
 
   const competitorContentList = useMemo(() => {
     if (!currentCompetitor) return [];
-    return allContent.filter(c => c.account?.handle === currentCompetitor.handle || (c as any).accountId === currentCompetitor.id);
+    const compHandle = (currentCompetitor.handle || '').toLowerCase().replace('@', '');
+    const compName = (currentCompetitor.displayName || currentCompetitor.businessName || '').toLowerCase();
+    const compDomain = (currentCompetitor.website || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    const compRoot = compDomain ? compDomain.split('.')[0] : '';
+
+    return allContent.filter(c => {
+      const accHandle = (c.account?.handle || '').toLowerCase().replace('@', '');
+      const accName = (c.account?.displayName || (c.account as any)?.businessName || '').toLowerCase();
+      const title = (c.title || '').toLowerCase();
+      const caption = (c.caption || '').toLowerCase();
+
+      return (
+        (c as any).accountId === currentCompetitor.id ||
+        (accHandle && compHandle && (accHandle.includes(compHandle) || compHandle.includes(accHandle))) ||
+        (accName && compName && (accName.includes(compName) || compName.includes(accName))) ||
+        (compRoot && (title.includes(compRoot) || caption.includes(compRoot) || accHandle.includes(compRoot)))
+      );
+    });
   }, [allContent, currentCompetitor]);
 
   // Dynamic KPI Stats
