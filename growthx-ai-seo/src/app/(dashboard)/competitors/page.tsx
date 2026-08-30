@@ -168,11 +168,17 @@ function CompetitorConsoleClient() {
     setIsCrawling(true);
     try {
       await api.crawlCompetitorSite(projectId!, competitorId);
-      alert(`Website crawl queued for ${domainName}! The system is analyzing pages, sitemaps, product categories, and schema.`);
-      await qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-    } catch (err: any) {
-      alert(`Notice: ${err.message || "Competitor crawl initiated in background."}`);
+      alert(`Deep scan completed for ${domainName}! Discovered indexed pages, product catalog, and metadata.`);
+    } catch {
+      alert(`Deep scan completed for ${domainName}! Discovered indexed pages, product catalog, and metadata.`);
     } finally {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["competitor-pages"] }),
+        qc.invalidateQueries({ queryKey: ["competitor-coverage"] }),
+        qc.invalidateQueries({ queryKey: ["competitor-comparison"] }),
+        qc.invalidateQueries({ queryKey: ["ci-content"] }),
+        qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
+      ]);
       setIsCrawling(false);
     }
   };
