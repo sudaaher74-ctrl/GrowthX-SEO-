@@ -1339,6 +1339,15 @@ export const api = {
     );
   },
 
+  triggerCompetitorCronSync: (projectId: string) =>
+    post<{
+      projectId: string;
+      timestamp: string;
+      competitorsCrawled: number;
+      crawlResults: any[];
+      newAlertsGenerated: number;
+    }>(`/api/projects/${projectId}/content-intelligence/cron/trigger-sync`, {}),
+
   getCompetitorCoverage: async (projectId: string, competitorId: string) => {
     try {
       const res = await get<{ competitorId: string; domain: string; crawlJobId: string; crawledAt: string; totalPages: number; capped: boolean; byType: Record<string, number>; untyped: number } | null>(

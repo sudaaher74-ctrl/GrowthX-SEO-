@@ -18,6 +18,7 @@ import { CrossCompetitorMatrixService } from './cross-competitor-matrix.service'
 import { KeywordBusinessBridgeService } from './keyword-business-bridge.service';
 import { VideoScriptGeneratorService, VideoBriefAndScript } from './video-script-generator.service';
 import { CompetitorMonitorService, RecordCustomerOutcomeDto } from './competitor-monitor.service';
+import { ContentIntelligenceScheduler } from './content-intelligence.scheduler';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -45,6 +46,7 @@ export class ContentIntelligenceController {
     private readonly keywordBridge: KeywordBusinessBridgeService,
     private readonly scriptGenerator: VideoScriptGeneratorService,
     private readonly competitorMonitor: CompetitorMonitorService,
+    private readonly scheduler: ContentIntelligenceScheduler,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -568,5 +570,13 @@ export class ContentIntelligenceController {
     @Body() body: { status: string },
   ) {
     return this.competitorMonitor.updateAlertStatus(req.organizationId, alertId, body.status);
+  }
+
+  @Post('cron/trigger-sync')
+  async triggerCronSync(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.scheduler.triggerManualProjectSync(projectId, req.organizationId);
   }
 }

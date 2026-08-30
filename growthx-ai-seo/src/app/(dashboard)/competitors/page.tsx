@@ -114,6 +114,24 @@ function CompetitorConsoleClient() {
     },
   });
 
+  const triggerCronSyncMut = useMutation({
+    mutationFn: () => api.triggerCompetitorCronSync(projectId!),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] });
+      qc.invalidateQueries({ queryKey: ["ci-content", projectId] });
+      qc.invalidateQueries({ queryKey: ["ci-alerts", projectId] });
+      qc.invalidateQueries({ queryKey: ["ci-opportunities", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-pages"] });
+      qc.invalidateQueries({ queryKey: ["competitor-coverage"] });
+      qc.invalidateQueries({ queryKey: ["competitor-comparison"] });
+      alert(`Automated Crawl & Sync Finished! Scanned ${data.competitorsCrawled} competitor(s), updated catalog gap index, and generated ${data.newAlertsGenerated} new alert(s).`);
+    },
+    onError: (err: any) => {
+      alert(`Sync Error: ${err.message}`);
+    },
+  });
+
   const resetIngestForm = () => {
     setIngestTitle("");
     setIngestTranscript("");
@@ -371,6 +389,14 @@ function CompetitorConsoleClient() {
         <div className="flex flex-wrap items-center gap-2">
           <ActionButton
             variant="secondary"
+            icon={triggerCronSyncMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            onClick={() => triggerCronSyncMut.mutate()}
+            disabled={triggerCronSyncMut.isPending}
+          >
+            {triggerCronSyncMut.isPending ? "Syncing Crawl..." : "Run Cron Sync"}
+          </ActionButton>
+          <ActionButton
+            variant="secondary"
             icon={isGeneratingStrat ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} className="text-accent-600" />}
             onClick={handleGenerateFullStrategy}
             disabled={isGeneratingStrat}
@@ -455,6 +481,34 @@ function CompetitorConsoleClient() {
           <span className="rounded bg-white border border-brand-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-brand-700">PUBLIC DATA</span>
           <span className="rounded bg-white border border-brand-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-brand-700">AUTHORIZED DATA</span>
           <span className="rounded bg-accent-50 border border-accent-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-accent-700">AI INFERENCE</span>
+        </div>
+      </div>
+
+      {/* Automated Recurring Crawl & Cron Job Schedule Status */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-gradient-to-r from-brand-900 via-brand-950 to-brand-900 px-4 py-3 text-white shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+            <RefreshCw size={15} className="animate-spin-slow" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-[13px] font-semibold">
+              <span>Automated Background Cron Scheduler</span>
+              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] text-emerald-300">ACTIVE (02:00 & 04:00 UTC)</span>
+            </div>
+            <p className="text-[11px] text-brand-300">
+              Daily deep re-crawling of competitor pages, automated sitemap diff detection, and social publishing velocity alerts.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => triggerCronSyncMut.mutate()}
+            disabled={triggerCronSyncMut.isPending}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-[11.5px] font-medium text-white transition disabled:opacity-50"
+          >
+            {triggerCronSyncMut.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Clock size={12} />}
+            {triggerCronSyncMut.isPending ? "Syncing Batch..." : "Trigger Cron Now"}
+          </button>
         </div>
       </div>
 

@@ -17,6 +17,7 @@ import { CrossCompetitorMatrixService } from './cross-competitor-matrix.service'
 import { KeywordBusinessBridgeService } from './keyword-business-bridge.service';
 import { VideoScriptGeneratorService } from './video-script-generator.service';
 import { CompetitorMonitorService } from './competitor-monitor.service';
+import { ContentIntelligenceScheduler } from './content-intelligence.scheduler';
 import { ContentIntelligenceController } from './content-intelligence.controller';
 
 /**
@@ -46,6 +47,7 @@ import { ContentIntelligenceController } from './content-intelligence.controller
     KeywordBusinessBridgeService,
     VideoScriptGeneratorService,
     CompetitorMonitorService,
+    ContentIntelligenceScheduler,
   ],
   exports: [
     ContentStrategyService,
@@ -58,6 +60,7 @@ import { ContentIntelligenceController } from './content-intelligence.controller
     KeywordBusinessBridgeService,
     VideoScriptGeneratorService,
     CompetitorMonitorService,
+    ContentIntelligenceScheduler,
   ],
 })
 export class ContentIntelligenceModule {}
