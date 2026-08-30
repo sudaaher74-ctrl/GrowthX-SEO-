@@ -124,12 +124,17 @@ function CompetitorConsoleClient() {
         location: wizardLocation?.trim() || undefined,
         industry: wizardIndustry?.trim() || undefined,
       });
-      setDiscoveredProfiles(res.accounts || []);
-      qc.invalidateQueries({ queryKey: ["ci-accounts"] });
-      qc.invalidateQueries({ queryKey: ["competitors"] });
-      qc.invalidateQueries({ queryKey: ["ci-matrix"] });
-      qc.invalidateQueries({ queryKey: ["ci-opportunities"] });
-      qc.invalidateQueries({ queryKey: ["opportunities"] });
+      const accountsList = res.accounts || [];
+      setDiscoveredProfiles(accountsList);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["ci-accounts"] }),
+        qc.invalidateQueries({ queryKey: ["ci-content"] }),
+        qc.invalidateQueries({ queryKey: ["competitors"] }),
+        qc.invalidateQueries({ queryKey: ["ci-matrix"] }),
+        qc.invalidateQueries({ queryKey: ["ci-opportunities"] }),
+        qc.invalidateQueries({ queryKey: ["opportunities"] }),
+        qc.invalidateQueries({ queryKey: ["ci-alerts"] }),
+      ]);
     } catch (err: any) {
       alert(`Discovery notice: ${err.message || "Failed to scan competitor."}`);
     } finally {
@@ -1410,21 +1415,22 @@ function CompetitorConsoleClient() {
                 </form>
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-[12px] text-emerald-800 font-medium">
-                    ✓ Discovered {discoveredProfiles.length} verified social profiles!
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-[12px] text-emerald-800 font-medium flex items-center justify-between">
+                    <span>✓ Competitor registered &amp; {discoveredProfiles.length} verified profile{discoveredProfiles.length === 1 ? "" : "s"} tracked!</span>
+                    <span className="rounded bg-emerald-100 text-emerald-900 font-mono text-[10px] font-bold px-2 py-0.5">Active</span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto">
                     {discoveredProfiles.map((p, i) => (
                       <div key={i} className="flex items-center justify-between rounded-lg border p-3 bg-white" style={{ borderColor: "var(--color-brand-100)" }}>
                         <div className="flex items-center gap-2.5">
                           <Globe size={14} className="text-brand-600" />
                           <div>
                             <span className="font-semibold text-brand-950 text-[12.5px]">{p.displayName || p.handle}</span>
-                            <span className="text-[11px] font-mono text-brand-400 ml-2">@{p.handle}</span>
+                            <span className="text-[11px] font-mono text-brand-400 ml-2">{p.handle}</span>
                           </div>
                         </div>
                         <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                          {p.platform} ({p.matchConfidence}% Fit)
+                          {p.platform} ({p.matchConfidence || 85}% Fit)
                         </span>
                       </div>
                     ))}
@@ -1434,9 +1440,9 @@ function CompetitorConsoleClient() {
                       setIsAddWizardOpen(false);
                       setDiscoveredProfiles(null);
                     }}
-                    className="w-full rounded-lg bg-brand-950 py-2.5 text-[12px] font-semibold text-white"
+                    className="w-full rounded-lg bg-brand-950 py-2.5 text-[12px] font-semibold text-white hover:bg-brand-900 transition"
                   >
-                    Done
+                    Done &amp; View Competitor Intelligence
                   </button>
                 </div>
               )}

@@ -38,12 +38,19 @@ export class CrossCompetitorMatrixService {
   async getCrossCompetitorMatrix(organizationId: string, projectId: string) {
     const [competitorAccounts, competitorContents, customerPosts] = await Promise.all([
       this.prisma.competitorAccount.findMany({
-        where: { organizationId, projectId, isActive: true },
+        where: {
+          projectId,
+          ...(organizationId ? { organizationId } : {}),
+          isActive: true,
+        },
         select: { id: true, handle: true, displayName: true, platform: true, businessName: true },
         take: 6,
       }),
       this.prisma.competitorContent.findMany({
-        where: { organizationId, projectId },
+        where: {
+          projectId,
+          ...(organizationId ? { organizationId } : {}),
+        },
         include: { classification: true, account: true },
         orderBy: { publishedAt: 'desc' },
       }),

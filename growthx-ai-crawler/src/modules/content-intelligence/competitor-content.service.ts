@@ -18,8 +18,11 @@ export class CompetitorContentService {
   /** List all competitor accounts for a project. */
   async listAccounts(organizationId: string, projectId: string) {
     return this.prisma.competitorAccount.findMany({
-      where: { organizationId, projectId },
-      include: { _count: { select: { content: true } } },
+      where: {
+        projectId,
+        ...(organizationId ? { organizationId } : {}),
+      },
+      include: { competitor: true, _count: { select: { content: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -37,24 +40,30 @@ export class CompetitorContentService {
       followerCount?: number;
     },
   ) {
+    let orgId = organizationId;
+    if (!orgId) {
+      const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } });
+      orgId = project?.organizationId || '';
+    }
+
     return this.prisma.competitorAccount.upsert({
       where: { projectId_platform_handle: { projectId, platform: data.platform, handle: data.handle } },
-      update: { ...data, competitorId, organizationId },
-      create: { organizationId, projectId, competitorId, ...data },
+      update: { ...data, competitorId, organizationId: orgId },
+      create: { organizationId: orgId, projectId, competitorId, ...data },
     });
   }
 
   /** Remove a competitor account and its content. */
   async removeAccount(organizationId: string, accountId: string) {
     return this.prisma.competitorAccount.deleteMany({
-      where: { id: accountId, organizationId },
+      where: { id: accountId, ...(organizationId ? { organizationId } : {}) },
     });
   }
 
   /** Pause / resume monitoring for an account. */
   async toggleAccount(organizationId: string, accountId: string, isActive: boolean) {
     return this.prisma.competitorAccount.updateMany({
-      where: { id: accountId, organizationId },
+      where: { id: accountId, ...(organizationId ? { organizationId } : {}) },
       data: { isActive },
     });
   }
@@ -67,8 +76,8 @@ export class CompetitorContentService {
   ) {
     return this.prisma.competitorContent.findMany({
       where: {
-        organizationId,
         projectId,
+        ...(organizationId ? { organizationId } : {}),
         ...(filters?.platform && { platform: filters.platform }),
         ...(filters?.contentType && { contentType: filters.contentType }),
       },

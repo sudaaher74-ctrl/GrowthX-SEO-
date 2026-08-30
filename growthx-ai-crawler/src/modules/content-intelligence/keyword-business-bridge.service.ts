@@ -33,7 +33,11 @@ export class KeywordBusinessBridgeService {
   async getEnrichedOpportunities(organizationId: string, projectId: string): Promise<EnrichedOpportunity[]> {
     const [gaps, project, competitorAccounts, trackedPrompts] = await Promise.all([
       this.prisma.contentGap.findMany({
-        where: { organizationId, projectId, status: 'OPEN' },
+        where: {
+          projectId,
+          ...(organizationId ? { organizationId } : {}),
+          status: 'OPEN',
+        },
         orderBy: { opportunityScore: 'desc' },
       }),
       this.prisma.project.findUnique({
@@ -41,7 +45,11 @@ export class KeywordBusinessBridgeService {
         include: { LocalLocation: true },
       }),
       this.prisma.competitorAccount.findMany({
-        where: { organizationId, projectId, isActive: true },
+        where: {
+          projectId,
+          ...(organizationId ? { organizationId } : {}),
+          isActive: true,
+        },
       }),
       this.prisma.trackedPrompt ? this.prisma.trackedPrompt.findMany({ where: { projectId } }) : Promise.resolve([]),
     ]);
