@@ -27,7 +27,7 @@ export interface CompetitorDiscoveryResult {
   profiles: DiscoveredSocialProfile[];
 }
 
-const FALLBACK_PATHS = ['/contact', '/about', '/contact-us', '/about-us'];
+const FALLBACK_PATHS = ['', '/contact', '/about', '/contact-us', '/about-us'];
 
 const PATTERNS: { platform: string; pattern: RegExp }[] = [
   { platform: 'INSTAGRAM', pattern: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi },
@@ -62,6 +62,15 @@ export class SocialDiscoveryService {
     competitorId: string,
     domain: string,
   ): Promise<{ discovered: DiscoveredAccount[]; saved: number }> {
+    let orgId = organizationId;
+    if (!orgId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { organizationId: true },
+      });
+      orgId = project?.organizationId || '';
+    }
+
     const html = await this.fetchSiteHtml(domain);
     if (!html) return { discovered: [], saved: 0 };
 
@@ -82,9 +91,9 @@ export class SocialDiscoveryService {
               handle: account.handle,
             },
           },
-          update: { profileUrl: account.profileUrl, isActive: true },
+          update: { competitorId, profileUrl: account.profileUrl, isActive: true },
           create: {
-            organizationId,
+            organizationId: orgId,
             projectId,
             competitorId,
             platform: account.platform,
@@ -134,7 +143,7 @@ export class SocialDiscoveryService {
   private async fetchSiteHtml(domain: string): Promise<string | null> {
     const base = domain.startsWith('http') ? domain : `https://${domain}`;
 
-    for (const path of ['', ...FALLBACK_PATHS]) {
+    for (const path of FALLBACK_PATHS) {
       try {
         const response = await fetch(`${base}${path}`, {
           redirect: 'follow',
@@ -165,13 +174,13 @@ export class SocialDiscoveryService {
     location?: string,
     industry?: string,
   ): Promise<CompetitorDiscoveryResult> {
-    let normalizedUrl = websiteUrl.trim();
+    let normalizedUrl = (websiteUrl || '').trim();
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`;
     }
 
     const profiles: DiscoveredSocialProfile[] = [];
-    let detectedName = businessName;
+    let detectedName = (businessName || '').trim();
 
     try {
       const res = await axios.get(normalizedUrl, {
@@ -180,96 +189,106 @@ export class SocialDiscoveryService {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 GrowthXBot/1.0',
         },
         maxRedirects: 5,
+        validateStatus: () => true, // Don't throw on 4xx/5xx so we can still parse HTML if available
       });
 
-      const $ = cheerio.load(res.data || '');
+      if (res.data && typeof res.data === 'string') {
+        const $ = cheerio.load(res.data);
 
-      if (!detectedName) {
-        const ogSiteName = $('meta[property="og:site_name"]').attr('content');
-        const title = $('title').text();
-        detectedName = ogSiteName || title.split(/[-|–•]/)[0]?.trim() || new URL(normalizedUrl).hostname.replace('www.', '');
+        if (!detectedName) {
+          const ogSiteName = $('meta[property="og:site_name"]').attr('content');
+          const title = $('title').text();
+          detectedName = ogSiteName?.trim() || title.split(/[-|–•]/)[0]?.trim() || '';
+        }
+
+        // Scan all anchor tags
+        $('a[href]').each((_, el) => {
+          const href = $(el).attr('href')?.trim();
+          if (!href) return;
+
+          // 1. YouTube discovery
+          const ytMatch = href.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:@|channel\/|c\/|user\/)?([\w-]+)|youtu\.be\/([\w-]+))/i);
+          if (ytMatch) {
+            const rawHandle = ytMatch[1] || ytMatch[2];
+            if (rawHandle && !['watch', 'embed', 'results', 'feed', 'playlist'].includes(rawHandle.toLowerCase())) {
+              const handle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
+              if (!profiles.some(p => p.platform === 'YOUTUBE' && p.handle.toLowerCase() === handle.toLowerCase())) {
+                profiles.push({
+                  platform: 'YOUTUBE',
+                  handle,
+                  profileUrl: href.startsWith('http') ? href : `https://youtube.com/${handle}`,
+                  displayName: detectedName,
+                  matchConfidence: 95,
+                  discoverySource: 'WEBSITE_CRAWL',
+                  verificationStatus: 'VERIFIED',
+                });
+              }
+            }
+          }
+
+          // 2. Instagram discovery
+          const igMatch = href.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
+          if (igMatch) {
+            const rawHandle = igMatch[1];
+            if (rawHandle && !['p', 'reel', 'stories', 'explore', 'direct', 'accounts', 'developer'].includes(rawHandle.toLowerCase())) {
+              const handle = `@${rawHandle}`;
+              if (!profiles.some(p => p.platform === 'INSTAGRAM' && p.handle.toLowerCase() === handle.toLowerCase())) {
+                profiles.push({
+                  platform: 'INSTAGRAM',
+                  handle,
+                  profileUrl: href.startsWith('http') ? href : `https://instagram.com/${rawHandle}`,
+                  displayName: detectedName,
+                  matchConfidence: 95,
+                  discoverySource: 'WEBSITE_CRAWL',
+                  verificationStatus: 'VERIFIED',
+                });
+              }
+            }
+          }
+        });
       }
-
-      // Scan all anchor tags
-      $('a[href]').each((_, el) => {
-        const href = $(el).attr('href')?.trim();
-        if (!href) return;
-
-        // 1. YouTube discovery
-        const ytMatch = href.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:@|channel\/|c\/|user\/)?([\w-]+)|youtu\.be\/([\w-]+))/i);
-        if (ytMatch) {
-          const rawHandle = ytMatch[1] || ytMatch[2];
-          if (rawHandle && !['watch', 'embed', 'results', 'feed', 'playlist'].includes(rawHandle.toLowerCase())) {
-            const handle = rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`;
-            if (!profiles.some(p => p.platform === 'YOUTUBE' && p.handle.toLowerCase() === handle.toLowerCase())) {
-              profiles.push({
-                platform: 'YOUTUBE',
-                handle,
-                profileUrl: href.startsWith('http') ? href : `https://youtube.com/${handle}`,
-                displayName: detectedName,
-                matchConfidence: 95,
-                discoverySource: 'WEBSITE_CRAWL',
-                verificationStatus: 'VERIFIED',
-              });
-            }
-          }
-        }
-
-        // 2. Instagram discovery
-        const igMatch = href.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
-        if (igMatch) {
-          const rawHandle = igMatch[1];
-          if (rawHandle && !['p', 'reel', 'stories', 'explore', 'direct', 'accounts', 'developer'].includes(rawHandle.toLowerCase())) {
-            const handle = `@${rawHandle}`;
-            if (!profiles.some(p => p.platform === 'INSTAGRAM' && p.handle.toLowerCase() === handle.toLowerCase())) {
-              profiles.push({
-                platform: 'INSTAGRAM',
-                handle,
-                profileUrl: href.startsWith('http') ? href : `https://instagram.com/${rawHandle}`,
-                displayName: detectedName,
-                matchConfidence: 95,
-                discoverySource: 'WEBSITE_CRAWL',
-                verificationStatus: 'VERIFIED',
-              });
-            }
-          }
-        }
-      });
     } catch (err: any) {
       this.logger.warn(`Could not crawl ${normalizedUrl} directly: ${err.message}. Falling back to domain heuristic discovery.`);
     }
 
+    let parsedDomain = '';
+    try {
+      parsedDomain = new URL(normalizedUrl).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      parsedDomain = normalizedUrl.replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').split('/')[0].toLowerCase();
+    }
+
+    if (!detectedName) {
+      detectedName = parsedDomain.split('.')[0] || parsedDomain;
+    }
+
     // Fallback heuristic if website had no direct social links: construct potential profiles with SUGGESTED confidence
     if (profiles.length === 0) {
-      try {
-        const domain = new URL(normalizedUrl).hostname.replace('www.', '').split('.')[0];
-        if (domain && domain.length > 2) {
-          profiles.push({
-            platform: 'YOUTUBE',
-            handle: `@${domain}`,
-            profileUrl: `https://youtube.com/@${domain}`,
-            displayName: detectedName || domain,
-            matchConfidence: 70,
-            discoverySource: 'WEBSITE_CRAWL',
-            verificationStatus: 'SUGGESTED',
-          });
-          profiles.push({
-            platform: 'INSTAGRAM',
-            handle: `@${domain}`,
-            profileUrl: `https://instagram.com/${domain}`,
-            displayName: detectedName || domain,
-            matchConfidence: 70,
-            discoverySource: 'WEBSITE_CRAWL',
-            verificationStatus: 'SUGGESTED',
-          });
-        }
-      } catch {
-        // Ignore URL parse errors
+      const rootDomain = parsedDomain.split('.')[0];
+      if (rootDomain && rootDomain.length > 2) {
+        profiles.push({
+          platform: 'YOUTUBE',
+          handle: `@${rootDomain}`,
+          profileUrl: `https://youtube.com/@${rootDomain}`,
+          displayName: detectedName,
+          matchConfidence: 70,
+          discoverySource: 'WEBSITE_CRAWL',
+          verificationStatus: 'SUGGESTED',
+        });
+        profiles.push({
+          platform: 'INSTAGRAM',
+          handle: `@${rootDomain}`,
+          profileUrl: `https://instagram.com/${rootDomain}`,
+          displayName: detectedName,
+          matchConfidence: 70,
+          discoverySource: 'WEBSITE_CRAWL',
+          verificationStatus: 'SUGGESTED',
+        });
       }
     }
 
     return {
-      businessName: detectedName || new URL(normalizedUrl).hostname,
+      businessName: detectedName || parsedDomain,
       website: normalizedUrl,
       location,
       industry: industry || 'General',
@@ -285,7 +304,31 @@ export class SocialDiscoveryService {
     projectId: string,
     data: CompetitorDiscoveryResult,
   ) {
-    const domain = new URL(data.website.startsWith('http') ? data.website : `https://${data.website}`).hostname.replace('www.', '');
+    let cleanWebsite = (data.website || '').trim();
+    if (!cleanWebsite.startsWith('http://') && !cleanWebsite.startsWith('https://')) {
+      cleanWebsite = `https://${cleanWebsite}`;
+    }
+
+    let domain = '';
+    try {
+      domain = new URL(cleanWebsite).hostname.replace(/^www\./i, '').toLowerCase();
+    } catch {
+      domain = cleanWebsite.replace(/^(?:https?:\/\/)?(?:www\.)?/i, '').split('/')[0].toLowerCase();
+    }
+
+    if (!domain) {
+      domain = 'competitor.com';
+    }
+
+    // Fallback organizationId from project if missing
+    let orgId = organizationId;
+    if (!orgId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { organizationId: true },
+      });
+      orgId = project?.organizationId || '';
+    }
 
     // 1. Create or connect CompetitorDomain (ENGINE 07 core)
     const competitorDomain = await this.prisma.competitorDomain.upsert({
@@ -293,12 +336,12 @@ export class SocialDiscoveryService {
         projectId_domain: { projectId, domain },
       },
       update: {
-        label: data.businessName,
+        label: data.businessName || domain,
       },
       create: {
         projectId,
         domain,
-        label: data.businessName,
+        label: data.businessName || domain,
       },
     });
 
@@ -306,46 +349,51 @@ export class SocialDiscoveryService {
 
     // 2. Create CompetitorAccount records for each discovered profile
     for (const profile of data.profiles) {
-      const account = await this.prisma.competitorAccount.upsert({
-        where: {
-          projectId_platform_handle: {
+      try {
+        const account = await this.prisma.competitorAccount.upsert({
+          where: {
+            projectId_platform_handle: {
+              projectId,
+              platform: profile.platform,
+              handle: profile.handle,
+            },
+          },
+          update: {
+            competitorId: competitorDomain.id,
+            displayName: data.businessName || domain,
+            profileUrl: profile.profileUrl,
+            website: data.website,
+            businessName: data.businessName || domain,
+            location: data.location,
+            industry: data.industry,
+            discoverySource: profile.discoverySource,
+            verificationStatus: profile.verificationStatus,
+            matchConfidence: profile.matchConfidence,
+            isActive: true,
+          },
+          create: {
+            organizationId: orgId,
             projectId,
+            competitorId: competitorDomain.id,
             platform: profile.platform,
             handle: profile.handle,
+            displayName: data.businessName || domain,
+            profileUrl: profile.profileUrl,
+            website: data.website,
+            businessName: data.businessName || domain,
+            location: data.location,
+            industry: data.industry,
+            discoverySource: profile.discoverySource,
+            verificationStatus: profile.verificationStatus,
+            matchConfidence: profile.matchConfidence,
+            isActive: true,
           },
-        },
-        update: {
-          displayName: data.businessName,
-          profileUrl: profile.profileUrl,
-          website: data.website,
-          businessName: data.businessName,
-          location: data.location,
-          industry: data.industry,
-          discoverySource: profile.discoverySource,
-          verificationStatus: profile.verificationStatus,
-          matchConfidence: profile.matchConfidence,
-          isActive: true,
-        },
-        create: {
-          organizationId,
-          projectId,
-          competitorId: competitorDomain.id,
-          platform: profile.platform,
-          handle: profile.handle,
-          displayName: data.businessName,
-          profileUrl: profile.profileUrl,
-          website: data.website,
-          businessName: data.businessName,
-          location: data.location,
-          industry: data.industry,
-          discoverySource: profile.discoverySource,
-          verificationStatus: profile.verificationStatus,
-          matchConfidence: profile.matchConfidence,
-          isActive: true,
-        },
-      });
+        });
 
-      createdAccounts.push(account);
+        createdAccounts.push(account);
+      } catch (err: any) {
+        this.logger.warn(`Could not upsert account ${profile.handle}: ${err.message}`);
+      }
     }
 
     return {

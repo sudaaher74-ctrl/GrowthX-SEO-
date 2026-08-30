@@ -124,19 +124,23 @@ function CompetitorConsoleClient() {
 
   const handleDiscoverProfiles = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wizardWebsite) return;
+    if (!wizardWebsite?.trim()) return;
     setIsDiscovering(true);
     try {
       const res = await api.discoverSocialProfiles(projectId!, {
-        website: wizardWebsite,
-        businessName: wizardName || undefined,
-        location: wizardLocation || undefined,
-        industry: wizardIndustry || undefined,
+        website: wizardWebsite.trim(),
+        businessName: wizardName?.trim() || undefined,
+        location: wizardLocation?.trim() || undefined,
+        industry: wizardIndustry?.trim() || undefined,
       });
-      setDiscoveredProfiles(res.accounts);
+      setDiscoveredProfiles(res.accounts || []);
       qc.invalidateQueries({ queryKey: ["ci-accounts"] });
+      qc.invalidateQueries({ queryKey: ["competitors"] });
+      qc.invalidateQueries({ queryKey: ["ci-matrix"] });
+      qc.invalidateQueries({ queryKey: ["ci-opportunities"] });
+      qc.invalidateQueries({ queryKey: ["opportunities"] });
     } catch (err: any) {
-      alert(`Discovery notice: ${err.message || "Saved competitor domain."}`);
+      alert(`Discovery notice: ${err.message || "Failed to scan competitor."}`);
     } finally {
       setIsDiscovering(false);
     }
