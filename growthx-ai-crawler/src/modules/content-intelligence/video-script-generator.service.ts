@@ -111,7 +111,7 @@ export class VideoScriptGeneratorService {
 
     const brandName = project?.name || 'Our Brand';
     const city = project?.LocalLocation?.address ? project.LocalLocation.address.split(',')[0].trim() : 'Our City';
-    const industry = config?.industrySkill || 'Interior Design & Renovation';
+    const industry = config?.industrySkill || 'General B2B & Commercial';
 
     const prompt = `
 Brand: ${brandName}
@@ -122,7 +122,7 @@ Topic / Opportunity: ${topic}
 ${opportunityContext ? `Competitive Context & Evidence: ${opportunityContext}` : ''}
 
 Generate a complete, production-ready video script with scene breakdowns, visual cues, on-screen text, caption, and hashtags.
-Make it 100% original and optimized for viewer retention and consultation conversions.
+Make it 100% original and tailored to ${brandName} in ${industry}.
 `.trim();
 
     const result = await this.router.generate({
@@ -190,74 +190,78 @@ Make it 100% original and optimized for viewer retention and consultation conver
   }
 
   private buildFallbackScript(topic: string, brandName: string, city: string): VideoBriefAndScript {
+    const safeTopic = topic || 'Quality Standards & Best Practices';
+    const topicTag = safeTopic.replace(/[^a-zA-Z0-9]/g, '');
+    const brandTag = brandName.replace(/[^a-zA-Z0-9]/g, '');
+
     return {
-      title: `${topic}: Complete Planning Guide`,
-      hook: `Before you spend a single rupee on ${topic.toLowerCase()}, avoid these 3 costly mistakes.`,
+      title: `${safeTopic}: Industry Standards & Key Insights`,
+      hook: `If you are evaluating options for ${safeTopic.toLowerCase()}, here are 3 critical factors you cannot afford to ignore.`,
       platform: 'INSTAGRAM_REEL',
       targetDuration: '60 seconds',
       contentPillar: 'EDUCATIONAL',
-      targetAudience: `Homeowners and buyers in ${city} seeking quality and value`,
-      coreProblem: 'Lack of pricing clarity and improper layout planning leads to 25%+ budget overruns.',
-      solutionSummary: 'A 3-step checklist to lock in durable materials, fair square-foot pricing, and functional layouts.',
-      callToAction: `Book a free 3D design consultation with ${brandName} — link in bio.`,
+      targetAudience: `Decision makers, buyers, and partners looking for reliable quality in ${city}`,
+      coreProblem: `Lack of transparency and inconsistent quality standards often lead to costly inefficiencies when selecting ${safeTopic.toLowerCase()}.`,
+      solutionSummary: `A proven, step-by-step quality framework from ${brandName} ensuring maximum reliability and verified specifications.`,
+      callToAction: `Visit our website or message ${brandName} directly to learn more — link in bio.`,
       scenes: [
         {
           sceneNumber: 1,
           timeRange: '0–3s',
           sectionName: 'HOOK',
-          spokenScript: `Before you spend money on ${topic.toLowerCase()}, stop and check these 3 things.`,
-          visualDirection: 'Presenter looking directly into camera with high energy and bold red text graphic overlay.',
-          onScreenText: `STOP! CHECK THIS FIRST 🚨`,
+          spokenScript: `Before you finalize your requirements for ${safeTopic.toLowerCase()}, check these 3 vital criteria.`,
+          visualDirection: 'Presenter looking directly into camera with high-energy presentation and bold headline overlay.',
+          onScreenText: `CRITICAL CHECKLIST 🚨`,
         },
         {
           sceneNumber: 2,
           timeRange: '3–12s',
           sectionName: 'PROBLEM',
-          spokenScript: `Over 70% of homeowners get hit with hidden charges because they finalized quotes before locking in exact material grades.`,
-          visualDirection: 'Fast cut to close-up b-roll of quote paperwork and tape measure on unfinished countertop.',
-          onScreenText: `MISTAKE #1: HIDDEN SURCHARGES`,
+          spokenScript: `Many buyers face delays and quality variances because key product and process standards weren't validated upfront.`,
+          visualDirection: 'Cut to detailed process or product footage with comparison graphics.',
+          onScreenText: `MISTAKE #1: UNVERIFIED SPECS`,
         },
         {
           sceneNumber: 3,
           timeRange: '12–26s',
           sectionName: 'POINT_1',
-          spokenScript: `Mistake #2 is choosing high-gloss finishes in heavy-use cooking zones without anti-scratch coating. Always insist on marine-grade BWR ply with 1mm laminate or acrylic.`,
-          visualDirection: 'Side-by-side comparison test showing scratch resistance of standard vs marine-grade finish.',
-          onScreenText: `SPECIFY: BWR PLY + 1MM FINISH`,
+          spokenScript: `Rule number one is to always verify processing standards, grade certifications, and storage integrity before committing.`,
+          visualDirection: 'Visual inspection proof showing verified quality benchmarks.',
+          onScreenText: `STANDARDS & CERTIFICATION CHECK`,
         },
         {
           sceneNumber: 4,
           timeRange: '26–42s',
           sectionName: 'POINT_2',
-          spokenScript: `Mistake #3 is ignoring the classic work triangle between the sink, hob, and refrigerator. Without proper spacing, daily prep time doubles.`,
-          visualDirection: 'Animated 3D floor plan overlay demonstrating optimal spacing and movement flow.',
-          onScreenText: `WORK TRIANGLE RULE (4-9 FT)`,
+          spokenScript: `Rule number two: Ensure end-to-end supply chain and packaging compliance for consistent, reliable outcomes.`,
+          visualDirection: 'Demonstration of packaging and delivery logistics workflow.',
+          onScreenText: `SUPPLY CHAIN RELIABILITY`,
         },
         {
           sceneNumber: 5,
           timeRange: '42–54s',
           sectionName: 'SOLUTION',
-          spokenScript: `At ${brandName}, we provide complete transparent cost breakdowns with 3D simulations before you commit a single rupee.`,
-          visualDirection: 'Presenter in showroom holding a tablet showing 3D render and client smiling.',
-          onScreenText: `TRANSPARENT 3D ESTIMATE`,
+          spokenScript: `At ${brandName}, we maintain stringent quality control, transparent documentation, and verified client satisfaction.`,
+          visualDirection: 'Presenter in facility showing certified operations and satisfied customer results.',
+          onScreenText: `VERIFIED QUALITY WITH ${brandName.toUpperCase()}`,
         },
         {
           sceneNumber: 6,
           timeRange: '54–60s',
           sectionName: 'CTA',
-          spokenScript: `Tap the link in our bio to claim your free design consultation in ${city} today!`,
-          visualDirection: 'Animated CTA card with logo, phone number, and arrow pointing down to profile link.',
-          onScreenText: `BOOK FREE CONSULTATION 📲`,
+          spokenScript: `Reach out to ${brandName} today or click the link in our bio for complete specifications and quotes!`,
+          visualDirection: 'Animated CTA screen with brand logo, contact details, and arrow pointing to profile link.',
+          onScreenText: `GET IN TOUCH 📲`,
         },
       ],
       visualChecklist: [
-        'Shoot in well-lit showroom or completed project',
-        'Record with lapel mic for crisp audio',
-        'Use high-contrast bold yellow/white captions in bottom third',
-        'Insert 0.5s sound effects on scene transitions',
+        'Shoot in well-lit professional setting or facility',
+        'Record with clear microphone audio',
+        'Use high-contrast bold subtitles in the lower third',
+        'Use smooth cuts on key data points',
       ],
-      caption: `Planning a project soon? 🏡 Avoid the most common budgeting and layout traps with these 3 proven rules. \n\nDrop a comment "GUIDE" or tap the link in bio to book your free 3D design consultation with ${brandName} in ${city}! ✨`,
-      hashtags: ['#HomeInterior', '#KitchenDesign', '#HomeRenovation', '#InteriorTips', '#DesignInspiration'],
+      caption: `Looking for reliable solutions in ${safeTopic}? 🚀 \n\nEnsure top standards and avoid common procurement bottlenecks. Connect with ${brandName} today or tap the link in bio for full details! ✨`,
+      hashtags: [`#${topicTag || 'Business'}`, `#${brandTag || 'Industry'}`, '#QualityStandards', '#IndustryInsights', '#B2BGrowth'],
       originalityGuarantee: 'Verified 100% Original AI Generation — Engineered from strategic pattern recognition, not scraped copy.',
     };
   }

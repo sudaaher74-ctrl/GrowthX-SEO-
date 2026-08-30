@@ -49,76 +49,7 @@ export class KeywordBusinessBridgeService {
     const targetCity = project?.LocalLocation?.address ? project.LocalLocation.address.split(',')[0].trim() : 'Primary Market';
 
     if (gaps.length === 0) {
-      // Seed rich default opportunities based on industry benchmarks if none exist yet
-      return [
-        {
-          id: 'opp_modular_cost',
-          topic: 'Modular Kitchen Cost Breakdown',
-          pillar: 'PRICING_GUIDE',
-          opportunityScore: 92,
-          breakdown: {
-            businessRelevance: 95,
-            searchOpportunity: 89,
-            competitorEvidence: 91,
-            contentGap: 93,
-            confidence: 90,
-            effort: 'MEDIUM',
-          },
-          targetMarket: targetCity,
-          competitorEvidenceSummary: '3 of 4 competitors frequently post pricing & cost teardowns with top public engagement.',
-          relatedKeywords: [
-            { keyword: 'modular kitchen cost guide', searchVolume: 12400, intent: 'Commercial' },
-            { keyword: 'acrylic vs laminate kitchen price', searchVolume: 5800, intent: 'Comparison' },
-            { keyword: 'interior design cost per sq ft', searchVolume: 8900, intent: 'Informational' },
-          ],
-          suggestedFormats: ['Instagram Reel (45s)', 'YouTube Long-form (8 min)', 'YouTube Shorts (60s)', 'SEO Pillar Article'],
-          recommendedAction: `Create a transparent pricing breakdown Reel & guide tailored specifically for homeowners in ${targetCity}.`,
-        },
-        {
-          id: 'opp_planning_mistakes',
-          topic: '5 Kitchen Design Mistakes Homeowners Make',
-          pillar: 'EDUCATIONAL',
-          opportunityScore: 88,
-          breakdown: {
-            businessRelevance: 90,
-            searchOpportunity: 85,
-            competitorEvidence: 92,
-            contentGap: 86,
-            confidence: 89,
-            effort: 'LOW',
-          },
-          targetMarket: targetCity,
-          competitorEvidenceSummary: 'Problem-focused hook format ranks #1 in competitor view counts (average 110K views).',
-          relatedKeywords: [
-            { keyword: 'kitchen layout mistakes to avoid', searchVolume: 7200, intent: 'Informational' },
-            { keyword: 'small kitchen organization mistakes', searchVolume: 4300, intent: 'Informational' },
-          ],
-          suggestedFormats: ['Instagram Reel (45s)', 'Carousel Post (8 slides)', 'YouTube Short (50s)'],
-          recommendedAction: 'Film a high-energy talking head Reel showing 3 real layout mistakes with visual corrections.',
-        },
-        {
-          id: 'opp_before_after',
-          topic: 'Real Renovation Before & After Transformation',
-          pillar: 'PROJECT_SHOWCASE',
-          opportunityScore: 85,
-          breakdown: {
-            businessRelevance: 94,
-            searchOpportunity: 78,
-            competitorEvidence: 88,
-            contentGap: 82,
-            confidence: 87,
-            effort: 'MEDIUM',
-          },
-          targetMarket: targetCity,
-          competitorEvidenceSummary: '4 of 4 competitors use completed project tours as their primary conversion driver.',
-          relatedKeywords: [
-            { keyword: 'kitchen renovation before and after', searchVolume: 14200, intent: 'Visual / Discovery' },
-            { keyword: 'modern kitchen makeover', searchVolume: 6100, intent: 'Inspiration' },
-          ],
-          suggestedFormats: ['Instagram Reel (30s Transition)', 'YouTube Project Tour (5 min)'],
-          recommendedAction: 'Document recent client handovers highlighting budget, timeline, and spatial problem solved.',
-        },
-      ];
+      return [];
     }
 
     return gaps.map((g: any) => {

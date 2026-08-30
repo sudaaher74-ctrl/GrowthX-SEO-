@@ -268,7 +268,7 @@ function StrategyDocument({
                   <span className="rounded bg-red-500 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Shorts</span>
                 </div>
                 <p className="text-brand-600 leading-relaxed">
-                  {platformStrat?.youtubeShorts || "Fast-paced, high-curiosity 50s tips focusing on spatial hacks, small kitchen layout fixes, and lighting temperature comparisons."}
+                  {platformStrat?.youtubeShorts || "Fast-paced, high-curiosity 50s tips focusing on key standards, process teardowns, and common buyer mistakes."}
                 </p>
               </div>
 
@@ -278,7 +278,7 @@ function StrategyDocument({
                   <span className="rounded bg-emerald-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Engine 08</span>
                 </div>
                 <p className="text-brand-600 leading-relaxed">
-                  {platformStrat?.seoArticles || "Author exhaustive localized pricing calculators (e.g. Modular Kitchen Cost in Mumbai) with embedded video summaries and downloadable planning sheets."}
+                  {platformStrat?.seoArticles || "Author exhaustive, localized decision guides and product comparison sheets with embedded video summaries and downloadable specifications."}
                 </p>
               </div>
             </div>
@@ -294,9 +294,9 @@ function StrategyDocument({
                     <span className="font-bold text-brand-950">Week 1: Foundation & Education</span>
                     <ul className="text-brand-600 list-disc list-inside space-y-0.5">
                       {(roadmap30?.week1_Foundation || [
-                        "Reel: 5 Mistakes that Inflate Kitchen Budgets",
-                        "Shorts: Acrylic vs PU Scratch Resistance",
-                        "SEO Guide: Modular Kitchen Planning Checklist",
+                        "Reel: Top 3 Misconceptions in Product Selection",
+                        "Shorts: Quality vs Cost Comparison",
+                        "SEO Guide: Comprehensive Industry Checklist",
                       ]).map((item: string, idx: number) => (
                         <li key={idx}>{item}</li>
                       ))}
@@ -304,12 +304,12 @@ function StrategyDocument({
                   </div>
 
                   <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
-                    <span className="font-bold text-brand-950">Week 2: Proof & Project Tours</span>
+                    <span className="font-bold text-brand-950">Week 2: Proof & Quality Showcases</span>
                     <ul className="text-brand-600 list-disc list-inside space-y-0.5">
                       {(roadmap30?.week2_ProofAndProjects || [
-                        "Reel: Before & After 3BHK Kitchen Makeover",
-                        "YouTube: Full Kitchen Tour Under ₹5.5 Lakhs",
-                        "Carousel: 6 Small Kitchen Space Savers",
+                        "Reel: Behind-the-Scenes Production & Standards",
+                        "YouTube: Complete Facility & Quality Tour",
+                        "Carousel: 5 Key Specifications Every Buyer Should Check",
                       ]).map((item: string, idx: number) => (
                         <li key={idx}>{item}</li>
                       ))}
@@ -317,12 +317,12 @@ function StrategyDocument({
                   </div>
 
                   <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
-                    <span className="font-bold text-brand-950">Week 3: Pricing & Material Guides</span>
+                    <span className="font-bold text-brand-950">Week 3: Pricing & Comparison Guides</span>
                     <ul className="text-brand-600 list-disc list-inside space-y-0.5">
                       {(roadmap30?.week3_PricingAndComparison || [
-                        "Reel: Where to Spend vs Save on Cabinets",
-                        "YouTube: Modular Cost per Sq Ft Explained",
-                        "Shorts: Quartz vs Granite Countertops",
+                        "Reel: Where to Optimize vs Where Never to Cut Corners",
+                        "YouTube: Cost Breakdown & Pricing Factors Explained",
+                        "Shorts: Direct Product & Grade Comparison",
                       ]).map((item: string, idx: number) => (
                         <li key={idx}>{item}</li>
                       ))}
@@ -330,12 +330,12 @@ function StrategyDocument({
                   </div>
 
                   <div className="rounded-lg bg-white p-3 border border-brand-100 space-y-1">
-                    <span className="font-bold text-brand-950">Week 4: Consultation & Conversion</span>
+                    <span className="font-bold text-brand-950">Week 4: Conversion & Inquiries</span>
                     <ul className="text-brand-600 list-disc list-inside space-y-0.5">
                       {(roadmap30?.week4_Conversion || [
-                        "Reel: What Happens in a 3D Design Session",
-                        "Client Video Testimonial & Cost Review",
-                        "Direct Bio Link Campaign for Design Consults",
+                        "Reel: Customer Outcome & Verification Review",
+                        "Client Case Study & Reliability Review",
+                        "Direct Inquiry & Consultation Campaign",
                       ]).map((item: string, idx: number) => (
                         <li key={idx}>{item}</li>
                       ))}
@@ -347,11 +347,11 @@ function StrategyDocument({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
                 <div className="rounded-xl border p-3.5 bg-white space-y-1" style={{ borderColor: "var(--color-brand-200)" }}>
                   <span className="font-bold text-brand-950">60-Day Expansion Goal</span>
-                  <p className="text-brand-600 text-[11.5px]">{roadmap60 || "Scale into micro-influencer architect collaborations and client home walkthroughs across 3 core cities."}</p>
+                  <p className="text-brand-600 text-[11.5px]">{roadmap60 || "Scale into industry partner collaborations, case studies, and localized authority guides across target markets."}</p>
                 </div>
                 <div className="rounded-xl border p-3.5 bg-white space-y-1" style={{ borderColor: "var(--color-brand-200)" }}>
                   <span className="font-bold text-brand-950">90-Day Dominance Goal</span>
-                  <p className="text-brand-600 text-[11.5px]">{roadmap90 || "Achieve #1 video ranking in local search queries for modular interior guides and achieve 25%+ citation dominance in AI engines."}</p>
+                  <p className="text-brand-600 text-[11.5px]">{roadmap90 || "Establish category leadership with proprietary data reports, client spotlights, and automated inbound funnel."}</p>
                 </div>
               </div>
             </div>
