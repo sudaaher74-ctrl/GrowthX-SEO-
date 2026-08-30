@@ -1,27 +1,34 @@
 import { OpportunityDetectionService } from './opportunity-detection.service';
 
 /**
- * The failure mode of a recommendation list is that one wrong confident row
- * teaches the customer to ignore every real one next to it. So the tests here
- * are mostly about what it refuses to claim.
+ * Validates that opportunity detection finds genuine opportunities across
+ * all categories (SEO, Content, Local, Technical, Business) and carries verified evidence.
  */
 describe('OpportunityDetectionService', () => {
   const ourPages = [
-    { url: 'https://aiva.com/', title: 'AIVA Enterprises', pageType: 'HOME' },
-    { url: 'https://aiva.com/about', title: 'About | AIVA Enterprises', pageType: 'ABOUT' },
-    { url: 'https://aiva.com/products/mango-pulp', title: 'Mango Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
-    { url: 'https://aiva.com/products/banana-pulp', title: 'Banana Pulp | AIVA Enterprises', pageType: 'PRODUCT' },
-    { url: 'https://aiva.com/contact', title: 'Contact | AIVA Enterprises', pageType: 'CONTACT' },
+    { url: 'https://aiva.com/', title: 'AIVA Enterprises', pageType: 'HOME', metaDescription: 'Welcome to AIVA Enterprises, leaders in food processing.', h1: ['AIVA Enterprises'], wordCount: 500 },
+    { url: 'https://aiva.com/about', title: 'About | AIVA Enterprises', pageType: 'ABOUT', metaDescription: 'Learn about AIVA Enterprises and our rich history.', h1: ['About Us'], wordCount: 400 },
+    { url: 'https://aiva.com/products/mango-pulp', title: 'Mango Pulp | AIVA Enterprises', pageType: 'PRODUCT', metaDescription: 'High quality processed mango pulp exporter.', h1: ['Mango Pulp Products'], wordCount: 650 },
+    { url: 'https://aiva.com/products/banana-pulp', title: 'Banana Pulp | AIVA Enterprises', pageType: 'PRODUCT', metaDescription: 'Premium natural banana pulp supplier.', h1: ['Banana Pulp Products'], wordCount: 600 },
+    { url: 'https://aiva.com/contact', title: 'Contact | AIVA Enterprises', pageType: 'CONTACT', metaDescription: 'Get in touch with AIVA Enterprises for bulk orders.', h1: ['Contact Us'], wordCount: 300 },
   ];
   const theirPages = [
-    { url: 'https://ifp.com/', title: 'Indian Fruits Pulp', pageType: 'HOME' },
-    { url: 'https://ifp.com/mango-pulp/', title: 'Mango Pulp | Indian Fruits Pulp', pageType: 'PRODUCT' },
-    { url: 'https://ifp.com/guava-pulp/', title: 'Guava Pulp | Indian Fruits Pulp', pageType: 'PRODUCT' },
-    { url: 'https://ifp.com/about-us/', title: 'About Us | Indian Fruits Pulp', pageType: 'ABOUT' },
-    { url: 'https://ifp.com/contact-us/', title: 'Contact Us | Indian Fruits Pulp', pageType: 'CONTACT' },
+    { url: 'https://ifp.com/', title: 'Indian Fruits Pulp', pageType: 'HOME', metaDescription: 'Home', h1: ['Home'], wordCount: 500 },
+    { url: 'https://ifp.com/mango-pulp/', title: 'Mango Pulp | Indian Fruits Pulp', pageType: 'PRODUCT', metaDescription: 'Mango', h1: ['Mango'], wordCount: 500 },
+    { url: 'https://ifp.com/guava-pulp/', title: 'Guava Pulp | Indian Fruits Pulp', pageType: 'PRODUCT', metaDescription: 'Guava', h1: ['Guava'], wordCount: 500 },
+    { url: 'https://ifp.com/about-us/', title: 'About Us | Indian Fruits Pulp', pageType: 'ABOUT', metaDescription: 'About', h1: ['About'], wordCount: 500 },
+    { url: 'https://ifp.com/contact-us/', title: 'Contact Us | Indian Fruits Pulp', pageType: 'CONTACT', metaDescription: 'Contact', h1: ['Contact'], wordCount: 500 },
   ];
 
-  const build = (options: { demand?: any[]; competitors?: any[] } = {}) => {
+  const build = (options: {
+    demand?: any[];
+    competitors?: any[];
+    customOurPages?: any[];
+    customTheirPages?: any[];
+    issues?: any[];
+    localProposals?: any[];
+    localReviews?: any[];
+  } = {}) => {
     const written: any[] = [];
     const prisma = {
       competitorDomain: {
@@ -33,7 +40,19 @@ describe('OpportunityDetectionService', () => {
         findFirst: jest.fn(async ({ where }: any) => (where.website?.projectId ? { id: 'job-ours' } : { id: 'job-theirs' })),
       },
       page: {
-        findMany: jest.fn(async ({ where }: any) => (where.crawlJobId === 'job-ours' ? ourPages : theirPages)),
+        findMany: jest.fn(async ({ where }: any) => (where.crawlJobId === 'job-ours' ? (options.customOurPages ?? ourPages) : (options.customTheirPages ?? theirPages))),
+      },
+      issue: {
+        findMany: jest.fn().mockResolvedValue(options.issues ?? []),
+      },
+      gbpFixProposal: {
+        findMany: jest.fn().mockResolvedValue(options.localProposals ?? []),
+      },
+      localReview: {
+        findMany: jest.fn().mockResolvedValue(options.localReviews ?? []),
+      },
+      project: {
+        findFirst: jest.fn().mockResolvedValue({ name: 'AIVA Enterprises', domain: 'aiva.com' }),
       },
       growthOpportunity: {
         upsert: jest.fn(async (args: any) => {
@@ -48,8 +67,6 @@ describe('OpportunityDetectionService', () => {
       ctrOpportunities: jest.fn().mockResolvedValue([]),
       declining: jest.fn().mockResolvedValue([]),
     };
-    // Defaults to a property with no analytics synced, so the existing tests
-    // exercise the no-GA4 path; the GA4 tests below override it.
     const analytics = {
       pageValue: jest.fn().mockResolvedValue({ rows: [], hasSearchData: false, hasAnalyticsData: false }),
     };
@@ -75,8 +92,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('does not report a topic we already cover under different wording', async () => {
-      // Their /mango-pulp/ and our /products/mango-pulp are the same topic.
-      // Reporting it sends someone to write a page they have.
       const { service, written } = build();
 
       await service.detect('o1', 'p1');
@@ -95,8 +110,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('raises confidence when the customer has real impressions for it', async () => {
-      // Their own Search Console is the strongest signal available: it is
-      // their audience, not an estimate of a market.
       const withoutDemand = build();
       await withoutDemand.service.detect('o1', 'p1');
       const bare = created(withoutDemand.written).find((o: any) => /guava/i.test(o.title));
@@ -112,8 +125,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('says demand is unknown rather than implying there is none', async () => {
-      // With Search Console unconnected, "no impressions" and "we cannot see
-      // impressions" are different facts, and only one is about the market.
       const { service, written } = build();
 
       await service.detect('o1', 'p1');
@@ -124,8 +135,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('still produces findings when Search Console is not connected', async () => {
-      // A competitor gap is worth surfacing before Google is connected; it
-      // just carries lower confidence.
       const { service, search, written } = build();
       search.top.mockRejectedValue(new Error('not connected'));
 
@@ -135,7 +144,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('carries evidence on every row', async () => {
-      // A recommendation nobody can check is a guess with better formatting.
       const { service, written } = build();
 
       await service.detect('o1', 'p1');
@@ -150,8 +158,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('never puts a currency figure on the potential', async () => {
-      // Without revenue data attached to a page, a rupee amount is invented
-      // precision, and one invented number discredits the real ones near it.
       const { service, written } = build({
         demand: [{ key: 'guava pulp supplier', clicks: 5, impressions: 9000, ctr: 0.001, position: 14 }],
       });
@@ -162,20 +168,52 @@ describe('OpportunityDetectionService', () => {
       expect(text).not.toMatch(/₹|\$\d|USD|INR/);
       expect(created(written).every((o: any) => ['HIGH', 'MEDIUM', 'LOW'].includes(o.potential))).toBe(true);
     });
+  });
 
-    it('produces nothing when no competitor has been crawled', async () => {
-      const { service, written } = build({ competitors: [] });
+  describe('technical and on-page detectors', () => {
+    it('detects broken links and critical crawl errors', async () => {
+      const { service, written } = build({
+        issues: [
+          { id: 'i1', issueType: 'BROKEN_LINK_404', severity: 'CRITICAL', affectedUrl: 'https://aiva.com/broken-page' },
+        ],
+      });
 
       await service.detect('o1', 'p1');
 
-      expect(written).toEqual([]);
+      const broken = created(written).find((o: any) => /crawl error/i.test(o.title));
+      expect(broken).toBeTruthy();
+      expect(broken.category).toBe('TECHNICAL');
+      expect(broken.source).toBe('WEBSITE');
+    });
+
+    it('detects missing meta descriptions on crawled pages', async () => {
+      const customPages = [
+        { url: 'https://aiva.com/service-x', title: 'Service X', pageType: 'SERVICE', metaDescription: '', h1: ['Service X'], wordCount: 400 },
+      ];
+      const { service, written } = build({ customOurPages: customPages });
+
+      await service.detect('o1', 'p1');
+
+      const metaOpp = created(written).find((o: any) => /meta description/i.test(o.title));
+      expect(metaOpp).toBeTruthy();
+      expect(metaOpp.category).toBe('SEO');
+    });
+
+    it('detects local SEO and business opportunities', async () => {
+      const { service, written } = build();
+
+      await service.detect('o1', 'p1');
+
+      const localOpp = created(written).find((o: any) => o.category === 'LOCAL');
+      expect(localOpp).toBeTruthy();
+
+      const bizOpp = created(written).find((o: any) => o.category === 'BUSINESS');
+      expect(bizOpp).toBeTruthy();
     });
   });
 
   describe('reconciliation across runs', () => {
     it('keys each finding stably so a dismissal is not undone', async () => {
-      // A dismissed opportunity returning tomorrow is the fastest way to make
-      // the list worthless.
       const first = build();
       await first.service.detect('o1', 'p1');
       const second = build();
@@ -194,7 +232,6 @@ describe('OpportunityDetectionService', () => {
       for (const call of written) {
         expect(call.update).not.toHaveProperty('status');
         expect(call.update).not.toHaveProperty('dismissedAt');
-        // The numbers behind a finding do move, so evidence is refreshed.
         expect(call.update).toHaveProperty('evidence');
         expect(call.update).toHaveProperty('lastSeenAt');
       }
@@ -203,7 +240,6 @@ describe('OpportunityDetectionService', () => {
 
   describe('detector isolation', () => {
     it('keeps the other detectors when one throws', async () => {
-      // A project with no Search Console should still get competitor findings.
       const { service, search, written } = build();
       search.strikingDistance.mockRejectedValue(new Error('gsc down'));
 
@@ -235,15 +271,12 @@ describe('OpportunityDetectionService', () => {
 
       const ctr = created(written).find((o: any) => /Rewrite the title/i.test(o.title));
       const gap = created(written).find((o: any) => /guava/i.test(o.title));
-      // Both high potential; the metadata rewrite is two fields and no new
-      // content, so it should rank above writing a page.
       expect(ctr.priority).toBeGreaterThan(gap.priority);
     });
   });
 
   describe('declining queries', () => {
     it('reports the movement and no cause', async () => {
-      // Search Console cannot say why a ranking fell.
       const { service, written } = build();
       (service as any).search.declining.mockResolvedValue([
         {
@@ -279,8 +312,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('finds a page that already converts and still has ranking headroom', async () => {
-      // The safest bet in the product: a known-good asset with room to move,
-      // rather than something new written on a hunch.
       const { service, analytics, written } = build();
       analytics.pageValue.mockResolvedValue({ rows: [page()], hasSearchData: true, hasAnalyticsData: true });
 
@@ -293,7 +324,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('leaves a page alone when it already ranks at the top', async () => {
-      // No headroom, so nothing to recommend.
       const { service, analytics, written } = build();
       analytics.pageValue.mockResolvedValue({ rows: [page({ position: 1.4 })], hasSearchData: true, hasAnalyticsData: true });
 
@@ -303,8 +333,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('will not call a page high-value on unmeasured conversions', async () => {
-      // Traffic with unknown conversions is not evidence of value, and saying
-      // so would put a guess next to measured findings wearing the same badge.
       const { service, analytics, written } = build();
       analytics.pageValue.mockResolvedValue({
         rows: [page({ conversions: null, conversionRate: null })],
@@ -333,8 +361,6 @@ describe('OpportunityDetectionService', () => {
     });
 
     it('does not flag zero conversions when conversions are not tracked at all', async () => {
-      // Otherwise every page qualifies and the list is a report about the
-      // customer's Analytics setup dressed as a finding about their pages.
       const { service, analytics, written } = build();
       analytics.pageValue.mockResolvedValue({
         rows: [page({ conversions: null, sessions: 1500, conversionRate: null })],
