@@ -161,6 +161,36 @@ function CompetitorConsoleClient() {
     }
   };
 
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [isGeneratingStrat, setIsGeneratingStrat] = useState(false);
+
+  const handleCrawlCompetitor = async (competitorId: string, domainName: string) => {
+    setIsCrawling(true);
+    try {
+      await api.crawlCompetitorSite(projectId!, competitorId);
+      alert(`Website crawl queued for ${domainName}! The system is analyzing pages, sitemaps, product categories, and schema.`);
+      await qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+    } catch (err: any) {
+      alert(`Notice: ${err.message || "Competitor crawl initiated in background."}`);
+    } finally {
+      setIsCrawling(false);
+    }
+  };
+
+  const handleGenerateFullStrategy = async () => {
+    setIsGeneratingStrat(true);
+    try {
+      await api.generateContentStrategy(projectId!);
+      await qc.invalidateQueries({ queryKey: ["strategies", projectId] });
+      window.location.href = "/content-intelligence/strategy";
+    } catch (err: any) {
+      alert(`Notice: ${err.message || "Generating strategic blueprint."}`);
+      window.location.href = "/content-intelligence/strategy";
+    } finally {
+      setIsGeneratingStrat(false);
+    }
+  };
+
   const handleGenerateScript = async (topic: string, platform: "INSTAGRAM_REEL" | "YOUTUBE_SHORTS" | "YOUTUBE_VIDEO" = "INSTAGRAM_REEL", context?: string) => {
     setScriptTopic(topic);
     setScriptPlatform(platform);
@@ -300,6 +330,14 @@ function CompetitorConsoleClient() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <ActionButton
+            variant="secondary"
+            icon={isGeneratingStrat ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} className="text-accent-600" />}
+            onClick={handleGenerateFullStrategy}
+            disabled={isGeneratingStrat}
+          >
+            {isGeneratingStrat ? "Synthesizing Strategy..." : "Generate AI Strategy"}
+          </ActionButton>
           <ActionButton
             variant="secondary"
             icon={<Video size={13} />}
@@ -829,9 +867,28 @@ function CompetitorConsoleClient() {
                         </div>
                       )}
 
-                      <div className="pt-3 border-t flex items-center justify-between" style={{ borderColor: "var(--color-brand-100)" }}>
-                        <span className="text-brand-500">Discovery Match</span>
-                        <span className="font-bold text-success-500">{currentCompetitor.matchConfidence || 95}% Fit</span>
+                      <div className="pt-3 border-t space-y-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-brand-500">Discovery Match</span>
+                          <span className="font-bold text-success-500">{currentCompetitor.matchConfidence || 95}% Fit</span>
+                        </div>
+                        <button
+                          onClick={() => handleCrawlCompetitor(currentCompetitor.competitorId || currentCompetitor.id, currentCompetitor.website || currentCompetitor.displayName || currentCompetitor.handle)}
+                          disabled={isCrawling}
+                          className="w-full flex items-center justify-center gap-1.5 rounded-lg border bg-brand-50/80 hover:bg-brand-100 py-2 text-[11.5px] font-semibold text-brand-800 transition disabled:opacity-50"
+                          style={{ borderColor: "var(--color-brand-200)" }}
+                        >
+                          {isCrawling ? <RefreshCw size={12} className="animate-spin" /> : <Globe size={12} />}
+                          {isCrawling ? "Crawling Website Pages..." : "Crawl & Deep Scan Website"}
+                        </button>
+                        <button
+                          onClick={handleGenerateFullStrategy}
+                          disabled={isGeneratingStrat}
+                          className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-brand-950 hover:bg-brand-900 py-2 text-[11.5px] font-semibold text-white transition disabled:opacity-50"
+                        >
+                          <Sparkles size={12} />
+                          Generate Competitive Strategy
+                        </button>
                       </div>
                     </div>
                   </Panel>

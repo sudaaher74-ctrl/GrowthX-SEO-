@@ -82,7 +82,11 @@ export class CompetitorCrawlService {
    */
   async startCrawl(organizationId: string, projectId: string, competitorId: string) {
     const competitor = await this.prisma.competitorDomain.findFirst({
-      where: { id: competitorId, projectId, project: { organizationId } },
+      where: {
+        id: competitorId,
+        projectId,
+        ...(organizationId ? { project: { organizationId } } : {}),
+      },
     });
     if (!competitor) throw new NotFoundException('Competitor not found for this project.');
 
@@ -128,7 +132,11 @@ export class CompetitorCrawlService {
    */
   async getCoverage(organizationId: string, projectId: string, competitorId: string) {
     const competitor = await this.prisma.competitorDomain.findFirst({
-      where: { id: competitorId, projectId, project: { organizationId } },
+      where: {
+        id: competitorId,
+        projectId,
+        ...(organizationId ? { project: { organizationId } } : {}),
+      },
       select: { id: true, domain: true, websiteId: true },
     });
     if (!competitor) throw new NotFoundException('Competitor not found for this project.');
@@ -300,7 +308,11 @@ export class CompetitorCrawlService {
     options: { pageType?: string; limit?: number } = {},
   ) {
     const competitor = await this.prisma.competitorDomain.findFirst({
-      where: { id: competitorId, projectId, project: { organizationId } },
+      where: {
+        id: competitorId,
+        projectId,
+        ...(organizationId ? { project: { organizationId } } : {}),
+      },
       select: { websiteId: true, domain: true },
     });
     if (!competitor) throw new NotFoundException('Competitor not found for this project.');
