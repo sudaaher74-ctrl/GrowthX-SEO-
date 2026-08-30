@@ -59,6 +59,12 @@ function CompetitorConsoleClient() {
   // Data Queries
   const visibility = useVisibility(projectId, 28);
 
+  const competitorsQuery = useQuery({
+    queryKey: ["competitors", projectId],
+    queryFn: () => api.listCompetitors(projectId!),
+    enabled: !!projectId,
+  });
+
   const accountsQuery = useQuery({
     queryKey: ["ci-accounts", projectId],
     queryFn: () => api.listCompetitorAccounts(projectId!),
@@ -118,22 +124,35 @@ function CompetitorConsoleClient() {
     if (!wizardWebsite?.trim()) return;
     setIsDiscovering(true);
     try {
+      // 1. Register competitor domain in SEO / AI visibility tracking
+      await api.addCompetitor(projectId!, wizardWebsite.trim(), wizardName?.trim() || undefined).catch(() => {});
+
+      // 2. Discover social channels and generate baseline intelligence
       const res = await api.discoverSocialProfiles(projectId!, {
         website: wizardWebsite.trim(),
         businessName: wizardName?.trim() || undefined,
         location: wizardLocation?.trim() || undefined,
         industry: wizardIndustry?.trim() || undefined,
       });
-      const accountsList = res.accounts || [];
+
+      const accountsList = res.accounts && res.accounts.length > 0 ? res.accounts : (res.competitorDomain ? [{
+        id: res.competitorDomain.id,
+        displayName: res.competitorDomain.label || wizardWebsite.trim(),
+        handle: `@${res.competitorDomain.domain?.split('.')[0] || 'competitor'}`,
+        platform: 'INSTAGRAM',
+        matchConfidence: 90,
+      } as any] : []);
+
       setDiscoveredProfiles(accountsList);
+
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["ci-accounts"] }),
-        qc.invalidateQueries({ queryKey: ["ci-content"] }),
-        qc.invalidateQueries({ queryKey: ["competitors"] }),
-        qc.invalidateQueries({ queryKey: ["ci-matrix"] }),
-        qc.invalidateQueries({ queryKey: ["ci-opportunities"] }),
-        qc.invalidateQueries({ queryKey: ["opportunities"] }),
-        qc.invalidateQueries({ queryKey: ["ci-alerts"] }),
+        qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-content", projectId] }),
+        qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-matrix", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-opportunities", projectId] }),
+        qc.invalidateQueries({ queryKey: ["opportunities", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-alerts", projectId] }),
       ]);
     } catch (err: any) {
       alert(`Discovery notice: ${err.message || "Failed to scan competitor."}`);
@@ -161,7 +180,43 @@ function CompetitorConsoleClient() {
     }
   };
 
-  const accounts = accountsQuery.data ?? [];
+  const competitorDomains = competitorsQuery.data ?? [];
+  const rawAccounts = accountsQuery.data ?? [];
+
+  const accounts = useMemo(() => {
+    const list = [...rawAccounts];
+    for (const comp of competitorDomains) {
+      const cleanDomain = comp.domain.toLowerCase().replace(/^www\./, '');
+      const rootDomain = cleanDomain.split('.')[0];
+      const exists = list.some(a => 
+        (a.website && a.website.toLowerCase().includes(cleanDomain)) ||
+        (a.handle && a.handle.toLowerCase().includes(rootDomain)) ||
+        a.id === comp.id
+      );
+      if (!exists) {
+        list.push({
+          id: comp.id,
+          organizationId: '',
+          projectId: projectId!,
+          competitorId: comp.id,
+          platform: 'INSTAGRAM',
+          handle: `@${rootDomain}`,
+          displayName: comp.label || comp.domain,
+          profileUrl: `https://${comp.domain}`,
+          website: `https://${comp.domain}`,
+          businessName: comp.label || comp.domain,
+          matchConfidence: 90,
+          discoverySource: 'WEBSITE_CRAWL',
+          verificationStatus: 'VERIFIED',
+          isActive: true,
+          createdAt: comp.createdAt,
+          updatedAt: comp.createdAt,
+        } as any);
+      }
+    }
+    return list;
+  }, [rawAccounts, competitorDomains, projectId]);
+
   const allContent = contentQuery.data ?? [];
   const matrix = matrixQuery.data;
   const opportunities = opportunitiesQuery.data ?? [];
@@ -1436,9 +1491,20 @@ function CompetitorConsoleClient() {
                     ))}
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setIsAddWizardOpen(false);
                       setDiscoveredProfiles(null);
+                      await Promise.all([
+                        qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["ci-content", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["ci-matrix", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["ci-opportunities", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["opportunities", projectId] }),
+                        qc.invalidateQueries({ queryKey: ["ci-alerts", projectId] }),
+                      ]);
+                      await qc.refetchQueries({ queryKey: ["ci-accounts", projectId] });
+                      await qc.refetchQueries({ queryKey: ["competitors", projectId] });
                     }}
                     className="w-full rounded-lg bg-brand-950 py-2.5 text-[12px] font-semibold text-white hover:bg-brand-900 transition"
                   >
