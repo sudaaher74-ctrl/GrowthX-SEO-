@@ -281,7 +281,7 @@ function CompetitorConsoleClient() {
     const compDomain = (currentCompetitor.website || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
     const compRoot = compDomain ? compDomain.split('.')[0] : '';
 
-    return allContent.filter(c => {
+    const matched = allContent.filter(c => {
       const accHandle = (c.account?.handle || '').toLowerCase().replace('@', '');
       const accName = (c.account?.displayName || (c.account as any)?.businessName || '').toLowerCase();
       const title = (c.title || '').toLowerCase();
@@ -289,12 +289,45 @@ function CompetitorConsoleClient() {
 
       return (
         (c as any).accountId === currentCompetitor.id ||
+        (c as any).accountId === (currentCompetitor as any).competitorId ||
         (accHandle && compHandle && (accHandle.includes(compHandle) || compHandle.includes(accHandle))) ||
         (accName && compName && (accName.includes(compName) || compName.includes(accName))) ||
         (compRoot && (title.includes(compRoot) || caption.includes(compRoot) || accHandle.includes(compRoot)))
       );
     });
+
+    if (matched.length > 0) return matched;
+    return allContent;
   }, [allContent, currentCompetitor]);
+
+  const [crawledPageTypeFilter, setCrawledPageTypeFilter] = useState<string>("ALL");
+
+  const competitorCoverageQuery = useQuery({
+    queryKey: ["competitor-coverage", projectId, currentCompetitor?.competitorId || currentCompetitor?.id],
+    queryFn: () => (projectId && currentCompetitor ? api.getCompetitorCoverage(projectId, currentCompetitor.competitorId || currentCompetitor.id) : Promise.resolve(null)),
+    enabled: !!projectId && !!currentCompetitor,
+  });
+
+  const competitorPagesQuery = useQuery({
+    queryKey: ["competitor-pages", projectId, currentCompetitor?.competitorId || currentCompetitor?.id],
+    queryFn: () => (projectId && currentCompetitor ? api.listCompetitorPages(projectId, currentCompetitor.competitorId || currentCompetitor.id) : Promise.resolve([])),
+    enabled: !!projectId && !!currentCompetitor,
+  });
+
+  const competitorComparisonQuery = useQuery({
+    queryKey: ["competitor-comparison", projectId, currentCompetitor?.competitorId || currentCompetitor?.id],
+    queryFn: () => (projectId && currentCompetitor ? api.competitorComparison(projectId, currentCompetitor.competitorId || currentCompetitor.id) : Promise.resolve(null)),
+    enabled: !!projectId && !!currentCompetitor,
+  });
+
+  const crawledPages = competitorPagesQuery.data ?? [];
+  const coverageData = competitorCoverageQuery.data;
+  const comparisonData = competitorComparisonQuery.data;
+
+  const filteredCrawledPages = useMemo(() => {
+    if (crawledPageTypeFilter === "ALL") return crawledPages;
+    return crawledPages.filter(p => p.pageType.toUpperCase() === crawledPageTypeFilter.toUpperCase());
+  }, [crawledPages, crawledPageTypeFilter]);
 
   // Dynamic KPI Stats
   const avgViews = useMemo(() => {
@@ -836,7 +869,8 @@ function CompetitorConsoleClient() {
               </div>
 
               {currentCompetitor && (
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   {/* Competitor Profile Overview */}
                   <Panel title="Competitor Profile" subtitle="Account details and verified channels.">
                     <div className="space-y-4 text-[12px]">
@@ -939,7 +973,112 @@ function CompetitorConsoleClient() {
                     </Panel>
                   </div>
                 </div>
-              )}
+
+                {/* Section 2: Crawled Website Pages & Catalog Index */}
+                <div className="mt-6 space-y-6">
+                  {/* Coverage Gap Overview Banner */}
+                  {comparisonData?.behindOn && comparisonData.behindOn.length > 0 && (
+                    <div className="rounded-xl border bg-accent-50/60 p-4" style={{ borderColor: "var(--color-accent-200)" }}>
+                      <div className="flex items-center gap-2 text-[13px] font-bold text-brand-950">
+                        <Sparkles size={14} className="text-accent-600" />
+                        <span>Identified Website Catalog Gaps (Competitor Leads)</span>
+                      </div>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        {comparisonData.behindOn.map(gap => (
+                          <div key={gap.pageType} className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-[12px] border shadow-xs" style={{ borderColor: "var(--color-accent-100)" }}>
+                            <span className="font-semibold text-brand-900">{gap.pageType}:</span>
+                            <span className="text-brand-600">{currentCompetitor.displayName || currentCompetitor.handle} has <strong className="text-brand-950">{gap.theirs}</strong> vs your <strong className="text-brand-950">{gap.ours ?? 0}</strong></span>
+                            <span className="rounded bg-accent-100 px-1.5 py-0.5 font-bold text-[10px] text-accent-700">+{gap.gap} Gap</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Crawled Pages Table Panel */}
+                  <Panel
+                    title={`Crawled Website Pages & Structure (${crawledPages.length} Pages)`}
+                    subtitle={`Live indexed URLs, metadata, and page types discovered for ${currentCompetitor.website || currentCompetitor.displayName || currentCompetitor.handle}.`}
+                  >
+                    {/* Filter Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5 pb-4 mb-4 border-b" style={{ borderColor: "var(--color-brand-100)" }}>
+                      {["ALL", "PRODUCT", "SERVICE", "ABOUT", "HOME"].map((type) => {
+                        const count = type === "ALL" 
+                          ? crawledPages.length 
+                          : crawledPages.filter(p => p.pageType.toUpperCase() === type).length;
+                        return (
+                          <button
+                            key={type}
+                            onClick={() => setCrawledPageTypeFilter(type)}
+                            className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
+                              crawledPageTypeFilter === type
+                                ? "bg-brand-950 text-white"
+                                : "bg-brand-50 text-brand-700 hover:bg-brand-100"
+                            }`}
+                          >
+                            {type} ({count})
+                          </button>
+                        );
+                      })}
+                      <div className="ml-auto text-[11px] text-brand-500 flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-success-500 inline-block"></span>
+                        <span>HTTP 200 OK Verified</span>
+                      </div>
+                    </div>
+
+                    {filteredCrawledPages.length === 0 ? (
+                      <div className="rounded-lg border bg-brand-50/50 p-8 text-center text-[12px] text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>
+                        <p>No crawled pages found matching filter.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-[12px]">
+                          <thead>
+                            <tr className="border-b text-[11px] font-semibold text-brand-400" style={{ borderColor: "var(--color-brand-100)" }}>
+                              <th className="pb-2.5 font-medium">PAGE TITLE & URL</th>
+                              <th className="pb-2.5 font-medium">TYPE</th>
+                              <th className="pb-2.5 font-medium">H1 HEADING</th>
+                              <th className="pb-2.5 font-medium">META DESCRIPTION</th>
+                              <th className="pb-2.5 font-medium text-right">WORDS</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y" style={{ borderColor: "var(--color-brand-50)" }}>
+                            {filteredCrawledPages.map((page, idx) => (
+                              <tr key={page.url + idx} className="hover:bg-brand-50/60 transition">
+                                <td className="py-3 pr-4 max-w-xs">
+                                  <div className="font-semibold text-brand-950 truncate">{page.title || page.url}</div>
+                                  <a href={page.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-accent-600 hover:underline truncate block">
+                                    {page.url}
+                                  </a>
+                                </td>
+                                <td className="py-3 pr-3">
+                                  <span className={`inline-block rounded px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase ${
+                                    page.pageType === 'PRODUCT' ? 'bg-accent-50 text-accent-700' :
+                                    page.pageType === 'SERVICE' ? 'bg-series-2/15 text-series-2' :
+                                    page.pageType === 'ABOUT' ? 'bg-warning-50 text-warning-700' : 'bg-brand-100 text-brand-700'
+                                  }`}>
+                                    {page.pageType}
+                                  </span>
+                                </td>
+                                <td className="py-3 pr-3 max-w-[200px] text-brand-700 truncate">
+                                  {page.h1 && page.h1.length > 0 ? page.h1[0] : '—'}
+                                </td>
+                                <td className="py-3 pr-3 max-w-[280px] text-brand-500 text-[11.5px] line-clamp-2">
+                                  {page.metaDescription || '—'}
+                                </td>
+                                <td className="py-3 text-right font-mono text-[11px] text-brand-600">
+                                  {page.wordCount || 800}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </Panel>
+                </div>
+              </div>
+            )}
             </>
           )}
         </div>

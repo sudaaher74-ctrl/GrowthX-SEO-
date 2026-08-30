@@ -1310,6 +1310,16 @@ export const api = {
     );
   },
 
+  getCompetitorCoverage: (projectId: string, competitorId: string) =>
+    get<{ competitorId: string; domain: string; crawlJobId: string; crawledAt: string; totalPages: number; capped: boolean; byType: Record<string, number>; untyped: number } | null>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/coverage`,
+    ),
+
+  listCompetitorPages: (projectId: string, competitorId: string, pageType?: string) =>
+    get<Array<{ url: string; title: string | null; metaDescription: string | null; h1: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }>>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
+    ),
+
   // ── Google connections ───────────────────────────────────────────────────
   googleConnections: (projectId: string) =>
     get<GoogleConnectionStatus>(`/api/projects/${projectId}/integrations/google`),
