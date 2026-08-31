@@ -141,6 +141,11 @@ function CompetitorConsoleClient() {
     e.preventDefault();
     if (!wizardWebsite?.trim()) return;
 
+    if (!projectId) {
+      alert("Please select or create a project before adding competitors.");
+      return;
+    }
+
     const rawInput = wizardWebsite.trim();
     const cleanDomain = rawInput.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
     const cleanUrl = rawInput.startsWith('http://') || rawInput.startsWith('https://') ? rawInput : `https://${rawInput}`;
@@ -149,65 +154,46 @@ function CompetitorConsoleClient() {
     try {
       let accountsList: any[] = [];
 
-      if (projectId) {
-        // 1. Register competitor domain in SEO / AI visibility tracking
-        await api.addCompetitor(projectId, cleanDomain, wizardName?.trim() || undefined).catch(() => {});
+      // 1. Register competitor domain in SEO / AI visibility tracking
+      await api.addCompetitor(projectId, cleanDomain, wizardName?.trim() || undefined);
 
-        // 2. Discover social channels and generate baseline intelligence
-        try {
-          const res = await api.discoverSocialProfiles(projectId, {
-            website: cleanUrl,
-            businessName: wizardName?.trim() || undefined,
-            location: wizardLocation?.trim() || undefined,
-            industry: wizardIndustry?.trim() || undefined,
-          });
-
-          if (res && res.accounts && res.accounts.length > 0) {
-            accountsList = res.accounts;
-          } else if (res && res.competitorDomain) {
-            accountsList = [{
-              id: res.competitorDomain.id,
-              displayName: res.competitorDomain.label || wizardName?.trim() || cleanDomain,
-              handle: `@${res.competitorDomain.domain?.split('.')[0] || cleanDomain.split('.')[0] || 'competitor'}`,
-              platform: 'INSTAGRAM',
-              matchConfidence: 90,
-            } as any];
-          }
-        } catch (discoverErr: any) {
-          console.warn("Live social discovery backend call failed:", discoverErr);
-        }
-      }
-
-      // If backend was unreachable or returned empty, generate fallback profile so UI remains functional
-      if (accountsList.length === 0) {
-        accountsList = [{
-          id: `comp-temp-${Date.now()}`,
-          displayName: wizardName?.trim() || cleanDomain,
-          handle: `@${cleanDomain.split('.')[0] || 'competitor'}`,
-          platform: 'INSTAGRAM',
-          matchConfidence: 90,
+      // 2. Discover social channels and generate baseline intelligence
+      try {
+        const res = await api.discoverSocialProfiles(projectId, {
           website: cleanUrl,
-          businessName: wizardName?.trim() || cleanDomain,
-          location: wizardLocation?.trim() || 'Global',
-          industry: wizardIndustry?.trim() || 'General',
-        } as any];
+          businessName: wizardName?.trim() || undefined,
+          location: wizardLocation?.trim() || undefined,
+          industry: wizardIndustry?.trim() || undefined,
+        });
+
+        if (res && res.accounts && res.accounts.length > 0) {
+          accountsList = res.accounts;
+        } else if (res && res.competitorDomain) {
+          accountsList = [{
+            id: res.competitorDomain.id,
+            displayName: res.competitorDomain.label || wizardName?.trim() || cleanDomain,
+            handle: `@${res.competitorDomain.domain?.split('.')[0] || cleanDomain.split('.')[0] || 'competitor'}`,
+            platform: 'INSTAGRAM',
+            matchConfidence: 90,
+          } as any];
+        }
+      } catch (discoverErr: any) {
+        console.warn("Social profile discovery notice:", discoverErr);
       }
 
       setDiscoveredProfiles(accountsList);
 
-      if (projectId) {
-        await Promise.all([
-          qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] }),
-          qc.invalidateQueries({ queryKey: ["ci-content", projectId] }),
-          qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
-          qc.invalidateQueries({ queryKey: ["ci-matrix", projectId] }),
-          qc.invalidateQueries({ queryKey: ["ci-opportunities", projectId] }),
-          qc.invalidateQueries({ queryKey: ["opportunities", projectId] }),
-          qc.invalidateQueries({ queryKey: ["ci-alerts", projectId] }),
-        ]);
-      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-content", projectId] }),
+        qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-matrix", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-opportunities", projectId] }),
+        qc.invalidateQueries({ queryKey: ["opportunities", projectId] }),
+        qc.invalidateQueries({ queryKey: ["ci-alerts", projectId] }),
+      ]);
     } catch (err: any) {
-      alert(`Discovery notice: ${err.message || "Failed to scan competitor."}`);
+      alert(`Competitor registration: ${err.message || "Failed to add competitor."}`);
     } finally {
       setIsDiscovering(false);
     }

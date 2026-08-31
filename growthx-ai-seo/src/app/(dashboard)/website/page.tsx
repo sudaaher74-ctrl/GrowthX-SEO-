@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/console";
 import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useCrawlHistory, useCrawlIssues, useCrawlPages, useLatestCrawl, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
@@ -144,11 +145,19 @@ function WebsiteClient() {
       />
 
       <QueryState
-        isLoading={portfolio.isLoading || crawl.isLoading}
-        error={portfolio.error}
+        isLoading={Boolean(client?.domain) && (portfolio.isLoading || crawl.isLoading)}
+        error={client?.domain ? (portfolio.error || crawl.error) : null}
         isEmpty={!client?.domain}
         emptyTitle="No website registered"
         emptyBody="This workspace has no client with a website attached yet. Add one from Projects, then run a full scan to populate the audit."
+        emptyAction={
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-[12.5px] font-medium text-white shadow-sm hover:bg-brand-900 transition"
+          >
+            Go to Projects to Add Website
+          </Link>
+        }
       >
         {/* Site banner — the one place that answers "which site, how healthy,
             how fresh" without the reader assembling it from four tiles. */}

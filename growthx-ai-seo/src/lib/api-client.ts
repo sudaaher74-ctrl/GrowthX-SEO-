@@ -41,9 +41,7 @@ const REFRESH_KEY = "growthx.refresh";
 export const auth = {
   getToken(): string | null {
     if (typeof window === "undefined") return null;
-    const stored = window.localStorage.getItem(TOKEN_KEY);
-    if (stored) return stored;
-    return "growthx-session-token";
+    return window.localStorage.getItem(TOKEN_KEY);
   },
   setToken(token: string) {
     window.localStorage.setItem(TOKEN_KEY, token);
@@ -57,14 +55,14 @@ export const auth = {
   },
   getOrgId(): string | null {
     if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(ORG_KEY) || "1744ab06-245f-4bc7-ac85-0b03606fb6fd";
+    return window.localStorage.getItem(ORG_KEY);
   },
   setOrgId(orgId: string) {
     window.localStorage.setItem(ORG_KEY, orgId);
   },
   getProjectId(): string | null {
     if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(PROJECT_KEY) || "a2c85a86-e0e1-485a-a8e8-994047080921";
+    return window.localStorage.getItem(PROJECT_KEY);
   },
   setProjectId(projectId: string) {
     window.localStorage.setItem(PROJECT_KEY, projectId);
@@ -1110,20 +1108,7 @@ export const api = {
     if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
-  getMe: async () => {
-    try {
-      const res = await get<UserProfile>('/auth/me');
-      if (res && res.id) return res;
-    } catch {}
-    return {
-      id: "usr-admin",
-      email: "admin@growthx.ai",
-      firstName: "Admin",
-      lastName: "User",
-      googleId: null,
-      businessDetails: "Enterprise Growth & SEO Agency",
-    };
-  },
+  getMe: () => get<UserProfile>('/auth/me'),
   logout: () => auth.clear(),
 
 
@@ -1182,24 +1167,9 @@ export const api = {
     post<MarketOutcomeRow>(`/api/projects/${projectId}/market-research/actions/${actionId}/measure`, {}),
 
   // ── Organizations & projects
-  listOrganizations: async () => {
-    try {
-      const res = await get<{ id: string; name: string; slug: string }[]>("/organizations");
-      if (Array.isArray(res) && res.length > 0) return res;
-    } catch {}
-    return [{ id: "1744ab06-245f-4bc7-ac85-0b03606fb6fd", name: "GrowthX Agency", slug: "growthx-agency" }];
-  },
+  listOrganizations: () => get<{ id: string; name: string; slug: string }[]>("/organizations"),
   createOrganization: (name: string, slug: string) => post<{ id: string; name: string; slug: string }>("/organizations", { name, slug }),
-  listProjects: async (orgId: string) => {
-    try {
-      const res = await get<{ id: string; name: string }[]>(`/projects/org/${orgId}`);
-      if (Array.isArray(res) && res.length > 0) return res;
-    } catch {}
-    return [
-      { id: "a2c85a86-e0e1-485a-a8e8-994047080921", name: "Fortune Exicom" },
-      { id: "p-trailhead", name: "Trailhead Co" },
-    ];
-  },
+  listProjects: (orgId: string) => get<{ id: string; name: string }[]>(`/projects/org/${orgId}`),
   listMembers: (orgId: string) => get<OrgMember[]>(`/organizations/${orgId}/members`),
   addMember: (orgId: string, email: string, role: Role = "MEMBER") =>
     post<OrgMember>(`/organizations/${orgId}/members`, { email, role }),
@@ -1211,63 +1181,8 @@ export const api = {
     post<{ id: string; name: string }>("/projects", { name, organizationId }),
 
   // ── Agency portfolio
-  getPortfolio: async (orgId: string, days = 28) => {
-    try {
-      const res = await get<PortfolioResponse>(`/api/organizations/${orgId}/portfolio?days=${days}`);
-      if (res && res.clients && res.clients.length > 0) return res;
-    } catch {}
-    return {
-      clients: [
-        {
-          projectId: "a2c85a86-e0e1-485a-a8e8-994047080921",
-          name: "Fortune Exicom",
-          domain: "fortuneexicom.com",
-          initials: "FE",
-          tier: "GROWTH",
-          retainerMonthlyMinor: 1500000,
-          retainerCurrency: "INR",
-          aiCitationSharePct: 48,
-          aiDeltaPt: 6,
-          health: 88,
-          trackedPrompts: 14,
-          averagePosition: 2.8,
-          criticalIssues: 0,
-          trend: [42, 44, 45, 48],
-          lastCrawledAt: new Date().toISOString(),
-        },
-        {
-          projectId: "p-trailhead",
-          name: "Trailhead Co",
-          domain: "trailheadco.com",
-          initials: "TC",
-          tier: "PRO",
-          retainerMonthlyMinor: 2500000,
-          retainerCurrency: "INR",
-          aiCitationSharePct: 62,
-          aiDeltaPt: 12,
-          health: 94,
-          trackedPrompts: 28,
-          averagePosition: 1.9,
-          criticalIssues: 0,
-          trend: [50, 54, 58, 62],
-          lastCrawledAt: new Date().toISOString(),
-        }
-      ],
-      summary: {
-        portfolioAiSharePct: 55,
-        portfolioAiDeltaPt: 9,
-        promptsTracked: 42,
-        clientsImproving: 2,
-        clientsDeclining: 0,
-        clientCount: 2,
-        openCriticals: 0,
-        mrrMinor: 4000000,
-        mrrCurrency: "INR",
-        clientsWithoutRetainer: 0,
-      },
-      alerts: []
-    };
-  },
+  getPortfolio: (orgId: string, days = 28) =>
+    get<PortfolioResponse>(`/api/organizations/${orgId}/portfolio?days=${days}`),
   setRetainer: (orgId: string, projectId: string, body: { tier?: string | null; retainerMonthlyMinor?: number | null; retainerCurrency?: string }) =>
     request(`/api/organizations/${orgId}/portfolio/clients/${projectId}/retainer`, {
       method: 'PATCH',
@@ -1276,25 +1191,8 @@ export const api = {
 
   // ── Billing
   getPlans: () => get<{ plans: Plan[]; gateway: string; configured: boolean }>("/api/billing/plans"),
-  getEntitlements: async (orgId: string) => {
-    try {
-      const res = await get<Entitlements>(`/api/billing/organizations/${orgId}/entitlements`);
-      if (res && res.organizationId) return res;
-    } catch {}
-    return {
-      organizationId: orgId,
-      plan: "PRO",
-      planName: "Pro Plan (Enterprise Enabled)",
-      status: "ACTIVE",
-      subscriptionActive: true,
-      features: ["SCHEDULED_CRAWLS", "AI_ANALYSIS", "AI_FIXES", "AEO_GEO_MONITORING", "CONTENT_INTELLIGENCE", "LOCAL_SEO", "MARKET_RESEARCH", "FULL_SUITE"],
-      maxSites: 20,
-      maxSeats: 10,
-      periodStart: new Date(Date.now() - 86400000 * 15).toISOString(),
-      periodEnd: new Date(Date.now() + 86400000 * 15).toISOString(),
-      quotas: [],
-    };
-  },
+  getEntitlements: (orgId: string) =>
+    get<Entitlements>(`/api/billing/organizations/${orgId}/entitlements`),
   getSubscription: (orgId: string) => get<Record<string, unknown> | null>(`/api/billing/organizations/${orgId}/subscription`),
   startCheckout: (orgId: string, plan: string, email: string, name?: string) =>
     post<{
@@ -1317,108 +1215,29 @@ export const api = {
   startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number; useSitemap?: boolean }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),
-  getLatestCrawl: async (domain: string) => {
-    try {
-      const res = await get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`);
-      if (res) return res;
-    } catch {}
-    return {
-      id: "crawl-live-" + (domain || "site").replace(/[^a-z0-9]/gi, ""),
-      status: "COMPLETED",
-      pagesCrawled: 34,
-      issuesFound: 4,
-      startedAt: new Date(Date.now() - 3600000).toISOString(),
-      finishedAt: new Date(Date.now() - 3480000).toISOString(),
-      website: { domain: domain || "fortuneexicom.com", url: `https://${domain || "fortuneexicom.com"}` },
-    };
+  getLatestCrawl: (domain: string) => get<CrawlJob | null>(`/api/websites/${domain}/latest-crawl`),
+  getCrawlHistory: (domain: string, limit?: number) =>
+    get<CrawlHistoryPoint[]>(
+      `/api/websites/${domain}/crawl-history${limit ? `?limit=${limit}` : ""}`,
+    ),
+  getCrawlIssues: (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.severity) query.set("severity", params.severity);
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return get<{ data: CrawlIssue[]; meta: { total: number; page: number; totalPages: number } }>(
+      `/api/crawls/${jobId}/issues${suffix}`,
+    );
   },
-  getCrawlHistory: async (domain: string, limit?: number) => {
-    try {
-      const res = await get<CrawlHistoryPoint[]>(
-        `/api/websites/${domain}/crawl-history${limit ? `?limit=${limit}` : ""}`,
-      );
-      if (Array.isArray(res) && res.length > 0) return res;
-    } catch {}
-    return [
-      { id: "h-1", pagesCrawled: 24, issuesFound: 9, startedAt: new Date(Date.now() - 86400000 * 7).toISOString(), finishedAt: new Date(Date.now() - 86400000 * 7 + 120000).toISOString() },
-      { id: "h-2", pagesCrawled: 28, issuesFound: 6, startedAt: new Date(Date.now() - 86400000 * 3).toISOString(), finishedAt: new Date(Date.now() - 86400000 * 3 + 120000).toISOString() },
-      { id: "h-3", pagesCrawled: 34, issuesFound: 4, startedAt: new Date(Date.now() - 3600000).toISOString(), finishedAt: new Date(Date.now() - 3480000).toISOString() },
-    ];
-  },
-  getCrawlIssues: async (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
-    try {
-      const query = new URLSearchParams();
-      if (params?.severity) query.set("severity", params.severity);
-      if (params?.page) query.set("page", String(params.page));
-      if (params?.limit) query.set("limit", String(params.limit));
-      const suffix = query.toString() ? `?${query}` : "";
-      const res = await get<{ data: CrawlIssue[]; meta: { total: number; page: number; totalPages: number } }>(
-        `/api/crawls/${jobId}/issues${suffix}`,
-      );
-      if (res && Array.isArray(res.data) && res.data.length > 0) return res;
-    } catch {}
-    const defaultIssues: CrawlIssue[] = [
-      {
-        id: "iss-1",
-        issueType: "Missing H1 Heading",
-        severity: "HIGH",
-        affectedUrl: "https://fortuneexicom.com/products",
-        description: "The page has no top-level <h1> heading tag defined for search crawlers.",
-        recommendation: "Add a semantic <h1> tag containing target keywords.",
-        status: "OPEN",
-        aiFixAvailable: true,
-      },
-      {
-        id: "iss-2",
-        issueType: "Uncompressed Hero Image",
-        severity: "MEDIUM",
-        affectedUrl: "https://fortuneexicom.com/assets/banner.png",
-        description: "Image size is 2.8MB, slowing Largest Contentful Paint (LCP).",
-        recommendation: "Serve image in modern WebP format and enable lazy loading.",
-        status: "OPEN",
-        aiFixAvailable: true,
-      },
-      {
-        id: "iss-3",
-        issueType: "Missing Meta Description",
-        severity: "MEDIUM",
-        affectedUrl: "https://fortuneexicom.com/about",
-        description: "Meta description tag is empty.",
-        recommendation: "Add a 150-160 character description highlighting key value proposition.",
-        status: "OPEN",
-        aiFixAvailable: true,
-      },
-      {
-        id: "iss-4",
-        issueType: "Low Contrast Text in Footer",
-        severity: "LOW",
-        affectedUrl: "https://fortuneexicom.com/contact",
-        description: "Color contrast ratio is 3.2:1 (below WCAG AA 4.5:1).",
-        recommendation: "Increase footer text darkness for better accessibility.",
-        status: "OPEN",
-        aiFixAvailable: true,
-      }
-    ];
-    return { data: defaultIssues, meta: { total: defaultIssues.length, page: 1, totalPages: 1 } };
-  },
-  getCrawlPages: async (jobId: string, params?: { page?: number; limit?: number }) => {
-    try {
-      const query = new URLSearchParams();
-      if (params?.page) query.set("page", String(params.page));
-      if (params?.limit) query.set("limit", String(params.limit));
-      const suffix = query.toString() ? `?${query}` : "";
-      const res = await get<{ data: CrawlPage[]; meta: { total: number; page: number; totalPages: number } }>(
-        `/api/crawls/${jobId}/pages${suffix}`,
-      );
-      if (res && Array.isArray(res.data) && res.data.length > 0) return res;
-    } catch {}
-    const defaultPages: CrawlPage[] = [
-      { id: "p-1", url: "https://fortuneexicom.com/", statusCode: 200, title: "Fortune Exicom — Premium Frozen Fruits, Vegetables & Agro Commodities", wordCount: 1420, readingTimeMin: 6, crawledAt: new Date().toISOString(), performance: { id: "perf-1", performanceScore: 92, lcpMs: 1400, inpMs: 45, clsScore: 0.02 } },
-      { id: "p-2", url: "https://fortuneexicom.com/products", statusCode: 200, title: "Product Catalog — IQF Fruits & Purees", wordCount: 980, readingTimeMin: 4, crawledAt: new Date().toISOString(), performance: { id: "perf-2", performanceScore: 88, lcpMs: 1800, inpMs: 60, clsScore: 0.04 } },
-      { id: "p-3", url: "https://fortuneexicom.com/quality-standards", statusCode: 200, title: "Export Quality & Global Certifications", wordCount: 1650, readingTimeMin: 7, crawledAt: new Date().toISOString(), performance: { id: "perf-3", performanceScore: 95, lcpMs: 1200, inpMs: 35, clsScore: 0.01 } },
-      { id: "p-4", url: "https://fortuneexicom.com/contact", statusCode: 200, title: "Contact Us — Request Export Quotes", wordCount: 420, readingTimeMin: 2, crawledAt: new Date().toISOString(), performance: { id: "perf-4", performanceScore: 96, lcpMs: 1100, inpMs: 30, clsScore: 0.01 } },
-    ];
-    return { data: defaultPages, meta: { total: defaultPages.length, page: 1, totalPages: 1 } };
+  getCrawlPages: (jobId: string, params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query}` : "";
+    return get<{ data: CrawlPage[]; meta: { total: number; page: number; totalPages: number } }>(
+      `/api/crawls/${jobId}/pages${suffix}`,
+    );
   },
   getCrawlGraph: (jobId: string) => get<unknown>(`/api/crawls/${jobId}/graph`),
 
@@ -1429,75 +1248,10 @@ export const api = {
   approveFix: (issueId: string) => post(`/api/issues/${issueId}/approve`, {}),
 
   // ── AI visibility
-  getVisibility: async (projectId: string, days = 28) => {
-    try {
-      const res = await get<VisibilityReport>(`/api/projects/${projectId}/ai-visibility?days=${days}`);
-      if (res && res.summary) return res;
-    } catch {}
-    return {
-      periodStart: new Date(Date.now() - 86400000 * days).toISOString(),
-      periodEnd: new Date().toISOString(),
-      summary: {
-        checked: 48,
-        cited: 29,
-        citationSharePct: 60.4,
-        averagePosition: 2.1,
-        previousCitationSharePct: 52.0,
-        deltaPt: 8.4,
-        failedChecks: 0,
-      },
-      byAssistant: [
-        { assistant: "ChatGPT Search", checked: 16, cited: 11, citationSharePct: 68.8 },
-        { assistant: "Google Gemini", checked: 16, cited: 10, citationSharePct: 62.5 },
-        { assistant: "Perplexity AI", checked: 16, cited: 8, citationSharePct: 50.0 },
-      ],
-      shareOfVoice: [
-        { domain: "fortuneexicom.com", label: "Fortune Exicom (Your Brand)", mentions: 29, sharePct: 44.6 },
-        { domain: "sunimpex.biz", label: "Sun Impex", mentions: 18, sharePct: 27.7 },
-        { domain: "shimlasugar.com", label: "Shimla Sugar", mentions: 12, sharePct: 18.5 },
-        { domain: null, label: "Others", mentions: 6, sharePct: 9.2 },
-      ],
-      trend: [
-        { weekStart: "Week 1", checked: 12, citationSharePct: 48.0 },
-        { weekStart: "Week 2", checked: 12, citationSharePct: 52.0 },
-        { weekStart: "Week 3", checked: 12, citationSharePct: 56.0 },
-        { weekStart: "Week 4", checked: 12, citationSharePct: 60.4 },
-      ],
-      measurableAssistants: ["ChatGPT Search", "Google Gemini", "Perplexity AI", "Claude 3.7"],
-    };
-  },
-  listTrackedPrompts: async (projectId: string) => {
-    try {
-      const res = await get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`);
-      if (Array.isArray(res) && res.length > 0) return res;
-    } catch {}
-    return [
-      {
-        id: "tp-1",
-        text: "best IQF frozen fruit exporters in India with ISO certifications",
-        intent: "Commercial",
-        cluster: "Frozen Fruits",
-        estimatedVolume: 2400,
-        isActive: true,
-        latestChecks: [
-          { assistant: "ChatGPT", checkedAt: new Date().toISOString(), cited: true, position: 1, citedUrl: "https://fortuneexicom.com/products", competitorsCited: ["sunimpex.biz"], error: null },
-          { assistant: "Gemini", checkedAt: new Date().toISOString(), cited: true, position: 2, citedUrl: "https://fortuneexicom.com/quality-standards", competitorsCited: [], error: null },
-        ]
-      },
-      {
-        id: "tp-2",
-        text: "top bulk suppliers of Alphonso mango puree and concentrates",
-        intent: "Transactional",
-        cluster: "Fruit Purees",
-        estimatedVolume: 3100,
-        isActive: true,
-        latestChecks: [
-          { assistant: "ChatGPT", checkedAt: new Date().toISOString(), cited: true, position: 2, citedUrl: "https://fortuneexicom.com/products", competitorsCited: [], error: null },
-          { assistant: "Perplexity", checkedAt: new Date().toISOString(), cited: true, position: 1, citedUrl: "https://fortuneexicom.com/", competitorsCited: ["sunimpex.biz"], error: null },
-        ]
-      }
-    ];
-  },
+  getVisibility: (projectId: string, days = 28) =>
+    get<VisibilityReport>(`/api/projects/${projectId}/ai-visibility?days=${days}`),
+  listTrackedPrompts: (projectId: string) =>
+    get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
   addCompetitor: (projectId: string, domain: string, label?: string) =>
@@ -1516,50 +1270,16 @@ export const api = {
    * compared with yours. Returns once the crawl is queued, not once it is
    * done — a few hundred pages at one request per second takes minutes.
    */
-  crawlCompetitorSite: async (projectId: string, competitorId: string) => {
-    try {
-      return await post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
-        `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/crawl`,
-        {},
-      );
-    } catch {
-      return {
-        jobId: "crawl-live-" + Date.now(),
-        websiteId: "web-" + competitorId,
-        domain: competitorId,
-        pageLimit: 300,
-      };
-    }
-  },
+  crawlCompetitorSite: (projectId: string, competitorId: string) =>
+    post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/crawl`,
+      {},
+    ),
   /** Both sides of the coverage comparison. Sides are null until crawled. */
-  competitorComparison: async (projectId: string, competitorId: string) => {
-    try {
-      const res = await get<CoverageComparison>(
-        `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/comparison`,
-      );
-      if (res) return res;
-    } catch {}
-    const pages = generateDynamicCompetitorPages(competitorId);
-    const byType: Record<string, number> = {};
-    pages.forEach((p) => {
-      byType[p.pageType] = (byType[p.pageType] || 0) + 1;
-    });
-    const theirProd = byType["PRODUCT"] || 3;
-    const theirServ = byType["SERVICE"] || 2;
-    return {
-      ours: { crawlJobId: "our-job", totalPages: 4, crawledAt: new Date().toISOString(), byType: { PRODUCT: 2, SERVICE: 1, ABOUT: 1, HOME: 1 }, capped: false },
-      theirs: { crawlJobId: "their-job", totalPages: pages.length, crawledAt: new Date().toISOString(), byType, capped: false, domain: competitorId },
-      behindOn: [
-        { pageType: "PRODUCT" as any, ours: 2, theirs: theirProd, gap: Math.max(0, theirProd - 2) },
-        { pageType: "SERVICE" as any, ours: 1, theirs: theirServ, gap: Math.max(0, theirServ - 1) },
-      ].filter((r) => (r.gap ?? 0) > 0),
-      rows: [
-        { pageType: "PRODUCT" as any, ours: 2, theirs: theirProd, gap: Math.max(0, theirProd - 2) },
-        { pageType: "SERVICE" as any, ours: 1, theirs: theirServ, gap: Math.max(0, theirServ - 1) },
-        { pageType: "ABOUT" as any, ours: 1, theirs: byType["ABOUT"] || 1, gap: 0 },
-      ],
-    };
-  },
+  competitorComparison: (projectId: string, competitorId: string) =>
+    get<CoverageComparison>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/comparison`,
+    ),
 
   /**
    * What changed on their site between the last two crawls. Null until there
@@ -1591,40 +1311,15 @@ export const api = {
       newAlertsGenerated: number;
     }>(`/api/projects/${projectId}/content-intelligence/cron/trigger-sync`, {}),
 
-  getCompetitorCoverage: async (projectId: string, competitorId: string) => {
-    try {
-      const res = await get<{ competitorId: string; domain: string; crawlJobId: string; crawledAt: string; totalPages: number; capped: boolean; byType: Record<string, number>; untyped: number } | null>(
-        `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/coverage`,
-      );
-      if (res) return res;
-    } catch {}
-    const pages = generateDynamicCompetitorPages(competitorId);
-    const byType: Record<string, number> = {};
-    pages.forEach((p) => {
-      byType[p.pageType] = (byType[p.pageType] || 0) + 1;
-    });
-    return {
-      competitorId,
-      domain: competitorId,
-      crawlJobId: "crawl-job-" + competitorId,
-      crawledAt: new Date().toISOString(),
-      totalPages: pages.length,
-      capped: false,
-      byType,
-      untyped: 0,
-    };
-  },
+  getCompetitorCoverage: (projectId: string, competitorId: string) =>
+    get<{ competitorId: string; domain: string; crawlJobId: string; crawledAt: string; totalPages: number; capped: boolean; byType: Record<string, number>; untyped: number } | null>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/coverage`,
+    ),
 
-  listCompetitorPages: async (projectId: string, competitorId: string, pageType?: string) => {
-    try {
-      const res = await get<Array<{ url: string; title: string | null; metaDescription: string | null; h1: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }>>(
-        `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
-      );
-      if (res && res.length > 0) return res;
-    } catch {}
-
-    return generateDynamicCompetitorPages(competitorId, pageType);
-  },
+  listCompetitorPages: (projectId: string, competitorId: string, pageType?: string) =>
+    get<Array<{ url: string; title: string | null; metaDescription: string | null; h1: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }>>(
+      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
+    ),
 
   // ── Google connections ───────────────────────────────────────────────────
   googleConnections: (projectId: string) =>
@@ -1680,52 +1375,12 @@ export const api = {
     get<GscDecliningRow[]>(`/api/projects/${projectId}/search-console/declining?days=${days}`),
 
   // ── Growth opportunities ─────────────────────────────────────────────────
-  opportunities: async (projectId: string, filters: { category?: string; status?: string } = {}) => {
-    try {
-      const params = new URLSearchParams();
-      if (filters.category) params.set("category", filters.category);
-      if (filters.status) params.set("status", filters.status);
-      const qs = params.toString();
-      const res = await get<OpportunityList>(`/api/projects/${projectId}/opportunities${qs ? `?${qs}` : ""}`);
-      if (res && Array.isArray(res.opportunities) && res.opportunities.length > 0) return res;
-    } catch {}
-    const defaultOpps: GrowthOpportunity[] = [
-      {
-        id: "opp-1",
-        source: "SEARCH_CONSOLE",
-        category: "SEO",
-        title: "Capture High-Intent Clicks on 'Frozen Mango Pulp Exporters'",
-        summary: "Your page ranks in striking distance position #6 with 4,200 monthly impressions. Optimizing title tags and adding schema can double CTR.",
-        evidence: [{ label: "Impressions", value: "4,200/mo", source: "Search Console" }, { label: "Current Position", value: "#6.2", source: "Search Console" }],
-        recommendedAction: "Inject FAQ schema and rewrite meta title to highlight ISO certification and MOQ.",
-        potential: "HIGH",
-        effort: "LOW",
-        confidence: 0.92,
-        priority: 95,
-        affectedPages: ["https://fortuneexicom.com/products/mango-pulp"],
-        status: "OPEN",
-        detectedAt: new Date().toISOString(),
-        lastSeenAt: new Date().toISOString(),
-      },
-      {
-        id: "opp-2",
-        source: "COMPETITOR",
-        category: "CONTENT",
-        title: "Close Catalog Gap: IQF Dragonfruit & Avocado Puree",
-        summary: "Sun Impex and Shimla Sugar receive over 15k monthly visits for exotic fruit purees. Creating dedicated spec sheets will capture B2B inquiries.",
-        evidence: [{ label: "Competitor Traffic", value: "15.4k visits", source: "Competitor Intelligence" }],
-        recommendedAction: "Draft product specification landing pages and publish B2B inquiry form.",
-        potential: "HIGH",
-        effort: "MEDIUM",
-        confidence: 0.88,
-        priority: 90,
-        affectedPages: ["https://fortuneexicom.com/products"],
-        status: "OPEN",
-        detectedAt: new Date().toISOString(),
-        lastSeenAt: new Date().toISOString(),
-      }
-    ];
-    return { total: defaultOpps.length, byCategory: { SEO: 1, CONTENT: 1 }, opportunities: defaultOpps };
+  opportunities: (projectId: string, filters: { category?: string; status?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.category) params.set("category", filters.category);
+    if (filters.status) params.set("status", filters.status);
+    const qs = params.toString();
+    return get<OpportunityList>(`/api/projects/${projectId}/opportunities${qs ? `?${qs}` : ""}`);
   },
   detectOpportunities: (projectId: string) =>
     post<{ detected: number; failedDetectors: string[] }>(`/api/projects/${projectId}/opportunities/detect`, {}),
@@ -1753,43 +1408,12 @@ export const api = {
   ga4PageValue: (projectId: string, days: number) =>
     get<PageValue>(`/api/projects/${projectId}/analytics/page-value?days=${days}`),
 
-  executiveSummary: async (projectId: string, days = 28): Promise<ExecutiveSummary> => {
-    try {
-      const res = await get<ExecutiveSummary>(`/api/projects/${projectId}/opportunities/executive-summary?days=${days}`);
-      if (res && res.headline) return res;
-    } catch {}
-    return {
-      range: { days },
-      connections: { searchConsole: true, analytics: true, businessProfile: true },
-      headline: {
-        searchClicks: { state: "MEASURED" as const, value: 18450, changePct: 14.2, source: "Google Search Console" },
-        impressions: { state: "MEASURED" as const, value: 342000, changePct: 8.7, source: "Google Search Console" },
-        sessions: { state: "MEASURED" as const, value: 24800, changePct: 12.5, source: "Google Analytics 4" },
-        conversions: { state: "MEASURED" as const, value: 412, changePct: 18.0, source: "Google Analytics 4" },
-      },
-      siteHealth: {
-        state: "MEASURED" as const,
-        pagesCrawled: 34,
-        criticalIssues: 0,
-        totalIssues: 4,
-        crawledAt: new Date().toISOString(),
-        source: "GrowthX Technical Crawler",
-      },
-      openOpportunities: { total: 12, highPotential: 5 },
-    };
-  },
+  executiveSummary: (projectId: string, days = 28) =>
+    get<ExecutiveSummary>(`/api/projects/${projectId}/opportunities/executive-summary?days=${days}`),
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
-  listCompetitors: async (projectId: string) => {
-    try {
-      const res = await get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`);
-      if (Array.isArray(res) && res.length > 0) return res;
-    } catch {}
-    return [
-      { id: "comp-1", domain: "sunimpex.biz", label: "Sun Impex Agro", createdAt: new Date().toISOString() },
-      { id: "comp-2", domain: "shimlasugar.com", label: "Shimla Sugar & Purees", createdAt: new Date().toISOString() },
-    ];
-  },
+  listCompetitors: (projectId: string) =>
+    get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
   removeCompetitor: (projectId: string, competitorId: string) =>
     request<{ removed: number }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
       method: "DELETE",
@@ -1907,17 +1531,13 @@ export const api = {
     }),
 
   // Competitor content
-  listCompetitorContent: async (projectId: string, params?: { platform?: string; contentType?: string; limit?: number }) => {
-    try {
-      const q = new URLSearchParams();
-      if (params?.platform) q.set('platform', params.platform);
-      if (params?.contentType) q.set('contentType', params.contentType);
-      if (params?.limit) q.set('limit', String(params.limit));
-      const qs = q.toString() ? `?${q}` : '';
-      const res = await get<CompetitorContent[]>(`/api/projects/${projectId}/content-intelligence/competitor-content${qs}`);
-      if (res && res.length > 0) return res;
-    } catch {}
-    return generateDynamicCompetitorVideos(projectId);
+  listCompetitorContent: (projectId: string, params?: { platform?: string; contentType?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.platform) q.set('platform', params.platform);
+    if (params?.contentType) q.set('contentType', params.contentType);
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString() ? `?${q}` : '';
+    return get<CompetitorContent[]>(`/api/projects/${projectId}/content-intelligence/competitor-content${qs}`);
   },
   ingestCompetitorContent: (projectId: string, body: IngestContentBody) =>
     post<CompetitorContent>(`/api/projects/${projectId}/content-intelligence/competitor-content`, body),
@@ -2555,295 +2175,5 @@ export interface GenerateOutreachBody {
   proposedDate?: string;
 }
 
-export function generateDynamicCompetitorPages(competitorIdOrDomain: string, pageType?: string) {
-  const clean = (competitorIdOrDomain || "competitor.com")
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .split("/")[0]
-    .toLowerCase();
-
-  const rootName = clean.split(".")[0] || "competitor";
-  const brandName = rootName
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-
-  const lower = clean.toLowerCase();
-
-  let pages: Array<{ url: string; title: string; metaDescription: string; h1: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }> = [];
-
-  // 1. Food / Agro / Pulp / Frozen / IQF
-  if (lower.includes("pulp") || lower.includes("fruit") || lower.includes("iqf") || lower.includes("frozen") || lower.includes("food") || lower.includes("pal")) {
-    const isAseptic = lower.includes("pulp") || lower.includes("fruit");
-    pages = isAseptic
-      ? [
-          { url: `https://${clean}/`, title: `${brandName} | Industrial Aseptic Fruit Puree & Concentrate Manufacturer`, metaDescription: "Exporter of Aseptic Alphonso, Totapuri, Guava, and Papaya fruit pulps in 215kg drums.", h1: ["Industrial Aseptic Fruit Pulp & Purees"], pageType: "HOME", wordCount: 1050, statusCode: 200, responseTimeMs: 240 },
-          { url: `https://${clean}/products/alphonso-mango-pulp`, title: "Aseptic Alphonso Mango Pulp (Min 16° Brix)", metaDescription: "100% pure Alphonso mango pulp processed under strict aseptic conditions. No added preservatives.", h1: ["Aseptic Alphonso Mango Pulp (16° Brix)"], pageType: "PRODUCT", wordCount: 880, statusCode: 200, responseTimeMs: 310 },
-          { url: `https://${clean}/products/totapuri-mango-pulp`, title: "Aseptic Totapuri Mango Concentrate & Pulp (14° & 28° Brix)", metaDescription: "High-yield Totapuri mango pulp for juices, nectar, and dairy preparations.", h1: ["Totapuri Mango Pulp & Concentrate"], pageType: "PRODUCT", wordCount: 760, statusCode: 200, responseTimeMs: 280 },
-          { url: `https://${clean}/products/white-guava-pulp`, title: "Aseptic White Guava Puree & Pulp (Min 9° Brix)", metaDescription: "Smooth, aromatic white guava puree for beverage manufacturers worldwide.", h1: ["Aseptic White Guava Pulp"], pageType: "PRODUCT", wordCount: 710, statusCode: 200, responseTimeMs: 290 },
-          { url: `https://${clean}/packaging/aseptic-215kg-drums`, title: "Industrial Bag-in-Drum Packaging (215kg Aseptic Steel Drums)", metaDescription: "Multi-layer barrier bag in heavy-gauge steel drums with tamper-proof seal. 24-month shelf life.", h1: ["Aseptic 215kg Steel Drum Packaging"], pageType: "PRODUCT", wordCount: 920, statusCode: 200, responseTimeMs: 340 },
-          { url: `https://${clean}/quality/lab-testing`, title: "Microbiological Testing, Pesticide Screening & Brix Verification", metaDescription: "Comprehensive in-house lab analysis ensuring total compliance with US FDA and EU pesticide limits.", h1: ["Quality Assurance & Lab Verification"], pageType: "SERVICE", wordCount: 890, statusCode: 200, responseTimeMs: 260 },
-          { url: `https://${clean}/certifications`, title: "FSSAI, APEDA, Kosher, Halal & SGF Verified Export Processor", metaDescription: "Recognized quality certifications ensuring seamless global import clearance.", h1: ["Global Food Safety & Religious Certifications"], pageType: "ABOUT", wordCount: 820, statusCode: 200, responseTimeMs: 220 },
-        ]
-      : [
-          { url: `https://${clean}/`, title: `${brandName} | Premium IQF Fruits & Vegetables Exporter`, metaDescription: "Leading processor & exporter of Individual Quick Frozen (IQF) green peas, sweet corn, mixed vegetables, and tropical fruits.", h1: ["Premium IQF Fruits & Vegetables Exporter"], pageType: "HOME", wordCount: 940, statusCode: 200, responseTimeMs: 210 },
-          { url: `https://${clean}/products/iqf-green-peas`, title: "IQF Green Peas Exporter & Bulk Supplier", metaDescription: "Export-grade IQF Green Peas with high sweetness, zero defects, and unbroken cold chain. Available in 10kg, 20kg bulk packaging.", h1: ["IQF Green Peas Export Specifications"], pageType: "PRODUCT", wordCount: 820, statusCode: 200, responseTimeMs: 280 },
-          { url: `https://${clean}/products/iqf-sweet-corn`, title: "IQF Sweet Corn Kernels - Bulk Foodservice Export", metaDescription: "Tender, individually blast-frozen sweet corn kernels. BRC and ISO 22000 certified.", h1: ["IQF Sweet Corn Kernels"], pageType: "PRODUCT", wordCount: 750, statusCode: 200, responseTimeMs: 310 },
-          { url: `https://${clean}/products/iqf-mixed-vegetables`, title: "IQF Diced Mixed Vegetables (Carrot, Beans, Peas, Corn)", metaDescription: "Custom formulation diced IQF vegetable blends for food manufacturers and catering services.", h1: ["Commercial IQF Mixed Vegetable Blends"], pageType: "PRODUCT", wordCount: 680, statusCode: 200, responseTimeMs: 290 },
-          { url: `https://${clean}/products/iqf-mango-dices`, title: "IQF Alphonso & Totapuri Mango Dices", metaDescription: "Individually quick frozen mango dices and slices from premium Indian orchards.", h1: ["IQF Mango Dices & Slices"], pageType: "PRODUCT", wordCount: 890, statusCode: 200, responseTimeMs: 320 },
-          { url: `https://${clean}/products/iqf-strawberry`, title: "Frozen IQF Whole Strawberries & Halves", metaDescription: "Field-fresh IQF strawberries individually frozen at -40°C.", h1: ["IQF Strawberries Bulk Supply"], pageType: "PRODUCT", wordCount: 620, statusCode: 200, responseTimeMs: 270 },
-          { url: `https://${clean}/infrastructure/cold-storage`, title: "Sub-Zero Cold Chain Infrastructure & Reefer Docks (-25°C)", metaDescription: "State-of-the-art blast freezers and multi-tier sub-zero storage with continuous temperature telemetry.", h1: ["Cold Chain Infrastructure & Sub-Zero Storage"], pageType: "SERVICE", wordCount: 1120, statusCode: 200, responseTimeMs: 350 },
-          { url: `https://${clean}/infrastructure/optical-sorting`, title: "Bühler Optical Color Sorter & Foreign Body Detection", metaDescription: "Automated foreign matter removal and camera grading line for export purity.", h1: ["Automated Optical Sorting & Quality Control"], pageType: "SERVICE", wordCount: 950, statusCode: 200, responseTimeMs: 330 },
-          { url: `https://${clean}/certifications`, title: "APEDA, FSSAI, ISO 22000 & BRC Food Safety Certified", metaDescription: "Our international quality certifications, laboratory testing parameters, and export recognition.", h1: ["International Quality & Export Certifications"], pageType: "ABOUT", wordCount: 840, statusCode: 200, responseTimeMs: 230 },
-          { url: `https://${clean}/export-markets`, title: "Worldwide Reefer Export Destinations: Gulf, EU, US, Southeast Asia", metaDescription: "Exporting containerized IQF produce to over 25 countries worldwide with complete COA documentation.", h1: ["Global Export Markets & Incoterms"], pageType: "SERVICE", wordCount: 790, statusCode: 200, responseTimeMs: 290 },
-        ];
-  } else if (lower.includes("interior") || lower.includes("design") || lower.includes("decor") || lower.includes("arch") || lower.includes("build") || lower.includes("home")) {
-    // 2. Interior Design / Architecture
-    pages = [
-      { url: `https://${clean}/`, title: `${brandName} | Luxury Interior Design & Architecture Studio`, metaDescription: "Award-winning residential and commercial interior design studio specializing in bespoke turnkey transformations.", h1: ["Bespoke Interior Design & Space Planning"], pageType: "HOME", wordCount: 1100, statusCode: 200, responseTimeMs: 210 },
-      { url: `https://${clean}/services/residential-design`, title: "Luxury Residential Interior Design & Renovation", metaDescription: "Complete turnkey home interiors from spatial planning to custom bespoke furniture fabrication.", h1: ["Residential Interior Transformations"], pageType: "SERVICE", wordCount: 850, statusCode: 200, responseTimeMs: 260 },
-      { url: `https://${clean}/services/commercial-interiors`, title: "Modern Commercial & Office Workspace Design", metaDescription: "Ergonomic, high-productivity office interiors designed for modern corporate brands.", h1: ["Corporate & Commercial Space Design"], pageType: "SERVICE", wordCount: 920, statusCode: 200, responseTimeMs: 290 },
-      { url: `https://${clean}/portfolio`, title: "Featured Interior Design Projects & Case Studies", metaDescription: "Explore our portfolio of completed luxury villas, penthouses, and commercial spaces.", h1: ["Design Portfolio & Case Studies"], pageType: "CASE_STUDY", wordCount: 780, statusCode: 200, responseTimeMs: 310 },
-      { url: `https://${clean}/process`, title: "Our 5-Stage Turnkey Design & Execution Process", metaDescription: "From 3D rendering and material selection to project handover and defect liability.", h1: ["Turnkey Design & Build Workflow"], pageType: "SERVICE", wordCount: 890, statusCode: 200, responseTimeMs: 230 },
-      { url: `https://${clean}/about`, title: `About ${brandName} | Our Team & Design Philosophy`, metaDescription: "Meet our team of licensed architects, interior designers, and project managers.", h1: ["About Our Studio & Values"], pageType: "ABOUT", wordCount: 650, statusCode: 200, responseTimeMs: 220 },
-    ];
-  } else if (lower.includes("tech") || lower.includes("ai") || lower.includes("saas") || lower.includes("app") || lower.includes("cloud") || lower.includes("software") || lower.includes("agency")) {
-    // 3. Tech / SaaS / Software
-    pages = [
-      { url: `https://${clean}/`, title: `${brandName} | Modern Enterprise Software & AI Platform`, metaDescription: "Next-generation automation, analytics, and workflow platform built for modern enterprise teams.", h1: [`Transform Your Operations with ${brandName}`], pageType: "HOME", wordCount: 1250, statusCode: 200, responseTimeMs: 190 },
-      { url: `https://${clean}/features`, title: "Core Features & Enterprise Automation Capabilities", metaDescription: "Deep integrations, real-time collaboration, and enterprise security compliance built-in.", h1: ["Platform Features & Capabilities"], pageType: "PRODUCT", wordCount: 980, statusCode: 200, responseTimeMs: 240 },
-      { url: `https://${clean}/solutions/enterprise`, title: "Enterprise Grade Security, Scale & Compliance", metaDescription: "SOC 2 Type II, GDPR, and automated access governance for high-scale organizations.", h1: ["Enterprise Solutions & Infrastructure"], pageType: "PRODUCT", wordCount: 860, statusCode: 200, responseTimeMs: 280 },
-      { url: `https://${clean}/pricing`, title: "Transparent Pricing Plans for Growing Teams", metaDescription: "Simple, predictable tiers with custom enterprise agreements and dedicated SLAs.", h1: ["Plans & Transparent Pricing"], pageType: "PRODUCT", wordCount: 640, statusCode: 200, responseTimeMs: 210 },
-      { url: `https://${clean}/docs`, title: "API Documentation & Developer Quickstart Guides", metaDescription: "REST & GraphQL endpoints, SDKs, and webhook guides for rapid integration.", h1: ["Developer Documentation & API Reference"], pageType: "SERVICE", wordCount: 1400, statusCode: 200, responseTimeMs: 250 },
-      { url: `https://${clean}/about`, title: `About ${brandName} | Mission & Leadership Team`, metaDescription: "Our mission to simplify workflows and empower teams worldwide.", h1: ["About Our Company & Team"], pageType: "ABOUT", wordCount: 710, statusCode: 200, responseTimeMs: 200 },
-    ];
-  } else {
-    // 4. General / Dynamic Business
-    pages = [
-      { url: `https://${clean}/`, title: `${brandName} | Professional Services & Solutions`, metaDescription: `Leading provider of industry solutions, premium quality products, and verified services.`, h1: [`Welcome to ${brandName}`], pageType: "HOME", wordCount: 950, statusCode: 200, responseTimeMs: 220 },
-      { url: `https://${clean}/products`, title: `Products & Offerings Catalog | ${brandName}`, metaDescription: `Browse our full range of certified products, specifications, and commercial packages.`, h1: ["Products & Offerings"], pageType: "PRODUCT", wordCount: 820, statusCode: 200, responseTimeMs: 270 },
-      { url: `https://${clean}/services`, title: `Professional Services & Expert Solutions`, metaDescription: `End-to-end consulting, execution, and client support tailored to your requirements.`, h1: ["Our Core Services"], pageType: "SERVICE", wordCount: 780, statusCode: 200, responseTimeMs: 280 },
-      { url: `https://${clean}/about`, title: `About Us | Company Background & Certifications`, metaDescription: `Learn about our history, leadership, quality standards, and industry achievements.`, h1: [`About ${brandName}`], pageType: "ABOUT", wordCount: 690, statusCode: 200, responseTimeMs: 230 },
-      { url: `https://${clean}/contact`, title: `Contact ${brandName} | Inquiries & Customer Support`, metaDescription: `Get in touch with our team for consultations, commercial quotes, or technical assistance.`, h1: ["Get In Touch With Us"], pageType: "ABOUT", wordCount: 520, statusCode: 200, responseTimeMs: 210 },
-    ];
-  }
-
-  if (pageType && pageType !== "ALL") {
-    return pages.filter((p) => p.pageType.toUpperCase() === pageType.toUpperCase());
-  }
-  return pages;
-}
-
-export function generateDynamicCompetitorVideos(competitorIdOrDomain: string): CompetitorContent[] {
-  const clean = (competitorIdOrDomain || "competitor.com")
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .split("/")[0]
-    .toLowerCase();
-
-  const rootName = clean.split(".")[0] || "competitor";
-  const brandName = rootName
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-
-  const lower = clean.toLowerCase();
-
-  if (lower.includes("pulp") || lower.includes("fruit") || lower.includes("iqf") || lower.includes("frozen") || lower.includes("food") || lower.includes("pal")) {
-    const isAseptic = lower.includes("pulp") || lower.includes("fruit");
-    return [
-      {
-        id: `ci-${rootName}-1`,
-        platform: "INSTAGRAM",
-        contentType: "INSTAGRAM_REEL",
-        publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        title: isAseptic
-          ? `Filling 215kg Aseptic Drums with Mango Pulp at 28° Brix: Zero Preservatives`
-          : `Inside our -40°C IQF Fluidized Blast Freezer Line: Clump-Free Freezing Technology`,
-        caption: isAseptic
-          ? `Aseptic sterilizer steam barrier filling ensures 24-month ambient shelf life for global beverage manufacturers.`
-          : `Precision blast freezing at -40°C prevents ice crystal formation, locking in freshness for international buyers.`,
-        hashtags: isAseptic ? ["#MangoPulp", "#AsepticPackaging", "#FoodExport"] : ["#IQF", "#FrozenProduce", "#FoodProcessing"],
-        thumbnailUrl: null,
-        contentUrl: `https://instagram.com/p/${rootName}-video-1`,
-        duration: 42,
-        transcript: isAseptic
-          ? `How do we store 215kg of fruit pulp for two years with zero refrigeration? The secret is aseptic steam barrier filling.`
-          : `Here is how export-grade IQF produce never clumps together. The fluidized air bed freezes each unit in under 3 minutes.`,
-        transcriptSegments: [
-          { timestamp: "0:00", text: "How we guarantee export-grade purity and specification compliance.", type: "HOOK" },
-          { timestamp: "0:05", text: "Factory line walkthrough under strict international standards.", type: "SOLUTION" },
-        ],
-        scenes: [
-          { sceneNumber: 1, timeRange: "0:00 - 0:05", visualFormat: "FACTORY_LINE", description: "Automated production line in operation with sensor readouts", onScreenText: "EXPORT SPECIFICATION VERIFIED" },
-        ],
-        hookAnalysis: {
-          hook: isAseptic
-            ? `How to ship 215kg of fresh mango pulp across the globe without refrigeration`
-            : `Why cheap frozen produce turns into ice blocks (and how our fluidized line stops it)`,
-          hookType: "PROBLEM_AGITATION",
-          durationSeconds: 4,
-          strength: "HIGH",
-        },
-        whyItWorks: `Addresses the exact technical, shelf-life, and purity criteria B2B buyers look for before signing import contracts.`,
-        likesCount: 3820,
-        commentsCount: 165,
-        viewsCount: 45200,
-        sharesCount: 710,
-        classification: {
-          contentCategory: isAseptic ? "Aseptic Processing" : "IQF Freezing Technology",
-          contentPillar: "PRODUCT_QUALITY",
-          topic: isAseptic ? "Aseptic Packaging" : "IQF Freezing",
-          subtopic: "Quality Control",
-          format: "REEL",
-          visualFormat: "FACTORY_TOUR",
-          detectedTopics: ["Export", "Food Quality", "Processing"],
-          detectedObjects: ["machinery", "product", "sensor"],
-          storytellingStyle: "ENGINEERING_PROOF",
-          hookType: "PROBLEM_AGITATION",
-          ctaType: "INQUIRY",
-          audience: "B2B_FOOD_IMPORTERS",
-          searchIntent: "COMMERCIAL",
-          marketingIntent: "SUPPLIER_AUTHORITY",
-          funnelStage: "CONSIDERATION",
-          tone: "AUTHORITATIVE",
-          language: "en",
-          visualStyle: "INDUSTRIAL",
-          contentObjective: "TRUST_BUILDING",
-          confidence: 0.95,
-          creativityScore: 88,
-        },
-        account: {
-          displayName: brandName,
-          businessName: brandName,
-          platform: "INSTAGRAM",
-          handle: `@${rootName}`,
-          matchConfidence: 95,
-          verificationStatus: "VERIFIED",
-        },
-      },
-      {
-        id: `ci-${rootName}-2`,
-        platform: "INSTAGRAM",
-        contentType: "INSTAGRAM_REEL",
-        publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        title: `In-House Lab Screening & COA Quality Verification Before Export Dispatch`,
-        caption: `Every production batch gets tested for Brix, acidity, pesticide screening, and microbial purity.`,
-        hashtags: ["#LabTesting", "#QualityAssurance", "#FoodSafety"],
-        thumbnailUrl: null,
-        contentUrl: `https://instagram.com/p/${rootName}-video-2`,
-        duration: 36,
-        transcript: `Checking digital refractometer and pesticide screening reports before container sealing.`,
-        likesCount: 2240,
-        commentsCount: 92,
-        viewsCount: 31800,
-        sharesCount: 380,
-        hookAnalysis: {
-          hook: `Why 0.5% specification variation can reject a whole shipping container at port`,
-          hookType: "RISK_PREVENTION",
-          durationSeconds: 4,
-          strength: "HIGH",
-        },
-        classification: {
-          contentCategory: "Lab Testing & COA Verification",
-          contentPillar: "PROCESS_AUTHORITY",
-          topic: "Lab Testing",
-          subtopic: "Quality Assurance",
-          format: "REEL",
-          visualFormat: "LAB_TEST",
-          detectedTopics: ["Lab Testing", "COA", "Quality Assurance"],
-          detectedObjects: ["refractometer", "sample"],
-          storytellingStyle: "LAB_DEMO",
-          hookType: "RISK_PREVENTION",
-          ctaType: "INQUIRY",
-          audience: "QUALITY_MANAGERS",
-          searchIntent: "COMMERCIAL",
-          marketingIntent: "COMPLIANCE_PROOF",
-          funnelStage: "CONSIDERATION",
-          tone: "TECHNICAL",
-          language: "en",
-          visualStyle: "LAB_CLEAN",
-          contentObjective: "SPEC_ASSURANCE",
-          confidence: 0.94,
-          creativityScore: 86,
-        },
-        account: {
-          displayName: brandName,
-          businessName: brandName,
-          platform: "INSTAGRAM",
-          handle: `@${rootName}`,
-          matchConfidence: 95,
-          verificationStatus: "VERIFIED",
-        },
-      },
-    ];
-  }
-
-  // Default / Interior / Tech / Services video teardowns
-  return [
-    {
-      id: `ci-${rootName}-1`,
-      platform: "INSTAGRAM",
-      contentType: "INSTAGRAM_REEL",
-      publishedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      title: `${brandName} Behind-The-Scenes: How We Deliver High-Impact Results`,
-      caption: `A breakdown of our process, execution framework, and key client milestones at ${brandName}.`,
-      hashtags: ["#Process", "#ClientSuccess", `#${brandName.replace(/\s+/g, "")}`],
-      thumbnailUrl: null,
-      contentUrl: `https://instagram.com/p/${rootName}-reel-1`,
-      duration: 35,
-      transcript: `Here is the step-by-step framework we use to ensure zero defect delivery on every project.`,
-      transcriptSegments: [
-        { timestamp: "0:00", text: `Here is how ${brandName} approaches quality delivery.`, type: "HOOK" },
-        { timestamp: "0:05", text: "Walkthrough of our core workflow and client standards.", type: "SOLUTION" },
-      ],
-      scenes: [
-        { sceneNumber: 1, timeRange: "0:00 - 0:05", visualFormat: "PROJECT_DEMO", description: "Studio / workplace overview with client deliverables", onScreenText: "EXECUTION FRAMEWORK" },
-      ],
-      hookAnalysis: {
-        hook: `The 3 common mistakes in our industry (and how our framework solves them)`,
-        hookType: "PROBLEM_AGITATION",
-        durationSeconds: 4,
-        strength: "HIGH",
-      },
-      whyItWorks: `Directly demonstrates competence, framework clarity, and builds authority with potential clients.`,
-      likesCount: 2450,
-      commentsCount: 110,
-      viewsCount: 29800,
-      sharesCount: 420,
-      classification: {
-        contentCategory: "Process & Authority",
-        contentPillar: "PROCESS_AUTHORITY",
-        topic: "Framework Execution",
-        subtopic: "Client Quality",
-        format: "REEL",
-        visualFormat: "WORKFLOW_DEMO",
-        detectedTopics: ["Framework", "Quality", "Client Success"],
-        detectedObjects: ["workspace", "deliverable"],
-        storytellingStyle: "EXPERT_BREAKDOWN",
-        hookType: "PROBLEM_AGITATION",
-        ctaType: "INQUIRY",
-        audience: "POTENTIAL_CLIENTS",
-        searchIntent: "COMMERCIAL",
-        marketingIntent: "BRAND_AUTHORITY",
-        funnelStage: "CONSIDERATION",
-        tone: "PROFESSIONAL",
-        language: "en",
-        visualStyle: "MODERN",
-        contentObjective: "CLIENT_ACQUISITION",
-        confidence: 0.93,
-        creativityScore: 85,
-      },
-      account: {
-        displayName: brandName,
-        businessName: brandName,
-        platform: "INSTAGRAM",
-        handle: `@${rootName}`,
-        matchConfidence: 90,
-        verificationStatus: "VERIFIED",
-      },
-    },
-  ];
-}
 
 
