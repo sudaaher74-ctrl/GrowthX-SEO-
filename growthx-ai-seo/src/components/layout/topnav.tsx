@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Search, Zap } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
@@ -23,7 +23,15 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
 
 const PERIODS = ["7d", "28d", "90d"] as const;
 
-export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?: (open: boolean) => void }) {
+export function TopNav({
+  collapsed = false,
+  onToggleCollapse,
+  setMobileOpen,
+}: {
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  setMobileOpen?: (open: boolean) => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("28d");
@@ -39,11 +47,24 @@ export function TopNav({ setMobileOpen }: { collapsed?: boolean; setMobileOpen?:
 
   return (
     <header
-      className="fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-3 border-b bg-white px-4 md:left-[232px]"
+      className={cn(
+        "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-3 border-b bg-white px-4 transition-all duration-300 ease-in-out",
+        collapsed ? "md:left-0" : "md:left-[232px]",
+      )}
       style={{ borderColor: "var(--border-color)" }}
     >
       <button className="md:hidden" onClick={() => setMobileOpen?.(true)} aria-label="Open navigation">
         <Menu size={18} className="text-brand-600" />
+      </button>
+
+      {/* Desktop Collapse Toggle */}
+      <button
+        onClick={onToggleCollapse}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg text-brand-500 hover:text-brand-950 hover:bg-brand-100/60 transition"
+      >
+        {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
 
       {/* Breadcrumb */}

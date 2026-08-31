@@ -19,6 +19,7 @@ import {
   MapPin,
   Megaphone,
   MoreHorizontal,
+  PanelLeftClose,
   Search,
   Settings,
   Sparkles,
@@ -50,6 +51,8 @@ interface NavItem {
 }
 
 export function Sidebar({
+  collapsed = false,
+  onToggle,
   mobileOpen,
   setMobileOpen,
 }: {
@@ -113,8 +116,9 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-white transition-transform duration-200 md:translate-x-0",
+          "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-white transition-all duration-300 ease-in-out",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
+          collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
         style={{ borderColor: "var(--border-color)" }}
       >
@@ -125,11 +129,14 @@ export function Sidebar({
           </div>
           <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-brand-950">GrowthX</span>
           <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-brand-400">AI SEO</span>
-          {entitlements.data && (
-            <span className="ml-auto rounded-[5px] bg-brand-100 px-[5px] py-[2px] font-mono text-[9px] font-semibold text-brand-600">
-              {entitlements.data.plan}
-            </span>
-          )}
+          
+          <button
+            onClick={onToggle}
+            title="Collapse sidebar"
+            className="hidden md:flex ml-auto items-center justify-center h-6 w-6 rounded-md text-brand-400 hover:text-brand-950 hover:bg-brand-50 transition"
+          >
+            <PanelLeftClose size={13} />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">

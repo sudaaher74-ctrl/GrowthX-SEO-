@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 /** The token lives in localStorage and only changes on sign-in or sign-out,
  *  both of which navigate — so there is nothing to subscribe to. */
@@ -21,7 +22,25 @@ const noSubscribe = () => () => {};
  */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("growthx_sidebar_collapsed");
+      if (saved === "true") setCollapsed(true);
+    } catch {}
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("growthx_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // localStorage is unreadable during the server render. useSyncExternalStore
   // is the pattern already used for the stored org in `useWorkspace`: a client
@@ -43,10 +62,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
-      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      <TopNav setMobileOpen={setMobileOpen} />
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => toggleCollapsed()}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
+      <TopNav
+        collapsed={collapsed}
+        onToggleCollapse={() => toggleCollapsed()}
+        setMobileOpen={setMobileOpen}
+      />
       {/* 232px sidebar + 52px header, per the design's measurements. */}
-      <main className="min-h-screen pt-[52px] md:ml-[232px]">
+      <main
+        className={cn(
+          "min-h-screen pt-[52px] transition-all duration-300 ease-in-out",
+          collapsed ? "md:ml-0" : "md:ml-[232px]",
+        )}
+      >
         <div className="mx-auto max-w-[1600px] p-5 md:p-6">{children}</div>
       </main>
     </div>

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Crosshair, Target, Play, Sparkles, Plus, RefreshCw, Eye,
   Layers, CheckCircle2, XCircle, Clock, ChevronRight, Video, ShieldAlert,
-  ThumbsUp, HelpCircle, Search, Wand2, Check, Copy, Calendar, X, Globe, MapPin
+  ThumbsUp, HelpCircle, Search, Wand2, Check, Copy, Calendar, X, Globe, MapPin,
+  ExternalLink, ArrowUpRight
 } from "lucide-react";
 import { api, type CompetitorContent, type EnrichedOpportunity, type VideoBriefAndScript, type CompetitorChangeAlert } from "@/lib/api-client";
 import { useWorkspace, useVisibility } from "@/hooks/use-growthx";
@@ -24,7 +25,7 @@ function CompetitorConsoleClient() {
   const qc = useQueryClient();
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"video-feed" | "matrix" | "teardown" | "opportunities" | "alerts" | "voice">("video-feed");
+  const [activeTab, setActiveTab] = useState<"teardown" | "video-feed" | "matrix" | "opportunities" | "alerts" | "voice">("teardown");
 
   // Filters & State
   const [platformFilter, setPlatformFilter] = useState<string>("ALL");
@@ -345,6 +346,7 @@ function CompetitorConsoleClient() {
   }, [allContent, currentCompetitor]);
 
   const [crawledPageTypeFilter, setCrawledPageTypeFilter] = useState<string>("ALL");
+  const [crawledSearch, setCrawledSearch] = useState<string>("");
 
   const competitorCoverageQuery = useQuery({
     queryKey: ["competitor-coverage", projectId, currentCompetitor?.competitorId || currentCompetitor?.id],
@@ -369,9 +371,21 @@ function CompetitorConsoleClient() {
   const comparisonData = competitorComparisonQuery.data;
 
   const filteredCrawledPages = useMemo(() => {
-    if (crawledPageTypeFilter === "ALL") return crawledPages;
-    return crawledPages.filter(p => p.pageType.toUpperCase() === crawledPageTypeFilter.toUpperCase());
-  }, [crawledPages, crawledPageTypeFilter]);
+    return crawledPages.filter((p) => {
+      if (crawledPageTypeFilter !== "ALL" && p.pageType.toUpperCase() !== crawledPageTypeFilter.toUpperCase()) {
+        return false;
+      }
+      if (crawledSearch.trim()) {
+        const q = crawledSearch.toLowerCase();
+        return (
+          (p.title && p.title.toLowerCase().includes(q)) ||
+          p.url.toLowerCase().includes(q) ||
+          (p.metaDescription && p.metaDescription.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [crawledPages, crawledPageTypeFilter, crawledSearch]);
 
   // Dynamic KPI Stats
   const avgViews = useMemo(() => {
@@ -388,41 +402,22 @@ function CompetitorConsoleClient() {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5" style={{ borderColor: "var(--color-brand-100)" }}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-2">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-950 text-white font-mono text-[11px] font-bold">
-              07
-            </span>
-            <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-brand-950">
-              Competitor Social Video Intelligence
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-brand-950">
+              Competitor & Market Intelligence
             </h1>
-            <span className="rounded-md bg-[#10b98118] px-2 py-0.5 text-[10px] font-semibold text-success-500">
-              Active Engine
+            <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 text-[10px] font-semibold">
+              Live Engine
             </span>
           </div>
-          <p className="mt-1 text-[12.5px] text-brand-500">
-            Deconstruct competitor Instagram Reels & YouTube video formulas, compare competitors vs your brand, and turn intelligence into high-converting video strategy.
+          <p className="mt-1 text-[13px] text-brand-500">
+            Deconstruct rival websites, track crawled pages, and uncover high-converting content opportunities.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <ActionButton
-            variant="secondary"
-            icon={triggerCronSyncMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            onClick={() => triggerCronSyncMut.mutate()}
-            disabled={triggerCronSyncMut.isPending}
-          >
-            {triggerCronSyncMut.isPending ? "Syncing Crawl..." : "Run Cron Sync"}
-          </ActionButton>
-          <ActionButton
-            variant="secondary"
-            icon={isGeneratingStrat ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} className="text-accent-600" />}
-            onClick={handleGenerateFullStrategy}
-            disabled={isGeneratingStrat}
-          >
-            {isGeneratingStrat ? "Synthesizing Strategy..." : "Generate AI Strategy"}
-          </ActionButton>
           <ActionButton
             variant="secondary"
             icon={<Video size={13} />}
@@ -446,101 +441,51 @@ function CompetitorConsoleClient() {
         </div>
       </div>
 
-      {/* KPI Stats Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Competitors Tracked</div>
-          <div className="mt-1 text-[20px] font-bold text-brand-950">{accounts.length}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-brand-400">
-            <Globe size={11} /> Auto-Discovered
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Videos Analyzed</div>
-          <div className="mt-1 text-[20px] font-bold text-accent-600">{allContent.length}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-accent-600 font-medium">
-            <Sparkles size={11} /> Multi-Modal AI
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Avg Reel Views</div>
-          <div className="mt-1 text-[20px] font-bold text-brand-950">{avgViews}</div>
-          <div className="mt-0.5 text-[10px] text-brand-400 font-mono">Public Engagement</div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Content Gaps</div>
-          <div className="mt-1 text-[20px] font-bold text-error-500">{opportunities.length}</div>
-          <div className="mt-0.5 text-[10px] text-error-500 font-medium">High Impact Open</div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Top Opportunity</div>
-          <div className="mt-1 text-[20px] font-bold text-success-500">{topOpp ? `${topOpp.opportunityScore}/100` : "—"}</div>
-          <div className="mt-0.5 text-[10px] text-brand-400 truncate">{topOpp ? (topOpp.topic || (topOpp as any).title) : "None detected"}</div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-3.5" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="text-[11px] font-medium text-brand-500">Data Freshness</div>
-          <div className="mt-1 text-[20px] font-bold text-brand-950">{accounts.length > 0 ? "Sync Active" : "Not synced"}</div>
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-brand-400">
-            <Clock size={11} /> {accounts.length > 0 ? "Real-time" : "Pending competitor"}
-          </div>
-        </div>
-      </div>
-
-      {/* Compliance & Data Transparency Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-brand-50/60 px-4 py-2.5" style={{ borderColor: "var(--color-brand-200)" }}>
-        <div className="flex items-center gap-2 text-[11.5px] text-brand-600">
-          <HelpCircle size={14} className="text-brand-400" />
-          <span>Transparency Engine: Distinguishing legitimate data sources. Zero fabricated private retention metrics.</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-white border border-brand-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-brand-700">PUBLIC DATA</span>
-          <span className="rounded bg-white border border-brand-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-brand-700">AUTHORIZED DATA</span>
-          <span className="rounded bg-accent-50 border border-accent-200 px-2 py-0.5 font-mono text-[9.5px] font-semibold text-accent-700">AI INFERENCE</span>
-        </div>
-      </div>
-
-      {/* Automated Recurring Crawl & Cron Job Schedule Status */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-gradient-to-r from-brand-900 via-brand-950 to-brand-900 px-4 py-3 text-white shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
-            <RefreshCw size={15} className="animate-spin-slow" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-[13px] font-semibold">
-              <span>Automated Background Cron Scheduler</span>
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] text-emerald-300">ACTIVE (02:00 & 04:00 UTC)</span>
+      {/* Clean KPI Cards Strip */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--color-brand-100)" }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-medium text-brand-500">Competitors Tracked</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <Globe size={14} />
             </div>
-            <p className="text-[11px] text-brand-300">
-              Daily deep re-crawling of competitor pages, automated sitemap diff detection, and social publishing velocity alerts.
-            </p>
           </div>
+          <div className="mt-2 text-2xl font-bold text-brand-950">{accounts.length}</div>
+          <div className="mt-1 text-[11px] text-brand-400">Real-time domain & social discovery</div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => triggerCronSyncMut.mutate()}
-            disabled={triggerCronSyncMut.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-[11.5px] font-medium text-white transition disabled:opacity-50"
-          >
-            {triggerCronSyncMut.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Clock size={12} />}
-            {triggerCronSyncMut.isPending ? "Syncing Batch..." : "Trigger Cron Now"}
-          </button>
+
+        <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--color-brand-100)" }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-medium text-brand-500">Crawled Catalog Pages</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+              <Layers size={14} />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-bold text-indigo-600">{crawledPages.length}</div>
+          <div className="mt-1 text-[11px] text-brand-400">Indexed URLs & meta structure</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--color-brand-100)" }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] font-medium text-brand-500">Content Gaps</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+              <Sparkles size={14} />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-bold text-amber-600">{opportunities.length}</div>
+          <div className="mt-1 text-[11px] text-brand-400">High-impact opportunities detected</div>
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex space-x-1 border-b border-brand-200 overflow-x-auto pb-[-1px]">
+      {/* Navigation Tab Pills */}
+      <div className="flex rounded-xl bg-brand-100/70 p-1 overflow-x-auto">
         {[
-          { id: "video-feed", label: "Video Intelligence Feed", icon: Video },
+          { id: "teardown", label: "Competitor Overview & Pages", icon: Crosshair },
+          { id: "video-feed", label: "Video Intelligence", icon: Video },
           { id: "matrix", label: "Cross-Competitor Matrix", icon: Layers },
-          { id: "teardown", label: "Competitor Teardown", icon: Crosshair },
-          { id: "opportunities", label: "Growth Opportunities (6D Score)", icon: Sparkles, badge: opportunities.length > 0 ? String(opportunities.length) : undefined },
+          { id: "opportunities", label: "Growth Opportunities", icon: Sparkles, badge: opportunities.length > 0 ? String(opportunities.length) : undefined },
           { id: "alerts", label: "Velocity Alerts", icon: ShieldAlert, badge: alerts.length > 0 ? String(alerts.length) : undefined },
-          { id: "voice", label: "AI Share of Voice", icon: Target },
+          { id: "voice", label: "Share of Voice", icon: Target },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -548,16 +493,16 @@ function CompetitorConsoleClient() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-[12.5px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-[12px] font-medium transition whitespace-nowrap ${
                 isActive
-                  ? "border-brand-950 text-brand-950 font-semibold"
-                  : "border-transparent text-brand-500 hover:text-brand-950 hover:border-brand-300"
+                  ? "bg-white text-brand-950 font-semibold shadow-xs"
+                  : "text-brand-600 hover:text-brand-950"
               }`}
             >
-              <Icon size={14} />
+              <Icon size={13} />
               <span>{tab.label}</span>
               {tab.badge && (
-                <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-bold ${isActive ? "bg-brand-950 text-white" : "bg-brand-100 text-brand-600"}`}>
+                <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[9.5px] font-bold ${isActive ? "bg-brand-950 text-white" : "bg-brand-200 text-brand-700"}`}>
                   {tab.badge}
                 </span>
               )}
@@ -902,7 +847,7 @@ function CompetitorConsoleClient() {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* TAB 3: COMPETITOR TEARDOWN */}
+      {/* TAB: COMPETITOR TEARDOWN & PAGES */}
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === "teardown" && (
         <div className="space-y-6">
@@ -913,7 +858,7 @@ function CompetitorConsoleClient() {
               </div>
               <h3 className="mt-4 text-[15px] font-bold text-brand-950">No Competitors Added Yet</h3>
               <p className="mt-1.5 text-[13px] text-brand-600 max-w-md mx-auto">
-                Add competitor domains above to inspect their social channels, video performance, and reverse-engineer their hook formulas.
+                Add competitor domains to scan their catalog pages, detect content gaps, and analyze video performance with AI.
               </p>
               <div className="mt-6 flex justify-center">
                 <button
@@ -926,239 +871,222 @@ function CompetitorConsoleClient() {
             </div>
           ) : (
             <>
-              {/* Competitor Selector Pills */}
+              {/* Competitor Selector Chips */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {accounts.map((acc) => (
-                  <button
-                    key={acc.id}
-                    onClick={() => setSelectedCompetitorId(acc.id)}
-                    className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[12px] font-medium transition ${
-                      currentCompetitor?.id === acc.id
-                        ? "bg-brand-950 text-white border-brand-950 shadow-sm"
-                        : "bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
-                    }`}
-                  >
-                    <span>{acc.displayName || acc.businessName || acc.handle}</span>
-                    <span className={`rounded px-1.5 py-0.2 font-mono text-[9px] uppercase ${
-                      currentCompetitor?.id === acc.id ? "bg-white/20 text-white" : "bg-brand-100 text-brand-600"
-                    }`}>
-                      {acc.platform}
-                    </span>
-                  </button>
-                ))}
+                {accounts.map((acc) => {
+                  const isSelected = currentCompetitor?.id === acc.id;
+                  return (
+                    <button
+                      key={acc.id}
+                      onClick={() => setSelectedCompetitorId(acc.id)}
+                      className={`flex items-center gap-2.5 rounded-xl px-4 py-2 text-[12.5px] font-medium transition ${
+                        isSelected
+                          ? "bg-brand-950 text-white shadow-xs"
+                          : "bg-white text-brand-700 border border-brand-100 hover:bg-brand-50"
+                      }`}
+                    >
+                      <span className="font-semibold">{acc.displayName || acc.businessName || acc.handle}</span>
+                      <span className={`rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase ${
+                        isSelected ? "bg-white/20 text-white" : "bg-brand-100 text-brand-600"
+                      }`}>
+                        {acc.platform}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {currentCompetitor && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                  {/* Competitor Profile Overview */}
-                  <Panel title="Competitor Profile" subtitle="Account details and verified channels.">
-                    <div className="space-y-4 text-[12px]">
-                      <div>
-                        <div className="text-[11px] text-brand-400">Business / Brand Name</div>
-                        <div className="text-[14px] font-bold text-brand-950 mt-0.5">
-                          {currentCompetitor.displayName || currentCompetitor.businessName || currentCompetitor.handle}
+                  {/* Competitor Hero Profile Banner */}
+                  <div className="rounded-2xl border bg-white p-6 shadow-xs" style={{ borderColor: "var(--color-brand-100)" }}>
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                      {/* Left: Identity & Badges */}
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-950 font-bold text-white text-lg">
+                          {(currentCompetitor.displayName || currentCompetitor.handle || "C")[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-lg font-bold text-brand-950">
+                              {currentCompetitor.displayName || currentCompetitor.businessName || currentCompetitor.handle}
+                            </h2>
+                            <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 text-[10.5px] font-bold">
+                              {currentCompetitor.matchConfidence || 95}% Fit
+                            </span>
+                            <span className="rounded-full bg-brand-50 text-brand-700 border border-brand-200/60 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase">
+                              {currentCompetitor.platform}
+                            </span>
+                          </div>
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-4 text-[12.5px] text-brand-500">
+                            {currentCompetitor.handle && (
+                              <span className="font-mono text-brand-700">{currentCompetitor.handle}</span>
+                            )}
+                            {currentCompetitor.website && (
+                              <a
+                                href={currentCompetitor.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-accent-600 hover:underline font-medium"
+                              >
+                                {currentCompetitor.website}
+                                <ExternalLink size={12} />
+                              </a>
+                            )}
+                            <span className="text-brand-400">·</span>
+                            <span className="font-semibold text-brand-900">{crawledPages.length} Pages Indexed</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-[11px] text-brand-400">Platform</div>
-                          <div className="font-semibold text-brand-900 mt-0.5">{currentCompetitor.platform}</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-brand-400">Handle</div>
-                          <div className="font-mono text-brand-900 mt-0.5">{currentCompetitor.handle}</div>
-                        </div>
-                      </div>
-
-                      {currentCompetitor.website && (
-                        <div>
-                          <div className="text-[11px] text-brand-400">Website</div>
-                          <a href={currentCompetitor.website} target="_blank" rel="noopener noreferrer" className="text-accent-600 hover:underline flex items-center gap-1 mt-0.5 truncate">
-                            {currentCompetitor.website}
-                          </a>
-                        </div>
-                      )}
-
-                      <div className="pt-3 border-t space-y-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-brand-500">Discovery Match</span>
-                          <span className="font-bold text-success-500">{currentCompetitor.matchConfidence || 95}% Fit</span>
-                        </div>
+                      {/* Right: Actions */}
+                      <div className="flex flex-wrap items-center gap-2.5">
                         <button
                           onClick={() => handleCrawlCompetitor(currentCompetitor.competitorId || currentCompetitor.id, currentCompetitor.website || currentCompetitor.displayName || currentCompetitor.handle)}
                           disabled={isCrawling}
-                          className="w-full flex items-center justify-center gap-1.5 rounded-lg border bg-brand-50/80 hover:bg-brand-100 py-2 text-[11.5px] font-semibold text-brand-800 transition disabled:opacity-50"
-                          style={{ borderColor: "var(--color-brand-200)" }}
+                          className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-white hover:bg-brand-50 px-4 py-2 text-[12px] font-semibold text-brand-800 transition shadow-xs disabled:opacity-50"
                         >
-                          {isCrawling ? <RefreshCw size={12} className="animate-spin" /> : <Globe size={12} />}
-                          {isCrawling ? "Crawling Website Pages..." : "Crawl & Deep Scan Website"}
+                          {isCrawling ? <RefreshCw size={13} className="animate-spin text-accent-600" /> : <Globe size={13} />}
+                          {isCrawling ? "Scanning Pages..." : "Crawl & Deep Scan Website"}
                         </button>
                         <button
                           onClick={handleGenerateFullStrategy}
                           disabled={isGeneratingStrat}
-                          className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-brand-950 hover:bg-brand-900 py-2 text-[11.5px] font-semibold text-white transition disabled:opacity-50"
+                          className="flex items-center gap-1.5 rounded-xl bg-brand-950 hover:bg-brand-900 px-4 py-2 text-[12px] font-semibold text-white transition shadow-xs disabled:opacity-50"
                         >
-                          <Sparkles size={12} />
-                          Generate Competitive Strategy
+                          {isGeneratingStrat ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} className="text-amber-300" />}
+                          {isGeneratingStrat ? "Synthesizing..." : "Generate AI Strategy"}
                         </button>
                       </div>
                     </div>
-                  </Panel>
+                  </div>
 
-                  {/* Competitor Video Content */}
-                  <div className="lg:col-span-2">
-                    <Panel title="Analyzed Content & Hook Performance" subtitle={`Videos and posts tracked for ${currentCompetitor.displayName || currentCompetitor.handle}.`}>
-                      {competitorContentList.length === 0 ? (
-                        <div className="rounded-lg border bg-brand-50/50 p-8 text-center text-[12px] text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>
-                          <p>No content analyzed yet for this competitor account.</p>
-                          <div className="mt-4 flex justify-center">
-                            <button
-                              onClick={() => {
-                                setIngestAccountId(currentCompetitor.id);
-                                setIsIngestVideoOpen(true);
-                              }}
-                              className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-accent-700"
-                            >
-                              <Sparkles size={13} /> Ingest & Analyze Video
-                            </button>
-                          </div>
+                  {/* Section 2: Crawled Website Pages & Structure */}
+                  <div className="space-y-4">
+                    {/* Header + Search + Filter Pills */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-brand-950">
+                          Crawled Website Pages & Structure ({crawledPages.length})
+                        </h3>
+                        <p className="text-[12px] text-brand-500">
+                          Discovered URLs and metadata structure for {currentCompetitor.displayName || currentCompetitor.handle}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Search Input */}
+                        <div className="relative">
+                          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" />
+                          <input
+                            type="text"
+                            placeholder="Filter pages..."
+                            value={crawledSearch}
+                            onChange={(e) => setCrawledSearch(e.target.value)}
+                            className="h-8 rounded-xl border bg-white pl-8 pr-3 text-[12px] text-brand-950 placeholder:text-brand-400 outline-none focus:border-brand-950 transition"
+                            style={{ borderColor: "var(--color-brand-200)" }}
+                          />
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {competitorContentList.map((v: any) => (
-                            <div
-                              key={v.id}
-                              onClick={() => setSelectedVideo(v)}
-                              className="flex items-center justify-between rounded-lg border p-3 hover:bg-brand-50 cursor-pointer transition"
-                              style={{ borderColor: "var(--color-brand-100)" }}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-brand-100 text-brand-800">
-                                  <Play size={11} />
-                                </span>
-                                <span className="text-[12.5px] font-medium text-brand-950 truncate">
-                                  {v.title || v.caption}
-                                </span>
+
+                        {/* Category Filter Pills */}
+                        <div className="flex items-center gap-1 rounded-xl bg-brand-100/60 p-0.5">
+                          {["ALL", "PRODUCT", "SERVICE", "ABOUT", "HOME"].map((type) => {
+                            const count = type === "ALL"
+                              ? crawledPages.length
+                              : crawledPages.filter((p) => p.pageType.toUpperCase() === type).length;
+                            return (
+                              <button
+                                key={type}
+                                onClick={() => setCrawledPageTypeFilter(type)}
+                                className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
+                                  crawledPageTypeFilter === type
+                                    ? "bg-white text-brand-950 font-semibold shadow-xs"
+                                    : "text-brand-600 hover:text-brand-950"
+                                }`}
+                              >
+                                {type} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Page List Cards */}
+                    {filteredCrawledPages.length === 0 ? (
+                      <div className="rounded-2xl border bg-white p-8 text-center text-[13px] text-brand-500" style={{ borderColor: "var(--color-brand-100)" }}>
+                        No crawled pages found matching your search or category filter.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {filteredCrawledPages.map((page, idx) => (
+                          <div
+                            key={page.url + idx}
+                            className="group flex flex-col gap-2 rounded-xl border bg-white p-4 transition hover:border-brand-300 hover:shadow-xs"
+                            style={{ borderColor: "var(--color-brand-100)" }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-[13.5px] text-brand-950">
+                                    {page.title || page.url}
+                                  </span>
+                                  <span
+                                    className={`rounded-md px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase ${
+                                      page.pageType === "PRODUCT"
+                                        ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                        : page.pageType === "SERVICE"
+                                        ? "bg-purple-50 text-purple-700 border border-purple-100"
+                                        : page.pageType === "ABOUT"
+                                        ? "bg-amber-50 text-amber-700 border border-amber-100"
+                                        : "bg-brand-100 text-brand-700 border border-brand-200"
+                                    }`}
+                                  >
+                                    {page.pageType}
+                                  </span>
+                                </div>
+                                <a
+                                  href={page.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-0.5 inline-flex items-center gap-1 text-[11.5px] text-accent-600 hover:underline truncate max-w-full"
+                                >
+                                  {page.url}
+                                  <ArrowUpRight size={11} className="opacity-70 group-hover:opacity-100" />
+                                </a>
                               </div>
-                              <div className="flex items-center gap-3 shrink-0 text-[11px] font-mono text-brand-500">
-                                <span>{(v.viewsCount || 0).toLocaleString()} views</span>
-                                <span className="font-semibold text-accent-600">Inspect →</span>
+
+                              <div className="flex items-center gap-3 shrink-0 text-right font-mono text-[11px] text-brand-400">
+                                <span>{page.wordCount ? `${page.wordCount} words` : "Indexed"}</span>
+                                <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                  200 OK
+                                </span>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </Panel>
-                  </div>
-                </div>
 
-                {/* Section 2: Crawled Website Pages & Catalog Index */}
-                <div className="mt-6 space-y-6">
-                  {/* Coverage Gap Overview Banner */}
-                  {comparisonData?.behindOn && comparisonData.behindOn.length > 0 && (
-                    <div className="rounded-xl border bg-accent-50/60 p-4" style={{ borderColor: "var(--color-accent-200)" }}>
-                      <div className="flex items-center gap-2 text-[13px] font-bold text-brand-950">
-                        <Sparkles size={14} className="text-accent-600" />
-                        <span>Identified Website Catalog Gaps (Competitor Leads)</span>
-                      </div>
-                      <div className="mt-2.5 flex flex-wrap gap-2">
-                        {comparisonData.behindOn.map(gap => (
-                          <div key={gap.pageType} className="flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-[12px] border shadow-xs" style={{ borderColor: "var(--color-accent-100)" }}>
-                            <span className="font-semibold text-brand-900">{gap.pageType}:</span>
-                            <span className="text-brand-600">{currentCompetitor.displayName || currentCompetitor.handle} has <strong className="text-brand-950">{gap.theirs}</strong> vs your <strong className="text-brand-950">{gap.ours ?? 0}</strong></span>
-                            <span className="rounded bg-accent-100 px-1.5 py-0.5 font-bold text-[10px] text-accent-700">+{gap.gap} Gap</span>
+                            {(page.metaDescription || (page.h1 && page.h1.length > 0)) && (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-brand-500 pt-1">
+                                {page.h1 && page.h1.length > 0 && (
+                                  <span className="truncate max-w-md">
+                                    <strong className="text-brand-700">H1:</strong> {page.h1[0]}
+                                  </span>
+                                )}
+                                {page.metaDescription && (
+                                  <span className="truncate max-w-xl text-brand-400">
+                                    {page.metaDescription}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Crawled Pages Table Panel */}
-                  <Panel
-                    title={`Crawled Website Pages & Structure (${crawledPages.length} Pages)`}
-                    subtitle={`Live indexed URLs, metadata, and page types discovered for ${currentCompetitor.website || currentCompetitor.displayName || currentCompetitor.handle}.`}
-                  >
-                    {/* Filter Pills */}
-                    <div className="flex flex-wrap items-center gap-1.5 pb-4 mb-4 border-b" style={{ borderColor: "var(--color-brand-100)" }}>
-                      {["ALL", "PRODUCT", "SERVICE", "ABOUT", "HOME"].map((type) => {
-                        const count = type === "ALL" 
-                          ? crawledPages.length 
-                          : crawledPages.filter(p => p.pageType.toUpperCase() === type).length;
-                        return (
-                          <button
-                            key={type}
-                            onClick={() => setCrawledPageTypeFilter(type)}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
-                              crawledPageTypeFilter === type
-                                ? "bg-brand-950 text-white"
-                                : "bg-brand-50 text-brand-700 hover:bg-brand-100"
-                            }`}
-                          >
-                            {type} ({count})
-                          </button>
-                        );
-                      })}
-                      <div className="ml-auto text-[11px] text-brand-500 flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-success-500 inline-block"></span>
-                        <span>HTTP 200 OK Verified</span>
-                      </div>
-                    </div>
-
-                    {filteredCrawledPages.length === 0 ? (
-                      <div className="rounded-lg border bg-brand-50/50 p-8 text-center text-[12px] text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>
-                        <p>No crawled pages found matching filter.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-[12px]">
-                          <thead>
-                            <tr className="border-b text-[11px] font-semibold text-brand-400" style={{ borderColor: "var(--color-brand-100)" }}>
-                              <th className="pb-2.5 font-medium">PAGE TITLE & URL</th>
-                              <th className="pb-2.5 font-medium">TYPE</th>
-                              <th className="pb-2.5 font-medium">H1 HEADING</th>
-                              <th className="pb-2.5 font-medium">META DESCRIPTION</th>
-                              <th className="pb-2.5 font-medium text-right">WORDS</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y" style={{ borderColor: "var(--color-brand-50)" }}>
-                            {filteredCrawledPages.map((page, idx) => (
-                              <tr key={page.url + idx} className="hover:bg-brand-50/60 transition">
-                                <td className="py-3 pr-4 max-w-xs">
-                                  <div className="font-semibold text-brand-950 truncate">{page.title || page.url}</div>
-                                  <a href={page.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-accent-600 hover:underline truncate block">
-                                    {page.url}
-                                  </a>
-                                </td>
-                                <td className="py-3 pr-3">
-                                  <span className={`inline-block rounded px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase ${
-                                    page.pageType === 'PRODUCT' ? 'bg-accent-50 text-accent-700' :
-                                    page.pageType === 'SERVICE' ? 'bg-series-2/15 text-series-2' :
-                                    page.pageType === 'ABOUT' ? 'bg-warning-50 text-warning-700' : 'bg-brand-100 text-brand-700'
-                                  }`}>
-                                    {page.pageType}
-                                  </span>
-                                </td>
-                                <td className="py-3 pr-3 max-w-[200px] text-brand-700 truncate">
-                                  {page.h1 && page.h1.length > 0 ? page.h1[0] : '—'}
-                                </td>
-                                <td className="py-3 pr-3 max-w-[280px] text-brand-500 text-[11.5px] line-clamp-2">
-                                  {page.metaDescription || '—'}
-                                </td>
-                                <td className="py-3 text-right font-mono text-[11px] text-brand-600">
-                                  {page.wordCount || 800}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
                     )}
-                  </Panel>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             </>
           )}
         </div>
