@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Plus, Sparkles, X, Check, Clock, RefreshCw } from "lucide-react";
+import { Calendar, Plus, Sparkles, X, Check, Clock, RefreshCw, Download, FileText } from "lucide-react";
 import { api, type CalendarItem, type GenerateContentBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { exportCalendarToCsv, exportCalendarToMarkdown } from "@/lib/export-utils";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   DRAFT: { label: "Draft", color: "var(--color-brand-500)", bg: "var(--color-brand-100)" },
@@ -147,10 +148,30 @@ export default function CalendarPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {items.data && items.data.length > 0 && (
+              <>
+                <button
+                  onClick={() => exportCalendarToCsv(items.data ?? [])}
+                  className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100 transition"
+                  style={{ borderColor: "var(--color-brand-200)" }}
+                  title="Export full editorial schedule to CSV"
+                >
+                  <Download size={13} /> Export CSV
+                </button>
+                <button
+                  onClick={() => exportCalendarToMarkdown(items.data ?? [])}
+                  className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100 transition"
+                  style={{ borderColor: "var(--color-brand-200)" }}
+                  title="Export production briefs and scripts to Markdown / Notion"
+                >
+                  <FileText size={13} /> Export Markdown
+                </button>
+              </>
+            )}
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100" style={{ borderColor: "var(--color-brand-200)" }}>
               <Plus size={13} /> Manual
             </button>
-            <button onClick={() => setShowGenerate(true)} className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-1.5 text-[12px] font-medium text-white">
+            <button onClick={() => setShowGenerate(true)} className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-1.5 text-[12px] font-medium text-white shadow-sm hover:opacity-90 transition">
               <Sparkles size={13} /> AI Generate
             </button>
           </div>
