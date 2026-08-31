@@ -33,10 +33,6 @@ function setActiveProject(id: string) {
  * caches the ids locally instead of every page re-deriving them.
  */
 export function useWorkspace() {
-  // The stored org lives in localStorage, which the server cannot read.
-  // useSyncExternalStore is built for exactly this: a client snapshot and a
-  // separate server snapshot, so there is no hydration mismatch and no state
-  // update inside an effect.
   const storedOrgId = useSyncExternalStore(
     subscribeToOrgChange,
     () => auth.getOrgId(),
@@ -50,18 +46,23 @@ export function useWorkspace() {
     retry: false,
   });
 
-  // Falls back to the first organization so a fresh login is never empty.
-  const orgId = storedOrgId ?? orgs.data?.[0]?.id ?? null;
+  const orgList = orgs.data ?? [];
+  const isStoredOrgValid = orgList.some((o) => o.id === storedOrgId);
+  const orgId = isStoredOrgValid ? storedOrgId : (orgList[0]?.id ?? null);
 
-  // Persisting is a write to localStorage, not React state — safe in an effect.
   useEffect(() => {
-    if (orgId && orgId !== auth.getOrgId()) setActiveOrg(orgId);
-  }, [orgId]);
+    if (orgId && orgId !== auth.getOrgId()) {
+      setActiveOrg(orgId);
+    } else if (!orgId && auth.getOrgId() && orgs.isSuccess) {
+      setActiveOrg("");
+    }
+  }, [orgId, orgs.isSuccess]);
 
   const projects = useQuery({
     queryKey: ["projects", orgId],
     queryFn: () => api.listProjects(orgId!),
     enabled: Boolean(orgId),
+    retry: false,
   });
 
   const storedProjectId = useSyncExternalStore(
@@ -70,17 +71,23 @@ export function useWorkspace() {
     () => null,
   );
 
-  const projectId = storedProjectId ?? projects.data?.[0]?.id ?? null;
+  const projectList = projects.data ?? [];
+  const isStoredProjectValid = projectList.some((p) => p.id === storedProjectId);
+  const projectId = isStoredProjectValid ? storedProjectId : (projectList[0]?.id ?? null);
 
   useEffect(() => {
-    if (projectId && projectId !== auth.getProjectId()) setActiveProject(projectId);
-  }, [projectId]);
+    if (projectId && projectId !== auth.getProjectId()) {
+      setActiveProject(projectId);
+    } else if (!projectId && auth.getProjectId() && projects.isSuccess) {
+      setActiveProject("");
+    }
+  }, [projectId, projects.isSuccess]);
 
   return {
     orgId,
     setOrgId: setActiveOrg,
-    organizations: orgs.data ?? [],
-    projects: projects.data ?? [],
+    organizations: orgList,
+    projects: projectList,
     projectId,
     setProjectId: setActiveProject,
     isLoading: orgs.isLoading || projects.isLoading,

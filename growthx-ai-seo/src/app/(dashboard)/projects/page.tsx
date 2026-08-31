@@ -51,40 +51,58 @@ export default function AddClientPage() {
     try {
       setStep("creating");
 
-      // Ensure an active organization exists
+      // 1. Ensure an active organization exists and user is a confirmed member
       let currentOrgId = orgId;
-      if (!currentOrgId) {
-        let existingOrg = organizations[0];
-        if (!existingOrg) {
-          existingOrg = await api.createOrganization("GrowthX Agency", "growthx-agency");
+      let validOrg = organizations.find((o) => o.id === currentOrgId);
+
+      if (!validOrg) {
+        let userOrgs: { id: string; name: string; slug: string }[] = [];
+        try {
+          userOrgs = await api.listOrganizations();
+        } catch {
+          userOrgs = [];
         }
-        currentOrgId = existingOrg.id;
-        setOrgId(currentOrgId);
+
+        validOrg = userOrgs[0];
+        if (!validOrg) {
+          const cleanOrgName = name.trim() ? `${name.trim()} Workspace` : "My Agency Workspace";
+          const baseSlug = cleanOrgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "org";
+          const uniqueSlug = `${baseSlug}-${Date.now().toString(36)}`;
+          validOrg = await api.createOrganization(cleanOrgName, uniqueSlug);
+          await qc.invalidateQueries({ queryKey: ["organizations"] });
+        }
       }
 
-      // 1. Create project for client
+      currentOrgId = validOrg.id;
+      setOrgId(currentOrgId);
+
+      // 2. Create project for client
       const project = await api.createProject(name.trim(), currentOrgId);
       setProjectId(project.id);
 
-      // 2. Register website
+      // 3. Register website
       setStep("registering");
       const website = await api.registerWebsite(url.trim(), domain, project.id);
 
-      // 3. Verify domain & start audit
+      // 4. Verify domain & start audit
       setStep("verifying");
       await api.verifyDomain(website.id);
 
       try {
-        await api.startCrawl({ websiteId: website.id, domain });
-      } catch {
-        // Non-blocking: crawl start error will fallback gracefully
+        await api.startCrawl({ websiteId: website.id, domain, maxDepth: 20, maxConcurrency: 5, useSitemap: true });
+      } catch (crawlErr) {
+        console.warn("Initial crawl start notice:", crawlErr);
       }
 
       // Invalidate queries so portfolio and dashboard reflect the new site
-      await qc.invalidateQueries({ queryKey: ["portfolio", currentOrgId] });
-      await qc.invalidateQueries({ queryKey: ["projects", currentOrgId] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["organizations"] }),
+        qc.invalidateQueries({ queryKey: ["portfolio", currentOrgId] }),
+        qc.invalidateQueries({ queryKey: ["projects", currentOrgId] }),
+        qc.invalidateQueries({ queryKey: ["latest-crawl", domain] }),
+      ]);
 
-      router.push(`/technical-seo?domain=${encodeURIComponent(domain)}`);
+      router.push(`/website?domain=${encodeURIComponent(domain)}`);
     } catch (err) {
       console.error("Add client error:", err);
       setError(err instanceof Error ? err.message : "Failed to add client");
