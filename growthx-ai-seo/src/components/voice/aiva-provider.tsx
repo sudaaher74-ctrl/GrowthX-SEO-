@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api-client';
+import { api, auth } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
 
 export type AivaState =
@@ -119,8 +119,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function initSession() {
       try {
-        const projectRaw = localStorage.getItem('growthx_current_project');
-        const projectId = projectRaw ? JSON.parse(projectRaw).id : undefined;
+        const projectId = auth.getProjectId() || undefined;
         const res = await api.voice.createSession(projectId);
         setSessionId(res.sessionId);
 
@@ -174,8 +173,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
 
     try {
       setAssistantMessage('Thinking...');
-      const projectRaw = localStorage.getItem('growthx_current_project');
-      const projectId = projectRaw ? JSON.parse(projectRaw).id : undefined;
+      const projectId = auth.getProjectId() || undefined;
 
       const res: VoiceAgentResult = await api.voice.chat({
         sessionId,
@@ -242,8 +240,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     setAssistantMessage('Working on it...');
 
     try {
-      const projectRaw = localStorage.getItem('growthx_current_project');
-      const projectId = projectRaw ? JSON.parse(projectRaw).id : undefined;
+      const projectId = auth.getProjectId() || undefined;
 
       const res: VoiceAgentResult = await api.voice.chat({
         sessionId,
