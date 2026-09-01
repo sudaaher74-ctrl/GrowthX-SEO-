@@ -405,7 +405,7 @@ export class VoiceToolsService {
         success: false,
         tool: 'generateStrategy',
         data: null,
-        spokenSummary: 'Failed to generate the strategy right now. Please ensure your project is properly configured.',
+        spokenSummary: `Failed to generate the strategy right now. Error: ${err.message}`,
       };
     }
   }
