@@ -144,6 +144,15 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             } else if (lower.includes('cancel') || lower.includes('no') || lower.includes('stop')) {
               cancelActionRef.current();
             }
+          } else if (stateRef.current === 'speaking') {
+            if (lower.includes('hey nexa') || lower.includes('hi nexa') || lower.includes('nexa stop')) {
+              if (synthRef.current) synthRef.current.cancel();
+              playWakeSound();
+              setIsOpenRef.current(true);
+              setTranscript(currentTranscript.replace(/hey nexa|hi nexa|nexa stop/gi, '').trim());
+              setState('listening');
+              setAssistantMessage('Listening...');
+            }
           } else if (stateRef.current === 'listening') {
             setTranscript(currentTranscript);
             

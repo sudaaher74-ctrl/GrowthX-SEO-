@@ -102,6 +102,95 @@ export function AivaPanel() {
                       </ul>
                     </motion.div>
                   )}
+
+                  {uiPayload && uiPayload.type === 'crawl_status' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Crawl Status: {uiPayload.domain}</h4>
+                      <div className="flex items-center gap-6">
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-white">{uiPayload.status}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Status</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-white">{uiPayload.pagesCrawled}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Pages</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-white">{uiPayload.issuesFound}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Issues</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {uiPayload && uiPayload.type === 'audit_summary' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Audit Summary: {uiPayload.domain}</h4>
+                      <div className="flex items-center gap-6">
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-red-500">{uiPayload.criticalCount}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Critical</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-orange-400">{uiPayload.highCount}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">High</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-2xl font-semibold text-white">{uiPayload.totalIssues}</span>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Total Issues</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {uiPayload && uiPayload.type === 'competitor_list' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-4 border-b border-white/10"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tracked Competitors</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {uiPayload.competitors.map((c: any, idx: number) => (
+                          <div key={idx} className="px-3 py-1.5 bg-white/10 rounded-md text-sm text-white font-medium border border-white/5">
+                            {c.domain}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {uiPayload && uiPayload.type === 'meta_tags' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Optimized Tags: {uiPayload.targetUrl}</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider block mb-1">SEO Title</span>
+                          <p className="text-[15px] text-white font-medium">{uiPayload.title}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block mb-1">Meta Description</span>
+                          <p className="text-[14px] text-gray-300 leading-relaxed">{uiPayload.description}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 <div className="relative flex items-center justify-between p-2 pl-3 gap-4 h-[60px]">
