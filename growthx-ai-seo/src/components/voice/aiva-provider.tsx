@@ -62,10 +62,14 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
   const stateRef = useRef<AivaState>(state);
+  const confirmActionRef = useRef<() => void>(() => {});
+  const cancelActionRef = useRef<() => void>(() => {});
+  const setIsOpenRef = useRef(setIsOpen);
   
   useEffect(() => {
     stateRef.current = state;
-  }, [state]);
+    setIsOpenRef.current = setIsOpen;
+  }, [state, setIsOpen]);
 
   // Initialize Speech APIs
   useEffect(() => {
@@ -73,7 +77,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
@@ -82,10 +86,30 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             currentTranscript += event.results[i][0].transcript;
           }
-          setTranscript(currentTranscript);
+          
+          const lower = currentTranscript.toLowerCase();
+
+          if (stateRef.current === 'idle') {
+            if (lower.includes('hey nexa') || lower.includes('hi nexa')) {
+              setIsOpenRef.current(true);
+              setTranscript(currentTranscript.replace(/hey nexa|hi nexa/gi, '').trim());
+              setState('listening');
+              setAssistantMessage('Listening...');
+              if (synthRef.current) synthRef.current.cancel();
+            }
+          } else if (stateRef.current === 'confirming') {
+            if (lower.includes('proceed') || lower.includes('yes') || lower.includes('confirm')) {
+              confirmActionRef.current();
+            } else if (lower.includes('cancel') || lower.includes('no') || lower.includes('stop')) {
+              cancelActionRef.current();
+            }
+          } else if (stateRef.current === 'listening') {
+            setTranscript(currentTranscript);
+          }
         };
 
         recognition.onerror = (event: any) => {
+          if (event.error === 'no-speech') return; // Ignore routine silences
           console.error('Speech recognition error', event.error);
           setState('error');
           setAssistantMessage('I had trouble hearing you. Please try again.');
@@ -96,13 +120,17 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.onend = () => {
           if (stateRef.current === 'listening') {
             setState('thinking');
-            // We need to call processTranscript but it depends on state. We can use a trick:
-            // or we just call a stable function. Wait, processTranscript reads `transcript` from state which is also stale.
-            // Let's dispatch a custom event or just let a separate effect handle it.
+          } else if (stateRef.current === 'idle' || stateRef.current === 'confirming') {
+            // Keep listening for wake word or confirmation
+            try {
+              recognition.start();
+            } catch (e) {}
           }
         };
 
         recognitionRef.current = recognition;
+        // Start listening immediately in background for wake word
+        try { recognition.start(); } catch (e) {}
       }
       synthRef.current = window.speechSynthesis;
     }
@@ -276,6 +304,11 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     setAssistantMessage('Action cancelled.');
     speak('Action cancelled.');
   };
+
+  useEffect(() => {
+    confirmActionRef.current = confirmAction;
+    cancelActionRef.current = cancelAction;
+  }, [confirmAction, cancelAction]);
 
   const toggleOpen = () => setIsOpen((prev) => !prev);
   const close = () => {

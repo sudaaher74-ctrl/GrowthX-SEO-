@@ -75,7 +75,7 @@ export function AivaPanel() {
               <button
                 onClick={toggleOpen}
                 className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
-                aria-label="Open Aiva Voice Assistant"
+                aria-label="Open Nexa Voice Assistant"
               >
                 <div className="absolute inset-0 -m-1 rounded-full aiva-border-segment opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="relative flex h-full w-full items-center justify-center rounded-full bg-white">
@@ -125,8 +125,9 @@ export function AivaPanel() {
                       exit={{ opacity: 0, y: -10 }}
                       className="truncate text-[15px] font-medium text-gray-800"
                     >
-                      {state === 'idle' ? 'What can I help you with today?' 
+                      {state === 'idle' ? 'Say "Hey Nexa" or tap to speak' 
                         : state === 'listening' ? (transcript || 'Listening...')
+                        : state === 'confirming' ? 'Say "Yes" to confirm or "No" to cancel'
                         : progressMessage ? (
                           <span className="flex items-center gap-2 italic text-gray-600">
                             <span className="relative flex h-2 w-2">
