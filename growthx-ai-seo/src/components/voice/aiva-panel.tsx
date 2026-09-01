@@ -24,6 +24,44 @@ export function AivaPanel() {
 
   return (
     <>
+      {/* Apple Intelligence Edge Glow */}
+      <AnimatePresence>
+        {state === 'listening' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            className="fixed inset-0 z-40 pointer-events-none"
+          >
+            <div 
+              className="absolute inset-0 border-[12px] border-transparent"
+              style={{
+                background: 'linear-gradient(90deg, #ff5e00, #ff007f, #7f00ff, #007fff, #00ff7f, #ffff00, #ff5e00) border-box',
+                backgroundSize: '300% 300%',
+                WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
+                WebkitMaskComposite: 'xor',
+                maskComposite: 'exclude',
+                animation: 'edge-glow-move 8s ease-in-out infinite',
+                filter: 'blur(16px)',
+                opacity: 0.8,
+              }}
+            />
+            {/* Add a subtle inset shadow to blend it nicely */}
+            <div 
+              className="absolute inset-0 shadow-[inset_0_0_100px_rgba(127,0,255,0.15)]"
+            />
+            <style>{`
+              @keyframes edge-glow-move {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
+              }
+            `}</style>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating Action Button (FAB) */}
       <div className="fixed bottom-6 right-6 z-50">
         <AnimatePresence>
