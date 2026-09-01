@@ -25,7 +25,8 @@ export type VoiceToolName =
   | 'generateStrategy'
   | 'navigate'
   | 'getAuditSummary'
-  | 'crawlCompetitor';
+  | 'crawlCompetitor'
+  | 'generateBlogIdeas';
 
 export interface VoiceTool {
   name: VoiceToolName;
@@ -52,6 +53,7 @@ export const VOICE_TOOLS: Record<VoiceToolName, VoiceTool> = {
   navigate: { name: 'navigate', requiresConfirmation: false },
   getAuditSummary: { name: 'getAuditSummary', requiresConfirmation: false },
   crawlCompetitor: { name: 'crawlCompetitor', requiresConfirmation: true },
+  generateBlogIdeas: { name: 'generateBlogIdeas', requiresConfirmation: false },
 };
 
 export interface VoiceIntent {
@@ -81,6 +83,8 @@ export interface VoiceAgentResult {
   confirmationRequired?: ConfirmationRequired;
   /** Technical error details (not for TTS). */
   error?: string;
+  /** Generative UI payload containing visual elements to render. */
+  uiPayload?: any;
 }
 
 export interface VoiceChatRequest {
@@ -92,6 +96,8 @@ export interface VoiceChatRequest {
   /** Tool + params from the pending confirmation, echoed back by the client. */
   pendingTool?: VoiceToolName;
   pendingParams?: Record<string, string | number | boolean>;
+  /** Page context injected by frontend. */
+  context?: { path?: string };
 }
 
 export interface VoiceSessionDto {

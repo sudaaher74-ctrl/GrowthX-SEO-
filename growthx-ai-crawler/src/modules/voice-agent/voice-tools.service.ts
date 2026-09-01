@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { JobStatus } from '@prisma/client';
 import { VoiceAgentResult } from './voice-agent.types';
+import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
 /** Simple domain validation — no private IPs, valid TLD format. */
 function validateDomain(domain: string): string {
@@ -26,6 +27,7 @@ export class VoiceToolsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orgContext: OrgContextService,
+    private readonly aiRouter: MultiAiRouterService,
   ) {}
 
   // ─── Crawl ───────────────────────────────────────────────────────────────────
@@ -348,6 +350,41 @@ export class VoiceToolsService {
       spokenSummary: 'Opening the strategy page. I can generate an AI-powered 90-day strategy from there.',
       navigateTo: '/strategy',
     };
+  }
+
+  async generateBlogIdeas(projectId: string, topic: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+    await this.assertProjectAccess(projectId, userId);
+    if (!topic) {
+      return { success: false, tool: 'generateBlogIdeas', data: null, spokenSummary: "I need a topic to generate blog ideas for." };
+    }
+
+    try {
+      const prompt = `Generate 5 catchy, high-converting SEO blog post titles about "${topic}".
+      Return ONLY a JSON array of strings, e.g. ["Idea 1", "Idea 2"]. Nothing else.`;
+      
+      const completion = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: "You are an expert SEO content strategist.",
+        task: AiTask.FAST,
+        organizationId: orgId,
+      });
+
+      const items = JSON.parse(completion.text);
+      
+      return {
+        success: true,
+        tool: 'generateBlogIdeas',
+        data: items,
+        spokenSummary: `I've generated 5 blog post ideas for ${topic}. I'm displaying them for you now.`,
+        uiPayload: {
+          type: 'blog_ideas',
+          topic,
+          items,
+        }
+      };
+    } catch (e) {
+      return { success: false, tool: 'generateBlogIdeas', data: null, spokenSummary: "I had trouble generating those ideas right now." };
+    }
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────

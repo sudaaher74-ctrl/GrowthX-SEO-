@@ -98,7 +98,7 @@ export class VoiceAgentService {
       result = await this.executeTool(req.pendingTool, req.pendingParams ?? {}, req.projectId, userId, orgId);
     } else {
       // Classify intent
-      const intent = await this.classifyIntent(req.text, req.projectId);
+      const intent = await this.classifyIntent(req.text, req.projectId, req.context?.path);
       result = await this.handleIntent(intent, req.projectId, userId, orgId);
     }
 
@@ -124,13 +124,14 @@ export class VoiceAgentService {
 
   // ─── Intent classification ────────────────────────────────────────────────────
 
-  private async classifyIntent(text: string, projectId?: string): Promise<VoiceIntent> {
+  private async classifyIntent(text: string, projectId?: string, currentPath?: string): Promise<VoiceIntent> {
     const allowedTools = Object.keys(VOICE_TOOLS).join(', ');
     const navRoutes = Object.keys(NAVIGATE_ROUTES).join(', ');
 
-    const prompt = `You are an intent classifier for an AI SEO voice assistant called Aiva.
+    const prompt = `You are an intent classifier for an AI SEO voice assistant called Nexa.
 
 User said: "${text}"
+User is currently viewing page: ${currentPath || 'unknown'} (use this to resolve ambiguous words like "this", "here", or "these")
 
 Classify this into one of these exact tool names: ${allowedTools}
 
@@ -146,6 +147,7 @@ For generateStrategy: params={}
 For findContentGaps: params={}
 For getTopRecommendations: params={}
 For getAuditSummary: params={}
+For generateBlogIdeas: params={"topic":"<topic>"}
 For unknown requests: tool="getTopRecommendations", params={}, confidence=0.3
 
 Respond with JSON only, no explanation.`;
@@ -306,6 +308,8 @@ Respond with JSON only, no explanation.`;
           return await this.tools.getAuditSummary(projectId!, userId, orgId);
         case 'crawlCompetitor':
           return await this.tools.crawlCompetitor(projectId!, params.domain, userId, orgId);
+        case 'generateBlogIdeas':
+          return await this.tools.generateBlogIdeas(projectId!, params.topic, userId, orgId);
         case 'navigate': {
           const destination = (params.destination as string)?.toLowerCase() ?? '';
           const route = NAVIGATE_ROUTES[destination] ?? '/dashboard';
