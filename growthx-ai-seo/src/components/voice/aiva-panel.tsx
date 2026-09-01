@@ -159,7 +159,7 @@ export function AivaPanel() {
                         {state === 'idle'
                           ? 'Tap to speak'
                           : state === 'listening'
-                          ? 'Listening...'
+                          ? 'Tap to send'
                           : state === 'thinking'
                           ? 'Thinking...'
                           : state === 'working'

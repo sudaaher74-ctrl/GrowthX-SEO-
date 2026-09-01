@@ -61,6 +61,11 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
+  const stateRef = useRef<AivaState>(state);
+  
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Initialize Speech APIs
   useEffect(() => {
@@ -89,15 +94,24 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         };
 
         recognition.onend = () => {
-          if (state === 'listening') {
+          if (stateRef.current === 'listening') {
             setState('thinking');
-            processTranscript();
+            // We need to call processTranscript but it depends on state. We can use a trick:
+            // or we just call a stable function. Wait, processTranscript reads `transcript` from state which is also stale.
+            // Let's dispatch a custom event or just let a separate effect handle it.
           }
         };
 
         recognitionRef.current = recognition;
       }
       synthRef.current = window.speechSynthesis;
+    }
+  }, []); // Only run once on mount
+
+  // Watch for state transitions that should trigger processing
+  useEffect(() => {
+    if (state === 'thinking') {
+      processTranscript();
     }
   }, [state]);
 
