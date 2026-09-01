@@ -294,6 +294,35 @@ export function AivaPanel() {
                       </div>
                     </motion.div>
                   )}
+
+                  {uiPayload && uiPayload.type === 'social_draft' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10 overflow-y-auto max-h-[50vh]"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Social Trend Hijack</h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30 uppercase tracking-wider">
+                          {uiPayload.platform}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-1">Identified Trend</span>
+                          <p className="text-[14px] text-brand-300 font-medium">#{uiPayload.trend}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Drafted Post</span>
+                          <div className="text-[14px] text-gray-300 leading-relaxed whitespace-pre-wrap p-4 bg-white/5 rounded-xl border border-white/10 italic">
+                            "{uiPayload.postText}"
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 <div className="relative flex items-center justify-between p-2 pl-3 gap-4 h-[60px]">
