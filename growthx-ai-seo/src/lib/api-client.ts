@@ -1095,6 +1095,12 @@ export const api = {
   suggestInternalLinks: async (projectId: string, url: string) => 
     post<any>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
 
+  // ── Voice Agent
+  voice: {
+    createSession: async (projectId?: string) => post<any>('/api/voice/session', { projectId }),
+    chat: async (payload: any) => post<any>('/api/voice/chat', payload),
+  },
+
   // ── Auth
   async login(email: string, password: string) {
     const result = await post<{ access_token: string; refresh_token?: string }>("/auth/login", { email, password });

@@ -5,6 +5,9 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { AivaProvider } from "@/components/voice/aiva-provider";
+import { AivaPanel } from "@/components/voice/aiva-panel";
+
 
 /** The token lives in localStorage and only changes on sign-in or sign-out,
  *  both of which navigate — so there is nothing to subscribe to. */
@@ -61,27 +64,30 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (signedIn !== true) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={() => toggleCollapsed()}
-        mobileOpen={mobileOpen}
-        setMobileOpen={setMobileOpen}
-      />
-      <TopNav
-        collapsed={collapsed}
-        onToggleCollapse={() => toggleCollapsed()}
-        setMobileOpen={setMobileOpen}
-      />
-      {/* 232px sidebar + 52px header, per the design's measurements. */}
-      <main
-        className={cn(
-          "min-h-screen pt-[52px] transition-all duration-300 ease-in-out",
-          collapsed ? "md:ml-0" : "md:ml-[232px]",
-        )}
-      >
-        <div className="mx-auto max-w-[1600px] p-5 md:p-6">{children}</div>
-      </main>
-    </div>
+    <AivaProvider>
+      <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={() => toggleCollapsed()}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
+        />
+        <TopNav
+          collapsed={collapsed}
+          onToggleCollapse={() => toggleCollapsed()}
+          setMobileOpen={setMobileOpen}
+        />
+        {/* 232px sidebar + 52px header, per the design's measurements. */}
+        <main
+          className={cn(
+            "min-h-screen pt-[52px] transition-all duration-300 ease-in-out",
+            collapsed ? "md:ml-0" : "md:ml-[232px]",
+          )}
+        >
+          <div className="mx-auto max-w-[1600px] p-5 md:p-6">{children}</div>
+        </main>
+      </div>
+      <AivaPanel />
+    </AivaProvider>
   );
 }

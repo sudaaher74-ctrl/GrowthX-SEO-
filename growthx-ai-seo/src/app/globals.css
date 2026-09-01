@@ -409,3 +409,112 @@ body {
     animation: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Aiva — Voice Assistant Animations
+   The rainbow border glow mirrors macOS Siri's edge-gradient effect.
+   All animations are suppressed for users who prefer reduced motion.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Rainbow border glow (Siri-style screen edge aurora) ─── */
+@keyframes aiva-rainbow-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes aiva-corner-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.06); }
+}
+
+/* The animated rainbow gradient that runs along the border edges */
+.aiva-border-segment {
+  background: linear-gradient(
+    270deg,
+    #ff2d78, #ff6b00, #ffd600, #00e676, #00b0ff,
+    #7c3aed, #d946ef, #ff2d78
+  );
+  background-size: 400% 400%;
+  animation: aiva-rainbow-shift 3s ease infinite;
+}
+
+/* ─── Floating orb (idle state — the FAB button glow) ─── */
+@keyframes aiva-orb-idle {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+  50%       { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0.15); }
+}
+
+/* ─── Listening state — glowing, pulsing ring ─── */
+@keyframes aiva-orb-listen {
+  0%   { box-shadow: 0 0 0 0   rgba(124, 58, 237, 0.7); }
+  70%  { box-shadow: 0 0 0 20px rgba(124, 58, 237, 0);  }
+  100% { box-shadow: 0 0 0 0   rgba(124, 58, 237, 0);  }
+}
+
+/* ─── Thinking state — slow orbit rotation ─── */
+@keyframes aiva-orbit {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─── Working state — progress ring dash ─── */
+@keyframes aiva-dash {
+  0%   { stroke-dashoffset: 283; }
+  50%  { stroke-dashoffset: 71;  }
+  100% { stroke-dashoffset: 283; }
+}
+
+/* ─── Speaking state — outward ripple rings ─── */
+@keyframes aiva-ripple {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0;   }
+}
+
+/* ─── Error state — shake ─── */
+@keyframes aiva-shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+/* ─── Waveform bars for listening visualization ─── */
+@keyframes aiva-bar-1 {
+  0%, 100% { height: 6px;  } 50% { height: 20px; }
+}
+@keyframes aiva-bar-2 {
+  0%, 100% { height: 10px; } 50% { height: 28px; }
+}
+@keyframes aiva-bar-3 {
+  0%, 100% { height: 16px; } 50% { height: 36px; }
+}
+@keyframes aiva-bar-4 {
+  0%, 100% { height: 8px;  } 50% { height: 24px; }
+}
+@keyframes aiva-bar-5 {
+  0%, 100% { height: 6px;  } 50% { height: 18px; }
+}
+
+.aiva-waveform-bar:nth-child(1) { animation: aiva-bar-1 0.6s ease-in-out infinite; }
+.aiva-waveform-bar:nth-child(2) { animation: aiva-bar-2 0.6s ease-in-out infinite 0.1s; }
+.aiva-waveform-bar:nth-child(3) { animation: aiva-bar-3 0.6s ease-in-out infinite 0.2s; }
+.aiva-waveform-bar:nth-child(4) { animation: aiva-bar-4 0.6s ease-in-out infinite 0.3s; }
+.aiva-waveform-bar:nth-child(5) { animation: aiva-bar-5 0.6s ease-in-out infinite 0.4s; }
+
+/* ─── Fade-in for message bubbles ─── */
+@keyframes aiva-bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.aiva-bubble { animation: aiva-bubble-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ─── Reduced-motion: strip all Aiva animations ─── */
+@media (prefers-reduced-motion: reduce) {
+  .aiva-border-segment,
+  .aiva-waveform-bar,
+  .aiva-bubble {
+    animation: none !important;
+  }
+}

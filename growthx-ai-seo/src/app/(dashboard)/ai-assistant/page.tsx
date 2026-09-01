@@ -5,7 +5,8 @@ import { useWorkspace, useAskAi } from "@/hooks/use-growthx";
 import { ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bot, Send, Sparkles, User, RefreshCw, Copy, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, Send, Sparkles, User, RefreshCw, Copy, ThumbsUp, ThumbsDown, Mic } from "lucide-react";
+import { useAiva } from "@/components/voice/aiva-provider";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -20,7 +21,7 @@ function initialMessage(clientName?: string): Message {
   return {
     role: "assistant",
     content: clientName
-      ? `Hi! I'm your AI SEO assistant for ${clientName}. I can see this client's dashboard, rankings, and technical issues in real time. Ask me anything — traffic drops, keyword opportunities, or what to fix next.`
+      ? `Hi! I'm Aiva, your AI SEO assistant for ${clientName}. I can see this client's dashboard, rankings, and technical issues in real time. Ask me anything — traffic drops, keyword opportunities, or what to fix next.`
       : "Hi! Select a client to give me access to their dashboard, rankings, and technical issues, then ask me anything.",
   };
 }
@@ -36,6 +37,7 @@ export default function AIAssistantPage() {
 
 function ChatPanel({ projectId, clientName }: { projectId: string | null; clientName?: string }) {
   const askAi = useAskAi(projectId);
+  const { toggleOpen: toggleAiva } = useAiva();
 
   const [messages, setMessages] = useState<Message[]>([initialMessage(clientName)]);
   const [input, setInput] = useState("");
@@ -71,7 +73,7 @@ function ChatPanel({ projectId, clientName }: { projectId: string | null; client
             <Bot size={18} className="text-white"/>
           </div>
           <div>
-            <h1 className="text-h3 text-[var(--text-primary)]">AI SEO Assistant</h1>
+            <h1 className="text-h3 text-[var(--text-primary)]">Aiva — AI SEO Assistant</h1>
             <p className="text-xs text-[var(--text-muted)]">Powered by GPT-4o · Has access to your full dashboard data</p>
           </div>
         </div>
@@ -143,6 +145,9 @@ function ChatPanel({ projectId, clientName }: { projectId: string | null; client
             style={{ maxHeight: "120px" }}
           />
         </div>
+        <Button variant="secondary" onClick={() => toggleAiva()} disabled={!projectId} className="h-11 px-4 text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-200">
+          <Mic size={16}/>
+        </Button>
         <Button variant="primary" onClick={() => sendMessage()} loading={askAi.isPending} disabled={!projectId} className="h-11 px-4">
           <Send size={15}/>
         </Button>

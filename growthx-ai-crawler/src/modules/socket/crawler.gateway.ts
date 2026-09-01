@@ -32,4 +32,11 @@ export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect 
       this.server.emit(`crawl.completed.${jobId}`, result);
     }
   }
+
+  /** Streams Aiva voice-agent job progress to a specific session's client. */
+  broadcastVoiceProgress(sessionId: string, payload: { tool: string; status: string; message: string; data?: any }) {
+    if (this.server) {
+      this.server.emit(`aiva.progress.${sessionId}`, payload);
+    }
+  }
 }

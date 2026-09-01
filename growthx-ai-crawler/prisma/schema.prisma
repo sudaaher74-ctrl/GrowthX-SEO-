@@ -548,7 +548,7 @@ model CompetitorDomain {
   websiteId      String?
   website        Website?            @relation(fields: [websiteId], references: [id], onDelete: SetNull)
   createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  updatedAt      DateTime            @default(now()) @updatedAt
   project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   socialAccounts CompetitorAccount[]
 
@@ -2085,4 +2085,51 @@ model Ga4DailyMetric {
   @@unique([propertyId, date, grain, landingPage, channel, country, device])
   @@index([projectId, grain, date])
   @@index([projectId, landingPage])
+}
+
+// ─────────────────────────────────────────── Aiva Voice Agent
+
+/// One voice conversation session (one activation of the voice panel).
+model VoiceSession {
+  id        String          @id @default(uuid())
+  userId    String
+  orgId     String
+  projectId String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  VoiceMessage[]
+  toolCalls AgentToolCall[]
+
+  @@index([userId, createdAt])
+  @@index([orgId, createdAt])
+}
+
+/// One utterance (user or assistant) within a voice session.
+model VoiceMessage {
+  id        String       @id @default(uuid())
+  sessionId String
+  /// "user" or "assistant"
+  role      String
+  content   String
+  createdAt DateTime     @default(now())
+  session   VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+/// One tool invocation triggered by the voice agent during a session.
+model AgentToolCall {
+  id        String       @id @default(uuid())
+  sessionId String
+  toolName  String
+  input     Json
+  output    Json?
+  /// PENDING | SUCCESS | FAILED | CANCELLED
+  status    String       @default("PENDING")
+  errorMsg  String?
+  createdAt DateTime     @default(now())
+  session   VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([toolName, status])
 }
