@@ -161,6 +161,7 @@ For getTopRecommendations: params={}
 For getAuditSummary: params={}
 For generateBlogIdeas: params={"topic":"<topic>"}
 For optimizeMetaTags: params={"pageUrl":"<pageUrl or keyword>"}
+For scrapeCompetitorData: params={"url":"<competitor url>", "target":"<what to extract (e.g. pricing, products)>"}
 For unknown requests: tool="getTopRecommendations", params={}, confidence=0.3
 
 Respond with JSON only, no explanation.`;
@@ -208,6 +209,15 @@ Respond with JSON only, no explanation.`;
     }
     if (lower.includes('strateg')) {
       return { tool: 'generateStrategy', params: {}, confidence: 0.7 };
+    }
+    if (lower.includes('scrape') || lower.includes('fetch data') || lower.includes('get pricing from')) {
+      // Very crude fallback extraction
+      const urlMatch = lower.match(/(https?:\/\/[^\s]+|[a-z0-9-]+\.[a-z]{2,})/);
+      return { 
+        tool: 'scrapeCompetitorData', 
+        params: { url: urlMatch ? urlMatch[0] : '', target: 'pricing and products' }, 
+        confidence: 0.7 
+      };
     }
     return { tool: 'getTopRecommendations', params: {}, confidence: 0.4 };
   }

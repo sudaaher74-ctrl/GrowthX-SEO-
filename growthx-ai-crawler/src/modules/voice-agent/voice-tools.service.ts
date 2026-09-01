@@ -6,6 +6,8 @@ import { VoiceAgentResult } from './voice-agent.types';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { ContentStrategyService } from '../content-intelligence/content-strategy.service';
 import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
+import { FetcherService } from '../crawler/fetcher.service';
+import * as cheerio from 'cheerio';
 
 /** Simple domain validation — no private IPs, valid TLD format. */
 function validateDomain(domain: string): string {
@@ -32,6 +34,7 @@ export class VoiceToolsService {
     private readonly aiRouter: MultiAiRouterService,
     private readonly contentStrategy: ContentStrategyService,
     private readonly seoCompetitors: SeoCompetitorsService,
+    private readonly fetcher: FetcherService,
   ) {}
 
   // ─── Crawl ───────────────────────────────────────────────────────────────────
@@ -500,5 +503,71 @@ export class VoiceToolsService {
     });
     if (!project) throw new NotFoundException('Project not found.');
     await this.orgContext.assertMembership(userId, project.organizationId);
+  }
+
+  async scrapeCompetitorData(projectId: string, userId: string, orgId: string, urlStr: string, target: string): Promise<VoiceAgentResult> {
+    await this.assertProjectAccess(projectId, userId);
+    
+    if (!urlStr) {
+      return {
+        success: false,
+        tool: 'scrapeCompetitorData',
+        data: null,
+        spokenSummary: "I need a valid URL to scrape data from.",
+      };
+    }
+
+    try {
+      let targetUrl = urlStr;
+      if (!targetUrl.startsWith('http')) {
+        targetUrl = 'https://' + targetUrl;
+      }
+      
+      const fetchResult = await this.fetcher.fetchPage(targetUrl, true);
+      
+      const $ = cheerio.load(fetchResult.html);
+      $('script, style, noscript, svg, img').remove();
+      const rawText = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 15000);
+      
+      const prompt = `You are a data extraction AI. 
+The user wants to extract: "${target || 'Pricing and Products'}"
+Here is the text extracted from ${targetUrl}:
+
+${rawText}
+
+Extract the requested information and format it as a clean, concise summary. Return JSON matching this schema:
+{
+  "extractedData": "Markdown formatted summary of what you found."
+}`;
+
+      const res = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: "You extract precise data from website text. Return only valid JSON.",
+        task: AiTask.FAST,
+        organizationId: orgId,
+      });
+
+      const parsed = JSON.parse(res.text);
+
+      return {
+        success: true,
+        tool: 'scrapeCompetitorData',
+        data: parsed,
+        spokenSummary: `I've successfully scanned ${urlStr} and extracted the information you requested. Here is the data.`,
+        uiPayload: {
+          type: 'competitor_scrape_result',
+          url: urlStr,
+          target: target || 'Data Extraction',
+          extractedData: parsed.extractedData,
+        }
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        tool: 'scrapeCompetitorData',
+        data: null,
+        spokenSummary: `Failed to scrape data from that website. Error: ${err.message}`,
+      };
+    }
   }
 }

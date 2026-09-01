@@ -230,6 +230,27 @@ export function AivaPanel() {
                     </motion.div>
                   )}
 
+                  {uiPayload && uiPayload.type === 'competitor_scrape_result' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10 overflow-y-auto max-h-[50vh]"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Live Scrape Result</h4>
+                      <p className="text-[12px] text-gray-500 mb-4 truncate">Target: {uiPayload.url}</p>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Extracted: {uiPayload.target}</span>
+                          <div className="text-[14px] text-gray-300 leading-relaxed whitespace-pre-wrap p-3 bg-white/5 rounded-xl border border-white/10">
+                            {uiPayload.extractedData}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {uiPayload && uiPayload.type === 'gap_insights' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
