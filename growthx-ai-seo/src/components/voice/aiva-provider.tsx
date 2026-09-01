@@ -63,6 +63,7 @@ interface VoiceAgentResult {
   navigateTo?: string;
   confirmationRequired?: ConfirmationRequired;
   error?: string;
+  uiPayload?: any;
 }
 
 interface AivaContextType {

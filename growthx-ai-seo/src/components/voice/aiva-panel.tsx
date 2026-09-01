@@ -188,6 +188,7 @@ export function AivaPanel() {
                   )}
                 </div>
               </div>
+            </div>
             </motion.div>
           </>
         )}
