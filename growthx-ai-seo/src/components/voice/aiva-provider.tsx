@@ -169,7 +169,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.onend = () => {
           if (stateRef.current === 'listening') {
             setState('thinking');
-          } else if (stateRef.current === 'idle' || stateRef.current === 'confirming') {
+          } else {
             // Keep listening for wake word or confirmation
             try {
               recognition.start();
