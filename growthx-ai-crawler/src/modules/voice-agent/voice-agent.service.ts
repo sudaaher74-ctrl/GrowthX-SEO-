@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VoiceToolsService } from './voice-tools.service';
 import {
@@ -173,6 +173,7 @@ Respond with JSON only, no explanation.`;
         prompt,
         systemInstruction: 'You classify user voice commands. Reply with valid JSON only.',
         task: AiTask.FAST,
+        provider: AiProvider.SARVAM,
         organizationId: undefined,
         jsonSchema: INTENT_SCHEMA as unknown as Record<string, unknown>,
       });
