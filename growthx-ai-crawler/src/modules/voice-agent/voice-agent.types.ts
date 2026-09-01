@@ -26,7 +26,8 @@ export type VoiceToolName =
   | 'navigate'
   | 'getAuditSummary'
   | 'crawlCompetitor'
-  | 'generateBlogIdeas';
+  | 'generateBlogIdeas'
+  | 'optimizeMetaTags';
 
 export interface VoiceTool {
   name: VoiceToolName;
@@ -54,6 +55,7 @@ export const VOICE_TOOLS: Record<VoiceToolName, VoiceTool> = {
   getAuditSummary: { name: 'getAuditSummary', requiresConfirmation: false },
   crawlCompetitor: { name: 'crawlCompetitor', requiresConfirmation: true },
   generateBlogIdeas: { name: 'generateBlogIdeas', requiresConfirmation: false },
+  optimizeMetaTags: { name: 'optimizeMetaTags', requiresConfirmation: false },
 };
 
 export interface VoiceIntent {

@@ -94,6 +94,14 @@ export class VoiceToolsService {
       tool: 'getCrawlStatus',
       data: job,
       spokenSummary: `The last crawl of ${website.domain} is ${statusMap[job.status] ?? job.status}.`,
+      uiPayload: {
+        type: 'crawl_status',
+        domain: website.domain,
+        status: job.status,
+        pagesCrawled: job.pagesCrawled,
+        issuesFound: job.issuesFound,
+        errorMessage: job.errorMessage,
+      }
     };
   }
 
@@ -140,7 +148,16 @@ export class VoiceToolsService {
       return { success: true, tool: 'listCompetitors', data: [], spokenSummary: "You haven't added any competitors yet. Say 'add competitor' followed by a domain name." };
     }
     const names = competitors.map((c) => c.domain).join(', ');
-    return { success: true, tool: 'listCompetitors', data: competitors, spokenSummary: `You're tracking ${competitors.length} competitor${competitors.length > 1 ? 's' : ''}: ${names}.` };
+    return { 
+      success: true, 
+      tool: 'listCompetitors', 
+      data: competitors, 
+      spokenSummary: `You're tracking ${competitors.length} competitor${competitors.length > 1 ? 's' : ''}: ${names}.`,
+      uiPayload: {
+        type: 'competitor_list',
+        competitors: competitors.map((c) => ({ domain: c.domain, label: c.label })),
+      }
+    };
   }
 
   async removeCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
@@ -241,6 +258,14 @@ export class VoiceToolsService {
       data: { crawlJobId: latestJob.id, pagesCrawled: latestJob.pagesCrawled, issuesFound: latestJob.issuesFound, criticalCount, highCount },
       spokenSummary: `Last audit of ${website.domain}: ${latestJob.pagesCrawled} pages, ${latestJob.issuesFound} total issues — ${criticalCount} critical and ${highCount} high priority.`,
       navigateTo: '/website',
+      uiPayload: {
+        type: 'audit_summary',
+        domain: website.domain,
+        pagesCrawled: latestJob.pagesCrawled,
+        totalIssues: latestJob.issuesFound,
+        criticalCount,
+        highCount,
+      }
     };
   }
 
@@ -384,6 +409,51 @@ export class VoiceToolsService {
       };
     } catch (e) {
       return { success: false, tool: 'generateBlogIdeas', data: null, spokenSummary: "I had trouble generating those ideas right now." };
+    }
+  }
+
+  async optimizeMetaTags(projectId: string, pageUrl: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+    await this.assertProjectAccess(projectId, userId);
+    
+    // Check if website exists
+    const website = await this.prisma.website.findFirst({
+      where: { projectId },
+      select: { id: true, domain: true },
+    });
+
+    if (!website) {
+      return { success: false, tool: 'optimizeMetaTags', data: null, spokenSummary: "I need a website in this project to optimize meta tags for." };
+    }
+
+    const targetUrl = pageUrl || website.domain;
+
+    try {
+      const prompt = `Act as an expert SEO technical specialist. Generate an optimized SEO Title (max 60 chars) and Meta Description (max 160 chars) for this URL or page keyword: "${targetUrl}". 
+      Return ONLY a valid JSON object matching this schema: {"title": "The Title", "description": "The description"}. Nothing else.`;
+      
+      const completion = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: "You are an expert SEO content strategist. Respond only with JSON.",
+        task: AiTask.FAST,
+        organizationId: orgId,
+      });
+
+      const items = JSON.parse(completion.text);
+      
+      return {
+        success: true,
+        tool: 'optimizeMetaTags',
+        data: items,
+        spokenSummary: `I've generated optimized meta tags for ${targetUrl}. I'm displaying them for you now.`,
+        uiPayload: {
+          type: 'meta_tags',
+          targetUrl,
+          title: items.title,
+          description: items.description,
+        }
+      };
+    } catch (e) {
+      return { success: false, tool: 'optimizeMetaTags', data: null, spokenSummary: "I had trouble generating meta tags right now. Please try again." };
     }
   }
 

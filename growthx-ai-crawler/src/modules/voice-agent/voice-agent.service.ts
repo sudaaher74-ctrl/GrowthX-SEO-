@@ -93,12 +93,21 @@ export class VoiceAgentService {
 
     let result: VoiceAgentResult;
 
+    // Fetch recent history
+    const recentMessages = await this.prisma.voiceMessage.findMany({
+      where: { sessionId: req.sessionId },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    recentMessages.reverse();
+    const historyPrompt = recentMessages.map(m => `${m.role === 'user' ? 'User' : 'Nexa'}: ${m.content}`).join('\n');
+
     // If this is a confirmed continuation, execute directly
     if (req.confirmed && req.pendingTool && ALLOWED_TOOLS.has(req.pendingTool)) {
       result = await this.executeTool(req.pendingTool, req.pendingParams ?? {}, req.projectId, userId, orgId);
     } else {
       // Classify intent
-      const intent = await this.classifyIntent(req.text, req.projectId, req.context?.path);
+      const intent = await this.classifyIntent(req.text, req.projectId, req.context?.path, historyPrompt);
       result = await this.handleIntent(intent, req.projectId, userId, orgId);
     }
 
@@ -124,13 +133,16 @@ export class VoiceAgentService {
 
   // ─── Intent classification ────────────────────────────────────────────────────
 
-  private async classifyIntent(text: string, projectId?: string, currentPath?: string): Promise<VoiceIntent> {
+  private async classifyIntent(text: string, projectId?: string, currentPath?: string, historyPrompt?: string): Promise<VoiceIntent> {
     const allowedTools = Object.keys(VOICE_TOOLS).join(', ');
     const navRoutes = Object.keys(NAVIGATE_ROUTES).join(', ');
 
     const prompt = `You are an intent classifier for an AI SEO voice assistant called Nexa.
 
-User said: "${text}"
+Recent Conversation History:
+${historyPrompt || 'None'}
+
+User just said: "${text}"
 User is currently viewing page: ${currentPath || 'unknown'} (use this to resolve ambiguous words like "this", "here", or "these")
 
 Classify this into one of these exact tool names: ${allowedTools}
@@ -148,6 +160,7 @@ For findContentGaps: params={}
 For getTopRecommendations: params={}
 For getAuditSummary: params={}
 For generateBlogIdeas: params={"topic":"<topic>"}
+For optimizeMetaTags: params={"pageUrl":"<pageUrl or keyword>"}
 For unknown requests: tool="getTopRecommendations", params={}, confidence=0.3
 
 Respond with JSON only, no explanation.`;
@@ -310,6 +323,8 @@ Respond with JSON only, no explanation.`;
           return await this.tools.crawlCompetitor(projectId!, params.domain, userId, orgId);
         case 'generateBlogIdeas':
           return await this.tools.generateBlogIdeas(projectId!, params.topic, userId, orgId);
+        case 'optimizeMetaTags':
+          return await this.tools.optimizeMetaTags(projectId!, params.pageUrl, userId, orgId);
         case 'navigate': {
           const destination = (params.destination as string)?.toLowerCase() ?? '';
           const route = NAVIGATE_ROUTES[destination] ?? '/dashboard';
