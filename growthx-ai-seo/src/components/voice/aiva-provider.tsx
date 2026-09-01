@@ -158,7 +158,13 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         };
 
         recognition.onerror = (event: any) => {
-          if (event.error === 'no-speech') return; // Ignore routine silences
+          if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'network') {
+            return; // Ignore routine silences and background aborts
+          }
+          if (event.error === 'not-allowed') {
+            console.error('Microphone access denied.');
+            return;
+          }
           console.error('Speech recognition error', event.error);
           setState('error');
           setAssistantMessage('I had trouble hearing you. Please try again.');
@@ -171,15 +177,24 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             setState('thinking');
           } else {
             // Keep listening for wake word or confirmation
-            try {
-              recognition.start();
-            } catch (e) {}
+            setTimeout(() => {
+              try {
+                if (recognitionRef.current) recognitionRef.current.start();
+              } catch (e) {}
+            }, 100);
           }
         };
 
         recognitionRef.current = recognition;
         // Start listening immediately in background for wake word
         try { recognition.start(); } catch (e) {}
+        
+        return () => {
+          recognition.onend = null;
+          recognition.onerror = null;
+          recognition.onresult = null;
+          try { recognition.stop(); } catch (e) {}
+        };
       }
       synthRef.current = window.speechSynthesis;
     }
