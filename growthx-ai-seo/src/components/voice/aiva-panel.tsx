@@ -79,7 +79,7 @@ export function AivaPanel() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 20, opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[600px] max-w-[90vw] rounded-full bg-[#111111] backdrop-blur-md shadow-2xl ring-1 ring-white/10 overflow-hidden"
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[600px] max-w-[90vw] rounded-[30px] bg-[#111111] backdrop-blur-md shadow-2xl ring-1 ring-white/10 overflow-hidden"
             >
 
               <div className="flex flex-col">
@@ -138,11 +138,11 @@ export function AivaPanel() {
                       <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Audit Summary: {uiPayload.domain}</h4>
                       <div className="flex items-center gap-6">
                         <div className="flex flex-col">
-                          <span className="text-2xl font-semibold text-red-500">{uiPayload.criticalCount}</span>
+                          <span className="text-2xl font-semibold text-white">{uiPayload.criticalCount}</span>
                           <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">Critical</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-2xl font-semibold text-orange-400">{uiPayload.highCount}</span>
+                          <span className="text-2xl font-semibold text-white">{uiPayload.highCount}</span>
                           <span className="text-xs text-gray-500 uppercase tracking-wider mt-1">High</span>
                         </div>
                         <div className="flex flex-col">
@@ -181,12 +181,12 @@ export function AivaPanel() {
                       <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Optimized Tags: {uiPayload.targetUrl}</h4>
                       <div className="space-y-4">
                         <div>
-                          <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider block mb-1">SEO Title</span>
-                          <p className="text-[15px] text-white font-medium">{uiPayload.title}</p>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-1">SEO Title</span>
+                          <p className="text-[15px] text-gray-300 font-medium">{uiPayload.title}</p>
                         </div>
                         <div>
-                          <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider block mb-1">Meta Description</span>
-                          <p className="text-[14px] text-gray-300 leading-relaxed">{uiPayload.description}</p>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-1">Meta Description</span>
+                          <p className="text-[14px] text-gray-400 leading-relaxed">{uiPayload.description}</p>
                         </div>
                       </div>
                     </motion.div>

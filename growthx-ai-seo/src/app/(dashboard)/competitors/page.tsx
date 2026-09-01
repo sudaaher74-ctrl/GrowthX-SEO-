@@ -630,12 +630,12 @@ function CompetitorConsoleClient() {
                   ) : (
                     <div className="space-y-4">
                       <div className="rounded-lg bg-white p-3 border border-brand-100 shadow-sm text-[13px] text-brand-800 leading-relaxed">
-                        {seoInsights.data.insights}
+                        {(seoInsights.data as any).insights}
                       </div>
                       
                       <div className="space-y-2 mt-4">
                         <h4 className="text-[11px] font-bold uppercase tracking-wider text-brand-500">Recommended Content</h4>
-                        {seoInsights.data.recommendedContent?.map((rec: any, idx: number) => (
+                        {(seoInsights.data as any).recommendedContent?.map((rec: any, idx: number) => (
                           <div key={idx} className="rounded-lg bg-white p-3 border border-brand-100 shadow-sm group hover:border-brand-300 transition">
                             <div className="text-[10px] font-bold text-indigo-600 mb-1">{rec.type}</div>
                             <div className="text-[13px] font-semibold text-brand-950 leading-tight">{rec.title}</div>

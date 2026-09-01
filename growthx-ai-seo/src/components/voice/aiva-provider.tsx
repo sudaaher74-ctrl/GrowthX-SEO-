@@ -8,10 +8,11 @@ import { usePathname } from 'next/navigation';
 
 // Sound generators using Web Audio API
 const playTone = (frequency: number, type: OscillatorType, duration: number, volume: number, startTime = 0) => {
-  if (typeof window === 'undefined') return;
-  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContext) return;
-  const ctx = new AudioContext();
+  try {
+    if (typeof window === 'undefined') return;
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   
@@ -25,8 +26,11 @@ const playTone = (frequency: number, type: OscillatorType, duration: number, vol
   osc.connect(gain);
   gain.connect(ctx.destination);
   
-  osc.start(ctx.currentTime + startTime);
-  osc.stop(ctx.currentTime + startTime + duration);
+    osc.start(ctx.currentTime + startTime);
+    osc.stop(ctx.currentTime + startTime + duration);
+  } catch (err) {
+    // Ignore AudioContext errors if blocked by browser
+  }
 };
 
 const playWakeSound = () => {
@@ -184,14 +188,13 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.onend = () => {
           if (stateRef.current === 'listening') {
             setState('thinking');
-          } else {
-            // Keep listening for wake word or confirmation
-            setTimeout(() => {
-              try {
-                if (recognitionRef.current) recognitionRef.current.start();
-              } catch (e) {}
-            }, 100);
           }
+          // Always keep listening for wake word or confirmation
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current) recognitionRef.current.start();
+            } catch (e) {}
+          }, 100);
         };
 
         recognitionRef.current = recognition;
