@@ -570,4 +570,84 @@ Extract the requested information and format it as a clean, concise summary. Ret
       };
     }
   }
+
+  async discoverCompetitors(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+    await this.assertProjectAccess(projectId, userId);
+
+    try {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        include: { websites: true },
+      });
+
+      if (!project || project.websites.length === 0) {
+        return {
+          success: false,
+          tool: 'discoverCompetitors',
+          data: null,
+          spokenSummary: "I need a website in your project to figure out your industry and find competitors.",
+        };
+      }
+
+      const domain = project.websites[0].domain;
+
+      const prompt = `You are a world-class market analyst and SEO strategist.
+The user's primary business domain is: ${domain}
+Identify the top 3 to 5 real-world direct competitors for this domain in their industry.
+If you don't know the exact domain, make an educated guess based on the likely industry.
+Respond ONLY with a JSON array of objects, like this:
+[
+  { "domain": "competitor1.com", "name": "Competitor 1" },
+  { "domain": "competitor2.com", "name": "Competitor 2" }
+]`;
+
+      const res = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: "You identify business competitors. Return only valid JSON.",
+        task: AiTask.FAST,
+        organizationId: orgId,
+      });
+
+      let competitors: { domain: string, name: string }[] = [];
+      try {
+        competitors = JSON.parse(res.text);
+      } catch (e) {
+        throw new Error("Failed to parse AI output into a competitor list.");
+      }
+
+      const tracked = [];
+      for (const comp of competitors) {
+        if (!comp.domain || comp.domain === domain) continue;
+        const cleanDomain = comp.domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+        const saved = await this.prisma.competitorDomain.upsert({
+          where: { projectId_domain: { projectId, domain: cleanDomain } },
+          create: {
+            projectId,
+            domain: cleanDomain,
+            label: comp.name || cleanDomain,
+          },
+          update: {},
+        });
+        tracked.push(saved);
+      }
+
+      return {
+        success: true,
+        tool: 'discoverCompetitors',
+        data: tracked,
+        spokenSummary: `I analyzed your domain and identified ${tracked.length} top competitors. I've automatically added them to your tracking dashboard.`,
+        uiPayload: {
+          type: 'competitor_list',
+          competitors: tracked,
+        }
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        tool: 'discoverCompetitors',
+        data: null,
+        spokenSummary: `Failed to discover competitors right now. Error: ${err.message}`,
+      };
+    }
+  }
 }

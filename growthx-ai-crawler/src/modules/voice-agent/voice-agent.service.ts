@@ -162,6 +162,7 @@ For getAuditSummary: params={}
 For generateBlogIdeas: params={"topic":"<topic>"}
 For optimizeMetaTags: params={"pageUrl":"<pageUrl or keyword>"}
 For scrapeCompetitorData: params={"url":"<competitor url>", "target":"<what to extract (e.g. pricing, products)>"}
+For discoverCompetitors: params={}
 For unknown requests: tool="getTopRecommendations", params={}, confidence=0.3
 
 Respond with JSON only, no explanation.`;
@@ -218,6 +219,9 @@ Respond with JSON only, no explanation.`;
         params: { url: urlMatch ? urlMatch[0] : '', target: 'pricing and products' }, 
         confidence: 0.7 
       };
+    }
+    if (lower.includes('track') || lower.includes('find my competitor') || lower.includes('discover competitor') || lower.includes('who are my competitor')) {
+      return { tool: 'discoverCompetitors', params: {}, confidence: 0.8 };
     }
     return { tool: 'getTopRecommendations', params: {}, confidence: 0.4 };
   }
