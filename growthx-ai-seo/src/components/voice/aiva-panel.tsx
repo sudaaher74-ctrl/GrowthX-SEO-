@@ -91,124 +91,76 @@ export function AivaPanel() {
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={close}
-              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
-            />
-
-            {/* Panel */}
+            {/* No Background Blur Overlay - user wants to see the background perfectly */}
+            {/* Bottom Strip / Pill */}
             <motion.div
               initial={{ y: 20, opacity: 0, scale: 0.95 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 20, opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="fixed bottom-24 right-6 z-50 w-96 overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/10 sm:w-[400px]"
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[600px] max-w-[90vw] rounded-full bg-white/95 backdrop-blur-lg shadow-2xl ring-1 ring-black/10"
             >
-              {/* Rainbow Border Glow */}
-              <div className="absolute inset-0 aiva-border-segment opacity-40 pointer-events-none" style={{ mixBlendMode: 'overlay' }} />
-              <div className="absolute inset-px rounded-[23px] bg-white pointer-events-none" />
+              {/* Rainbow Border Glow for Pill */}
+              <div className="absolute inset-0 rounded-full aiva-border-segment opacity-20 pointer-events-none" style={{ mixBlendMode: 'overlay' }} />
 
-              <div className="relative flex h-full flex-col p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-lg font-semibold text-transparent">
-                    Aiva Assistant
-                  </h3>
-                  <button
-                    onClick={close}
-                    className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+              <div className="relative flex items-center justify-between p-2 pl-3 gap-4">
+                {/* Left: Aiva Orb */}
+                <div 
+                  className="flex-shrink-0 cursor-pointer" 
+                  onClick={state === 'listening' ? stopListening : startListening}
+                  title={state === 'listening' ? 'Tap to send' : 'Tap to speak'}
+                >
+                  <div className="scale-75 origin-left -ml-2 -my-2">
+                    <AivaOrb state={state} onClick={() => {}} />
+                  </div>
                 </div>
 
-                {/* Conversation Area */}
-                <div className="flex-1 space-y-4 min-h-[200px] flex flex-col justify-end mb-6">
+                {/* Middle: Conversation Text */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
                   <AnimatePresence mode="popLayout">
-                    {transcript && (
-                      <motion.div
-                        key="user-msg"
-                        layout
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="self-end max-w-[85%]"
-                      >
-                        <div className="rounded-2xl rounded-tr-sm bg-gray-100 px-4 py-2.5 text-[15px] text-gray-800 shadow-sm">
-                          {transcript}
-                        </div>
-                      </motion.div>
-                    )}
-
                     <motion.div
-                      key="assistant-msg"
-                      layout
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="self-start max-w-[90%]"
+                      key={state === 'listening' ? transcript : (progressMessage || assistantMessage || state)}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="truncate text-[15px] font-medium text-gray-800"
                     >
-                      <div className="aiva-bubble rounded-2xl rounded-tl-sm bg-gradient-to-br from-purple-600 to-indigo-600 px-4 py-2.5 text-[15px] text-white shadow-md">
-                        {assistantMessage}
-                      </div>
-                    </motion.div>
-
-                    {progressMessage && (
-                      <motion.div
-                        key="progress-msg"
-                        layout
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="self-start"
-                      >
-                        <span className="text-sm text-gray-500 italic flex items-center gap-2">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                      {state === 'idle' ? 'What can I help you with today?' 
+                        : state === 'listening' ? (transcript || 'Listening...')
+                        : progressMessage ? (
+                          <span className="flex items-center gap-2 italic text-gray-600">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                            </span>
+                            {progressMessage}
                           </span>
-                          {progressMessage}
-                        </span>
-                      </motion.div>
-                    )}
+                        )
+                        : assistantMessage ? assistantMessage
+                        : 'Thinking...'}
+                    </motion.div>
                   </AnimatePresence>
                 </div>
 
-                {/* Controls Area */}
-                <div className="flex flex-col items-center justify-center space-y-4 pt-4 border-t border-gray-100">
+                {/* Right: Controls */}
+                <div className="flex-shrink-0 flex items-center gap-2 pr-2">
                   {state === 'confirming' ? (
-                    <div className="flex gap-3 w-full">
-                      <Button onClick={cancelAction} variant="outline" className="flex-1 rounded-xl h-11">
+                    <>
+                      <Button onClick={cancelAction} variant="ghost" size="sm" className="rounded-full text-gray-500 hover:text-gray-800 h-9 px-4">
                         Cancel
                       </Button>
-                      <Button onClick={confirmAction} className="flex-1 rounded-xl h-11 bg-purple-600 hover:bg-purple-700 text-white">
+                      <Button onClick={confirmAction} size="sm" className="rounded-full bg-purple-600 hover:bg-purple-700 text-white h-9 px-4">
                         Confirm
                       </Button>
-                    </div>
+                    </>
                   ) : (
-                    <div className="flex flex-col items-center gap-3">
-                      <AivaOrb
-                        state={state}
-                        onClick={state === 'listening' ? stopListening : startListening}
-                      />
-                      <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">
-                        {state === 'idle'
-                          ? 'Tap to speak'
-                          : state === 'listening'
-                          ? 'Tap to send'
-                          : state === 'thinking'
-                          ? 'Thinking...'
-                          : state === 'working'
-                          ? 'Working...'
-                          : state === 'speaking'
-                          ? 'Speaking...'
-                          : state === 'error'
-                          ? 'Error'
-                          : ''}
-                      </span>
-                    </div>
+                    <button
+                      onClick={close}
+                      className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none transition-colors"
+                      aria-label="Close Assistant"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
                   )}
                 </div>
               </div>
