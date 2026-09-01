@@ -396,8 +396,8 @@ export class VoiceToolsService {
         spokenSummary: "I've generated your AI-powered 90-day strategy. Let's review your core content pillars.",
         uiPayload: {
           type: 'seo_strategy',
-          pillars: strategy.contentPillars?.slice(0, 3) || [],
-          campaigns: strategy.campaignConcepts?.slice(0, 2) || [],
+          pillars: (strategy.contentPillars as any[])?.slice(0, 3) || [],
+          campaigns: (strategy.campaignIdeas as any[])?.slice(0, 2) || [],
         }
       };
     } catch (err: any) {
