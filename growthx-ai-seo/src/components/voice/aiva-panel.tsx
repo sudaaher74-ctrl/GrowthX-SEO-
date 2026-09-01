@@ -191,6 +191,88 @@ export function AivaPanel() {
                       </div>
                     </motion.div>
                   )}
+
+                  {uiPayload && uiPayload.type === 'seo_strategy' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10 overflow-y-auto max-h-[50vh]"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">90-Day SEO Strategy</h4>
+                      <div className="space-y-5">
+                        {uiPayload.pillars?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Content Pillars</span>
+                            <ul className="space-y-2">
+                              {uiPayload.pillars.map((pillar: any, idx: number) => (
+                                <li key={idx} className="text-[14px] text-gray-300 leading-relaxed">
+                                  <strong className="text-white">{pillar.name}:</strong> {pillar.description}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {uiPayload.campaigns?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Top Campaigns</span>
+                            <div className="space-y-3">
+                              {uiPayload.campaigns.map((camp: any, idx: number) => (
+                                <div key={idx} className="p-3 bg-white/5 rounded-xl border border-white/10">
+                                  <h5 className="text-[13px] font-bold text-white mb-1">{camp.name}</h5>
+                                  <p className="text-[12px] text-gray-400">{camp.rationale}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {uiPayload && uiPayload.type === 'gap_insights' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-5 border-b border-white/10 overflow-y-auto max-h-[50vh]"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Competitor Gap Analysis</h4>
+                      <div className="space-y-5">
+                        <div>
+                          <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Strategic Insight</span>
+                          <p className="text-[14px] text-gray-300 leading-relaxed">{uiPayload.insights}</p>
+                        </div>
+                        {uiPayload.missingKeywords?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Missing High-Value Keywords</span>
+                            <div className="flex flex-wrap gap-2">
+                              {uiPayload.missingKeywords.map((kw: string, idx: number) => (
+                                <div key={idx} className="px-2.5 py-1 bg-white/10 rounded-md text-[12px] text-white font-medium border border-white/5">
+                                  {kw}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {uiPayload.recommendedContent?.length > 0 && (
+                          <div>
+                            <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Recommended Content</span>
+                            <div className="space-y-2">
+                              {uiPayload.recommendedContent.map((rec: any, idx: number) => (
+                                <div key={idx} className="p-2.5 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                                  <div className="flex flex-col">
+                                    <span className="text-[13px] font-semibold text-white">{rec.title}</span>
+                                    <span className="text-[11px] text-gray-500 mt-0.5">{rec.type} • Target: {rec.targetKeyword}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 <div className="relative flex items-center justify-between p-2 pl-3 gap-4 h-[60px]">

@@ -4,6 +4,8 @@ import { OrgContextService } from '../organizations/org-context.service';
 import { JobStatus } from '@prisma/client';
 import { VoiceAgentResult } from './voice-agent.types';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { ContentStrategyService } from '../content-intelligence/content-strategy.service';
+import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
 
 /** Simple domain validation — no private IPs, valid TLD format. */
 function validateDomain(domain: string): string {
@@ -28,6 +30,8 @@ export class VoiceToolsService {
     private readonly prisma: PrismaService,
     private readonly orgContext: OrgContextService,
     private readonly aiRouter: MultiAiRouterService,
+    private readonly contentStrategy: ContentStrategyService,
+    private readonly seoCompetitors: SeoCompetitorsService,
   ) {}
 
   // ─── Crawl ───────────────────────────────────────────────────────────────────
@@ -271,29 +275,43 @@ export class VoiceToolsService {
 
   async findContentGaps(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
-    const gaps = await this.prisma.contentGap.findMany({
-      where: { projectId },
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-    }).catch(() => []);
+    
+    try {
+      const insights = await this.seoCompetitors.generateSeoGapInsights(projectId, orgId);
+      const matrix = await this.seoCompetitors.getSeoGapMatrix(projectId);
+      
+      const missing = matrix.keywordMatrix.filter(r => r.gapStatus === 'CUSTOMER_MISSING').slice(0, 5);
 
-    if (!gaps.length) {
+      if (!missing.length) {
+        return {
+          success: true,
+          tool: 'findContentGaps',
+          data: [],
+          spokenSummary: 'No critical content gaps found. You are outperforming your tracked competitors.',
+          navigateTo: '/competitors',
+        };
+      }
+
       return {
         success: true,
         tool: 'findContentGaps',
-        data: [],
-        spokenSummary: 'No content gaps found yet. Make sure you have a crawled competitor first.',
-        navigateTo: '/content-intelligence',
+        data: insights,
+        spokenSummary: `I've analyzed the competitor matrix. We're missing coverage on high-value keywords like ${missing[0].keyword}. I'm generating a gap recovery plan now.`,
+        uiPayload: {
+          type: 'gap_insights',
+          insights: insights.insights,
+          recommendedContent: insights.recommendedContent,
+          missingKeywords: missing.map(m => m.keyword),
+        }
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        tool: 'findContentGaps',
+        data: null,
+        spokenSummary: 'Failed to analyze competitor gaps. Make sure you have added competitors first.',
       };
     }
-
-    return {
-      success: true,
-      tool: 'findContentGaps',
-      data: gaps,
-      spokenSummary: `Found ${gaps.length} content gaps. Opening Content Intelligence now.`,
-      navigateTo: '/content-intelligence',
-    };
   }
 
   async detectOpportunities(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
@@ -368,13 +386,28 @@ export class VoiceToolsService {
 
   async generateStrategy(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
-    return {
-      success: true,
-      tool: 'generateStrategy',
-      data: null,
-      spokenSummary: 'Opening the strategy page. I can generate an AI-powered 90-day strategy from there.',
-      navigateTo: '/strategy',
-    };
+    try {
+      const strategy = await this.contentStrategy.generateStrategy(projectId, orgId);
+      
+      return {
+        success: true,
+        tool: 'generateStrategy',
+        data: strategy,
+        spokenSummary: "I've generated your AI-powered 90-day strategy. Let's review your core content pillars.",
+        uiPayload: {
+          type: 'seo_strategy',
+          pillars: strategy.contentPillars?.slice(0, 3) || [],
+          campaigns: strategy.campaignConcepts?.slice(0, 2) || [],
+        }
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        tool: 'generateStrategy',
+        data: null,
+        spokenSummary: 'Failed to generate the strategy right now. Please ensure your project is properly configured.',
+      };
+    }
   }
 
   async generateBlogIdeas(projectId: string, topic: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
