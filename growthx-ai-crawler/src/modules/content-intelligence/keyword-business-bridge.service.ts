@@ -98,7 +98,7 @@ export class KeywordBusinessBridgeService {
     }
 
     // Auto-generate dynamic high-impact opportunities tailored to the workspace
-    const domainName = (project?.domain || '').toLowerCase();
+    const domainName = (project?.name || '').toLowerCase();
     const isFoodExport = domainName.includes('aiva') || domainName.includes('fruit') || domainName.includes('frozen') ||
       competitorAccounts.some(c => (c.businessName || c.handle || '').toLowerCase().includes('fruit') || (c.businessName || c.handle || '').toLowerCase().includes('frozen') || (c.businessName || c.handle || '').toLowerCase().includes('food') || (c.businessName || c.handle || '').toLowerCase().includes('pal'));
 

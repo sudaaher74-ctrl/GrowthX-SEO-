@@ -46,7 +46,7 @@ export class ContentIntelligenceScheduler {
           id: true,
           domain: true,
           projectId: true,
-          organizationId: true,
+          project: { select: { organizationId: true } },
         },
       });
 
@@ -58,7 +58,7 @@ export class ContentIntelligenceScheduler {
       for (const comp of activeCompetitors) {
         try {
           this.logger.log(`[Cron] Recrawling competitor ${comp.domain} for project ${comp.projectId}...`);
-          await this.competitorCrawlService.startCrawl(comp.projectId, comp.id);
+          await this.competitorCrawlService.startCrawl(comp.project.organizationId, comp.projectId, comp.id);
           successCount++;
         } catch (err: any) {
           this.logger.error(`[Cron] Failed to crawl competitor ${comp.domain}: ${err.message}`);
@@ -87,7 +87,7 @@ export class ContentIntelligenceScheduler {
     try {
       const projects = await this.prisma.project.findMany({
         where: {
-          competitorAccounts: { some: { isActive: true } },
+          competitors: { some: { status: 'ACTIVE' } },
         },
         select: {
           id: true,
@@ -129,7 +129,7 @@ export class ContentIntelligenceScheduler {
     try {
       const projects = await this.prisma.project.findMany({
         where: {
-          competitorDomains: { some: {} },
+          competitors: { some: {} },
         },
         select: {
           id: true,
@@ -171,8 +171,8 @@ export class ContentIntelligenceScheduler {
     const crawlResults: any[] = [];
     for (const comp of competitors) {
       try {
-        const res = await this.competitorCrawlService.startCrawl(projectId, comp.id);
-        crawlResults.push({ competitorId: comp.id, domain: comp.domain, status: 'SUCCESS', ...res });
+        const res = await this.competitorCrawlService.startCrawl(orgId, projectId, comp.id);
+        crawlResults.push({ competitorId: comp.id, status: 'SUCCESS', ...res });
       } catch (err: any) {
         crawlResults.push({ competitorId: comp.id, domain: comp.domain, status: 'FAILED', error: err.message });
       }
