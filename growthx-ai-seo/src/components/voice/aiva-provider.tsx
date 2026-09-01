@@ -4,6 +4,40 @@ import React, { createContext, useContext, useState, useRef, useEffect, ReactNod
 import { useRouter } from 'next/navigation';
 import { api, auth } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
+import { usePathname } from 'next/navigation';
+
+// Sound generators using Web Audio API
+const playTone = (frequency: number, type: OscillatorType, duration: number, volume: number, startTime = 0) => {
+  if (typeof window === 'undefined') return;
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContext) return;
+  const ctx = new AudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  
+  osc.type = type;
+  osc.frequency.setValueAtTime(frequency, ctx.currentTime + startTime);
+  
+  gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
+  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + startTime + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+  
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  
+  osc.start(ctx.currentTime + startTime);
+  osc.stop(ctx.currentTime + startTime + duration);
+};
+
+const playWakeSound = () => {
+  playTone(440, 'sine', 0.2, 0.1); // A4
+  playTone(554.37, 'sine', 0.3, 0.1, 0.1); // C#5
+};
+
+const playSuccessSound = () => {
+  playTone(523.25, 'sine', 0.2, 0.1); // C5
+  playTone(659.25, 'sine', 0.4, 0.1, 0.15); // E5
+};
 
 export type AivaState =
   | 'idle'
@@ -43,6 +77,7 @@ interface AivaContextType {
   confirmAction: () => void;
   cancelAction: () => void;
   progressMessage: string | null;
+  uiPayload: any | null;
 }
 
 const AivaContext = createContext<AivaContextType | undefined>(undefined);
@@ -53,6 +88,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const [transcript, setTranscript] = useState('');
   const [assistantMessage, setAssistantMessage] = useState('How can I help you?');
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [uiPayload, setUiPayload] = useState<any | null>(null);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{ tool: string; params: any } | null>(null);
@@ -65,6 +101,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const confirmActionRef = useRef<() => void>(() => {});
   const cancelActionRef = useRef<() => void>(() => {});
   const setIsOpenRef = useRef(setIsOpen);
+  const pathname = usePathname();
   
   useEffect(() => {
     stateRef.current = state;
@@ -93,6 +130,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
 
           if (stateRef.current === 'idle') {
             if (lower.includes('hey nexa') || lower.includes('hi nexa')) {
+              playWakeSound();
               setIsOpenRef.current(true);
               setTranscript(currentTranscript.replace(/hey nexa|hi nexa/gi, '').trim());
               setState('listening');
@@ -217,10 +255,17 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         sessionId,
         projectId,
         text: finalTranscript,
+        context: { path: pathname },
       });
 
       setAssistantMessage(res.spokenSummary);
+      setUiPayload(res.uiPayload ?? null);
       setState('speaking');
+      
+      if (res.success && !res.confirmationRequired) {
+        playSuccessSound();
+      }
+
       speak(res.spokenSummary, () => {
         if (res.confirmationRequired) {
           setState('confirming');
@@ -287,11 +332,18 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         confirmed: true,
         pendingTool: pendingConfirmation.tool,
         pendingParams: pendingConfirmation.params,
+        context: { path: pathname },
       });
 
       setPendingConfirmation(null);
       setAssistantMessage(res.spokenSummary);
+      setUiPayload(res.uiPayload ?? null);
       setState('speaking');
+      
+      if (res.success) {
+        playSuccessSound();
+      }
+
       speak(res.spokenSummary, () => {
         setState('completed');
         setTimeout(() => setState('idle'), 2000);
@@ -344,6 +396,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         confirmAction,
         cancelAction,
         progressMessage,
+        uiPayload,
       }}
     >
       {children}

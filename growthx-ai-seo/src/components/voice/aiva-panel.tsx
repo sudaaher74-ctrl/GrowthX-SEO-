@@ -20,6 +20,7 @@ export function AivaPanel() {
     stopListening,
     confirmAction,
     cancelAction,
+    uiPayload,
   } = useAiva();
 
   return (
@@ -98,12 +99,34 @@ export function AivaPanel() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 20, opacity: 0, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[600px] max-w-[90vw] rounded-full bg-white/95 backdrop-blur-lg shadow-2xl ring-1 ring-black/10"
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[600px] max-w-[90vw] rounded-3xl bg-white/95 backdrop-blur-lg shadow-2xl ring-1 ring-black/10 overflow-hidden"
             >
               {/* Rainbow Border Glow for Pill */}
-              <div className="absolute inset-0 rounded-full aiva-border-segment opacity-20 pointer-events-none" style={{ mixBlendMode: 'overlay' }} />
+              <div className="absolute inset-0 rounded-3xl aiva-border-segment opacity-20 pointer-events-none" style={{ mixBlendMode: 'overlay' }} />
 
-              <div className="relative flex items-center justify-between p-2 pl-3 gap-4">
+              <div className="flex flex-col">
+                <AnimatePresence>
+                  {uiPayload && uiPayload.type === 'blog_ideas' && (state === 'speaking' || state === 'completed' || state === 'idle') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="w-full px-6 pt-5 pb-3 border-b border-gray-100/50"
+                    >
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ideas for "{uiPayload.topic}"</h4>
+                      <ul className="space-y-3">
+                        {uiPayload.items.map((idea: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-3 text-[15px] text-gray-700 leading-snug">
+                            <span className="text-purple-500/50 font-semibold">{idx + 1}.</span>
+                            {idea}
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="relative flex items-center justify-between p-2 pl-3 gap-4 h-[60px]">
                 {/* Left: Aiva Orb */}
                 <div 
                   className="flex-shrink-0 cursor-pointer" 
