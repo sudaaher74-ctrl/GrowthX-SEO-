@@ -257,64 +257,64 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     await this.playwrightSemaphore.acquire();
     try {
       let page;
+      try {
+        page = await this.browserContext.newPage();
+      } catch {
+        // Re-initialize context if needed
+        await this.ensurePlaywrightInitialized();
+        page = await this.browserContext!.newPage();
+      }
 
-    try {
-      page = await this.browserContext.newPage();
-    } catch {
-      // Re-initialize context if needed
-      await this.ensurePlaywrightInitialized();
-      page = await this.browserContext!.newPage();
-    }
+      const redirectChain: string[] = [targetUrl];
+      let statusCode = 200;
+      let contentType = 'text/html';
 
-    const redirectChain: string[] = [targetUrl];
-    let statusCode = 200;
-    let contentType = 'text/html';
+      try {
+        page.on('response', (res) => {
+          if (res.url() === targetUrl || res.url() === page.url()) {
+            statusCode = res.status();
+            contentType = res.headers()['content-type'] || 'text/html';
+          }
+          if (res.status() >= 300 && res.status() < 400) {
+            const loc = res.headers()['location'];
+            if (loc) redirectChain.push(loc);
+          }
+        });
 
-    try {
-      page.on('response', (res) => {
-        if (res.url() === targetUrl || res.url() === page.url()) {
-          statusCode = res.status();
-          contentType = res.headers()['content-type'] || 'text/html';
-        }
-        if (res.status() >= 300 && res.status() < 400) {
-          const loc = res.headers()['location'];
-          if (loc) redirectChain.push(loc);
-        }
-      });
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.waitForTimeout(1000);
 
-      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await page.waitForTimeout(1000);
+        const html = await page.content();
+        const finalUrl = page.url();
+        const responseTimeMs = Date.now() - startTime;
 
-      const html = await page.content();
-      const finalUrl = page.url();
-      const responseTimeMs = Date.now() - startTime;
+        this.metrics.pageFetchDurationSeconds.observe({ engine: 'playwright' }, responseTimeMs / 1000);
+        await page.close().catch(() => {});
 
-      this.metrics.pageFetchDurationSeconds.observe({ engine: 'playwright' }, responseTimeMs / 1000);
-      await page.close().catch(() => {});
-
-      return {
-        url: targetUrl,
-        finalUrl,
-        statusCode,
-        responseTimeMs,
-        contentType,
-        html,
-        redirectChain,
-        engine: 'playwright',
-      };
-    } catch (err: any) {
-      if (page) await page.close().catch(() => {});
-      this.logger.error(`Playwright fetch failed for ${targetUrl}: ${err.message}`);
-      return {
-        url: targetUrl,
-        finalUrl: targetUrl,
-        statusCode: 500,
-        responseTimeMs: Date.now() - startTime,
-        html: '',
-        redirectChain,
-        engine: 'playwright',
-        errorMessage: err.message,
-      };
+        return {
+          url: targetUrl,
+          finalUrl,
+          statusCode,
+          responseTimeMs,
+          contentType,
+          html,
+          redirectChain,
+          engine: 'playwright',
+        };
+      } catch (err: any) {
+        if (page) await page.close().catch(() => {});
+        this.logger.error(`Playwright fetch failed for ${targetUrl}: ${err.message}`);
+        return {
+          url: targetUrl,
+          finalUrl: targetUrl,
+          statusCode: 500,
+          responseTimeMs: Date.now() - startTime,
+          html: '',
+          redirectChain,
+          engine: 'playwright',
+          errorMessage: err.message,
+        };
+      }
     } finally {
       this.playwrightSemaphore.release();
     }
