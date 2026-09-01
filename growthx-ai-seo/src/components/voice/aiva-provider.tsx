@@ -81,6 +81,8 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
+        let silenceTimeout: NodeJS.Timeout;
+
         recognition.onresult = (event: any) => {
           let currentTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -105,6 +107,14 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             }
           } else if (stateRef.current === 'listening') {
             setTranscript(currentTranscript);
+            
+            // Auto-stop and transition to thinking after 2 seconds of silence
+            clearTimeout(silenceTimeout);
+            silenceTimeout = setTimeout(() => {
+              if (stateRef.current === 'listening') {
+                try { recognition.stop(); } catch (e) {}
+              }
+            }, 2000);
           }
         };
 
