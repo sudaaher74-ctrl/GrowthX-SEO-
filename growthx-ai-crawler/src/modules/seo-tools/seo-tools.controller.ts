@@ -1,9 +1,10 @@
-import { Controller, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Req, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SchemaGeneratorService } from './schema-generator.service';
 import { MetaOptimizerService } from './meta-optimizer.service';
 import { ImageOptimizerService } from './image-optimizer.service';
 import { InternalLinkingService } from './internal-linking.service';
+import { SeoCompetitorsService } from './seo-competitors.service';
 
 @Controller('api/projects/:projectId/seo-tools')
 @UseGuards(JwtAuthGuard)
@@ -13,6 +14,7 @@ export class SeoToolsController {
     private readonly metaOptimizer: MetaOptimizerService,
     private readonly imageOptimizer: ImageOptimizerService,
     private readonly internalLinking: InternalLinkingService,
+    private readonly seoCompetitors: SeoCompetitorsService,
   ) {}
 
   @Post('schema/generate')
@@ -44,10 +46,20 @@ export class SeoToolsController {
 
   @Post('internal-links/suggest')
   async suggestInternalLinks(
-    @Req() req: any,
+    @Request() req: any,
     @Param('projectId') projectId: string,
     @Body() body: { url: string },
   ) {
     return this.internalLinking.suggestInternalLinks(body.url, projectId, req.organizationId);
+  }
+
+  @Get('competitor-matrix')
+  async getCompetitorMatrix(@Param('projectId') projectId: string) {
+    return this.seoCompetitors.getSeoGapMatrix(projectId);
+  }
+
+  @Post('seo-insights')
+  async generateSeoInsights(@Param('projectId') projectId: string, @Request() req: any) {
+    return this.seoCompetitors.generateSeoGapInsights(projectId, req.user.organizationId);
   }
 }

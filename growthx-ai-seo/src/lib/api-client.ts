@@ -1094,6 +1094,10 @@ export const api = {
     post<any>(`/api/projects/${projectId}/seo-tools/images/analyze`, { url }),
   suggestInternalLinks: async (projectId: string, url: string) => 
     post<any>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
+  getSeoGapMatrix: async (projectId: string) =>
+    get<any>(`/api/projects/${projectId}/seo-tools/competitor-matrix`),
+  generateSeoGapInsights: async (projectId: string) =>
+    post<any>(`/api/projects/${projectId}/seo-tools/seo-insights`, {}),
 
   // ── Voice Agent
   voice: {

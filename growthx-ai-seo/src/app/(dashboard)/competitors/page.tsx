@@ -25,7 +25,7 @@ function CompetitorConsoleClient() {
   const qc = useQueryClient();
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<"teardown" | "video-feed" | "matrix" | "opportunities" | "alerts" | "voice">("teardown");
+  const [activeTab, setActiveTab] = useState<"teardown" | "seo-matrix" | "video-feed" | "matrix" | "opportunities" | "alerts" | "voice">("teardown");
 
   // Filters & State
   const [platformFilter, setPlatformFilter] = useState<string>("ALL");
@@ -84,6 +84,12 @@ function CompetitorConsoleClient() {
     enabled: !!projectId,
   });
 
+  const seoMatrixQuery = useQuery({
+    queryKey: ["seo-matrix", projectId],
+    queryFn: () => api.getSeoGapMatrix(projectId!),
+    enabled: !!projectId,
+  });
+
   const opportunitiesQuery = useQuery({
     queryKey: ["ci-opportunities", projectId],
     queryFn: () => api.getEnrichedOpportunities(projectId!),
@@ -131,6 +137,21 @@ function CompetitorConsoleClient() {
     onError: (err: any) => {
       alert(`Sync Error: ${err.message}`);
     },
+  });
+
+  const generateSeoInsightsMut = useMutation({
+    mutationFn: () => api.generateSeoGapInsights(projectId!),
+    onSuccess: (data) => {
+      qc.setQueryData(["seo-insights", projectId], data);
+    },
+    onError: (err: any) => {
+      alert(`Insight Generation Error: ${err.message}`);
+    }
+  });
+
+  const seoInsights = useQuery({
+    queryKey: ["seo-insights", projectId],
+    enabled: false,
   });
 
   const resetIngestForm = () => {
@@ -481,6 +502,7 @@ function CompetitorConsoleClient() {
       <div className="flex rounded-xl bg-brand-100/70 p-1 overflow-x-auto">
         {[
           { id: "teardown", label: "Competitor Overview & Pages", icon: Crosshair },
+          { id: "seo-matrix", label: "Keyword/Backlink Gap Matrix", icon: Search },
           { id: "video-feed", label: "Video Intelligence", icon: Video },
           { id: "matrix", label: "Cross-Competitor Matrix", icon: Layers },
           { id: "opportunities", label: "Growth Opportunities", icon: Sparkles, badge: opportunities.length > 0 ? String(opportunities.length) : undefined },
@@ -510,6 +532,132 @@ function CompetitorConsoleClient() {
           );
         })}
       </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* TAB 1: SEO GAP MATRIX */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {activeTab === "seo-matrix" && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            
+            {/* The Gap Matrix Data Table */}
+            <div className="flex-1 space-y-4">
+              <Panel title="Keyword & Backlink Gap Matrix">
+                {seoMatrixQuery.isLoading ? (
+                  <div className="flex h-64 items-center justify-center text-sm text-[var(--text-muted)]"><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading SEO gaps...</div>
+                ) : !seoMatrixQuery.data?.keywordMatrix?.length ? (
+                  <div className="flex h-64 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-[var(--color-brand-200)] rounded-xl">
+                    <Search className="h-10 w-10 text-[var(--color-brand-300)] mb-3" />
+                    <h3 className="text-[15px] font-bold text-[var(--text-primary)]">No Gaps Detected</h3>
+                    <p className="text-[13px] text-[var(--text-secondary)] mt-1 max-w-sm">
+                      Add more competitors or wait for our crawlers to finish indexing the competitor pages.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <thead>
+                        <Tr>
+                          <Th>Target Keyword</Th>
+                          <Th>Search Vol.</Th>
+                          <Th>Your Site ({seoMatrixQuery.data.customerDomain})</Th>
+                          {seoMatrixQuery.data.competitors.map((c: any) => (
+                            <Th key={c.id}>{c.name}</Th>
+                          ))}
+                          <Th>Gap Status</Th>
+                        </Tr>
+                      </thead>
+                      <tbody>
+                        {seoMatrixQuery.data.keywordMatrix.map((row: any, i: number) => (
+                          <Tr key={i}>
+                            <Td className="font-medium text-[var(--text-primary)]">{row.keyword}</Td>
+                            <Td>{row.searchVolume.toLocaleString()}</Td>
+                            <Td>
+                              {row.customerCoverage ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </Td>
+                            {seoMatrixQuery.data.competitors.map((c: any) => (
+                              <Td key={c.id}>
+                                {row.competitorCoverage[c.id] ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                ) : (
+                                  <span className="text-[var(--text-muted)]">-</span>
+                                )}
+                              </Td>
+                            ))}
+                            <Td>
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                row.gapStatus === 'CUSTOMER_MISSING' ? 'bg-red-50 text-red-700' :
+                                row.gapStatus === 'CUSTOMER_WINNING' ? 'bg-emerald-50 text-emerald-700' :
+                                row.gapStatus === 'OPTIMIZED' ? 'bg-blue-50 text-blue-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {row.gapStatus.replace('_', ' ')}
+                              </span>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
+                )}
+              </Panel>
+            </div>
+
+            {/* AI Gap Insights */}
+            <div className="w-full md:w-[350px] shrink-0">
+              <Panel title="AI Gap Insights">
+                <div className="p-1">
+                  {!seoInsights.data ? (
+                    <div className="flex flex-col items-center justify-center text-center py-10">
+                      <Wand2 className="h-10 w-10 text-brand-400 mb-3" />
+                      <h3 className="text-[14px] font-bold text-brand-900">Generate Strategy</h3>
+                      <p className="text-[12px] text-brand-600 mt-1 mb-4">
+                        Let Nexa analyze your gaps and build a content strategy to steal traffic.
+                      </p>
+                      <ActionButton 
+                        variant="primary" 
+                        onClick={() => generateSeoInsightsMut.mutate()}
+                        disabled={generateSeoInsightsMut.isPending}
+                        icon={<Sparkles size={13} />}
+                      >
+                        {generateSeoInsightsMut.isPending ? "Analyzing..." : "Analyze Matrix"}
+                      </ActionButton>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-lg bg-white p-3 border border-brand-100 shadow-sm text-[13px] text-brand-800 leading-relaxed">
+                        {seoInsights.data.insights}
+                      </div>
+                      
+                      <div className="space-y-2 mt-4">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-brand-500">Recommended Content</h4>
+                        {seoInsights.data.recommendedContent?.map((rec: any, idx: number) => (
+                          <div key={idx} className="rounded-lg bg-white p-3 border border-brand-100 shadow-sm group hover:border-brand-300 transition">
+                            <div className="text-[10px] font-bold text-indigo-600 mb-1">{rec.type}</div>
+                            <div className="text-[13px] font-semibold text-brand-950 leading-tight">{rec.title}</div>
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <Target className="h-3 w-3 text-brand-400" />
+                              <span className="text-[11px] text-brand-500 font-medium">Target: {rec.targetKeyword}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <button className="w-full mt-4 flex items-center justify-center gap-2 rounded-lg bg-white border border-brand-200 py-2 text-[12px] font-bold text-brand-700 hover:bg-brand-50 transition">
+                        <Calendar size={14} /> Add to Content Calendar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Panel>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* TAB 1: VIDEO INTELLIGENCE FEED */}
