@@ -4,6 +4,30 @@ import * as cheerio from 'cheerio';
 import { chromium, Browser, BrowserContext } from 'playwright';
 import { MetricsService } from '../observability/metrics.service';
 
+class Semaphore {
+  private count = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private readonly max: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.count < this.max) {
+      this.count++;
+      return;
+    }
+    return new Promise<void>((resolve) => this.queue.push(resolve));
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const resolve = this.queue.shift();
+      if (resolve) resolve();
+    } else {
+      this.count--;
+    }
+  }
+}
+
 export interface FetchResult {
   url: string;
   finalUrl: string;
@@ -23,8 +47,12 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private browserContext?: BrowserContext;
   private isPlaywrightReady = false;
   private isInitializingPlaywright = false;
+  private playwrightSemaphore: Semaphore;
 
-  constructor(private readonly metrics: MetricsService) {}
+  constructor(private readonly metrics: MetricsService) {
+    const maxConcurrency = process.env.MAX_PLAYWRIGHT_CONCURRENCY ? parseInt(process.env.MAX_PLAYWRIGHT_CONCURRENCY, 10) : 3;
+    this.playwrightSemaphore = new Semaphore(maxConcurrency);
+  }
 
   async onModuleInit() {
     // On low memory instances (e.g. Render 512MB free tier), defer Chromium launch
@@ -226,7 +254,10 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Playwright browser context not initialized');
     }
 
-    let page;
+    await this.playwrightSemaphore.acquire();
+    try {
+      let page;
+
     try {
       page = await this.browserContext.newPage();
     } catch {
@@ -284,6 +315,8 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         engine: 'playwright',
         errorMessage: err.message,
       };
+    } finally {
+      this.playwrightSemaphore.release();
     }
   }
 

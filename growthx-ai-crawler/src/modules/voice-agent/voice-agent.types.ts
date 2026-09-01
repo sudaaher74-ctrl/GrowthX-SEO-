@@ -29,7 +29,8 @@ export type VoiceToolName =
   | 'generateBlogIdeas'
   | 'optimizeMetaTags'
   | 'scrapeCompetitorData'
-  | 'discoverCompetitors';
+  | 'discoverCompetitors'
+  | 'hijackTrend';
 
 export interface VoiceTool {
   name: VoiceToolName;
@@ -60,6 +61,7 @@ export const VOICE_TOOLS: Record<VoiceToolName, VoiceTool> = {
   optimizeMetaTags: { name: 'optimizeMetaTags', requiresConfirmation: false },
   scrapeCompetitorData: { name: 'scrapeCompetitorData', requiresConfirmation: false },
   discoverCompetitors: { name: 'discoverCompetitors', requiresConfirmation: false },
+  hijackTrend: { name: 'hijackTrend', requiresConfirmation: false },
 };
 
 export interface VoiceIntent {

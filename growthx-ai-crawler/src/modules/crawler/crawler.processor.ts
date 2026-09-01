@@ -42,13 +42,19 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
   }
 
   private startWorkers(): void {
+    if (process.env.WORKER_MODE !== 'true') {
+      this.logger.log('Not in WORKER_MODE. BullMQ crawler workers will not start in this process.');
+      return;
+    }
+
     const redisConnection = this.queue.getRedisClient();
     if (!redisConnection) {
       this.logger.warn('Redis connection unavailable. BullMQ workers will not start; operating in synchronous fallback mode.');
       return;
     }
 
-    const maxConcurrency = process.env.MAX_CRAWL_CONCURRENCY ? parseInt(process.env.MAX_CRAWL_CONCURRENCY, 10) : 10;
+    const maxPageFetchConcurrency = process.env.CRAWLER_WORKER_CONCURRENCY ? parseInt(process.env.CRAWLER_WORKER_CONCURRENCY, 10) : 10;
+    const maxCrawlJobConcurrency = process.env.CRAWLER_JOB_CONCURRENCY ? parseInt(process.env.CRAWLER_JOB_CONCURRENCY, 10) : 5;
 
     // Worker for orchestrating crawl jobs
     this.crawlJobWorker = new Worker<CrawlJobPayload>(
@@ -57,7 +63,7 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Processing BullMQ crawl-jobs item: Job ${job.data.jobId}`);
         await this.crawlerService.processCrawlJob(job.data);
       },
-      { connection: redisConnection, concurrency: 5 }
+      { connection: redisConnection, concurrency: maxCrawlJobConcurrency }
     );
 
     this.crawlJobWorker.on('failed', (job, err) => {
@@ -70,14 +76,14 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
       async (job: Job<PageFetchPayload>) => {
         await this.crawlerService.processPageFetch(job.data);
       },
-      { connection: redisConnection, concurrency: maxConcurrency }
+      { connection: redisConnection, concurrency: maxPageFetchConcurrency }
     );
 
     this.pageFetchWorker.on('failed', (job, err) => {
       this.logger.error(`Page fetch worker failed for url ${job?.data?.targetUrl}`, err);
     });
 
-    this.logger.log(`BullMQ crawler workers started with concurrency limit ${maxConcurrency}.`);
+    this.logger.log(`BullMQ crawler workers started: Job concurrency [${maxCrawlJobConcurrency}], Page Fetch concurrency [${maxPageFetchConcurrency}].`);
   }
 
   async onModuleDestroy() {

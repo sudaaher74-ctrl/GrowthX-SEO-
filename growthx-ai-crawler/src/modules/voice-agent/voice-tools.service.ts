@@ -650,4 +650,78 @@ Respond ONLY with a JSON array of objects, like this:
       };
     }
   }
+
+  async hijackTrend(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+    await this.assertProjectAccess(projectId, userId);
+
+    try {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        include: { websites: true },
+      });
+
+      const domain = project?.websites[0]?.domain || "your industry";
+
+      const prompt = `You are a viral social media strategist.
+The user operates in the industry associated with: ${domain}.
+Identify a current, highly engaging "trending topic" in this industry.
+Then, write a compelling, viral-style LinkedIn or Twitter post that hijacks this trend to provide value or state an opinion.
+The post should have a hook, value-driven body, and a call-to-action.
+
+Respond ONLY with a JSON object, like this:
+{
+  "trend": "The trending topic name",
+  "platform": "LINKEDIN",
+  "postText": "The actual post content..."
+}`;
+
+      const res = await this.aiRouter.generate({
+        prompt,
+        systemInstruction: "You write viral social media posts. Return only valid JSON.",
+        task: AiTask.FAST,
+        organizationId: orgId,
+      });
+
+      let draftData;
+      try {
+        draftData = JSON.parse(res.text);
+      } catch (e) {
+        throw new Error("Failed to parse AI output into a social post.");
+      }
+
+      const platform = draftData.platform === 'TWITTER' || draftData.platform === 'LINKEDIN' ? draftData.platform : 'LINKEDIN';
+
+      const draft = await this.prisma.contentCalendarItem.create({
+        data: {
+          organizationId: project?.organizationId || orgId,
+          projectId,
+          platform,
+          contentType: 'POST',
+          title: `Trend Hijack: ${draftData.trend}`,
+          caption: draftData.postText,
+          status: 'DRAFT',
+        },
+      });
+
+      return {
+        success: true,
+        tool: 'hijackTrend',
+        data: draft,
+        spokenSummary: `I found a trending topic about ${draftData.trend}. I've drafted a ${platform} post for you and saved it to your content calendar.`,
+        uiPayload: {
+          type: 'social_draft',
+          trend: draftData.trend,
+          platform: platform,
+          postText: draftData.postText,
+        }
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        tool: 'hijackTrend',
+        data: null,
+        spokenSummary: `Failed to generate a social media draft. Error: ${err.message}`,
+      };
+    }
+  }
 }
