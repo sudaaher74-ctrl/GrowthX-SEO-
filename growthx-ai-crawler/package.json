@@ -21,7 +21,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "build:render": "npm install && npx prisma generate && npm run build",
-    "start:render": "npx prisma migrate deploy && npm run start:prod"
+    "start:render": "npx prisma db push --accept-data-loss && npm run start:prod"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
