@@ -41,7 +41,8 @@ export function AutoCompetitorsPanel({
   const qc = useQueryClient();
 
   const [inputDomain, setInputDomain] = useState(defaultDomain || "");
-  const [selectedRegion, setSelectedRegion] = useState<MarketScopeRegion>("worldwide");
+  const [inputIndustry, setInputIndustry] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState<MarketScopeRegion>("maharashtra");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveryData, setDiscoveryData] = useState<AutoIdentifyCompetitorsResponse | null>(null);
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
@@ -55,9 +56,15 @@ export function AutoCompetitorsPanel({
     }
   }, [defaultDomain]);
 
-  async function handleAutoDiscover(targetDomain?: string, overrideRegion?: MarketScopeRegion) {
+  async function handleAutoDiscover(
+    targetDomain?: string,
+    overrideRegion?: MarketScopeRegion,
+    overrideIndustry?: string,
+  ) {
     const domainToScan = (targetDomain || inputDomain || defaultDomain || "").trim();
     const regionToUse = overrideRegion || selectedRegion;
+    const industryToUse = (overrideIndustry !== undefined ? overrideIndustry : inputIndustry).trim();
+
     setIsDiscovering(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -66,11 +73,15 @@ export function AutoCompetitorsPanel({
       const res = await api.autoIdentifyCompetitors(projectId, {
         domain: domainToScan || undefined,
         region: regionToUse,
+        industry: industryToUse || undefined,
       });
 
       setDiscoveryData(res);
       if (res.customerDomain && !inputDomain) {
         setInputDomain(res.customerDomain);
+      }
+      if (res.industry && !inputIndustry) {
+        setInputIndustry(res.industry);
       }
 
       // Pre-select top 3 competitors that are not already added (or top 3 by default)
@@ -97,7 +108,6 @@ export function AutoCompetitorsPanel({
         return prev.filter((d) => d !== lower);
       } else {
         if (prev.length >= 3) {
-          // If already 3 selected, inform user or replace the first one
           return [...prev.slice(1), lower];
         }
         return [...prev, lower];
@@ -171,6 +181,15 @@ export function AutoCompetitorsPanel({
     }
   }
 
+  const INDUSTRY_PRESETS = [
+    { label: "🍎 Fruit Pulp & Food Exports", value: "Fruit Pulp, Concentrates, IQF Fruits & Agro Exports" },
+    { label: "🚚 Transport & Logistics", value: "Logistics, Freight & Fleet Transportation Services" },
+    { label: "🏭 Manufacturing & Industrial", value: "Industrial Manufacturing & Engineering Solutions" },
+    { label: "⚡ SaaS & Cloud Software", value: "Cloud Software, SaaS & Developer Platforms" },
+    { label: "💼 SEO & Digital Agency", value: "SEO, Performance Marketing & Digital Growth Agency" },
+    { label: "🛒 E-Commerce & Retail", value: "E-Commerce & Digital Merchandising" },
+  ];
+
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-color)] bg-gradient-to-b from-[var(--surface-1)] to-[var(--surface-2)] shadow-sm">
       {/* Header Banner */}
@@ -185,12 +204,12 @@ export function AutoCompetitorsPanel({
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Automatic Competitor Identification
                 </h3>
-                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                  Real Company Intelligence
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  Verified Real Companies
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                Select your market geography (Worldwide, India, or Maharashtra) to identify genuine direct market competitors and add any 3 to your tracking.
+                Select your market geography (Worldwide, India, or Maharashtra) and niche to identify genuine direct market competitors and add any 3 to your tracking.
               </p>
             </div>
           </div>
@@ -227,10 +246,10 @@ export function AutoCompetitorsPanel({
           </div>
         </div>
 
-        {/* Geographic Scope Selector Tabs */}
-        <div className="mt-4 pt-3 border-t border-[var(--border-color)]/60">
+        {/* Geographic Scope Selector Tabs & Industry Filters */}
+        <div className="mt-4 pt-3 border-t border-[var(--border-color)]/60 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mr-1">
                 Target Scope:
               </span>
@@ -239,7 +258,7 @@ export function AutoCompetitorsPanel({
                   type="button"
                   onClick={() => {
                     setSelectedRegion("worldwide");
-                    if (discoveryData) handleAutoDiscover(undefined, "worldwide");
+                    handleAutoDiscover(undefined, "worldwide");
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
                     selectedRegion === "worldwide"
@@ -255,7 +274,7 @@ export function AutoCompetitorsPanel({
                   type="button"
                   onClick={() => {
                     setSelectedRegion("india");
-                    if (discoveryData) handleAutoDiscover(undefined, "india");
+                    handleAutoDiscover(undefined, "india");
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
                     selectedRegion === "india"
@@ -271,7 +290,7 @@ export function AutoCompetitorsPanel({
                   type="button"
                   onClick={() => {
                     setSelectedRegion("maharashtra");
-                    if (discoveryData) handleAutoDiscover(undefined, "maharashtra");
+                    handleAutoDiscover(undefined, "maharashtra");
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
                     selectedRegion === "maharashtra"
@@ -287,14 +306,41 @@ export function AutoCompetitorsPanel({
 
             {/* Current Region Indicator badge */}
             <span className="text-[11px] text-[var(--text-muted)]">
-              {selectedRegion === "maharashtra" && "Targeting companies in Maharashtra (Mumbai, Pune, Nashik, etc.)"}
+              {selectedRegion === "maharashtra" && "Targeting companies in Maharashtra (Mumbai, Pune, Nashik, Jalgaon, etc.)"}
               {selectedRegion === "india" && "Targeting national companies across India"}
               {selectedRegion === "worldwide" && "Targeting international global competitors"}
             </span>
           </div>
+
+          {/* Quick Industry / Niche presets */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+            <span className="shrink-0 text-[10.5px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+              Niche:
+            </span>
+            {INDUSTRY_PRESETS.map((preset) => {
+              const isMatched = inputIndustry.toLowerCase() === preset.value.toLowerCase();
+              return (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => {
+                    setInputIndustry(preset.value);
+                    handleAutoDiscover(undefined, undefined, preset.value);
+                  }}
+                  className={`shrink-0 rounded-lg px-2.5 py-1 transition border ${
+                    isMatched
+                      ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 font-medium"
+                      : "bg-[var(--surface-1)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Domain Bar if not discovered yet */}
+        {/* Domain & Industry Custom Input Bar if not discovered yet */}
         {!discoveryData && !isDiscovering && (
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
@@ -302,8 +348,16 @@ export function AutoCompetitorsPanel({
               <input
                 value={inputDomain}
                 onChange={(e) => setInputDomain(e.target.value)}
-                placeholder="Enter website domain (e.g. yourcompany.com)"
+                placeholder="Enter website domain (e.g. aivaenterprises.com)"
                 className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-2 pl-9 pr-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+            </div>
+            <div className="relative sm:w-64">
+              <input
+                value={inputIndustry}
+                onChange={(e) => setInputIndustry(e.target.value)}
+                placeholder="Industry (e.g. Fruit Pulp, Logistics)"
+                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-2 px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
             </div>
             <button

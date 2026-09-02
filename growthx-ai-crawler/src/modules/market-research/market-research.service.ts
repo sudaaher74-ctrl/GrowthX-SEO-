@@ -20,6 +20,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService, RetrievedSource } from './evidence-retrieval.service';
 import { ModelRole, ModelRouterService, ModelUsage } from './model-router.service';
 import { validateCitations } from './citation-validator';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { SocialDiscoveryService } from '../content-intelligence/social-discovery.service';
@@ -152,7 +154,7 @@ export class MarketResearchService {
           ? 'India (National Market across India)'
           : 'Worldwide (Global / International Market)';
 
-    // 3. Resolve business name and market subject
+    // 3. Resolve business name and market subject (with real-time live site inspection if uncrawled)
     const [recentPages, existingCompetitors] = await Promise.all([
       this.prisma.page.findMany({
         where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
@@ -167,9 +169,28 @@ export class MarketResearchService {
     ]);
 
     const homepage = [...recentPages].sort((a, b) => a.url.length - b.url.length)[0];
-    const detectedSubject = this.subjectFrom(homepage?.title, homepage?.metaDescription, project?.name);
-    const subject = options?.industry || detectedSubject || this.inferSubjectFromDomain(domain);
-    const businessName = options?.businessName || project?.name || this.formatBrandName(domain);
+
+    // If website has not been crawled in DB yet, perform live HTTP fetch to extract real title, meta and schema.org data
+    let liveMeta: { title?: string; description?: string; businessName?: string; inferredIndustry?: string } | null = null;
+    if (!homepage?.title || !homepage?.metaDescription) {
+      liveMeta = await this.fetchLiveWebsiteMeta(domain);
+    }
+
+    const businessName =
+      options?.businessName ||
+      liveMeta?.businessName ||
+      (project?.name && !project.name.toLowerCase().includes('workspace') ? project.name : null) ||
+      this.formatBrandName(domain);
+
+    const pageTitle = homepage?.title || liveMeta?.title;
+    const pageDesc = homepage?.metaDescription || liveMeta?.description;
+
+    const detectedSubject = this.subjectFrom(pageTitle, pageDesc, businessName);
+    const subject =
+      options?.industry ||
+      liveMeta?.inferredIndustry ||
+      detectedSubject ||
+      this.inferSubjectFromDomain(domain);
 
     const existingDomainMap = new Map(
       existingCompetitors.map((c) => [normalizeDomain(c.domain), c.id]),
@@ -186,18 +207,19 @@ export class MarketResearchService {
           `- Brand / Business Name: ${businessName}`,
           `- Core Product / Niche / Industry: ${subject}`,
           `- Target Geographic Scope: ${regionLabel}`,
-          homepage?.title ? `- Homepage Title: ${homepage.title}` : '',
-          homepage?.metaDescription ? `- Meta Description: ${homepage.metaDescription}` : '',
+          pageTitle ? `- Homepage Title: ${pageTitle}` : '',
+          pageDesc ? `- Meta Description: ${pageDesc}` : '',
           ``,
-          `Task: Identify the TOP 5 DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel}.`,
+          `Task: Identify the TOP 5 DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel} for ${subject}.`,
           ``,
           `CRITICAL STRICT REQUIREMENTS:`,
-          `1. Identify ONLY REAL, EXISTING, AUTHENTIC companies and brands with genuine, functioning domains.`,
+          `1. Identify ONLY REAL, EXISTING, AUTHENTIC companies and brands with genuine, functioning domains operating in the EXACT same industry (${subject}).`,
           `2. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
           `3. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
-          `4. Do NOT return generic search engines, social networks, or encyclopedias (like google.com, wikipedia.org, youtube.com).`,
-          `5. Do NOT include the target domain (${domain}) itself.`,
-          `6. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Mumbai, Maharashtra", "Bengaluru, India", "Chennai, India", "Germany", "USA", etc.).`,
+          `4. Do NOT generate unrelated consumer apps (e.g. do NOT return personal finance or budgeting apps unless the customer is explicitly a personal budgeting app).`,
+          `5. Do NOT return generic search engines, social networks, or encyclopedias (like google.com, wikipedia.org, youtube.com).`,
+          `6. Do NOT include the target domain (${domain}) itself.`,
+          `7. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Mumbai, Maharashtra", "Jalgaon, Maharashtra", "Bengaluru, India", "Chennai, India", "Germany", "USA", etc.).`,
         ].filter(Boolean).join('\n');
 
         const schema = {
@@ -591,7 +613,200 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 2. SEO / MARKETING / DIGITAL AGENCIES / CONTENT TOOLS
+    // 2. LOGISTICS / TRANSPORT / FREIGHT / WAREHOUSING / FLEET / SUPPLY CHAIN
+    // ──────────────────────────────────────────────────────────
+    if (
+      text.includes('transport') ||
+      text.includes('logistics') ||
+      text.includes('freight') ||
+      text.includes('cargo') ||
+      text.includes('warehousing') ||
+      text.includes('supply chain') ||
+      text.includes('truck') ||
+      text.includes('fleet')
+    ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'mahindralogistics.com',
+            name: 'Mahindra Logistics',
+            industry: 'Integrated 3PL & Supply Chain Logistics',
+            description: 'Major Mumbai-headquartered 3PL provider offering enterprise freight, warehousing, in-factory logistics, and express transport.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 96,
+            marketPosition: 'Maharashtra Logistics Giant',
+            sampleKeywords: ['3pl logistics mumbai', 'freight forwarding maharashtra', 'enterprise warehousing solutions', 'fleet transport mumbai'],
+            keyDifferentiator: 'Pan-India warehousing network spanning 19+ million sq. ft. and multimodal freight capabilities.',
+          },
+          {
+            domain: 'allcargologistics.com',
+            name: 'Allcargo Logistics',
+            industry: 'Global Multimodal Logistics & LCL Consolidation',
+            description: 'India’s largest private sector logistics company operating global LCL consolidation, express delivery, and contract logistics.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 93,
+            marketPosition: 'Global Freight Powerhouse',
+            sampleKeywords: ['lcl freight consolidation mumbai', 'multimodal logistics maharashtra', 'express cargo delivery', 'container freight station'],
+            keyDifferentiator: 'World leader in LCL consolidation operating across 180 countries (ECU Worldwide).',
+          },
+          {
+            domain: 'vrlgroup.in',
+            name: 'VRL Logistics (Western Hub)',
+            industry: 'Surface Commercial Transport & Goods Freight',
+            description: 'One of India’s largest commercial transport and goods transportation networks with dense Western India terminal operations.',
+            location: 'Mumbai / Western Hub, Maharashtra',
+            overlapScore: 89,
+            marketPosition: 'Surface Transportation Benchmark',
+            sampleKeywords: ['goods transport maharashtra', 'full truckload freight mumbai', 'parcel transport service', 'commercial fleet operators'],
+            keyDifferentiator: 'Owns one of the largest private commercial goods vehicle fleets in India.',
+          },
+          {
+            domain: 'westerncarriers.in',
+            name: 'Western Carriers (India)',
+            industry: 'Multimodal Freight & Industrial Rail Logistics',
+            description: 'Leading multi-modal, rail-focused logistics solutions provider managing heavy industrial cargo, road, and port operations.',
+            location: 'Mumbai / Western India',
+            overlapScore: 85,
+            marketPosition: 'Industrial Freight Specialist',
+            sampleKeywords: ['industrial freight logistics', 'rail multimodal transport', 'heavy cargo supply chain mumbai'],
+            keyDifferentiator: 'Specialized heavy cargo and FMCG rail freight integration.',
+          },
+          {
+            domain: 'flyjac.com',
+            name: 'Flyjac Logistics (Hitachi Transport)',
+            industry: 'Freight Forwarding & Supply Chain Solutions',
+            description: 'Leading integrated freight forwarder providing air, ocean, road transportation, and customs clearance.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 81,
+            marketPosition: 'International Freight Specialist',
+            sampleKeywords: ['air and ocean freight mumbai', 'customs clearance maharashtra', 'cold chain transport logistics'],
+            keyDifferentiator: 'Japanese precision supply chain standards backed by Hitachi Transport System.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'tciexpress.in',
+            name: 'TCI Express',
+            industry: 'Express Cargo & Surface Transport',
+            description: "India's premier express distribution specialist serving 40,000+ locations with time-definite delivery services.",
+            location: 'Gurugram / Pan-India',
+            overlapScore: 96,
+            marketPosition: 'National Express Leader',
+            sampleKeywords: ['express cargo transport india', 'surface express distribution', 'air express logistics', 'b2b parcel delivery'],
+            keyDifferentiator: 'Dedicated express cargo hub-and-spoke infrastructure covering 95% of India.',
+          },
+          {
+            domain: 'delhivery.com',
+            name: 'Delhivery',
+            industry: 'Digital Commerce & Supply Chain Infrastructure',
+            description: 'India’s largest fully-integrated logistics provider offering automated sorting, freight, and PTL/FTL trucking.',
+            location: 'Gurugram / Pan-India',
+            overlapScore: 93,
+            marketPosition: 'Tech-Enabled Logistics Giant',
+            sampleKeywords: ['ptl truckload freight india', 'supply chain technology', 'nationwide freight logistics', 'b2b commercial transport'],
+            keyDifferentiator: 'Proprietary routing algorithms and automated multi-layer sorting hubs.',
+          },
+          {
+            domain: 'bluedart.com',
+            name: 'Blue Dart Express (DHL Group)',
+            industry: 'Aviation Cargo & Express Transport',
+            description: 'South Asia’s premier express air and integrated transportation and distribution company.',
+            location: 'Mumbai / Pan-India',
+            overlapScore: 89,
+            marketPosition: 'Express Air Standard',
+            sampleKeywords: ['air express courier india', 'time definite cargo', 'secure transport logistics'],
+            keyDifferentiator: 'Dedicated Boeing cargo aircraft fleet and premium delivery reliability.',
+          },
+          {
+            domain: 'safexpress.com',
+            name: 'Safexpress',
+            industry: 'Supply Chain & 3PL Logistics',
+            description: 'Knowledge leader and market pioneer in supply chain, third-party logistics, and nationwide express distribution.',
+            location: 'New Delhi / Pan-India',
+            overlapScore: 85,
+            marketPosition: 'Supply Chain Pioneer',
+            sampleKeywords: ['3pl supply chain india', 'logistics parks pan india', 'express distribution network'],
+            keyDifferentiator: 'Ultra-modern logistics parks and GPS-tracked container fleet.',
+          },
+          {
+            domain: 'gati.com',
+            name: 'Gati (Allcargo Group)',
+            industry: 'Express Surface & Air Cargo Distribution',
+            description: 'Pioneer in express cargo and supply chain management with direct reach across all districts in India.',
+            location: 'Hyderabad / Pan-India',
+            overlapScore: 81,
+            marketPosition: 'National Express Pioneer',
+            sampleKeywords: ['surface cargo booking india', 'express distribution gati', 'first mile last mile logistics'],
+            keyDifferentiator: 'Re-engineered digital operating network with pan-India pin-code coverage.',
+          },
+        ];
+      }
+
+      // Worldwide Logistics
+      return [
+        {
+          domain: 'dhl.com',
+          name: 'DHL Global Forwarding & Express',
+          industry: 'Global Logistics & Freight Transportation',
+          description: 'The global market leader in international express shipping, air/ocean freight, and contract logistics.',
+          location: 'Bonn, Germany',
+          overlapScore: 96,
+          marketPosition: 'Global Industry Standard',
+          sampleKeywords: ['international freight forwarder', 'global air and ocean cargo', 'worldwide express logistics'],
+          keyDifferentiator: 'Operating in 220+ countries with unrivaled international customs expertise.',
+        },
+        {
+          domain: 'fedex.com',
+          name: 'FedEx Logistics',
+          industry: 'Global Express & Freight Services',
+          description: 'Multinational delivery services company connecting 99% of global GDP through air and ground networks.',
+          location: 'Memphis, USA',
+          overlapScore: 92,
+          marketPosition: 'Global Aviation & Freight Titan',
+          sampleKeywords: ['international express cargo', 'supply chain logistics global', 'cross border freight shipping'],
+          keyDifferentiator: 'World’s largest dedicated cargo airline fleet.',
+        },
+        {
+          domain: 'kuehne-nagel.com',
+          name: 'Kuehne + Nagel',
+          industry: 'Sea & Air Freight Forwarding',
+          description: 'Global leader in sea logistics, air logistics, and integrated supply chain management.',
+          location: 'Schindellegi, Switzerland',
+          overlapScore: 89,
+          marketPosition: 'Maritime Freight Leader',
+          sampleKeywords: ['ocean freight forwarding global', 'global air logistics', 'contract logistics solutions'],
+          keyDifferentiator: '#1 global ocean freight and air freight forwarder.',
+        },
+        {
+          domain: 'dbschenker.com',
+          name: 'DB Schenker',
+          industry: 'Land Transport & Global Logistics',
+          description: 'Global logistics provider managing land transport, worldwide air and ocean freight, and contract supply chain.',
+          location: 'Essen, Germany',
+          overlapScore: 85,
+          marketPosition: 'European & Global Heavyweight',
+          sampleKeywords: ['land transport logistics', 'global ocean freight', 'contract supply chain management'],
+          keyDifferentiator: 'Dense pan-European and global overland freight corridors.',
+        },
+        {
+          domain: 'dsv.com',
+          name: 'DSV Global Transport & Logistics',
+          industry: 'Air, Sea & Road Logistics',
+          description: 'Global supplier of transport and logistics solutions operating through dedicated Air & Sea, Road, and Solutions divisions.',
+          location: 'Hedehusene, Denmark',
+          overlapScore: 81,
+          marketPosition: 'Top-Tier Global Forwarder',
+          sampleKeywords: ['global transport solutions', 'multimodal freight management', 'customs brokerage global'],
+          keyDifferentiator: 'Scalable asset-light operating model with superior global execution.',
+        },
+      ];
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 3. SEO / MARKETING / DIGITAL AGENCIES / CONTENT TOOLS
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('seo') ||
@@ -1348,6 +1563,122 @@ export class MarketResearchService {
         keyDifferentiator: 'Global standard for carrier-grade networking infrastructure and security.',
       },
     ];
+  }
+
+  private async fetchLiveWebsiteMeta(domain: string): Promise<{
+    title?: string;
+    description?: string;
+    businessName?: string;
+    inferredIndustry?: string;
+  } | null> {
+    const urls = [`https://${domain}`, `http://${domain}`];
+    for (const url of urls) {
+      try {
+        const res = await axios.get(url, {
+          timeout: 4500,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 GrowthX-MarketBot/1.0',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          maxRedirects: 4,
+          validateStatus: (status) => status < 400,
+        });
+
+        const html = typeof res.data === 'string' ? res.data : '';
+        if (!html) continue;
+
+        const $ = cheerio.load(html);
+        const title = $('title').first().text().trim() || $('meta[property="og:title"]').attr('content')?.trim() || '';
+        const description =
+          $('meta[name="description"]').attr('content')?.trim() ||
+          $('meta[property="og:description"]').attr('content')?.trim() ||
+          '';
+
+        let jsonLdName = '';
+        let jsonLdDesc = '';
+        $('script[type="application/ld+json"]').each((_, el) => {
+          try {
+            const raw = $(el).html() || '';
+            const data = JSON.parse(raw);
+            if (data.name && typeof data.name === 'string') jsonLdName = data.name;
+            if (data.description && typeof data.description === 'string') jsonLdDesc = data.description;
+          } catch {}
+        });
+
+        const combinedText = `${title} ${description} ${jsonLdDesc}`.toLowerCase();
+        let inferredIndustry = '';
+
+        if (
+          combinedText.includes('pulp') ||
+          combinedText.includes('fruit') ||
+          combinedText.includes('puree') ||
+          combinedText.includes('aseptic') ||
+          combinedText.includes('mango') ||
+          combinedText.includes('concentrate') ||
+          combinedText.includes('iqf') ||
+          combinedText.includes('agro') ||
+          combinedText.includes('food') ||
+          combinedText.includes('spice') ||
+          combinedText.includes('frozen')
+        ) {
+          inferredIndustry = 'Fruit Pulp, Purees, Concentrates & Agro Food Processing';
+        } else if (
+          combinedText.includes('transport') ||
+          combinedText.includes('logistics') ||
+          combinedText.includes('freight') ||
+          combinedText.includes('cargo') ||
+          combinedText.includes('warehousing') ||
+          combinedText.includes('supply chain') ||
+          combinedText.includes('truck') ||
+          combinedText.includes('fleet')
+        ) {
+          inferredIndustry = 'Logistics, Freight & Fleet Transportation Services';
+        } else if (
+          combinedText.includes('manufactur') ||
+          combinedText.includes('industrial') ||
+          combinedText.includes('steel') ||
+          combinedText.includes('fabricat') ||
+          combinedText.includes('chemical') ||
+          combinedText.includes('engineering')
+        ) {
+          inferredIndustry = 'Industrial Manufacturing & Engineering Solutions';
+        } else if (
+          combinedText.includes('seo') ||
+          combinedText.includes('digital marketing') ||
+          combinedText.includes('advertising') ||
+          combinedText.includes('branding') ||
+          combinedText.includes('content agency')
+        ) {
+          inferredIndustry = 'SEO, Performance Marketing & Digital Growth Agency';
+        } else if (
+          combinedText.includes('software') ||
+          combinedText.includes('saas') ||
+          combinedText.includes('cloud') ||
+          combinedText.includes('api') ||
+          combinedText.includes('developer')
+        ) {
+          inferredIndustry = 'Cloud Software, SaaS & Developer Platforms';
+        } else if (
+          combinedText.includes('ecommerce') ||
+          combinedText.includes('store') ||
+          combinedText.includes('shop') ||
+          combinedText.includes('retail')
+        ) {
+          inferredIndustry = 'E-Commerce & Digital Merchandising';
+        }
+
+        return {
+          title: title || undefined,
+          description: description || jsonLdDesc || undefined,
+          businessName: jsonLdName || undefined,
+          inferredIndustry: inferredIndustry || undefined,
+        };
+      } catch (e) {
+        this.logger.debug(`Live metadata fetch attempt failed for ${url}: ${e}`);
+      }
+    }
+    return null;
   }
 
   private sanitizeCompetitor(
