@@ -1056,6 +1056,8 @@ export interface ResearchThreadSummary {
   updatedAt: string;
 }
 
+export type MarketScopeRegion = 'worldwide' | 'india' | 'maharashtra';
+
 export interface AutoIdentifiedCompetitor {
   domain: string;
   name: string;
@@ -1063,6 +1065,7 @@ export interface AutoIdentifiedCompetitor {
   description: string;
   overlapScore: number;
   marketPosition: string;
+  location?: string;
   sampleKeywords: string[];
   keyDifferentiator: string;
   isAlreadyAdded?: boolean;
@@ -1073,6 +1076,7 @@ export interface AutoIdentifyCompetitorsResponse {
   customerDomain: string;
   businessName: string;
   industry: string;
+  region: string;
   identifiedAt: string;
   topCompetitors: AutoIdentifiedCompetitor[];
 }
@@ -1084,6 +1088,7 @@ export interface AddSelectedCompetitorsBody {
     label?: string;
     industry?: string;
     description?: string;
+    location?: string;
     confidenceScore?: number;
   }>;
 }
@@ -1227,7 +1232,7 @@ export const api = {
   /** Auto-identifies top 5 competitors for this project's website using AI competitive intelligence. */
   autoIdentifyCompetitors: (
     projectId: string,
-    body?: { websiteUrl?: string; domain?: string; industry?: string; businessName?: string },
+    body?: { websiteUrl?: string; domain?: string; industry?: string; businessName?: string; region?: MarketScopeRegion | string },
   ) =>
     post<AutoIdentifyCompetitorsResponse>(
       `/api/projects/${projectId}/market-research/auto-identify-competitors`,

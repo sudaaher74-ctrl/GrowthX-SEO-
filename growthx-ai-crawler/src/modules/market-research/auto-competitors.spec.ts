@@ -45,6 +45,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
 
       expect(result).toBeDefined();
       expect(result.customerDomain).toBe('growthx.ai');
+      expect(result.region).toBe('worldwide');
       expect(result.topCompetitors).toHaveLength(5);
       expect(result.topCompetitors[0]).toHaveProperty('domain');
       expect(result.topCompetitors[0]).toHaveProperty('name');
@@ -52,6 +53,32 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.topCompetitors[0]).toHaveProperty('marketPosition');
       expect(result.topCompetitors[0]).toHaveProperty('sampleKeywords');
       expect(result.topCompetitors[0].isAlreadyAdded).toBe(false);
+    });
+
+    it('identifies real competitors in Maharashtra when region=maharashtra is selected', async () => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'palfrozenfoods.in',
+        industry: 'Fruit Pulp & Food Exports',
+        region: 'maharashtra',
+      });
+
+      expect(result.region).toBe('maharashtra');
+      expect(result.topCompetitors).toHaveLength(5);
+      expect(result.topCompetitors.some((c) => c.domain.includes('sahyadrifarms.com') || c.domain.includes('jainfarmfresh.com'))).toBe(true);
+      expect(result.topCompetitors[0].location).toContain('Maharashtra');
+    });
+
+    it('identifies real national competitors across India when region=india is selected', async () => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'palfrozenfoods.in',
+        industry: 'Fruit Pulp Exporter',
+        region: 'india',
+      });
+
+      expect(result.region).toBe('india');
+      expect(result.topCompetitors).toHaveLength(5);
+      expect(result.topCompetitors.some((c) => c.domain.includes('capricornfood.com') || c.domain.includes('shimlahills.com'))).toBe(true);
+      expect(result.topCompetitors[0].location).toContain('India');
     });
 
     it('uses AI output when models are configured', async () => {

@@ -48,6 +48,10 @@ export class AutoIdentifyCompetitorsDto {
   @IsString()
   @IsOptional()
   businessName?: string;
+
+  @IsString()
+  @IsOptional()
+  region?: string;
 }
 
 export class SelectedCompetitorItemDto {
@@ -69,6 +73,10 @@ export class SelectedCompetitorItemDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
 
   @IsNumber()
   @IsOptional()

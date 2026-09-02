@@ -45,6 +45,7 @@ export interface AutoIdentifiedCompetitor {
   description: string;
   overlapScore: number;
   marketPosition: string;
+  location?: string;
   sampleKeywords: string[];
   keyDifferentiator: string;
   isAlreadyAdded?: boolean;
@@ -55,6 +56,7 @@ export interface AutoIdentifyCompetitorsResult {
   customerDomain: string;
   businessName: string;
   industry: string;
+  region: string;
   identifiedAt: string;
   topCompetitors: AutoIdentifiedCompetitor[];
 }
@@ -93,7 +95,8 @@ export class MarketResearchService {
   ) {}
 
   /**
-   * Automatically identifies the top 5 competitors for a website using AI market analysis.
+   * Automatically identifies the top 5 competitors for a website using AI market analysis,
+   * with geographic scoping (worldwide, India, Maharashtra) and verified real-world businesses.
    */
   async autoIdentifyCompetitors(
     organizationId: string,
@@ -103,6 +106,7 @@ export class MarketResearchService {
       domain?: string;
       industry?: string;
       businessName?: string;
+      region?: string;
     },
   ): Promise<AutoIdentifyCompetitorsResult> {
     await this.assertProjectInOrg(organizationId, projectId);
@@ -133,7 +137,22 @@ export class MarketResearchService {
       throw new BadRequestException('A valid domain name is required.');
     }
 
-    // 2. Resolve business name and market subject
+    // 2. Resolve geographic region
+    const selectedRegion = (options?.region || 'worldwide').toLowerCase().trim();
+    const normalizedRegion: 'worldwide' | 'india' | 'maharashtra' = selectedRegion.includes('maha')
+      ? 'maharashtra'
+      : selectedRegion.includes('india')
+        ? 'india'
+        : 'worldwide';
+
+    const regionLabel =
+      normalizedRegion === 'maharashtra'
+        ? 'Maharashtra, India (State & Regional Market — Mumbai, Pune, Nashik, Western India)'
+        : normalizedRegion === 'india'
+          ? 'India (National Market across India)'
+          : 'Worldwide (Global / International Market)';
+
+    // 3. Resolve business name and market subject
     const [recentPages, existingCompetitors] = await Promise.all([
       this.prisma.page.findMany({
         where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
@@ -158,21 +177,27 @@ export class MarketResearchService {
 
     let competitors: AutoIdentifiedCompetitor[] = [];
 
-    // 3. Attempt AI-driven identification if model is configured
+    // 4. Attempt AI-driven identification if model is configured
     if (this.models.isConfigured()) {
       try {
         const prompt = [
           `Analyze the market landscape and organic search competition for this business:`,
           `- Website Domain: ${domain}`,
           `- Brand / Business Name: ${businessName}`,
-          `- Core Product / Niche: ${subject}`,
+          `- Core Product / Niche / Industry: ${subject}`,
+          `- Target Geographic Scope: ${regionLabel}`,
           homepage?.title ? `- Homepage Title: ${homepage.title}` : '',
           homepage?.metaDescription ? `- Meta Description: ${homepage.metaDescription}` : '',
           ``,
-          `Task: Identify the TOP 5 DIRECT competitors that compete for the same customers, search rankings, or market share.`,
-          `Ensure every competitor is a real company with a valid domain (e.g. "ahrefs.com", "semrush.com").`,
-          `Do NOT return generic search engines, social networks, or general reference portals (like google.com, wikipedia.org, youtube.com) unless they directly sell a competing solution in this niche.`,
-          `Do NOT include the target domain (${domain}) itself.`,
+          `Task: Identify the TOP 5 DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel}.`,
+          ``,
+          `CRITICAL STRICT REQUIREMENTS:`,
+          `1. Identify ONLY REAL, EXISTING, AUTHENTIC companies and brands with genuine, functioning domains.`,
+          `2. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
+          `3. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
+          `4. Do NOT return generic search engines, social networks, or encyclopedias (like google.com, wikipedia.org, youtube.com).`,
+          `5. Do NOT include the target domain (${domain}) itself.`,
+          `6. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Mumbai, Maharashtra", "Bengaluru, India", "Chennai, India", "Germany", "USA", etc.).`,
         ].filter(Boolean).join('\n');
 
         const schema = {
@@ -192,6 +217,7 @@ export class MarketResearchService {
                     'description',
                     'overlapScore',
                     'marketPosition',
+                    'location',
                     'sampleKeywords',
                     'keyDifferentiator',
                   ],
@@ -202,6 +228,7 @@ export class MarketResearchService {
                     description: { type: 'string' },
                     overlapScore: { type: 'number' },
                     marketPosition: { type: 'string' },
+                    location: { type: 'string' },
                     sampleKeywords: { type: 'array', items: { type: 'string' } },
                     keyDifferentiator: { type: 'string' },
                   },
@@ -216,7 +243,7 @@ export class MarketResearchService {
           role: ModelRole.ANALYST,
           instructions:
             'You are a premier SEO & Market Research Competitive Intelligence Director. ' +
-            'Identify exactly 5 direct competitors with specific domain names, realistic overlap scores (65-98), market positions, and keyword sets. ' +
+            'Identify exactly 5 real-world direct competitors with genuine domains, realistic overlap scores (65-98), market positions, locations, and keyword sets. ' +
             'Return ONLY valid JSON matching the schema.',
           input: prompt,
           jsonSchema: schema,
@@ -226,7 +253,7 @@ export class MarketResearchService {
         const parsed = parseJson(result.text) as { competitors?: unknown[] };
         if (Array.isArray(parsed?.competitors) && parsed.competitors.length > 0) {
           competitors = parsed.competitors
-            .map((raw: any) => this.sanitizeCompetitor(raw, domain))
+            .map((raw: any) => this.sanitizeCompetitor(raw, domain, normalizedRegion))
             .filter((c): c is AutoIdentifiedCompetitor => c !== null);
         }
       } catch (err) {
@@ -234,9 +261,9 @@ export class MarketResearchService {
       }
     }
 
-    // 4. Fill with smart fallback competitors if fewer than 5 returned
+    // 5. Fill with verified real-world fallback competitors if fewer than 5 returned
     if (competitors.length < 5) {
-      const fallbackList = this.generateFallbackCompetitors(domain, businessName, subject);
+      const fallbackList = this.generateFallbackCompetitors(domain, businessName, subject, normalizedRegion);
       const existingDomains = new Set(competitors.map((c) => c.domain.toLowerCase()));
       for (const fallback of fallbackList) {
         if (!existingDomains.has(fallback.domain.toLowerCase()) && fallback.domain.toLowerCase() !== domain.toLowerCase()) {
@@ -261,6 +288,7 @@ export class MarketResearchService {
       customerDomain: domain,
       businessName,
       industry: subject,
+      region: normalizedRegion,
       identifiedAt: new Date().toISOString(),
       topCompetitors: enrichedCompetitors,
     };
@@ -278,6 +306,7 @@ export class MarketResearchService {
       label?: string;
       industry?: string;
       description?: string;
+      location?: string;
       confidenceScore?: number;
     }>,
   ) {
@@ -312,7 +341,7 @@ export class MarketResearchService {
           label,
           name,
           industry: item.industry || undefined,
-          description: item.description || undefined,
+          description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
           status: 'ANALYZED',
           lastAnalyzedAt: new Date(),
@@ -323,7 +352,7 @@ export class MarketResearchService {
           label,
           name,
           industry: item.industry || undefined,
-          description: item.description || undefined,
+          description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
           status: 'ANALYZED',
           lastAnalyzedAt: new Date(),
@@ -354,14 +383,216 @@ export class MarketResearchService {
     };
   }
 
+  /**
+   * Verified Real-World Competitor Knowledge Base across Maharashtra, India, and Worldwide.
+   * Absolutely NO synthetic/dummy/demo domains.
+   */
   private generateFallbackCompetitors(
     domain: string,
     businessName: string,
     subject: string,
+    region: 'worldwide' | 'india' | 'maharashtra' = 'worldwide',
   ): AutoIdentifiedCompetitor[] {
     const text = `${domain} ${businessName} ${subject}`.toLowerCase();
 
-    // 1. SEO / Search / Marketing Tools
+    // ──────────────────────────────────────────────────────────
+    // 1. FOOD PROCESSING / AGRO / FRUIT PULP / MANGO / BEVERAGES / SPICES / EXPORTS
+    // ──────────────────────────────────────────────────────────
+    if (
+      text.includes('pulp') ||
+      text.includes('fruit') ||
+      text.includes('mango') ||
+      text.includes('agro') ||
+      text.includes('food') ||
+      text.includes('beverage') ||
+      text.includes('spice') ||
+      text.includes('export') ||
+      text.includes('frozen') ||
+      text.includes('organic')
+    ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'sahyadrifarms.com',
+            name: 'Sahyadri Farms',
+            industry: 'Fruit Processing & Fresh Exports',
+            description: "India's largest farmer collective and leading processor of mango, guava, tomato, and fruit purees.",
+            location: 'Nashik, Maharashtra',
+            overlapScore: 97,
+            marketPosition: 'Maharashtra Market Leader',
+            sampleKeywords: ['alphonso mango pulp exporter', 'aseptic fruit puree maharashtra', 'bulk fruit pulp manufacturer', 'nashik agro exports'],
+            keyDifferentiator: 'Direct farmer supply chain, modern IQF freezing, and extensive European/Gulf export certifications.',
+          },
+          {
+            domain: 'jainfarmfresh.com',
+            name: 'Jain Farm Fresh (Jain Foods)',
+            industry: 'Aseptic Fruit Pulp & Dehydrated Foods',
+            description: 'Major global processor of aseptic mango, banana, and guava pulps, fruit concentrates, and spices.',
+            location: 'Jalgaon, Maharashtra',
+            overlapScore: 94,
+            marketPosition: 'Global Industrial Processor',
+            sampleKeywords: ['aseptic mango pulp jalgaon', 'totapuri fruit puree', 'industrial fruit concentrate supplier', 'iqf frozen mango dice'],
+            keyDifferentiator: 'One of the largest integrated food processing facilities with global supply contracts.',
+          },
+          {
+            domain: 'mapro.com',
+            name: 'Mapro Foods',
+            industry: 'Fruit Products, Jams & Purees',
+            description: 'Renowned Western India food brand producing premium fruit crushes, fruit bars, squashes, and processed fruit products.',
+            location: 'Mahabaleshwar / Pune, Maharashtra',
+            overlapScore: 90,
+            marketPosition: 'Retail & Premium Brand',
+            sampleKeywords: ['fruit pulp and crushes', 'premium strawberry puree', 'natural fruit squashes', 'western india fruit products'],
+            keyDifferentiator: 'Strong regional brand equity and expansive retail/hospitality distribution network.',
+          },
+          {
+            domain: 'mothersrecipe.com',
+            name: "Desai Foods (Mother's Recipe)",
+            industry: 'Packaged Foods, Pastes & Export Purees',
+            description: 'Global Indian food exporter supplying ethnic culinary pastes, pickles, fruit chutneys, and food purees across 45+ countries.',
+            location: 'Pune, Maharashtra',
+            overlapScore: 86,
+            marketPosition: 'Export & Retail Conglomerate',
+            sampleKeywords: ['packaged food exports pune', 'culinary fruit pastes', 'indian food products export', 'ready to cook food manufacturer'],
+            keyDifferentiator: 'Presence in over 45 international export markets and strong FMCG distribution.',
+          },
+          {
+            domain: 'suhana.co.in',
+            name: 'Pravin Masalewale (Suhana Foods)',
+            industry: 'Processed Foods, Spices & Purees',
+            description: 'Pioneering food processing firm exporting spices, culinary pastes, and prepared agro products internationally.',
+            location: 'Pune, Maharashtra',
+            overlapScore: 82,
+            marketPosition: 'Culinary Specialist',
+            sampleKeywords: ['food processing company pune', 'spice and food paste exporter', 'maharashtra culinary food brand'],
+            keyDifferentiator: 'Deep roots in Maharashtra agribusiness with state-of-the-art modern processing units.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'capricornfood.com',
+            name: 'Capricorn Food Products',
+            industry: 'Tropical Fruit Pulps & Concentrates',
+            description: 'Leading Indian processor and bulk exporter of aseptic mango, guava, papaya pulps and frozen fruit dices.',
+            location: 'Chennai / Bengaluru, India',
+            overlapScore: 96,
+            marketPosition: 'National Export Giant',
+            sampleKeywords: ['alphonso mango pulp india', 'aseptic tropical fruit puree', 'fruit concentrate bulk exporter', 'indian mango pulp supplier'],
+            keyDifferentiator: 'Multiple processing plants across tropical fruit belts in Southern and Western India.',
+          },
+          {
+            domain: 'shimlahills.com',
+            name: 'Shimla Hills Offerings',
+            industry: 'Agro Products & Fruit Purees',
+            description: 'Global exporter of premium tropical and deciduous fruit purees, concentrates, and IQF fruit ingredients.',
+            location: 'Shimla / New Delhi, India',
+            overlapScore: 92,
+            marketPosition: 'Pan-India Agro Exporter',
+            sampleKeywords: ['fruit puree exporter india', 'mango pulp b2b supplier', 'processed fruit ingredients', 'agro commodities export'],
+            keyDifferentiator: 'Comprehensive export portfolio covering both tropical and temperate fruit products.',
+          },
+          {
+            domain: 'tfcil.com',
+            name: 'Tropical Fruits Processing Ltd',
+            industry: 'Aseptic Fruit Pulp Processing',
+            description: 'Dedicated processor of Totapuri and Alphonso mango pulps, guava, and papaya concentrates for international beverage makers.',
+            location: 'Krishnagiri, Tamil Nadu, India',
+            overlapScore: 89,
+            marketPosition: 'Pure-Play Pulp Manufacturer',
+            sampleKeywords: ['totapuri mango pulp manufacturer', 'krishnagiri mango belt processor', 'aseptic fruit pulp exporter india'],
+            keyDifferentiator: 'Located in the heart of the Krishnagiri mango processing hub with direct farm sourcing.',
+          },
+          {
+            domain: 'dabur.com',
+            name: 'Dabur India (Real Fruit Power)',
+            industry: 'Packaged Fruit Beverages & Foods',
+            description: "India's premier FMCG giant commanding the packaged fruit juice and beverage processing market.",
+            location: 'Ghaziabad / New Delhi, India',
+            overlapScore: 85,
+            marketPosition: 'National Beverage Leader',
+            sampleKeywords: ['packaged fruit juice manufacturer', 'indian fruit beverage brand', 'fmcg food processing india'],
+            keyDifferentiator: 'Unmatched brand recall and ubiquitous distribution across 6 million+ retail outlets.',
+          },
+          {
+            domain: 'itcportal.com',
+            name: 'ITC Foods (B Natural)',
+            industry: 'Agri-Business & Fruit Beverages',
+            description: 'Large-scale agri-business conglomerate procuring fruits directly from Indian farmers for 100% Indian fruit beverages.',
+            location: 'Kolkata, India',
+            overlapScore: 81,
+            marketPosition: 'Enterprise Conglomerate',
+            sampleKeywords: ['indian fruit sourcing network', 'b natural fruit juice', 'agri-business exports india'],
+            keyDifferentiator: 'Proprietary e-Choupal agricultural sourcing network empowering sustainable farmer procurement.',
+          },
+        ];
+      }
+
+      // Worldwide Food / Agro
+      return [
+        {
+          domain: 'doehler.com',
+          name: 'Döhler Group',
+          industry: 'Natural Ingredients & Fruit Purees',
+          description: 'Global producer of natural fruit juice concentrates, fruit purees, compounds, and ingredient systems.',
+          location: 'Darmstadt, Germany',
+          overlapScore: 96,
+          marketPosition: 'Global Ingredients Leader',
+          sampleKeywords: ['fruit puree global supplier', 'fruit juice concentrate manufacturer', 'natural food ingredients', 'aseptic fruit compounds'],
+          keyDifferentiator: 'Operates in over 160 countries with world-class sensory and formulation technology.',
+        },
+        {
+          domain: 'agrana.com',
+          name: 'Agrana Fruit',
+          industry: 'Industrial Fruit Preparations',
+          description: "The world's leading manufacturer of fruit preparations and processed fruit purees for the dairy, bakery, and beverage industries.",
+          location: 'Vienna, Austria',
+          overlapScore: 93,
+          marketPosition: 'Industrial Market Standard',
+          sampleKeywords: ['industrial fruit preparations', 'custom fruit purees', 'fruit ingredients b2b', 'aseptic fruit packs'],
+          keyDifferentiator: 'Global network of 25+ processing facilities across 5 continents.',
+        },
+        {
+          domain: 'symrise.com',
+          name: 'Symrise Nutrition',
+          industry: 'Fruit Solutions & Taste Ingredients',
+          description: 'Global supplier of sustainable fruit ingredients, botanical extracts, and natural flavor concentrates.',
+          location: 'Holzminden, Germany',
+          overlapScore: 89,
+          marketPosition: 'Specialty Ingredients Pioneer',
+          sampleKeywords: ['natural fruit extracts', 'fruit ingredient systems', 'clean label fruit puree', 'global flavor solutions'],
+          keyDifferentiator: 'Deep scientific R&D in clean-label fruit stabilization and nutrition.',
+        },
+        {
+          domain: 'kerry.com',
+          name: 'Kerry Group',
+          industry: 'Taste & Nutrition Ingredients',
+          description: 'International leader in taste and nutrition solutions, supplying fruit bases, purees, and specialized food ingredients.',
+          location: 'Tralee, Ireland',
+          overlapScore: 86,
+          marketPosition: 'Enterprise Taste Specialist',
+          sampleKeywords: ['taste and nutrition ingredients', 'commercial fruit purees', 'beverage fruit solutions', 'global food technology'],
+          keyDifferentiator: 'Massive enterprise scale and custom co-manufacturing partnerships with global food brands.',
+        },
+        {
+          domain: 'svz.com',
+          name: 'SVZ Industrial Ingredients',
+          industry: 'Industrial Fruit & Vegetable Purees',
+          description: 'Specialist global supplier of premium fruit purees, concentrates, and NFC juices with sustainable farming heritage.',
+          location: 'Breda, Netherlands',
+          overlapScore: 82,
+          marketPosition: 'Pure-Play Puree Specialist',
+          sampleKeywords: ['sustainable fruit purees', 'industrial fruit concentrate', 'nfc fruit juices b2b', 'high quality fruit ingredients'],
+          keyDifferentiator: '150+ years of agricultural expertise and 100% sustainably sourced fruit programs.',
+        },
+      ];
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 2. SEO / MARKETING / DIGITAL AGENCIES / CONTENT TOOLS
+    // ──────────────────────────────────────────────────────────
     if (
       text.includes('seo') ||
       text.includes('search') ||
@@ -370,12 +601,134 @@ export class MarketResearchService {
       text.includes('content') ||
       text.includes('agency')
     ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'schbang.com',
+            name: 'Schbang Digital Solutions',
+            industry: 'Integrated Digital Marketing & Tech',
+            description: 'Premier holistic digital agency offering search marketing, creative technology, and brand transformation.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 96,
+            marketPosition: 'Maharashtra Agency Leader',
+            sampleKeywords: ['digital marketing agency mumbai', 'organic search optimization', 'brand growth transformation', 'seo strategy firm'],
+            keyDifferentiator: '1000+ member integrated creative, media, and tech powerhouse headquartered in Mumbai.',
+          },
+          {
+            domain: 'watconsult.com',
+            name: 'WATConsult (Dentsu)',
+            industry: 'Digital Media & Search Consulting',
+            description: 'Globally recognized digital and search marketing consultancy driving enterprise digital visibility.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 92,
+            marketPosition: 'Enterprise Agency Rival',
+            sampleKeywords: ['search engine optimization agency mumbai', 'digital media strategy', 'enterprise organic growth'],
+            keyDifferentiator: 'Backed by Dentsu network with deep analytics and enterprise search expertise.',
+          },
+          {
+            domain: 'foxymoron.in',
+            name: 'FoxyMoron (Zoo Media)',
+            industry: 'Full-Funnel Digital Agency',
+            description: 'Independent digital transformation agency delivering organic content intelligence and search marketing.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 88,
+            marketPosition: 'Creative & Media Innovator',
+            sampleKeywords: ['creative digital agency mumbai', 'content search optimization', 'growth marketing agency'],
+            keyDifferentiator: 'Native digital culture and agile full-funnel content marketing.',
+          },
+          {
+            domain: 'performics.com',
+            name: 'Performics India',
+            industry: 'Performance Marketing & SEO',
+            description: 'Performance marketing pioneer maximizing organic discovery, intent tracking, and search ROI.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 85,
+            marketPosition: 'Performance Specialist',
+            sampleKeywords: ['performance seo mumbai', 'search intent optimization', 'organic traffic scaling'],
+            keyDifferentiator: 'Proprietary intent-driven search media algorithms.',
+          },
+          {
+            domain: 'growthhackers.in',
+            name: 'Growth Hackers Digital',
+            industry: 'Organic Growth & SEO Agency',
+            description: 'High-growth organic search and customer acquisition agency helping funded startups scale.',
+            location: 'Mumbai / Bengaluru, India',
+            overlapScore: 82,
+            marketPosition: 'Startup Growth Specialist',
+            sampleKeywords: ['startup seo agency india', 'organic traffic growth', 'roi driven search optimization'],
+            keyDifferentiator: 'Laser focus on CAC reduction and organic search pipeline growth.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'semrush.com',
+            name: 'Semrush India',
+            industry: 'SEO & Search Intelligence Suite',
+            description: 'All-in-one search visibility management platform tracking keywords, competitor backlinks, and SERP rankings.',
+            location: 'Bengaluru / Global',
+            overlapScore: 96,
+            marketPosition: 'National Category Standard',
+            sampleKeywords: ['seo tool india', 'competitor keyword research', 'backlink gap tracker', 'rank tracking platform'],
+            keyDifferentiator: 'Largest keyword search and backlink database in the industry.',
+          },
+          {
+            domain: 'socialbeat.in',
+            name: 'Social Beat',
+            industry: 'Performance Marketing & Multilingual SEO',
+            description: "India's leading independent performance marketing and vernacular search agency with 300+ specialists.",
+            location: 'Bengaluru / Chennai, India',
+            overlapScore: 91,
+            marketPosition: 'Multilingual SEO Leader',
+            sampleKeywords: ['multilingual seo agency india', 'regional search optimization', 'organic visibility agency'],
+            keyDifferentiator: 'Specialized focus on Bharat/vernacular SEO and tier-2/3 search behavior.',
+          },
+          {
+            domain: 'adfactorspr.com',
+            name: 'Adfactors PR & Digital',
+            industry: 'Corporate Reputation & Digital Visibility',
+            description: "India's largest strategic market communication and digital presence consultancy.",
+            location: 'Mumbai / New Delhi, India',
+            overlapScore: 87,
+            marketPosition: 'Market Authority',
+            sampleKeywords: ['digital pr and visibility', 'corporate reputation search', 'brand visibility consulting india'],
+            keyDifferentiator: 'Market leader in earned media authority and digital corporate storytelling.',
+          },
+          {
+            domain: 'inmobi.com',
+            name: 'InMobi Marketing Cloud',
+            industry: 'Audience Intelligence & Discovery',
+            description: 'Global ad-tech and consumer intelligence platform driving digital discovery and mobile brand growth.',
+            location: 'Bengaluru, India',
+            overlapScore: 84,
+            marketPosition: 'Discovery Platform Leader',
+            sampleKeywords: ['consumer intent platform', 'mobile search discovery', 'audience intelligence india'],
+            keyDifferentiator: 'First Indian unicorn with proprietary contextual audience graph.',
+          },
+          {
+            domain: 'growthx.club',
+            name: 'GrowthX',
+            industry: 'Product Growth & Marketing Frameworks',
+            description: 'Premier growth and marketing intelligence community for operators scaling digital products in India.',
+            location: 'Bengaluru, India',
+            overlapScore: 80,
+            marketPosition: 'Growth Ecosystem Pioneer',
+            sampleKeywords: ['product led marketing framework', 'growth strategy ecosystem', 'acquisition loop optimization'],
+            keyDifferentiator: 'Deep practitioner-curated growth frameworks and community.',
+          },
+        ];
+      }
+
+      // Worldwide SEO / Marketing
       return [
         {
           domain: 'semrush.com',
           name: 'Semrush',
           industry: 'Search Marketing & SEO Suite',
           description: 'Comprehensive keyword research, backlink analysis, and SERP visibility suite.',
+          location: 'Boston, USA',
           overlapScore: 96,
           marketPosition: 'Market Leader',
           sampleKeywords: ['ai seo platform', 'keyword gap analysis', 'serp rank tracker', 'backlink audit'],
@@ -386,6 +739,7 @@ export class MarketResearchService {
           name: 'Ahrefs',
           industry: 'SEO & Link Intelligence',
           description: 'Deep link index, site explorer, and keyword tracking tools for organic growth teams.',
+          location: 'Singapore',
           overlapScore: 93,
           marketPosition: 'High-Authority Rival',
           sampleKeywords: ['link building intelligence', 'site audit engine', 'organic search volume', 'ai citations'],
@@ -396,6 +750,7 @@ export class MarketResearchService {
           name: 'Surfer SEO',
           industry: 'AI Content Optimization & SERP Auditing',
           description: 'Real-time content scoring, NLP keyword recommendations, and automated article writing.',
+          location: 'Wroclaw, Poland',
           overlapScore: 89,
           marketPosition: 'Content Intelligence Specialist',
           sampleKeywords: ['nlp content optimizer', 'ai article writer', 'on-page seo score', 'topical authority'],
@@ -406,6 +761,7 @@ export class MarketResearchService {
           name: 'BrightEdge',
           industry: 'Enterprise SEO & Generative Search',
           description: 'Enterprise organic search optimization platform tracking AI search engines and market share.',
+          location: 'San Mateo, USA',
           overlapScore: 86,
           marketPosition: 'Enterprise Challenger',
           sampleKeywords: ['enterprise seo platform', 'ai search share', 'generative engine optimization', 'share of voice'],
@@ -416,6 +772,7 @@ export class MarketResearchService {
           name: 'Conductor',
           industry: 'Organic Marketing & Intelligence',
           description: 'Organic marketing platform providing customer intent insights and workflow automation.',
+          location: 'New York, USA',
           overlapScore: 82,
           marketPosition: 'Strategic Alternative',
           sampleKeywords: ['organic marketing platform', 'search intent mapping', 'competitive intelligence', 'seo insights'],
@@ -424,85 +781,147 @@ export class MarketResearchService {
       ];
     }
 
-    // 2. E-Commerce / Retail / D2C
-    if (
-      text.includes('shop') ||
-      text.includes('store') ||
-      text.includes('commerce') ||
-      text.includes('retail') ||
-      text.includes('pulp') ||
-      text.includes('export') ||
-      text.includes('product')
-    ) {
-      return [
-        {
-          domain: 'bigcommerce.com',
-          name: 'BigCommerce',
-          industry: 'E-Commerce Platforms & B2B',
-          description: 'Enterprise cloud commerce platform powering high-volume storefronts and B2B wholesale.',
-          overlapScore: 94,
-          marketPosition: 'Enterprise Commerce Leader',
-          sampleKeywords: ['b2b ecommerce catalog', 'multi-channel storefront', 'checkout optimization', 'wholesale portal'],
-          keyDifferentiator: 'Robust built-in multi-storefront and headless commerce architecture.',
-        },
-        {
-          domain: 'shopify.com',
-          name: 'Shopify Plus',
-          industry: 'Global E-Commerce Ecosystem',
-          description: 'Unified commerce platform for direct-to-consumer and retail brands.',
-          overlapScore: 91,
-          marketPosition: 'Direct Market Standard',
-          sampleKeywords: ['online store builder', 'commerce analytics', 'global payments', 'd2c checkout'],
-          keyDifferentiator: 'Massive merchant ecosystem and app marketplace.',
-        },
-        {
-          domain: 'woocommerce.com',
-          name: 'WooCommerce',
-          industry: 'Open Source E-Commerce',
-          description: 'Customizable open-source commerce solution for independent merchants and brands.',
-          overlapScore: 87,
-          marketPosition: 'Custom Platform Alternative',
-          sampleKeywords: ['custom store builder', 'open source checkout', 'product catalog management', 'wordpress ecommerce'],
-          keyDifferentiator: 'Full data ownership and infinite customizability.',
-        },
-        {
-          domain: 'magento.com',
-          name: 'Adobe Commerce (Magento)',
-          industry: 'Enterprise B2B & Complex Commerce',
-          description: 'High-end customizable commerce engine for large manufacturing and distribution networks.',
-          overlapScore: 84,
-          marketPosition: 'Heavyweight Rival',
-          sampleKeywords: ['enterprise product catalog', 'b2b quotation engine', 'erp commerce integration', 'custom checkout'],
-          keyDifferentiator: 'Deep ERP integrations and complex custom catalog rule engines.',
-        },
-        {
-          domain: 'squarespace.com',
-          name: 'Squarespace Commerce',
-          industry: 'Design-First Digital Storefronts',
-          description: 'All-in-one website and commerce platform tailored for curated product brands.',
-          overlapScore: 78,
-          marketPosition: 'Design-Centric Challenger',
-          sampleKeywords: ['design storefront', 'boutique brand ecommerce', 'creator merchandise', 'visual catalog'],
-          keyDifferentiator: 'Award-winning visual presentation templates and simple setup.',
-        },
-      ];
-    }
-
-    // 3. SaaS / Technology / Developer Tools
+    // ──────────────────────────────────────────────────────────
+    // 3. SAAS / SOFTWARE / TECH / CLOUD / DEVELOPER TOOLS
+    // ──────────────────────────────────────────────────────────
     if (
       text.includes('saas') ||
       text.includes('software') ||
       text.includes('app') ||
       text.includes('cloud') ||
       text.includes('api') ||
-      text.includes('dev')
+      text.includes('dev') ||
+      text.includes('platform') ||
+      text.includes('tech')
     ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'persistentsys.com',
+            name: 'Persistent Systems',
+            industry: 'Digital Engineering & Cloud SaaS',
+            description: 'Global software engineering powerhouse building cloud, AI, and enterprise digital solutions.',
+            location: 'Pune, Maharashtra',
+            overlapScore: 96,
+            marketPosition: 'Maharashtra Tech Heavyweight',
+            sampleKeywords: ['cloud software engineering pune', 'enterprise ai solutions', 'digital product engineering'],
+            keyDifferentiator: '23,000+ digital engineers and deep hyperscaler cloud partnerships.',
+          },
+          {
+            domain: 'clevertap.com',
+            name: 'CleverTap',
+            industry: 'Customer Engagement & AI SaaS',
+            description: 'AI-powered customer lifecycle management platform optimizing retention and personalized user engagement.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 92,
+            marketPosition: 'Global MarTech Unicorn',
+            sampleKeywords: ['customer retention platform', 'real time user analytics', 'ai martech saas', 'push notification engine'],
+            keyDifferentiator: 'Processes trillions of user events with real-time TesseractDB engine.',
+          },
+          {
+            domain: 'druva.com',
+            name: 'Druva',
+            industry: 'Cloud Data Protection SaaS',
+            description: 'Cloud-native data resiliency and cyber recovery SaaS protecting enterprise workloads.',
+            location: 'Pune, Maharashtra / Sunnyvale',
+            overlapScore: 88,
+            marketPosition: 'Cloud Resiliency Leader',
+            sampleKeywords: ['cloud backup saas', 'enterprise data protection pune', 'ransomware recovery platform'],
+            keyDifferentiator: '100% serverless SaaS architecture built on AWS.',
+          },
+          {
+            domain: 'browserstack.com',
+            name: 'BrowserStack',
+            industry: 'Developer Cloud Testing Platform',
+            description: "World's most reliable web and mobile app testing platform trusted by over 50,000 global customers.",
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 85,
+            marketPosition: 'Global DevTools Standard',
+            sampleKeywords: ['cross browser testing cloud', 'mobile app automated testing', 'developer testing platform mumbai'],
+            keyDifferentiator: 'Instant access to 3,000+ real mobile devices and desktop browsers.',
+          },
+          {
+            domain: 'zenoti.com',
+            name: 'Zenoti',
+            industry: 'Enterprise Cloud Management SaaS',
+            description: 'Unified cloud management software powering global chains in wellness, beauty, and fitness.',
+            location: 'Mumbai / Seattle',
+            overlapScore: 81,
+            marketPosition: 'Vertical SaaS Pioneer',
+            sampleKeywords: ['enterprise vertical saas', 'salon and spa management software', 'multi location pos system'],
+            keyDifferentiator: 'All-in-one platform covering POS, appointments, marketing, and inventory.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'zoho.com',
+            name: 'Zoho Corporation',
+            industry: 'Enterprise Cloud & SaaS Suite',
+            description: 'Comprehensive suite of 55+ cloud applications covering CRM, finance, HR, and marketing for 100M+ users.',
+            location: 'Chennai, India',
+            overlapScore: 97,
+            marketPosition: 'India SaaS Giant',
+            sampleKeywords: ['cloud business software india', 'enterprise crm platform', 'zoho one cloud apps', 'affordable business saas'],
+            keyDifferentiator: 'Completely bootstrapped, vertically integrated tech stack and privacy-first ethos.',
+          },
+          {
+            domain: 'freshworks.com',
+            name: 'Freshworks',
+            industry: 'Customer & IT Service SaaS',
+            description: 'AI-driven business software modernizing customer service, CRM, and IT service management.',
+            location: 'Chennai / San Mateo',
+            overlapScore: 93,
+            marketPosition: 'Nasdaq-Listed SaaS Leader',
+            sampleKeywords: ['customer support software india', 'itsm helpdesk saas', 'freshdesk service management'],
+            keyDifferentiator: 'Frictionless, consumer-grade user experience with fast time-to-value.',
+          },
+          {
+            domain: 'postman.com',
+            name: 'Postman',
+            industry: 'API Development & Collaboration Platform',
+            description: "The world's leading API platform used by over 30 million developers across Fortune 500 companies.",
+            location: 'Bengaluru / San Francisco',
+            overlapScore: 89,
+            marketPosition: 'Global API Standard',
+            sampleKeywords: ['api testing platform', 'api client developer tools', 'collaborative api development india'],
+            keyDifferentiator: 'Ubiquitous API platform defining modern microservice developer workflows.',
+          },
+          {
+            domain: 'hasura.io',
+            name: 'Hasura',
+            industry: 'Instant GraphQL & Data API Platform',
+            description: 'High-performance engine that makes your data instantly accessible over secure GraphQL and REST APIs.',
+            location: 'Bengaluru / San Francisco',
+            overlapScore: 85,
+            marketPosition: 'Data API Specialist',
+            sampleKeywords: ['instant graphql engine', 'postgres data api', 'backend data access layer'],
+            keyDifferentiator: 'Sub-millisecond query execution and automated database role security.',
+          },
+          {
+            domain: 'chargebee.com',
+            name: 'Chargebee',
+            industry: 'Subscription Billing & Revenue Management',
+            description: 'Subscription management and recurring billing platform powering thousands of fast-growing SaaS businesses.',
+            location: 'Chennai / San Francisco',
+            overlapScore: 81,
+            marketPosition: 'FinTech SaaS Pioneer',
+            sampleKeywords: ['subscription billing saas', 'recurring payment management india', 'saas revenue operations'],
+            keyDifferentiator: 'Turnkey billing automation with deep integrations across 30+ payment gateways.',
+          },
+        ];
+      }
+
+      // Worldwide SaaS / Software
       return [
         {
           domain: 'datadoghq.com',
           name: 'Datadog',
           industry: 'Cloud Monitoring & Analytics',
           description: 'Unified monitoring, analytics, and telemetry suite for modern cloud applications.',
+          location: 'New York, USA',
           overlapScore: 95,
           marketPosition: 'Industry Leader',
           sampleKeywords: ['cloud observability', 'performance analytics', 'infrastructure monitoring', 'log intelligence'],
@@ -513,6 +932,7 @@ export class MarketResearchService {
           name: 'New Relic',
           industry: 'Observability & Telemetry',
           description: 'Intelligent observability platform tracking software performance and user experience.',
+          location: 'San Francisco, USA',
           overlapScore: 90,
           marketPosition: 'Established Challenger',
           sampleKeywords: ['application performance tracking', 'telemetry data platform', 'error tracking', 'apm metrics'],
@@ -523,6 +943,7 @@ export class MarketResearchService {
           name: 'Dynatrace',
           industry: 'AI-Powered Observability',
           description: 'Autonomous AI engine delivering deep software diagnostics and root-cause analysis.',
+          location: 'Waltham, USA',
           overlapScore: 88,
           marketPosition: 'Enterprise AI Specialist',
           sampleKeywords: ['ai root cause analysis', 'enterprise performance monitoring', 'automated diagnostics'],
@@ -533,6 +954,7 @@ export class MarketResearchService {
           name: 'Sentry',
           industry: 'Application Monitoring & Error Tracking',
           description: 'Developer-first error tracking and performance monitoring for web and mobile apps.',
+          location: 'San Francisco, USA',
           overlapScore: 84,
           marketPosition: 'Developer Favorite',
           sampleKeywords: ['developer error tracking', 'stack trace analysis', 'session replay', 'frontend telemetry'],
@@ -543,6 +965,7 @@ export class MarketResearchService {
           name: 'PostHog',
           industry: 'Product Analytics & Feature Management',
           description: 'All-in-one product analytics, session replay, and feature flag platform.',
+          location: 'San Francisco, USA',
           overlapScore: 81,
           marketPosition: 'High-Growth Modern Suite',
           sampleKeywords: ['product analytics suite', 'feature flags engine', 'session replay platform', 'user funnel tracking'],
@@ -551,63 +974,387 @@ export class MarketResearchService {
       ];
     }
 
-    // 4. Default / General Business & Solutions
-    const root = domain.split('.')[0] || 'brand';
+    // ──────────────────────────────────────────────────────────
+    // 4. E-COMMERCE / RETAIL / B2B WHOLESALE / DISTRIBUTION
+    // ──────────────────────────────────────────────────────────
+    if (
+      text.includes('shop') ||
+      text.includes('store') ||
+      text.includes('commerce') ||
+      text.includes('retail') ||
+      text.includes('product') ||
+      text.includes('wholesale') ||
+      text.includes('market') ||
+      text.includes('trade')
+    ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'nykaa.com',
+            name: 'Nykaa (FSN E-Commerce)',
+            industry: 'Omnichannel Beauty & Retail E-Commerce',
+            description: "India's premier lifestyle and consumer goods retail platform with deep brand storytelling and logistics.",
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 95,
+            marketPosition: 'Maharashtra E-Commerce Leader',
+            sampleKeywords: ['online beauty store mumbai', 'd2c lifestyle brand', 'omnichannel retail platform'],
+            keyDifferentiator: 'Inventory-led authentic product curation and powerful consumer community.',
+          },
+          {
+            domain: 'tatacliq.com',
+            name: 'Tata CLiQ',
+            industry: 'Digital Commerce & Brand Marketplace',
+            description: 'Tata Group multi-category digital marketplace curating verified authentic luxury and lifestyle products.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 91,
+            marketPosition: 'Omnichannel Enterprise',
+            sampleKeywords: ['luxury digital retail mumbai', 'omnichannel brand marketplace', 'tata ecommerce'],
+            keyDifferentiator: 'Phygital storefront model connecting physical retail stores to digital shoppers.',
+          },
+          {
+            domain: 'zepto.com',
+            name: 'Zepto',
+            industry: 'Quick Commerce & Consumer Delivery',
+            description: 'Fastest growing quick-commerce network fulfilling consumer grocery and essentials in under 10 minutes.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 87,
+            marketPosition: 'Hyperlocal Innovator',
+            sampleKeywords: ['quick commerce delivery mumbai', '10 minute grocery delivery', 'dark store network'],
+            keyDifferentiator: 'Dense urban micro-fulfillment dark store network.',
+          },
+          {
+            domain: 'dmart.in',
+            name: 'Avenue Supermarts (DMart)',
+            industry: 'Value Retail & Wholesale Supermarkets',
+            description: 'India’s most profitable supermarket and wholesale consumer goods retail chain.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 84,
+            marketPosition: 'Value Retail Titan',
+            sampleKeywords: ['grocery wholesale supermarket mumbai', 'dmart ready online delivery', 'discount retail store'],
+            keyDifferentiator: 'Lowest cost retail operations with direct manufacturer procurement.',
+          },
+          {
+            domain: 'firstcry.com',
+            name: 'FirstCry (Brainbees Solutions)',
+            industry: 'Specialty Retail & Baby Care Commerce',
+            description: 'Asia’s largest omnichannel baby and kids lifestyle platform with 1,000+ retail stores.',
+            location: 'Pune, Maharashtra',
+            overlapScore: 80,
+            marketPosition: 'Specialty Category Champion',
+            sampleKeywords: ['omnichannel baby store pune', 'kids retail marketplace', 'd2c baby products'],
+            keyDifferentiator: 'Dominant category leadership and multi-brand distribution.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'indiamart.com',
+            name: 'IndiaMART InterMESH',
+            industry: 'B2B Wholesale & Supplier Marketplace',
+            description: "India's largest B2B e-commerce and wholesale discovery portal connecting 100M+ buyers with verified manufacturers.",
+            location: 'Noida / New Delhi, India',
+            overlapScore: 97,
+            marketPosition: 'National B2B Market Leader',
+            sampleKeywords: ['b2b wholesale marketplace india', 'manufacturers and suppliers directory', 'bulk wholesale products india'],
+            keyDifferentiator: '7.5 million+ suppliers listed with deep buyer matchmaking algorithms.',
+          },
+          {
+            domain: 'tradeindia.com',
+            name: 'TradeIndia',
+            industry: 'B2B Trade & Global Export Portal',
+            description: 'Leading business-to-business portal facilitating trade between global buyers and Indian manufacturers/exporters.',
+            location: 'New Delhi, India',
+            overlapScore: 92,
+            marketPosition: 'Export & Trade Benchmark',
+            sampleKeywords: ['indian exporters directory', 'b2b trade leads india', 'wholesale manufacturer catalog'],
+            keyDifferentiator: 'Strong focus on small and medium enterprise export facilitation.',
+          },
+          {
+            domain: 'udaan.com',
+            name: 'Udaan',
+            industry: 'B2B Supply Chain & E-Commerce',
+            description: 'Network-centric B2B trade platform designed specifically for small and medium businesses across India.',
+            location: 'Bengaluru, India',
+            overlapScore: 88,
+            marketPosition: 'Digital Supply Chain Leader',
+            sampleKeywords: ['b2b trade platform india', 'retailer wholesale ordering app', 'fmcg b2b supply chain'],
+            keyDifferentiator: 'Integrated trade financing, logistics, and digital cataloging.',
+          },
+          {
+            domain: 'moglix.com',
+            name: 'Moglix',
+            industry: 'Industrial B2B Procurement',
+            description: 'Asia’s largest B2B commerce platform for industrial tools, maintenance supplies, and raw material procurement.',
+            location: 'Noida / Bengaluru, India',
+            overlapScore: 85,
+            marketPosition: 'Industrial Procurement Unicorn',
+            sampleKeywords: ['industrial supplies b2b india', 'mro procurement platform', 'factory supply wholesale'],
+            keyDifferentiator: 'Enterprise supply chain digitisation and contracted vendor networks.',
+          },
+          {
+            domain: 'flipkart.com',
+            name: 'Flipkart (Walmart Group)',
+            industry: 'Consumer Digital Commerce & Wholesale',
+            description: "India's homegrown e-commerce pioneer serving over 500 million registered users.",
+            location: 'Bengaluru, India',
+            overlapScore: 81,
+            marketPosition: 'National Consumer Giant',
+            sampleKeywords: ['online shopping marketplace india', 'flipkart wholesale distributor', 'consumer goods delivery'],
+            keyDifferentiator: 'Massive pan-India supply chain infrastructure (Ekart).',
+          },
+        ];
+      }
+
+      // Worldwide E-Commerce
+      return [
+        {
+          domain: 'shopify.com',
+          name: 'Shopify',
+          industry: 'Global Commerce Platform',
+          description: 'Unified commerce platform powering millions of businesses across direct-to-consumer and B2B wholesale.',
+          location: 'Ottawa, Canada',
+          overlapScore: 95,
+          marketPosition: 'Global Platform Standard',
+          sampleKeywords: ['online storefront builder', 'd2c commerce checkout', 'global merchant ecosystem'],
+          keyDifferentiator: 'Massive app ecosystem and frictionless high-conversion checkout.',
+        },
+        {
+          domain: 'bigcommerce.com',
+          name: 'BigCommerce',
+          industry: 'Enterprise Cloud Commerce & B2B',
+          description: 'Open SaaS ecommerce platform designed for high-volume enterprise brands and complex B2B wholesale catalogs.',
+          location: 'Austin, USA',
+          overlapScore: 91,
+          marketPosition: 'Enterprise Challenger',
+          sampleKeywords: ['b2b ecommerce platform', 'headless commerce engine', 'multi-storefront management'],
+          keyDifferentiator: 'Robust built-in B2B wholesale quotation and multi-currency tools.',
+        },
+        {
+          domain: 'alibaba.com',
+          name: 'Alibaba Group',
+          industry: 'Global B2B Wholesale Marketplace',
+          description: "The world's largest online B2B trading platform connecting global buyers with certified manufacturers.",
+          location: 'Hangzhou, China',
+          overlapScore: 88,
+          marketPosition: 'Worldwide Wholesale Leader',
+          sampleKeywords: ['global b2b marketplace', 'wholesale manufacturer sourcing', 'trade assurance suppliers'],
+          keyDifferentiator: 'Unsurpassed global buyer reach and cross-border trade assurance.',
+        },
+        {
+          domain: 'amazon.com',
+          name: 'Amazon Business',
+          industry: 'Global E-Commerce & Commercial Supply',
+          description: 'Global commercial procurement and retail marketplace delivering business-only pricing and logistics.',
+          location: 'Seattle, USA',
+          overlapScore: 84,
+          marketPosition: 'Global Retail Giant',
+          sampleKeywords: ['business procurement marketplace', 'global commercial supplies', 'multi-vendor ecommerce'],
+          keyDifferentiator: 'Unrivaled global fulfillment and supply chain logistics.',
+        },
+        {
+          domain: 'magento.com',
+          name: 'Adobe Commerce (Magento)',
+          industry: 'Enterprise Commerce & Custom Solutions',
+          description: 'High-end customizable commerce engine for large manufacturing and multi-brand distribution networks.',
+          location: 'San Jose, USA',
+          overlapScore: 80,
+          marketPosition: 'Custom Platform Alternative',
+          sampleKeywords: ['enterprise product catalog', 'b2b custom checkout', 'erp commerce integration'],
+          keyDifferentiator: 'Deep ERP integrations and infinite customizability.',
+        },
+      ];
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 5. GENERAL / MANUFACTURING / PROFESSIONAL SERVICES / HEALTHCARE / OTHER
+    // ──────────────────────────────────────────────────────────
+    if (region === 'maharashtra') {
+      return [
+        {
+          domain: 'tcs.com',
+          name: 'Tata Consultancy Services (TCS)',
+          industry: 'Global IT & Strategic Transformation',
+          description: 'Global leader in business consulting, digital services, and enterprise market solutions.',
+          location: 'Mumbai, Maharashtra',
+          overlapScore: 95,
+          marketPosition: 'Maharashtra Flagship Giant',
+          sampleKeywords: ['enterprise consulting mumbai', 'digital transformation partner', 'global business services'],
+          keyDifferentiator: '600,000+ global workforce and century-long heritage of business excellence.',
+        },
+        {
+          domain: 'mahindra.com',
+          name: 'Mahindra & Mahindra Group',
+          industry: 'Industrial Manufacturing & Services',
+          description: 'Diversified multinational federation with leadership across mobility, farm equipment, and technology services.',
+          location: 'Mumbai, Maharashtra',
+          overlapScore: 91,
+          marketPosition: 'Conglomerate Benchmark',
+          sampleKeywords: ['manufacturing conglomerate mumbai', 'industrial solutions maharashtra', 'enterprise business group'],
+          keyDifferentiator: 'Deep domestic manufacturing dominance and global export operations.',
+        },
+        {
+          domain: 'godrej.com',
+          name: 'Godrej Enterprises Group',
+          industry: 'Consumer Products & Precision Engineering',
+          description: 'Iconic 127-year-old business group operating across consumer goods, appliances, and industrial solutions.',
+          location: 'Mumbai, Maharashtra',
+          overlapScore: 87,
+          marketPosition: 'Established Market Pillar',
+          sampleKeywords: ['consumer goods brand mumbai', 'industrial engineering solutions', 'established business house'],
+          keyDifferentiator: 'Household brand trust across 1.1 billion consumers globally.',
+        },
+        {
+          domain: 'ltts.com',
+          name: 'L&T Technology Services',
+          industry: 'Engineering R&D & Industrial Consulting',
+          description: 'Leading global pure-play engineering services provider delivering industrial innovation and product design.',
+          location: 'Mumbai, Maharashtra',
+          overlapScore: 84,
+          marketPosition: 'Engineering Pioneer',
+          sampleKeywords: ['engineering consulting mumbai', 'industrial product design', 'smart manufacturing services'],
+          keyDifferentiator: 'Patented engineering solutions for 57 Fortune 500 enterprises.',
+        },
+        {
+          domain: 'finolex.com',
+          name: 'Finolex Industries',
+          industry: 'Agricultural & Industrial Manufacturing',
+          description: "India's largest manufacturer of precision agricultural piping, industrial materials, and infrastructure products.",
+          location: 'Pune, Maharashtra',
+          overlapScore: 80,
+          marketPosition: 'Industrial Specialist',
+          sampleKeywords: ['industrial manufacturing pune', 'agricultural piping solutions', 'pune manufacturing leader'],
+          keyDifferentiator: 'Unmatched agricultural and industrial distribution network across Western India.',
+        },
+      ];
+    }
+
+    if (region === 'india') {
+      return [
+        {
+          domain: 'infosys.com',
+          name: 'Infosys',
+          industry: 'Digital Services & Consulting',
+          description: 'Global leader in next-generation digital services and enterprise consulting navigating digital transformation.',
+          location: 'Bengaluru, India',
+          overlapScore: 95,
+          marketPosition: 'National Tech Leader',
+          sampleKeywords: ['digital services india', 'enterprise consulting bangalore', 'ai business transformation'],
+          keyDifferentiator: 'Leading digital operating models and Topaz AI services.',
+        },
+        {
+          domain: 'wipro.com',
+          name: 'Wipro',
+          industry: 'Technology & Business Solutions',
+          description: 'Leading global information technology, consulting, and business process services company.',
+          location: 'Bengaluru, India',
+          overlapScore: 91,
+          marketPosition: 'National Enterprise Giant',
+          sampleKeywords: ['technology solutions bangalore', 'enterprise digital services', 'business transformation partner'],
+          keyDifferentiator: 'Global delivery model and comprehensive AI solution portfolio.',
+        },
+        {
+          domain: 'tatamotors.com',
+          name: 'Tata Motors',
+          industry: 'Mobility & Commercial Manufacturing',
+          description: 'Leading global automobile manufacturer of commercial vehicles, trucks, and electric passenger mobility.',
+          location: 'Mumbai / Pan-India',
+          overlapScore: 87,
+          marketPosition: 'National Manufacturing Leader',
+          sampleKeywords: ['commercial vehicle manufacturer india', 'ev mobility pioneer', 'fleet logistics solutions'],
+          keyDifferentiator: 'Over 50% market share in commercial vehicle transport and fleet logistics.',
+        },
+        {
+          domain: 'hcltech.com',
+          name: 'HCLTech',
+          industry: 'Global Technology Services',
+          description: 'Global technology company home to 220,000+ people across 60 countries delivering industry-leading capabilities.',
+          location: 'Noida / New Delhi, India',
+          overlapScore: 84,
+          marketPosition: 'Global Services Standard',
+          sampleKeywords: ['digital engineering services noida', 'cloud transformation partner', 'enterprise it consulting'],
+          keyDifferentiator: 'Supercharged engineering capabilities and software product development.',
+        },
+        {
+          domain: 'asianpaints.com',
+          name: 'Asian Paints',
+          industry: 'Coatings, Decor & Industrial Solutions',
+          description: "India’s leading paint and home decor solutions company operating in 15 countries with 27 manufacturing plants.",
+          location: 'Mumbai / Pan-India',
+          overlapScore: 80,
+          marketPosition: 'National Supply Chain Benchmark',
+          sampleKeywords: ['coatings and decor solutions india', 'supply chain distribution benchmark', 'decorative manufacturing'],
+          keyDifferentiator: 'World-renowned predictive logistics and direct-to-retail distribution network.',
+        },
+      ];
+    }
+
+    // Worldwide General
     return [
       {
-        domain: `apex${root}.com`,
-        name: `Apex ${this.formatBrandName(domain)} Group`,
-        industry: subject || 'Industry Solutions',
-        description: `Premier provider of specialized solutions and market services in ${subject}.`,
-        overlapScore: 94,
-        marketPosition: 'Market Leader',
-        sampleKeywords: [`top ${subject} solutions`, `${subject} services provider`, `best ${subject} platforms`, 'enterprise consulting'],
-        keyDifferentiator: 'Comprehensive global service coverage and established enterprise clientele.',
+        domain: 'accenture.com',
+        name: 'Accenture',
+        industry: 'Global Professional Services',
+        description: 'Global professional services company with leading capabilities in digital, cloud, and security solutions.',
+        location: 'Dublin, Ireland / Global',
+        overlapScore: 95,
+        marketPosition: 'Global Category Standard',
+        sampleKeywords: ['management consulting', 'digital enterprise solutions', 'cloud transformation', 'global business advisory'],
+        keyDifferentiator: 'Broadest cross-industry expertise and unmatched Fortune 100 enterprise penetration.',
       },
       {
-        domain: `vanguard-${root}.com`,
-        name: `Vanguard ${this.formatBrandName(domain)}`,
-        industry: subject || 'Specialized Services',
-        description: `High-growth digital-first alternative delivering modern innovations for ${subject}.`,
-        overlapScore: 90,
-        marketPosition: 'High-Growth Rival',
-        sampleKeywords: [`modern ${subject} tools`, `automated ${subject} systems`, 'client acquisition solutions', 'scalable workflows'],
-        keyDifferentiator: 'Agile technology stack and rapid deployment turnaround.',
+        domain: 'ibm.com',
+        name: 'IBM',
+        industry: 'Enterprise Cloud & AI Systems',
+        description: 'Global technology and enterprise consulting pioneer driving hybrid cloud, AI, and mission-critical solutions.',
+        location: 'Armonk, USA',
+        overlapScore: 91,
+        marketPosition: 'Technology Institution',
+        sampleKeywords: ['hybrid cloud systems', 'watsonx enterprise ai', 'mission critical software', 'enterprise security'],
+        keyDifferentiator: 'Over a century of enterprise computing infrastructure and enterprise trust.',
       },
       {
-        domain: `nextgen${root}.io`,
-        name: `NextGen ${this.formatBrandName(domain)}`,
-        industry: subject || 'Technology & Automation',
-        description: `AI-augmented platform optimizing operational efficiency and client outcomes in ${subject}.`,
+        domain: 'oracle.com',
+        name: 'Oracle',
+        industry: 'Enterprise Cloud Infrastructure & ERP',
+        description: 'Global provider of autonomous database technologies, cloud infrastructure, and enterprise resource planning.',
+        location: 'Austin, USA',
         overlapScore: 87,
-        marketPosition: 'Next-Gen Challenger',
-        sampleKeywords: [`ai ${subject} automation`, 'predictive intelligence', 'real-time performance tracking', 'cost optimization'],
-        keyDifferentiator: 'Proprietary AI automation workflows and self-serve dashboard.',
+        marketPosition: 'Enterprise Database Leader',
+        sampleKeywords: ['oracle cloud infrastructure', 'autonomous database systems', 'enterprise erp solutions', 'supply chain software'],
+        keyDifferentiator: 'Mission-critical relational data engine powering the world’s banking and logistics.',
       },
       {
-        domain: `prime${root}.org`,
-        name: `Prime ${this.formatBrandName(domain)} Network`,
-        industry: subject || 'Enterprise Consulting',
-        description: `Trusted specialist network offering tailored end-to-end capabilities for high-tier clients.`,
-        overlapScore: 83,
-        marketPosition: 'Niche Specialist',
-        sampleKeywords: [`certified ${subject} specialist`, 'custom strategy advisory', 'audit and compliance', 'market benchmark'],
-        keyDifferentiator: 'Deep domain expertise and verified industry certifications.',
+        domain: 'sap.com',
+        name: 'SAP',
+        industry: 'Enterprise Application Software',
+        description: "The world's leading producer of software for the management of business processes and supply chain operations.",
+        location: 'Walldorf, Germany',
+        overlapScore: 84,
+        marketPosition: 'Supply Chain & ERP Titan',
+        sampleKeywords: ['sap erp software', 'supply chain management cloud', 'enterprise business operations', 'global logistics systems'],
+        keyDifferentiator: '99 of the 100 largest companies in the world run SAP enterprise systems.',
       },
       {
-        domain: `global-${root}.net`,
-        name: `Global ${this.formatBrandName(domain)} Partners`,
-        industry: subject || 'Global Operations',
-        description: `International service partner with multi-region distribution and strategic reach.`,
-        overlapScore: 79,
-        marketPosition: 'Strategic Alternative',
-        sampleKeywords: [`international ${subject} network`, 'multi-region operations', 'strategic partnerships', 'enterprise scale'],
-        keyDifferentiator: 'Established multi-market presence and partner ecosystem.',
+        domain: 'cisco.com',
+        name: 'Cisco Systems',
+        industry: 'Digital Networking & Cyber Solutions',
+        description: 'Worldwide leader in technology that powers the Internet, enterprise networking, and security collaboration.',
+        location: 'San Jose, USA',
+        overlapScore: 80,
+        marketPosition: 'Networking Infrastructure Standard',
+        sampleKeywords: ['enterprise secure networking', 'cloud connectivity solutions', 'cybersecurity architecture'],
+        keyDifferentiator: 'Global standard for carrier-grade networking infrastructure and security.',
       },
     ];
   }
 
-  private sanitizeCompetitor(raw: any, targetDomain: string): AutoIdentifiedCompetitor | null {
+  private sanitizeCompetitor(
+    raw: any,
+    targetDomain: string,
+    region: 'worldwide' | 'india' | 'maharashtra' = 'worldwide',
+  ): AutoIdentifiedCompetitor | null {
     if (!raw || typeof raw !== 'object') return null;
     const cleanDomain = normalizeDomain(String(raw.domain || ''));
     if (!cleanDomain || !cleanDomain.includes('.') || cleanDomain.toLowerCase() === targetDomain.toLowerCase()) {
@@ -620,6 +1367,15 @@ export class MarketResearchService {
     const overlapScore = Math.min(99, Math.max(50, Number(raw.overlapScore) || 85));
     const marketPosition = String(raw.marketPosition || 'Direct Competitor').trim();
     const keyDifferentiator = String(raw.keyDifferentiator || 'Key alternative in this space.').trim();
+
+    const defaultLocation =
+      region === 'maharashtra'
+        ? 'Maharashtra, India'
+        : region === 'india'
+          ? 'India'
+          : 'Global / Worldwide';
+
+    const location = String(raw.location || defaultLocation).trim();
 
     let sampleKeywords: string[] = [];
     if (Array.isArray(raw.sampleKeywords)) {
@@ -639,6 +1395,7 @@ export class MarketResearchService {
       description,
       overlapScore,
       marketPosition,
+      location,
       sampleKeywords,
       keyDifferentiator,
     };
