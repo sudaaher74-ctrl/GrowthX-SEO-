@@ -7,7 +7,8 @@ import { OutcomeMeasurementService } from './outcome-measurement.service';
 import { WeeklyDeltaService } from './weekly-delta.service';
 import { MarketWatchKind } from '@prisma/client';
 import { MarketActionStatus } from '@prisma/client';
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class AskQuestionDto {
   @IsString()
@@ -31,6 +32,56 @@ export class CreateThreadDto {
   title?: string;
 }
 
+export class AutoIdentifyCompetitorsDto {
+  @IsString()
+  @IsOptional()
+  websiteUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  domain?: string;
+
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @IsString()
+  @IsOptional()
+  businessName?: string;
+}
+
+export class SelectedCompetitorItemDto {
+  @IsString()
+  domain: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  label?: string;
+
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsNumber()
+  @IsOptional()
+  confidenceScore?: number;
+}
+
+export class AddSelectedCompetitorsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SelectedCompetitorItemDto)
+  competitors: SelectedCompetitorItemDto[];
+}
+
 /**
  * GrowthX Market Research.
  *
@@ -50,7 +101,38 @@ export class MarketResearchController {
     private readonly research: MarketResearchService,
     private readonly actions: MarketActionService,
     private readonly outcomes: OutcomeMeasurementService,
-    private readonly weekly: WeeklyDeltaService,) {}
+    private readonly weekly: WeeklyDeltaService,
+  ) {}
+
+  @Post('auto-identify-competitors')
+  @ApiOperation({ summary: 'Automatically identify top 5 competitors for this project website' })
+  @ApiParam({ name: 'projectId' })
+  autoIdentifyCompetitors(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: AutoIdentifyCompetitorsDto,
+  ) {
+    return this.research.autoIdentifyCompetitors(
+      req.user?.organizationId || req.organizationId,
+      projectId,
+      body,
+    );
+  }
+
+  @Post('add-selected-competitors')
+  @ApiOperation({ summary: 'Add selected competitors (e.g. 3 of 5) to project tracking' })
+  @ApiParam({ name: 'projectId' })
+  addSelectedCompetitors(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: AddSelectedCompetitorsDto,
+  ) {
+    return this.research.addSelectedCompetitors(
+      req.user?.organizationId || req.organizationId,
+      projectId,
+      body.competitors,
+    );
+  }
 
   @Get('suggested-questions')
   @ApiOperation({ summary: "Opening questions written around this client's own business" })

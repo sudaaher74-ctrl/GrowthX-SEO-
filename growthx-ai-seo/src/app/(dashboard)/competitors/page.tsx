@@ -11,6 +11,7 @@ import {
 import { api, type CompetitorContent, type EnrichedOpportunity, type VideoBriefAndScript, type CompetitorChangeAlert } from "@/lib/api-client";
 import { useWorkspace, useVisibility } from "@/hooks/use-growthx";
 import { Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
+import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 
 export default function CompetitorIntelligencePage() {
   return (
@@ -21,11 +22,12 @@ export default function CompetitorIntelligencePage() {
 }
 
 function CompetitorConsoleClient() {
-  const { projectId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
   const qc = useQueryClient();
 
   // Tabs
   const [activeTab, setActiveTab] = useState<"teardown" | "seo-matrix" | "video-feed" | "matrix" | "opportunities" | "alerts" | "voice">("teardown");
+  const [showAutoDiscoverPanel, setShowAutoDiscoverPanel] = useState(false);
 
   // Filters & State
   const [platformFilter, setPlatformFilter] = useState<string>("ALL");
@@ -440,6 +442,13 @@ function CompetitorConsoleClient() {
 
         <div className="flex flex-wrap items-center gap-2">
           <ActionButton
+            variant={showAutoDiscoverPanel ? "primary" : "secondary"}
+            icon={<Sparkles size={13} />}
+            onClick={() => setShowAutoDiscoverPanel((p) => !p)}
+          >
+            {showAutoDiscoverPanel ? "Hide Auto-Discovery" : "Auto-Identify Top 5"}
+          </ActionButton>
+          <ActionButton
             variant="secondary"
             icon={<Video size={13} />}
             onClick={() => {
@@ -450,7 +459,7 @@ function CompetitorConsoleClient() {
             Analyze Video
           </ActionButton>
           <ActionButton
-            variant="primary"
+            variant="secondary"
             icon={<Plus size={13} />}
             onClick={() => {
               setIsAddWizardOpen(true);
@@ -461,6 +470,18 @@ function CompetitorConsoleClient() {
           </ActionButton>
         </div>
       </div>
+
+      {/* Auto-Identify Competitors Panel */}
+      {(showAutoDiscoverPanel || accounts.length === 0) && (
+        <AutoCompetitorsPanel
+          projectId={projectId!}
+          orgId={orgId}
+          onAddedSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] });
+            qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+          }}
+        />
+      )}
 
       {/* Clean KPI Cards Strip */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

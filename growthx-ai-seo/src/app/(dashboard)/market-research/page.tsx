@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, Panel, Pill, ActionButton, NotConnected } from "@/components/ui/console";
-import { Loader2, Search, Sparkles, ExternalLink, FileText, Globe, BarChart3, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Sparkles, ExternalLink, FileText, Globe, BarChart3, AlertTriangle, Target, Users } from "lucide-react";
 import { useWorkspace, useAskResearch } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type { ResearchAnswer, ResearchSource, ResearchSourceType } from "@/lib/api-client";
+import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 
 /**
  * Shown until the client's own questions arrive, and kept as the answer for a
@@ -42,7 +43,7 @@ interface Turn {
 }
 
 export default function MarketResearchPage() {
-  const { projectId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
   const ask = useAskResearch(projectId);
 
   // Derived from the crawl rather than generated, so this costs a query rather
@@ -60,6 +61,7 @@ export default function MarketResearchPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openSource, setOpenSource] = useState<ResearchSource | null>(null);
+  const [showCompetitorPanel, setShowCompetitorPanel] = useState(true);
 
   async function submit(text: string) {
     if (!projectId || !text.trim() || ask.isPending) return;
@@ -87,13 +89,22 @@ export default function MarketResearchPage() {
     <div className="space-y-5">
       <PageHeader
         title="Market Research"
-        subtitle="Ask what is changing in your market. Get a cited answer and the AI-search opportunity it creates."
+        subtitle="Ask what is changing in your market. Get a cited answer, top 5 competitor identification, and the AI-search opportunity it creates."
         actions={
-          turns.length > 0 ? (
-            <ActionButton variant="secondary" icon={<Sparkles size={12} />} onClick={newResearch}>
-              New research
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant={showCompetitorPanel ? "primary" : "secondary"}
+              icon={<Target size={12} />}
+              onClick={() => setShowCompetitorPanel((prev) => !prev)}
+            >
+              {showCompetitorPanel ? "Competitors Matrix" : "Auto-Identify Competitors"}
             </ActionButton>
-          ) : undefined
+            {turns.length > 0 && (
+              <ActionButton variant="secondary" icon={<Sparkles size={12} />} onClick={newResearch}>
+                New research
+              </ActionButton>
+            )}
+          </div>
         }
       />
 
@@ -104,10 +115,19 @@ export default function MarketResearchPage() {
           needs={["An active organization", "A selected client project"]}
         />
       ) : (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <div className="flex-1 space-y-4">
-            {turns.length === 0 && !ask.isPending && (
-              <Panel title="Start a research question" subtitle="Answers cite only sources retrieved for this run">
+        <div className="space-y-5">
+          {/* Automated Competitor Identification & 3-of-5 Selector */}
+          {showCompetitorPanel && (
+            <AutoCompetitorsPanel
+              projectId={projectId}
+              orgId={orgId}
+            />
+          )}
+
+          <div className="flex flex-col gap-4 lg:flex-row">
+            <div className="flex-1 space-y-4">
+              {turns.length === 0 && !ask.isPending && (
+                <Panel title="Start a research question" subtitle="Answers cite only sources retrieved for this run">
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {prompts.map((s) => (
                     <button
@@ -173,6 +193,7 @@ export default function MarketResearchPage() {
             onOpenSource={setOpenSource}
           />
         </div>
+      </div>
       )}
     </div>
   );

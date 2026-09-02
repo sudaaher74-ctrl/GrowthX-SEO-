@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AiVisibilityModule } from '../ai-visibility/ai-visibility.module';
+import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
 import { EvidenceRetrievalService } from './evidence-retrieval.service';
 import { MarketResearchController } from './market-research.controller';
 import { MarketResearchService } from './market-research.service';
@@ -19,9 +20,10 @@ import { MarketResearchScheduler } from './market-research.scheduler';
  * decides which model serves which role.
  */
 @Module({
-  imports: [DatabaseModule, AiVisibilityModule],
+  imports: [DatabaseModule, AiVisibilityModule, ContentIntelligenceModule],
   controllers: [MarketResearchController],
   providers: [ModelRouterService, EvidenceRetrievalService, MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, MarketResearchScheduler],
   exports: [MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, ModelRouterService],
 })
 export class MarketResearchModule {}
+

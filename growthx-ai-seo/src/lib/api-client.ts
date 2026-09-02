@@ -1056,6 +1056,53 @@ export interface ResearchThreadSummary {
   updatedAt: string;
 }
 
+export interface AutoIdentifiedCompetitor {
+  domain: string;
+  name: string;
+  industry: string;
+  description: string;
+  overlapScore: number;
+  marketPosition: string;
+  sampleKeywords: string[];
+  keyDifferentiator: string;
+  isAlreadyAdded?: boolean;
+  existingId?: string;
+}
+
+export interface AutoIdentifyCompetitorsResponse {
+  customerDomain: string;
+  businessName: string;
+  industry: string;
+  identifiedAt: string;
+  topCompetitors: AutoIdentifiedCompetitor[];
+}
+
+export interface AddSelectedCompetitorsBody {
+  competitors: Array<{
+    domain: string;
+    name?: string;
+    label?: string;
+    industry?: string;
+    description?: string;
+    confidenceScore?: number;
+  }>;
+}
+
+export interface AddSelectedCompetitorsResponse {
+  success: boolean;
+  count: number;
+  addedCompetitors: Array<{
+    id: string;
+    projectId: string;
+    domain: string;
+    label: string | null;
+    name: string | null;
+    industry: string | null;
+    description: string | null;
+    confidenceScore: number | null;
+    status: string;
+  }>;
+}
 
 export type MarketActionStatus = "PROPOSED" | "APPROVED" | "REJECTED" | "CONVERTED";
 
@@ -1177,6 +1224,21 @@ export const api = {
   /** Opening prompts written around this client's own business, from its crawl. */
   getSuggestedResearchQuestions: (projectId: string) =>
     get<string[]>(`/api/projects/${projectId}/market-research/suggested-questions`),
+  /** Auto-identifies top 5 competitors for this project's website using AI competitive intelligence. */
+  autoIdentifyCompetitors: (
+    projectId: string,
+    body?: { websiteUrl?: string; domain?: string; industry?: string; businessName?: string },
+  ) =>
+    post<AutoIdentifyCompetitorsResponse>(
+      `/api/projects/${projectId}/market-research/auto-identify-competitors`,
+      body ?? {},
+    ),
+  /** Batch-adds user-selected competitors (e.g. 3 of 5) to project tracking. */
+  addSelectedCompetitors: (projectId: string, body: AddSelectedCompetitorsBody) =>
+    post<AddSelectedCompetitorsResponse>(
+      `/api/projects/${projectId}/market-research/add-selected-competitors`,
+      body,
+    ),
   askResearch: (projectId: string, body: { question: string; threadId?: string; deepResearch?: boolean }) =>
     post<ResearchAskResult>(`/api/projects/${projectId}/market-research/ask`, body),
   getResearchRunSources: (projectId: string, runId: string) =>
