@@ -3,25 +3,17 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
-import { auth } from "@/lib/api-client";
+import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
-
-
-/** The token lives in localStorage and only changes on sign-in or sign-out,
- *  both of which navigate — so there is nothing to subscribe to. */
-const noSubscribe = () => () => {};
 
 /**
  * Every dashboard route renders inside this shell, so it is where the session
  * check belongs.
  *
- * It used to sign the visitor in as a fixed demo account — email and password
- * literals in a client component, which ships them in the bundle to anyone who
- * opens the page. Whoever held them held that account's data, and the app had
- * no other way in, so there was effectively no authentication at all. An
- * unauthenticated visitor now goes to /login like any other product.
+ * An unauthenticated visitor goes to /login immediately upon signing out or opening
+ * protected pages.
  */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -46,11 +38,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   };
 
   // localStorage is unreadable during the server render. useSyncExternalStore
-  // is the pattern already used for the stored org in `useWorkspace`: a client
-  // snapshot and a separate server one, so there is no hydration mismatch and
-  // no state update inside an effect. `null` means "not known yet".
+  // subscribes to reactive auth changes so logging out anywhere immediately triggers redirection.
   const signedIn = useSyncExternalStore(
-    noSubscribe,
+    subscribeToAuthChange,
     () => auth.isAuthenticated(),
     () => null,
   );

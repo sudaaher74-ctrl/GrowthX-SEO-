@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -34,12 +35,12 @@ export function TopNav({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("28d");
 
-  // There was no way to sign out anywhere in the app, because there was no
-  // real sign-in either — the shell logged everyone into one shared account.
-  function signOut() {
-    api.logout();
+  async function signOut() {
+    await api.logout();
+    queryClient.clear();
     router.replace("/login");
   }
 

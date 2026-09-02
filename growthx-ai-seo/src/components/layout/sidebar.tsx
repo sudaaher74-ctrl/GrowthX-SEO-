@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   BarChart,
@@ -16,6 +17,7 @@ import {
   HeartPulse,
   LayoutGrid,
   ListChecks,
+  LogOut,
   MapPin,
   Megaphone,
   MoreHorizontal,
@@ -32,7 +34,8 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useEntitlements, usePortfolio, useWorkspace } from "@/hooks/use-growthx";
+import { api } from "@/lib/api-client";
+import { useEntitlements, usePortfolio, useWorkspace, useProfile } from "@/hooks/use-growthx";
 
 /**
  * Agency console sidebar.
@@ -62,10 +65,14 @@ export function Sidebar({
   setMobileOpen?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { orgId, projects, projectId, setProjectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const entitlements = useEntitlements(orgId);
+  const profile = useProfile();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
@@ -220,18 +227,88 @@ export function Sidebar({
 
 
         {/* User */}
-        <div className="flex items-center gap-2 border-t px-[14px] py-3" style={{ borderColor: "var(--color-brand-100)" }}>
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
-            {entitlements.data ? "SA" : "—"}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[11.5px] font-semibold text-brand-950">
-              Workspace
-            </span>
-            <span className="block text-[10px] text-brand-400">Admin</span>
-          </span>
-          <MoreHorizontal size={14} className="text-brand-400" />
-        </div>
+        {(() => {
+          const user = profile.data;
+          const userFullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+          const displayName = userFullName || user?.email?.split("@")[0] || "Workspace";
+          const displayEmail = user?.email || (entitlements.data ? "Workspace Admin" : "User");
+          const userInitials = user?.firstName
+            ? (user.firstName[0] + (user.lastName?.[0] || "")).toUpperCase()
+            : user?.email
+              ? user.email.slice(0, 2).toUpperCase()
+              : "SA";
+
+          async function handleLogout() {
+            setUserMenuOpen(false);
+            setMobileOpen?.(false);
+            await api.logout();
+            queryClient.clear();
+            router.replace("/login");
+          }
+
+          return (
+            <div className="relative border-t p-2" style={{ borderColor: "var(--color-brand-100)" }}>
+              {userMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setUserMenuOpen(false)} />
+                  <div
+                    className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-xl border bg-white p-1.5 shadow-xl transition-all"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
+                      <p className="text-[12px] font-semibold text-brand-950 truncate">{displayName}</p>
+                      <p className="text-[10.5px] text-brand-500 truncate">{displayEmail}</p>
+                      {user?.googleId && (
+                        <span className="mt-1.5 inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[9.5px] font-medium text-blue-700">
+                          Google Account
+                        </span>
+                      )}
+                    </div>
+                    <div className="py-1">
+                      <Link
+                        href="/settings"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          setMobileOpen?.(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition"
+                      >
+                        <Settings size={14} className="text-brand-400" />
+                        Settings
+                      </Link>
+                      <button
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition"
+                      >
+                        <LogOut size={14} className="text-red-500" />
+                        Log out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-50 transition"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
+                  {userInitials}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[11.5px] font-semibold text-brand-950">
+                    {displayName}
+                  </span>
+                  <span className="block truncate text-[10px] text-brand-400">
+                    {displayEmail}
+                  </span>
+                </span>
+                <MoreHorizontal size={14} className="shrink-0 text-brand-400" />
+              </button>
+            </div>
+          );
+        })()}
       </aside>
     </>
   );

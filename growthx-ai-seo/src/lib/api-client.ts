@@ -36,6 +36,17 @@ const ORG_KEY = "growthx.org";
 const PROJECT_KEY = "growthx.project";
 const REFRESH_KEY = "growthx.refresh";
 
+const authListeners = new Set<() => void>();
+
+export function subscribeToAuthChange(listener: () => void) {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+function notifyAuthChange() {
+  authListeners.forEach((l) => l());
+}
+
 // ─────────────────────────────────────────────────────────── auth storage
 
 export const auth = {
@@ -45,6 +56,7 @@ export const auth = {
   },
   setToken(token: string) {
     window.localStorage.setItem(TOKEN_KEY, token);
+    notifyAuthChange();
   },
   getRefreshToken(): string | null {
     if (typeof window === "undefined") return null;
@@ -52,6 +64,7 @@ export const auth = {
   },
   setRefreshToken(token: string) {
     window.localStorage.setItem(REFRESH_KEY, token);
+    notifyAuthChange();
   },
   getOrgId(): string | null {
     if (typeof window === "undefined") return null;
@@ -68,10 +81,13 @@ export const auth = {
     window.localStorage.setItem(PROJECT_KEY, projectId);
   },
   clear() {
-    window.localStorage.removeItem(TOKEN_KEY);
-    window.localStorage.removeItem(REFRESH_KEY);
-    window.localStorage.removeItem(ORG_KEY);
-    window.localStorage.removeItem(PROJECT_KEY);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(REFRESH_KEY);
+      window.localStorage.removeItem(ORG_KEY);
+      window.localStorage.removeItem(PROJECT_KEY);
+    }
+    notifyAuthChange();
   },
   isAuthenticated(): boolean {
     return Boolean(auth.getToken());
@@ -1119,7 +1135,15 @@ export const api = {
     return result;
   },
   getMe: () => get<UserProfile>('/auth/me'),
-  logout: () => auth.clear(),
+  logout: async () => {
+    try {
+      await post<{ success: boolean }>("/auth/logout").catch(() => {});
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      auth.clear();
+    }
+  },
 
 
   // ── Local SEO
