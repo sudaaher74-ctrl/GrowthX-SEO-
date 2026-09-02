@@ -9,7 +9,7 @@ import {
   ExternalLink, ArrowUpRight
 } from "lucide-react";
 import { api, type CompetitorContent, type EnrichedOpportunity, type VideoBriefAndScript, type CompetitorChangeAlert } from "@/lib/api-client";
-import { useWorkspace, useVisibility } from "@/hooks/use-growthx";
+import { useWorkspace, useVisibility, usePortfolio } from "@/hooks/use-growthx";
 import { Panel, Table, Th, Tr, Td, ActionButton } from "@/components/ui/console";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 
@@ -23,6 +23,8 @@ export default function CompetitorIntelligencePage() {
 
 function CompetitorConsoleClient() {
   const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const qc = useQueryClient();
 
   // Tabs
@@ -476,6 +478,7 @@ function CompetitorConsoleClient() {
         <AutoCompetitorsPanel
           projectId={projectId!}
           orgId={orgId}
+          defaultDomain={clientRow?.domain}
           onAddedSuccess={() => {
             qc.invalidateQueries({ queryKey: ["ci-accounts", projectId] });
             qc.invalidateQueries({ queryKey: ["competitors", projectId] });

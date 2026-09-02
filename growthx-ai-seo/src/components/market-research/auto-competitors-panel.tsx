@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
@@ -45,6 +45,12 @@ export function AutoCompetitorsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultDomain && !inputDomain) {
+      setInputDomain(defaultDomain);
+    }
+  }, [defaultDomain]);
 
   async function handleAutoDiscover(targetDomain?: string) {
     const domainToScan = (targetDomain || inputDomain || defaultDomain || "").trim();

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, Panel, Pill, ActionButton, NotConnected } from "@/components/ui/console";
 import { Loader2, Search, Sparkles, ExternalLink, FileText, Globe, BarChart3, AlertTriangle, Target, Users } from "lucide-react";
-import { useWorkspace, useAskResearch } from "@/hooks/use-growthx";
+import { useWorkspace, useAskResearch, usePortfolio } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type { ResearchAnswer, ResearchSource, ResearchSourceType } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
@@ -44,6 +44,8 @@ interface Turn {
 
 export default function MarketResearchPage() {
   const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const ask = useAskResearch(projectId);
 
   // Derived from the crawl rather than generated, so this costs a query rather
@@ -121,6 +123,7 @@ export default function MarketResearchPage() {
             <AutoCompetitorsPanel
               projectId={projectId}
               orgId={orgId}
+              defaultDomain={clientRow?.domain}
             />
           )}
 
