@@ -380,7 +380,8 @@ export function useLatestCrawl(domain: string | null) {
     queryFn: () => api.getLatestCrawl(domain!),
     enabled: Boolean(domain),
     retry: false,
-    refetchInterval: (query) => query.state.data?.status === "RUNNING" ? 3000 : false,
+    refetchInterval: (query) =>
+      query.state.data?.status === "RUNNING" || query.state.data?.status === "PENDING" ? 3000 : false,
   });
 }
 
@@ -405,6 +406,7 @@ export function useCrawlIssues(jobId: string | null, severity?: string, status?:
     queryKey: ["crawl-issues", jobId, severity, status],
     queryFn: () => api.getCrawlIssues(jobId!, { severity, limit: 100 }),
     enabled: Boolean(jobId),
+    refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
   });
 }
 
@@ -435,7 +437,7 @@ export function useCrawlPages(jobId: string | null, status?: string) {
     queryKey: ["crawl-pages", jobId],
     queryFn: () => api.getCrawlPages(jobId!, { limit: 100 }),
     enabled: Boolean(jobId),
-    refetchInterval: status === "RUNNING" ? 3000 : false,
+    refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
   });
 }
 

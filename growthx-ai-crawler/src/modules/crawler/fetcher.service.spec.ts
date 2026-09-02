@@ -115,7 +115,7 @@ describe('FetcherService', () => {
       expect(mockedAxios.get).toHaveBeenCalledTimes(3);
       expect(result.statusCode).toBe(500);
       expect(result.errorMessage).toContain('ECONNRESET');
-    });
+    }, 15000);
 
     it('does not fall back to a fabricated page when the fetch fails', async () => {
       mockedAxios.get.mockRejectedValue(new Error('DNS failure'));

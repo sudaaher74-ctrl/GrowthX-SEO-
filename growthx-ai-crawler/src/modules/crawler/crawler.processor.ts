@@ -42,8 +42,8 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
   }
 
   private startWorkers(): void {
-    if (process.env.WORKER_MODE !== 'true') {
-      this.logger.log('Not in WORKER_MODE. BullMQ crawler workers will not start in this process.');
+    if (process.env.WORKER_MODE === 'false' || process.env.DISABLE_WORKERS === 'true') {
+      this.logger.log('Workers explicitly disabled in this process.');
       return;
     }
 

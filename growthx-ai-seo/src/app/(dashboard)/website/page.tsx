@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Activity, Layout, LayoutGrid, Loader2, RefreshCw, Zap } from "lucide-react";
 import {
   ActionButton,
@@ -101,12 +101,25 @@ function WebsiteClient() {
   const statusTone = (status?: string): "good" | "warn" | "bad" | "default" =>
     status === "COMPLETED" ? "good" : status === "FAILED" ? "bad" : status ? "warn" : "default";
 
+  useEffect(() => {
+    if (crawl.data?.status === "COMPLETED") {
+      history.refetch();
+      issues.refetch();
+      pages.refetch();
+      portfolio.refetch();
+    }
+  }, [crawl.data?.status]);
+
   async function runCrawl() {
     if (!client?.domain) return;
     setCrawling(true);
     try {
       await api.startCrawl({ domain: client.domain, maxDepth: 20, maxConcurrency: 10, useSitemap: true });
-      setTimeout(() => crawl.refetch(), 3000);
+      setTimeout(() => {
+        crawl.refetch();
+        issues.refetch();
+        pages.refetch();
+      }, 1000);
     } finally {
       setCrawling(false);
     }
