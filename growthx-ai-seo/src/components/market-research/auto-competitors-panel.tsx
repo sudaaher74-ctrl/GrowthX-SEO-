@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
@@ -11,17 +11,21 @@ import {
   ShieldCheck,
   Zap,
   Target,
-  ArrowRight,
   RefreshCw,
   Plus,
   Check,
-  Layers,
   Globe,
   MapPin,
-  Flag,
+  Building2,
+  SlidersHorizontal,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
-import { api, type AutoIdentifiedCompetitor, type AutoIdentifyCompetitorsResponse, type MarketScopeRegion } from "@/lib/api-client";
-import { Pill, Panel, MeterBar } from "@/components/ui/console";
+import {
+  api,
+  type AutoIdentifyCompetitorsResponse,
+  type MarketScopeRegion,
+} from "@/lib/api-client";
 
 interface AutoCompetitorsPanelProps {
   projectId: string;
@@ -31,18 +35,66 @@ interface AutoCompetitorsPanelProps {
   compact?: boolean;
 }
 
+const INDUSTRY_PRESETS = [
+  { label: "🍎 Fruit Pulp & Food Exports", value: "Fruit Pulp, Concentrates, IQF Fruits & Agro Exports" },
+  { label: "🚚 Transport & Logistics", value: "Logistics, Freight & Fleet Transportation Services" },
+  { label: "🏭 Manufacturing & Industrial", value: "Industrial Manufacturing & Engineering Solutions" },
+  { label: "⚡ SaaS & Cloud Software", value: "Cloud Software, SaaS & Developer Platforms" },
+  { label: "💼 SEO & Digital Agency", value: "SEO, Performance Marketing & Digital Growth Agency" },
+  { label: "🛒 E-Commerce & Retail", value: "E-Commerce & Digital Merchandising" },
+];
+
+const SCOPES: Array<{ value: MarketScopeRegion; label: string; hint: string }> = [
+  { value: "worldwide", label: "Worldwide", hint: "International competitors" },
+  { value: "india", label: "India", hint: "National companies across India" },
+  { value: "maharashtra", label: "Maharashtra", hint: "Mumbai, Pune, Nashik, Jalgaon" },
+];
+
+/** Plain-language reason a suggested company was not shown. */
+const REJECTION_LABEL: Record<string, string> = {
+  offline: "domain does not exist",
+  parked: "parked / for-sale domain",
+  off_niche: "not in this market",
+  duplicate: "already listed",
+  placeholder: "placeholder domain",
+  invalid_domain: "not a valid domain",
+  not_a_competitor: "marketplace or search engine",
+  self: "the client's own site",
+  empty: "no real website behind it",
+};
+
+/**
+ * Competitor identification for the Market Research page.
+ *
+ * Two things about the old panel are deliberately gone.
+ *
+ * It opened on an empty niche picker: the operator had to classify their own
+ * business before the page would do anything, which is a question the client's
+ * homepage already answers. The scan now starts on its own, using the business
+ * the platform detected from the site, and the picker survives below the fold
+ * as a correction for the cases detection gets wrong.
+ *
+ * And every returned row was rendered as fact. That is how the panel came to
+ * show `sugarcane.com` twice and a "MarketPulse" that does not exist — a model
+ * asked for five competitors returns five whether or not five are real. The
+ * API now fetches each suggestion before returning it, so this component
+ * renders only verified companies, badges them as such, and says plainly when
+ * the list came back short rather than filling it.
+ */
 export function AutoCompetitorsPanel({
   projectId,
   orgId,
   defaultDomain,
   onAddedSuccess,
-  compact = false,
 }: AutoCompetitorsPanelProps) {
   const qc = useQueryClient();
 
-  const [inputDomain, setInputDomain] = useState(defaultDomain || "");
-  const [inputIndustry, setInputIndustry] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState<MarketScopeRegion>("maharashtra");
+  // Null until the operator types one, so a `defaultDomain` that resolves after
+  // mount is picked up without an effect writing state back into render.
+  const [domainOverride, setDomainOverride] = useState<string | null>(null);
+  const [industryOverride, setIndustryOverride] = useState("");
+  const [regionOverride, setRegionOverride] = useState<MarketScopeRegion | null>(null);
+  const [showRefine, setShowRefine] = useState(false);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [discoveryData, setDiscoveryData] = useState<AutoIdentifyCompetitorsResponse | null>(null);
   const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
@@ -50,20 +102,27 @@ export function AutoCompetitorsPanel({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // The scan runs itself. Detection resolves the niche and the geography from
+  // the client's own site, so there is nothing for the operator to choose
+  // before the page can be useful — which is the whole point of the change.
+  const autoRunFor = useRef<string | null>(null);
   useEffect(() => {
-    if (defaultDomain && !inputDomain) {
-      setInputDomain(defaultDomain);
-    }
-  }, [defaultDomain]);
+    if (!projectId) return;
+    const key = `${projectId}:${defaultDomain || ""}`;
+    if (autoRunFor.current === key) return;
+    autoRunFor.current = key;
+    void runDiscovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, defaultDomain]);
 
-  async function handleAutoDiscover(
-    targetDomain?: string,
-    overrideRegion?: MarketScopeRegion,
-    overrideIndustry?: string,
-  ) {
-    const domainToScan = (targetDomain || inputDomain || defaultDomain || "").trim();
-    const regionToUse = overrideRegion || selectedRegion;
-    const industryToUse = (overrideIndustry !== undefined ? overrideIndustry : inputIndustry).trim();
+  async function runDiscovery(options?: {
+    industry?: string;
+    region?: MarketScopeRegion;
+    refreshProfile?: boolean;
+  }) {
+    const domainToScan = (domainOverride ?? defaultDomain ?? "").trim();
+    const industry = options?.industry !== undefined ? options.industry : industryOverride;
+    const region = options?.region !== undefined ? options.region : regionOverride;
 
     setIsDiscovering(true);
     setErrorMessage(null);
@@ -72,26 +131,20 @@ export function AutoCompetitorsPanel({
     try {
       const res = await api.autoIdentifyCompetitors(projectId, {
         domain: domainToScan || undefined,
-        region: regionToUse,
-        industry: industryToUse || undefined,
+        // Omitted rather than defaulted: an absent industry or region is what
+        // tells the API to use what it detected from the client's website.
+        industry: industry?.trim() || undefined,
+        region: region || undefined,
+        refreshProfile: options?.refreshProfile || undefined,
       });
 
       setDiscoveryData(res);
-      if (res.customerDomain && !inputDomain) {
-        setInputDomain(res.customerDomain);
-      }
-      if (res.industry && !inputIndustry) {
-        setInputIndustry(res.industry);
-      }
 
-      // Pre-select top 3 competitors that are not already added (or top 3 by default)
       const unadded = res.topCompetitors.filter((c) => !c.isAlreadyAdded);
-      const toSelect = (unadded.length > 0 ? unadded : res.topCompetitors)
-        .slice(0, 3)
-        .map((c) => c.domain.toLowerCase());
-
-      setSelectedDomains(toSelect);
-    } catch (err: any) {
+      setSelectedDomains(
+        (unadded.length > 0 ? unadded : res.topCompetitors).slice(0, 3).map((c) => c.domain.toLowerCase()),
+      );
+    } catch (err: unknown) {
       console.error("Failed to auto-identify competitors:", err);
       setErrorMessage(
         err instanceof Error ? err.message : "Failed to auto-identify competitors. Please try again.",
@@ -104,21 +157,15 @@ export function AutoCompetitorsPanel({
   function toggleCompetitor(domain: string) {
     const lower = domain.toLowerCase();
     setSelectedDomains((prev) => {
-      if (prev.includes(lower)) {
-        return prev.filter((d) => d !== lower);
-      } else {
-        if (prev.length >= 3) {
-          return [...prev.slice(1), lower];
-        }
-        return [...prev, lower];
-      }
+      if (prev.includes(lower)) return prev.filter((d) => d !== lower);
+      if (prev.length >= 3) return [...prev.slice(1), lower];
+      return [...prev, lower];
     });
   }
 
   function selectTopThree() {
     if (!discoveryData) return;
-    const top3 = discoveryData.topCompetitors.slice(0, 3).map((c) => c.domain.toLowerCase());
-    setSelectedDomains(top3);
+    setSelectedDomains(discoveryData.topCompetitors.slice(0, 3).map((c) => c.domain.toLowerCase()));
   }
 
   async function handleAddSelected() {
@@ -141,15 +188,12 @@ export function AutoCompetitorsPanel({
           confidenceScore: c.overlapScore,
         }));
 
-      const res = await api.addSelectedCompetitors(projectId, {
-        competitors: selectedItems,
-      });
+      const res = await api.addSelectedCompetitors(projectId, { competitors: selectedItems });
 
       setSuccessMessage(
         `Successfully added ${res.count} competitor${res.count === 1 ? "" : "s"} to your project tracking! SEO and AI citation monitoring are now active.`,
       );
 
-      // Invalidate relevant React Query caches
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["competitors", projectId] }),
         qc.invalidateQueries({ queryKey: ["ai-visibility", projectId] }),
@@ -157,21 +201,19 @@ export function AutoCompetitorsPanel({
         qc.invalidateQueries({ queryKey: ["research-suggested-questions", projectId] }),
       ]);
 
-      // Update local state to mark newly added
-      setDiscoveryData((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          topCompetitors: prev.topCompetitors.map((c) =>
-            selectedDomains.includes(c.domain.toLowerCase())
-              ? { ...c, isAlreadyAdded: true }
-              : c,
-          ),
-        };
-      });
+      setDiscoveryData((prev) =>
+        prev
+          ? {
+              ...prev,
+              topCompetitors: prev.topCompetitors.map((c) =>
+                selectedDomains.includes(c.domain.toLowerCase()) ? { ...c, isAlreadyAdded: true } : c,
+              ),
+            }
+          : null,
+      );
 
       onAddedSuccess?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to add selected competitors:", err);
       setErrorMessage(
         err instanceof Error ? err.message : "Failed to add selected competitors. Please try again.",
@@ -181,391 +223,465 @@ export function AutoCompetitorsPanel({
     }
   }
 
-  const INDUSTRY_PRESETS = [
-    { label: "🍎 Fruit Pulp & Food Exports", value: "Fruit Pulp, Concentrates, IQF Fruits & Agro Exports" },
-    { label: "🚚 Transport & Logistics", value: "Logistics, Freight & Fleet Transportation Services" },
-    { label: "🏭 Manufacturing & Industrial", value: "Industrial Manufacturing & Engineering Solutions" },
-    { label: "⚡ SaaS & Cloud Software", value: "Cloud Software, SaaS & Developer Platforms" },
-    { label: "💼 SEO & Digital Agency", value: "SEO, Performance Marketing & Digital Growth Agency" },
-    { label: "🛒 E-Commerce & Retail", value: "E-Commerce & Digital Merchandising" },
-  ];
+  const shownDomain = domainOverride ?? discoveryData?.customerDomain ?? defaultDomain ?? "";
+  const profile = discoveryData?.businessProfile;
+  const activeRegion = (discoveryData?.region as MarketScopeRegion) || regionOverride || "worldwide";
+  const activeIndustry = discoveryData?.industry || industryOverride;
+  const location = profile
+    ? [profile.city, profile.state, profile.country].filter(Boolean).join(", ")
+    : "";
+  const rejected = discoveryData?.rejected ?? [];
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border-color)] bg-gradient-to-b from-[var(--surface-1)] to-[var(--surface-2)] shadow-sm">
-      {/* Header Banner */}
+      {/* Header */}
       <div className="border-b border-[var(--border-color)] p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm shadow-indigo-500/20">
-              <Sparkles size={20} className="animate-pulse" />
+              <Sparkles size={20} className={isDiscovering ? "animate-pulse" : ""} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                   Automatic Competitor Identification
                 </h3>
-                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  Verified Real Companies
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck size={11} />
+                  Every domain checked live
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                Select your market geography (Worldwide, India, or Maharashtra) and niche to identify genuine direct market competitors and add any 3 to your tracking.
+                We read your website to work out what you sell and where you sell it, then find real
+                companies competing for the same customers. Pick any 3 to track.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!discoveryData ? (
-              <button
-                onClick={() => handleAutoDiscover()}
-                disabled={isDiscovering}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:opacity-95 disabled:opacity-50"
-              >
-                {isDiscovering ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" />
-                    Scanning Market…
-                  </>
-                ) : (
-                  <>
-                    <Zap size={13} />
-                    Auto-Identify Top 5
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={() => handleAutoDiscover()}
-                disabled={isDiscovering}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition"
-              >
-                <RefreshCw size={12} className={isDiscovering ? "animate-spin" : ""} />
-                Re-Scan Market
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => runDiscovery({ refreshProfile: true })}
+            disabled={isDiscovering}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-2)] disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={isDiscovering ? "animate-spin" : ""} />
+            Re-Scan Market
+          </button>
         </div>
 
-        {/* Geographic Scope Selector Tabs & Industry Filters */}
-        <div className="mt-4 pt-3 border-t border-[var(--border-color)]/60 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mr-1">
-                Target Scope:
-              </span>
-              <div className="inline-flex rounded-xl bg-[var(--surface-2)] p-1 border border-[var(--border-color)]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRegion("worldwide");
-                    handleAutoDiscover(undefined, "worldwide");
-                  }}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
-                    selectedRegion === "worldwide"
-                      ? "bg-blue-600 text-white shadow-xs font-semibold"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <Globe size={13} />
-                  Worldwide
-                </button>
+        {/* What we detected about this business */}
+        {profile && (
+          <div className="mt-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-3.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  <Building2 size={12} />
+                  Your business, detected from {profile.domain}
+                </div>
+                <p className="mt-1 truncate text-sm font-semibold text-[var(--text-primary)]">
+                  {profile.businessName}
+                </p>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  {activeIndustry}
+                  {location && (
+                    <span className="text-[var(--text-muted)]">
+                      {" · "}
+                      <MapPin size={10} className="inline -mt-0.5" /> {location}
+                    </span>
+                  )}
+                </p>
+                {profile.summary && (
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--text-muted)]">
+                    {profile.summary}
+                  </p>
+                )}
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRegion("india");
-                    handleAutoDiscover(undefined, "india");
-                  }}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
-                    selectedRegion === "india"
-                      ? "bg-blue-600 text-white shadow-xs font-semibold"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                    profile.confidence === "high"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : profile.confidence === "medium"
+                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : "bg-red-500/10 text-red-600 dark:text-red-400"
                   }`}
                 >
-                  <span>🇮🇳</span>
-                  India
-                </button>
-
+                  {profile.confidence} confidence
+                </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedRegion("maharashtra");
-                    handleAutoDiscover(undefined, "maharashtra");
-                  }}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
-                    selectedRegion === "maharashtra"
-                      ? "bg-blue-600 text-white shadow-xs font-semibold"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
+                  onClick={() => setShowRefine((v) => !v)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
                 >
-                  <MapPin size={13} className="text-amber-400" />
-                  Maharashtra
+                  <SlidersHorizontal size={11} />
+                  {showRefine ? "Hide" : "Not right?"}
                 </button>
               </div>
             </div>
-
-            {/* Current Region Indicator badge */}
-            <span className="text-[11px] text-[var(--text-muted)]">
-              {selectedRegion === "maharashtra" && "Targeting companies in Maharashtra (Mumbai, Pune, Nashik, Jalgaon, etc.)"}
-              {selectedRegion === "india" && "Targeting national companies across India"}
-              {selectedRegion === "worldwide" && "Targeting international global competitors"}
-            </span>
           </div>
+        )}
 
-          {/* Quick Industry / Niche presets */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
-            <span className="shrink-0 text-[10.5px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              Niche:
-            </span>
-            {INDUSTRY_PRESETS.map((preset) => {
-              const isMatched = inputIndustry.toLowerCase() === preset.value.toLowerCase();
-              return (
+        {/* Refine: only shown when detection got it wrong */}
+        {showRefine && (
+          <div className="mt-3 space-y-3 rounded-xl border border-dashed border-[var(--border-color)] p-3.5">
+            <p className="text-[11px] text-[var(--text-muted)]">
+              Override what we detected. Anything you set here wins over the website reading.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Scope:
+              </span>
+              <div className="inline-flex rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] p-1">
+                {SCOPES.map((scope) => (
+                  <button
+                    key={scope.value}
+                    type="button"
+                    title={scope.hint}
+                    onClick={() => {
+                      setRegionOverride(scope.value);
+                      void runDiscovery({ region: scope.value });
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
+                      activeRegion === scope.value
+                        ? "bg-blue-600 font-semibold text-white shadow-xs"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {scope.value === "worldwide" ? <Globe size={13} /> : <MapPin size={13} />}
+                    {scope.label}
+                  </button>
+                ))}
+              </div>
+              {discoveryData?.regionWasDetected && !regionOverride && (
+                <span className="text-[10.5px] text-[var(--text-muted)]">
+                  detected from your address
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Niche:
+              </span>
+              {INDUSTRY_PRESETS.map((preset) => (
                 <button
                   key={preset.value}
                   type="button"
                   onClick={() => {
-                    setInputIndustry(preset.value);
-                    handleAutoDiscover(undefined, undefined, preset.value);
+                    setIndustryOverride(preset.value);
+                    void runDiscovery({ industry: preset.value });
                   }}
-                  className={`shrink-0 rounded-lg px-2.5 py-1 transition border ${
-                    isMatched
-                      ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400 font-medium"
-                      : "bg-[var(--surface-1)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+                  className={`shrink-0 rounded-lg border px-2.5 py-1 transition ${
+                    industryOverride === preset.value
+                      ? "border-blue-500/30 bg-blue-500/10 font-medium text-blue-600 dark:text-blue-400"
+                      : "border-[var(--border-color)] bg-[var(--surface-1)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
                   }`}
                 >
                   {preset.label}
                 </button>
-              );
-            })}
-          </div>
-        </div>
+              ))}
+            </div>
 
-        {/* Domain & Industry Custom Input Bar if not discovered yet */}
-        {!discoveryData && !isDiscovering && (
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Globe size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
-                value={inputDomain}
-                onChange={(e) => setInputDomain(e.target.value)}
-                placeholder="Enter website domain (e.g. aivaenterprises.com)"
-                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-2 pl-9 pr-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                value={industryOverride}
+                onChange={(e) => setIndustryOverride(e.target.value)}
+                placeholder="Or describe your niche in your own words"
+                className="flex-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
-            </div>
-            <div className="relative sm:w-64">
               <input
-                value={inputIndustry}
-                onChange={(e) => setInputIndustry(e.target.value)}
-                placeholder="Industry (e.g. Fruit Pulp, Logistics)"
-                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] py-2 px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                value={shownDomain}
+                onChange={(e) => setDomainOverride(e.target.value)}
+                placeholder="Website domain"
+                className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30 sm:w-56"
               />
+              <button
+                onClick={() => void runDiscovery({ refreshProfile: true })}
+                disabled={isDiscovering}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-900 disabled:opacity-50"
+              >
+                <Target size={13} />
+                Re-run with these
+              </button>
             </div>
-            <button
-              onClick={() => handleAutoDiscover()}
-              disabled={isDiscovering || !inputDomain.trim()}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-medium text-white hover:bg-brand-900 transition disabled:opacity-50"
-            >
-              <Target size={13} />
-              Identify Top 5 Competitors
-            </button>
           </div>
         )}
       </div>
 
-      {/* Loading Scanning State */}
+      {/* Scanning */}
       {isDiscovering && (
         <div className="p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 mb-3">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
             <Loader2 size={28} className="animate-spin" />
           </div>
           <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-            Analyzing Market & Search Overlap for {inputDomain || defaultDomain || "your website"}…
+            Reading {shownDomain || "your website"} and verifying competitors…
           </h4>
-          <p className="mt-1 max-w-md mx-auto text-xs text-[var(--text-muted)]">
-            Evaluating search ranking overlap, direct product alternatives, search intent volume, and competitor authority.
+          <p className="mx-auto mt-1 max-w-md text-xs text-[var(--text-muted)]">
+            Working out what you sell, then fetching every candidate company to confirm it is a real
+            business in your market before showing it.
           </p>
         </div>
       )}
 
-      {/* Error Banner */}
       {errorMessage && (
         <div className="m-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
           {errorMessage}
         </div>
       )}
 
-      {/* Success Notification */}
       {successMessage && (
-        <div className="m-4 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+        <div className="m-4 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 size={16} className="shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
-      {/* Discovered 5 Competitors Matrix */}
       {discoveryData && !isDiscovering && (
-        <div className="p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="space-y-4 p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-[var(--text-primary)]">
-                  Top 5 Real Competitors for <span className="font-mono text-blue-600 dark:text-blue-400">{discoveryData.customerDomain}</span>
+                  {discoveryData.topCompetitors.length} verified competitor
+                  {discoveryData.topCompetitors.length === 1 ? "" : "s"} for{" "}
+                  <span className="font-mono text-blue-600 dark:text-blue-400">
+                    {discoveryData.customerDomain}
+                  </span>
                 </span>
                 <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                  {discoveryData.region === "maharashtra" ? "🚩 Maharashtra" : discoveryData.region === "india" ? "🇮🇳 India" : "🌍 Worldwide"}
+                  {activeRegion === "maharashtra"
+                    ? "🚩 Maharashtra"
+                    : activeRegion === "india"
+                      ? "🇮🇳 India"
+                      : "🌍 Worldwide"}
+                  {discoveryData.regionWasDetected ? " · detected" : ""}
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                Market niche: <strong>{discoveryData.industry}</strong> · Verified real companies · Select any 3 to track SEO & AI citations.
+              <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                Market niche: <strong>{activeIndustry}</strong>
+                {discoveryData.industryWasDetected ? " (read from your website)" : ""} · Select any 3 to
+                track SEO &amp; AI citations.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)]">
-                Selected: <span className={selectedDomains.length === 3 ? "text-emerald-600 font-bold" : "text-blue-600"}>{selectedDomains.length} / 3</span>
-              </span>
-              <button
-                type="button"
-                onClick={selectTopThree}
-                className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Select Top 3
-              </button>
-            </div>
+            {discoveryData.topCompetitors.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                  Selected:{" "}
+                  <span className={selectedDomains.length === 3 ? "font-bold text-emerald-600" : "text-blue-600"}>
+                    {selectedDomains.length} / 3
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={selectTopThree}
+                  className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  Select Top 3
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {discoveryData.topCompetitors.map((comp, index) => {
-              const isSelected = selectedDomains.includes(comp.domain.toLowerCase());
-              const isAlreadyAdded = comp.isAlreadyAdded;
+          {/* Why the list is what it is */}
+          {(discoveryData.notes ?? []).map((note) => (
+            <div
+              key={note}
+              className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[11.5px] text-amber-700 dark:text-amber-400"
+            >
+              <Info size={14} className="mt-0.5 shrink-0" />
+              <span>{note}</span>
+            </div>
+          ))}
 
-              return (
-                <div
-                  key={comp.domain}
-                  onClick={() => !isAlreadyAdded && toggleCompetitor(comp.domain)}
-                  className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all cursor-pointer ${
-                    isSelected
-                      ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-sm ring-1 ring-blue-500/30"
-                      : "border-[var(--border-color)] bg-[var(--surface-1)] hover:border-accent-600"
-                  } ${isAlreadyAdded ? "opacity-75 cursor-default bg-emerald-50/20" : ""}`}
-                >
-                  {/* Top Row: Rank Badge, Info, Checkbox */}
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[10.5px] font-bold text-[var(--text-secondary)] border border-[var(--border-color)]">
-                          #{index + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <h4 className="truncate text-xs font-bold text-[var(--text-primary)]">
-                            {comp.name}
-                          </h4>
-                          <a
-                            href={`https://${comp.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-600 dark:text-blue-400 hover:underline truncate"
-                          >
-                            <span>{comp.domain}</span>
-                            <ExternalLink size={10} className="shrink-0" />
-                          </a>
+          {discoveryData.topCompetitors.length === 0 && (
+            <div className="rounded-xl border border-dashed border-[var(--border-color)] p-8 text-center">
+              <AlertTriangle size={22} className="mx-auto mb-2 text-[var(--text-muted)]" />
+              <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                Nothing we could verify in this market
+              </h4>
+              <p className="mx-auto mt-1 max-w-md text-xs text-[var(--text-muted)]">
+                We would rather show you nothing than a list of companies that turn out not to exist.
+                Describe your niche more precisely, or widen the scope.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowRefine(true)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-900"
+              >
+                <SlidersHorizontal size={13} />
+                Refine the search
+              </button>
+            </div>
+          )}
+
+          {/* Cards */}
+          {discoveryData.topCompetitors.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {discoveryData.topCompetitors.map((comp, index) => {
+                const isSelected = selectedDomains.includes(comp.domain.toLowerCase());
+                const isAlreadyAdded = comp.isAlreadyAdded;
+
+                return (
+                  <div
+                    key={comp.domain}
+                    onClick={() => !isAlreadyAdded && toggleCompetitor(comp.domain)}
+                    className={`relative flex cursor-pointer flex-col justify-between rounded-xl border p-4 transition-all ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50/50 shadow-sm ring-1 ring-blue-500/30 dark:bg-blue-950/20"
+                        : "border-[var(--border-color)] bg-[var(--surface-1)] hover:border-accent-600"
+                    } ${isAlreadyAdded ? "cursor-default bg-emerald-50/20 opacity-75" : ""}`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-[10.5px] font-bold text-[var(--text-secondary)]">
+                            #{index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <h4 className="truncate text-xs font-bold text-[var(--text-primary)]">
+                              {comp.name}
+                            </h4>
+                            <a
+                              href={`https://${comp.domain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 truncate font-mono text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                            >
+                              <span>{comp.domain}</span>
+                              <ExternalLink size={10} className="shrink-0" />
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          {isAlreadyAdded ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <Check size={11} /> Tracked
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCompetitor(comp.domain);
+                              }}
+                              className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all ${
+                                isSelected
+                                  ? "border-blue-600 bg-blue-600 text-white"
+                                  : "border-[var(--border-color)] bg-[var(--surface-2)] text-transparent hover:border-blue-500"
+                              }`}
+                            >
+                              <Check size={12} strokeWidth={3} />
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Selection Control */}
-                      <div className="shrink-0">
-                        {isAlreadyAdded ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            <Check size={11} /> Tracked
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleCompetitor(comp.domain);
-                            }}
-                            className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all ${
-                              isSelected
-                                ? "bg-blue-600 border-blue-600 text-white"
-                                : "border-[var(--border-color)] bg-[var(--surface-2)] text-transparent hover:border-blue-500"
-                            }`}
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {comp.verified && (
+                          <span
+                            title={
+                              comp.source === "curated"
+                                ? "From our hand-checked list of real companies in this market"
+                                : `Live site checked${comp.verifiedTitle ? `: “${comp.verifiedTitle}”` : ""}`
+                            }
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
                           >
-                            <Check size={12} strokeWidth={3} />
-                          </button>
+                            <ShieldCheck size={10} />
+                            {comp.source === "curated" ? "Known company" : "Site verified"}
+                          </span>
+                        )}
+                        {comp.location && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                            <MapPin size={10} className="shrink-0" />
+                            <span className="truncate">{comp.location}</span>
+                          </span>
                         )}
                       </div>
-                    </div>
 
-                    {/* Location Badge */}
-                    {comp.location && (
-                      <div className="mt-2 flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md w-fit">
-                        <MapPin size={10} className="shrink-0" />
-                        <span className="truncate">{comp.location}</span>
-                      </div>
-                    )}
-
-                    {/* Market Position & Overlap Score */}
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400 truncate max-w-[140px]">
-                        {comp.marketPosition}
-                      </span>
-                      <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
-                        <TrendingUp size={12} />
-                        <span>{comp.overlapScore}% overlap</span>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="mt-2 text-[11.5px] leading-relaxed text-[var(--text-secondary)] line-clamp-2">
-                      {comp.description}
-                    </p>
-
-                    {/* Differentiator */}
-                    {comp.keyDifferentiator && (
-                      <p className="mt-1.5 text-[11px] text-[var(--text-muted)] italic">
-                        “{comp.keyDifferentiator}”
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Keywords footer */}
-                  <div className="mt-3 pt-2.5 border-t border-[var(--border-color)]">
-                    <div className="flex flex-wrap gap-1">
-                      {comp.sampleKeywords.slice(0, 3).map((kw, i) => (
-                        <span
-                          key={i}
-                          className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--text-muted)] truncate max-w-[120px]"
-                        >
-                          {kw}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="max-w-[140px] truncate rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                          {comp.marketPosition}
                         </span>
-                      ))}
+                        <div className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <TrendingUp size={12} />
+                          <span>{comp.overlapScore}% overlap</span>
+                        </div>
+                      </div>
+
+                      <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+                        {comp.description}
+                      </p>
+
+                      {comp.keyDifferentiator && (
+                        <p className="mt-1.5 text-[11px] italic text-[var(--text-muted)]">
+                          “{comp.keyDifferentiator}”
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 border-t border-[var(--border-color)] pt-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {comp.sampleKeywords.slice(0, 3).map((kw) => (
+                          <span
+                            key={kw}
+                            className="max-w-[120px] truncate rounded bg-[var(--surface-2)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--text-muted)]"
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[var(--border-color)]">
-            <div className="text-xs text-[var(--text-secondary)]">
-              {selectedDomains.length === 0 ? (
-                <span>Please select up to 3 competitors to add to your workspace.</span>
-              ) : (
-                <span>
-                  Ready to track <strong>{selectedDomains.length}</strong> competitor{selectedDomains.length === 1 ? "" : "s"} ({selectedDomains.join(", ")})
-                </span>
-              )}
+                );
+              })}
             </div>
+          )}
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* What we threw away, and why */}
+          {rejected.length > 0 && (
+            <details className="rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] p-3">
+              <summary className="cursor-pointer text-[11px] font-medium text-[var(--text-secondary)]">
+                {rejected.length} suggestion{rejected.length === 1 ? "" : "s"} discarded during
+                verification
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {rejected.map((r) => (
+                  <li key={`${r.domain}-${r.reason}`} className="text-[11px] text-[var(--text-muted)]">
+                    <span className="font-mono">{r.domain}</span>
+                    {r.name ? ` (${r.name})` : ""} —{" "}
+                    <span className="text-[var(--text-secondary)]">
+                      {REJECTION_LABEL[r.reason] || r.reason}
+                    </span>
+                    . {r.detail}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {/* Action bar */}
+          {discoveryData.topCompetitors.length > 0 && (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--border-color)] pt-3 sm:flex-row">
+              <div className="text-xs text-[var(--text-secondary)]">
+                {selectedDomains.length === 0 ? (
+                  <span>Please select up to 3 competitors to add to your workspace.</span>
+                ) : (
+                  <span>
+                    Ready to track <strong>{selectedDomains.length}</strong> competitor
+                    {selectedDomains.length === 1 ? "" : "s"} ({selectedDomains.join(", ")})
+                  </span>
+                )}
+              </div>
+
               <button
                 onClick={handleAddSelected}
                 disabled={selectedDomains.length === 0 || isSaving}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:opacity-95 disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:opacity-95 disabled:opacity-50 sm:w-auto"
               >
                 {isSaving ? (
                   <>
@@ -575,12 +691,26 @@ export function AutoCompetitorsPanel({
                 ) : (
                   <>
                     <Plus size={13} />
-                    Add {selectedDomains.length > 0 ? selectedDomains.length : 3} Selected Competitor{selectedDomains.length === 1 ? "" : "s"}
+                    Add {selectedDomains.length > 0 ? selectedDomains.length : 3} Selected Competitor
+                    {selectedDomains.length === 1 ? "" : "s"}
                   </>
                 )}
               </button>
             </div>
-          </div>
+          )}
+        </div>
+      )}
+
+      {/* First paint, before the automatic scan has returned anything */}
+      {!discoveryData && !isDiscovering && !errorMessage && (
+        <div className="p-8 text-center">
+          <button
+            onClick={() => void runDiscovery()}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:opacity-95"
+          >
+            <Zap size={13} />
+            Identify My Competitors
+          </button>
         </div>
       )}
     </div>

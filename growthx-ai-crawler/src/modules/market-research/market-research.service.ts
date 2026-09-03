@@ -25,6 +25,8 @@ import * as cheerio from 'cheerio';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { SocialDiscoveryService } from '../content-intelligence/social-discovery.service';
+import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
+import { CompetitorVerificationService, RejectedCompetitor } from './competitor-verification.service';
 import {
   ANSWER_INSTRUCTIONS,
   ANSWER_SCHEMA,
@@ -52,7 +54,21 @@ export interface AutoIdentifiedCompetitor {
   keyDifferentiator: string;
   isAlreadyAdded?: boolean;
   existingId?: string;
+  /**
+   * Set once the company has been proven real: either its live site was
+   * fetched and matched this market, or it comes from the hand-checked list.
+   * Only verified competitors are returned, so this is what the UI badges.
+   */
+  verified?: boolean;
+  /** Title tag read from the live site during verification. */
+  verifiedTitle?: string;
+  verifiedAt?: string;
+  /** `curated` marks an entry from the hand-checked market list. */
+  source?: 'ai' | 'curated';
 }
+
+/** A proposed competitor that failed verification, kept so the UI can say why. */
+export type CompetitorRejection = RejectedCompetitor;
 
 export interface AutoIdentifyCompetitorsResult {
   customerDomain: string;
@@ -61,6 +77,16 @@ export interface AutoIdentifyCompetitorsResult {
   region: string;
   identifiedAt: string;
   topCompetitors: AutoIdentifiedCompetitor[];
+  /** What the client's own website says they do; null when detection is off. */
+  businessProfile?: DetectedBusinessProfile | null;
+  /** True when the niche came from the site rather than the operator. */
+  industryWasDetected?: boolean;
+  /** True when the geography came from the client's own address. */
+  regionWasDetected?: boolean;
+  /** Suggestions discarded during verification, with the reason for each. */
+  rejected?: CompetitorRejection[];
+  /** Plain-language notes for the operator, e.g. why the list is short. */
+  notes?: string[];
 }
 
 const LEVEL: Record<string, ResearchConfidence> = {
@@ -94,11 +120,91 @@ export class MarketResearchService {
     private readonly models: ModelRouterService,
     private readonly evidence: EvidenceRetrievalService,
     @Optional() private readonly socialDiscovery?: SocialDiscoveryService,
+    @Optional() private readonly businessProfiles?: BusinessProfileService,
+    @Optional() private readonly verification?: CompetitorVerificationService,
   ) {}
 
   /**
-   * Automatically identifies the top 5 competitors for a website using AI market analysis,
-   * with geographic scoping (worldwide, India, Maharashtra) and verified real-world businesses.
+   * What this client sells, read off their own site.
+   *
+   * Exposed so the Market Research page can show the detected business before
+   * any competitor scan runs, and so an operator can correct it.
+   */
+  async getBusinessProfile(
+    organizationId: string,
+    projectId: string,
+    options?: { refresh?: boolean; domain?: string },
+  ): Promise<DetectedBusinessProfile | null> {
+    await this.assertProjectInOrg(organizationId, projectId);
+    if (!this.businessProfiles) return null;
+
+    const { domain, projectName } = await this.resolveProjectDomain(projectId, options?.domain);
+    return this.businessProfiles.getProfile(projectId, domain, {
+      force: options?.refresh,
+      fallbackName: projectName,
+    });
+  }
+
+  /** Stores an operator's correction to the detected niche or geography. */
+  async setBusinessProfile(
+    organizationId: string,
+    projectId: string,
+    patch: { industry?: string; businessName?: string; region?: 'worldwide' | 'india' | 'maharashtra' },
+  ): Promise<DetectedBusinessProfile | null> {
+    await this.assertProjectInOrg(organizationId, projectId);
+    if (!this.businessProfiles) return null;
+
+    const { domain } = await this.resolveProjectDomain(projectId);
+    return this.businessProfiles.overrideProfile(projectId, domain, patch);
+  }
+
+  private async resolveProjectDomain(
+    projectId: string,
+    override?: string,
+  ): Promise<{ domain: string; projectName?: string }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { websites: { take: 1, orderBy: { createdAt: 'desc' } } },
+    });
+
+    const raw = override || project?.websites[0]?.domain || project?.websites[0]?.url;
+    if (!raw) {
+      throw new BadRequestException(
+        'This project has no website yet, so its business cannot be detected. Add a website first.',
+      );
+    }
+
+    const domain = normalizeDomain(raw);
+    if (!domain || !domain.includes('.')) {
+      throw new BadRequestException('A valid domain name is required.');
+    }
+
+    return {
+      domain,
+      projectName:
+        project?.name && !project.name.toLowerCase().includes('workspace') ? project.name : undefined,
+    };
+  }
+
+  /**
+   * Identifies the competitors a client actually has, starting from what their
+   * own website says they sell.
+   *
+   * Two things used to go wrong here and both are fixed in this method.
+   *
+   * The page opened on a niche picker, so nothing happened until the operator
+   * classified their own business — a question their homepage already answers.
+   * `industry` and `region` are now resolved from the detected business profile
+   * whenever the caller does not pass them, and the picker survives only as an
+   * override for the cases detection gets wrong.
+   *
+   * And the returned five were unverified. A model asked for five competitors
+   * returns five whether or not five exist, so invented domains and repeats of
+   * the same company were rendered next to real ones with nothing to tell them
+   * apart. Every model-proposed competitor is now fetched and checked before it
+   * is shown; the ones that fail are reported in `rejected` rather than
+   * displayed, and a short list of real companies is returned in preference to
+   * a full list containing fabrications.
    */
   async autoIdentifyCompetitors(
     organizationId: string,
@@ -109,6 +215,8 @@ export class MarketResearchService {
       industry?: string;
       businessName?: string;
       region?: string;
+      /** Re-read the client's site instead of using the cached profile. */
+      refreshProfile?: boolean;
     },
   ): Promise<AutoIdentifyCompetitorsResult> {
     await this.assertProjectInOrg(organizationId, projectId);
@@ -139,13 +247,35 @@ export class MarketResearchService {
       throw new BadRequestException('A valid domain name is required.');
     }
 
-    // 2. Resolve geographic region
-    const selectedRegion = (options?.region || 'worldwide').toLowerCase().trim();
-    const normalizedRegion: 'worldwide' | 'india' | 'maharashtra' = selectedRegion.includes('maha')
+    // 2. Read what this client sells, from their own site.
+    //
+    // This is what removes the "pick your niche" step: detection runs first and
+    // supplies the industry and the geography, and an explicit `industry` or
+    // `region` from the caller is treated as the operator correcting it.
+    const projectName =
+      project?.name && !project.name.toLowerCase().includes('workspace') ? project.name : undefined;
+
+    let profile: DetectedBusinessProfile | null = null;
+    if (this.businessProfiles) {
+      try {
+        profile = await this.businessProfiles.getProfile(projectId, domain, {
+          force: options?.refreshProfile,
+          fallbackName: projectName,
+        });
+      } catch (err) {
+        this.logger.warn(`Business detection failed for ${domain}: ${err}. Falling back to page metadata.`);
+      }
+    }
+
+    // 3. Resolve geographic region — from the caller, else from where the
+    // detected business is actually located.
+    const requestedRegion = (options?.region || profile?.suggestedRegion || '').toLowerCase().trim();
+    const normalizedRegion: 'worldwide' | 'india' | 'maharashtra' = requestedRegion.includes('maha')
       ? 'maharashtra'
-      : selectedRegion.includes('india')
+      : requestedRegion.includes('india')
         ? 'india'
         : 'worldwide';
+    const regionWasDetected = !options?.region && Boolean(profile?.suggestedRegion);
 
     const regionLabel =
       normalizedRegion === 'maharashtra'
@@ -154,7 +284,6 @@ export class MarketResearchService {
           ? 'India (National Market across India)'
           : 'Worldwide (Global / International Market)';
 
-    // 3. Resolve business name and market subject (with real-time live site inspection if uncrawled)
     const [recentPages, existingCompetitors] = await Promise.all([
       this.prisma.page.findMany({
         where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
@@ -170,33 +299,38 @@ export class MarketResearchService {
 
     const homepage = [...recentPages].sort((a, b) => a.url.length - b.url.length)[0];
 
-    // If website has not been crawled in DB yet, perform live HTTP fetch to extract real title, meta and schema.org data
+    // Detection already fetches the site; only reach for it again when there is
+    // no profile and the crawl has nothing to offer either.
     let liveMeta: { title?: string; description?: string; businessName?: string; inferredIndustry?: string } | null = null;
-    if (!homepage?.title || !homepage?.metaDescription) {
+    if (!profile && (!homepage?.title || !homepage?.metaDescription)) {
       liveMeta = await this.fetchLiveWebsiteMeta(domain);
     }
 
     const businessName =
       options?.businessName ||
+      profile?.businessName ||
       liveMeta?.businessName ||
-      (project?.name && !project.name.toLowerCase().includes('workspace') ? project.name : null) ||
+      projectName ||
       this.formatBrandName(domain);
 
-    const pageTitle = homepage?.title || liveMeta?.title;
-    const pageDesc = homepage?.metaDescription || liveMeta?.description;
+    const pageTitle = homepage?.title || liveMeta?.title || profile?.summary;
+    const pageDesc = homepage?.metaDescription || liveMeta?.description || profile?.summary;
 
     const detectedSubject = this.subjectFrom(pageTitle, pageDesc, businessName);
     const subject =
       options?.industry ||
+      profile?.industry ||
       liveMeta?.inferredIndustry ||
       detectedSubject ||
       this.inferSubjectFromDomain(domain);
+    const industryWasDetected = !options?.industry && Boolean(profile?.industry);
 
     const existingDomainMap = new Map(
       existingCompetitors.map((c) => [normalizeDomain(c.domain), c.id]),
     );
 
-    let competitors: AutoIdentifiedCompetitor[] = [];
+    let candidates: AutoIdentifiedCompetitor[] = [];
+    const notes: string[] = [];
 
     // 4. Attempt AI-driven identification if model is configured
     if (this.models.isConfigured()) {
@@ -207,19 +341,28 @@ export class MarketResearchService {
           `- Brand / Business Name: ${businessName}`,
           `- Core Product / Niche / Industry: ${subject}`,
           `- Target Geographic Scope: ${regionLabel}`,
+          profile?.summary ? `- What they sell (read from their site): ${profile.summary}` : '',
+          profile?.offerings?.length ? `- Named products / services: ${profile.offerings.join(', ')}` : '',
+          profile?.businessModel ? `- Business model: ${profile.businessModel}` : '',
+          profile && (profile.city || profile.state || profile.country)
+            ? `- Client's own location: ${[profile.city, profile.state, profile.country].filter(Boolean).join(', ')}`
+            : '',
+          profile?.seedKeywords?.length ? `- Search terms their buyers use: ${profile.seedKeywords.join(', ')}` : '',
           pageTitle ? `- Homepage Title: ${pageTitle}` : '',
           pageDesc ? `- Meta Description: ${pageDesc}` : '',
           ``,
           `Task: Identify the TOP 5 DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel} for ${subject}.`,
           ``,
           `CRITICAL STRICT REQUIREMENTS:`,
-          `1. Identify ONLY REAL, EXISTING, AUTHENTIC companies and brands with genuine, functioning domains operating in the EXACT same industry (${subject}).`,
-          `2. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
-          `3. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
-          `4. Do NOT generate unrelated consumer apps (e.g. do NOT return personal finance or budgeting apps unless the customer is explicitly a personal budgeting app).`,
-          `5. Do NOT return generic search engines, social networks, or encyclopedias (like google.com, wikipedia.org, youtube.com).`,
-          `6. Do NOT include the target domain (${domain}) itself.`,
-          `7. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Mumbai, Maharashtra", "Jalgaon, Maharashtra", "Bengaluru, India", "Chennai, India", "Germany", "USA", etc.).`,
+          `1. Name ONLY companies you actually know to exist, with the domain you actually know them by. Every domain will be fetched and checked against the live web before it is shown to the customer, and anything that does not resolve is discarded.`,
+          `2. It is far better to return 2 or 3 companies you are certain about than 5 where two are guesses. Return only the ones you are sure of.`,
+          `3. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
+          `4. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
+          `5. Do NOT return the same company twice, under any spelling or domain variant.`,
+          `6. Do NOT guess a domain from a brand name. If you do not know the company's real website, leave that company out.`,
+          `7. Do NOT return unrelated businesses, generic search engines, marketplaces, social networks, or encyclopedias (like google.com, indiamart.com, wikipedia.org).`,
+          `8. Do NOT include the target domain (${domain}) itself.`,
+          `9. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Bengaluru, India", "Germany", "USA").`,
         ].filter(Boolean).join('\n');
 
         const schema = {
@@ -265,7 +408,8 @@ export class MarketResearchService {
           role: ModelRole.ANALYST,
           instructions:
             'You are a premier SEO & Market Research Competitive Intelligence Director. ' +
-            'Identify exactly 5 real-world direct competitors with genuine domains, realistic overlap scores (65-98), market positions, locations, and keyword sets. ' +
+            'Name only real companies whose websites you actually know; every domain you return is fetched and verified, ' +
+            'and an invented one is discarded and counted against the result. Returning three real competitors beats five with a guess among them. ' +
             'Return ONLY valid JSON matching the schema.',
           input: prompt,
           jsonSchema: schema,
@@ -274,30 +418,81 @@ export class MarketResearchService {
 
         const parsed = parseJson(result.text) as { competitors?: unknown[] };
         if (Array.isArray(parsed?.competitors) && parsed.competitors.length > 0) {
-          competitors = parsed.competitors
+          candidates = parsed.competitors
             .map((raw: any) => this.sanitizeCompetitor(raw, domain, normalizedRegion))
             .filter((c): c is AutoIdentifiedCompetitor => c !== null);
         }
       } catch (err) {
-        this.logger.warn(`AI competitor identification failed for ${domain}: ${err}. Using intelligent heuristic fallback.`);
+        this.logger.warn(`AI competitor identification failed for ${domain}: ${err}. Using curated market list.`);
       }
     }
 
-    // 5. Fill with verified real-world fallback competitors if fewer than 5 returned
-    if (competitors.length < 5) {
-      const fallbackList = this.generateFallbackCompetitors(domain, businessName, subject, normalizedRegion);
-      const existingDomains = new Set(competitors.map((c) => c.domain.toLowerCase()));
-      for (const fallback of fallbackList) {
-        if (!existingDomains.has(fallback.domain.toLowerCase()) && fallback.domain.toLowerCase() !== domain.toLowerCase()) {
-          competitors.push(fallback);
-          existingDomains.add(fallback.domain.toLowerCase());
-          if (competitors.length >= 5) break;
-        }
+    // 5. Verify every model-proposed competitor against the live web.
+    //
+    // Only model output goes through this. The curated list below is real
+    // companies checked by hand, and putting it through the same network round
+    // trip would slow the page down to re-prove what is already known.
+    const proposedCount = candidates.length;
+    let rejected: CompetitorRejection[] = [];
+
+    if (this.verification && candidates.length > 0) {
+      const nicheText = [subject, profile?.summary, ...(profile?.offerings || []), ...(profile?.seedKeywords || [])]
+        .filter(Boolean)
+        .join(' ');
+      try {
+        const outcome = await this.verification.verify(candidates, domain, nicheText);
+        // `matchedTerms` is dropped: it is how the check was made, not
+        // something the operator needs on the card.
+        candidates = outcome.verified.map(({ matchedTerms, ...rest }) => ({
+          ...rest,
+          verified: true as const,
+          source: 'ai' as const,
+        }));
+        rejected = outcome.rejected;
+      } catch (err) {
+        this.logger.warn(`Competitor verification failed for ${domain}: ${err}. Falling back to the curated list.`);
+        candidates = [];
       }
     }
 
-    // Ensure exactly 5 competitors sorted by overlapScore descending
-    competitors = competitors.slice(0, 5).sort((a, b) => b.overlapScore - a.overlapScore);
+    if (proposedCount > 0 && rejected.length > 0) {
+      notes.push(
+        `${rejected.length} of ${proposedCount} AI-suggested ${rejected.length === 1 ? 'company was' : 'companies were'} dropped because ${rejected.length === 1 ? 'it' : 'they'} could not be verified as a real business in this market.`,
+      );
+    }
+
+    // 6. Top up from the curated market list — but only where it covers this
+    // niche. Padding a Nashik fruit exporter's list with Accenture and IBM to
+    // reach five is what made the panel look like a demo; a short list of real
+    // rivals is the honest answer.
+    if (candidates.length < 5) {
+      const curated = this.generateFallbackCompetitors(domain, businessName, subject, normalizedRegion);
+      const seen = new Set(candidates.map((c) => normalizeDomain(c.domain)));
+      seen.add(domain);
+      for (const entry of curated) {
+        const entryDomain = normalizeDomain(entry.domain);
+        if (seen.has(entryDomain)) continue;
+        candidates.push({ ...entry, verified: true, source: 'curated' });
+        seen.add(entryDomain);
+        if (candidates.length >= 5) break;
+      }
+    }
+
+    if (candidates.length === 0) {
+      notes.push(
+        `No competitor could be verified for "${subject}" in this market. Refine the niche below, widen the scope, or add a competitor domain by hand.`,
+      );
+    } else if (candidates.length < 5) {
+      notes.push(
+        rejected.length > 0
+          ? `${candidates.length} verified ${candidates.length === 1 ? 'competitor' : 'competitors'} found. The list is short because unverifiable suggestions were removed rather than shown.`
+          : `${candidates.length} verified ${candidates.length === 1 ? 'competitor' : 'competitors'} found for this niche. Refine the niche or widen the scope to see more.`,
+      );
+    }
+
+    // Sorted before slicing, so the five shown are the five highest-overlap
+    // companies rather than the first five to arrive.
+    const competitors = [...candidates].sort((a, b) => b.overlapScore - a.overlapScore).slice(0, 5);
 
     // Enrich with whether each competitor is already added in the project
     const enrichedCompetitors = competitors.map((c) => ({
@@ -313,6 +508,11 @@ export class MarketResearchService {
       region: normalizedRegion,
       identifiedAt: new Date().toISOString(),
       topCompetitors: enrichedCompetitors,
+      businessProfile: profile,
+      industryWasDetected,
+      regionWasDetected,
+      rejected,
+      notes,
     };
   }
 
@@ -1383,186 +1583,20 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 5. GENERAL / MANUFACTURING / PROFESSIONAL SERVICES / HEALTHCARE / OTHER
+    // 5. NO CURATED COVERAGE FOR THIS NICHE
     // ──────────────────────────────────────────────────────────
-    if (region === 'maharashtra') {
-      return [
-        {
-          domain: 'tcs.com',
-          name: 'Tata Consultancy Services (TCS)',
-          industry: 'Global IT & Strategic Transformation',
-          description: 'Global leader in business consulting, digital services, and enterprise market solutions.',
-          location: 'Mumbai, Maharashtra',
-          overlapScore: 95,
-          marketPosition: 'Maharashtra Flagship Giant',
-          sampleKeywords: ['enterprise consulting mumbai', 'digital transformation partner', 'global business services'],
-          keyDifferentiator: '600,000+ global workforce and century-long heritage of business excellence.',
-        },
-        {
-          domain: 'mahindra.com',
-          name: 'Mahindra & Mahindra Group',
-          industry: 'Industrial Manufacturing & Services',
-          description: 'Diversified multinational federation with leadership across mobility, farm equipment, and technology services.',
-          location: 'Mumbai, Maharashtra',
-          overlapScore: 91,
-          marketPosition: 'Conglomerate Benchmark',
-          sampleKeywords: ['manufacturing conglomerate mumbai', 'industrial solutions maharashtra', 'enterprise business group'],
-          keyDifferentiator: 'Deep domestic manufacturing dominance and global export operations.',
-        },
-        {
-          domain: 'godrej.com',
-          name: 'Godrej Enterprises Group',
-          industry: 'Consumer Products & Precision Engineering',
-          description: 'Iconic 127-year-old business group operating across consumer goods, appliances, and industrial solutions.',
-          location: 'Mumbai, Maharashtra',
-          overlapScore: 87,
-          marketPosition: 'Established Market Pillar',
-          sampleKeywords: ['consumer goods brand mumbai', 'industrial engineering solutions', 'established business house'],
-          keyDifferentiator: 'Household brand trust across 1.1 billion consumers globally.',
-        },
-        {
-          domain: 'ltts.com',
-          name: 'L&T Technology Services',
-          industry: 'Engineering R&D & Industrial Consulting',
-          description: 'Leading global pure-play engineering services provider delivering industrial innovation and product design.',
-          location: 'Mumbai, Maharashtra',
-          overlapScore: 84,
-          marketPosition: 'Engineering Pioneer',
-          sampleKeywords: ['engineering consulting mumbai', 'industrial product design', 'smart manufacturing services'],
-          keyDifferentiator: 'Patented engineering solutions for 57 Fortune 500 enterprises.',
-        },
-        {
-          domain: 'finolex.com',
-          name: 'Finolex Industries',
-          industry: 'Agricultural & Industrial Manufacturing',
-          description: "India's largest manufacturer of precision agricultural piping, industrial materials, and infrastructure products.",
-          location: 'Pune, Maharashtra',
-          overlapScore: 80,
-          marketPosition: 'Industrial Specialist',
-          sampleKeywords: ['industrial manufacturing pune', 'agricultural piping solutions', 'pune manufacturing leader'],
-          keyDifferentiator: 'Unmatched agricultural and industrial distribution network across Western India.',
-        },
-      ];
-    }
-
-    if (region === 'india') {
-      return [
-        {
-          domain: 'infosys.com',
-          name: 'Infosys',
-          industry: 'Digital Services & Consulting',
-          description: 'Global leader in next-generation digital services and enterprise consulting navigating digital transformation.',
-          location: 'Bengaluru, India',
-          overlapScore: 95,
-          marketPosition: 'National Tech Leader',
-          sampleKeywords: ['digital services india', 'enterprise consulting bangalore', 'ai business transformation'],
-          keyDifferentiator: 'Leading digital operating models and Topaz AI services.',
-        },
-        {
-          domain: 'wipro.com',
-          name: 'Wipro',
-          industry: 'Technology & Business Solutions',
-          description: 'Leading global information technology, consulting, and business process services company.',
-          location: 'Bengaluru, India',
-          overlapScore: 91,
-          marketPosition: 'National Enterprise Giant',
-          sampleKeywords: ['technology solutions bangalore', 'enterprise digital services', 'business transformation partner'],
-          keyDifferentiator: 'Global delivery model and comprehensive AI solution portfolio.',
-        },
-        {
-          domain: 'tatamotors.com',
-          name: 'Tata Motors',
-          industry: 'Mobility & Commercial Manufacturing',
-          description: 'Leading global automobile manufacturer of commercial vehicles, trucks, and electric passenger mobility.',
-          location: 'Mumbai / Pan-India',
-          overlapScore: 87,
-          marketPosition: 'National Manufacturing Leader',
-          sampleKeywords: ['commercial vehicle manufacturer india', 'ev mobility pioneer', 'fleet logistics solutions'],
-          keyDifferentiator: 'Over 50% market share in commercial vehicle transport and fleet logistics.',
-        },
-        {
-          domain: 'hcltech.com',
-          name: 'HCLTech',
-          industry: 'Global Technology Services',
-          description: 'Global technology company home to 220,000+ people across 60 countries delivering industry-leading capabilities.',
-          location: 'Noida / New Delhi, India',
-          overlapScore: 84,
-          marketPosition: 'Global Services Standard',
-          sampleKeywords: ['digital engineering services noida', 'cloud transformation partner', 'enterprise it consulting'],
-          keyDifferentiator: 'Supercharged engineering capabilities and software product development.',
-        },
-        {
-          domain: 'asianpaints.com',
-          name: 'Asian Paints',
-          industry: 'Coatings, Decor & Industrial Solutions',
-          description: "India’s leading paint and home decor solutions company operating in 15 countries with 27 manufacturing plants.",
-          location: 'Mumbai / Pan-India',
-          overlapScore: 80,
-          marketPosition: 'National Supply Chain Benchmark',
-          sampleKeywords: ['coatings and decor solutions india', 'supply chain distribution benchmark', 'decorative manufacturing'],
-          keyDifferentiator: 'World-renowned predictive logistics and direct-to-retail distribution network.',
-        },
-      ];
-    }
-
-    // Worldwide General
-    return [
-      {
-        domain: 'accenture.com',
-        name: 'Accenture',
-        industry: 'Global Professional Services',
-        description: 'Global professional services company with leading capabilities in digital, cloud, and security solutions.',
-        location: 'Dublin, Ireland / Global',
-        overlapScore: 95,
-        marketPosition: 'Global Category Standard',
-        sampleKeywords: ['management consulting', 'digital enterprise solutions', 'cloud transformation', 'global business advisory'],
-        keyDifferentiator: 'Broadest cross-industry expertise and unmatched Fortune 100 enterprise penetration.',
-      },
-      {
-        domain: 'ibm.com',
-        name: 'IBM',
-        industry: 'Enterprise Cloud & AI Systems',
-        description: 'Global technology and enterprise consulting pioneer driving hybrid cloud, AI, and mission-critical solutions.',
-        location: 'Armonk, USA',
-        overlapScore: 91,
-        marketPosition: 'Technology Institution',
-        sampleKeywords: ['hybrid cloud systems', 'watsonx enterprise ai', 'mission critical software', 'enterprise security'],
-        keyDifferentiator: 'Over a century of enterprise computing infrastructure and enterprise trust.',
-      },
-      {
-        domain: 'oracle.com',
-        name: 'Oracle',
-        industry: 'Enterprise Cloud Infrastructure & ERP',
-        description: 'Global provider of autonomous database technologies, cloud infrastructure, and enterprise resource planning.',
-        location: 'Austin, USA',
-        overlapScore: 87,
-        marketPosition: 'Enterprise Database Leader',
-        sampleKeywords: ['oracle cloud infrastructure', 'autonomous database systems', 'enterprise erp solutions', 'supply chain software'],
-        keyDifferentiator: 'Mission-critical relational data engine powering the world’s banking and logistics.',
-      },
-      {
-        domain: 'sap.com',
-        name: 'SAP',
-        industry: 'Enterprise Application Software',
-        description: "The world's leading producer of software for the management of business processes and supply chain operations.",
-        location: 'Walldorf, Germany',
-        overlapScore: 84,
-        marketPosition: 'Supply Chain & ERP Titan',
-        sampleKeywords: ['sap erp software', 'supply chain management cloud', 'enterprise business operations', 'global logistics systems'],
-        keyDifferentiator: '99 of the 100 largest companies in the world run SAP enterprise systems.',
-      },
-      {
-        domain: 'cisco.com',
-        name: 'Cisco Systems',
-        industry: 'Digital Networking & Cyber Solutions',
-        description: 'Worldwide leader in technology that powers the Internet, enterprise networking, and security collaboration.',
-        location: 'San Jose, USA',
-        overlapScore: 80,
-        marketPosition: 'Networking Infrastructure Standard',
-        sampleKeywords: ['enterprise secure networking', 'cloud connectivity solutions', 'cybersecurity architecture'],
-        keyDifferentiator: 'Global standard for carrier-grade networking infrastructure and security.',
-      },
-    ];
+    //
+    // This used to return TCS, Mahindra and Godrej for a regional client, and
+    // Accenture, IBM and SAP for everyone else — whichever niche had gone
+    // unrecognised. They are real companies, which is exactly why the result
+    // was so misleading: a fruit pulp exporter in Nashik was shown five
+    // conglomerates it does not compete with, presented as its top five
+    // competitors, and the panel read as a canned demo.
+    //
+    // An empty list is the truthful answer when the niche is not covered. The
+    // caller turns it into a prompt to refine the niche or add a competitor by
+    // hand, which is useful; five wrong names are not.
+    return [];
   }
 
   private async fetchLiveWebsiteMeta(domain: string): Promise<{

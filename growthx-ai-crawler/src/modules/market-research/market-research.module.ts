@@ -10,6 +10,8 @@ import { MarketActionService } from './market-action.service';
 import { OutcomeMeasurementService } from './outcome-measurement.service';
 import { WeeklyDeltaService } from './weekly-delta.service';
 import { MarketResearchScheduler } from './market-research.scheduler';
+import { BusinessProfileService } from './business-profile.service';
+import { CompetitorVerificationService } from './competitor-verification.service';
 
 /**
  * GrowthX Market Research.
@@ -22,8 +24,8 @@ import { MarketResearchScheduler } from './market-research.scheduler';
 @Module({
   imports: [DatabaseModule, AiVisibilityModule, ContentIntelligenceModule],
   controllers: [MarketResearchController],
-  providers: [ModelRouterService, EvidenceRetrievalService, MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, MarketResearchScheduler],
-  exports: [MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, ModelRouterService],
+  providers: [ModelRouterService, EvidenceRetrievalService, BusinessProfileService, CompetitorVerificationService, MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, MarketResearchScheduler],
+  exports: [MarketResearchService, BusinessProfileService, CompetitorVerificationService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, ModelRouterService],
 })
 export class MarketResearchModule {}
 

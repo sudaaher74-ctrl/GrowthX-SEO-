@@ -6,6 +6,8 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
   let models: any;
   let evidence: any;
   let socialDiscovery: any;
+  let businessProfiles: any;
+  let verification: any;
   let service: MarketResearchService;
 
   beforeEach(() => {
@@ -36,12 +38,64 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       saveDiscoveredCompetitor: jest.fn().mockResolvedValue({}),
     };
 
-    service = new MarketResearchService(prisma, models, evidence, socialDiscovery);
+    // Detection is exercised in business-profile.service.spec. Here it returns
+    // a bare profile so these tests stay about the competitor list — and so
+    // nothing falls through to the live metadata fetch, which hits the network.
+    businessProfiles = {
+      getProfile: jest.fn().mockImplementation((_projectId: string, domain: string) =>
+        Promise.resolve({
+          domain,
+          businessName: 'GrowthX AI',
+          industry: 'Cloud Software, SaaS & Developer Platforms',
+          summary: '',
+          offerings: [],
+          businessModel: '',
+          city: '',
+          state: '',
+          country: '',
+          suggestedRegion: 'worldwide',
+          seedKeywords: [],
+          confidence: 'low',
+          signals: [],
+          source: 'heuristic',
+          detectedAt: new Date().toISOString(),
+        }),
+      ),
+      overrideProfile: jest.fn(),
+    };
+
+    // Verification reaches the network in production. The default stub passes
+    // everything through; tests that care about rejection override it.
+    verification = {
+      verify: jest.fn().mockImplementation((candidates: any[]) =>
+        Promise.resolve({
+          verified: candidates.map((c) => ({
+            ...c,
+            verified: true,
+            verifiedTitle: c.name,
+            verifiedAt: new Date().toISOString(),
+            matchedTerms: [],
+          })),
+          rejected: [],
+        }),
+      ),
+    };
+
+    service = new MarketResearchService(
+      prisma,
+      models,
+      evidence,
+      socialDiscovery,
+      businessProfiles,
+      verification,
+    );
   });
 
   describe('autoIdentifyCompetitors', () => {
-    it('identifies top 5 competitors for a website using category heuristics when AI is not configured', async () => {
-      const result = await service.autoIdentifyCompetitors('org1', 'p1');
+    it('identifies top 5 competitors from the curated list when AI is not configured', async () => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        industry: 'SEO, Performance Marketing & Digital Growth Agency',
+      });
 
       expect(result).toBeDefined();
       expect(result.customerDomain).toBe('growthx.ai');
@@ -53,6 +107,80 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.topCompetitors[0]).toHaveProperty('marketPosition');
       expect(result.topCompetitors[0]).toHaveProperty('sampleKeywords');
       expect(result.topCompetitors[0].isAlreadyAdded).toBe(false);
+      expect(result.topCompetitors.every((c) => c.verified)).toBe(true);
+    });
+
+    it('returns an empty list rather than padding an unrecognised niche with unrelated giants', async () => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'someuniquebusiness.com',
+        industry: 'Bespoke Falconry Equipment Restoration',
+      });
+
+      // The old behaviour filled this case with TCS, Accenture and IBM, which
+      // is what made the panel read as a demo.
+      expect(result.topCompetitors).toHaveLength(0);
+      expect(result.notes?.join(' ')).toContain('No competitor could be verified');
+    });
+
+    it('detects the niche and geography from the client website when the caller sends neither', async () => {
+      businessProfiles.getProfile.mockResolvedValue({
+        domain: 'aivaenterprises.com',
+        businessName: 'AIVA Enterprises',
+        industry: 'Fruit Pulp, Purees, Concentrates & IQF Agro Processing',
+        summary: 'Exporter of aseptic mango pulp and IQF fruit from Nashik.',
+        offerings: ['Aseptic mango pulp'],
+        businessModel: 'B2B',
+        city: 'Nashik',
+        state: 'Maharashtra',
+        country: 'India',
+        suggestedRegion: 'maharashtra',
+        seedKeywords: ['mango pulp exporter'],
+        confidence: 'high',
+        signals: [],
+        source: 'ai',
+        detectedAt: new Date().toISOString(),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'aivaenterprises.com',
+      });
+
+      expect(result.industry).toBe('Fruit Pulp, Purees, Concentrates & IQF Agro Processing');
+      expect(result.region).toBe('maharashtra');
+      expect(result.industryWasDetected).toBe(true);
+      expect(result.regionWasDetected).toBe(true);
+      expect(result.businessProfile?.businessName).toBe('AIVA Enterprises');
+      expect(result.topCompetitors.length).toBeGreaterThan(0);
+    });
+
+    it('lets an explicit industry and region override what was detected', async () => {
+      businessProfiles.getProfile.mockResolvedValue({
+        domain: 'growthx.ai',
+        businessName: 'GrowthX',
+        industry: 'Cloud Software, SaaS & Developer Platforms',
+        summary: '',
+        offerings: [],
+        businessModel: '',
+        city: '',
+        state: '',
+        country: '',
+        suggestedRegion: 'worldwide',
+        seedKeywords: [],
+        confidence: 'low',
+        signals: [],
+        source: 'heuristic',
+        detectedAt: new Date().toISOString(),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        industry: 'Logistics, Freight & Fleet Transportation Services',
+        region: 'india',
+      });
+
+      expect(result.industry).toBe('Logistics, Freight & Fleet Transportation Services');
+      expect(result.region).toBe('india');
+      expect(result.industryWasDetected).toBe(false);
+      expect(result.regionWasDetected).toBe(false);
     });
 
     it('identifies real competitors in Maharashtra when region=maharashtra is selected', async () => {
@@ -145,6 +273,104 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.topCompetitors).toHaveLength(5);
       expect(result.topCompetitors[0].domain).toBe('semrush.com');
       expect(result.topCompetitors[1].domain).toBe('ahrefs.com');
+    });
+
+    it('drops AI suggestions that fail verification and says so in the notes', async () => {
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'sahyadrifarms.com',
+              name: 'Sahyadri Farms',
+              industry: 'Fruit Processing',
+              description: 'Farmer collective and fruit processor',
+              overlapScore: 96,
+              marketPosition: 'Market Leader',
+              location: 'Nashik, Maharashtra',
+              sampleKeywords: ['mango pulp'],
+              keyDifferentiator: 'Farmer supply chain',
+            },
+            {
+              domain: 'marketpulse.in',
+              name: 'MarketPulse',
+              industry: 'Fruit Processing',
+              description: 'Invented company',
+              overlapScore: 91,
+              marketPosition: 'Challenger',
+              location: 'Pune, Maharashtra',
+              sampleKeywords: ['fruit pulp'],
+              keyDifferentiator: 'None — this domain does not exist',
+            },
+          ],
+        }),
+      });
+
+      verification.verify.mockResolvedValue({
+        verified: [
+          {
+            domain: 'sahyadrifarms.com',
+            name: 'Sahyadri Farms',
+            industry: 'Fruit Processing',
+            description: 'Farmer collective and fruit processor',
+            overlapScore: 96,
+            marketPosition: 'Market Leader',
+            location: 'Nashik, Maharashtra',
+            sampleKeywords: ['mango pulp'],
+            keyDifferentiator: 'Farmer supply chain',
+            verified: true,
+            verifiedTitle: 'Sahyadri Farms',
+            verifiedAt: new Date().toISOString(),
+            matchedTerms: ['pulp'],
+          },
+        ],
+        rejected: [
+          { domain: 'marketpulse.in', name: 'MarketPulse', reason: 'offline', detail: 'Did not resolve.' },
+        ],
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'aivaenterprises.com',
+        industry: 'Fruit Pulp, Concentrates & Agro Exports',
+        region: 'maharashtra',
+      });
+
+      expect(result.topCompetitors.some((c) => c.domain === 'marketpulse.in')).toBe(false);
+      expect(result.topCompetitors[0].domain).toBe('sahyadrifarms.com');
+      expect(result.rejected).toHaveLength(1);
+      expect(result.rejected?.[0].reason).toBe('offline');
+      expect(result.notes?.join(' ')).toContain('could not be verified');
+    });
+
+    it('never returns the same competitor twice after a top-up from the curated list', async () => {
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'sahyadrifarms.com',
+              name: 'Sahyadri Farms',
+              industry: 'Fruit Processing',
+              description: 'Farmer collective',
+              overlapScore: 96,
+              marketPosition: 'Market Leader',
+              location: 'Nashik, Maharashtra',
+              sampleKeywords: ['mango pulp'],
+              keyDifferentiator: 'Farmer supply chain',
+            },
+          ],
+        }),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'aivaenterprises.com',
+        industry: 'Fruit Pulp, Concentrates & Agro Exports',
+        region: 'maharashtra',
+      });
+
+      const domains = result.topCompetitors.map((c) => c.domain);
+      expect(new Set(domains).size).toBe(domains.length);
+      expect(domains).toContain('sahyadrifarms.com');
     });
 
     it('marks competitors as already added if they exist in the project', async () => {

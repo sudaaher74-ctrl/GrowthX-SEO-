@@ -333,6 +333,7 @@ model Project {
   MarketWatch          MarketWatch[]
   WeeklyDelta          WeeklyDelta[]
   ContentIntelligenceConfig ContentIntelligenceConfig?
+  businessProfile      ProjectBusinessProfile?
   ContentStrategy      ContentStrategy[]
   integrations         Integration[]
   socialPosts          SocialPost[]
@@ -678,6 +679,44 @@ model ClientPortalConfig {
   isPublic     Boolean  @default(false)
   updatedAt    DateTime @updatedAt
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// What a client actually sells, read off their own website.
+///
+/// Market Research used to open on a niche picker: nothing happened until the
+/// operator classified their own business, which is a question their homepage
+/// already answers. This row is that answer — detected once, reused on every
+/// page load, and overwritten when an operator corrects it.
+model ProjectBusinessProfile {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  /// The domain the profile was read from. A project that changes website
+  /// gets re-detected rather than keeping a profile for the old one.
+  domain          String
+  businessName    String
+  /// The niche in the client's own terms, specific enough to search on.
+  industry        String
+  summary         String?
+  offerings       String[]
+  businessModel   String?
+  city            String?
+  state           String?
+  country         String?
+  /// Competitor search scope implied by the location: worldwide | india | maharashtra.
+  suggestedRegion String   @default("worldwide")
+  seedKeywords    String[]
+  /// high | medium | low — low means the site gave us little to go on.
+  confidence      String   @default("medium")
+  /// Where each fact came from, so a wrong profile can be traced.
+  signals         String[]
+  /// ai | heuristic — how the profile was produced.
+  source          String   @default("heuristic")
+  detectedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
 }
 
 model MarketIntelligence {

@@ -52,6 +52,26 @@ export class AutoIdentifyCompetitorsDto {
   @IsString()
   @IsOptional()
   region?: string;
+
+  /** Re-read the client's website instead of using the cached profile. */
+  @IsBoolean()
+  @IsOptional()
+  refreshProfile?: boolean;
+}
+
+/** An operator correcting what the platform detected about their business. */
+export class BusinessProfileOverrideDto {
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @IsString()
+  @IsOptional()
+  businessName?: string;
+
+  @IsString()
+  @IsOptional()
+  region?: 'worldwide' | 'india' | 'maharashtra';
 }
 
 export class SelectedCompetitorItemDto {
@@ -111,6 +131,42 @@ export class MarketResearchController {
     private readonly outcomes: OutcomeMeasurementService,
     private readonly weekly: WeeklyDeltaService,
   ) {}
+
+  /**
+   * What this client sells, detected from their own website.
+   *
+   * The page calls this before anything else so it can open on the client's
+   * actual market instead of asking them to choose a niche from a list.
+   */
+  @Get('business-profile')
+  @ApiOperation({ summary: "Detect this project's business, niche and market geography from its website" })
+  @ApiParam({ name: 'projectId' })
+  getBusinessProfile(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.research.getBusinessProfile(
+      req.user?.organizationId || req.organizationId,
+      projectId,
+      { refresh: refresh === 'true' || refresh === '1' },
+    );
+  }
+
+  @Post('business-profile')
+  @ApiOperation({ summary: 'Correct the detected business niche or market geography' })
+  @ApiParam({ name: 'projectId' })
+  setBusinessProfile(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: BusinessProfileOverrideDto,
+  ) {
+    return this.research.setBusinessProfile(
+      req.user?.organizationId || req.organizationId,
+      projectId,
+      body,
+    );
+  }
 
   @Post('auto-identify-competitors')
   @ApiOperation({ summary: 'Automatically identify top 5 competitors for this project website' })

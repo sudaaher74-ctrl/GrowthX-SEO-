@@ -1070,6 +1070,39 @@ export interface AutoIdentifiedCompetitor {
   keyDifferentiator: string;
   isAlreadyAdded?: boolean;
   existingId?: string;
+  /** Proven to be a real company: live site fetched, or hand-checked list. */
+  verified?: boolean;
+  /** Title tag read from the live site while verifying. */
+  verifiedTitle?: string;
+  verifiedAt?: string;
+  source?: "ai" | "curated";
+}
+
+/** What the platform read off the client's own website. */
+export interface DetectedBusinessProfile {
+  domain: string;
+  businessName: string;
+  industry: string;
+  summary: string;
+  offerings: string[];
+  businessModel: string;
+  city: string;
+  state: string;
+  country: string;
+  suggestedRegion: MarketScopeRegion;
+  seedKeywords: string[];
+  confidence: "high" | "medium" | "low";
+  signals: string[];
+  source: "ai" | "heuristic";
+  detectedAt: string;
+}
+
+/** A suggested competitor that failed verification, with the reason. */
+export interface RejectedCompetitor {
+  domain: string;
+  name: string;
+  reason: string;
+  detail: string;
 }
 
 export interface AutoIdentifyCompetitorsResponse {
@@ -1079,6 +1112,13 @@ export interface AutoIdentifyCompetitorsResponse {
   region: string;
   identifiedAt: string;
   topCompetitors: AutoIdentifiedCompetitor[];
+  businessProfile?: DetectedBusinessProfile | null;
+  /** The niche came from the website, not from the operator. */
+  industryWasDetected?: boolean;
+  /** The geography came from the client's own address. */
+  regionWasDetected?: boolean;
+  rejected?: RejectedCompetitor[];
+  notes?: string[];
 }
 
 export interface AddSelectedCompetitorsBody {
@@ -1230,9 +1270,30 @@ export const api = {
   getSuggestedResearchQuestions: (projectId: string) =>
     get<string[]>(`/api/projects/${projectId}/market-research/suggested-questions`),
   /** Auto-identifies top 5 competitors for this project's website using AI competitive intelligence. */
+  /** What this client sells, detected from their own website. */
+  getBusinessProfile: (projectId: string, refresh = false) =>
+    get<DetectedBusinessProfile | null>(
+      `/api/projects/${projectId}/market-research/business-profile${refresh ? "?refresh=true" : ""}`,
+    ),
+  /** Stores an operator's correction to the detected niche or geography. */
+  setBusinessProfile: (
+    projectId: string,
+    body: { industry?: string; businessName?: string; region?: MarketScopeRegion },
+  ) =>
+    post<DetectedBusinessProfile | null>(
+      `/api/projects/${projectId}/market-research/business-profile`,
+      body,
+    ),
   autoIdentifyCompetitors: (
     projectId: string,
-    body?: { websiteUrl?: string; domain?: string; industry?: string; businessName?: string; region?: MarketScopeRegion | string },
+    body?: {
+      websiteUrl?: string;
+      domain?: string;
+      industry?: string;
+      businessName?: string;
+      region?: MarketScopeRegion | string;
+      refreshProfile?: boolean;
+    },
   ) =>
     post<AutoIdentifyCompetitorsResponse>(
       `/api/projects/${projectId}/market-research/auto-identify-competitors`,
