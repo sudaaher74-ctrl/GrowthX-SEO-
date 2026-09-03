@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: growthx_crawler
+      POSTGRES_USER: growthx
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ./growthx-ai-crawler
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://growthx:password123@postgres:5432/growthx_crawler
+      - DIRECT_URL=postgresql://growthx:password123@postgres:5432/growthx_crawler
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - PORT=3000
+      - ENABLE_PLAYWRIGHT_STARTUP=false
+      - PLAYWRIGHT_HEADLESS=true
+      - CRAWLER_JOB_CONCURRENCY=5
+      - CRAWLER_WORKER_CONCURRENCY=10
+      # Provide dummy keys or populate via an external .env file
+      - ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
+      - JWT_SECRET=super_secret_jwt_key
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - crawler_snapshots:/app/storage/snapshots
+
+  worker:
+    build:
+      context: ./growthx-ai-crawler
+      dockerfile: Dockerfile
+    restart: always
+    # Bypass docker-entrypoint to avoid double migrations, run worker directly
+    command: ["node", "dist/main-worker.js"]
+    environment:
+      - DATABASE_URL=postgresql://growthx:password123@postgres:5432/growthx_crawler
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - WORKER_MODE=true
+      - CRAWLER_JOB_CONCURRENCY=5
+      - CRAWLER_WORKER_CONCURRENCY=10
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - crawler_snapshots:/app/storage/snapshots
+
+  frontend:
+    build:
+      context: ./growthx-ai-seo
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  crawler_snapshots:
