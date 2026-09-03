@@ -83,7 +83,7 @@ export default function OverviewPage() {
   });
   const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 5);
 
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
+  const client = portfolio.data?.clients?.find((c) => c.projectId === projectId) ?? portfolio.data?.clients?.[0] ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null);
 

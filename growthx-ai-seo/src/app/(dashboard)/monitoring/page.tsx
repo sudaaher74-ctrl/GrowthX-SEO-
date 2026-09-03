@@ -21,7 +21,7 @@ export default function MonitoringPage() {
   
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const client = portfolio.data?.clients?.find((c) => c.projectId === projectId) ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
   const activities = useActivity(projectId);
 
@@ -88,7 +88,7 @@ export default function MonitoringPage() {
                             <Td><span className="font-medium text-brand-950">{item.message}</span></Td>
                             <Td>
                               <Pill tone={item.status === "error" ? "bad" : item.status === "warning" ? "warn" : item.status === "success" ? "good" : "info"}>
-                                {item.status.toUpperCase()}
+                                {item.status?.toUpperCase() ?? "UNKNOWN"}
                               </Pill>
                             </Td>
                           </Tr>

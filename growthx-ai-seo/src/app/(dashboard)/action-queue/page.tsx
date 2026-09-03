@@ -27,6 +27,16 @@ const TABS: { id: MarketActionStatus | "ALL"; label: string }[] = [
   { id: "ALL", label: "All" },
 ];
 
+
+/**
+ * Enum values arrive as SCREAMING_SNAKE and are rendered lowercased. The
+ * backend omits them on partial rows, and an unguarded .toLowerCase() there
+ * took the whole page down rather than dropping one pill.
+ */
+function enumLabel(value: string | null | undefined): string {
+  return value ? value.replace(/_/g, " ").toLowerCase() : "—";
+}
+
 export default function ActionQueuePage() {
   const { projectId } = useWorkspace();
   const [tab, setTab] = useState<MarketActionStatus | "ALL">("PROPOSED");
@@ -46,7 +56,9 @@ export default function ActionQueuePage() {
     }
   }
 
-  const rows = actions.data ?? [];
+  // A list endpoint that answers with anything but an array is malformed;
+  // treat it as empty rather than letting .length throw.
+  const rows = Array.isArray(actions.data) ? actions.data : [];
 
   return (
     <div className="space-y-5">
@@ -106,7 +118,7 @@ export default function ActionQueuePage() {
                 {(outcomes.data ?? []).map((o) => (
                   <div key={o.id} className="rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-medium text-[var(--text-primary)]">{o.action.title}</p>
+                      <p className="text-[13px] font-medium text-[var(--text-primary)]">{o.action?.title ?? "Action no longer available"}</p>
                       {o.status === "MEASURED" && o.deltaPt !== null ? (
                         <span
                           className={`text-[13px] font-bold ${
@@ -121,7 +133,7 @@ export default function ActionQueuePage() {
                           {o.deltaPt} pt
                         </span>
                       ) : (
-                        <Pill>{o.status.toLowerCase()}</Pill>
+                        <Pill>{enumLabel(o.status)}</Pill>
                       )}
                     </div>
                     <p className="text-[11.5px] text-[var(--text-muted)] mt-1">
@@ -157,12 +169,12 @@ export default function ActionQueuePage() {
                         {o.topic}
                       </p>
                       <div className="flex gap-1.5">
-                        <Pill>impact {o.impact.toLowerCase()}</Pill>
-                        <Pill>effort {o.effort.toLowerCase()}</Pill>
+                        <Pill>impact {enumLabel(o.impact)}</Pill>
+                        <Pill>effort {enumLabel(o.effort)}</Pill>
                       </div>
                     </div>
                     <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">{o.gap}</p>
-                    {o.competitorsWinning.length > 0 && (
+                    {!!o.competitorsWinning?.length && (
                       <p className="text-[11.5px] text-[var(--text-muted)] mt-1">
                         Winning: {o.competitorsWinning.join(", ")}
                       </p>
@@ -193,17 +205,17 @@ function ActionCard({
 
   return (
     <Panel
-      title={action.title}
-      subtitle={`${action.type.replace(/_/g, " ").toLowerCase()} · proposed ${relativeTime(action.createdAt)}`}
+      title={action.title ?? "Untitled action"}
+      subtitle={`${enumLabel(action.type)} · proposed ${relativeTime(action.createdAt)}`}
     >
       <div className="p-4 space-y-3">
         <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">{action.description}</p>
 
         <div className="flex flex-wrap gap-2">
           <Pill tone={action.status === "CONVERTED" ? "good" : action.status === "REJECTED" ? "bad" : "info"}>
-            {action.status.toLowerCase()}
+            {enumLabel(action.status)}
           </Pill>
-          <Pill>confidence {action.confidence.toLowerCase()}</Pill>
+          <Pill>confidence {enumLabel(action.confidence)}</Pill>
           {action.expectedImpact && <Pill>{action.expectedImpact.slice(0, 60)}</Pill>}
         </div>
 

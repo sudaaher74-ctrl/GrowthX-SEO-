@@ -194,7 +194,7 @@ function AiVisibilityClient() {
                         <Mono tone="soft">{row.estimatedVolume?.toLocaleString() || "—"}</Mono>
                       </Td>
                       {(["CHATGPT", "CLAUDE", "GEMINI"] as const).map((assistant) => {
-                        const check = row.latestChecks.find((c) => c.assistant === assistant);
+                        const check = row.latestChecks?.find((c) => c.assistant === assistant);
                         return (
                           <Td key={assistant}>
                             {check ? (

@@ -271,7 +271,8 @@ export interface UserProfile {
 
 export interface ActivityItem {
   id: string;
-  status: "success" | "warning" | "pending" | "error";
+  /** Absent on rows the backend could not classify — render a neutral pill. */
+  status?: "success" | "warning" | "pending" | "error";
   message: string;
   time: string;
 }
@@ -336,7 +337,8 @@ export interface TrackedPromptRow {
   cluster: string | null;
   estimatedVolume: number | null;
   isActive: boolean;
-  latestChecks: {
+  /** Omitted for keywords that have never been swept. */
+  latestChecks?: {
     assistant: string;
     checkedAt: string;
     cited: boolean;
@@ -1206,7 +1208,8 @@ export interface MarketOutcomeRow {
   citationSharePct: number | null;
   deltaPt: number | null;
   note: string | null;
-  action: { id: string; title: string; type: string; status: string };
+  /** Null when the action behind the outcome was deleted. */
+  action: { id: string; title: string; type: string; status: string } | null;
 }
 
 // ──────────────────────────────────────────────────────────────── the API

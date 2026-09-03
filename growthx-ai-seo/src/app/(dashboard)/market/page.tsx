@@ -37,7 +37,7 @@ import {
 export default function MarketPage() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const client = portfolio.data?.clients?.find((c) => c.projectId === projectId) ?? null;
   const activeDomain = client?.domain ?? null;
 
   const visibility = useVisibility(projectId);

@@ -30,7 +30,7 @@ import {
 export default function ReportsPage() {
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const client = portfolio.data?.clients?.find((c) => c.projectId === projectId) ?? null;
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null);
   const executive = useExecutiveSummary(projectId);
@@ -307,7 +307,7 @@ export default function ReportsPage() {
                 </thead>
                 <tbody>
                   {(reporting.data?.customReports ?? []).length > 0 ? (
-                    reporting.data?.customReports.map((report) => (
+                    reporting.data?.customReports?.map((report) => (
                       <Tr key={report.id}>
                         <Td><span className="font-medium text-brand-950">{report.name}</span></Td>
                         <Td><Pill tone="info">{report.frequency}</Pill></Td>
@@ -333,22 +333,22 @@ export default function ReportsPage() {
                       <input 
                         type="text" 
                         readOnly 
-                        value={reporting.data?.clientPortal.customDomain ?? ""} 
+                        value={reporting.data?.clientPortal?.customDomain ?? ""} 
                         className="w-full text-sm px-3 py-2 border border-brand-200 rounded bg-brand-100 text-brand-700"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-brand-950 mb-1">Theme Color</label>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded border border-brand-200" style={{ backgroundColor: reporting.data?.clientPortal.themeColor ?? "var(--color-accent-600)" }}></div>
-                        <span className="text-sm text-brand-700">{reporting.data?.clientPortal.themeColor}</span>
+                        <div className="w-8 h-8 rounded border border-brand-200" style={{ backgroundColor: reporting.data?.clientPortal?.themeColor ?? "var(--color-accent-600)" }}></div>
+                        <span className="text-sm text-brand-700">{reporting.data?.clientPortal?.themeColor}</span>
                       </div>
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-brand-950 mb-1">Portal Status</label>
-                    <Pill tone={reporting.data?.clientPortal.isPublic ? "good" : "default"}>
-                      {reporting.data?.clientPortal.isPublic ? "PUBLIC & ACTIVE" : "PRIVATE (DRAFT)"}
+                    <Pill tone={reporting.data?.clientPortal?.isPublic ? "good" : "default"}>
+                      {reporting.data?.clientPortal?.isPublic ? "PUBLIC & ACTIVE" : "PRIVATE (DRAFT)"}
                     </Pill>
                   </div>
                 </div>
