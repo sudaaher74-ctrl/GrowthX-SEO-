@@ -135,6 +135,111 @@ describe('WebSearchService', () => {
       expect(outcome.unavailable).toContain('could not be reached');
     });
 
+
+    // Every assertion below was written against a live response, not the docs.
+    describe('evidence quality, as the live API actually behaves', () => {
+      it('asks for the page text as well as the relevance extract', async () => {
+        mockedAxios.post.mockResolvedValue({ data: { results: [result('https://a.com', 'A', 'text')] } });
+
+        await service.search(['q']);
+
+        const [, body] = mockedAxios.post.mock.calls[0];
+        // `content` alone came back as little as 155 characters on real
+        // queries, which does not support a claim.
+        expect(body).toMatchObject({ include_raw_content: true, chunks_per_source: 3 });
+      });
+
+      it('tops a thin extract up from the page text', async () => {
+        mockedAxios.post.mockResolvedValue({
+          data: {
+            results: [
+              { url: 'https://a.com', title: 'A', content: 'Too short.', raw_content: 'X'.repeat(5000), score: 0.9 },
+            ],
+          },
+        });
+
+        const outcome = await service.search(['q']);
+
+        expect(outcome.sources[0].excerpt.startsWith('Too short.')).toBe(true);
+        expect(outcome.sources[0].excerpt.length).toBeGreaterThan(1000);
+      });
+
+      // raw_content is the whole page from the top — mostly navigation before
+      // it reaches anything useful — so it must not displace a good extract.
+      it('keeps a substantial extract instead of replacing it with the page', async () => {
+        const extract = 'E'.repeat(900);
+        mockedAxios.post.mockResolvedValue({
+          data: { results: [{ url: 'https://a.com', title: 'A', content: extract, raw_content: 'NAV'.repeat(2000), score: 0.9 }] },
+        });
+
+        const outcome = await service.search(['q']);
+
+        expect(outcome.sources[0].excerpt).toBe(extract);
+      });
+
+      it('caps the excerpt at the storable length', async () => {
+        mockedAxios.post.mockResolvedValue({
+          data: { results: [{ url: 'https://a.com', title: 'A', content: 'C'.repeat(9000), score: 0.9 }] },
+        });
+
+        const outcome = await service.search(['q']);
+
+        expect(outcome.sources[0].excerpt).toHaveLength(2000);
+      });
+
+      it('still cites a page that returned only a short snippet', async () => {
+        mockedAxios.post.mockResolvedValue({
+          data: { results: [{ url: 'https://kompass.com/x', title: 'Directory', content: 'S'.repeat(154), score: 0.9 }] },
+        });
+
+        const outcome = await service.search(['q']);
+
+        // Thin, but real and linkable. Dropping it loses coverage.
+        expect(outcome.sources).toHaveLength(1);
+      });
+    });
+
+    describe('recency questions', () => {
+      // A 30-day news window on a niche B2B market returned one result live,
+      // where the general index returned several.
+      it('tops a thin news pass up from the general index', async () => {
+        mockedAxios.post
+          .mockResolvedValueOnce({ data: { results: [result('https://news.com/a', 'Recent', 'recent text')] } })
+          .mockResolvedValueOnce({
+            data: {
+              results: [
+                result('https://ref.com/b', 'Reference', 'background text'),
+                result('https://ref.com/c', 'More', 'more background'),
+              ],
+            },
+          });
+
+        const outcome = await service.search(['q'], { recentOnly: true });
+
+        expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+        expect((mockedAxios.post.mock.calls[0][1] as any).topic).toBe('news');
+        expect((mockedAxios.post.mock.calls[1][1] as any).topic).toBeUndefined();
+        expect(outcome.sources.map((s) => s.url)).toContain('https://news.com/a');
+        expect(outcome.sources).toHaveLength(3);
+      });
+
+      it('does not widen the search when the news pass already found enough', async () => {
+        mockedAxios.post.mockResolvedValueOnce({
+          data: {
+            results: [
+              result('https://n.com/1', 'A', 'text'),
+              result('https://n.com/2', 'B', 'text'),
+              result('https://n.com/3', 'C', 'text'),
+            ],
+          },
+        });
+
+        await service.search(['q'], { recentOnly: true });
+
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('asks the news index with a recency window for a "what changed" question', async () => {
       mockedAxios.post.mockResolvedValue({ data: { results: [result('https://a.com', 'A', 'text')] } });
 
