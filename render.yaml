@@ -60,6 +60,12 @@ services:
       # ceiling (Pro 16384 / Business 128000).
       - key: SARVAM_MAX_OUTPUT_TOKENS
         value: "4096"
+      # Live web search for Market Research. Without it the tab answers from
+      # the client's own crawl only and says so in the answer's evidence gaps;
+      # no provider the router speaks to can search the web from a Chat
+      # Completions call. Free tier at https://tavily.com.
+      - key: TAVILY_API_KEY
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY

@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService } from './evidence-retrieval.service';
 import { MarketResearchService } from './market-research.service';
 import { ModelRole, ModelRouterService } from './model-router.service';
+import { WebSearchService } from './web-search.service';
 
 const ORG_A = 'org_a';
 const ORG_B = 'org_b';
@@ -18,6 +19,7 @@ describe('MarketResearchService', () => {
   let prisma: any;
   let models: any;
   let evidence: any;
+  let webSearch: any;
 
   const storedSources = [
     { id: 'src1', sourceKey: 'source_1', type: 'PUBLIC_WEB', title: 'Report', url: 'https://ex.com/a', excerpt: 'x', publisher: 'ex.com' },
@@ -68,12 +70,32 @@ describe('MarketResearchService', () => {
       webSources: jest.fn().mockReturnValue([{ type: 'PUBLIC_WEB', url: 'https://ex.com/a', title: 'Report', excerpt: '', qualityScore: 0.6 }]),
     };
 
+    // Web search is its own service now; these tests are about what happens to
+    // what it returns, so it yields one page and the assertions stay put.
+    webSearch = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      search: jest.fn().mockResolvedValue({
+        sources: [
+          {
+            type: 'PUBLIC_WEB',
+            url: 'https://ex.com/a',
+            title: 'Report',
+            publisher: 'ex.com',
+            excerpt: 'Findings.',
+            qualityScore: 0.6,
+          },
+        ],
+        queriesRun: ['q'],
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MarketResearchService,
         { provide: PrismaService, useValue: prisma },
         { provide: ModelRouterService, useValue: models },
         { provide: EvidenceRetrievalService, useValue: evidence },
+        { provide: WebSearchService, useValue: webSearch },
       ],
     }).compile();
 

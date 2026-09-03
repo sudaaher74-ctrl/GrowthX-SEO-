@@ -27,6 +27,7 @@ import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { SocialDiscoveryService } from '../content-intelligence/social-discovery.service';
 import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
 import { CompetitorVerificationService, RejectedCompetitor } from './competitor-verification.service';
+import { WebSearchService } from './web-search.service';
 import {
   ANSWER_INSTRUCTIONS,
   ANSWER_SCHEMA,
@@ -148,6 +149,7 @@ export class MarketResearchService {
     @Optional() private readonly socialDiscovery?: SocialDiscoveryService,
     @Optional() private readonly businessProfiles?: BusinessProfileService,
     @Optional() private readonly verification?: CompetitorVerificationService,
+    @Optional() private readonly webSearch?: WebSearchService,
   ) {}
 
   /**
@@ -2062,42 +2064,66 @@ export class MarketResearchService {
         detail: `${clientSources.length} page${clientSources.length === 1 ? '' : 's'} from the crawl · ${visibilitySources.length} AI-visibility check${visibilitySources.length === 1 ? '' : 's'}`,
       });
 
-      // 3. Public web. The hosted search reports which URLs it actually read;
-      //    only those become citable.
+      // 3. Public web.
+      //
+      // Searched directly rather than through the model: no provider the router
+      // speaks to can search the live web from a Chat Completions call, so this
+      // step used to be refused on every run and the answer fell back to the
+      // client's own crawl. The search returns the page text with each result,
+      // which is what lets a page be cited at all — the rule throughout is that
+      // only pages actually read are citable.
       emit({ stage: 'web', status: 'started' });
-      const web = await this.models.generate({
-        step: 'web-research',
-        role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
-        instructions:
-          'Research the question using web search. Summarise what you found, ' +
-          'attributing each point to the page it came from. Do not speculate.',
-        input: [
-          `Question: ${question}`,
-          `Searches to run: ${classification.searchQueries.join(' | ')}`,
-          `Client: ${context.projectName} (${context.domains.join(', ') || 'no domain on file'})`,
-        ].join('\n'),
-        webSearch: true,
-        maxOutputTokens: options.deepResearch ? 6000 : 4000,
-      });
-      usage.push(web.usage);
 
-      // When web search cannot run, the answer must say so rather than quietly
-      // presenting a client-data-only answer as if the market had been checked.
       const retrievalGaps: string[] = [];
-      if (web.webSearchUnavailable) retrievalGaps.push(web.webSearchUnavailable);
+      let webSources: RetrievedSource[] = [];
+      let webNotes = '';
+
+      const outcome = this.webSearch
+        ? await this.webSearch.search(classification.searchQueries, {
+            recentOnly: isRecencyQuestion(question),
+          })
+        : { sources: [], queriesRun: [], unavailable: 'Web search is not available on this deployment.' };
+
+      webSources = outcome.sources;
+      // When the market could not be checked, the answer must say so rather
+      // than quietly presenting a client-data-only answer as if it had been.
+      if (outcome.unavailable) retrievalGaps.push(outcome.unavailable);
+
+      // Summarised before answering so the answer step reasons over what the
+      // pages said, not over raw HTML text.
+      if (webSources.length > 0) {
+        const notes = await this.models.generate({
+          step: 'web-research',
+          role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
+          instructions:
+            'Summarise what these retrieved pages say about the question, attributing each point to ' +
+            'the page it came from. Use only the supplied text. Do not speculate and do not add facts ' +
+            'that are not in it.',
+          input: [
+            `Question: ${question}`,
+            `Client: ${context.projectName} (${context.domains.join(', ') || 'no domain on file'})`,
+            '',
+            ...webSources.map(
+              (source, i) => `[${i + 1}] ${source.title} — ${source.url}\n${source.excerpt}`,
+            ),
+          ].join('\n'),
+          maxOutputTokens: options.deepResearch ? 6000 : 4000,
+        });
+        usage.push(notes.usage);
+        webNotes = notes.text;
+      }
+
       if (!this.models.supportsEmbeddings()) {
         retrievalGaps.push(
           'No embedding model is configured, so client pages were matched by keyword rather than meaning.',
         );
       }
-
-      const webSources = this.evidence.webSources(web.webSources);
       emit({
         stage: 'web',
         status: 'done',
-        detail: web.webSearchUnavailable
-          ? 'Web search unavailable — answering from this client\'s data only'
-          : `${webSources.length} page${webSources.length === 1 ? '' : 's'} read from the web`,
+        detail: webSources.length
+          ? `${webSources.length} page${webSources.length === 1 ? '' : 's'} read across ${outcome.queriesRun.length} search${outcome.queriesRun.length === 1 ? '' : 'es'}`
+          : "Web search unavailable — answering from this client's data only",
       });
 
       // 4. Assemble the citable set and persist it before answering.
@@ -2137,7 +2163,7 @@ export class MarketResearchService {
         step: 'answer',
         role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
         instructions: ANSWER_INSTRUCTIONS,
-        input: this.buildAnswerInput(question, context, stored, web.text),
+        input: this.buildAnswerInput(question, context, stored, webNotes),
         jsonSchema: { name: ANSWER_SCHEMA.name, schema: ANSWER_SCHEMA.schema as Record<string, unknown> },
         maxOutputTokens: options.deepResearch ? 6000 : 4000,
       });
@@ -2588,6 +2614,22 @@ export function sourceIdentity(source: { url?: string | null; internalDocId?: st
     // lowercase it so the same id in two cases is still one source.
     return raw.trim().toLowerCase().replace(/\/+$/, '');
   }
+}
+
+
+/**
+ * Whether the question is about what changed rather than what is true.
+ *
+ * "What changed this week" against a general index returns the same evergreen
+ * category pages every time, which is exactly how a run came back unable to
+ * name a single recent development. These questions go to the news index with
+ * a recency window instead.
+ */
+const RECENCY_TERMS =
+  /\b(this (week|month|quarter)|last (week|month|quarter)|recent(ly)?|latest|new(est)?|changed?|changes|update[sd]?|news|trend(s|ing)?|announce(d|ment)s?|launch(ed|es)?|today|now)\b/i;
+
+export function isRecencyQuestion(question: string): boolean {
+  return RECENCY_TERMS.test(question);
 }
 
 export function parseJson(text: string): Record<string, unknown> {

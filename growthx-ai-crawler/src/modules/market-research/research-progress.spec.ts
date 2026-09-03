@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService } from './evidence-retrieval.service';
 import { MarketResearchService, ResearchProgressEvent } from './market-research.service';
 import { ModelRole, ModelRouterService } from './model-router.service';
+import { WebSearchService } from './web-search.service';
 
 const ORG = 'org_a';
 const PROJ = 'proj_a';
@@ -22,6 +23,7 @@ describe('MarketResearchService — run progress', () => {
   let prisma: any;
   let models: any;
   let evidence: any;
+  let webSearch: any;
 
   const storedSources = [
     { id: 'src1', sourceKey: 'source_1', type: 'PUBLIC_WEB', title: 'Report', url: 'https://ex.com/a', excerpt: 'x', publisher: 'ex.com' },
@@ -70,12 +72,32 @@ describe('MarketResearchService — run progress', () => {
       webSources: jest.fn().mockReturnValue([{ type: 'PUBLIC_WEB', url: 'https://ex.com/a', title: 'Report', excerpt: '', qualityScore: 0.6 }]),
     };
 
+    // One real web result by default, so the pipeline under test is the one
+    // that runs in production: search, summarise what was read, then answer.
+    webSearch = {
+      isConfigured: jest.fn().mockReturnValue(true),
+      search: jest.fn().mockResolvedValue({
+        sources: [
+          {
+            type: 'PUBLIC_WEB',
+            url: 'https://ex.com/a',
+            title: 'Report',
+            publisher: 'ex.com',
+            excerpt: 'Prices rose 14%.',
+            qualityScore: 0.9,
+          },
+        ],
+        queriesRun: ['q1', 'q2'],
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MarketResearchService,
         { provide: PrismaService, useValue: prisma },
         { provide: ModelRouterService, useValue: models },
         { provide: EvidenceRetrievalService, useValue: evidence },
+        { provide: WebSearchService, useValue: webSearch },
       ],
     }).compile();
 
@@ -165,26 +187,26 @@ describe('MarketResearchService — run progress', () => {
 
     expect(detail('classify')).toContain('2 searches planned');
     expect(detail('client')).toContain('1 page from the crawl');
-    expect(detail('web')).toContain('1 page read from the web');
+    expect(detail('web')).toContain('1 page read across 2 searches');
     expect(detail('assemble')).toContain('2 citable sources');
     expect(detail('verify')).toContain('Every citation checked');
   });
 
   it('says so on the web stage when the provider could not search', async () => {
+    // No key configured: the run still answers, from client data only.
+    webSearch.search.mockResolvedValue({
+      sources: [],
+      queriesRun: [],
+      unavailable: 'No web search provider is configured (TAVILY_API_KEY).',
+    });
     models.generate
       .mockResolvedValueOnce({
         text: JSON.stringify({ intent: 'MARKET_TREND', searchQueries: ['q'], clientDataQuery: 'x' }),
         usage: usage('classify'),
         webSources: [],
       })
-      .mockResolvedValueOnce({
-        text: '',
-        usage: usage('web'),
-        webSources: [],
-        webSearchUnavailable: 'sarvam cannot search the live web',
-      })
+      // No second call: with nothing read there is nothing to summarise.
       .mockResolvedValueOnce({ text: JSON.stringify(ANSWER), usage: usage('answer'), webSources: [] });
-    evidence.webSources.mockReturnValue([]);
 
     const events: ResearchProgressEvent[] = [];
     await service.ask({
@@ -197,6 +219,38 @@ describe('MarketResearchService — run progress', () => {
     expect(events.find((e) => e.stage === 'web' && e.status === 'done')?.detail).toContain(
       'Web search unavailable',
     );
+  });
+
+  it('carries the missing-web-search notice into the answer as an evidence gap', async () => {
+    webSearch.search.mockResolvedValue({
+      sources: [],
+      queriesRun: [],
+      unavailable: 'No web search provider is configured (TAVILY_API_KEY).',
+    });
+    models.generate
+      .mockResolvedValueOnce({
+        text: JSON.stringify({ intent: 'MARKET_TREND', searchQueries: ['q'], clientDataQuery: 'x' }),
+        usage: usage('classify'),
+        webSources: [],
+      })
+      .mockResolvedValueOnce({ text: JSON.stringify(ANSWER), usage: usage('answer'), webSources: [] });
+
+    const result = await service.ask({ organizationId: ORG, projectId: PROJ, question: 'What changed?' });
+
+    // The reader must never be shown a client-data-only answer as though the
+    // market had been checked.
+    expect(result.answer.evidenceGaps.join(' ')).toContain('TAVILY_API_KEY');
+  });
+
+  it('sends the question to the news index only when it asks what changed', async () => {
+    mockPipeline(ANSWER);
+    await service.ask({ organizationId: ORG, projectId: PROJ, question: 'What changed this week?' });
+    expect(webSearch.search).toHaveBeenLastCalledWith(expect.anything(), { recentOnly: true });
+
+    models.generate.mockReset();
+    mockPipeline(ANSWER);
+    await service.ask({ organizationId: ORG, projectId: PROJ, question: 'How is our positioning different?' });
+    expect(webSearch.search).toHaveBeenLastCalledWith(expect.anything(), { recentOnly: false });
   });
 
   it('reports dropped citations on the verify stage', async () => {
