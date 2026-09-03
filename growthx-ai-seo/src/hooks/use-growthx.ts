@@ -1,7 +1,15 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { api, ApiError, auth, type Role, LocalSeoData } from "@/lib/api-client";
+import {
+  api,
+  ApiError,
+  auth,
+  askResearchStream,
+  type ResearchProgressEvent,
+  type Role,
+  LocalSeoData,
+} from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -574,11 +582,31 @@ export function useResearchThread(projectId: string | null, threadId: string | n
   });
 }
 
+/**
+ * Runs a research question over the streaming route, reporting each stage to
+ * `onProgress` as the backend reaches it.
+ *
+ * Still a mutation, so `isPending` and the thread invalidation behave exactly
+ * as they did; the streaming happens inside `mutationFn` and the resolved
+ * value is the same finished result the one-shot route returns. Against an API
+ * without the streaming route the client falls back to that route, and the run
+ * simply reports no progress.
+ */
 export function useAskResearch(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { question: string; threadId?: string; deepResearch?: boolean }) =>
-      api.askResearch(projectId!, body),
+    mutationFn: ({
+      onProgress,
+      ...body
+    }: {
+      question: string;
+      threadId?: string;
+      deepResearch?: boolean;
+      onProgress?: (event: ResearchProgressEvent) => void;
+    }) =>
+      askResearchStream(projectId!, body, (event) => {
+        if (event.type === "progress") onProgress?.(event);
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["research-threads", projectId] });
     },

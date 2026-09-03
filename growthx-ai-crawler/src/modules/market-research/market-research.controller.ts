@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MarketResearchService } from './market-research.service';
@@ -239,6 +240,79 @@ export class MarketResearchController {
       deepResearch: body.deepResearch,
     });
     return result;
+  }
+
+  /**
+   * The same run as `ask`, reported stage by stage as it happens.
+   *
+   * `ask` answers in one shot, which left the UI with nothing to show for the
+   * twenty-odd seconds a run takes but a spinner — and a client that wanted to
+   * show progress had no choice but to estimate it. This streams the real
+   * thing: each stage as it starts and finishes, the citable sources the
+   * moment they are stored, then the finished answer.
+   *
+   * Written straight to the response rather than through Nest's `@Sse()`,
+   * which is built for GET. `X-Accel-Buffering: no` matters in production —
+   * a buffering proxy in front of the API would hold every frame back and
+   * deliver them together at the end, turning the stream back into `ask`.
+   */
+  @Post('ask/stream')
+  @ApiOperation({ summary: 'Ask a market research question, streamed stage by stage (SSE)' })
+  @ApiParam({ name: 'projectId' })
+  async askStream(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: AskQuestionDto,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    // The run cannot be cancelled once the model call is in flight, but there
+    // is no point writing into a socket nobody is reading.
+    let clientGone = false;
+    req.on('close', () => {
+      clientGone = true;
+    });
+
+    const send = (payload: unknown) => {
+      if (clientGone || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    // A comment frame every 15s. Idle timeouts on hosting proxies are shorter
+    // than the gap between "answer started" and "answer done" on a long run.
+    const heartbeat = setInterval(() => {
+      if (!clientGone && !res.writableEnded) res.write(': keep-alive\n\n');
+    }, 15_000);
+
+    try {
+      const result = await this.research.ask({
+        organizationId: req.user?.organizationId || req.organizationId,
+        projectId,
+        threadId: body.threadId,
+        question: body.question,
+        deepResearch: body.deepResearch,
+        onProgress: (event) => send({ type: 'progress', ...event }),
+      });
+      send({ type: 'done', result });
+    } catch (err: any) {
+      // The status line is long gone by now, so a failure has to arrive as an
+      // event. Without this the browser sees a stream that simply stops and
+      // reports a network error for what was a real, explainable failure.
+      send({
+        type: 'error',
+        message:
+          err?.response?.message || err?.message || 'Research failed.',
+        status: err?.status ?? 500,
+      });
+    } finally {
+      clearInterval(heartbeat);
+      if (!res.writableEnded) res.end();
+    }
   }
 
   // ── action queue (Phase 2)

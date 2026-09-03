@@ -40,6 +40,32 @@ export interface AskOptions {
   threadId?: string;
   question: string;
   deepResearch?: boolean;
+  /**
+   * Called as each stage of the run starts and finishes, so a streaming
+   * caller can report real progress instead of estimating it.
+   *
+   * Never allowed to affect the run: `ask` wraps every call, so a listener
+   * that throws — a closed connection, a serialisation error — is logged and
+   * the research carries on. Nothing here is awaited either, because a slow
+   * consumer must not hold the pipeline open.
+   */
+  onProgress?: (event: ResearchProgressEvent) => void;
+}
+
+/** The stages of a run, in the order `ask` performs them. */
+export type ResearchStage = 'classify' | 'client' | 'web' | 'assemble' | 'answer' | 'verify';
+
+export interface ResearchProgressEvent {
+  stage: ResearchStage;
+  status: 'started' | 'done';
+  /** One line for the operator, e.g. "7 pages from this client's crawl". */
+  detail?: string;
+  /**
+   * Sources, sent once the citable set is stored. This is what lets the UI
+   * fill its sources rail while the answer is still being written, rather
+   * than everything landing at once at the end.
+   */
+  sources?: unknown[];
 }
 
 export interface AutoIdentifiedCompetitor {
@@ -1996,12 +2022,31 @@ export class MarketResearchService {
 
     const usage: ModelUsage[] = [];
 
+    // Progress reporting is best-effort by construction: a listener that
+    // throws must never cost the customer a run they have already paid model
+    // tokens for.
+    const emit = (event: ResearchProgressEvent) => {
+      if (!options.onProgress) return;
+      try {
+        options.onProgress(event);
+      } catch (err) {
+        this.logger.debug(`Progress listener failed for run ${run.id}: ${err}`);
+      }
+    };
+
     try {
       // 1. Classify and plan.
+      emit({ stage: 'classify', status: 'started' });
       const classification = await this.classify(question, usage);
+      emit({
+        stage: 'classify',
+        status: 'done',
+        detail: `Intent: ${String(classification.intent).replace(/_/g, ' ').toLowerCase()} · ${classification.searchQueries.length} search${classification.searchQueries.length === 1 ? '' : 'es'} planned`,
+      });
 
       // 2. Retrieve. Client context first — it is what makes the answer about
       //    this business rather than the category in general.
+      emit({ stage: 'client', status: 'started' });
       const context = await this.evidence.loadClientContext(projectId);
       if (!context) throw new NotFoundException('Project not found.');
 
@@ -2011,9 +2056,15 @@ export class MarketResearchService {
         classification.clientDataQuery || question,
       );
       const visibilitySources = this.evidence.visibilitySources(context);
+      emit({
+        stage: 'client',
+        status: 'done',
+        detail: `${clientSources.length} page${clientSources.length === 1 ? '' : 's'} from the crawl · ${visibilitySources.length} AI-visibility check${visibilitySources.length === 1 ? '' : 's'}`,
+      });
 
       // 3. Public web. The hosted search reports which URLs it actually read;
       //    only those become citable.
+      emit({ stage: 'web', status: 'started' });
       const web = await this.models.generate({
         step: 'web-research',
         role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
@@ -2041,11 +2092,27 @@ export class MarketResearchService {
       }
 
       const webSources = this.evidence.webSources(web.webSources);
+      emit({
+        stage: 'web',
+        status: 'done',
+        detail: web.webSearchUnavailable
+          ? 'Web search unavailable — answering from this client\'s data only'
+          : `${webSources.length} page${webSources.length === 1 ? '' : 's'} read from the web`,
+      });
 
       // 4. Assemble the citable set and persist it before answering.
+      emit({ stage: 'assemble', status: 'started' });
       const allSources = [...webSources, ...clientSources, ...visibilitySources];
       const stored = await this.persistSources(run.id, organizationId, projectId, allSources);
       const validKeys = new Set(stored.map((s) => s.sourceKey));
+      // Sent with the stage rather than held to the end: the sources rail can
+      // fill here, while the answer is still being written.
+      emit({
+        stage: 'assemble',
+        status: 'done',
+        detail: `${stored.length} citable source${stored.length === 1 ? '' : 's'}`,
+        sources: stored,
+      });
 
       // 5. Answer, or report honestly that we cannot.
       if (stored.length === 0) {
@@ -2065,6 +2132,7 @@ export class MarketResearchService {
         );
       }
 
+      emit({ stage: 'answer', status: 'started' });
       const answerResult = await this.models.generate({
         step: 'answer',
         role: options.deepResearch ? ModelRole.DEEP : ModelRole.ANALYST,
@@ -2076,14 +2144,24 @@ export class MarketResearchService {
       usage.push(answerResult.usage);
 
       const parsed = parseJson(answerResult.text);
+      emit({ stage: 'answer', status: 'done' });
 
       // 6. Enforce the citation rules independently of the model.
+      emit({ stage: 'verify', status: 'started' });
       const validation = validateCitations(parsed, validKeys);
       if (validation.invalidCitations.length > 0) {
         this.logger.warn(
           `Run ${run.id} cited ${validation.invalidCitations.length} source(s) that were not retrieved: ${validation.invalidCitations.join(', ')}`,
         );
       }
+
+      emit({
+        stage: 'verify',
+        status: 'done',
+        detail: validation.invalidCitations.length
+          ? `${validation.invalidCitations.length} unsupported citation${validation.invalidCitations.length === 1 ? '' : 's'} dropped`
+          : 'Every citation checked against the retrieved set',
+      });
 
       const answer = {
         summary: String(parsed.summary ?? ''),

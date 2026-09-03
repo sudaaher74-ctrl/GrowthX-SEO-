@@ -2,66 +2,57 @@
 
 import { useEffect, useState } from "react";
 import { Check, Loader2, Brain, FileSearch, Globe, Layers, PenLine, ShieldCheck } from "lucide-react";
+import type { ResearchStage } from "@/lib/api-client";
 
 /**
- * The six stages `MarketResearchService.ask` actually runs, in order.
+ * The six stages `MarketResearchService.ask` runs, in order.
  *
  * Named from the pipeline rather than invented for the animation: 1 classify
  * and plan, 2 retrieve this client's own pages and AI-visibility history,
  * 3 search the public web, 4 assemble and persist the citable set, 5 write the
- * answer, 6 re-check every citation against that set. `weight` is a rough share
- * of a typical run, used only to pace the indicator.
+ * answer, 6 re-check every citation against that set.
  */
-const STAGES = [
-  { id: "classify", label: "Understanding the question", detail: "Classifying intent and planning what to retrieve", icon: Brain, weight: 0.08 },
-  { id: "client", label: "Reading this client's data", detail: "Crawled pages, tracked prompts and AI-visibility history", icon: FileSearch, weight: 0.14 },
-  { id: "web", label: "Searching the public web", detail: "Only pages the search actually opened become citable", icon: Globe, weight: 0.34 },
-  { id: "assemble", label: "Assembling the evidence set", detail: "De-duplicating and storing every source before answering", icon: Layers, weight: 0.1 },
-  { id: "answer", label: "Writing the answer", detail: "Separating what is evidenced from what is inferred", icon: PenLine, weight: 0.28 },
-  { id: "verify", label: "Checking every citation", detail: "Claims pointing at a source that was not retrieved are dropped", icon: ShieldCheck, weight: 0.06 },
-] as const;
+const STAGES: Array<{ id: ResearchStage; label: string; fallbackDetail: string; icon: typeof Brain }> = [
+  { id: "classify", label: "Understanding the question", fallbackDetail: "Classifying intent and planning what to retrieve", icon: Brain },
+  { id: "client", label: "Reading this client's data", fallbackDetail: "Crawled pages, tracked prompts and AI-visibility history", icon: FileSearch },
+  { id: "web", label: "Searching the public web", fallbackDetail: "Only pages the search actually opened become citable", icon: Globe },
+  { id: "assemble", label: "Assembling the evidence set", fallbackDetail: "De-duplicating and storing every source before answering", icon: Layers },
+  { id: "answer", label: "Writing the answer", fallbackDetail: "Separating what is evidenced from what is inferred", icon: PenLine },
+  { id: "verify", label: "Checking every citation", fallbackDetail: "Claims pointing at a source that was not retrieved are dropped", icon: ShieldCheck },
+];
 
-/** Typical end-to-end run. Only paces the indicator; nothing depends on it. */
-const TYPICAL_RUN_MS = 22_000;
+export type StageProgress = Partial<Record<ResearchStage, { status: "started" | "done"; detail?: string }>>;
 
 /**
  * What the software is doing while a research question is in flight.
  *
- * An honest caveat, stated here because it is invisible from the outside: the
- * ask endpoint is a single POST that returns the finished answer, so this
- * component does not receive live per-stage telemetry. It paces the stage list
- * against a typical run instead. The stages themselves are real and always run
- * in this order, and the last one never completes on its own — it keeps
- * spinning until the response lands, so the indicator can run behind a slow
- * request but never claims to have finished work that has not returned.
+ * Driven by real server-sent events: the backend emits each stage as it starts
+ * and finishes, along with what it found — "7 pages from the crawl",
+ * "12 citable sources" — and those lines are the server's, not this
+ * component's guess at them.
  *
- * Making this genuinely live means streaming the run (SSE, one event per stage)
- * and driving `activeIndex` off those events, at which point the timer below
- * can be deleted without touching the markup.
+ * The one case with nothing to render is an API that predates the streaming
+ * route, where the client falls back to the one-shot call and no event ever
+ * arrives. Rather than sit blank, the list then shows the same stages as
+ * pending with a note that progress is unavailable, which is the honest
+ * description of that state.
  */
-export function ResearchActivity({ question }: { question: string }) {
+export function ResearchActivity({ question, progress }: { question: string; progress: StageProgress }) {
   const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
     const startedAt = Date.now();
-    const timer = setInterval(() => setElapsedMs(Date.now() - startedAt), 200);
+    const timer = setInterval(() => setElapsedMs(Date.now() - startedAt), 250);
     return () => clearInterval(timer);
   }, [question]);
 
-  const progress = Math.min(elapsedMs / TYPICAL_RUN_MS, 1);
+  const reported = STAGES.filter((s) => progress[s.id]).length;
+  const completed = STAGES.filter((s) => progress[s.id]?.status === "done").length;
+  const isLive = reported > 0;
 
-  // The final stage is never auto-completed: a run that outlives the estimate
-  // parks there rather than showing six ticks beside a spinner.
-  let cumulative = 0;
-  let activeIndex = STAGES.length - 1;
-  for (let i = 0; i < STAGES.length; i += 1) {
-    cumulative += STAGES[i].weight;
-    if (progress < cumulative) {
-      activeIndex = i;
-      break;
-    }
-  }
-
+  // Only ever what the server has confirmed finished, so the bar cannot run
+  // ahead of the work.
+  const percent = (completed / STAGES.length) * 100;
   const seconds = Math.floor(elapsedMs / 1000);
 
   return (
@@ -75,7 +66,14 @@ export function ResearchActivity({ question }: { question: string }) {
             </span>
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Researching</p>
+            <p className="text-[13px] font-semibold text-[var(--text-primary)]">
+              Researching
+              {isLive && (
+                <span className="ml-1.5 align-middle text-[10px] font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  live
+                </span>
+              )}
+            </p>
             <p className="truncate text-[11.5px] text-[var(--text-muted)]">{question}</p>
           </div>
         </div>
@@ -83,9 +81,10 @@ export function ResearchActivity({ question }: { question: string }) {
       </div>
 
       <ol className="space-y-0.5 p-3">
-        {STAGES.map((stage, i) => {
-          const done = i < activeIndex;
-          const active = i === activeIndex;
+        {STAGES.map((stage) => {
+          const state = progress[stage.id];
+          const done = state?.status === "done";
+          const active = state?.status === "started";
           const Icon = stage.icon;
 
           return (
@@ -125,8 +124,12 @@ export function ResearchActivity({ question }: { question: string }) {
                 >
                   {stage.label}
                 </p>
-                {active && (
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">{stage.detail}</p>
+                {/* The server's own line where it sent one — it names what was
+                    actually found — and the stage description otherwise. */}
+                {(active || done) && (
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    {state?.detail ?? stage.fallbackDetail}
+                  </p>
                 )}
               </div>
             </li>
@@ -134,10 +137,17 @@ export function ResearchActivity({ question }: { question: string }) {
         })}
       </ol>
 
+      {!isLive && seconds > 3 && (
+        <p className="px-4 pb-3 text-[11px] text-[var(--text-muted)]">
+          This API version does not report progress, so the run is shown without stage detail. The
+          answer is unaffected.
+        </p>
+      )}
+
       <div className="h-0.5 w-full bg-[var(--surface-2)]">
         <div
-          className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-200 ease-linear"
-          style={{ width: `${Math.max(progress * 100, 4)}%` }}
+          className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-500 ease-out"
+          style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>
     </div>

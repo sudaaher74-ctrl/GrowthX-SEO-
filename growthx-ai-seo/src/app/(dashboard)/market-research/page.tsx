@@ -7,7 +7,7 @@ import { Sparkles, AlertTriangle, Users } from "lucide-react";
 import { useWorkspace, useAskResearch } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import type { ResearchSource } from "@/lib/api-client";
-import { ResearchActivity } from "@/components/market-research/research-activity";
+import { ResearchActivity, type StageProgress } from "@/components/market-research/research-activity";
 import { EmptyState, Composer } from "@/components/market-research/research-composer";
 import { AnswerBlock } from "@/components/market-research/research-answer";
 import { SourcesRail } from "@/components/market-research/sources-rail";
@@ -45,18 +45,21 @@ export default function MarketResearchPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openSource, setOpenSource] = useState<ResearchSource | null>(null);
+  // Stage-by-stage progress for the run in flight, from the server's own events.
+  const [progress, setProgress] = useState<StageProgress>({});
+  // Sources the run has already stored. They arrive at the `assemble` stage,
+  // well before the answer, so the rail fills while the answer is written.
+  const [streamedSources, setStreamedSources] = useState<ResearchSource[]>([]);
 
   // Every source across the conversation, de-duplicated and numbered once.
   // Numbering per turn would restart at [1] on each follow-up, so one page
   // could carry two different markers and the rail would stop being a key.
   const allSources: ResearchSource[] = [];
   const seenKeys = new Set<string>();
-  for (const turn of turns) {
-    for (const source of turn.sources) {
-      if (seenKeys.has(source.sourceKey)) continue;
-      seenKeys.add(source.sourceKey);
-      allSources.push(source);
-    }
+  for (const source of [...turns.flatMap((t) => t.sources), ...streamedSources]) {
+    if (seenKeys.has(source.sourceKey)) continue;
+    seenKeys.add(source.sourceKey);
+    allSources.push(source);
   }
   const sourceNumber = new Map(allSources.map((s, i) => [s.sourceKey, i + 1]));
 
@@ -72,9 +75,21 @@ export default function MarketResearchPage() {
     setError(null);
     setPendingQuestion(text.trim());
     setQuestion("");
+    setProgress({});
+    setStreamedSources([]);
     try {
       // Follow-ups reuse the thread so the model keeps this project's context.
-      const result = await ask.mutateAsync({ question: text.trim(), threadId });
+      const result = await ask.mutateAsync({
+        question: text.trim(),
+        threadId,
+        onProgress: (event) => {
+          setProgress((prev) => ({
+            ...prev,
+            [event.stage]: { status: event.status, detail: event.detail },
+          }));
+          if (event.sources?.length) setStreamedSources(event.sources);
+        },
+      });
       setThreadId(result.threadId);
       setTurns((prev) => [...prev, { question: text.trim(), answer: result.answer, sources: result.sources }]);
     } catch (err) {
@@ -83,6 +98,10 @@ export default function MarketResearchPage() {
       setQuestion(text.trim());
     } finally {
       setPendingQuestion("");
+      // The turn now owns these; keeping them here would double-count a
+      // source that the finished answer already carries.
+      setStreamedSources([]);
+      setProgress({});
     }
   }
 
@@ -93,6 +112,8 @@ export default function MarketResearchPage() {
     setQuestion("");
     setError(null);
     setOpenSource(null);
+    setStreamedSources([]);
+    setProgress({});
   }
 
   function focusSource(source: ResearchSource) {
@@ -143,7 +164,7 @@ export default function MarketResearchPage() {
               <AnswerBlock key={i} turn={turn} sourceNumber={sourceNumber} onOpenSource={focusSource} />
             ))}
 
-            {ask.isPending && <ResearchActivity question={pendingQuestion} />}
+            {ask.isPending && <ResearchActivity question={pendingQuestion} progress={progress} />}
 
             {error && (
               <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-600 dark:text-red-400">

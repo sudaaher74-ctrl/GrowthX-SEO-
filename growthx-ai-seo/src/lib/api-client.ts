@@ -1042,6 +1042,25 @@ export interface ResearchAnswer {
   evidenceGaps: string[];
 }
 
+
+/** A stage of a research run, in the order the backend performs them. */
+export type ResearchStage = "classify" | "client" | "web" | "assemble" | "answer" | "verify";
+
+export interface ResearchProgressEvent {
+  type: "progress";
+  stage: ResearchStage;
+  status: "started" | "done";
+  /** One line for the operator, e.g. "7 pages from the crawl". */
+  detail?: string;
+  /** Present on `assemble`/done: the citable set, so the rail can fill early. */
+  sources?: ResearchSource[];
+}
+
+export type ResearchStreamEvent =
+  | ResearchProgressEvent
+  | { type: "done"; result: ResearchAskResult }
+  | { type: "error"; message: string; status?: number };
+
 export interface ResearchAskResult {
   threadId: string;
   runId: string;
@@ -2337,5 +2356,103 @@ export interface GenerateOutreachBody {
   proposedDate?: string;
 }
 
+/**
+ * Runs a research question and reports each stage as it happens.
+ *
+ * Not `EventSource`: that cannot send an Authorization header, and moving the
+ * token into the query string would put it in proxy logs and browser history.
+ * A streamed `fetch` keeps the same auth as every other call here, at the cost
+ * of parsing the SSE framing by hand — which is only ever `data:` lines and
+ * blank-line terminators, plus `:` comments used as the keep-alive.
+ *
+ * Falls back to the non-streaming route when the response is not a stream, so
+ * a frontend deployed ahead of its API still answers questions; it just does
+ * not show progress.
+ */
+export async function askResearchStream(
+  projectId: string,
+  body: { question: string; threadId?: string; deepResearch?: boolean },
+  onEvent: (event: ResearchStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<ResearchAskResult> {
+  const token = auth.getToken();
+  const orgId = auth.getOrgId();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (orgId) headers["x-organization-id"] = orgId;
 
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBase()}/api/projects/${projectId}/market-research/ask/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    return api.askResearch(projectId, body);
+  }
 
+  // An API without the streaming route answers 404 here. Retrying on the
+  // one-shot route keeps the page working across a partial deploy.
+  if (response.status === 404) return api.askResearch(projectId, body);
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new ApiError(response.status, text || `Research failed (${response.status}).`);
+  }
+  if (!response.body) return api.askResearch(projectId, body);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: ResearchAskResult | null = null;
+  let failure: ApiError | null = null;
+
+  // Frames are separated by a blank line; anything not yet terminated stays in
+  // the buffer, because a chunk boundary can land mid-frame.
+  const consume = (frame: string) => {
+    const data = frame
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+    if (!data) return; // a `:` keep-alive comment
+
+    let event: ResearchStreamEvent;
+    try {
+      event = JSON.parse(data) as ResearchStreamEvent;
+    } catch {
+      return;
+    }
+
+    if (event.type === "done") result = event.result;
+    else if (event.type === "error") failure = new ApiError(event.status ?? 500, event.message);
+    else onEvent(event);
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let split = buffer.indexOf("\n\n");
+    while (split !== -1) {
+      consume(buffer.slice(0, split));
+      buffer = buffer.slice(split + 2);
+      split = buffer.indexOf("\n\n");
+    }
+  }
+  if (buffer.trim()) consume(buffer);
+
+  if (failure) throw failure;
+  if (!result) {
+    // The stream ended without a terminal frame: a dropped connection or a
+    // proxy cutting the response. Saying so beats a silent empty answer.
+    throw new ApiError(502, "The research connection closed before the answer arrived.");
+  }
+  return result;
+}
