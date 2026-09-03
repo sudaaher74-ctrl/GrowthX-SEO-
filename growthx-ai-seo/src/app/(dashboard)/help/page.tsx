@@ -25,9 +25,9 @@ export default function HelpPage() {
 
       <div className="grid sm:grid-cols-3 gap-3">
         {[
-          { icon: <Book size={20}/>, label: "Documentation", desc: "Full platform guide", color: "text-purple-500", bg: "bg-purple-50 dark:bg-purple-900/20" },
-          { icon: <Video size={20}/>, label: "Video Tutorials", desc: "Watch & learn", color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-900/20" },
-          { icon: <MessageCircle size={20}/>, label: "Live Chat", desc: "Chat with support", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+          { icon: <Book size={20}/>, label: "Documentation", desc: "Full platform guide", color: "text-purple-500", bg: "bg-purple-50" },
+          { icon: <Video size={20}/>, label: "Video Tutorials", desc: "Watch & learn", color: "text-violet-500", bg: "bg-violet-50" },
+          { icon: <MessageCircle size={20}/>, label: "Live Chat", desc: "Chat with support", color: "text-emerald-500", bg: "bg-emerald-50" },
         ].map((item, i) => (
           <motion.div key={item.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
             className="card p-5 flex items-center gap-4 cursor-pointer hover:shadow-card-hover">

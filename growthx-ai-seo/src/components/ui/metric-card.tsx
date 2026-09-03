@@ -63,7 +63,7 @@ export function MetricCard({
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           {icon && (
-            <div className="p-2 rounded-[10px] bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+            <div className="p-2 rounded-[10px] bg-blue-500/10 text-blue-600">
               {icon}
             </div>
           )}

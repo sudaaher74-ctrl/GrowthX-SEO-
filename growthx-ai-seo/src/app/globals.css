@@ -135,40 +135,6 @@
   --scrollbar-track: transparent;
 }
 
-.dark {
-  --bg-base: #0a0a0a;
-  --bg-subtle: #121212;
-  --bg-muted: #1a1a1a;
-  --bg-overlay: rgba(10, 10, 10, 0.95);
-  --bg-glass: rgba(18, 18, 18, 0.75);
-
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
-
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --text-inverse: #0a0a0a;
-
-  --surface-1: #121212;
-  --surface-2: #18181b;
-  --surface-3: #27272a;
-
-  --sidebar-bg: #0a0a0a;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-item-hover: rgba(255, 255, 255, 0.06);
-  --sidebar-item-active: rgba(255, 255, 255, 0.1);
-  --sidebar-text: #a1a1aa;
-  --sidebar-text-active: #fafafa;
-
-  --card-bg: #121212;
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
-  --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-
-  --scrollbar-thumb: #3f3f46;
-  --scrollbar-track: transparent;
-}
 
 /* ───── Base Styles ───── */
 * {

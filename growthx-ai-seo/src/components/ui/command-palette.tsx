@@ -189,27 +189,27 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           onMouseEnter={() => setSelectedIndex(idx)}
                           className={cn(
                             "flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-base group",
-                            isSelected ? "bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-zinc-100" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
+                            isSelected ? "bg-gray-100 text-gray-900" : "hover:bg-[var(--surface-2)] text-[var(--text-primary)]"
                           )}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className={cn(
                               "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-base",
-                              isSelected ? "bg-white dark:bg-zinc-700 text-gray-900 shadow-sm" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
+                              isSelected ? "bg-white text-gray-900 shadow-sm" : "bg-[var(--surface-3)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]"
                             )}>
                               <Icon size={16} />
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm font-semibold truncate">{item.title}</div>
                               {item.subtitle && (
-                                <div className={cn("text-xs truncate", isSelected ? "text-gray-500 dark:text-gray-400" : "text-[var(--text-muted)]")}>
+                                <div className={cn("text-xs truncate", isSelected ? "text-gray-500" : "text-[var(--text-muted)]")}>
                                   {item.subtitle}
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-gray-500 dark:text-gray-400" : "text-transparent group-hover:text-[var(--text-muted)]")}>
+                          <div className={cn("flex items-center gap-1 text-xs font-medium shrink-0", isSelected ? "text-gray-500" : "text-transparent group-hover:text-[var(--text-muted)]")}>
                             <span>Select</span>
                             <CornerDownLeft size={13} />
                           </div>

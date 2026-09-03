@@ -10,12 +10,12 @@ interface BadgeProps {
 }
 
 const variantStyles = {
-  default: "bg-zinc-100/80 text-zinc-700 border border-zinc-200/50 dark:bg-zinc-800/80 dark:text-zinc-300 dark:border-zinc-700/50",
-  success: "bg-emerald-50 text-emerald-700 border border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
-  warning: "bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
-  error: "bg-red-50 text-red-700 border border-red-200/50 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-  info: "bg-blue-50 text-blue-700 border border-blue-200/50 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20",
-  pending: "bg-indigo-50 text-indigo-700 border border-indigo-200/50 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20",
+  default: "bg-zinc-100/80 text-zinc-700 border border-zinc-200/50",
+  success: "bg-emerald-50 text-emerald-700 border border-emerald-200/50",
+  warning: "bg-amber-50 text-amber-700 border border-amber-200/50",
+  error: "bg-red-50 text-red-700 border border-red-200/50",
+  info: "bg-blue-50 text-blue-700 border border-blue-200/50",
+  pending: "bg-indigo-50 text-indigo-700 border border-indigo-200/50",
 };
 
 export function Badge({ children, variant = "default", size = "sm", className }: BadgeProps) {
@@ -50,7 +50,7 @@ export function TrendBadge({ value, suffix = "%", invertColor = false, className
     <span
       className={cn(
         "inline-flex items-center gap-0.5 text-xs font-medium",
-        good ? "text-emerald-600 dark:text-emerald-400" : bad ? "text-red-600 dark:text-red-400" : "text-zinc-400",
+        good ? "text-emerald-600" : bad ? "text-red-600" : "text-zinc-400",
         className
       )}
     >
