@@ -50,6 +50,12 @@ export class WebSearchService {
   private readonly RESULTS_PER_QUERY = 5;
   /** Across all queries, after de-duplication. Keeps the answer prompt sane. */
   private readonly MAX_SOURCES = 12;
+  /** Below this, a news-only pass is topped up from the general index. */
+  private readonly MIN_RECENT_RESULTS = 3;
+  /** An extract shorter than this is topped up from the full page text. */
+  private readonly THIN_EXTRACT = 400;
+  /** Per source. The excerpt column stores 2000; this is the working budget. */
+  private readonly MAX_EXCERPT = 2000;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -89,10 +95,23 @@ export class WebSearchService {
       return { sources: [], queriesRun: [], unavailable: 'No search queries were planned for this question.' };
     }
 
-    const settled = await Promise.allSettled(planned.map((query) => this.runQuery(key, query, options)));
+    const topic: 'general' | 'news' = options?.recentOnly ? 'news' : 'general';
+    const settled = await Promise.allSettled(planned.map((query) => this.runQuery(key, query, topic)));
 
-    const failures = settled.filter((r) => r.status === 'rejected').length;
-    const results = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+    let failures = settled.filter((r) => r.status === 'rejected').length;
+    let results = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+
+    // A 30-day news window on a niche B2B market can return almost nothing —
+    // one result, where the general index returns several. Recent evidence is
+    // preferred, not required, so a thin news pass is topped up rather than
+    // left to stand as the whole answer to "what changed".
+    if (topic === 'news' && results.length < this.MIN_RECENT_RESULTS) {
+      const broader = await Promise.allSettled(
+        planned.map((query) => this.runQuery(key, query, 'general')),
+      );
+      failures += broader.filter((r) => r.status === 'rejected').length;
+      results = [...results, ...broader.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))];
+    }
 
     if (results.length === 0) {
       return {
@@ -115,11 +134,7 @@ export class WebSearchService {
     };
   }
 
-  private async runQuery(
-    key: string,
-    query: string,
-    options?: { recentOnly?: boolean },
-  ): Promise<TavilyResult[]> {
+  private async runQuery(key: string, query: string, topic: 'general' | 'news'): Promise<TavilyResult[]> {
     const response = await axios.post<{ results?: TavilyResult[] }>(
       this.ENDPOINT,
       {
@@ -127,12 +142,16 @@ export class WebSearchService {
         // `advanced` reads more of each page. The extra latency buys the
         // specification-level detail these answers are judged on.
         search_depth: 'advanced',
+        // Up to three relevant passages per page rather than one.
+        chunks_per_source: 3,
         max_results: this.RESULTS_PER_QUERY,
         include_answer: false,
-        // The excerpt is the evidence a claim is checked against, so the page
-        // text has to come back with the result.
-        include_raw_content: false,
-        ...(options?.recentOnly ? { topic: 'news', days: 30 } : {}),
+        // The excerpt is the evidence a claim is written from, and `content`
+        // alone came back as little as 155 characters on real queries — too
+        // thin to support a claim. `raw_content` is the whole page, used only
+        // to top up a short extract; see `excerptFor`.
+        include_raw_content: true,
+        ...(topic === 'news' ? { topic: 'news', days: 30 } : {}),
       },
       {
         timeout: this.TIMEOUT_MS,
@@ -146,13 +165,17 @@ export class WebSearchService {
     return Array.isArray(response.data?.results) ? response.data.results : [];
   }
 
+  private excerptFor(result: TavilyResult): string {
+    return excerptFor(result, this.THIN_EXTRACT, this.MAX_EXCERPT);
+  }
+
   /** Ranked, de-duplicated, and trimmed to what the answer prompt can hold. */
   private toSources(results: TavilyResult[]): RetrievedSource[] {
     const byUrl = new Map<string, RetrievedSource>();
 
     for (const result of results) {
       const url = (result.url || '').trim();
-      const excerpt = (result.raw_content || result.content || '').trim();
+      const excerpt = this.excerptFor(result);
       if (!url || !excerpt) continue; // Nothing read means nothing citable.
 
       // The same page can come back from more than one query; keep the copy
@@ -176,6 +199,26 @@ export class WebSearchService {
       .sort((a, b) => b.qualityScore - a.qualityScore)
       .slice(0, this.MAX_SOURCES);
   }
+}
+
+/**
+ * The text a claim will be written from.
+ *
+ * `content` is the passage Tavily selected as relevant to the query, so it is
+ * the better evidence and comes first. It is also unreliable in length — real
+ * queries returned anywhere from 155 to 2087 characters — and 155 characters
+ * does not support a claim. `raw_content` is the whole page from the top,
+ * mostly navigation and boilerplate before it reaches anything useful, which
+ * is why it tops a thin extract up instead of replacing it.
+ */
+function excerptFor(result: TavilyResult, thin: number, max: number): string {
+  const extract = (result.content || '').trim();
+  const page = (result.raw_content || '').trim();
+
+  if (!extract) return page.slice(0, max);
+  if (extract.length >= thin || !page) return extract.slice(0, max);
+
+  return `${extract}\n\n${page.slice(0, max - extract.length - 2)}`.slice(0, max);
 }
 
 function clamp01(value: number): number {
