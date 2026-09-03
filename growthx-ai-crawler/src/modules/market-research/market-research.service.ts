@@ -2286,7 +2286,7 @@ export class MarketResearchService {
     for (const source of sources) {
       // Dedupe on the identity of the thing, so the same page arriving from web
       // search and from the client's own crawl is one citable source.
-      const identity = source.url ?? source.internalDocId ?? source.title;
+      const identity = sourceIdentity(source);
       if (seen.has(identity)) continue;
       seen.add(identity);
 
@@ -2547,6 +2547,47 @@ function normaliseConfidence(raw: unknown, verifiedCount: number): 'high' | 'med
   if (verifiedCount === 0) return 'low';
   if (value === 'high' && verifiedCount < 2) return 'medium';
   return value;
+}
+
+
+/**
+ * What makes two retrieved sources the same source.
+ *
+ * Keyed on the raw URL, this let one page be cited several times over: a crawl
+ * holds `https://acme.com/about` and `https://acme.com/about/` as separate
+ * pages, and both were retrieved, stored and numbered, so an answer about a
+ * four-page site listed eight sources and the reader could not tell why [3]
+ * and [4] were the same page.
+ *
+ * So the URL is normalised down to what actually identifies the document —
+ * scheme, `www.`, a trailing slash, the fragment and tracking parameters all
+ * dropped — while the source keeps its original URL for display and linking.
+ * Query parameters that are not tracking are kept: `?product=mango-pulp` is a
+ * different page, and collapsing it would lose a citation rather than a
+ * duplicate.
+ */
+const TRACKING_PARAMS = /^(utm_|fbclid$|gclid$|msclkid$|mc_(c|e)id$|ref$|source$|igshid$)/i;
+
+export function sourceIdentity(source: { url?: string | null; internalDocId?: string | null; title: string }): string {
+  const raw = source.url ?? source.internalDocId;
+  if (!raw) return `title:${source.title.trim().toLowerCase()}`;
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.replace(/\/+$/, '') || '/';
+
+    const params = [...parsed.searchParams.entries()]
+      .filter(([key]) => !TRACKING_PARAMS.test(key))
+      .sort(([a], [b]) => a.localeCompare(b));
+    const query = params.length ? `?${params.map(([k, v]) => `${k}=${v}`).join('&')}` : '';
+
+    return `${host}${path}${query}`.toLowerCase();
+  } catch {
+    // Not a URL — an internal document id, or a malformed href. Trim and
+    // lowercase it so the same id in two cases is still one source.
+    return raw.trim().toLowerCase().replace(/\/+$/, '');
+  }
 }
 
 export function parseJson(text: string): Record<string, unknown> {
