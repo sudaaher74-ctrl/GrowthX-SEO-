@@ -258,14 +258,32 @@ export function AutoCompetitorsPanel({
             </div>
           </div>
 
-          <button
-            onClick={() => runDiscovery({ refreshProfile: true })}
-            disabled={isDiscovering}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-2)] disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={isDiscovering ? "animate-spin" : ""} />
-            Re-Scan Market
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Kept outside the detected-business card on purpose. The card is
+                the usual home for this control, but it does not render when
+                detection returns nothing — an API that predates detection, a
+                site that could not be read — and gating the only niche and
+                scope control on a successful detection leaves the operator
+                with no way to steer the search at all. */}
+            {!profile && (
+              <button
+                type="button"
+                onClick={() => setShowRefine((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+              >
+                <SlidersHorizontal size={12} />
+                {showRefine ? "Hide" : "Set niche & scope"}
+              </button>
+            )}
+            <button
+              onClick={() => runDiscovery({ refreshProfile: true })}
+              disabled={isDiscovering}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-1)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-2)] disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isDiscovering ? "animate-spin" : ""} />
+              Re-Scan Market
+            </button>
+          </div>
         </div>
 
         {/* What we detected about this business */}
@@ -325,7 +343,9 @@ export function AutoCompetitorsPanel({
         {showRefine && (
           <div className="mt-3 space-y-3 rounded-xl border border-dashed border-[var(--border-color)] p-3.5">
             <p className="text-[11px] text-[var(--text-muted)]">
-              Override what we detected. Anything you set here wins over the website reading.
+              {profile
+                ? "Override what we detected. Anything you set here wins over the website reading."
+                : "We could not read your business from the site. Set the niche and scope by hand."}
             </p>
 
             <div className="flex flex-wrap items-center gap-1.5">
