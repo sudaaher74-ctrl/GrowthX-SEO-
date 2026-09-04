@@ -3,6 +3,7 @@
 import { Suspense, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Crosshair,
   Target,
@@ -46,6 +47,16 @@ import {
   LoadingState,
 } from "@/components/ui/truthful-state";
 
+const TABS = [
+  { id: "identify", label: "Find Competitors" },
+  { id: "benchmarks", label: "Comparison Benchmarks" },
+  { id: "website", label: "Website Competitors" },
+  { id: "local", label: "Local Competitors (Public Only)" },
+  { id: "market-trends", label: "Market Trends & AI Strategy" },
+];
+
+const DEFAULT_TAB = "benchmarks";
+
 export default function CompetitorIntelligencePage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading Competitor Intelligence...</div>}>
@@ -61,7 +72,34 @@ function CompetitorIntelligenceClient() {
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const localSeo = useLocalSeo(projectId);
 
-  const [activeTab, setActiveTab] = useState<string>("benchmarks");
+  /**
+   * Which tab is open lives in the URL, not in component state.
+   *
+   * `?tab=` was written by links elsewhere in the app and read by nobody, so
+   * every deep link landed on whichever tab happened to be the default. With
+   * the URL as the single source of truth a tab is shareable and survives a
+   * reload, and there is no second copy in state to push back into the address
+   * bar on every change. Switching tabs uses replace rather than push, so it
+   * deliberately leaves no history entry — back returns to the page you came
+   * from, not through five tabs one press at a time.
+   *
+   * An unrecognised value falls back to the default instead of matching no
+   * branch and rendering an empty page under a full set of tabs.
+   */
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : DEFAULT_TAB;
+
+  const setActiveTab = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", id);
+    // replace, not push: a tab is a view of one page, so it should not take a
+    // back press each to get out of. scroll:false keeps the page where it is.
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [addMode, setAddMode] = useState<"website" | "local" | "manual">("website");
 
@@ -122,14 +160,6 @@ function CompetitorIntelligenceClient() {
   };
 
   const competitorsList = competitorsQuery.data ?? [];
-
-  const tabs = [
-    { id: "identify", label: "Find Competitors" },
-    { id: "benchmarks", label: "Comparison Benchmarks" },
-    { id: "website", label: "Website Competitors" },
-    { id: "local", label: "Local Competitors (Public Only)" },
-    { id: "market-trends", label: "Market Trends & AI Strategy" },
-  ];
 
   return (
     <div className="space-y-5 pb-12">
@@ -269,7 +299,7 @@ function CompetitorIntelligenceClient() {
       )}
 
       {/* Tabs */}
-      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
       {/* Tab 1: Automatic identification.
           This panel existed and worked but nothing rendered it after the page
