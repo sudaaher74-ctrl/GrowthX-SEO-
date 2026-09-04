@@ -77,6 +77,35 @@ export function PropertyPicker({
     onError: (err) => setError(errorMessage(err)),
   });
 
+  // The authorization is gone, not merely unfinished.
+  //
+  // The badge below used to be a hardcoded green tick: this screen asserted
+  // "Google account connected" before asking anything, so when the property
+  // call came back "…is not connected for this project" the customer was told
+  // both at once, in the same card, and had no way to act on either. A picker
+  // is the wrong screen entirely for a connection that does not exist.
+  const notConnected =
+    properties.isError && /not connected|needs to be reconnected/i.test(errorMessage(properties.error));
+
+  if (notConnected) {
+    return (
+      <div className="rounded-xl border bg-white px-6 py-8" style={{ borderColor: "var(--color-brand-200)" }}>
+        <div className="mx-auto max-w-lg">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-error-500" />
+            <span className="text-[13px] font-medium text-brand-950">Not connected</span>
+          </div>
+          <h2 className="mt-3 text-[15px] font-semibold text-brand-950">{title}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
+            {errorMessage(properties.error)} Authorize the connection for this project, then come back and pick a
+            property. Signing in to GrowthX with a Google account is a separate thing from granting this project
+            access to your data.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border bg-white px-6 py-8" style={{ borderColor: "var(--color-brand-200)" }}>
       <div className="mx-auto max-w-lg">
