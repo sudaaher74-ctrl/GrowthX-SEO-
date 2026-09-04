@@ -13,6 +13,46 @@ import {
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
+const periodListeners = new Set<() => void>();
+
+/**
+ * The 7d / 28d / 90d window, shared by every query that has one.
+ *
+ * The pills in the top bar were local `useState` that nothing read: clicking
+ * 90d highlighted a pill and changed no number on the page. The endpoints
+ * behind portfolio, AI visibility and the executive summary all take a day
+ * count already, so the control was real everywhere except in the wiring.
+ *
+ * Kept in the same external-store shape as the active org and project rather
+ * than reaching for the unused zustand dependency, so there is one pattern in
+ * this file instead of two. It is deliberately in memory only — a date range
+ * is a per-session lens, not a setting to restore weeks later.
+ */
+export const PERIOD_DAYS = [7, 28, 90] as const;
+export type PeriodDays = (typeof PERIOD_DAYS)[number];
+
+const DEFAULT_PERIOD: PeriodDays = 28;
+let activePeriod: PeriodDays = DEFAULT_PERIOD;
+
+function subscribeToPeriodChange(listener: () => void) {
+  periodListeners.add(listener);
+  return () => periodListeners.delete(listener);
+}
+
+export function setActivePeriod(days: PeriodDays) {
+  if (days === activePeriod) return;
+  activePeriod = days;
+  periodListeners.forEach((l) => l());
+}
+
+/** The window every period-aware query defaults to. */
+export function usePeriodDays(): PeriodDays {
+  return useSyncExternalStore(
+    subscribeToPeriodChange,
+    () => activePeriod,
+    () => DEFAULT_PERIOD,
+  );
+}
 
 function subscribeToOrgChange(listener: () => void) {
   orgListeners.add(listener);
@@ -264,10 +304,12 @@ export function useRemoveMember(orgId: string | null) {
   });
 }
 
-export function usePortfolio(orgId: string | null, days = 28) {
+export function usePortfolio(orgId: string | null, days?: number) {
+  const active = usePeriodDays();
+  const window = days ?? active;
   return useQuery({
-    queryKey: ["portfolio", orgId, days],
-    queryFn: () => api.getPortfolio(orgId!, days),
+    queryKey: ["portfolio", orgId, window],
+    queryFn: () => api.getPortfolio(orgId!, window),
     enabled: Boolean(orgId),
     retry: false,
   });
@@ -307,10 +349,12 @@ export function useCheckout(orgId: string | null) {
   });
 }
 
-export function useVisibility(projectId: string | null, days = 28) {
+export function useVisibility(projectId: string | null, days?: number) {
+  const active = usePeriodDays();
+  const window = days ?? active;
   return useQuery({
-    queryKey: ["visibility", projectId, days],
-    queryFn: () => api.getVisibility(projectId!, days),
+    queryKey: ["visibility", projectId, window],
+    queryFn: () => api.getVisibility(projectId!, window),
     enabled: Boolean(projectId),
     retry: false,
   });
@@ -702,10 +746,12 @@ export function useMarketOutcomes(projectId: string | null) {
  * out of 100. Two definitions of the same number is how a client ends up with
  * a PDF that contradicts the dashboard it was exported from.
  */
-export function useExecutiveSummary(projectId: string | null, days = 28) {
+export function useExecutiveSummary(projectId: string | null, days?: number) {
+  const active = usePeriodDays();
+  const window = days ?? active;
   return useQuery({
-    queryKey: ["executive-summary", projectId, days],
-    queryFn: () => api.executiveSummary(projectId!, days),
+    queryKey: ["executive-summary", projectId, window],
+    queryFn: () => api.executiveSummary(projectId!, window),
     enabled: Boolean(projectId),
     retry: false,
   });

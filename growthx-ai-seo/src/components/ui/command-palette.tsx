@@ -51,6 +51,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-search-perf", title: "Search Performance", category: "Navigation", icon: SearchIcon, href: "/search-performance", subtitle: "Google Search Console & GA4 traffic" },
     { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in ChatGPT, Claude & Gemini" },
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, public local competitors & market trends" },
+    { id: "nav-research", title: "Market Research", category: "Navigation", icon: Eye, href: "/market-research", subtitle: "Cited answers about this client's market" },
     { id: "nav-local", title: "Local SEO", category: "Navigation", icon: MapPin, href: "/local", subtitle: "Google Business Profile, reviews & citations" },
     { id: "nav-content", title: "Content & Opportunities", category: "Navigation", icon: FileText, href: "/content-opportunities", subtitle: "SEO opportunities, keyword gaps & drafting studio" },
     { id: "nav-monitoring", title: "Monitoring", category: "Navigation", icon: Globe, href: "/monitoring", subtitle: "Uptime, SSL, and daily crawl watchers" },
@@ -65,8 +66,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // figure here would be a fabricated number shown to every tenant.
     { id: "act-audit", title: "Run Site-Wide Technical Audit", category: "Quick Actions", icon: Zap, action: () => { router.push("/technical-seo"); }, subtitle: "Scan your site for SEO issues" },
     { id: "act-blog", title: "Generate New AI Blog Post", category: "Quick Actions", icon: Sparkles, action: () => { router.push("/content-ai"); }, subtitle: "Draft an SEO-optimized article" },
-    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search-console"); }, subtitle: "Fetch the latest search queries" },
-    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local-seo"); }, subtitle: "Generate a landing page for a target city" },
+    // These two pointed at /search-console and /local-seo, neither of which
+    // is a route in this app — the palette was written before it was mounted,
+    // so nobody ever clicked them into a 404.
+    { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search/search-console"); }, subtitle: "Fetch the latest search queries" },
+    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local"); }, subtitle: "Generate a landing page for a target city" },
   ], [router]);
 
   const filteredItems = useMemo(() => {
@@ -148,7 +152,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search tools, keywords, pages, quick actions... (try 'audit', 'rank', 'theme')"
+              // Was "Search tools, keywords, pages, quick actions… (try 'audit',
+              // 'rank', 'theme')". There are no keyword, page or theme
+              // commands — only Navigation and Quick Actions — so typing
+              // "rank" or "theme" returned nothing and read as a broken search.
+              placeholder="Jump to a section, or start an action…"
               className="w-full bg-transparent text-base text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
             />
             <kbd className="h-6 px-2 rounded border border-[var(--border-color)] bg-[var(--surface-3)] text-xs text-[var(--text-muted)] font-mono flex items-center shrink-0">
