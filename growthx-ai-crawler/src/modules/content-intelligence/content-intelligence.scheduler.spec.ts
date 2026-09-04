@@ -6,22 +6,36 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
   let competitorCrawlService: any;
   let competitorMonitorService: any;
   let contentStrategyService: any;
+  let socialScraper: any;
   let scheduler: ContentIntelligenceScheduler;
 
+  const originalEnv = { ...process.env };
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
   beforeEach(() => {
+    process.env = { ...originalEnv };
     delete process.env.COMPETITOR_CRON_ENABLED;
+    delete process.env.YOUTUBE_API_KEY;
     prisma = {
       competitorDomain: { findMany: jest.fn().mockResolvedValue([]) },
+      competitorAccount: { findMany: jest.fn().mockResolvedValue([]) },
       project: { findMany: jest.fn().mockResolvedValue([]) },
     };
     competitorCrawlService = { startCrawl: jest.fn().mockResolvedValue({}) };
     competitorMonitorService = { runCompetitorChangeDetection: jest.fn().mockResolvedValue([]) };
     contentStrategyService = { generateStrategy: jest.fn().mockResolvedValue({}) };
+    socialScraper = {
+      syncYoutubeAccountContent: jest.fn().mockResolvedValue({ imported: 3, fetched: 3 }),
+    };
     scheduler = new ContentIntelligenceScheduler(
       prisma,
       competitorCrawlService,
       competitorMonitorService,
       contentStrategyService,
+      socialScraper,
     );
   });
 
@@ -48,6 +62,55 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
 
     expect(crawlWhere.status.in).not.toContain('ACTIVE');
     expect(JSON.stringify(alertWhere)).not.toContain('"ACTIVE"');
+  });
+
+  it('actually collects competitor uploads on a schedule', async () => {
+    // Nothing did. syncYoutubeAccountContent was reachable only from a manual
+    // per-account POST and fetchYoutubeCompetitorData had no callers at all,
+    // so CompetitorContent was never populated automatically — even with a
+    // working YouTube key configured.
+    process.env.YOUTUBE_API_KEY = 'a-real-looking-youtube-key-1234567890';
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      { id: 'acc1', handle: '@countrydelight', projectId: 'p1', organizationId: 'org1' },
+      { id: 'acc2', handle: '@amul', projectId: 'p1', organizationId: 'org1' },
+    ]);
+
+    await scheduler.handleDailyCompetitorContentSync();
+
+    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledTimes(2);
+    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledWith('org1', 'p1', 'acc1');
+  });
+
+  it('keeps going when one channel fails', async () => {
+    process.env.YOUTUBE_API_KEY = 'a-real-looking-youtube-key-1234567890';
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      { id: 'acc1', handle: '@deleted', projectId: 'p1', organizationId: 'org1' },
+      { id: 'acc2', handle: '@amul', projectId: 'p1', organizationId: 'org1' },
+    ]);
+    socialScraper.syncYoutubeAccountContent
+      .mockRejectedValueOnce(new Error('channel not found'))
+      .mockResolvedValueOnce({ imported: 5, fetched: 5 });
+
+    await scheduler.handleDailyCompetitorContentSync();
+
+    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not attempt a sync it cannot perform', async () => {
+    delete process.env.YOUTUBE_API_KEY;
+
+    await scheduler.handleDailyCompetitorContentSync();
+
+    expect(socialScraper.syncYoutubeAccountContent).not.toHaveBeenCalled();
+  });
+
+  it('honours the kill switch for the content sweep too', async () => {
+    process.env.YOUTUBE_API_KEY = 'a-real-looking-youtube-key-1234567890';
+    process.env.COMPETITOR_CRON_ENABLED = 'false';
+
+    await scheduler.handleDailyCompetitorContentSync();
+
+    expect(socialScraper.syncYoutubeAccountContent).not.toHaveBeenCalled();
   });
 
   it('leaves failed competitors out of the recurring sweep', () => {

@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CompetitorCrawlService } from './competitor-crawl.service';
 import { CompetitorMonitorService } from './competitor-monitor.service';
 import { ContentStrategyService } from './content-strategy.service';
+import { SocialScraperService } from './social-scraper.service';
 import { TRACKED_COMPETITOR_STATUSES } from './competitor-status';
 
 /**
@@ -11,8 +12,9 @@ import { TRACKED_COMPETITOR_STATUSES } from './competitor-status';
  *
  * Runs scheduled sweeps for:
  * 1. Daily Competitor Website Crawling & Catalog Change Detection (02:00 UTC)
- * 2. Daily Competitor Social Video & Velocity Surge Alert Sweeps (04:00 UTC)
- * 3. Weekly Opportunity & 30-60-90 Day Strategy Refreshes (Mondays at 05:00 UTC)
+ * 2. Daily Competitor Content Ingestion (03:00 UTC)
+ * 3. Daily Competitor Social Video & Velocity Surge Alert Sweeps (04:00 UTC)
+ * 4. Weekly Opportunity & 30-60-90 Day Strategy Refreshes (Mondays at 05:00 UTC)
  */
 @Injectable()
 export class ContentIntelligenceScheduler {
@@ -23,6 +25,7 @@ export class ContentIntelligenceScheduler {
     private readonly competitorCrawlService: CompetitorCrawlService,
     private readonly competitorMonitorService: CompetitorMonitorService,
     private readonly contentStrategyService: ContentStrategyService,
+    private readonly socialScraper: SocialScraperService,
   ) {}
 
   /**
@@ -72,6 +75,73 @@ export class ContentIntelligenceScheduler {
       );
     } catch (err: any) {
       this.logger.error(`Error during daily competitor crawl job: ${err.message}`, err.stack);
+    }
+  }
+
+  /**
+   * Daily 03:00 UTC: Pull each tracked competitor's recent uploads.
+   *
+   * Nothing did this. `syncYoutubeAccountContent` was reachable only from a
+   * manual per-account POST, and `fetchYoutubeCompetitorData` had no callers
+   * at all, so `CompetitorContent` was never populated by any automatic
+   * process. The 02:00 sweep crawls competitor *websites*; the 04:00 sweep
+   * reads content that something else was supposed to have fetched. Between
+   * them sat the gap that left the Cross-Competitor Matrix, Video
+   * Intelligence and pattern detection permanently empty — including on
+   * deployments that had a YouTube key configured and working.
+   *
+   * At 03:00 so the content is in place before change detection reads it.
+   * Roughly 3-5 quota units per account against a 10,000/day allowance.
+   */
+  @Cron('0 3 * * *')
+  async handleDailyCompetitorContentSync(): Promise<void> {
+    if (process.env.COMPETITOR_CRON_ENABLED === 'false') return;
+    if (!process.env.YOUTUBE_API_KEY) {
+      this.logger.warn(
+        'Competitor content sync skipped: YOUTUBE_API_KEY is not set, so no competitor uploads can be collected.',
+      );
+      return;
+    }
+
+    this.logger.log('Starting daily competitor content sync...');
+
+    try {
+      const accounts = await this.prisma.competitorAccount.findMany({
+        where: { platform: 'YOUTUBE', isActive: true },
+        select: {
+          id: true,
+          handle: true,
+          projectId: true,
+          organizationId: true,
+        },
+      });
+
+      this.logger.log(`Found ${accounts.length} active YouTube competitor account(s).`);
+
+      let imported = 0;
+      let failures = 0;
+
+      for (const account of accounts) {
+        try {
+          const result = await this.socialScraper.syncYoutubeAccountContent(
+            account.organizationId,
+            account.projectId,
+            account.id,
+          );
+          imported += result.imported;
+        } catch (err: any) {
+          // One channel that has been renamed, deleted or made private must
+          // not stop the rest of the sweep.
+          failures++;
+          this.logger.error(`[Cron] Content sync failed for ${account.handle}: ${err.message}`);
+        }
+      }
+
+      this.logger.log(
+        `Daily competitor content sync completed: ${imported} item(s) imported, ${failures} account(s) failed out of ${accounts.length}.`,
+      );
+    } catch (err: any) {
+      this.logger.error(`Error during daily competitor content sync: ${err.message}`, err.stack);
     }
   }
 

@@ -138,7 +138,7 @@ export class DataFeedsService {
         tracked === 0
           ? 'Add competitors from the Competitors tab.'
           : crawled === 0
-            ? 'The daily sweep runs at 02:00 UTC; a crawl can also be started per competitor.'
+            ? 'A crawl starts when a competitor is added, and the sweep re-runs at 02:00 UTC.'
             : undefined,
       lastDataAt: mostRecent?.lastAnalyzedAt?.toISOString() ?? null,
     };
@@ -174,7 +174,7 @@ export class DataFeedsService {
         items > 0
           ? undefined
           : youtube
-            ? 'Content is collected on the daily sweep; check back after 02:00 UTC.'
+            ? 'Uploads are collected by the 03:00 UTC sweep; an account can also be synced on demand.'
             : 'Set YOUTUBE_API_KEY for automatic collection, or add competitor content by hand.',
       lastDataAt: mostRecent?.createdAt?.toISOString() ?? null,
     };
