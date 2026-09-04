@@ -41,6 +41,19 @@ describe('buildComparisonRows', () => {
     expect(location.verdict).toContain('4 more location pages');
   });
 
+  // A gap of one used to read "1 more location pages", because the sentence
+  // was built from the row's own plural label.
+  it('counts a gap of one in the singular', () => {
+    const rows = buildComparisonRows(mine, [
+      { id: 'a', name: 'Competitor A', profile: site('a.com', [page({ pageType: 'LOCATION' })]) },
+    ]);
+
+    const location = rows.find((row) => row.key === 'location_pages')!;
+    expect(location.gapToBest).toBe(1);
+    expect(location.verdict).toContain('1 more location page.');
+    expect(location.verdict).not.toContain('1 more location pages');
+  });
+
   it('says plainly when a row is not a gap', () => {
     const rows = buildComparisonRows(mine, [
       { id: 'a', name: 'Competitor A', profile: site('a.com', [page({ pageType: 'HOME' })]) },

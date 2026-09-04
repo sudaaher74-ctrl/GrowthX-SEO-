@@ -159,6 +159,15 @@ const ROWS: Array<{
   label: string;
   whatItMeans: string;
   higherIsBetter: boolean;
+  /**
+   * What one of these is called, in a sentence.
+   *
+   * The label is already plural, so counting from it produced "1 more service
+   * pages". Deriving a singular by chopping an "s" would get "articles and
+   * guides" wrong; naming both forms per row is a line of data and is right
+   * every time.
+   */
+  noun: { one: string; many: string };
   read: (profile: SiteProfile) => number;
 }> = [
   {
@@ -167,6 +176,7 @@ const ROWS: Array<{
     whatItMeans:
       'Pages written for one city or service area. These are what can rank for "service + city" searches; without one there is nothing for that search to find.',
     higherIsBetter: true,
+    noun: { one: 'location page', many: 'location pages' },
     read: (p) => countOf(p, 'LOCATION'),
   },
   {
@@ -175,6 +185,7 @@ const ROWS: Array<{
     whatItMeans:
       'A page per thing you sell. One page listing everything competes for nothing in particular.',
     higherIsBetter: true,
+    noun: { one: 'service page', many: 'service pages' },
     read: (p) => countOf(p, 'SERVICE'),
   },
   {
@@ -183,6 +194,7 @@ const ROWS: Array<{
     whatItMeans:
       'Content answering what buyers ask before they buy. This is what earns traffic before someone knows your name.',
     higherIsBetter: true,
+    noun: { one: 'article or guide', many: 'articles and guides' },
     read: (p) => countOf(p, 'BLOG'),
   },
   {
@@ -191,6 +203,7 @@ const ROWS: Array<{
     whatItMeans:
       'Direct answers to common questions — the format search engines and AI assistants quote most readily.',
     higherIsBetter: true,
+    noun: { one: 'FAQ page', many: 'FAQ pages' },
     read: (p) => countOf(p, 'FAQ'),
   },
   {
@@ -199,6 +212,7 @@ const ROWS: Array<{
     whatItMeans:
       'Markup that states plainly what a page is. Without it, search and AI answers have to guess, and often skip the page.',
     higherIsBetter: true,
+    noun: { one: 'page with structured data', many: 'pages with structured data' },
     read: (p) => p.pagesWithSchema,
   },
   {
@@ -206,6 +220,7 @@ const ROWS: Array<{
     label: 'Indexable pages crawled',
     whatItMeans: 'How much of each site a crawler could actually reach and read.',
     higherIsBetter: true,
+    noun: { one: 'indexable page', many: 'indexable pages' },
     read: (p) => p.totalPages,
   },
   {
@@ -214,6 +229,7 @@ const ROWS: Array<{
     whatItMeans:
       'Google writes its own snippet when none is given, and usually writes a worse one than you would.',
     higherIsBetter: false,
+    noun: { one: 'page missing a description', many: 'pages missing a description' },
     read: (p) => p.pagesMissingMetaDescription,
   },
   {
@@ -221,6 +237,7 @@ const ROWS: Array<{
     label: 'Broken URLs',
     whatItMeans: 'Pages returning an error. They waste crawl budget and lose any links pointing at them.',
     higherIsBetter: false,
+    noun: { one: 'broken URL', many: 'broken URLs' },
     read: (p) => p.brokenLinks,
   },
 ];
@@ -278,14 +295,14 @@ export function buildComparisonRows(
       competitors: values,
       aheadOfYou: ahead.map((entry) => entry.name),
       gapToBest,
-      verdict: verdictFor(row.label, row.higherIsBetter, you, ahead, gapToBest),
+      verdict: verdictFor(row.noun, row.higherIsBetter, you, ahead, gapToBest),
     };
   });
 }
 
 /** The sentence under each row: who is ahead, by how much, and what it means. */
 function verdictFor(
-  label: string,
+  noun: { one: string; many: string },
   higherIsBetter: boolean,
   you: number | null,
   ahead: Array<{ name: string; value: number }>,
@@ -300,8 +317,9 @@ function verdictFor(
 
   const names = ahead.map((entry) => `${entry.name} (${entry.value})`).join(', ');
   const gap = gapToBest ?? 0;
+  const thing = gap === 1 ? noun.one : noun.many;
 
   return higherIsBetter
-    ? `${names} ${ahead.length === 1 ? 'is' : 'are'} ahead of your ${you}. Closing the gap to the leader means ${gap} more ${label.toLowerCase()}.`
-    : `${names} ${ahead.length === 1 ? 'has' : 'have'} fewer than your ${you}. Getting to the leader's level means fixing ${gap}.`;
+    ? `${names} ${ahead.length === 1 ? 'is' : 'are'} ahead of your ${you}. Closing the gap to the leader means ${gap} more ${thing}.`
+    : `${names} ${ahead.length === 1 ? 'has' : 'have'} fewer than your ${you}. Getting to the leader's level means fixing ${gap} ${thing}.`;
 }
