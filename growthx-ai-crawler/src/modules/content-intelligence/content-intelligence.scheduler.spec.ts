@@ -7,6 +7,7 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
   let competitorMonitorService: any;
   let contentStrategyService: any;
   let socialScraper: any;
+  let competitorLocal: any;
   let scheduler: ContentIntelligenceScheduler;
 
   const originalEnv = { ...process.env };
@@ -30,12 +31,14 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
     socialScraper = {
       syncAccountContent: jest.fn().mockResolvedValue({ imported: 3, fetched: 3 }),
     };
+    competitorLocal = { refreshProject: jest.fn().mockResolvedValue({ checked: 0, matched: 0 }) };
     scheduler = new ContentIntelligenceScheduler(
       prisma,
       competitorCrawlService,
       competitorMonitorService,
       contentStrategyService,
       socialScraper,
+      competitorLocal,
     );
   });
 
@@ -130,6 +133,40 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
     const where = prisma.competitorAccount.findMany.mock.calls[0][0].where;
     expect(where.platform.in).toEqual(['INSTAGRAM']);
     expect(socialScraper.syncAccountContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes competitor Google listings alongside their crawls', async () => {
+    // The two describe where a competitor stands today and feed the same
+    // comparison; letting one go stale while the other is current would make
+    // them disagree.
+    prisma.competitorDomain.findMany.mockResolvedValue([
+      { id: 'c1', domain: 'a.com', projectId: 'p1', project: { organizationId: 'org1' } },
+      { id: 'c2', domain: 'b.com', projectId: 'p1', project: { organizationId: 'org1' } },
+    ]);
+
+    await scheduler.handleDailyCompetitorCrawl();
+
+    // One call per project, not per competitor.
+    expect(competitorLocal.refreshProject).toHaveBeenCalledTimes(1);
+    expect(competitorLocal.refreshProject).toHaveBeenCalledWith('p1');
+  });
+
+  it('stops the local refresh early when the whole capability is unavailable', async () => {
+    // A missing key is not a per-project problem, so it is reported once
+    // rather than logged for every project in the database.
+    prisma.competitorDomain.findMany.mockResolvedValue([
+      { id: 'c1', domain: 'a.com', projectId: 'p1', project: { organizationId: 'org1' } },
+      { id: 'c2', domain: 'b.com', projectId: 'p2', project: { organizationId: 'org1' } },
+    ]);
+    competitorLocal.refreshProject.mockResolvedValue({
+      checked: 0,
+      matched: 0,
+      skippedReason: 'GOOGLE_PLACES_API_KEY is not set',
+    });
+
+    await scheduler.handleDailyCompetitorCrawl();
+
+    expect(competitorLocal.refreshProject).toHaveBeenCalledTimes(1);
   });
 
   it('leaves failed competitors out of the recurring sweep', () => {

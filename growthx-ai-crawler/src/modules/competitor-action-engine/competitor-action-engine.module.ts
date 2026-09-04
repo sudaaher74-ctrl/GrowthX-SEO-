@@ -5,6 +5,8 @@ import { FindingsCollectorService } from './findings-collector.service';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
+import { CompetitorLocalService } from './competitor-local.service';
+import { LocalSeoModule } from '../local-seo/local-seo.module';
 
 /**
  * The Competitor-to-Action Engine.
@@ -15,9 +17,21 @@ import { CompetitorSetupService } from './competitor-setup.service';
  * unavailable produces a stated coverage gap rather than a broken import.
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, LocalSeoModule],
   controllers: [CompetitorActionEngineController],
-  providers: [FindingsCollectorService, StrategyEngineService, StrategyReadService, CompetitorSetupService],
-  exports: [FindingsCollectorService, StrategyEngineService, StrategyReadService, CompetitorSetupService],
+  providers: [
+    FindingsCollectorService,
+    StrategyEngineService,
+    StrategyReadService,
+    CompetitorSetupService,
+    CompetitorLocalService,
+  ],
+  exports: [
+    FindingsCollectorService,
+    StrategyEngineService,
+    StrategyReadService,
+    CompetitorSetupService,
+    CompetitorLocalService,
+  ],
 })
 export class CompetitorActionEngineModule {}

@@ -558,6 +558,19 @@ model CompetitorDomain {
   /// City or service area this competitor actually operates in, which is what
   /// makes a local comparison meaningful.
   city           String?
+  /// The Google listing this competitor was matched to, and what it said.
+  ///
+  /// Stored on the competitor rather than in LocalLocation because that model
+  /// is one-per-project and describes the customer's own listing. These are
+  /// null until a lookup has run, and null is not zero: a competitor with no
+  /// stored rating has not been checked, which is a different statement from
+  /// a competitor rated zero.
+  placeId          String?
+  localRating      Float?
+  localReviewCount Int?
+  localAddress     String?
+  /// When the listing was last read, so a stale figure can be seen as stale.
+  localCheckedAt   DateTime?
   /// 0-100, how reliably the discovered identity is believed to be this
   /// competitor. Null until discovery has run. Never assume a match without it.
   confidenceScore Int?

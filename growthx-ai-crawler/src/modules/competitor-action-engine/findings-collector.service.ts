@@ -98,7 +98,11 @@ export class FindingsCollectorService {
 
     const local = await this.localFindings(projectId);
     if (local.length === 0) {
-      coverageGaps.push('No Google Business Profile data is connected, so local visibility is not covered.');
+      coverageGaps.push(
+        process.env.GOOGLE_PLACES_API_KEY
+          ? 'No local listings have been matched yet — connect your Google Business Profile, and give each competitor its Google Maps name.'
+          : 'Google Places is not configured, so no local listings could be read for you or your competitors.',
+      );
     }
     drafts.push(...local);
 
@@ -264,16 +268,37 @@ export class FindingsCollectorService {
     return findings;
   }
 
-  /** Local visibility, from a connected Google Business Profile. */
+  /**
+   * Local visibility: the customer's listing, and the rivals it competes with.
+   *
+   * The comparison is the point. "You have 40 reviews" is a number; "you have
+   * 40 and the two competitors ranking above you have 300 between them" is a
+   * reason to do something this week.
+   */
   private async localFindings(projectId: string): Promise<DraftFinding[]> {
-    const location = await this.prisma.localLocation.findFirst({
-      where: { projectId },
-      select: { businessName: true, rating: true, reviewCount: true, updatedAt: true },
-    });
-    if (!location) return [];
+    const [location, competitors] = await Promise.all([
+      this.prisma.localLocation.findFirst({
+        where: { projectId },
+        select: { businessName: true, rating: true, reviewCount: true, updatedAt: true },
+      }),
+      this.prisma.competitorDomain.findMany({
+        where: { projectId, localCheckedAt: { not: null } },
+        select: {
+          id: true,
+          name: true,
+          label: true,
+          domain: true,
+          localRating: true,
+          localReviewCount: true,
+          localAddress: true,
+          localCheckedAt: true,
+        },
+      }),
+    ]);
 
     const findings: DraftFinding[] = [];
-    if (location.rating != null && location.reviewCount != null) {
+
+    if (location && location.rating != null && location.reviewCount != null) {
       findings.push({
         category: 'GOOGLE_BUSINESS_PROFILE',
         summary: `Your Google listing shows ${location.rating} stars from ${location.reviewCount} reviews`,
@@ -287,6 +312,44 @@ export class FindingsCollectorService {
         observedAt: location.updatedAt,
       });
     }
+
+    // A competitor ahead on reviews is only a finding when we know both sides.
+    const myReviews = location?.reviewCount ?? null;
+    for (const competitor of competitors) {
+      if (competitor.localReviewCount == null) continue;
+
+      const name = competitor.name || competitor.label || competitor.domain;
+      const theirs = competitor.localReviewCount;
+      const rating = competitor.localRating;
+
+      if (myReviews != null && theirs <= myReviews) continue;
+
+      findings.push({
+        competitorId: competitor.id,
+        category: 'LOCAL_SEO',
+        summary:
+          myReviews != null
+            ? `${name} has ${theirs} Google reviews to your ${myReviews}`
+            : `${name} has ${theirs} Google reviews`,
+        detail:
+          `Read from ${name}'s Google listing` +
+          (competitor.localAddress ? ` at ${competitor.localAddress}` : '') +
+          (rating != null ? `, rated ${rating}` : '') +
+          '. ' +
+          (myReviews == null
+            ? 'Your own Google Business Profile is not connected, so there is nothing to compare it against yet.'
+            : 'Review volume is one of the strongest signals in the local pack.'),
+        sourcePlatform: 'GOOGLE_MAPS',
+        metricName: 'google_reviews',
+        metricValue: theirs,
+        customerValue: myReviews ?? undefined,
+        // The listing was read directly; that it is the right listing rests on
+        // a name match, which is good but not certain.
+        confidence: myReviews != null ? 'HIGH' : 'MEDIUM',
+        observedAt: competitor.localCheckedAt ?? new Date(),
+      });
+    }
+
     return findings;
   }
 

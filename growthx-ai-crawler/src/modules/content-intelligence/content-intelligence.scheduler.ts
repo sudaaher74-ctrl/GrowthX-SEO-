@@ -5,6 +5,7 @@ import { CompetitorCrawlService } from './competitor-crawl.service';
 import { CompetitorMonitorService } from './competitor-monitor.service';
 import { ContentStrategyService } from './content-strategy.service';
 import { SocialScraperService } from './social-scraper.service';
+import { CompetitorLocalService } from '../competitor-action-engine/competitor-local.service';
 import { TRACKED_COMPETITOR_STATUSES } from './competitor-status';
 
 /**
@@ -26,6 +27,7 @@ export class ContentIntelligenceScheduler {
     private readonly competitorMonitorService: CompetitorMonitorService,
     private readonly contentStrategyService: ContentStrategyService,
     private readonly socialScraper: SocialScraperService,
+    private readonly competitorLocal: CompetitorLocalService,
   ) {}
 
   /**
@@ -73,6 +75,25 @@ export class ContentIntelligenceScheduler {
       this.logger.log(
         `Daily competitor crawl completed: ${successCount} succeeded, ${failureCount} failed out of ${activeCompetitors.length}.`,
       );
+
+      // Google listings refresh alongside the crawl: both describe where a
+      // competitor stands today and both feed the same comparison, so letting
+      // one go stale while the other is current would make the two disagree.
+      const projectIds = [...new Set(activeCompetitors.map((comp) => comp.projectId))];
+      for (const projectId of projectIds) {
+        try {
+          const local = await this.competitorLocal.refreshProject(projectId);
+          if (local.skippedReason) {
+            this.logger.log(`[Cron] Competitor local refresh skipped: ${local.skippedReason}`);
+            break;
+          }
+          this.logger.log(
+            `[Cron] Competitor local refresh for ${projectId}: ${local.matched} of ${local.checked} matched.`,
+          );
+        } catch (err: any) {
+          this.logger.error(`[Cron] Competitor local refresh failed for ${projectId}: ${err.message}`);
+        }
+      }
     } catch (err: any) {
       this.logger.error(`Error during daily competitor crawl job: ${err.message}`, err.stack);
     }

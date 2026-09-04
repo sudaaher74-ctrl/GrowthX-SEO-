@@ -19,6 +19,7 @@ import { VideoScriptGeneratorService } from './video-script-generator.service';
 import { CompetitorMonitorService } from './competitor-monitor.service';
 import { ContentIntelligenceScheduler } from './content-intelligence.scheduler';
 import { ContentIntelligenceController } from './content-intelligence.controller';
+import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
 
 /**
  * GrowthX Content Intelligence & Competitor Social Video Intelligence Engine.
@@ -28,7 +29,9 @@ import { ContentIntelligenceController } from './content-intelligence.controller
  * → Content Script Studio → Creator Discovery → Monitoring & Learning Loop.
  */
 @Module({
-  imports: [DatabaseModule, AiSearchModule],
+  // CompetitorActionEngineModule supplies CompetitorLocalService: the daily
+  // sweep refreshes competitor Google listings alongside their site crawls.
+  imports: [DatabaseModule, AiSearchModule, CompetitorActionEngineModule],
   controllers: [ContentIntelligenceController],
   providers: [
     CompetitorContentService,
