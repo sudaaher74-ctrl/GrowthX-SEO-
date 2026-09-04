@@ -28,7 +28,7 @@ import { SocialDiscoveryService } from '../content-intelligence/social-discovery
 import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
 import { CompetitorVerificationService, RejectedCompetitor, VerifiableCompetitor } from './competitor-verification.service';
 import { CompetitorDiscoveryService } from './competitor-discovery.service';
-import { COMPETITOR_STATUS } from '../content-intelligence/competitor-status';
+import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 import { WebSearchService } from './web-search.service';
 import {
   ANSWER_INSTRUCTIONS,
@@ -180,6 +180,7 @@ export class MarketResearchService {
     @Optional() private readonly verification?: CompetitorVerificationService,
     @Optional() private readonly webSearch?: WebSearchService,
     @Optional() private readonly discovery?: CompetitorDiscoveryService,
+    @Optional() private readonly competitorCrawl?: CompetitorCrawlService,
   ) {}
 
   /**
@@ -690,14 +691,25 @@ export class MarketResearchService {
             domain: cleanDomain,
           },
         },
+        // Status and lastAnalyzedAt are deliberately absent from both branches.
+        //
+        // Both used to be set here to ANALYZED and "now", at the moment of
+        // saving, before anything had been fetched. A competitor added ten
+        // seconds ago claimed a completed analysis it had never had, which is
+        // the same class of untruth as the invented numbers removed elsewhere
+        // — and it made "how many have actually been crawled?" unanswerable,
+        // since every row looked crawled the instant it was created.
+        //
+        // The schema defaults a new row to PENDING; the crawl kicked off below
+        // moves it to ANALYZING and, on success, to ANALYZED with a real
+        // timestamp. On update they are left untouched so re-adding an
+        // existing competitor never discards a genuine crawl history.
         update: {
           label,
           name,
           industry: item.industry || undefined,
           description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
-          status: COMPETITOR_STATUS.ANALYZED,
-          lastAnalyzedAt: new Date(),
         },
         create: {
           projectId,
@@ -707,8 +719,6 @@ export class MarketResearchService {
           industry: item.industry || undefined,
           description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
-          status: COMPETITOR_STATUS.ANALYZED,
-          lastAnalyzedAt: new Date(),
         },
       });
 
@@ -729,11 +739,47 @@ export class MarketResearchService {
       }
     }
 
+    // Start crawling now instead of at 02:00 UTC.
+    //
+    // The daily sweep was the only thing that ever crawled these, so a
+    // customer who added competitors at nine in the morning saw empty
+    // competitor tabs for seventeen hours and reasonably concluded the
+    // product was broken. Nothing about the first crawl needs to wait for a
+    // schedule; the schedule exists to refresh, not to begin.
+    //
+    // Deliberately not awaited: `startCrawl` enqueues the job rather than
+    // performing it, but it still costs several round trips per competitor,
+    // and none of that should sit between the operator and their confirmation.
+    // Errors are contained here for the same reason — a crawl that fails to
+    // start must not turn a successful save into a 500.
+    if (this.competitorCrawl && saved.length > 0) {
+      void this.beginCrawls(organizationId, projectId, saved);
+    }
+
     return {
       success: true,
       count: saved.length,
       addedCompetitors: saved,
     };
+  }
+
+  /** Starts each new competitor's first crawl, one at a time, never throwing. */
+  private async beginCrawls(
+    organizationId: string,
+    projectId: string,
+    competitors: Array<{ id: string; domain: string }>,
+  ): Promise<void> {
+    for (const competitor of competitors) {
+      try {
+        await this.competitorCrawl!.startCrawl(organizationId, projectId, competitor.id);
+      } catch (err) {
+        // The competitor is saved and the daily sweep will retry it, so this
+        // is a delay rather than a failure worth surfacing to the operator.
+        this.logger.warn(
+          `Could not start the first crawl for ${competitor.domain}: ${err}. The 02:00 UTC sweep will retry it.`,
+        );
+      }
+    }
   }
 
   /**

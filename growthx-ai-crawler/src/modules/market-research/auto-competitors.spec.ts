@@ -9,6 +9,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
   let businessProfiles: any;
   let verification: any;
   let discovery: any;
+  let competitorCrawl: any;
   let service: MarketResearchService;
 
   beforeEach(() => {
@@ -89,6 +90,8 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       discover: jest.fn().mockResolvedValue({ candidates: [], queriesRun: [] }),
     };
 
+    competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'job1' }) };
+
     service = new MarketResearchService(
       prisma,
       models,
@@ -98,6 +101,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       verification,
       undefined,
       discovery,
+      competitorCrawl,
     );
   });
 
@@ -639,6 +643,43 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.count).toBe(3);
       expect(prisma.competitorDomain.upsert).toHaveBeenCalledTimes(3);
       expect(socialDiscovery.saveDiscoveredCompetitor).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not claim a brand-new competitor has already been analysed', async () => {
+      // Both fields used to be written at save time — ANALYZED, timestamped
+      // "now" — before anything had been fetched, so every row looked crawled
+      // the instant it was created.
+      await service.addSelectedCompetitors('org1', 'p1', [{ domain: 'countrydelight.in' }]);
+
+      const args = prisma.competitorDomain.upsert.mock.calls[0][0];
+      expect(args.create.status).toBeUndefined();
+      expect(args.create.lastAnalyzedAt).toBeUndefined();
+      // Re-adding an existing competitor must not discard a real crawl history.
+      expect(args.update.status).toBeUndefined();
+      expect(args.update.lastAnalyzedAt).toBeUndefined();
+    });
+
+    it('starts the first crawl on add rather than waiting for 02:00 UTC', async () => {
+      const result = await service.addSelectedCompetitors('org1', 'p1', [
+        { domain: 'countrydelight.in' },
+        { domain: 'amul.com' },
+      ]);
+
+      expect(result.success).toBe(true);
+      // Fire-and-forget, so let the queued microtasks settle before asserting.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(competitorCrawl.startCrawl).toHaveBeenCalledTimes(2);
+      expect(competitorCrawl.startCrawl).toHaveBeenCalledWith('org1', 'p1', expect.any(String));
+    });
+
+    it('still saves the competitors when the crawl cannot be started', async () => {
+      competitorCrawl.startCrawl.mockRejectedValue(new Error('crawler unavailable'));
+
+      const result = await service.addSelectedCompetitors('org1', 'p1', [{ domain: 'countrydelight.in' }]);
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(result.success).toBe(true);
+      expect(result.count).toBe(1);
     });
 
     it('rejects empty competitor list', async () => {
