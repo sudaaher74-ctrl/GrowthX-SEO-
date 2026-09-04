@@ -68,7 +68,16 @@ export class StrategyEngineService {
    * run with its error rather than a silent absence the operator has to guess
    * about.
    */
-  async generate(organizationId: string, projectId: string): Promise<{ runId: string; actions: number }> {
+  async generate(organizationId: string, projectId: string): Promise<{ runId: string; status: string }> {
+    const running = await this.prisma.strategyRun.findFirst({
+      where: { projectId, status: { in: ['PENDING', 'RUNNING'] } },
+      orderBy: { startedAt: 'desc' },
+      select: { id: true, status: true },
+    });
+    // Two runs writing findings for one project would race on the replace, and
+    // the second would win by accident rather than by being newer.
+    if (running) return { runId: running.id, status: running.status };
+
     const profile = await this.prisma.projectBusinessProfile.findUnique({
       where: { projectId },
       select: { businessGoal: true },
@@ -78,6 +87,31 @@ export class StrategyEngineService {
     const run = await this.prisma.strategyRun.create({
       data: { organizationId, projectId, status: 'RUNNING', businessGoal: goal ?? null, coverageGaps: [] },
     });
+
+    // Returned before the work is done, deliberately.
+    //
+    // The run reads stored crawl and API output rather than fetching anything,
+    // so it takes seconds — but seconds is still long enough that holding the
+    // request open makes the button feel broken. The row tracks its own status,
+    // which is what lets the page show progress and survive a reload; a
+    // distributed queue would add a hop and a failure mode to run a handful of
+    // database queries. If this ever grows network calls, the run row is
+    // already the right shape to hand to the existing BullMQ queue.
+    void this.execute(run.id, organizationId, projectId, goal).catch((err) => {
+      this.logger.error(`Strategy run ${run.id} failed outside its own handler: ${err?.message ?? err}`);
+    });
+
+    return { runId: run.id, status: 'RUNNING' };
+  }
+
+  /** The run itself. Never throws to the caller; failure is recorded on the row. */
+  private async execute(
+    runId: string,
+    organizationId: string,
+    projectId: string,
+    goal: BusinessGoal | null,
+  ): Promise<void> {
+    const run = { id: runId };
 
     try {
       const { coverageGaps } = await this.collector.collect(organizationId, projectId);
@@ -141,15 +175,38 @@ export class StrategyEngineService {
         },
       });
 
-      return { runId: run.id, actions: written };
+      this.logger.log(`Strategy run ${run.id} wrote ${written} action(s) from ${findings.length} finding(s).`);
     } catch (err: any) {
       await this.prisma.strategyRun.update({
         where: { id: run.id },
         data: { status: 'FAILED', error: err?.message ?? String(err), finishedAt: new Date() },
       });
       this.logger.error(`Strategy run failed for project ${projectId}: ${err?.message ?? err}`);
-      throw err;
     }
+  }
+
+  /** Where a run has got to, for a page that started one and is waiting. */
+  async runStatus(projectId: string): Promise<{
+    status: string;
+    runId: string | null;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    error: string | null;
+  }> {
+    const run = await this.prisma.strategyRun.findFirst({
+      where: { projectId },
+      orderBy: { startedAt: 'desc' },
+      select: { id: true, status: true, startedAt: true, finishedAt: true, error: true },
+    });
+
+    if (!run) return { status: 'NONE', runId: null, startedAt: null, finishedAt: null, error: null };
+    return {
+      status: run.status,
+      runId: run.id,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      error: run.error,
+    };
   }
 }
 
@@ -179,6 +236,9 @@ export function planActions(findings: PlannerFinding[]): DraftAction[] {
         break;
       case 'YOUTUBE':
         actions.push(...youtubeActions(group));
+        break;
+      case 'INSTAGRAM':
+        actions.push(...instagramActions(group));
         break;
       case 'GOOGLE_BUSINESS_PROFILE':
         actions.push(...localActions(group));
@@ -321,6 +381,38 @@ function youtubeActions(findings: PlannerFinding[]): DraftAction[] {
         'gives search and AI assistants your answer to quote.',
       impact: busiest >= 4 ? 'HIGH' : 'MEDIUM',
       effortHours: suggested * 2,
+      findingIds: findings.map((finding) => finding.id),
+      competitorsWithEvidence: findings.length,
+      confidence: weakest(findings),
+    },
+  ];
+}
+
+function instagramActions(findings: PlannerFinding[]): DraftAction[] {
+  if (findings.length === 0) return [];
+
+  const cadences = findings.map((finding) => finding.metricValue ?? 0).filter((value) => value > 0);
+  const busiest = cadences.length ? Math.max(...cadences) : 0;
+  const suggested = Math.max(4, Math.min(20, Math.round(busiest)));
+
+  return [
+    {
+      category: 'INSTAGRAM' as const,
+      title: `Post ${suggested} times a month, built around one repeatable format`,
+      steps: [
+        'Pick one format you can sustain — a before-and-after, a delivery-day clip, a single customer question answered.',
+        'Shoot a month of it in one session; consistency beats variety you cannot keep up.',
+        'Write your own hook for each: the first line should name the problem, not the brand.',
+        'Put the offer in the caption, not only the bio, so a saved post still converts.',
+        'Review which format held attention after four weeks and drop the ones that did not.',
+      ],
+      rationale: findings.map((finding) => finding.summary).join('; ') + '.',
+      expectedImpact:
+        'Matches the publishing rhythm your competitors already sustain, on a format you can keep up without ' +
+        'a studio.',
+      impact: busiest >= 12 ? 'HIGH' : 'MEDIUM',
+      // Batch shooting is why this is not one hour per post.
+      effortHours: Math.max(4, Math.round(suggested / 2)),
       findingIds: findings.map((finding) => finding.id),
       competitorsWithEvidence: findings.length,
       confidence: weakest(findings),

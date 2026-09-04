@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
@@ -23,15 +23,40 @@ import {
 } from "@/components/ui/console";
 import { LoadingState, NoDataState, FailedState } from "@/components/ui/truthful-state";
 import { api, ActionPriorityValue, ActionStatusValue, StrategyActionRow } from "@/lib/api-client";
+import { CompetitorSetup } from "./competitor-setup";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 
-type TabKey = "overview" | "strategy" | "evidence";
+type TabKey =
+  | "overview"
+  | "setup"
+  | "website"
+  | "local"
+  | "youtube"
+  | "instagram"
+  | "content"
+  | "strategy"
+  | "activity";
+
+/** Which finding categories each platform tab is a view onto. */
+const TAB_CATEGORIES: Partial<Record<TabKey, string[]>> = {
+  website: ["TECHNICAL_SEO", "AI_SEARCH"],
+  local: ["LOCAL_SEO", "GOOGLE_BUSINESS_PROFILE"],
+  youtube: ["YOUTUBE"],
+  instagram: ["INSTAGRAM"],
+  content: ["CONTENT_GAP"],
+};
 
 const TABS: Array<{ id: TabKey; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "setup", label: "Competitors" },
+  { id: "website", label: "Website" },
+  { id: "local", label: "Local" },
+  { id: "youtube", label: "YouTube" },
+  { id: "instagram", label: "Instagram" },
+  { id: "content", label: "Content Gaps" },
   { id: "strategy", label: "30-Day Strategy" },
-  { id: "evidence", label: "Evidence" },
+  { id: "activity", label: "Activity" },
 ];
 
 /** Priority colours, borrowed from the existing status vocabulary. */
@@ -74,23 +99,42 @@ function ActionEngineClient() {
   const strategy = useQuery({
     queryKey: ["action-engine-strategy", projectId],
     queryFn: () => api.actionEngineStrategy(projectId!),
-    enabled: Boolean(projectId) && tab !== "evidence",
+    enabled: Boolean(projectId),
   });
 
   const evidence = useQuery({
     queryKey: ["action-engine-findings", projectId],
     queryFn: () => api.actionEngineFindings(projectId!),
-    enabled: Boolean(projectId) && tab === "evidence",
+    enabled: Boolean(projectId),
   });
+
+  // The run returns before it finishes, so the page follows it rather than
+  // holding the request open and looking frozen.
+  const runStatus = useQuery({
+    queryKey: ["action-engine-run-status", projectId],
+    queryFn: () => api.actionEngineRunStatus(projectId!),
+    enabled: Boolean(projectId),
+    refetchInterval: (query) =>
+      query.state.data?.status === "RUNNING" || query.state.data?.status === "PENDING" ? 2000 : false,
+  });
+
+  const running = runStatus.data?.status === "RUNNING" || runStatus.data?.status === "PENDING";
 
   const generate = useMutation({
     mutationFn: () => api.actionEngineGenerate(projectId!),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["action-engine-overview", projectId] });
-      qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
-      qc.invalidateQueries({ queryKey: ["action-engine-findings", projectId] });
+      qc.invalidateQueries({ queryKey: ["action-engine-run-status", projectId] });
     },
   });
+
+  // When a run finishes, everything it wrote is stale.
+  const finishedAt = runStatus.data?.finishedAt;
+  useEffect(() => {
+    if (runStatus.data?.status !== "COMPLETED") return;
+    qc.invalidateQueries({ queryKey: ["action-engine-overview", projectId] });
+    qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
+    qc.invalidateQueries({ queryKey: ["action-engine-findings", projectId] });
+  }, [finishedAt, runStatus.data?.status, projectId, qc]);
 
   if (!projectId) return <NoDataState title="Select a project" missing="No project is selected." actionRequired="Choose a project from the workspace switcher." />;
 
@@ -103,10 +147,16 @@ function ActionEngineClient() {
           <ActionButton
             variant="primary"
             onClick={() => generate.mutate()}
-            disabled={generate.isPending}
-            icon={generate.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            disabled={generate.isPending || running}
+            icon={
+              generate.isPending || running ? (
+                <RefreshCw size={13} className="animate-spin" />
+              ) : (
+                <Sparkles size={13} />
+              )
+            }
           >
-            {generate.isPending ? "Generating…" : "Generate plan"}
+            {running ? "Running…" : generate.isPending ? "Starting…" : "Generate plan"}
           </ActionButton>
         }
       />
@@ -120,9 +170,22 @@ function ActionEngineClient() {
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
+      {runStatus.data?.status === "FAILED" && runStatus.data.error && (
+        <div className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2.5">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-500" />
+          <p className="text-[12px] leading-relaxed text-red-800">
+            The last run failed: {runStatus.data.error}
+          </p>
+        </div>
+      )}
+
       {tab === "overview" && <Overview query={overview} />}
+      {tab === "setup" && <CompetitorSetup projectId={projectId} />}
       {tab === "strategy" && <Strategy query={strategy} projectId={projectId} />}
-      {tab === "evidence" && <Evidence query={evidence} />}
+      {tab === "activity" && <Activity runStatus={runStatus} overview={overview} />}
+      {TAB_CATEGORIES[tab] && (
+        <PlatformTab tab={tab} query={evidence} categories={TAB_CATEGORIES[tab]!} />
+      )}
 
       <PrivacyNotice />
     </div>
@@ -403,25 +466,115 @@ function StatusControl({
   );
 }
 
-function Evidence({ query }: { query: ReturnType<typeof useQuery<any>> }) {
+/**
+ * One platform's slice of the evidence.
+ *
+ * Every tab reads the same stored findings filtered by category rather than
+ * calling a per-platform endpoint. That keeps one definition of what was
+ * observed: a number cannot say one thing on the YouTube tab and another on
+ * the Overview, because there is only ever one row behind both.
+ */
+function PlatformTab({
+  tab,
+  query,
+  categories,
+}: {
+  tab: TabKey;
+  query: ReturnType<typeof useQuery<any>>;
+  categories: string[];
+}) {
+  const instagramReady =
+    tab !== "instagram" || (query.data ?? []).some((finding: any) => finding.category === "INSTAGRAM");
+
   if (query.isLoading) return <LoadingState title="Loading evidence" />;
   if (query.isError) return <FailedState title="Evidence unavailable" error={errorMessage(query.error)} />;
 
-  const rows = query.data ?? [];
+  const rows = (query.data ?? []).filter((finding: any) => categories.includes(finding.category));
+
+  // Instagram is built but contributes nothing until Meta credentials exist,
+  // and an empty panel would read as "they post nothing" rather than "we are
+  // not connected". Those need opposite responses, so they are said apart.
+  if (tab === "instagram" && !instagramReady) {
+    return (
+      <Panel title="Instagram intelligence">
+        <div className="space-y-2 py-2">
+          <p className="text-[13px] font-semibold text-[var(--text-primary)]">Not connected yet</p>
+          <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+            Competitor Instagram posts are read through Meta&apos;s Business Discovery API, which needs an
+            Instagram Business account and a long-lived token configured on the server. Until that is set,
+            nothing is collected — and nothing is estimated in its place.
+          </p>
+          <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+            Two limits apply once it is connected: only Business and Creator accounts can be read at all, and
+            Meta reports likes and comments but no view counts.
+          </p>
+        </div>
+      </Panel>
+    );
+  }
+
   if (rows.length === 0) {
     return (
       <NoDataState
-        title="No evidence collected yet"
-        missing="No findings are stored for this project."
-        whyItMatters="Findings are what every recommendation is built on, and each one records where and when it was read."
-        actionRequired="Choose Generate plan, which collects evidence from your crawls and connected platforms."
+        title="Nothing observed here yet"
+        missing="No findings are stored for this surface."
+        whyItMatters="An empty panel here means nothing has been collected, not that there is nothing to find."
+        actionRequired="Generate a plan, which collects evidence from your crawls and connected platforms."
         action={undefined}
       />
     );
   }
 
+  return <FindingList rows={rows} />;
+}
+
+/** Run history and freshness — what ran, when, and what it could not see. */
+function Activity({
+  runStatus,
+  overview,
+}: {
+  runStatus: ReturnType<typeof useQuery<any>>;
+  overview: ReturnType<typeof useQuery<any>>;
+}) {
+  const status = runStatus.data;
+
   return (
-    <Panel title="Everything observed" subtitle="Each row links to where it was read and when.">
+    <div className="space-y-5">
+      <Panel title="Last refresh">
+        {!status || status.status === "NONE" ? (
+          <p className="px-1 py-3 text-[13px] text-[var(--text-secondary)]">
+            No run has been started for this project yet.
+          </p>
+        ) : (
+          <dl className="grid gap-3 py-1 sm:grid-cols-2">
+            <Fact label="Status" value={status.status} />
+            <Fact label="Started" value={status.startedAt ? relativeTime(status.startedAt) : "—"} />
+            <Fact label="Finished" value={status.finishedAt ? relativeTime(status.finishedAt) : "still running"} />
+            <Fact label="Observations used" value={String(overview.data?.findingsUsed ?? "—")} />
+          </dl>
+        )}
+        {status?.error && (
+          <p className="mt-2 text-[12px] leading-relaxed text-red-700">{status.error}</p>
+        )}
+      </Panel>
+
+      {overview.data?.coverageGaps?.length > 0 && <CoverageGaps gaps={overview.data.coverageGaps} />}
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
+      <dd className="mt-0.5 text-[13px] text-[var(--text-primary)]">{value}</dd>
+    </div>
+  );
+}
+
+function FindingList({ rows }: { rows: any[] }) {
+  return (
+    <Panel title="What was observed" subtitle="Each row links to where it was read and when.">
       <div className="space-y-2 py-1">
         {rows.map((finding: any) => (
           <div key={finding.id} className="rounded-lg border border-[var(--border-color)] px-3 py-2.5">
@@ -442,6 +595,11 @@ function Evidence({ query }: { query: ReturnType<typeof useQuery<any>> }) {
               </span>
             </div>
             <p className="mt-1 text-[12px] leading-relaxed text-[var(--text-secondary)]">{finding.detail}</p>
+            {finding.metric && (
+              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                {finding.metric.name}: them {finding.metric.competitor ?? "—"} · you {finding.metric.you ?? "—"}
+              </p>
+            )}
             <p className="mt-1 text-[11px] text-[var(--text-muted)]">
               {finding.source.competitor} · {finding.source.platform} ·{" "}
               {new Date(finding.source.observedAt).toISOString().slice(0, 10)}

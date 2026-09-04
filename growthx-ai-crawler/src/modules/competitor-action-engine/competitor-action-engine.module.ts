@@ -4,6 +4,7 @@ import { CompetitorActionEngineController } from './competitor-action-engine.con
 import { FindingsCollectorService } from './findings-collector.service';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
+import { CompetitorSetupService } from './competitor-setup.service';
 
 /**
  * The Competitor-to-Action Engine.
@@ -16,7 +17,7 @@ import { StrategyReadService } from './strategy-read.service';
 @Module({
   imports: [DatabaseModule],
   controllers: [CompetitorActionEngineController],
-  providers: [FindingsCollectorService, StrategyEngineService, StrategyReadService],
-  exports: [FindingsCollectorService, StrategyEngineService, StrategyReadService],
+  providers: [FindingsCollectorService, StrategyEngineService, StrategyReadService, CompetitorSetupService],
+  exports: [FindingsCollectorService, StrategyEngineService, StrategyReadService, CompetitorSetupService],
 })
 export class CompetitorActionEngineModule {}

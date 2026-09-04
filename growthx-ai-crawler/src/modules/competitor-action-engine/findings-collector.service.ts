@@ -87,11 +87,14 @@ export class FindingsCollectorService {
       drafts.push(...coverageFindings(customerProfile, crawledRivals));
     }
 
-    const youtube = await this.youtubeFindings(projectId);
+    const youtube = await this.socialFindings(projectId, 'YOUTUBE');
     if (youtube.length === 0) {
       coverageGaps.push('No competitor YouTube content has been collected, so video strategy is not covered.');
     }
     drafts.push(...youtube);
+
+    const instagram = await this.socialFindings(projectId, 'INSTAGRAM');
+    drafts.push(...instagram);
 
     const local = await this.localFindings(projectId);
     if (local.length === 0) {
@@ -183,13 +186,23 @@ export class FindingsCollectorService {
     return buildSiteProfile(domain, shaped);
   }
 
-  /** Competitor publishing cadence, from content already ingested. */
-  private async youtubeFindings(projectId: string): Promise<DraftFinding[]> {
+  /**
+   * Competitor publishing cadence, from content already ingested.
+   *
+   * One path for both platforms: the shape of the question — how often do they
+   * publish, and how does it land — is identical, and a second near-copy would
+   * be the place the two quietly drifted apart.
+   */
+  private async socialFindings(
+    projectId: string,
+    platform: 'YOUTUBE' | 'INSTAGRAM',
+  ): Promise<DraftFinding[]> {
     const content = await this.prisma.competitorContent.findMany({
-      where: { projectId, platform: 'YOUTUBE' },
+      where: { projectId, platform },
       select: {
         publishedAt: true,
         viewsCount: true,
+        likesCount: true,
         contentUrl: true,
         account: { select: { competitorId: true, handle: true, displayName: true } },
       },
@@ -216,23 +229,34 @@ export class FindingsCollectorService {
       const days = Math.max(1, (newest.getTime() - oldest.getTime()) / 86_400_000);
       const perMonth = Math.round((dated.length / days) * 30 * 10) / 10;
 
-      const views = items.map((item) => item.viewsCount ?? 0).filter((count) => count > 0);
-      const medianViews = views.length ? median(views) : undefined;
       const name = items[0].account?.displayName || items[0].account?.handle || 'A competitor';
+      const noun = platform === 'YOUTUBE' ? 'video' : 'post';
+
+      // Instagram Business Discovery reports no views at all, so engagement is
+      // described from whatever the platform actually gave us rather than
+      // assumed to be views everywhere.
+      const engagement =
+        platform === 'YOUTUBE'
+          ? items.map((item) => item.viewsCount ?? 0).filter((count) => count > 0)
+          : items.map((item) => item.likesCount ?? 0).filter((count) => count > 0);
+      const engagementLabel = platform === 'YOUTUBE' ? 'views' : 'likes';
+      const medianEngagement = engagement.length ? median(engagement) : undefined;
 
       findings.push({
         competitorId: competitorId === 'unknown' ? null : competitorId,
-        category: 'YOUTUBE',
-        summary: `${name} publishes about ${perMonth} video${perMonth === 1 ? '' : 's'} a month`,
+        category: platform,
+        summary: `${name} publishes about ${perMonth} ${noun}${perMonth === 1 ? '' : 's'} a month`,
         detail:
-          `${dated.length} videos observed between ${oldest.toISOString().slice(0, 10)} and ` +
+          `${dated.length} ${noun}s observed between ${oldest.toISOString().slice(0, 10)} and ` +
           `${newest.toISOString().slice(0, 10)}` +
-          (medianViews ? `, with a median of ${medianViews.toLocaleString()} views.` : '.'),
+          (medianEngagement
+            ? `, with a median of ${medianEngagement.toLocaleString()} ${engagementLabel}.`
+            : '.'),
         sourceUrl: items[0].contentUrl,
-        sourcePlatform: 'YOUTUBE',
-        metricName: 'videos_per_month',
+        sourcePlatform: platform,
+        metricName: platform === 'YOUTUBE' ? 'videos_per_month' : 'posts_per_month',
         metricValue: perMonth,
-        // Counted from real timestamps on real videos.
+        // Counted from real timestamps on real posts.
         confidence: 'HIGH',
         observedAt: newest,
       });

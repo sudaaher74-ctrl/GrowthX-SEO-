@@ -247,6 +247,7 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
+const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
 
 // ──────────────────────────────────────────────────────────────── types
 
@@ -1140,6 +1141,46 @@ export interface AutoIdentifiedCompetitor {
   source?: "search" | "ai" | "curated";
 }
 
+export interface CompetitorSetupInput {
+  businessName?: string;
+  websiteUrl: string;
+  mapsName?: string;
+  youtubeUrl?: string;
+  instagramHandle?: string;
+  industry?: string;
+  city?: string;
+}
+
+export interface TrackedCompetitor {
+  id: string;
+  domain: string;
+  name: string | null;
+  label: string | null;
+  industry: string | null;
+  city: string | null;
+  mapsName: string | null;
+  youtubeUrl: string | null;
+  instagramHandle: string | null;
+  status: string;
+  lastAnalyzedAt: string | null;
+  socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
+}
+
+export interface TrackedCompetitorList {
+  competitors: TrackedCompetitor[];
+  slotsUsed: number;
+  slotsTotal: number;
+}
+
+/** Where the latest run has got to. The page polls this after Generate. */
+export interface StrategyRunStatus {
+  status: "NONE" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  runId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -1697,6 +1738,28 @@ export const api = {
       `/api/projects/${projectId}/action-engine/actions/${actionId}`,
       { status },
     ),
+
+  actionEngineCompetitors: (projectId: string) =>
+    get<TrackedCompetitorList>(`/api/projects/${projectId}/action-engine/competitors`),
+
+  actionEngineAddCompetitor: (projectId: string, body: CompetitorSetupInput) =>
+    post<TrackedCompetitor>(`/api/projects/${projectId}/action-engine/competitors`, body),
+
+  actionEngineUpdateCompetitor: (
+    projectId: string,
+    competitorId: string,
+    body: Partial<CompetitorSetupInput>,
+  ) =>
+    patch<TrackedCompetitor>(
+      `/api/projects/${projectId}/action-engine/competitors/${competitorId}`,
+      body,
+    ),
+
+  actionEngineRemoveCompetitor: (projectId: string, competitorId: string) =>
+    del<{ removed: string }>(`/api/projects/${projectId}/action-engine/competitors/${competitorId}`),
+
+  actionEngineRunStatus: (projectId: string) =>
+    get<StrategyRunStatus>(`/api/projects/${projectId}/action-engine/strategy/status`),
 
   actionEngineSetGoal: (projectId: string, businessGoal: string, targetAudience?: string) =>
     patch<{ businessGoal: string | null }>(`/api/projects/${projectId}/action-engine/business-goal`, {

@@ -1,14 +1,74 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ActionStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
+import { CompetitorSetupService } from './competitor-setup.service';
 
 export class UpdateActionDto {
   @IsEnum(ActionStatus)
   status: ActionStatus;
+}
+
+export class CompetitorDto {
+  @IsString()
+  @IsOptional()
+  businessName?: string;
+
+  @IsString()
+  websiteUrl: string;
+
+  @IsString()
+  @IsOptional()
+  mapsName?: string;
+
+  @IsString()
+  @IsOptional()
+  youtubeUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  instagramHandle?: string;
+
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @IsString()
+  @IsOptional()
+  city?: string;
+}
+
+export class UpdateCompetitorDto {
+  @IsString()
+  @IsOptional()
+  businessName?: string;
+
+  @IsString()
+  @IsOptional()
+  websiteUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  mapsName?: string;
+
+  @IsString()
+  @IsOptional()
+  youtubeUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  instagramHandle?: string;
+
+  @IsString()
+  @IsOptional()
+  industry?: string;
+
+  @IsString()
+  @IsOptional()
+  city?: string;
 }
 
 export class SetGoalDto {
@@ -28,7 +88,52 @@ export class CompetitorActionEngineController {
   constructor(
     private readonly engine: StrategyEngineService,
     private readonly read: StrategyReadService,
+    private readonly setup: CompetitorSetupService,
   ) {}
+
+  @Get('competitors')
+  @ApiOperation({ summary: 'The competitors this project tracks, and how each is reachable' })
+  listCompetitors(@Param('projectId') projectId: string) {
+    return this.setup.list(projectId);
+  }
+
+  @Post('competitors')
+  @ApiOperation({ summary: 'Track a competitor', description: 'Up to five per project.' })
+  addCompetitor(@Param('projectId') projectId: string, @Body() body: CompetitorDto) {
+    return this.setup.create(projectId, body);
+  }
+
+  @Patch('competitors/:competitorId')
+  @ApiOperation({
+    summary: 'Edit a tracked competitor',
+    description:
+      'Everything except the website, which identifies the competitor and anchors its crawl history.',
+  })
+  updateCompetitor(
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+    @Body() body: UpdateCompetitorDto,
+  ) {
+    return this.setup.update(projectId, competitorId, body);
+  }
+
+  @Delete('competitors/:competitorId')
+  @ApiOperation({ summary: 'Stop tracking a competitor' })
+  removeCompetitor(
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.setup.remove(projectId, competitorId);
+  }
+
+  @Get('strategy/status')
+  @ApiOperation({
+    summary: 'Where the latest run has got to',
+    description: 'Polled by the page after Generate, since the run returns before it finishes.',
+  })
+  runStatus(@Param('projectId') projectId: string) {
+    return this.engine.runStatus(projectId);
+  }
 
   @Get('overview')
   @ApiOperation({
