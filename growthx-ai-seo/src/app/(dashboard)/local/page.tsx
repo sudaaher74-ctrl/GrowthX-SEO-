@@ -41,6 +41,12 @@ export default function LocalPage() {
   const { data: localSeo, isLoading } = useLocalSeo(projectId);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [isManual, setIsManual] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualAddress, setManualAddress] = useState("");
+  const [manualRating, setManualRating] = useState("5.0");
+  const [manualReviewCount, setManualReviewCount] = useState("0");
+
   const searchMutation = useSearchLocalBusiness(projectId);
   const connectMutation = useConnectLocalBusiness(projectId);
 
@@ -68,6 +74,17 @@ export default function LocalPage() {
     });
   };
 
+  const handleManualConnect = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualName.trim()) return;
+    connectMutation.mutate({
+      businessName: manualName.trim(),
+      address: manualAddress.trim(),
+      rating: parseFloat(manualRating) || 0,
+      reviewCount: parseInt(manualReviewCount, 10) || 0,
+    });
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -92,63 +109,170 @@ export default function LocalPage() {
               </div>
             </Panel>
           ) : !localSeo ? (
-            <Panel title="Connect Google Business Profile" subtitle="Search for your business to link it to this project">
+            <Panel 
+              title="Connect Google Business Profile" 
+              subtitle={!isManual ? "Search for your business to link it to this project" : "Enter your business details manually"}
+              actions={
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManual(!isManual);
+                    if (!isManual && searchQuery && !manualName) {
+                      setManualName(searchQuery);
+                    }
+                  }}
+                  className="text-xs text-accent-600 hover:text-accent-700 font-medium underline underline-offset-2"
+                >
+                  {!isManual ? "Or connect manually →" : "← Back to search"}
+                </button>
+              }
+            >
               <div className="p-6">
-                <form onSubmit={handleSearch} className="flex max-w-xl gap-2 mb-6">
-                  <input
-                    type="text"
-                    placeholder="Search by business name and location..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
-                  />
-                  <ActionButton 
-                    variant="primary" 
-                    icon={searchMutation.isPending ? <Loader2 size={12} className="animate-spin"/> : <Search size={12} />}
-                    disabled={searchMutation.isPending || !searchQuery.trim()}
-                  >
-                    Search
-                  </ActionButton>
-                </form>
+                {!isManual ? (
+                  <>
+                    <form onSubmit={handleSearch} className="flex max-w-xl gap-2 mb-6">
+                      <input
+                        type="text"
+                        placeholder="Search by business name and location..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="flex-1 h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
+                      />
+                      <ActionButton 
+                        variant="primary" 
+                        icon={searchMutation.isPending ? <Loader2 size={12} className="animate-spin"/> : <Search size={12} />}
+                        disabled={searchMutation.isPending || !searchQuery.trim()}
+                      >
+                        Search
+                      </ActionButton>
+                    </form>
 
-                {searchMutation.data && searchMutation.data.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-[var(--text-primary)]">Search Results</h3>
-                    {searchMutation.data.map((place: LocalBusinessPlace) => (
-                      <div key={place.placeId} className="flex items-center justify-between p-4 border border-brand-200 rounded-md">
-                        <div>
-                          <p className="font-medium text-brand-950">{place.name}</p>
-                          <p className="text-sm text-brand-500">{place.address}</p>
-                          {place.rating > 0 && (
-                            <div className="flex items-center gap-1 mt-1 text-sm text-brand-500">
-                              <Star size={12} className="text-yellow-500 fill-yellow-500" />
-                              <span className="font-medium">{place.rating.toFixed(1)}</span>
-                              <span>({place.userRatingsTotal.toLocaleString()} reviews)</span>
+                    {searchMutation.data && searchMutation.data.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-[var(--text-primary)]">Search Results</h3>
+                        {searchMutation.data.map((place: LocalBusinessPlace) => (
+                          <div key={place.placeId} className="flex items-center justify-between p-4 border border-brand-200 rounded-md">
+                            <div>
+                              <p className="font-medium text-brand-950">{place.name}</p>
+                              <p className="text-sm text-brand-500">{place.address}</p>
+                              {place.rating > 0 && (
+                                <div className="flex items-center gap-1 mt-1 text-sm text-brand-500">
+                                  <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                                  <span className="font-medium">{place.rating.toFixed(1)}</span>
+                                  <span>({place.userRatingsTotal.toLocaleString()} reviews)</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <ActionButton 
-                          variant="secondary"
-                          onClick={() => handleConnect(place)}
-                          disabled={connectMutation.isPending}
-                        >
-                          {connectMutation.isPending ? "Connecting..." : "Connect"}
-                        </ActionButton>
+                            <ActionButton 
+                              variant="secondary" 
+                              onClick={() => handleConnect(place)}
+                              disabled={connectMutation.isPending}
+                            >
+                              {connectMutation.isPending ? "Connecting..." : "Connect"}
+                            </ActionButton>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-                
-                {searchMutation.data && searchMutation.data.length === 0 && (
-                  <p className="text-sm text-brand-500">No businesses found matching that query.</p>
-                )}
-                {/* The server already says exactly what is wrong and what to
-                    set — "GOOGLE_PLACES_API_KEY is not configured", and so on.
-                    Replacing that with "Check API key" threw away the only
-                    useful part: which key, and that this is Places, not the
-                    Google account the customer just connected. */}
-                {searchMutation.isError && (
-                  <p className="text-sm leading-relaxed text-error-500">{errorMessage(searchMutation.error)}</p>
+                    )}
+                    
+                    {searchMutation.data && searchMutation.data.length === 0 && (
+                      <p className="text-sm text-brand-500">No businesses found matching that query.</p>
+                    )}
+                    {searchMutation.isError && (
+                      <div className="space-y-2 mt-2">
+                        <p className="text-sm leading-relaxed text-error-500">{errorMessage(searchMutation.error)}</p>
+                        <p className="text-xs text-brand-500">
+                          Having trouble with Google Places API? You can{" "}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsManual(true);
+                              if (searchQuery && !manualName) setManualName(searchQuery);
+                            }}
+                            className="text-accent-600 font-medium underline hover:text-accent-700"
+                          >
+                            connect your business profile manually
+                          </button>.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <form onSubmit={handleManualConnect} className="max-w-xl space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-brand-700 mb-1">
+                        Business Name <span className="text-error-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Aiva Enterprises"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        className="w-full h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-brand-700 mb-1">
+                        Business Address
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 123 Tech Boulevard, Suite 400"
+                        value={manualAddress}
+                        onChange={(e) => setManualAddress(e.target.value)}
+                        className="w-full h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-brand-700 mb-1">
+                          Rating (0 - 5)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="5"
+                          placeholder="5.0"
+                          value={manualRating}
+                          onChange={(e) => setManualRating(e.target.value)}
+                          className="w-full h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-brand-700 mb-1">
+                          Review Count
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={manualReviewCount}
+                          onChange={(e) => setManualReviewCount(e.target.value)}
+                          className="w-full h-9 rounded-md border border-brand-200 bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-brand-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-600"
+                        />
+                      </div>
+                    </div>
+                    {connectMutation.isError && (
+                      <p className="text-sm leading-relaxed text-error-500">{errorMessage(connectMutation.error)}</p>
+                    )}
+                    <div className="flex items-center gap-3 pt-2">
+                      <ActionButton
+                        variant="primary"
+                        disabled={connectMutation.isPending || !manualName.trim()}
+                      >
+                        {connectMutation.isPending ? "Connecting..." : "Connect Profile"}
+                      </ActionButton>
+                      <button
+                        type="button"
+                        onClick={() => setIsManual(false)}
+                        className="text-xs text-brand-500 hover:text-brand-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 )}
               </div>
             </Panel>

@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException, BadGatewayException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -61,7 +61,17 @@ export class LocalSeoService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Google Places API error: ${errorText}`);
+        let message = `Google Places API returned HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed?.error?.message) {
+            message = `Google Places API error (${response.status}): ${parsed.error.message}`;
+          }
+        } catch {
+          if (errorText) message += `: ${errorText}`;
+        }
+        this.logger.error(message);
+        throw new BadGatewayException(message);
       }
 
       const data = await response.json();
@@ -73,8 +83,13 @@ export class LocalSeoService {
         userRatingsTotal: place.userRatingCount || 0,
       }));
     } catch (err) {
+      if (err instanceof ServiceUnavailableException || err instanceof BadGatewayException) {
+        throw err;
+      }
       this.logger.error(`Failed to search Google Places: ${err}`);
-      throw err;
+      throw new BadGatewayException(
+        `Failed to search Google Places: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
