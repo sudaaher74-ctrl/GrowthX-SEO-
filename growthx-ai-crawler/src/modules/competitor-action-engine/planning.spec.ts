@@ -108,6 +108,27 @@ describe('technicalFindings', () => {
     expect(technicalFindings(clean)).toHaveLength(0);
   });
 
+  it('writes singular and plural counts correctly', () => {
+    // Found by running the engine for real: "1 URLs on your site returned an
+    // error" and "1 of your pages have no H1". A number the copy cannot agree
+    // with reads as carelessness about the number itself.
+    const one = technicalFindings(
+      buildSiteProfile('mine.com', [
+        page({ statusCode: 404 }),
+        page({ h1: [] }),
+        page({ metaDescription: null }),
+        page({ robotsMeta: 'noindex' }),
+      ]),
+    );
+    const summaries = one.map((finding) => finding.summary).join(' | ');
+
+    expect(summaries).toContain('1 URL on your site returned an error');
+    expect(summaries).toContain('1 page has no H1 heading');
+    expect(summaries).toContain('1 page has no meta description');
+    expect(summaries).toContain('1 page tells search engines not to index it');
+    expect(summaries).not.toMatch(/1 (URLs|pages)/);
+  });
+
   it('reports pages that tell search engines not to index them', () => {
     // Counted but never surfaced until now: a noindex that shipped by accident
     // costs a page all of its traffic, silently.

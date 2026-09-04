@@ -330,9 +330,10 @@ export function technicalFindings(customer: SiteProfile): DraftFinding[] {
   const observedAt = customer.crawledAt ?? new Date();
 
   if (customer.pagesMissingMetaDescription > 0) {
+    const count = customer.pagesMissingMetaDescription;
     findings.push({
       category: 'TECHNICAL_SEO',
-      summary: `${customer.pagesMissingMetaDescription} of your pages have no meta description`,
+      summary: `${count} ${plural(count, 'page has', 'pages have')} no meta description`,
       detail:
         'Google writes its own snippet when a description is missing, which usually reads worse than one you ' +
         `control. Counted across ${customer.totalPages} crawled pages on ${customer.domain}.`,
@@ -345,9 +346,10 @@ export function technicalFindings(customer: SiteProfile): DraftFinding[] {
   }
 
   if (customer.pagesMissingH1 > 0) {
+    const count = customer.pagesMissingH1;
     findings.push({
       category: 'TECHNICAL_SEO',
-      summary: `${customer.pagesMissingH1} of your pages have no H1 heading`,
+      summary: `${count} ${plural(count, 'page has', 'pages have')} no H1 heading`,
       detail: `A page with no H1 leaves both search engines and screen readers without its main subject.`,
       sourcePlatform: 'WEBSITE',
       metricName: 'pages_missing_h1',
@@ -358,9 +360,10 @@ export function technicalFindings(customer: SiteProfile): DraftFinding[] {
   }
 
   if (customer.brokenLinks > 0) {
+    const count = customer.brokenLinks;
     findings.push({
       category: 'TECHNICAL_SEO',
-      summary: `${customer.brokenLinks} URLs on your site returned an error`,
+      summary: `${count} ${plural(count, 'URL on your site returned', 'URLs on your site returned')} an error`,
       detail: 'Pages returning 4xx or 5xx waste crawl budget and lose any links pointing at them.',
       sourcePlatform: 'WEBSITE',
       metricName: 'broken_urls',
@@ -373,7 +376,7 @@ export function technicalFindings(customer: SiteProfile): DraftFinding[] {
   if (customer.pagesNoindex > 0) {
     findings.push({
       category: 'TECHNICAL_SEO',
-      summary: `${customer.pagesNoindex} of your pages tell search engines not to index them`,
+      summary: `${customer.pagesNoindex} ${plural(customer.pagesNoindex, 'page tells', 'pages tell')} search engines not to index ${plural(customer.pagesNoindex, 'it', 'them')}`,
       detail:
         'These pages carry a noindex directive, so they cannot appear in search however good they are. ' +
         'Sometimes that is intentional — a thank-you page, a staging leftover — and sometimes it is a ' +
@@ -465,4 +468,9 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+/** Singular and plural wording, because "1 URLs" reads as a broken number. */
+function plural(count: number, one: string, many: string): string {
+  return count === 1 ? one : many;
 }
