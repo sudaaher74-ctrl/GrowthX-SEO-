@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { IssueSeverity } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
+import { calculateHealthScore } from '../issues/health-score.util';
 
 export interface PortfolioClient {
   projectId: string;
@@ -84,7 +85,7 @@ export class PortfolioService {
         ? await this.prisma.crawlJob.findFirst({
             where: { websiteId: { in: websiteIds }, status: 'COMPLETED' },
             orderBy: { finishedAt: 'desc' },
-            select: { id: true, finishedAt: true, pagesCrawled: true },
+            select: { id: true, finishedAt: true, pagesCrawled: true, healthScore: true },
           })
         : null;
 
@@ -92,14 +93,16 @@ export class PortfolioService {
       let health: number | null = null;
 
       if (latestCrawl) {
-        const [critical, high, medium, low] = await Promise.all([
-          this.countIssues(latestCrawl.id, IssueSeverity.CRITICAL),
-          this.countIssues(latestCrawl.id, IssueSeverity.HIGH),
-          this.countIssues(latestCrawl.id, IssueSeverity.MEDIUM),
-          this.countIssues(latestCrawl.id, IssueSeverity.LOW),
-        ]);
-        criticalIssues = critical;
-        health = this.healthScore({ critical, high, medium, low, pages: latestCrawl.pagesCrawled });
+        criticalIssues = await this.countIssues(latestCrawl.id, IssueSeverity.CRITICAL);
+        if (latestCrawl.healthScore != null) {
+          health = latestCrawl.healthScore;
+        } else {
+          const issues = await this.prisma.issue.findMany({
+            where: { crawlJobId: latestCrawl.id, status: 'OPEN' },
+            select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true },
+          });
+          health = this.healthScore(issues, latestCrawl.pagesCrawled);
+        }
       }
 
       const trackedPrompts = await this.prisma.trackedPrompt.count({
@@ -153,20 +156,20 @@ export class PortfolioService {
   }
 
   /**
-   * 100 minus a severity-weighted penalty per crawled page. Deliberately simple
-   * and explainable — an agency has to defend this number to a client.
+   * Health score calculated using authoritative bounded weights, confidence, and page normalization.
    */
-  private healthScore(input: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    pages: number;
-  }): number {
-    const pages = Math.max(1, input.pages);
-    const weighted = input.critical * 10 + input.high * 4 + input.medium * 1.5 + input.low * 0.5;
-    const penalty = Math.min(100, (weighted / pages) * 100);
-    return Math.max(0, Math.round(100 - penalty));
+  private healthScore(
+    issues: Array<{ severity: string; confidence?: string | null; affectedUrl?: string; dedupKey?: string | null }>,
+    pages: number,
+  ): number {
+    return calculateHealthScore({
+      pagesCrawled: pages,
+      issues: issues.map((i) => ({
+        severity: i.severity,
+        confidence: i.confidence || 'CONFIRMED',
+        affectedUrl: i.affectedUrl,
+      })),
+    }).healthScore;
   }
 
   private initials(name: string): string {

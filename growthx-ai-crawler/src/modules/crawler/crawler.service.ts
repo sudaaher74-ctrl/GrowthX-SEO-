@@ -16,6 +16,7 @@ import { SchemaValidatorService } from '../analyzer/schema-validator.service';
 import { ContentAnalyzerService } from '../analyzer/content-analyzer.service';
 import { PerformanceService } from '../performance/performance.service';
 import { IssueEngineService } from '../issues/issue-engine.service';
+import { calculateHealthScore } from '../issues/health-score.util';
 import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import * as url from 'url';
@@ -589,15 +590,141 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`[JOB ${jobId}] Graph analysis error`, graphErr);
     }
 
+    // 1. Retrieve crawled pages and issues to calculate authoritative health score and diagnostics
+    const [pages, issues] = await Promise.all([
+      this.prisma.page.findMany({
+        where: { crawlJobId: jobId },
+        select: { id: true, url: true, statusCode: true, responseTimeMs: true },
+      }),
+      this.prisma.issue.findMany({
+        where: { crawlJobId: jobId },
+        include: { page: { select: { url: true } } },
+      }),
+    ]);
+
+    const totalPages = pages.length;
+    const totalFindings = issues.length;
+
+    // Deduplicate issues by dedupKey or (pageUrl + issueType)
+    const uniqueIssueMap = new Map<string, typeof issues[0]>();
+    for (const issue of issues) {
+      const key = (issue as any).dedupKey || `${issue.page?.url || issue.affectedUrl}::${issue.issueType}`;
+      if (!uniqueIssueMap.has(key)) {
+        uniqueIssueMap.set(key, issue);
+      }
+    }
+    const uniqueIssuesCount = uniqueIssueMap.size;
+
+    // 2. Authoritative health score calculation
+    const scoreResult = calculateHealthScore({
+      pagesCrawled: totalPages,
+      issues: Array.from(uniqueIssueMap.values()).map((i) => ({
+        severity: i.severity,
+        confidence: (i as any).confidence || 'CONFIRMED',
+        affectedUrl: i.page?.url || i.affectedUrl,
+        issueType: i.issueType,
+      })),
+    });
+    const healthScore = scoreResult.healthScore;
+
+    // 3. Check previous completed crawl job to count resolved issues
+    let resolvedIssuesCount = 0;
+    try {
+      const previousJob = await this.prisma.crawlJob.findFirst({
+        where: {
+          websiteId: job.websiteId,
+          status: 'COMPLETED',
+          id: { not: jobId },
+        },
+        orderBy: { finishedAt: 'desc' },
+        select: { id: true },
+      });
+
+      if (previousJob) {
+        const prevIssues = await this.prisma.issue.findMany({
+          where: { crawlJobId: previousJob.id },
+          select: { dedupKey: true, issueType: true, affectedUrl: true, page: { select: { url: true } } },
+        });
+
+        const currentKeys = new Set(uniqueIssueMap.keys());
+        const prevKeys = new Set(
+          prevIssues.map((i) => (i as any).dedupKey || `${i.page?.url || i.affectedUrl}::${i.issueType}`),
+        );
+
+        for (const prevKey of prevKeys) {
+          if (!currentKeys.has(prevKey)) {
+            resolvedIssuesCount++;
+          }
+        }
+      }
+    } catch (diffErr) {
+      this.logger.warn(`[JOB ${jobId}] Failed to calculate resolved issues against previous job`, diffErr);
+    }
+
+    // 4. Calculate quality diagnostics
+    const statusCodeDist: Record<string, number> = {};
+    let totalResponseTime = 0;
+    let validResponseCount = 0;
+    for (const p of pages) {
+      const bucket = p.statusCode ? `${Math.floor(p.statusCode / 100)}xx` : 'other';
+      statusCodeDist[bucket] = (statusCodeDist[bucket] || 0) + 1;
+      if (p.responseTimeMs && p.responseTimeMs > 0) {
+        totalResponseTime += p.responseTimeMs;
+        validResponseCount++;
+      }
+    }
+    const avgResponseTimeMs = validResponseCount > 0 ? Math.round(totalResponseTime / validResponseCount) : 0;
+
+    const startedAt = job.startedAt || new Date();
+    const finishedAt = new Date();
+    const durationSeconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
+    const sitemapSet = this.jobSitemapUrls.get(jobId);
+
+    const qualityDiagnostics = {
+      durationSeconds,
+      startedAt: startedAt.toISOString(),
+      finishedAt: finishedAt.toISOString(),
+      pagesCrawled: totalPages,
+      statusCodes: statusCodeDist,
+      avgResponseTimeMs,
+      sitemapFound: Boolean(sitemapSet && sitemapSet.size > 0),
+      sitemapUrlsCount: sitemapSet?.size || 0,
+      totalFindings,
+      uniqueIssuesCount,
+      resolvedIssuesCount,
+      scoreBreakdown: scoreResult,
+    };
+
     const finished = await this.prisma.crawlJob.update({
       where: { id: jobId },
-      data: { status: 'COMPLETED', finishedAt: new Date() },
+      data: {
+        status: 'COMPLETED',
+        finishedAt,
+        healthScore,
+        pagesCrawled: totalPages,
+        issuesFound: totalFindings,
+        uniqueIssuesCount,
+        resolvedIssuesCount,
+        qualityDiagnostics: qualityDiagnostics as any,
+      },
       include: { website: { select: { project: { select: { organizationId: true } } } } },
+    });
+
+    this.logger.log(
+      `[JOB ${jobId}] Finished with Health Score ${healthScore}/100, ${totalFindings} findings (${uniqueIssuesCount} unique open, ${resolvedIssuesCount} resolved), ${totalPages} pages in ${durationSeconds}s.`,
+    );
+
+    this.crawlerGateway.broadcastProgress(jobId, {
+      status: 'COMPLETED',
+      pagesCrawled: totalPages,
+      healthScore,
+      uniqueIssuesCount,
+      resolvedIssuesCount,
     });
 
     // Bill crawled pages against the plan allowance only now that the job has
     // actually finished, so an aborted or failed crawl costs the customer nothing.
-    const organizationId = finished.website.project?.organizationId;
+    const organizationId = (finished as any).website?.project?.organizationId;
     if (organizationId && finished.pagesCrawled > 0) {
       try {
       } catch (usageErr) {

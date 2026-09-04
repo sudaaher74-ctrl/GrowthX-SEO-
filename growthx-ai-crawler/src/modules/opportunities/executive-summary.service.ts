@@ -129,11 +129,33 @@ export class ExecutiveSummaryService {
    * severity; turning that into a number out of 100 would add a scale nobody
    * defined on top of data that is already clear.
    */
-  private async siteHealth(projectId: string): Promise<Measure | { state: 'MEASURED'; pagesCrawled: number; criticalIssues: number; totalIssues: number; crawledAt: Date | null; source: string }> {
+  private async siteHealth(
+    projectId: string,
+  ): Promise<
+    | Measure
+    | {
+        state: 'MEASURED';
+        pagesCrawled: number;
+        criticalIssues: number;
+        totalIssues: number;
+        uniqueIssuesCount?: number;
+        resolvedIssuesCount?: number;
+        healthScore?: number | null;
+        crawledAt: Date | null;
+        source: string;
+      }
+  > {
     const job = await this.prisma.crawlJob.findFirst({
       where: { status: 'COMPLETED', website: { projectId } },
       orderBy: { finishedAt: 'desc' },
-      select: { id: true, pagesCrawled: true, finishedAt: true },
+      select: {
+        id: true,
+        pagesCrawled: true,
+        finishedAt: true,
+        healthScore: true,
+        uniqueIssuesCount: true,
+        resolvedIssuesCount: true,
+      },
     });
     if (!job) return noData('This site has not been crawled yet.');
 
@@ -150,6 +172,9 @@ export class ExecutiveSummaryService {
       pagesCrawled: job.pagesCrawled,
       criticalIssues: critical,
       totalIssues: total,
+      uniqueIssuesCount: job.uniqueIssuesCount ?? total,
+      resolvedIssuesCount: job.resolvedIssuesCount ?? 0,
+      healthScore: job.healthScore,
       crawledAt: job.finishedAt,
       source: 'GrowthX site crawl',
     };

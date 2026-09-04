@@ -48,16 +48,23 @@ function SiteHealthClient() {
   const [fixes, setFixes] = useState<Record<string, FixPatch | { error: string }>>({});
 
   const all = issues.data?.data ?? [];
+  const meta = issues.data?.meta;
+  const effectiveHealth = crawl.data?.healthScore ?? meta?.healthScore ?? client?.health ?? null;
+  const openCount = meta?.uniqueOpenIssues ?? all.length;
+
   const rows = useMemo(
     () => (severity === "ALL" ? all : all.filter((i) => i.severity === severity)),
     [all, severity],
   );
 
   const counts = useMemo(() => {
+    if (meta?.countsBySeverity) {
+      return meta.countsBySeverity;
+    }
     const c = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 } as Record<string, number>;
     for (const issue of all) c[issue.severity] = (c[issue.severity] ?? 0) + 1;
     return c;
-  }, [all]);
+  }, [all, meta?.countsBySeverity]);
 
   async function runCrawl() {
     if (!client?.domain) return;
@@ -116,27 +123,27 @@ function SiteHealthClient() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi
             label="Health score"
-            value={client?.health != null ? String(client.health) : "—"}
-            sub="100 minus severity-weighted penalty"
-            tone={client?.health != null && client.health < 60 ? "danger" : "default"}
+            value={effectiveHealth != null ? String(effectiveHealth) : "—"}
+            sub={effectiveHealth != null ? "Calculated SEO audit score" : "Not analyzed yet"}
+            tone={effectiveHealth != null && effectiveHealth < 60 ? "danger" : "default"}
           />
           <Kpi label="URLs crawled" value={(crawl.data?.pagesCrawled ?? 0).toLocaleString()} sub="latest completed crawl" />
-          <Kpi label="Open issues" value={String(all.length)} sub={`${counts.CRITICAL} critical · ${counts.HIGH} high`} />
+          <Kpi label="Open issues" value={String(openCount)} sub={`${counts.CRITICAL ?? 0} critical · ${counts.HIGH ?? 0} high`} />
           <Kpi
             label="Critical"
-            value={String(counts.CRITICAL)}
+            value={String(counts.CRITICAL ?? 0)}
             sub="fix these first"
-            tone={counts.CRITICAL ? "danger" : "good"}
+            tone={(counts.CRITICAL ?? 0) > 0 ? "danger" : "good"}
           />
         </div>
 
         <Tabs
           tabs={[
-            { id: "ALL" as Severity, label: "All", tag: String(all.length) },
-            { id: "CRITICAL" as Severity, label: "Critical", tag: String(counts.CRITICAL) },
-            { id: "HIGH" as Severity, label: "High", tag: String(counts.HIGH) },
-            { id: "MEDIUM" as Severity, label: "Medium", tag: String(counts.MEDIUM) },
-            { id: "LOW" as Severity, label: "Low", tag: String(counts.LOW) },
+            { id: "ALL" as Severity, label: "All", tag: String(openCount) },
+            { id: "CRITICAL" as Severity, label: "Critical", tag: String(counts.CRITICAL ?? 0) },
+            { id: "HIGH" as Severity, label: "High", tag: String(counts.HIGH ?? 0) },
+            { id: "MEDIUM" as Severity, label: "Medium", tag: String(counts.MEDIUM ?? 0) },
+            { id: "LOW" as Severity, label: "Low", tag: String(counts.LOW ?? 0) },
           ]}
           active={severity}
           onChange={setSeverity}

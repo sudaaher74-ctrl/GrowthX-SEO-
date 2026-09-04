@@ -67,12 +67,16 @@ model CrawlJob {
   /// is the right answer for a customer's own site and the wrong one for a
   /// competitor's: that is a third party who never asked to be crawled, and
   /// their bandwidth is not ours to spend without a bound.
-  pageLimit      Int?
-  startedAt      DateTime?
-  finishedAt     DateTime?
-  errorMessage   String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  pageLimit           Int?
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  errorMessage        String?
+  healthScore         Int?
+  uniqueIssuesCount   Int             @default(0)
+  resolvedIssuesCount Int             @default(0)
+  qualityDiagnostics  Json?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   website        Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   internalGraphs InternalGraph[]
   issues         Issue[]
@@ -147,6 +151,12 @@ model Issue {
   recommendation   String
   status           IssueStatus       @default(OPEN)
   aiFixAvailable   Boolean           @default(false)
+  confidence       String            @default("LIKELY")
+  impact           String?
+  explanation      String?
+  evidence         String?
+  dedupKey         String?
+  category         String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   aiRecommendation AIRecommendation?
@@ -156,6 +166,8 @@ model Issue {
   @@index([crawlJobId, severity])
   @@index([affectedUrl, status])
   @@index([issueType])
+  @@index([crawlJobId, dedupKey])
+  @@index([crawlJobId, category])
 }
 
 model Image {

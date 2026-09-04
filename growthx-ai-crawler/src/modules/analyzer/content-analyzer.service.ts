@@ -11,6 +11,10 @@ export interface ContentMetrics {
   imageCount: number;
   internalLinkDensity: number; // Links per 100 words
   externalLinkDensity: number;
+  extractionMethod: 'semantic_region' | 'body_cleaned';
+  mainContentSelector: string;
+  boilerplatePercentage: number;
+  rawWordCount?: number;
 }
 
 @Injectable()
@@ -18,7 +22,8 @@ export class ContentAnalyzerService {
   private readonly logger = new Logger(ContentAnalyzerService.name);
 
   /**
-   * Evaluates textual content quality, word count, reading time, heading hierarchy, and computes hash fingerprints
+   * Evaluates textual content quality, word count, reading time, heading hierarchy, and computes hash fingerprints.
+   * Employs semantic content extraction to strip navigation, footers, cookie banners, and hidden elements.
    */
   analyzeContent(
     html: string,
@@ -31,13 +36,67 @@ export class ContentAnalyzerService {
   ): ContentMetrics {
     const $ = cheerio.load(html || '');
 
-    // Strip scripts, styles, and nav elements to get clean text
-    $('script, style, nav, footer, header, noscript, svg').remove();
-    const cleanText = $('body').text().replace(/\s+/g, ' ').trim();
+    // 1. Measure raw body text for boilerplate calculation
+    const rawBodyText = $('body').text().replace(/\s+/g, ' ').trim();
+    const rawWords = rawBodyText.split(' ').filter((w) => w.length > 0);
+    const rawWordCount = rawWords.length;
+
+    // 2. Strip scripts, styles, media, and structural boilerplate
+    $('script, style, noscript, svg, canvas, iframe, audio, video').remove();
+    $('nav, header, .nav, .navbar, .menu, .header, [role="navigation"]').remove();
+    $('footer, .footer, [role="contentinfo"]').remove();
+    $('.cookie, #cookie, [class*="cookie" i], [id*="cookie" i], [class*="consent" i], [id*="consent" i]').remove();
+    $('[hidden], [aria-hidden="true"], [style*="display:none"], [style*="display: none"], [style*="visibility:hidden"], [style*="visibility: hidden"]').remove();
+    $('.modal, .dialog, .popup, [role="dialog"], [role="alertdialog"]').remove();
+
+    // 3. Attempt extraction from dedicated content containers
+    const contentSelectors = [
+      'main',
+      'article',
+      '[role="main"]',
+      '#content',
+      '#main-content',
+      '.content',
+      '.main-content',
+      '.post-content',
+      '.page-content',
+    ];
+
+    let cleanText = '';
+    let extractionMethod: 'semantic_region' | 'body_cleaned' = 'body_cleaned';
+    let mainContentSelector = 'body';
+
+    for (const selector of contentSelectors) {
+      const el = $(selector);
+      if (el.length > 0) {
+        const text = el.text().replace(/\s+/g, ' ').trim();
+        const words = text.split(' ').filter((w) => w.length > 0);
+        // Only use the region if it contains substantial text (> 30 words)
+        if (words.length >= 30) {
+          cleanText = text;
+          extractionMethod = 'semantic_region';
+          mainContentSelector = selector;
+          break;
+        }
+      }
+    }
+
+    // Fallback to cleaned body
+    if (!cleanText) {
+      cleanText = $('body').text().replace(/\s+/g, ' ').trim();
+      extractionMethod = 'body_cleaned';
+      mainContentSelector = 'body';
+    }
 
     const words = cleanText.split(' ').filter((w) => w.length > 0);
     const wordCount = words.length;
     const readingTimeMin = parseFloat((wordCount / 200).toFixed(2)); // Standard 200 WPM
+
+    // Boilerplate percentage
+    const boilerplatePercentage =
+      rawWordCount > 0
+        ? Math.max(0, Math.min(100, Math.round(((rawWordCount - wordCount) / rawWordCount) * 100)))
+        : 0;
 
     // Compute exact MD5 content hash for strict duplicate detection
     const contentHash = crypto.createHash('md5').update(cleanText.toLowerCase()).digest('hex');
@@ -56,7 +115,7 @@ export class ContentAnalyzerService {
     // Check heading level jumps in raw DOM order
     let lastLevel = 0;
     $('h1, h2, h3, h4, h5, h6').each((_, el) => {
-      const tagName = el.tagName?.toLowerCase();
+      const tagName = (el as any).tagName?.toLowerCase();
       if (!tagName) return;
       const level = parseInt(tagName.substring(1), 10);
       if (!isNaN(level)) {
@@ -80,12 +139,15 @@ export class ContentAnalyzerService {
       imageCount,
       internalLinkDensity,
       externalLinkDensity,
+      extractionMethod,
+      mainContentSelector,
+      boilerplatePercentage,
+      rawWordCount,
     };
   }
 
   /**
    * Computes a 64-bit SimHash representation of word tokens for near-duplicate identification.
-   * Two documents with Hamming distance <= 3 are considered near-duplicates.
    */
   computeSimHash(words: string[]): string {
     if (!words || words.length === 0) return '0000000000000000';
@@ -114,24 +176,5 @@ export class ContentAnalyzerService {
     }
 
     return fingerprint.toString(16).padStart(16, '0');
-  }
-
-  /**
-   * Calculates Hamming distance between two hex SimHashes (returns difference bit count 0-64)
-   */
-  calculateHammingDistance(hashA: string, hashB: string): number {
-    try {
-      const a = BigInt('0x' + hashA);
-      const b = BigInt('0x' + hashB);
-      let xor = a ^ b;
-      let dist = 0;
-      while (xor > BigInt(0)) {
-        if ((xor & BigInt(1)) === BigInt(1)) dist++;
-        xor >>= BigInt(1);
-      }
-      return dist;
-    } catch {
-      return 64;
-    }
   }
 }

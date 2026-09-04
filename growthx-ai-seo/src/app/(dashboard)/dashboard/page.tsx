@@ -186,11 +186,29 @@ export default function OverviewPage() {
               <>
                 <Stat label="Pages crawled" value={executive.data.siteHealth.pagesCrawled.toLocaleString()} />
                 <Stat
+                  label="Health score"
+                  value={
+                    (executive.data.siteHealth as any).healthScore != null
+                      ? String((executive.data.siteHealth as any).healthScore)
+                      : "—"
+                  }
+                  sub="out of 100"
+                  tone={(executive.data.siteHealth as any).healthScore < 60 ? "danger" : "good"}
+                />
+                <Stat
                   label="Critical issues"
                   value={executive.data.siteHealth.criticalIssues.toLocaleString()}
                   tone={executive.data.siteHealth.criticalIssues > 0 ? "danger" : "good"}
                 />
-                <Stat label="Total issues" value={executive.data.siteHealth.totalIssues.toLocaleString()} />
+                <Stat
+                  label="Unique issues"
+                  value={
+                    (
+                      (executive.data.siteHealth as any).uniqueIssuesCount ?? executive.data.siteHealth.totalIssues
+                    ).toLocaleString()
+                  }
+                  sub={`${executive.data.siteHealth.totalIssues.toLocaleString()} findings`}
+                />
               </>
             ) : (
               <div className="col-span-2 text-[13px] text-brand-500 lg:col-span-3">

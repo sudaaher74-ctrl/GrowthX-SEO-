@@ -409,10 +409,28 @@ export function useCrawlHistory(domain: string | null, limit?: number) {
   });
 }
 
-export function useCrawlIssues(jobId: string | null, severity?: string, status?: string) {
+export function useCrawlIssues(
+  jobId: string | null,
+  paramsOrSeverity?:
+    | string
+    | {
+        severity?: string;
+        category?: string;
+        confidence?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
+      },
+  status?: string,
+) {
+  const params =
+    typeof paramsOrSeverity === "string"
+      ? { severity: paramsOrSeverity, limit: 100 }
+      : { limit: 100, ...paramsOrSeverity };
+
   return useQuery({
-    queryKey: ["crawl-issues", jobId, severity, status],
-    queryFn: () => api.getCrawlIssues(jobId!, { severity, limit: 100 }),
+    queryKey: ["crawl-issues", jobId, params, status],
+    queryFn: () => api.getCrawlIssues(jobId!, params),
     enabled: Boolean(jobId),
     refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
   });

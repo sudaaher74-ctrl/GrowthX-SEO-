@@ -394,6 +394,29 @@ export interface CrawlJob {
   status: string;
   pagesCrawled: number;
   issuesFound: number;
+  healthScore?: number | null;
+  uniqueIssuesCount?: number;
+  resolvedIssuesCount?: number;
+  qualityDiagnostics?: {
+    durationSeconds?: number;
+    startedAt?: string;
+    finishedAt?: string;
+    pagesCrawled?: number;
+    statusCodes?: Record<string, number>;
+    avgResponseTimeMs?: number;
+    sitemapFound?: boolean;
+    sitemapUrlsCount?: number;
+    totalFindings?: number;
+    uniqueIssuesCount?: number;
+    resolvedIssuesCount?: number;
+    scoreBreakdown?: {
+      baseScore: number;
+      totalPenalty: number;
+      penaltiesCount: number;
+      normalizedPenaltyPerUrl: number;
+      pagesCrawled: number;
+    };
+  } | null;
   startedAt: string | null;
   finishedAt: string | null;
   website?: { domain: string; url: string };
@@ -436,6 +459,13 @@ export interface CrawlIssue {
   recommendation: string;
   status: string;
   aiFixAvailable: boolean;
+  confidence?: "CONFIRMED" | "LIKELY" | "ADVISORY";
+  impact?: string | null;
+  explanation?: string | null;
+  evidence?: string | null;
+  dedupKey?: string | null;
+  category?: string | null;
+  page?: { url: string; pageType?: string; statusCode?: number } | null;
 }
 
 export interface FixPatch {
@@ -1412,15 +1442,42 @@ export const api = {
     get<CrawlHistoryPoint[]>(
       `/api/websites/${domain}/crawl-history${limit ? `?limit=${limit}` : ""}`,
     ),
-  getCrawlIssues: (jobId: string, params?: { severity?: string; page?: number; limit?: number }) => {
+  getCrawlIssues: (
+    jobId: string,
+    params?: {
+      severity?: string;
+      category?: string;
+      confidence?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) => {
     const query = new URLSearchParams();
     if (params?.severity) query.set("severity", params.severity);
+    if (params?.category) query.set("category", params.category);
+    if (params?.confidence) query.set("confidence", params.confidence);
+    if (params?.search) query.set("search", params.search);
     if (params?.page) query.set("page", String(params.page));
     if (params?.limit) query.set("limit", String(params.limit));
     const suffix = query.toString() ? `?${query}` : "";
-    return get<{ data: CrawlIssue[]; meta: { total: number; page: number; totalPages: number } }>(
-      `/api/crawls/${jobId}/issues${suffix}`,
-    );
+    return get<{
+      data: CrawlIssue[];
+      meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        totalFindings: number;
+        uniqueOpenIssues: number;
+        resolvedIssues: number;
+        healthScore?: number | null;
+        countsBySeverity: Record<string, number>;
+        countsByCategory: Record<string, number>;
+        countsByConfidence: Record<string, number>;
+        qualityDiagnostics?: any;
+      };
+    }>(`/api/crawls/${jobId}/issues${suffix}`);
   },
   getCrawlPages: (jobId: string, params?: { page?: number; limit?: number }) => {
     const query = new URLSearchParams();

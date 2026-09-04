@@ -9,6 +9,7 @@ import { GraphService } from '../graph/graph.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+import { calculateHealthScore } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 
@@ -205,6 +206,37 @@ export class CrawlController {
       include: { website: true },
     });
 
+    if (latest && latest.status === 'COMPLETED' && latest.healthScore === null) {
+      try {
+        const issues = await this.prisma.issue.findMany({
+          where: { crawlJobId: latest.id },
+          select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
+        });
+        const uniqueMap = new Map<string, any>();
+        for (const i of issues) {
+          const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
+          if (!uniqueMap.has(key)) uniqueMap.set(key, i);
+        }
+        const scoreRes = calculateHealthScore({
+          pagesCrawled: latest.pagesCrawled,
+          issues: Array.from(uniqueMap.values()).map((i) => ({
+            severity: i.severity,
+            confidence: i.confidence || 'CONFIRMED',
+            affectedUrl: i.affectedUrl,
+            issueType: i.issueType,
+          })),
+        });
+        latest.healthScore = scoreRes.healthScore;
+        latest.uniqueIssuesCount = uniqueMap.size;
+        await this.prisma.crawlJob
+          .update({
+            where: { id: latest.id },
+            data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueMap.size },
+          })
+          .catch(() => {});
+      } catch (err) {}
+    }
+
     return latest ?? null;
   }
 
@@ -239,30 +271,103 @@ export class CrawlController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get paginated list of Technical SEO issues detected during crawl' })
   @ApiParam({ name: 'id', description: 'Crawl Job ID' })
-  @ApiQuery({ name: 'severity', required: false, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] })
+  @ApiQuery({ name: 'severity', required: false, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'ALL'] })
+  @ApiQuery({ name: 'category', required: false, type: 'string' })
+  @ApiQuery({ name: 'confidence', required: false, enum: ['CONFIRMED', 'LIKELY', 'ADVISORY', 'ALL'] })
+  @ApiQuery({ name: 'search', required: false, type: 'string' })
   @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
   async getCrawlIssues(
     @Req() req: any,
     @Param('id') id: string,
     @Query('severity') severity?: string,
+    @Query('category') category?: string,
+    @Query('confidence') confidence?: string,
+    @Query('search') search?: string,
     @Query('page') page = '1',
-    @Query('limit') limit = '50'
+    @Query('limit') limit = '50',
   ) {
-    await this.crawlJobForCaller(req, id);
+    const job = await this.crawlJobForCaller(req, id);
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
 
     const where: any = { crawlJobId: id };
-    if (severity) where.severity = severity.toUpperCase();
+    if (severity && severity.toUpperCase() !== 'ALL') where.severity = severity.toUpperCase();
+    if (category && category.toUpperCase() !== 'ALL') where.category = category.toUpperCase();
+    if (confidence && confidence.toUpperCase() !== 'ALL') where.confidence = confidence.toUpperCase();
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { affectedUrl: { contains: q, mode: 'insensitive' } },
+        { issueType: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { explanation: { contains: q, mode: 'insensitive' } },
+      ];
+    }
 
-    const [issues, total] = await Promise.all([
-      this.prisma.issue.findMany({ where, skip, take: limitNum, orderBy: { severity: 'asc' } }),
+    const [issues, total, severityGroups, categoryGroups, confidenceGroups] = await Promise.all([
+      this.prisma.issue.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
+        include: {
+          page: { select: { url: true, pageType: true, statusCode: true } },
+        },
+      }),
       this.prisma.issue.count({ where }),
+      this.prisma.issue.groupBy({
+        by: ['severity'],
+        where: { crawlJobId: id },
+        _count: { id: true },
+      }),
+      this.prisma.issue.groupBy({
+        by: ['category'],
+        where: { crawlJobId: id },
+        _count: { id: true },
+      }),
+      this.prisma.issue.groupBy({
+        by: ['confidence'],
+        where: { crawlJobId: id },
+        _count: { id: true },
+      }),
     ]);
 
-    return { data: issues, meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } };
+    const countsBySeverity: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    for (const g of severityGroups) {
+      if (g.severity) countsBySeverity[g.severity] = g._count.id;
+    }
+
+    const countsByCategory: Record<string, number> = {};
+    for (const g of categoryGroups) {
+      if (g.category) countsByCategory[g.category] = g._count.id;
+    }
+
+    const countsByConfidence: Record<string, number> = { CONFIRMED: 0, LIKELY: 0, ADVISORY: 0 };
+    for (const g of confidenceGroups) {
+      if (g.confidence) countsByConfidence[g.confidence] = g._count.id;
+    }
+
+    const totalFindings = job.issuesFound || Object.values(countsBySeverity).reduce((a, b) => a + b, 0);
+
+    return {
+      data: issues,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+        totalFindings,
+        uniqueOpenIssues: job.uniqueIssuesCount || totalFindings,
+        resolvedIssues: job.resolvedIssuesCount || 0,
+        healthScore: job.healthScore ?? null,
+        countsBySeverity,
+        countsByCategory,
+        countsByConfidence,
+        qualityDiagnostics: job.qualityDiagnostics ?? null,
+      },
+    };
   }
 
   @Get('crawls/:id/pages')
