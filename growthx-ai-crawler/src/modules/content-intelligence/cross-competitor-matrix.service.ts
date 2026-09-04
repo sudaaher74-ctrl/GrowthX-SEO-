@@ -12,6 +12,17 @@ export interface MatrixRow {
   opportunityScore: number;
 }
 
+/** One competitor as a column: the company, with every account it posts from. */
+export interface CompetitorColumn {
+  id: string;
+  handle: string;
+  name: string;
+  /** Every platform this company was found on. */
+  platforms: string[];
+  /** The account rows folded into this column. */
+  accountIds: string[];
+}
+
 export interface DetectedCampaign {
   id: string;
   competitorName: string;
@@ -25,6 +36,9 @@ export interface DetectedCampaign {
   sampleTitles: string[];
   performanceSignal: 'HIGH' | 'MEDIUM' | 'EMERGING';
 }
+
+/** Wider than this and the table stops being readable side by side. */
+const MAX_COMPETITOR_COLUMNS = 6;
 
 @Injectable()
 export class CrossCompetitorMatrixService {
@@ -43,8 +57,17 @@ export class CrossCompetitorMatrixService {
           ...(organizationId ? { organizationId } : {}),
           isActive: true,
         },
-        select: { id: true, handle: true, displayName: true, platform: true, businessName: true },
-        take: 6,
+        select: {
+          id: true,
+          handle: true,
+          displayName: true,
+          platform: true,
+          businessName: true,
+          competitorId: true,
+        },
+        // Counted in accounts, not companies: one competitor active on four
+        // platforms is four rows here and must still fold to one column.
+        take: 30,
       }),
       this.prisma.competitorContent.findMany({
         where: {
@@ -59,12 +82,42 @@ export class CrossCompetitorMatrixService {
       }),
     ]);
 
-    const competitorCols = competitorAccounts.map(a => ({
-      id: a.id,
-      handle: a.handle,
-      name: a.displayName || a.businessName || a.handle,
-      platform: a.platform,
-    }));
+    // One column per company, not per social account.
+    //
+    // Discovery registers an account per platform, so a competitor on both
+    // Instagram and YouTube arrived as two columns with the same name. Three
+    // competitors rendered as six columns reading "Country Delight, Amul,
+    // BigBasket, Amul, BigBasket, Country Delight", which is why the header
+    // looked duplicated. The accounts are folded back into the business they
+    // belong to and their content is pooled.
+    const competitorCols = foldAccountsIntoCompanies(competitorAccounts).slice(0, MAX_COMPETITOR_COLUMNS);
+    const accountToCompany = new Map<string, string>();
+    for (const company of competitorCols) {
+      for (const accountId of company.accountIds) accountToCompany.set(accountId, company.id);
+    }
+
+    // Nothing has been collected yet, so there is nothing to compare.
+    //
+    // The matrix used to answer this case with all eight pillars scored
+    // "MARKET_GAP, 90/100" — the branch that fires when neither side covers a
+    // topic. On an empty database that is every row, so a customer whose
+    // competitors had never been crawled was shown eight 90/100 opportunities
+    // and a row of dashes. No data is not a market gap.
+    if (competitorContents.length === 0) {
+      return {
+        competitors: competitorCols,
+        matrixRows: [],
+        winningContent: [],
+        commonPatterns: [],
+        campaigns: [],
+        totalCompetitorVideosAnalyzed: 0,
+        needsData: true,
+        needsDataReason:
+          competitorCols.length === 0
+            ? 'No competitor social accounts are being tracked yet. Add competitors and their profiles will be discovered.'
+            : "No competitor content has been collected yet, so there is nothing to compare against. This fills in once the content crawl has run for the accounts you're tracking.",
+      };
+    }
 
     // Standard Pillars to evaluate
     const standardPillars = [
@@ -90,7 +143,7 @@ export class CrossCompetitorMatrixService {
 
       for (const comp of competitorCols) {
         const count = competitorContents.filter(
-          c => c.accountId === comp.id && (
+          c => accountToCompany.get(c.accountId) === comp.id && (
             c.classification?.contentPillar?.toUpperCase().includes(pillar.replace('_', '')) ||
             c.classification?.contentCategory?.toUpperCase().includes(pillar.replace('_', '')) ||
             c.title?.toUpperCase().includes(pillar.replace('_', '')) ||
@@ -160,25 +213,16 @@ export class CrossCompetitorMatrixService {
       .slice(0, 10);
 
     // 3. Detect Campaigns
-    const campaigns = this.detectCampaigns(competitorContents, competitorCols);
+    const campaigns = this.detectCampaigns(competitorContents, competitorCols, accountToCompany);
 
-    // 4. Winning Common Patterns (Derived from actual competitor content)
-    const commonPatterns = competitorContents.length > 0 ? [
-      {
-        pattern: 'Problem-Focused Educational Short-Form Video',
-        prevalence: `${Math.min(competitorCols.length, 3)} of ${competitorCols.length || 1} Competitors`,
-        averagePerformance: 'High (Category Leading Engagement)',
-        format: 'Talking Head + Visual Proof + Concrete Takeaway',
-        recommendation: 'Produce weekly 45s Educational Reels targeting top customer misconceptions.',
-      },
-      {
-        pattern: 'Product Showcase & Behind-The-Scenes Proof',
-        prevalence: `${competitorCols.length} of ${competitorCols.length || 1} Competitors`,
-        averagePerformance: 'High (Strongest comment & share velocity)',
-        format: 'Process Tour + Quality Transparency',
-        recommendation: 'Showcase real products, certifications, and manufacturing/packaging workflows.',
-      },
-    ] : [];
+    // 4. Winning Common Patterns, read off what the competitors actually post.
+    //
+    // These were two fixed paragraphs about "Talking Head + Visual Proof",
+    // printed under the heading "Formulas proven across analyzed competitors"
+    // whatever the competitors had posted — the same advice for a dairy and a
+    // law firm. A pattern only earns the name if more than one competitor is
+    // running it, so that is now the test.
+    const commonPatterns = this.derivePatterns(competitorContents, competitorCols, accountToCompany);
 
     return {
       competitors: competitorCols,
@@ -187,14 +231,64 @@ export class CrossCompetitorMatrixService {
       commonPatterns,
       campaigns,
       totalCompetitorVideosAnalyzed: competitorContents.length,
+      needsData: false,
     };
   }
 
-  private detectCampaigns(contents: any[], competitors: any[]): DetectedCampaign[] {
+  /**
+   * Content pillars that more than one competitor is actually running.
+   *
+   * Prevalence is counted in companies, not posts: one competitor publishing
+   * forty reels is a habit, three competitors publishing four each is a
+   * pattern, and only the second is worth telling a customer to copy.
+   */
+  private derivePatterns(
+    contents: any[],
+    competitors: CompetitorColumn[],
+    accountToCompany: Map<string, string>,
+  ): Array<{ pattern: string; prevalence: string; averagePerformance: string; format: string; recommendation: string }> {
+    const byPillar = new Map<string, { companies: Set<string>; posts: number; views: number }>();
+
+    for (const item of contents) {
+      const pillar = item.classification?.contentPillar || item.classification?.contentCategory;
+      if (!pillar) continue;
+      const company = accountToCompany.get(item.accountId);
+      if (!company) continue;
+
+      const entry = byPillar.get(pillar) ?? { companies: new Set<string>(), posts: 0, views: 0 };
+      entry.companies.add(company);
+      entry.posts += 1;
+      entry.views += item.viewsCount || 0;
+      byPillar.set(pillar, entry);
+    }
+
+    const total = competitors.length || 1;
+
+    return [...byPillar.entries()]
+      .filter(([, entry]) => entry.companies.size >= 2)
+      .sort((a, b) => b[1].companies.size - a[1].companies.size || b[1].views - a[1].views)
+      .slice(0, 4)
+      .map(([pillar, entry]) => {
+        const averageViews = entry.posts > 0 ? Math.round(entry.views / entry.posts) : 0;
+        return {
+          pattern: pillar.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          prevalence: `${entry.companies.size} of ${total} competitors`,
+          averagePerformance: averageViews > 0 ? `${averageViews.toLocaleString()} average views` : `${entry.posts} posts seen`,
+          format: `${entry.posts} posts across ${entry.companies.size} competitors`,
+          recommendation: `${entry.companies.size} of your ${total} tracked competitors publish this and you do not — the clearest gap to close first.`,
+        };
+      });
+  }
+
+  private detectCampaigns(
+    contents: any[],
+    competitors: CompetitorColumn[],
+    accountToCompany: Map<string, string>,
+  ): DetectedCampaign[] {
     const campaigns: DetectedCampaign[] = [];
 
     for (const comp of competitors) {
-      const compContents = contents.filter(c => c.accountId === comp.id);
+      const compContents = contents.filter(c => accountToCompany.get(c.accountId) === comp.id);
       if (compContents.length === 0) continue;
 
       // Detect topic clusters in the competitor's content
@@ -226,4 +320,51 @@ export class CrossCompetitorMatrixService {
 
     return campaigns;
   }
+}
+
+/**
+ * Groups social accounts back into the companies that own them.
+ *
+ * `competitorId` — the tracked competitor domain this account belongs to — is
+ * the reliable join; failing that the published business name is, and only
+ * then the handle. Two accounts
+ * that share none of those are treated as two companies, which is the safe
+ * error: an extra column is confusing, a wrongly merged one is wrong.
+ */
+function foldAccountsIntoCompanies(
+  accounts: Array<{
+    id: string;
+    handle: string;
+    displayName?: string | null;
+    platform: string;
+    businessName?: string | null;
+    competitorId?: string | null;
+  }>,
+): CompetitorColumn[] {
+  const byCompany = new Map<string, CompetitorColumn>();
+
+  for (const account of accounts) {
+    const name = account.displayName || account.businessName || account.handle;
+    const key = (account.competitorId || account.businessName || name || account.handle)
+      .toString()
+      .trim()
+      .toLowerCase();
+
+    const existing = byCompany.get(key);
+    if (existing) {
+      existing.accountIds.push(account.id);
+      if (!existing.platforms.includes(account.platform)) existing.platforms.push(account.platform);
+      continue;
+    }
+
+    byCompany.set(key, {
+      id: account.competitorId || account.id,
+      handle: account.handle,
+      name,
+      platforms: [account.platform],
+      accountIds: [account.id],
+    });
+  }
+
+  return [...byCompany.values()];
 }

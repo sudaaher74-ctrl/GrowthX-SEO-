@@ -21,6 +21,32 @@ export default function CompetitorIntelligencePage() {
   );
 }
 
+/**
+ * One coverage cell: ranks, does not rank, or was never checked.
+ *
+ * The third state is the point. This table used to render "not measured" and
+ * "does not rank" identically as a grey dash, so a blank competitor column
+ * read as "they don't rank for this" when the truth was that nobody had
+ * looked. A tick that might be a coin flip is worse than an honest blank.
+ */
+function Coverage({ value }: { value: boolean | null | undefined }) {
+  if (value === null || value === undefined) {
+    return (
+      <span
+        title="Not measured — no live search data for this term"
+        className="text-[11px] text-[var(--text-muted)]"
+      >
+        ?
+      </span>
+    );
+  }
+  return value ? (
+    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+  ) : (
+    <XCircle className="h-4 w-4 text-red-500" />
+  );
+}
+
 function CompetitorConsoleClient() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
@@ -572,9 +598,10 @@ function CompetitorConsoleClient() {
                 ) : !seoMatrixQuery.data?.keywordMatrix?.length ? (
                   <div className="flex h-64 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-[var(--color-brand-200)] rounded-xl">
                     <Search className="h-10 w-10 text-[var(--color-brand-300)] mb-3" />
-                    <h3 className="text-[15px] font-bold text-[var(--text-primary)]">No Gaps Detected</h3>
+                    <h3 className="text-[15px] font-bold text-[var(--text-primary)]">Nothing measured yet</h3>
                     <p className="text-[13px] text-[var(--text-secondary)] mt-1 max-w-sm">
-                      Add more competitors or wait for our crawlers to finish indexing the competitor pages.
+                      {seoMatrixQuery.data?.notes?.[0] ||
+                        "Connect Google Search Console, or run a crawl, and the terms you actually appear for will show here."}
                     </p>
                   </div>
                 ) : (
@@ -582,8 +609,12 @@ function CompetitorConsoleClient() {
                     <Table>
                       <thead>
                         <Tr>
-                          <Th>Target Keyword</Th>
-                          <Th>Search Vol.</Th>
+                          <Th>Search Term</Th>
+                          <Th>
+                            {seoMatrixQuery.data.keywordSource === "search_console"
+                              ? "Impressions (28d)"
+                              : "Impressions"}
+                          </Th>
                           <Th>Your Site ({seoMatrixQuery.data.customerDomain})</Th>
                           {seoMatrixQuery.data.competitors.map((c: any) => (
                             <Th key={c.id}>{c.name}</Th>
@@ -595,21 +626,29 @@ function CompetitorConsoleClient() {
                         {seoMatrixQuery.data.keywordMatrix.map((row: any, i: number) => (
                           <Tr key={i}>
                             <Td className="font-medium text-[var(--text-primary)]">{row.keyword}</Td>
-                            <Td>{row.searchVolume.toLocaleString()}</Td>
                             <Td>
-                              {row.customerCoverage ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              {row.impressions != null ? (
+                                <span
+                                  title={
+                                    row.position != null
+                                      ? `Average position ${row.position.toFixed(1)}`
+                                      : undefined
+                                  }
+                                >
+                                  {row.impressions.toLocaleString()}
+                                </span>
                               ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
+                                <span className="text-[var(--text-muted)]" title="Connect Search Console to see how often this term is shown">
+                                  not measured
+                                </span>
                               )}
+                            </Td>
+                            <Td>
+                              <Coverage value={row.customerCoverage} />
                             </Td>
                             {seoMatrixQuery.data.competitors.map((c: any) => (
                               <Td key={c.id}>
-                                {row.competitorCoverage[c.id] ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                ) : (
-                                  <span className="text-[var(--text-muted)]">-</span>
-                                )}
+                                <Coverage value={row.competitorCoverage[c.id]} />
                               </Td>
                             ))}
                             <Td>
@@ -617,15 +656,25 @@ function CompetitorConsoleClient() {
                                 row.gapStatus === 'CUSTOMER_MISSING' ? 'bg-red-50 text-red-700' :
                                 row.gapStatus === 'CUSTOMER_WINNING' ? 'bg-emerald-50 text-emerald-700' :
                                 row.gapStatus === 'OPTIMIZED' ? 'bg-blue-50 text-blue-700' :
+                                row.gapStatus === 'UNKNOWN' ? 'bg-gray-100 text-gray-500' :
                                 'bg-gray-100 text-gray-700'
                               }`}>
-                                {row.gapStatus.replace('_', ' ')}
+                                {row.gapStatus === 'UNKNOWN' ? 'NOT MEASURED' : row.gapStatus.replace(/_/g, ' ')}
                               </span>
                             </Td>
                           </Tr>
                         ))}
                       </tbody>
                     </Table>
+                    {seoMatrixQuery.data.notes?.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {seoMatrixQuery.data.notes.map((note: string, i: number) => (
+                          <p key={i} className="text-[12px] text-[var(--text-muted)]">
+                            {note}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </Panel>
@@ -858,9 +907,10 @@ function CompetitorConsoleClient() {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-700">
                 <Layers size={24} />
               </div>
-              <h3 className="mt-4 text-[15px] font-bold text-brand-950">No Cross-Competitor Matrix Data Yet</h3>
+              <h3 className="mt-4 text-[15px] font-bold text-brand-950">Nothing to compare yet</h3>
               <p className="mt-1.5 text-[13px] text-brand-600 max-w-md mx-auto">
-                Add competitors and ingest competitor social content to generate comparative strategy matrices, detect content gaps, and analyze rival campaign themes for your business.
+                {matrix?.needsDataReason ||
+                  "Add competitors and collect their social content, and this table will compare your coverage against theirs pillar by pillar."}
               </p>
               <div className="mt-6 flex justify-center">
                 <button

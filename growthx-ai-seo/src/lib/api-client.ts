@@ -2009,7 +2009,8 @@ export interface CompetitorContent {
 }
 
 export interface CrossCompetitorMatrix {
-  competitors: Array<{ id: string; handle: string; name: string; platform: string }>;
+  /** One entry per company, with every platform it was found on. */
+  competitors: Array<{ id: string; handle: string; name: string; platforms: string[] }>;
   matrixRows: Array<{
     topicOrPillar: string;
     categoryType: 'PILLAR' | 'TOPIC' | 'FORMAT' | 'FUNNEL';
@@ -2057,6 +2058,10 @@ export interface CrossCompetitorMatrix {
     performanceSignal: 'HIGH' | 'MEDIUM' | 'EMERGING';
   }>;
   totalCompetitorVideosAnalyzed: number;
+  /** True when no competitor content has been collected, so nothing was scored. */
+  needsData?: boolean;
+  /** Why the matrix is empty, in words the customer can act on. */
+  needsDataReason?: string;
 }
 
 export interface EnrichedOpportunity {

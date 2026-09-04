@@ -8,9 +8,12 @@ import { SeoCompetitorsService } from './seo-competitors.service';
 import { CrawlerModule } from '../crawler/crawler.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { DatabaseModule } from '../../database/database.module';
+import { MarketResearchModule } from '../market-research/market-research.module';
 
 @Module({
-  imports: [CrawlerModule, AiSearchModule, DatabaseModule],
+  // MarketResearchModule supplies WebSearchService: the gap matrix reads who
+  // ranks for a term off a live search rather than guessing.
+  imports: [CrawlerModule, AiSearchModule, DatabaseModule, MarketResearchModule],
   controllers: [SeoToolsController],
   providers: [
     SchemaGeneratorService,
