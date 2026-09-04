@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   Info,
+  Search,
 } from "lucide-react";
 import {
   api,
@@ -56,6 +57,7 @@ const REJECTION_LABEL: Record<string, string> = {
   offline: "domain does not exist",
   parked: "parked / for-sale domain",
   off_niche: "not in this market",
+  off_region: "trades in another country",
   duplicate: "already listed",
   placeholder: "placeholder domain",
   invalid_domain: "not a valid domain",
@@ -620,6 +622,15 @@ export function AutoCompetitorsPanel({
                               : comp.verificationLevel === "reachable"
                                 ? "Domain live"
                                 : "Site verified"}
+                          </span>
+                        )}
+                        {comp.source === "search" && (
+                          <span
+                            title="Found ranking against you in live search results for the terms your customers use"
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400"
+                          >
+                            <Search size={10} />
+                            Ranks against you
                           </span>
                         )}
                         {comp.location && (

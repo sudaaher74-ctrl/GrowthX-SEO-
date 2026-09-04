@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
+import { MarketScope } from './competitor-discovery.service';
 
 export interface VerifiableCompetitor {
   domain: string;
@@ -124,6 +125,23 @@ const PARKED_MARKERS = [
 ];
 
 /**
+ * Signals that a site actually trades in India, in rough order of how hard
+ * they are to fake: a national TLD, the currency, the dialling code, then the
+ * country and its larger cities by name.
+ *
+ * Presence is what is tested, never absence of others — a global company with
+ * an Indian arm is a legitimate rival to an Indian client, and one page can
+ * carry several markets at once. Both Indian scopes use this one list; see
+ * `servesRegion` for why Maharashtra is not narrowed further.
+ */
+const INDIA_SIGNALS = [
+  '\u20b9', 'inr', 'rupee', 'rs.', ' india', 'india ', 'indian', '+91', 'gstin', 'gst no',
+  'maharashtra', 'mumbai', 'pune', 'nashik', 'nagpur', 'kolhapur', 'thane', 'delhi',
+  'bengaluru', 'bangalore', 'hyderabad', 'chennai', 'kolkata', 'ahmedabad', 'gujarat',
+  'karnataka', 'tamil nadu', 'telangana', 'kerala', 'punjab', 'rajasthan', 'haryana',
+];
+
+/**
  * Statuses that mean "a real server refused a bot", not "no such company".
  * Cloudflare, Akamai and most enterprise WAFs answer an unknown client this
  * way, so these prove the domain is live without proving what is on it.
@@ -197,14 +215,18 @@ export class CompetitorVerificationService {
   private readonly CONCURRENCY = 5;
 
   /**
-   * @param candidates  Competitors proposed by the model or the curated list.
+   * @param candidates  Competitors proposed by search, the model or the list.
    * @param targetDomain The client's own domain, which is never a competitor.
    * @param nicheText   Industry, offerings and keywords describing the market.
+   * @param region      The market the client sells into. A competitor with no
+   *                    trace of that market is in a different one, however
+   *                    well its products match.
    */
   async verify(
     candidates: VerifiableCompetitor[],
     targetDomain: string,
     nicheText: string,
+    region: MarketScope = 'worldwide',
   ): Promise<VerificationOutcome> {
     const nicheTerms = this.termsOf(nicheText);
     const target = normalizeDomain(targetDomain);
@@ -255,7 +277,7 @@ export class CompetitorVerificationService {
     for (let i = 0; i < shortlist.length; i += this.CONCURRENCY) {
       const batch = shortlist.slice(i, i + this.CONCURRENCY);
       const results = await Promise.all(
-        batch.map((candidate) => this.checkLiveSite(candidate, nicheTerms)),
+        batch.map((candidate) => this.checkLiveSite(candidate, nicheTerms, region)),
       );
       for (const result of results) {
         if ('reason' in result) rejected.push(result);
@@ -287,6 +309,7 @@ export class CompetitorVerificationService {
   private async checkLiveSite(
     candidate: VerifiableCompetitor,
     nicheTerms: string[],
+    region: MarketScope,
   ): Promise<VerifiedCompetitor | RejectedCompetitor> {
     const reject = (reason: string, detail: string): RejectedCompetitor => ({
       domain: candidate.domain,
@@ -409,6 +432,19 @@ export class CompetitorVerificationService {
       );
     }
 
+    // Selling the same thing on another continent is not competing. An Indian
+    // client asking for Indian competitors was being shown whoever the model
+    // knew best, which is usually American, and no check downstream disagreed.
+    // The client's own domain TLD counts as a signal, as does the candidate's.
+    if (!this.servesRegion(candidate.domain, pageText, region)) {
+      return reject(
+        'off_region',
+        region === 'maharashtra'
+          ? 'The site shows no sign of trading in Maharashtra — it competes in a different market.'
+          : 'The site shows no sign of trading in India — it competes in a different market.',
+      );
+    }
+
     return {
       ...candidate,
       verified: true,
@@ -446,6 +482,24 @@ export class CompetitorVerificationService {
     });
 
     return parts.join(' ').slice(0, 4000);
+  }
+
+  /**
+   * Whether the site shows any trace of the client's market.
+   *
+   * Deliberately generous: one signal anywhere on the homepage is enough, and
+   * a national TLD passes on its own. The check exists to drop a US-only
+   * company from an Indian result, not to adjudicate how Indian a business is
+   * — a false rejection costs a real competitor, which is the worse error.
+   */
+  private servesRegion(domain: string, pageText: string, region: MarketScope): boolean {
+    if (region === 'worldwide') return true;
+    if (/\.in$/.test(domain)) return true;
+
+    // A Maharashtra scope is not narrowed to the state: Amul is registered in
+    // Gujarat and sells on every street in Pune, and a national brand is the
+    // rival a Pune business most needs to see. The country is the real line.
+    return INDIA_SIGNALS.some((signal) => pageText.includes(signal));
   }
 
   /**

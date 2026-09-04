@@ -205,6 +205,79 @@ describe('CompetitorVerificationService', () => {
     expect(outcome.verified[0].matchedTerms).toContain('dairy');
   });
 
+  it('drops a company that sells the same thing on another continent', async () => {
+    // Selling milk in Wisconsin is not competing with a milk round in Pune.
+    // Nothing downstream used to disagree, so an Indian client was shown
+    // whoever the model knew best — which is usually American.
+    mockedAxios.get.mockResolvedValue(
+      page(
+        'Organic whole milk delivered across the Midwest. Pay $4.99 per half gallon. '.repeat(5),
+        'Prairie Creamery — Organic Milk Delivery',
+      ),
+    );
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'prairiecreamery.com', name: 'Prairie Creamery' })],
+      'milquufresh.in',
+      'Milk delivery and dairy subscriptions',
+      'india',
+    );
+
+    expect(outcome.verified).toHaveLength(0);
+    expect(outcome.rejected[0].reason).toBe('off_region');
+  });
+
+  it('keeps a competitor that trades in the client\'s country', async () => {
+    mockedAxios.get.mockResolvedValue(
+      page(
+        'Fresh cow milk delivered every morning across Pune and Mumbai. Subscribe from \u20b9 70 per litre. '.repeat(4),
+        'Sarda Farms — Farm to Home Milk',
+      ),
+    );
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'sardafarms.com', name: 'Sarda Farms' })],
+      'milquufresh.in',
+      'Milk delivery and dairy subscriptions',
+      'maharashtra',
+    );
+
+    expect(outcome.rejected).toHaveLength(0);
+    expect(outcome.verified).toHaveLength(1);
+  });
+
+  it('accepts a national brand for a state-level scope', async () => {
+    // Amul is registered in Gujarat and sells on every street in Pune.
+    // Narrowing Maharashtra to the state would drop the rival that matters most.
+    mockedAxios.get.mockResolvedValue(
+      page('Milk, butter and dairy sold across India since 1946. '.repeat(5), 'Amul — The Taste of India'),
+    );
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'amul.com', name: 'Amul' })],
+      'milquufresh.in',
+      'Milk and dairy products',
+      'maharashtra',
+    );
+
+    expect(outcome.verified).toHaveLength(1);
+  });
+
+  it('does not apply the geography test to a worldwide scope', async () => {
+    mockedAxios.get.mockResolvedValue(
+      page('Organic whole milk delivered across the Midwest. '.repeat(5), 'Prairie Creamery'),
+    );
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'prairiecreamery.com', name: 'Prairie Creamery' })],
+      'globaldairy.com',
+      'Milk delivery and dairy subscriptions',
+      'worldwide',
+    );
+
+    expect(outcome.verified).toHaveLength(1);
+  });
+
   it('does not apply the relevance test when the niche is too vague to judge on', async () => {
     mockedAxios.get.mockResolvedValue(page('An established company serving customers since 1994. '.repeat(6)));
 

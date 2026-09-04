@@ -1101,7 +1101,11 @@ export interface AutoIdentifiedCompetitor {
    * copy was not read, and the badge says so rather than overstating.
    */
   verificationLevel?: "content" | "reachable";
-  source?: "ai" | "curated";
+  /**
+   * `search` — found ranking for your own buyer keywords. `ai` — recalled by
+   * the model. `curated` — from the hand-checked list, used only to top up.
+   */
+  source?: "search" | "ai" | "curated";
 }
 
 /** What the platform read off the client's own website. */

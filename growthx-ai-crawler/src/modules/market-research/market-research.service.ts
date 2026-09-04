@@ -26,7 +26,8 @@ import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { SocialDiscoveryService } from '../content-intelligence/social-discovery.service';
 import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
-import { CompetitorVerificationService, RejectedCompetitor } from './competitor-verification.service';
+import { CompetitorVerificationService, RejectedCompetitor, VerifiableCompetitor } from './competitor-verification.service';
+import { CompetitorDiscoveryService } from './competitor-discovery.service';
 import { WebSearchService } from './web-search.service';
 import {
   ANSWER_INSTRUCTIONS,
@@ -97,8 +98,14 @@ export interface AutoIdentifiedCompetitor {
    * which, rather than badging both as though the site had been read.
    */
   verificationLevel?: 'content' | 'reachable';
-  /** `curated` marks an entry from the hand-checked market list. */
-  source?: 'ai' | 'curated';
+  /**
+   * Where the name came from.
+   *
+   * `search` — found ranking for the client's own buyer keywords, the only
+   * source that works in every market. `ai` — recalled by the model.
+   * `curated` — from the hand-checked list, used only to top up.
+   */
+  source?: 'search' | 'ai' | 'curated';
 }
 
 /** A proposed competitor that failed verification, kept so the UI can say why. */
@@ -171,6 +178,7 @@ export class MarketResearchService {
     @Optional() private readonly businessProfiles?: BusinessProfileService,
     @Optional() private readonly verification?: CompetitorVerificationService,
     @Optional() private readonly webSearch?: WebSearchService,
+    @Optional() private readonly discovery?: CompetitorDiscoveryService,
   ) {}
 
   /**
@@ -381,7 +389,44 @@ export class MarketResearchService {
     let candidates: AutoIdentifiedCompetitor[] = [];
     const notes: string[] = [];
 
-    // 4. Attempt AI-driven identification if model is configured
+    // 4. Search the market the way this client's customers search it.
+    //
+    // This runs before the model and before the curated list because it is the
+    // only source that works for every client the platform sells to. The
+    // curated list knows six industries in three regions; a model knows the
+    // famous names and invents the rest. Whoever ranks for the phrases this
+    // client's buyers type is their competitor, in any industry, country or
+    // language, and the SERP is evidence anyone can re-run.
+    let searchCandidates: VerifiableCompetitor[] = [];
+    let marketWasSearched = false;
+    if (this.discovery?.isConfigured()) {
+      try {
+        const found = await this.discovery.discover({
+          domain,
+          businessName,
+          subject,
+          region: normalizedRegion,
+          profile,
+        });
+        searchCandidates = found.candidates;
+        marketWasSearched = found.queriesRun.length > 0;
+      } catch (err) {
+        this.logger.warn(`Competitor search failed for ${domain}: ${err}. Falling back to model recall.`);
+      }
+    } else {
+      // Worth saying loudly in the log: without a search provider every client
+      // outside the six curated industries depends on model recall alone.
+      this.logger.warn(
+        `No web search provider configured (TAVILY_API_KEY); competitors for ${domain} come from model recall and the curated list only.`,
+      );
+    }
+
+    // 5. Ask the model as well, and merge.
+    //
+    // The two sources fail in opposite directions, which is why both run: the
+    // search finds whoever is ranking today but misses a household name with
+    // no page for this keyword, and the model knows the household names but
+    // cannot tell recall from invention. Search evidence wins ties.
     if (this.models.isConfigured()) {
       try {
         const prompt = [
@@ -480,41 +525,61 @@ export class MarketResearchService {
       }
     }
 
-    // 5. Verify every model-proposed competitor against the live web.
+    // 6. Verify every proposed competitor against the live web.
     //
-    // Only model output goes through this. The curated list below is real
-    // companies checked by hand, and putting it through the same network round
-    // trip would slow the page down to re-prove what is already known.
-    const proposedCount = candidates.length;
+    // Search results and model output both go through this, and they need it
+    // for different reasons: the model invents domains, while a search result
+    // can be a real page belonging to a supplier, a customer or a trade body
+    // rather than a rival. The curated list below is skipped — it is real
+    // companies checked by hand, and a network round trip to re-prove what is
+    // already known would only slow the page down.
+    //
+    // Search-found domains go first so that when the same company arrives from
+    // both, the row kept is the one backed by a SERP position.
+    const searchDomains = new Set(searchCandidates.map((c) => normalizeDomain(c.domain)));
+    const merged: VerifiableCompetitor[] = [
+      ...searchCandidates,
+      ...candidates.filter((c) => !searchDomains.has(normalizeDomain(c.domain))),
+    ];
+    const sourceOf = new Map<string, 'search' | 'ai'>();
+    for (const candidate of merged) {
+      sourceOf.set(normalizeDomain(candidate.domain), searchDomains.has(normalizeDomain(candidate.domain)) ? 'search' : 'ai');
+    }
+
+    const proposedCount = merged.length;
     let rejected: CompetitorRejection[] = [];
 
-    if (this.verification && candidates.length > 0) {
+    if (this.verification && merged.length > 0) {
       const nicheText = [subject, profile?.summary, ...(profile?.offerings || []), ...(profile?.seedKeywords || [])]
         .filter(Boolean)
         .join(' ');
       try {
-        const outcome = await this.verification.verify(candidates, domain, nicheText);
+        const outcome = await this.verification.verify(merged, domain, nicheText, normalizedRegion);
         // `matchedTerms` is dropped: it is how the check was made, not
         // something the operator needs on the card.
         candidates = outcome.verified.map(({ matchedTerms, ...rest }) => ({
           ...rest,
           verified: true as const,
-          source: 'ai' as const,
+          source: sourceOf.get(normalizeDomain(rest.domain)) ?? 'ai',
         }));
         rejected = outcome.rejected;
       } catch (err) {
         this.logger.warn(`Competitor verification failed for ${domain}: ${err}. Falling back to the curated list.`);
         candidates = [];
       }
+    } else {
+      // Verification is optional wiring. With it absent nothing has been
+      // checked, so nothing is badged as checked either.
+      candidates = merged.map((c) => ({ ...c, source: sourceOf.get(normalizeDomain(c.domain)) ?? 'ai' }));
     }
 
     if (proposedCount > 0 && rejected.length > 0) {
       notes.push(
-        `${rejected.length} of ${proposedCount} AI-suggested ${rejected.length === 1 ? 'company was' : 'companies were'} dropped because ${rejected.length === 1 ? 'it' : 'they'} could not be verified as a real business in this market.`,
+        `${rejected.length} of ${proposedCount} suggested ${rejected.length === 1 ? 'company was' : 'companies were'} dropped because ${rejected.length === 1 ? 'it' : 'they'} could not be verified as a real business in this market.`,
       );
     }
 
-    // 6. Top up from the curated market list — but only where it covers this
+    // 7. Top up from the curated market list — but only where it covers this
     // niche. Padding a Nashik fruit exporter's list with Accenture and IBM to
     // reach five is what made the panel look like a demo; a short list of real
     // rivals is the honest answer.
@@ -540,6 +605,12 @@ export class MarketResearchService {
     if (candidates.length === 0) {
       notes.push(
         `No competitor could be verified for "${subject}" in this market. Refine the niche below, widen the scope, or add a competitor domain by hand.`,
+      );
+    } else if (candidates.length < COMPETITOR_SLOTS && !marketWasSearched) {
+      // A short list means something different depending on whether the live
+      // market was actually searched, and the operator deserves to know which.
+      notes.push(
+        `${candidates.length} verified ${candidates.length === 1 ? 'competitor' : 'competitors'} found without a live search of this market. Refine the niche or widen the scope to see more.`,
       );
     } else if (candidates.length < COMPETITOR_SLOTS) {
       notes.push(

@@ -8,6 +8,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
   let socialDiscovery: any;
   let businessProfiles: any;
   let verification: any;
+  let discovery: any;
   let service: MarketResearchService;
 
   beforeEach(() => {
@@ -81,6 +82,13 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       ),
     };
 
+    // Search discovery is off by default so the existing cases stay about the
+    // model and the curated list; the cases that care switch it on.
+    discovery = {
+      isConfigured: jest.fn().mockReturnValue(false),
+      discover: jest.fn().mockResolvedValue({ candidates: [], queriesRun: [] }),
+    };
+
     service = new MarketResearchService(
       prisma,
       models,
@@ -88,6 +96,8 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       socialDiscovery,
       businessProfiles,
       verification,
+      undefined,
+      discovery,
     );
   });
 
@@ -453,6 +463,131 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       const names = result.topCompetitors.map((c) => c.name.toLowerCase());
       expect(new Set(names).size).toBe(names.length);
       expect(names.filter((n) => n.includes('amul'))).toHaveLength(1);
+    });
+
+    it('finds competitors for a market the curated list has never heard of', async () => {
+      // A dentist in São Paulo: no curated coverage, and a model that names
+      // whoever it half-remembers. Search evidence is what makes this work.
+      discovery.isConfigured.mockReturnValue(true);
+      discovery.discover.mockResolvedValue({
+        candidates: [
+          {
+            domain: 'clinicaodonto.com.br',
+            name: 'Clínica Odonto',
+            industry: 'Implantes dentários',
+            description: 'Clínica de implantes em São Paulo',
+            overlapScore: 88,
+            marketPosition: 'Top of search results',
+            sampleKeywords: ['implantes dentários São Paulo'],
+            keyDifferentiator: 'Ranks against you for 2 of the searches your customers use.',
+          },
+        ],
+        queriesRun: ['implantes dentários São Paulo'],
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'sorrisoperfeito.com.br',
+        industry: 'Implantes dentários',
+        region: 'worldwide',
+      });
+
+      expect(result.topCompetitors).toHaveLength(1);
+      expect(result.topCompetitors[0].domain).toBe('clinicaodonto.com.br');
+      expect(result.topCompetitors[0].source).toBe('search');
+    });
+
+    it('prefers the search-backed row when both sources name one company', async () => {
+      discovery.isConfigured.mockReturnValue(true);
+      discovery.discover.mockResolvedValue({
+        candidates: [
+          {
+            domain: 'countrydelight.in',
+            name: 'Country Delight',
+            industry: 'Milk delivery',
+            description: 'Ranks first for your keywords',
+            overlapScore: 95,
+            marketPosition: 'Top of search results',
+            sampleKeywords: ['milk subscription Pune'],
+            keyDifferentiator: 'Ranks against you for 3 of the searches your customers use.',
+          },
+        ],
+        queriesRun: ['milk subscription Pune'],
+      });
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'countrydelight.in',
+              name: 'Country Delight',
+              industry: 'Milk delivery',
+              description: 'Recalled by the model',
+              overlapScore: 70,
+              marketPosition: 'Challenger',
+              location: 'Gurugram, India',
+              sampleKeywords: ['milk delivery'],
+              keyDifferentiator: 'Subscription model',
+            },
+          ],
+        }),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Doorstep milk delivery',
+        region: 'india',
+      });
+
+      const rows = result.topCompetitors.filter((c) => c.domain === 'countrydelight.in');
+      expect(rows).toHaveLength(1);
+      expect(rows[0].source).toBe('search');
+      expect(rows[0].description).toBe('Ranks first for your keywords');
+    });
+
+    it('passes the client\'s market to verification so foreign rivals are dropped', async () => {
+      discovery.isConfigured.mockReturnValue(true);
+      discovery.discover.mockResolvedValue({
+        candidates: [
+          {
+            domain: 'prairiecreamery.com',
+            name: 'Prairie Creamery',
+            industry: 'Milk delivery',
+            description: 'Midwest milk delivery',
+            overlapScore: 80,
+            marketPosition: 'Search rival',
+            sampleKeywords: ['milk delivery'],
+            keyDifferentiator: 'Ranks against you.',
+          },
+        ],
+        queriesRun: ['milk delivery'],
+      });
+
+      await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Doorstep milk delivery',
+        region: 'india',
+      });
+
+      expect(verification.verify).toHaveBeenCalledWith(
+        expect.any(Array),
+        'milquufresh.in',
+        expect.any(String),
+        'india',
+      );
+    });
+
+    it('still answers from the model and the curated list when search is unavailable', async () => {
+      discovery.isConfigured.mockReturnValue(false);
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Dairy & Milk Subscriptions',
+        region: 'india',
+      });
+
+      expect(discovery.discover).not.toHaveBeenCalled();
+      expect(result.topCompetitors).toHaveLength(5);
+      expect(result.topCompetitors.every((c) => c.source === 'curated')).toBe(true);
     });
 
     it('marks competitors as already added if they exist in the project', async () => {
