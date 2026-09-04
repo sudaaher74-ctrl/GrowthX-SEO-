@@ -93,6 +93,79 @@ describe('CrossCompetitorMatrixService', () => {
     expect(result.commonPatterns).toHaveLength(0);
   });
 
+  it('finds content in a multi-word pillar the old matcher could never match', async () => {
+    // `pillar.replace('_','')` strips only the first underscore, so
+    // PROJECT_SHOWCASE was compared as PROJECTSHOWCASE and TIPS_AND_HACKS as
+    // TIPSAND_HACKS — seven of the eight fixed rows could never match content
+    // that was sitting right there.
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      account('a1', 'comp_cd', 'Country Delight', 'INSTAGRAM'),
+    ]);
+    prisma.competitorContent.findMany.mockResolvedValue([
+      content('a1', 'TIPS_AND_HACKS'),
+      content('a1', 'PROJECT_SHOWCASE'),
+    ]);
+
+    const result = await service.getCrossCompetitorMatrix('org1', 'p1');
+    const pillars = result.matrixRows.map((r: any) => r.topicOrPillar);
+    const companyId = result.competitors[0].id;
+
+    expect(pillars).toContain('TIPS AND HACKS');
+    expect(pillars).toContain('PROJECT SHOWCASE');
+    expect(result.matrixRows.every((r: any) => r.competitorFrequency[companyId] > 0)).toBe(true);
+  });
+
+  it('never invents a row for a pillar nobody publishes', async () => {
+    // The fixed list emitted all eight pillars whatever the data said, and a
+    // pillar neither side covered scored MARKET_GAP at 90/100 — so the rows
+    // that could never match ranked as the best opportunities on the page.
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      account('a1', 'comp_cd', 'Country Delight', 'INSTAGRAM'),
+    ]);
+    prisma.competitorContent.findMany.mockResolvedValue([content('a1', 'EDUCATIONAL')]);
+
+    const result = await service.getCrossCompetitorMatrix('org1', 'p1');
+
+    expect(result.matrixRows).toHaveLength(1);
+    expect(result.matrixRows[0].topicOrPillar).toBe('EDUCATIONAL');
+    expect(result.matrixRows.some((r: any) => r.gapStatus === 'MARKET_GAP')).toBe(false);
+    expect(result.matrixRows.every((r: any) => r.opportunityScore < 90)).toBe(true);
+  });
+
+  it('scores a pillar every competitor runs above one only a single competitor tests', async () => {
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      account('a1', 'comp_cd', 'Country Delight', 'INSTAGRAM'),
+      account('a2', 'comp_amul', 'Amul', 'INSTAGRAM'),
+    ]);
+    prisma.competitorContent.findMany.mockResolvedValue([
+      content('a1', 'EDUCATIONAL'),
+      content('a2', 'EDUCATIONAL'),
+      content('a1', 'BEHIND_SCENES'),
+    ]);
+
+    const result = await service.getCrossCompetitorMatrix('org1', 'p1');
+
+    expect(result.matrixRows[0].topicOrPillar).toBe('EDUCATIONAL');
+    expect(result.matrixRows[0].opportunityScore).toBeGreaterThan(
+      result.matrixRows[1].opportunityScore,
+    );
+  });
+
+  it('says so when content exists but none of it is classified yet', async () => {
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      account('a1', 'comp_cd', 'Country Delight', 'INSTAGRAM'),
+    ]);
+    prisma.competitorContent.findMany.mockResolvedValue([
+      { ...content('a1', 'EDUCATIONAL'), classification: null },
+    ]);
+
+    const result = await service.getCrossCompetitorMatrix('org1', 'p1');
+
+    expect(result.matrixRows).toHaveLength(0);
+    expect(result.needsData).toBe(true);
+    expect(result.needsDataReason).toContain('none are classified');
+  });
+
   it('calls a pattern a pattern only when more than one competitor runs it', async () => {
     prisma.competitorAccount.findMany.mockResolvedValue([
       account('a1', 'comp_cd', 'Country Delight', 'INSTAGRAM'),

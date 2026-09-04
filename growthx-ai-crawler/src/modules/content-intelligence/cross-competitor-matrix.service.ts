@@ -119,77 +119,87 @@ export class CrossCompetitorMatrixService {
       };
     }
 
-    // Standard Pillars to evaluate
-    const standardPillars = [
-      'EDUCATIONAL', 'PROJECT_SHOWCASE', 'BEFORE_AFTER', 'PRICING_GUIDE',
-      'CUSTOMER_TESTIMONIAL', 'BEHIND_SCENES', 'TIPS_AND_HACKS', 'PRODUCT_DEMO',
-    ];
+    // The pillars the competitors actually publish, not a fixed list.
+    //
+    // Two faults lived in the fixed list. It was matched with
+    // `pillar.replace('_', '')` — which strips only the FIRST underscore, so
+    // `PROJECT_SHOWCASE` was compared as `PROJECTSHOWCASE` and
+    // `TIPS_AND_HACKS` as `TIPSAND_HACKS`, neither of which can ever match a
+    // stored classification. Seven of the eight rows were therefore incapable
+    // of finding content that was sitting right there.
+    //
+    // And a pillar nobody covered scored `MARKET_GAP` at 90/100, so the rows
+    // that could never match all reported themselves as the strongest
+    // opportunities on the page. Absence of evidence was being rendered as
+    // evidence of an opening.
+    //
+    // Reading the pillars off the classified content fixes both: a row exists
+    // because a competitor published something, and the name matches because
+    // it came from the data rather than a list someone typed.
+    const observedPillars = new Map<string, string>();
+    for (const item of competitorContents) {
+      for (const raw of [item.classification?.contentPillar, item.classification?.contentCategory]) {
+        const pillar = normalizePillar(raw);
+        if (pillar) observedPillars.set(pillar, pillar);
+      }
+    }
 
-    // Standard Formats to evaluate
-    const standardFormats = [
-      'SHORT_REEL', 'YOUTUBE_LONG_FORM', 'PROJECT_TOUR', 'TALKING_HEAD_DEMO', 'CAROUSEL',
-    ];
-
-    // Standard Funnel Stages
-    const standardFunnel = ['AWARENESS', 'CONSIDERATION', 'CONVERSION', 'RETENTION'];
+    if (observedPillars.size === 0) {
+      return {
+        competitors: competitorCols,
+        matrixRows: [],
+        winningContent: [],
+        commonPatterns: [],
+        campaigns: [],
+        totalCompetitorVideosAnalyzed: competitorContents.length,
+        needsData: true,
+        needsDataReason:
+          `${competitorContents.length} competitor item(s) have been collected but none are classified into a ` +
+          'content pillar yet, so there is nothing to compare pillar by pillar. Classification runs after ' +
+          'collection.',
+      };
+    }
 
     const rows: MatrixRow[] = [];
 
-    // 1. Build Pillar Rows
-    for (const pillar of standardPillars) {
+    // 1. Build one row per pillar someone actually publishes.
+    for (const pillar of observedPillars.keys()) {
       const compCoverage: Record<string, boolean> = {};
       const compFreq: Record<string, number> = {};
-      let totalCompMentions = 0;
+      let competitorsCovering = 0;
 
       for (const comp of competitorCols) {
         const count = competitorContents.filter(
-          c => accountToCompany.get(c.accountId) === comp.id && (
-            c.classification?.contentPillar?.toUpperCase().includes(pillar.replace('_', '')) ||
-            c.classification?.contentCategory?.toUpperCase().includes(pillar.replace('_', '')) ||
-            c.title?.toUpperCase().includes(pillar.replace('_', '')) ||
-            c.caption?.toUpperCase().includes(pillar.replace('_', ''))
-          ),
+          (c) =>
+            accountToCompany.get(c.accountId) === comp.id &&
+            (normalizePillar(c.classification?.contentPillar) === pillar ||
+              normalizePillar(c.classification?.contentCategory) === pillar),
         ).length;
 
         compCoverage[comp.id] = count > 0;
         compFreq[comp.id] = count;
-        if (count > 0) totalCompMentions++;
+        if (count > 0) competitorsCovering++;
       }
 
-      // Customer coverage
-      const custCount = customerPosts.filter(
-        p => (p.content?.toUpperCase().includes(pillar.replace('_', '')) || false),
-      ).length;
+      // The customer's own posts carry no classification, so this is a text
+      // match on the pillar's words — weaker evidence, and the only kind
+      // available on this side.
+      const custCount = customerPosts.filter((p) => mentionsPillar(p.content, pillar)).length;
       const custCoverage = custCount > 0;
 
-      let gapStatus: MatrixRow['gapStatus'] = 'CUSTOMER_MISSING';
-      let oppScore = 50;
-
-      if (totalCompMentions >= 2 && !custCoverage) {
-        gapStatus = 'CUSTOMER_MISSING';
-        oppScore = 85 + Math.min(10, totalCompMentions * 3);
-      } else if (totalCompMentions >= 3 && custCoverage) {
-        gapStatus = 'COMPETITOR_WINNING';
-        oppScore = 75;
-      } else if (totalCompMentions === 0 && !custCoverage) {
-        gapStatus = 'MARKET_GAP';
-        oppScore = 90;
-      } else if (custCoverage && totalCompMentions <= 1) {
-        gapStatus = 'CUSTOMER_WINNING';
-        oppScore = 40;
-      }
-
       rows.push({
-        topicOrPillar: pillar.replace('_', ' '),
+        topicOrPillar: pillar.replace(/_/g, ' '),
         categoryType: 'PILLAR',
         competitorCoverage: compCoverage,
         competitorFrequency: compFreq,
         customerCoverage: custCoverage,
         customerFrequency: custCount,
-        gapStatus,
-        opportunityScore: oppScore,
+        gapStatus: pillarGapStatus(custCoverage, competitorsCovering),
+        opportunityScore: pillarOpportunity(custCoverage, competitorsCovering, competitorCols.length),
       });
     }
+
+    rows.sort((a, b) => b.opportunityScore - a.opportunityScore);
 
     // 2. Identify Top Winning Competitor Content
     const winningContent = competitorContents
@@ -367,4 +377,56 @@ function foldAccountsIntoCompanies(
   }
 
   return [...byCompany.values()];
+}
+
+/** A pillar name in one shape, so two spellings of one thing are one row. */
+function normalizePillar(raw?: string | null): string {
+  if (!raw) return '';
+  const cleaned = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return cleaned.length >= 3 ? cleaned : '';
+}
+
+/** Whether the customer's own post text is about this pillar. */
+function mentionsPillar(content: string | null | undefined, pillar: string): boolean {
+  if (!content) return false;
+  const haystack = content.toUpperCase();
+  // Every word of the pillar must appear; "BEFORE AFTER" should not match a
+  // post that merely says "before".
+  return pillar
+    .split('_')
+    .filter((word) => word.length > 2)
+    .every((word) => haystack.includes(word));
+}
+
+/**
+ * What the coverage of one pillar means.
+ *
+ * There is no MARKET_GAP any more. It fired when neither side covered a
+ * pillar, which on this data means only that nobody has published about it —
+ * and it scored 90, so the emptiest rows on the page claimed to be the best
+ * opportunities. A row now exists only where a competitor published, so
+ * "nobody covers this" is not a state this can reach.
+ */
+function pillarGapStatus(customerCovers: boolean, competitorsCovering: number): MatrixRow['gapStatus'] {
+  if (!customerCovers) return 'CUSTOMER_MISSING';
+  if (competitorsCovering >= 3) return 'SATURATED';
+  if (competitorsCovering >= 2) return 'COMPETITOR_WINNING';
+  return 'CUSTOMER_WINNING';
+}
+
+/**
+ * How much closing this pillar is worth.
+ *
+ * Driven by how much of the field is already there: a pillar every competitor
+ * runs and the customer does not is the strongest case, one a single
+ * competitor is testing is far weaker. Scores stay below the range the old
+ * fixed 90 occupied, so a real finding is never outranked by a fossil.
+ */
+function pillarOpportunity(customerCovers: boolean, competitorsCovering: number, totalCompetitors: number): number {
+  const share = totalCompetitors > 0 ? competitorsCovering / totalCompetitors : 0;
+  if (!customerCovers) return Math.round(45 + share * 40);
+  return Math.round(10 + share * 25);
 }

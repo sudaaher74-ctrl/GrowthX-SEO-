@@ -2,10 +2,11 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { WebSearchService } from '../market-research/web-search.service';
+import { BusinessProfileService } from '../market-research/business-profile.service';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 
 /** Where a row's keyword came from, so the page can say so. */
-export type KeywordSource = 'search_console' | 'site_topics' | 'none';
+export type KeywordSource = 'search_console' | 'detected_keywords' | 'site_topics' | 'none';
 
 export interface SeoGapRow {
   keyword: string;
@@ -35,7 +36,7 @@ interface ClientKeyword {
   keyword: string;
   impressions?: number;
   position?: number;
-  source: 'search_console' | 'site_topics';
+  source: 'search_console' | 'detected_keywords' | 'site_topics';
 }
 
 /** Search Console window the impression counts are summed over. */
@@ -53,6 +54,7 @@ export class SeoCompetitorsService {
     private readonly prisma: PrismaService,
     private readonly aiRouter: MultiAiRouterService,
     @Optional() private readonly webSearch?: WebSearchService,
+    @Optional() private readonly businessProfiles?: BusinessProfileService,
   ) {}
 
   /**
@@ -90,7 +92,7 @@ export class SeoCompetitorsService {
       domain: normalizeDomain(c.domain),
     }));
 
-    const keywords = await this.clientKeywords(projectId);
+    const keywords = await this.clientKeywords(projectId, customerDomain);
 
     if (keywords.length === 0) {
       return {
@@ -175,7 +177,7 @@ export class SeoCompetitorsService {
    * own pages — no volume attached, because we do not have one and inventing
    * it is how this table went wrong in the first place.
    */
-  private async clientKeywords(projectId: string): Promise<ClientKeyword[]> {
+  private async clientKeywords(projectId: string, domain: string): Promise<ClientKeyword[]> {
     const since = new Date();
     since.setDate(since.getDate() - GSC_WINDOW_DAYS);
 
@@ -203,7 +205,30 @@ export class SeoCompetitorsService {
       this.logger.warn(`Search Console queries unavailable for ${projectId}: ${err}`);
     }
 
-    // Nothing from Google. The crawl still knows what the site is about.
+    // Nothing from Google. Detection has already read the site and worked out
+    // the phrases this client's buyers would actually type — a far better
+    // stand-in than page titles, which on a product catalogue are specs rather
+    // than searches: a frozen foods exporter was being compared on "9mm french
+    // fries" and "coriander & green chilli", which describe SKUs and no
+    // buyer's search.
+    if (this.businessProfiles && domain) {
+      try {
+        const profile = await this.businessProfiles.getProfile(projectId, domain);
+        const detected = [...(profile.seedKeywords || []), ...(profile.offerings || [])]
+          .map((term) => (term || '').trim().toLowerCase())
+          .filter((term) => term.length > 3);
+
+        const unique = [...new Set(detected)].slice(0, MAX_KEYWORDS);
+        if (unique.length > 0) {
+          return unique.map((keyword) => ({ keyword, source: 'detected_keywords' as const }));
+        }
+      } catch (err) {
+        this.logger.warn(`Business profile unavailable for ${domain}: ${err}`);
+      }
+    }
+
+    // Last resort. The crawl still knows what the site is about, even if the
+    // titles read as a catalogue.
     const pages = await this.prisma.page.findMany({
       where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
       orderBy: { crawledAt: 'desc' },

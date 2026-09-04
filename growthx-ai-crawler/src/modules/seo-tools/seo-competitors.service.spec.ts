@@ -4,6 +4,7 @@ describe('SeoCompetitorsService — keyword gap matrix', () => {
   let prisma: any;
   let aiRouter: any;
   let webSearch: any;
+  let businessProfiles: any;
   let service: SeoCompetitorsService;
 
   beforeEach(() => {
@@ -28,7 +29,8 @@ describe('SeoCompetitorsService — keyword gap matrix', () => {
       isConfigured: jest.fn().mockReturnValue(true),
       search: jest.fn().mockResolvedValue({ sources: [], queriesRun: [] }),
     };
-    service = new SeoCompetitorsService(prisma, aiRouter, webSearch);
+    businessProfiles = { getProfile: jest.fn().mockRejectedValue(new Error('no profile')) };
+    service = new SeoCompetitorsService(prisma, aiRouter, webSearch, businessProfiles);
   });
 
   it('builds rows from the client\'s real Search Console queries', async () => {
@@ -121,6 +123,24 @@ describe('SeoCompetitorsService — keyword gap matrix', () => {
     expect(matrix.keywordMatrix.map((r) => r.keyword)).toContain('fresh cow milk delivery');
     // No Search Console means no impressions — and none are invented.
     expect(matrix.keywordMatrix.every((r) => r.impressions === null)).toBe(true);
+  });
+
+  it('prefers the buyer terms read off the site over product page titles', async () => {
+    // A frozen foods exporter was being compared on "9mm french fries" and
+    // "coriander & green chilli" — SKU names lifted from page titles, which
+    // describe the catalogue and no buyer's search.
+    prisma.gscDailyMetric.groupBy.mockResolvedValue([]);
+    businessProfiles.getProfile.mockResolvedValue({
+      seedKeywords: ['frozen french fries supplier', 'iqf vegetables exporter'],
+      offerings: ['Frozen green peas'],
+    });
+    prisma.page.findMany.mockResolvedValue([{ title: '9mm French Fries | AIVA' }]);
+
+    const matrix = await service.getSeoGapMatrix('p1');
+
+    expect(matrix.keywordSource).toBe('detected_keywords');
+    expect(matrix.keywordMatrix.map((r) => r.keyword)).toContain('frozen french fries supplier');
+    expect(matrix.keywordMatrix.map((r) => r.keyword)).not.toContain('9mm french fries');
   });
 
   it('returns an empty table that explains itself when nothing is known', async () => {

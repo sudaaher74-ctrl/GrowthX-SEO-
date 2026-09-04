@@ -666,6 +666,13 @@ function CompetitorConsoleClient() {
                         ))}
                       </tbody>
                     </Table>
+                    {seoMatrixQuery.data.keywordSource !== "search_console" && (
+                      <p className="mt-3 text-[12px] text-[var(--text-muted)]">
+                        {seoMatrixQuery.data.keywordSource === "detected_keywords"
+                          ? "These are the search terms we read off your website, because Search Console is not connected. Connect it to see the terms you actually appear for, with real impression counts."
+                          : "These topics come from your page titles, because neither Search Console nor a detected business profile was available."}
+                      </p>
+                    )}
                     {seoMatrixQuery.data.notes?.length > 0 && (
                       <div className="mt-3 space-y-1">
                         {seoMatrixQuery.data.notes.map((note: string, i: number) => (
