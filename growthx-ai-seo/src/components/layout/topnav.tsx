@@ -6,20 +6,34 @@ import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Zap } from "lucide
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
-/** Breadcrumb scope + title for each route, matching the design's header. */
+import Link from "next/link";
+import { useWorkspace } from "@/hooks/use-growthx";
+
+/** Breadcrumb scope + title for each route, matching the 11-section IA. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/clients": { scope: "Portfolio", title: "Projects" },
-  "/reports": { scope: "Workspace", title: "Reports" },
-  "/settings": { scope: "Workspace", title: "Settings" },
-  "/dashboard": { scope: "Workspace", title: "Overview" },
+  "/dashboard": { scope: "Workspace", title: "Dashboard" },
+  "/website": { scope: "Workspace", title: "Website Audit" },
+  "/technical-seo": { scope: "Workspace", title: "Website Audit" },
+  "/search-performance": { scope: "Workspace", title: "Search Performance" },
+  "/search/search-console": { scope: "Workspace", title: "Search Performance" },
+  "/analytics": { scope: "Workspace", title: "Search Performance" },
+  "/ai-visibility": { scope: "Workspace", title: "AI Visibility" },
+  "/search": { scope: "Workspace", title: "AI Visibility" },
   "/geo-tracking": { scope: "Workspace", title: "AI Visibility" },
-  "/strategy": { scope: "Workspace", title: "Growth Strategy" },
-  "/keywords": { scope: "Workspace", title: "Search" },
-  "/rank-tracking": { scope: "Workspace", title: "Rank tracking" },
-  "/competitors": { scope: "Workspace", title: "Competitors" },
-  "/technical-seo": { scope: "Workspace", title: "Site health" },
-  "/backlinks": { scope: "Workspace", title: "Backlinks" },
-  "/content-ai": { scope: "Workspace", title: "Content AI" },
+  "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/competitors": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/market-research": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/local": { scope: "Workspace", title: "Local SEO" },
+  "/content-opportunities": { scope: "Workspace", title: "Content & Opportunities" },
+  "/opportunities": { scope: "Workspace", title: "Content & Opportunities" },
+  "/content-intelligence": { scope: "Workspace", title: "Content & Opportunities" },
+  "/content": { scope: "Workspace", title: "Content & Opportunities" },
+  "/monitoring": { scope: "Workspace", title: "Monitoring" },
+  "/reports": { scope: "Workspace", title: "Reports" },
+  "/integrations": { scope: "Workspace", title: "Integrations" },
+  "/settings": { scope: "Workspace", title: "Settings" },
+  "/projects": { scope: "Workspace", title: "Add Business" },
 };
 
 const PERIODS = ["7d", "28d", "90d"] as const;
@@ -36,7 +50,10 @@ export function TopNav({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { projectId, projects } = useWorkspace();
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("28d");
+
+  const selectedProject = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
 
   async function signOut() {
     await api.logout();
@@ -44,7 +61,10 @@ export function TopNav({
     router.replace("/login");
   }
 
-  const meta = ROUTE_META[pathname] ?? { scope: "Workspace", title: "Workspace" };
+  const meta = ROUTE_META[pathname] ?? {
+    scope: selectedProject ? selectedProject.name : "Workspace",
+    title: pathname.replace(/^\//, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Dashboard",
+  };
 
   return (
     <header
@@ -68,11 +88,26 @@ export function TopNav({
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
 
-      {/* Breadcrumb */}
+      {/* Breadcrumb with persistent Selected Project */}
       <div className="flex items-center gap-2 text-[13px]">
-        <span className="text-brand-400">{meta.scope}</span>
+        {selectedProject ? (
+          <Link
+            href="/clients"
+            className="flex items-center gap-1.5 font-medium text-brand-700 hover:text-brand-950 transition"
+            title="Switch project"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[9px] font-bold text-brand-800">
+              {selectedProject.name.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="max-w-[130px] sm:max-w-[180px] truncate font-semibold">
+              {selectedProject.name}
+            </span>
+          </Link>
+        ) : (
+          <span className="font-semibold text-brand-950">GrowthX AI</span>
+        )}
         <span className="text-brand-300">/</span>
-        <span className="font-semibold text-brand-950">{meta.title}</span>
+        <span className="font-medium text-brand-500">{meta.title}</span>
       </div>
 
       <div className="ml-auto flex items-center gap-2">

@@ -143,6 +143,24 @@ export default function ReportsPage() {
                     {siteHealth?.state === "MEASURED" ? (
                       <>
                         <Kpi
+                          label="Site Health Score"
+                          value={
+                            (siteHealth as any).healthScore != null
+                              ? `${(siteHealth as any).healthScore}/100`
+                              : crawl.data?.healthScore != null
+                                ? `${crawl.data.healthScore}/100`
+                                : client?.health != null
+                                  ? `${client.health}/100`
+                                  : "—"
+                          }
+                          tone={
+                            ((siteHealth as any).healthScore ?? crawl.data?.healthScore ?? client?.health ?? 100) < 60
+                              ? "danger"
+                              : "good"
+                          }
+                          sub="0–100 weighted health index"
+                        />
+                        <Kpi
                           label="Critical Issues"
                           value={siteHealth.criticalIssues.toLocaleString()}
                           tone={siteHealth.criticalIssues > 0 ? "danger" : "good"}
@@ -160,7 +178,7 @@ export default function ReportsPage() {
                         className="md:col-span-2"
                         measure={{
                           state: "NO_DATA",
-                          reason: siteHealth?.reason ?? "No completed crawl for this project yet.",
+                          reason: siteHealth?.reason ?? "No completed crawl for this project yet. Run your first crawl to calculate site health.",
                         }}
                       />
                     )}

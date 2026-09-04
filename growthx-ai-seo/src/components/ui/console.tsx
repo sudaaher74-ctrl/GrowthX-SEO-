@@ -143,15 +143,17 @@ export function Panel({
   actions,
   children,
   padded = false,
+  className,
 }: {
   title?: string;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
   padded?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border bg-white">
+    <div className={`overflow-hidden rounded-xl border bg-white ${className ?? ""}`}>
       {title && (
         <div
           className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3"

@@ -48,6 +48,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  aliases?: string[];
   /** Small right-aligned counter or metric. */
   tag?: string;
   tagTone?: "default" | "danger";
@@ -81,33 +82,57 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
+  // 11 Core Navigation Sections organized around the unified customer workflow:
+  // ADD BUSINESS → CONNECT DATA → AUDIT → PRIORITIZE → TAKE ACTION → MONITOR → REPORT
   const clientNav: NavItem[] = [
-    { label: "Overview", href: "/dashboard", icon: Activity },
+    { label: "Dashboard", href: "/dashboard", icon: Activity },
     {
-      label: "Website",
+      label: "Website Audit",
       href: "/website",
       icon: Globe,
+      aliases: ["/technical-seo"],
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
     },
-    { label: "Search", href: "/search", icon: Search },
-    // A sub-entry rather than a top-level item: Search Console answers the
-    // same question as AI Visibility above it — where the site shows up — for
-    // a different search engine.
-    { label: "Search Console", href: "/search/search-console", icon: TrendingUp },
-    { label: "Analytics", href: "/analytics", icon: BarChart },
-    { label: "Market Research", href: "/market-research", icon: Telescope },
-    { label: "Competitors", href: "/competitors", icon: Crosshair },
-    // Sits directly after Competitors because most of what it surfaces is the
-    // join between competitor coverage and the customer's own search data.
-    { label: "Opportunities", href: "/opportunities", icon: ListChecks },
-    { label: "Content Intelligence", href: "/content-intelligence", icon: Brain },
-    { label: "Content", href: "/content", icon: Edit3 },
-    { label: "Local", href: "/local", icon: MapPin },
-    { label: "Growth", href: "/marketing", icon: Megaphone },
-    { label: "AI Agent", href: "/engineer", icon: Cpu },
-    { label: "Monitoring", href: "/monitoring", icon: HeartPulse },
-    { label: "Reports", href: "/reports", icon: BarChart },
+    {
+      label: "Search Performance",
+      href: "/search-performance",
+      icon: TrendingUp,
+      aliases: ["/search/search-console", "/analytics"],
+    },
+    {
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Sparkles,
+      aliases: ["/search", "/geo-tracking"],
+    },
+    {
+      label: "Competitor Intelligence",
+      href: "/competitor-intelligence",
+      icon: Crosshair,
+      aliases: ["/competitors", "/market-research", "/market"],
+    },
+    {
+      label: "Local SEO",
+      href: "/local",
+      icon: MapPin,
+    },
+    {
+      label: "Content & Opportunities",
+      href: "/content-opportunities",
+      icon: ListChecks,
+      aliases: ["/opportunities", "/content-intelligence", "/content", "/strategy"],
+    },
+    {
+      label: "Monitoring",
+      href: "/monitoring",
+      icon: HeartPulse,
+    },
+    {
+      label: "Reports",
+      href: "/reports",
+      icon: FileText,
+    },
   ];
 
 
@@ -331,7 +356,10 @@ function NavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
-  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const active =
+    pathname === item.href ||
+    pathname.startsWith(`${item.href}/`) ||
+    (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
   return (
     <Link href={item.href} onClick={onNavigate}>
       <div

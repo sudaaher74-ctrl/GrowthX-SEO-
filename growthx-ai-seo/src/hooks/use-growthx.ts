@@ -393,6 +393,25 @@ export function useLatestCrawl(domain: string | null) {
   });
 }
 
+export function useStartCrawl(_websiteId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (params: {
+      websiteId?: string;
+      domain?: string;
+      maxDepth?: number;
+      maxConcurrency?: number;
+      useSitemap?: boolean;
+    }) => api.startCrawl(params),
+    onSuccess: (_, variables) => {
+      if (variables.domain) {
+        qc.invalidateQueries({ queryKey: ["latest-crawl", variables.domain] });
+        qc.invalidateQueries({ queryKey: ["crawl-history", variables.domain] });
+      }
+    },
+  });
+}
+
 /**
  * Completed crawls for a domain, oldest first.
  *

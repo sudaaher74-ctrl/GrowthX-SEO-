@@ -45,26 +45,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open, onOpenChange]);
 
   const items: CommandItem[] = useMemo(() => [
-    // Navigation
-    { id: "nav-dash", title: "Dashboard Overview", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Main analytics & executive summary" },
-    { id: "nav-gsc", title: "Google Search Console", category: "Navigation", icon: SearchIcon, href: "/search-console", subtitle: "Queries, clicks, CTR & impressions" },
-    { id: "nav-ga", title: "Google Analytics 4", category: "Navigation", icon: Globe, href: "/analytics", subtitle: "Sessions, users & conversion funnels" },
-    { id: "nav-tech", title: "Technical SEO Audit", category: "Navigation", icon: Zap, href: "/technical-seo", subtitle: "Site crawler & 47 detected issues" },
-    { id: "nav-rank", title: "Rank Tracking", category: "Navigation", icon: Target, href: "/rank-tracking", subtitle: "Daily keyword positions & SERP updates" },
-    { id: "nav-kw", title: "Keyword Research", category: "Navigation", icon: SearchIcon, href: "/keywords", subtitle: "Volume, difficulty, CPC & opportunities" },
-    { id: "nav-content", title: "AI Content Engine", category: "Navigation", icon: FileText, href: "/content-ai", subtitle: "Generate SEO blogs, landing & local pages" },
-    { id: "nav-ai", title: "AI Assistant", category: "Navigation", icon: Bot, href: "/ai-assistant", subtitle: "Chat with AI about your workspace data" },
-    { id: "nav-local", title: "Local SEO Generator", category: "Navigation", icon: MapPin, href: "/local-seo", subtitle: "Bulk city & service page generation" },
-    { id: "nav-geo", title: "GEO / AI Search Visibility", category: "Navigation", icon: Eye, href: "/geo-tracking", subtitle: "Track mentions in ChatGPT, Perplexity & Gemini" },
-    { id: "nav-comp", title: "Competitor Analysis", category: "Navigation", icon: Target, href: "/competitors", subtitle: "Side-by-side traffic & keyword gaps" },
-    { id: "nav-meta", title: "AI Meta Optimizer", category: "Navigation", icon: Sliders, href: "/meta-optimizer", subtitle: "Bulk title & description generator" },
-    { id: "nav-schema", title: "Schema Generator", category: "Navigation", icon: Code, href: "/schema-generator", subtitle: "JSON-LD structured data builder" },
-    { id: "nav-backlinks", title: "Backlink Monitor", category: "Navigation", icon: Link2, href: "/backlinks", subtitle: "New, lost & spam backlink analysis" },
-    { id: "nav-img", title: "Image SEO Optimizer", category: "Navigation", icon: Image, href: "/image-seo", subtitle: "Alt text generator & WebP compression" },
-    { id: "nav-links", title: "Internal Linking AI", category: "Navigation", icon: GitBranch, href: "/internal-linking", subtitle: "Orphan page detection & link graph" },
-    { id: "nav-auto", title: "Automations & Workflows", category: "Navigation", icon: Play, href: "/automations", subtitle: "Scheduled audits & trigger alerts" },
-    { id: "nav-reports", title: "Report Builder", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "White-label client PDF/Excel exports" },
-    { id: "nav-settings", title: "Settings & Integrations", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace domain, team & OAuth" },
+    // 11 Core Navigation Sections
+    { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview & executive KPIs" },
+    { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Technical crawler, issue deduplication & site health" },
+    { id: "nav-search-perf", title: "Search Performance", category: "Navigation", icon: SearchIcon, href: "/search-performance", subtitle: "Google Search Console & GA4 traffic" },
+    { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in ChatGPT, Claude & Gemini" },
+    { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, public local competitors & market trends" },
+    { id: "nav-local", title: "Local SEO", category: "Navigation", icon: MapPin, href: "/local", subtitle: "Google Business Profile, reviews & citations" },
+    { id: "nav-content", title: "Content & Opportunities", category: "Navigation", icon: FileText, href: "/content-opportunities", subtitle: "SEO opportunities, keyword gaps & drafting studio" },
+    { id: "nav-monitoring", title: "Monitoring", category: "Navigation", icon: Globe, href: "/monitoring", subtitle: "Uptime, SSL, and daily crawl watchers" },
+    { id: "nav-reports", title: "Reports", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "Executive summaries & white-label exports" },
+    { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
+    { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
+    { id: "nav-add-biz", title: "Add Business", category: "Navigation", icon: Plus, href: "/projects", subtitle: "Guided 5-step onboarding wizard" },
 
     // Quick Actions
     // Subtitles describe what the action does. They deliberately carry no

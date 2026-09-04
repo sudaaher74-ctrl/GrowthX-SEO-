@@ -25,14 +25,16 @@ import { errorMessage } from "@/lib/error-message";
 export function PropertyPicker({
   projectId,
   provider,
-  title,
-  emptyHelp,
+  title = provider === "search_console" ? "Select Search Console Property" : "Select GA4 Property",
+  emptyHelp = provider === "search_console"
+    ? "No verified Search Console properties were found for this Google account. Ensure the site is verified in Google Search Console."
+    : "No Google Analytics 4 properties were found for this Google account. Ensure a GA4 property exists.",
 }: {
   projectId: string;
   provider: "search_console" | "analytics";
-  title: string;
+  title?: string;
   /** What to say when the account has no properties — usually a verification problem. */
-  emptyHelp: string;
+  emptyHelp?: string;
 }) {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
