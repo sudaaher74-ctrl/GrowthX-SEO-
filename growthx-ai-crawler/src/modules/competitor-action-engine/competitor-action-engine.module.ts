@@ -6,6 +6,7 @@ import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
 import { CompetitorLocalService } from './competitor-local.service';
+import { WebsiteComparisonService } from './website-comparison.service';
 import { LocalSeoModule } from '../local-seo/local-seo.module';
 
 /**
@@ -25,6 +26,7 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     StrategyReadService,
     CompetitorSetupService,
     CompetitorLocalService,
+    WebsiteComparisonService,
   ],
   exports: [
     FindingsCollectorService,
@@ -32,6 +34,7 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     StrategyReadService,
     CompetitorSetupService,
     CompetitorLocalService,
+    WebsiteComparisonService,
   ],
 })
 export class CompetitorActionEngineModule {}

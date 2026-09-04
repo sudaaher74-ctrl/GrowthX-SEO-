@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
+import { WebsiteComparisonService } from './website-comparison.service';
 
 export class UpdateActionDto {
   @IsEnum(ActionStatus)
@@ -89,7 +90,19 @@ export class CompetitorActionEngineController {
     private readonly engine: StrategyEngineService,
     private readonly read: StrategyReadService,
     private readonly setup: CompetitorSetupService,
+    private readonly comparison: WebsiteComparisonService,
   ) {}
+
+  @Get('website-comparison')
+  @ApiOperation({
+    summary: 'Your site against each competitor, row by row',
+    description:
+      'Counted from pages the crawler actually fetched. A site never crawled reports null rather than zero, ' +
+      'because "not looked at" and "has none" lead a reader to opposite conclusions.',
+  })
+  websiteComparison(@Param('projectId') projectId: string) {
+    return this.comparison.compare(projectId);
+  }
 
   @Get('competitors')
   @ApiOperation({ summary: 'The competitors this project tracks, and how each is reachable' })

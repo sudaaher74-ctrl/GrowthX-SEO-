@@ -38,6 +38,7 @@ import {
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
+import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import {
   TruthfulState,
   MetricBadge,
@@ -390,47 +391,12 @@ function CompetitorIntelligenceClient() {
       )}
 
       {/* Tab 2: Website Competitors */}
-      {activeTab === "website" && (
-        <Panel title="Website & Organic Competitors" subtitle="Domain crawl benchmarks and content gap detection">
-          <div className="p-0">
-            {competitorsList.length === 0 ? (
-              <div className="p-8">
-                <TruthfulState
-                  icon={Crosshair}
-                  title="No Competitors Tracked"
-                  missing="Add competitor websites to inspect keyword gaps, schema, and page counts."
-                  action={{ label: "Add Website Competitor", onClick: () => setShowAddModal(true) }}
-                  compact
-                />
-              </div>
-            ) : (
-              <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
-                {competitorsList.map((comp) => (
-                  <div key={comp.id} className="p-4 flex items-center justify-between hover:bg-brand-50/30 transition">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Globe size={14} className="text-brand-500" />
-                        <h4 className="font-bold text-brand-950 text-[13px]">{comp.label || comp.domain}</h4>
-                        <span className="font-mono text-[11px] text-brand-400">({comp.domain})</span>
-                      </div>
-                      <p className="text-[11.5px] text-brand-500 mt-1">
-                        Publicly crawled pages: {(comp as any).crawledPagesCount ?? "Available upon sweep"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded">
-                        Tracked
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Panel>
-      )}
+      {/* Tab 3: the real website comparison.
+          This printed a competitor's name and the words "Available upon sweep"
+          against a field nothing populated, so it could never show data however
+          much had been crawled. */}
+      {activeTab === "website" && <WebsiteComparisonPanel projectId={projectId!} />}
 
-      {/* Tab 3: Local Competitors (Public Only) */}
       {activeTab === "local" && (
         <Panel
           title="Local Competitor Profiles (Public Data Only)"

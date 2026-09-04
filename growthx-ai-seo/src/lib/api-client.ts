@@ -1141,6 +1141,37 @@ export interface AutoIdentifiedCompetitor {
   source?: "search" | "ai" | "curated";
 }
 
+export interface ComparisonRow {
+  key: string;
+  label: string;
+  /** What this measures, in words that need no glossary. */
+  whatItMeans: string;
+  higherIsBetter: boolean;
+  /** null means not crawled — never the same as zero. */
+  you: number | null;
+  competitors: Array<{ id: string; name: string; value: number | null }>;
+  aheadOfYou: string[];
+  gapToBest: number | null;
+  verdict: string;
+}
+
+export interface SiteSummary {
+  id: string | null;
+  name: string;
+  domain: string;
+  crawledAt: string | null;
+  totalPages: number | null;
+}
+
+export interface WebsiteComparison {
+  you: SiteSummary;
+  competitors: SiteSummary[];
+  rows: ComparisonRow[];
+  /** Competitors with no crawl yet, so a blank column is explained. */
+  awaitingCrawl: string[];
+  priorities: Array<{ area: string; verdict: string; gap: number }>;
+}
+
 export interface CompetitorSetupInput {
   businessName?: string;
   websiteUrl: string;
@@ -1738,6 +1769,9 @@ export const api = {
       `/api/projects/${projectId}/action-engine/actions/${actionId}`,
       { status },
     ),
+
+  actionEngineWebsiteComparison: (projectId: string) =>
+    get<WebsiteComparison>(`/api/projects/${projectId}/action-engine/website-comparison`),
 
   actionEngineCompetitors: (projectId: string) =>
     get<TrackedCompetitorList>(`/api/projects/${projectId}/action-engine/competitors`),
