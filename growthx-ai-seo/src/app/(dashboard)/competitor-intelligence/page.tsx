@@ -447,18 +447,28 @@ function CompetitorIntelligenceClient() {
             <div className="p-6 space-y-4">
               <div className="rounded-xl border p-5 bg-brand-50/30" style={{ borderColor: "var(--border-color)" }}>
                 <h4 className="text-[13px] font-semibold text-brand-950">Market Intelligence Summary</h4>
-                <p className="text-[12px] text-brand-500 mt-1 leading-relaxed">
-                  {marketIntelligence.data?.sentimentSummary ||
-                    "Aggregating weekly market search patterns and competitive velocity across your niche. Connect Google Search Console and add 3+ competitors to unlock high-precision market trends."}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded bg-white border px-2.5 py-1 text-[11px] font-medium text-brand-700">
-                    Search Demand: Moderate Growth
-                  </span>
-                  <span className="rounded bg-white border px-2.5 py-1 text-[11px] font-medium text-brand-700">
-                    Competitive Velocity: High
-                  </span>
-                </div>
+                {/* Two chips used to sit here, one grading search demand and
+                    one grading competitive velocity. Both were string literals
+                    — every customer saw the same two verdicts whatever their
+                    market, their competitors, or whether anything had been
+                    crawled, under a heading promising market intelligence. The
+                    sentence above them claimed we were aggregating weekly
+                    search patterns, which nothing was doing either. Nothing
+                    replaces them: there is no measurement behind any of it to
+                    render, and a tab that admits its limits is worth more than
+                    one that fills them in. The exact chip text is a rule in
+                    scripts/check-no-fabricated-data.mjs, so it cannot come
+                    back. */}
+                {marketIntelligence.data?.sentimentSummary ? (
+                  <p className="text-[12px] text-brand-500 mt-1 leading-relaxed">
+                    {marketIntelligence.data.sentimentSummary}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[12px] leading-relaxed text-brand-400">
+                    No market signals have been measured for this project yet. This section fills in once
+                    Search Console is connected and your competitors have been crawled.
+                  </p>
+                )}
               </div>
             </div>
           </Panel>

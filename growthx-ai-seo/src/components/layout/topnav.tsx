@@ -23,7 +23,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/geo-tracking": { scope: "Workspace", title: "AI Visibility" },
   "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },
   "/competitors": { scope: "Workspace", title: "Competitor Intelligence" },
-  "/market-research": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/market-research": { scope: "Workspace", title: "Market Research" },
   "/local": { scope: "Workspace", title: "Local SEO" },
   "/content-opportunities": { scope: "Workspace", title: "Content & Opportunities" },
   "/opportunities": { scope: "Workspace", title: "Content & Opportunities" },

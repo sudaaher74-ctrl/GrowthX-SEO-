@@ -153,11 +153,17 @@ export default function ReportsPage() {
                                   ? `${client.health}/100`
                                   : "—"
                           }
-                          tone={
-                            ((siteHealth as any).healthScore ?? crawl.data?.healthScore ?? client?.health ?? 100) < 60
-                              ? "danger"
-                              : "good"
-                          }
+                          tone={(() => {
+                            // No score means no verdict. The fallback used to be
+                            // 100, so a project we had never scored rendered
+                            // green — the one colour that says "you are fine".
+                            const score =
+                              (siteHealth as any).healthScore ??
+                              crawl.data?.healthScore ??
+                              client?.health;
+                            if (score == null) return "default";
+                            return score < 60 ? "danger" : "good";
+                          })()}
                           sub="0–100 weighted health index"
                         />
                         <Kpi

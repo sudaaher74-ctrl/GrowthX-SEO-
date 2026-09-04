@@ -85,8 +85,13 @@ export function exportCompetitorDossier(competitorName: string, domain: string, 
   
   md += `### Discovered Key Pages\n`;
   md += `| Page URL | Type | Word Count | Status |\n| :--- | :--- | :--- | :--- |\n`;
+  // A dash, not a stand-in. A page we never got a word count or a status for
+  // is not a 0-word page that returned 200 — writing those numbers turns "we
+  // did not measure this" into a measurement the client will act on.
   pages.slice(0, 15).forEach((p) => {
-    md += `| [${p.title || p.url}](${p.url}) | \`${p.pageType}\` | ${p.wordCount || 0} words | ${p.statusCode || 200} |\n`;
+    const words = p.wordCount != null ? `${p.wordCount} words` : '—';
+    const status = p.statusCode != null ? `${p.statusCode}` : '—';
+    md += `| [${p.title || p.url}](${p.url}) | \`${p.pageType}\` | ${words} | ${status} |\n`;
   });
   md += `\n`;
 
@@ -95,7 +100,15 @@ export function exportCompetitorDossier(competitorName: string, domain: string, 
     videos.forEach((v, idx) => {
       md += `### Video ${idx + 1}: ${v.title || 'Competitor Reel'}\n`;
       md += `- **Platform**: ${v.platform} (${v.contentType})\n`;
-      md += `- **Engagement**: ${(v.viewsCount || 0).toLocaleString()} views · ${(v.likesCount || 0).toLocaleString()} likes\n`;
+      // Instagram never reports views through Business Discovery, so a null
+      // here means "the platform does not tell us", not "nobody watched".
+      const engagement = [
+        v.viewsCount != null ? `${v.viewsCount.toLocaleString()} views` : null,
+        v.likesCount != null ? `${v.likesCount.toLocaleString()} likes` : null,
+      ].filter(Boolean);
+      if (engagement.length > 0) {
+        md += `- **Engagement**: ${engagement.join(' · ')}\n`;
+      }
       if (v.hookAnalysis?.hook) {
         md += `- **Hook Formula**: *"${v.hookAnalysis.hook}"* (\`${v.hookAnalysis.hookType || 'HOOK'}\`)\n`;
       }
@@ -113,8 +126,15 @@ export function exportCompetitorDossier(competitorName: string, domain: string, 
     md += `## 3. Recommended Growth Opportunities (Catalog & Content Gaps)\n\n`;
     gaps.forEach((g: any, idx: number) => {
       md += `### ${idx + 1}. ${g.topic || g.title || 'Identified Gap'}\n`;
-      md += `- **Opportunity Score**: ${g.opportunityScore || 85}/100\n`;
-      md += `- **Search Intent**: ${g.searchIntent || 'Commercial'}\n`;
+      if (g.opportunityScore != null) {
+        md += `- **Opportunity Score**: ${g.opportunityScore}/100\n`;
+      }
+      // 85/100 and "Commercial" used to be printed whenever the real values
+      // were missing, so every unscored gap arrived looking like a strong
+      // commercial opportunity someone had actually assessed.
+      if (g.searchIntent) {
+        md += `- **Search Intent**: ${g.searchIntent}\n`;
+      }
       if (g.angle) md += `- **Strategic Angle**: ${g.angle}\n`;
       md += `\n`;
     });

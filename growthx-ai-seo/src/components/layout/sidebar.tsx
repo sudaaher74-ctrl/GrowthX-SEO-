@@ -110,7 +110,12 @@ export function Sidebar({
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
-      aliases: ["/competitors", "/market-research", "/market"],
+      aliases: ["/competitors", "/market"],
+    },
+    {
+      label: "Market Research",
+      href: "/market-research",
+      icon: Telescope,
     },
     {
       label: "Local SEO",
