@@ -373,6 +373,88 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(domains).toContain('sahyadrifarms.com');
     });
 
+    it('fills a doorstep milk client with real dairy rivals when the AI list comes back thin', async () => {
+      // The reported failure: a dairy client saw a single competitor. Four of
+      // five AI suggestions failed verification and the curated list had no
+      // dairy coverage to top up from, so the panel showed one card.
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'bigbasket.com',
+              name: 'BigBasket',
+              industry: 'Online Grocery',
+              description: 'Online grocery platform with dairy',
+              overlapScore: 50,
+              marketPosition: 'Market leader in online grocery',
+              location: 'Bengaluru, Karnataka, India',
+              sampleKeywords: ['fresh milk online'],
+              keyDifferentiator: 'Vast product assortment',
+            },
+          ],
+        }),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Dairy, Fresh Milk Delivery & Milk Subscriptions',
+        region: 'india',
+      });
+
+      expect(result.topCompetitors).toHaveLength(5);
+      const domains = result.topCompetitors.map((c) => c.domain);
+      expect(new Set(domains).size).toBe(domains.length);
+      expect(domains).toContain('countrydelight.in');
+      expect(domains).toContain('amul.com');
+      expect(domains).toContain('motherdairy.com');
+    });
+
+    it('answers a Maharashtra dairy client with Maharashtra dairies, not fruit exporters', async () => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Doorstep milk and dairy products delivery',
+        region: 'maharashtra',
+      });
+
+      expect(result.topCompetitors).toHaveLength(5);
+      expect(result.topCompetitors.every((c) => c.location?.includes('Maharashtra'))).toBe(true);
+      expect(result.topCompetitors.some((c) => c.domain === 'gokulmilk.coop')).toBe(true);
+      // The food & agro list must not answer a dairy query.
+      expect(result.topCompetitors.some((c) => c.domain === 'sahyadrifarms.com')).toBe(false);
+    });
+
+    it('does not list the same company twice when AI and the curated list both name it', async () => {
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'amul.co.in',
+              name: 'Amul (GCMMF)',
+              industry: 'Dairy',
+              description: 'India largest dairy brand',
+              overlapScore: 99,
+              marketPosition: 'Category leader',
+              location: 'Anand, Gujarat, India',
+              sampleKeywords: ['amul milk'],
+              keyDifferentiator: 'Farmer network',
+            },
+          ],
+        }),
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
+        domain: 'milquufresh.in',
+        industry: 'Dairy & Milk Subscriptions',
+        region: 'india',
+      });
+
+      const names = result.topCompetitors.map((c) => c.name.toLowerCase());
+      expect(new Set(names).size).toBe(names.length);
+      expect(names.filter((n) => n.includes('amul'))).toHaveLength(1);
+    });
+
     it('marks competitors as already added if they exist in the project', async () => {
       prisma.competitorDomain.findMany.mockResolvedValue([
         { id: 'comp_1', domain: 'semrush.com' },

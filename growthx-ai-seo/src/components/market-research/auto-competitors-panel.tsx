@@ -36,6 +36,7 @@ interface AutoCompetitorsPanelProps {
 }
 
 const INDUSTRY_PRESETS = [
+  { label: "🥛 Dairy & Milk Delivery", value: "Dairy, Fresh Milk Delivery & Milk Subscriptions" },
   { label: "🍎 Fruit Pulp & Food Exports", value: "Fruit Pulp, Concentrates, IQF Fruits & Agro Exports" },
   { label: "🚚 Transport & Logistics", value: "Logistics, Freight & Fleet Transportation Services" },
   { label: "🏭 Manufacturing & Industrial", value: "Industrial Manufacturing & Engineering Solutions" },
@@ -607,12 +608,18 @@ export function AutoCompetitorsPanel({
                             title={
                               comp.source === "curated"
                                 ? "From our hand-checked list of real companies in this market"
-                                : `Live site checked${comp.verifiedTitle ? `: “${comp.verifiedTitle}”` : ""}`
+                                : comp.verificationLevel === "reachable"
+                                  ? "The domain is live and answered, but its site blocks automated readers — common for large consumer brands"
+                                  : `Live site checked${comp.verifiedTitle ? `: “${comp.verifiedTitle}”` : ""}`
                             }
                             className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
                           >
                             <ShieldCheck size={10} />
-                            {comp.source === "curated" ? "Known company" : "Site verified"}
+                            {comp.source === "curated"
+                              ? "Known company"
+                              : comp.verificationLevel === "reachable"
+                                ? "Domain live"
+                                : "Site verified"}
                           </span>
                         )}
                         {comp.location && (

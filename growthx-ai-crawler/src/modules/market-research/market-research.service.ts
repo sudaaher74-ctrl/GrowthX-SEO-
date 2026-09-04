@@ -90,12 +90,33 @@ export interface AutoIdentifiedCompetitor {
   /** Title tag read from the live site during verification. */
   verifiedTitle?: string;
   verifiedAt?: string;
+  /**
+   * `content` — the homepage was read and matched this market.
+   * `reachable` — a real server answered but refused to serve a bot, so the
+   * company is proven to exist without its copy having been read. The UI says
+   * which, rather than badging both as though the site had been read.
+   */
+  verificationLevel?: 'content' | 'reachable';
   /** `curated` marks an entry from the hand-checked market list. */
   source?: 'ai' | 'curated';
 }
 
 /** A proposed competitor that failed verification, kept so the UI can say why. */
 export type CompetitorRejection = RejectedCompetitor;
+
+/** How many competitors the panel shows once verification has run. */
+const COMPETITOR_SLOTS = 5;
+
+/**
+ * How many the model is asked for.
+ *
+ * Deliberately more than are shown. Verification drops anything it cannot
+ * prove — an unreachable domain, a parking page, a company in the wrong market
+ * — so asking for exactly five meant one bad guess left four, and four bad
+ * guesses left the dairy client with a single competitor. Over-fetching costs
+ * a few more HEAD-weight requests and keeps the shown list full of real names.
+ */
+const CANDIDATE_TARGET = 12;
 
 export interface AutoIdentifyCompetitorsResult {
   customerDomain: string;
@@ -379,18 +400,21 @@ export class MarketResearchService {
           pageTitle ? `- Homepage Title: ${pageTitle}` : '',
           pageDesc ? `- Meta Description: ${pageDesc}` : '',
           ``,
-          `Task: Identify the TOP 5 DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel} for ${subject}.`,
+          `Task: Identify up to ${CANDIDATE_TARGET} DIRECT REAL-WORLD competitors that compete for the same customers, search rankings, or market share in ${regionLabel} for ${subject}.`,
+          ``,
+          `Only the strongest 5 are shown to the customer, and every domain is fetched and checked against the live web first. Name every real competitor you know of, not just five — the extras are what keep the final list full when a domain turns out to be unreachable.`,
           ``,
           `CRITICAL STRICT REQUIREMENTS:`,
           `1. Name ONLY companies you actually know to exist, with the domain you actually know them by. Every domain will be fetched and checked against the live web before it is shown to the customer, and anything that does not resolve is discarded.`,
-          `2. It is far better to return 2 or 3 companies you are certain about than 5 where two are guesses. Return only the ones you are sure of.`,
-          `3. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
-          `4. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
-          `5. Do NOT return the same company twice, under any spelling or domain variant.`,
-          `6. Do NOT guess a domain from a brand name. If you do not know the company's real website, leave that company out.`,
-          `7. Do NOT return unrelated businesses, generic search engines, marketplaces, social networks, or encyclopedias (like google.com, indiamart.com, wikipedia.org).`,
-          `8. Do NOT include the target domain (${domain}) itself.`,
-          `9. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Bengaluru, India", "Germany", "USA").`,
+          `2. Include the household-name market leaders as well as the smaller direct rivals. If a national brand and a local one both compete for these customers, name both.`,
+          `3. It is far better to leave out a company you are unsure of than to guess its domain. Certainty about each name matters more than reaching the count.`,
+          `4. For ${normalizedRegion === 'maharashtra' ? 'Maharashtra' : normalizedRegion === 'india' ? 'India' : 'Worldwide'}, every competitor must be legitimately based or active in that geographic market.`,
+          `5. Absolutely DO NOT generate fake, fictitious, or placeholder domain names (such as "apexbrand.com", "example.com", "dummy.com", or synthetic mock names).`,
+          `6. Do NOT return the same company twice, under any spelling or domain variant.`,
+          `7. Do NOT guess a domain from a brand name. If you do not know the company's real website, leave that company out.`,
+          `8. Do NOT return unrelated businesses, generic search engines, marketplaces, social networks, or encyclopedias (like google.com, indiamart.com, wikipedia.org).`,
+          `9. Do NOT include the target domain (${domain}) itself.`,
+          `10. Include a descriptive 'location' property indicating where each company is headquartered or located (e.g. "Pune, Maharashtra", "Nashik, Maharashtra", "Bengaluru, India", "Germany", "USA").`,
         ].filter(Boolean).join('\n');
 
         const schema = {
@@ -437,11 +461,12 @@ export class MarketResearchService {
           instructions:
             'You are a premier SEO & Market Research Competitive Intelligence Director. ' +
             'Name only real companies whose websites you actually know; every domain you return is fetched and verified, ' +
-            'and an invented one is discarded and counted against the result. Returning three real competitors beats five with a guess among them. ' +
+            'and an invented one is discarded and counted against the result. ' +
+            'Name every real competitor in this market that you are sure of, market leaders included — only the strongest few survive verification and reach the customer. ' +
             'Return ONLY valid JSON matching the schema.',
           input: prompt,
           jsonSchema: schema,
-          maxOutputTokens: 2500,
+          maxOutputTokens: 5000,
         });
 
         const parsed = parseJson(result.text) as { competitors?: unknown[] };
@@ -493,16 +518,22 @@ export class MarketResearchService {
     // niche. Padding a Nashik fruit exporter's list with Accenture and IBM to
     // reach five is what made the panel look like a demo; a short list of real
     // rivals is the honest answer.
-    if (candidates.length < 5) {
+    if (candidates.length < COMPETITOR_SLOTS) {
       const curated = this.generateFallbackCompetitors(domain, businessName, subject, normalizedRegion);
       const seen = new Set(candidates.map((c) => normalizeDomain(c.domain)));
       seen.add(domain);
+      // Brand names are matched too: the model naming "Amul" as amul.com and
+      // the curated list carrying it under the same name must not produce two
+      // cards for one company.
+      const seenNames = new Set(candidates.map((c) => (c.name || '').trim().toLowerCase()).filter(Boolean));
       for (const entry of curated) {
         const entryDomain = normalizeDomain(entry.domain);
-        if (seen.has(entryDomain)) continue;
+        const entryName = (entry.name || '').trim().toLowerCase();
+        if (seen.has(entryDomain) || (entryName && seenNames.has(entryName))) continue;
         candidates.push({ ...entry, verified: true, source: 'curated' });
         seen.add(entryDomain);
-        if (candidates.length >= 5) break;
+        if (entryName) seenNames.add(entryName);
+        if (candidates.length >= COMPETITOR_SLOTS) break;
       }
     }
 
@@ -510,7 +541,7 @@ export class MarketResearchService {
       notes.push(
         `No competitor could be verified for "${subject}" in this market. Refine the niche below, widen the scope, or add a competitor domain by hand.`,
       );
-    } else if (candidates.length < 5) {
+    } else if (candidates.length < COMPETITOR_SLOTS) {
       notes.push(
         rejected.length > 0
           ? `${candidates.length} verified ${candidates.length === 1 ? 'competitor' : 'competitors'} found. The list is short because unverifiable suggestions were removed rather than shown.`
@@ -520,7 +551,7 @@ export class MarketResearchService {
 
     // Sorted before slicing, so the five shown are the five highest-overlap
     // companies rather than the first five to arrive.
-    const competitors = [...candidates].sort((a, b) => b.overlapScore - a.overlapScore).slice(0, 5);
+    const competitors = [...candidates].sort((a, b) => b.overlapScore - a.overlapScore).slice(0, COMPETITOR_SLOTS);
 
     // Enrich with whether each competitor is already added in the project
     const enrichedCompetitors = competitors.map((c) => ({
@@ -646,7 +677,231 @@ export class MarketResearchService {
     const text = `${domain} ${businessName} ${subject}`.toLowerCase();
 
     // ──────────────────────────────────────────────────────────
-    // 1. FOOD PROCESSING / AGRO / FRUIT PULP / MANGO / BEVERAGES / SPICES / EXPORTS
+    // 1. DAIRY / MILK DELIVERY / MILK SUBSCRIPTIONS
+    // ──────────────────────────────────────────────────────────
+    //
+    // Checked before food & agro, which would otherwise swallow a dairy client
+    // on the word "food" and answer a doorstep milk service with fruit pulp
+    // exporters. Every domain below was fetched by hand and answers with a live
+    // company site.
+    if (
+      text.includes('dairy') ||
+      text.includes('milk') ||
+      text.includes('dudh') ||
+      text.includes('doodh') ||
+      text.includes('paneer') ||
+      text.includes('curd') ||
+      text.includes('ghee') ||
+      text.includes('buttermilk') ||
+      text.includes('yoghurt') ||
+      text.includes('yogurt') ||
+      text.includes('creamery') ||
+      text.includes('lassi')
+    ) {
+      if (region === 'maharashtra') {
+        return [
+          {
+            domain: 'gokulmilk.coop',
+            name: 'Gokul Milk',
+            industry: 'Dairy Cooperative & Daily Milk Supply',
+            description: 'Kolhapur Zilla Sahakari Dudh Utpadak Sangh — one of Maharashtra’s largest milk cooperatives, supplying packet milk, ghee, paneer and curd across Western Maharashtra and Mumbai.',
+            location: 'Kolhapur, Maharashtra',
+            overlapScore: 95,
+            marketPosition: 'Maharashtra Cooperative Leader',
+            sampleKeywords: ['gokul milk near me', 'fresh cow milk kolhapur', 'dairy products maharashtra', 'daily milk supplier'],
+            keyDifferentiator: 'Vast farmer collection network and dense retail distribution across Western Maharashtra.',
+          },
+          {
+            domain: 'katrajdairy.com',
+            name: 'Katraj Dairy',
+            industry: 'Dairy Cooperative & Milk Products',
+            description: 'Pune Zilla Sahakari Dudh Sangh, supplying daily pouch milk, curd, shrikhand, ghee and paneer across Pune and Western Maharashtra.',
+            location: 'Pune, Maharashtra',
+            overlapScore: 92,
+            marketPosition: 'Pune Market Incumbent',
+            sampleKeywords: ['katraj milk home delivery', 'pune dairy products', 'fresh milk pune', 'buy paneer online pune'],
+            keyDifferentiator: 'Entrenched household brand in Pune with morning doorstep distribution through local milk vendors.',
+          },
+          {
+            domain: 'prideofcows.com',
+            name: 'Pride of Cows',
+            industry: 'Premium Farm-to-Home Milk Subscriptions',
+            description: 'Single-origin farm-to-home milk delivered by subscription in Mumbai, Pune and Surat, from Parag Milk Foods’ Bhagyalaxmi Dairy Farm.',
+            location: 'Manchar, Pune, Maharashtra',
+            overlapScore: 96,
+            marketPosition: 'Premium Subscription Rival',
+            sampleKeywords: ['milk subscription mumbai', 'farm fresh milk home delivery', 'premium cow milk pune', 'doorstep milk delivery'],
+            keyDifferentiator: 'Single-farm traceable milk with an app-based subscription and chilled doorstep delivery.',
+          },
+          {
+            domain: 'sardafarms.com',
+            name: 'Sarda Farms',
+            industry: 'Farm-to-Home Fresh Milk Delivery',
+            description: 'Nashik-based integrated dairy farm delivering unprocessed, non-homogenised cow milk on daily subscription across Mumbai, Thane and Nashik.',
+            location: 'Nashik, Maharashtra',
+            overlapScore: 94,
+            marketPosition: 'Direct Doorstep Competitor',
+            sampleKeywords: ['fresh cow milk delivery mumbai', 'farm to home milk nashik', 'daily milk subscription', 'unprocessed milk delivery'],
+            keyDifferentiator: 'Owns its herd and cold chain end to end, delivering within hours of milking.',
+          },
+          {
+            domain: 'chitalebandhu.in',
+            name: 'Chitale',
+            industry: 'Dairy & Packaged Milk Products',
+            description: 'Long-established Maharashtra dairy and foods brand producing milk, shrikhand, bakarwadi, ghee and paneer, distributed across the state.',
+            location: 'Sangli / Pune, Maharashtra',
+            overlapScore: 88,
+            marketPosition: 'Heritage Regional Brand',
+            sampleKeywords: ['chitale dairy products', 'shrikhand online', 'maharashtra milk brand', 'buy ghee online'],
+            keyDifferentiator: 'Decades of brand trust in Maharashtra households and highly automated dairy processing.',
+          },
+          {
+            domain: 'mahanand.coop',
+            name: 'Mahanand Dairy',
+            industry: 'State Dairy Federation & Milk Supply',
+            description: 'Maharashtra Rajya Sahakari Dudh Mahasangh — the state cooperative federation supplying pouch milk and dairy products across Mumbai and Maharashtra.',
+            location: 'Mumbai, Maharashtra',
+            overlapScore: 85,
+            marketPosition: 'State Cooperative Federation',
+            sampleKeywords: ['mahanand milk mumbai', 'state dairy federation maharashtra', 'pouch milk supplier mumbai'],
+            keyDifferentiator: 'State-backed procurement network reaching across all of Maharashtra.',
+          },
+        ];
+      }
+
+      if (region === 'india') {
+        return [
+          {
+            domain: 'countrydelight.in',
+            name: 'Country Delight',
+            industry: 'Direct-to-Home Milk & Dairy Subscriptions',
+            description: 'India’s largest subscription-based farm-to-home brand, delivering unadulterated milk, paneer, curd and daily essentials to doorsteps before 7am.',
+            location: 'Gurugram, India (Mumbai, Pune & 15+ cities)',
+            overlapScore: 98,
+            marketPosition: 'Subscription Market Leader',
+            sampleKeywords: ['milk subscription app', 'doorstep milk delivery', 'farm fresh milk online', 'daily milk delivery near me'],
+            keyDifferentiator: 'App-first daily subscription model with next-morning delivery and no-questions-asked quality guarantee.',
+          },
+          {
+            domain: 'amul.com',
+            name: 'Amul (GCMMF)',
+            industry: 'Dairy Cooperative & Packaged Milk Products',
+            description: 'India’s largest dairy brand, supplying pouch and tetra milk, butter, ghee, curd, paneer and ice cream nationwide.',
+            location: 'Anand, Gujarat, India',
+            overlapScore: 93,
+            marketPosition: 'National Category Leader',
+            sampleKeywords: ['amul milk price', 'buy milk online', 'dairy products india', 'packaged milk brand'],
+            keyDifferentiator: 'Unmatched brand recall and the largest farmer procurement network in India.',
+          },
+          {
+            domain: 'motherdairy.com',
+            name: 'Mother Dairy',
+            industry: 'Dairy Products & Fresh Milk Retail',
+            description: 'National dairy major selling token and pouch milk, curd, paneer, butter and Safal fresh produce through its own retail network.',
+            location: 'Noida, Delhi NCR, India',
+            overlapScore: 90,
+            marketPosition: 'National Dairy Major',
+            sampleKeywords: ['mother dairy milk', 'fresh dairy products online', 'milk booth near me', 'buy curd online'],
+            keyDifferentiator: 'Owned retail and milk-booth network alongside modern trade and quick-commerce listings.',
+          },
+          {
+            domain: 'bbdaily.com',
+            name: 'bbdaily (BigBasket)',
+            industry: 'Daily Milk & Grocery Subscriptions',
+            description: 'BigBasket’s daily subscription service delivering milk, bread, eggs and dairy staples to the doorstep every morning across major Indian cities.',
+            location: 'Bengaluru, India',
+            overlapScore: 92,
+            marketPosition: 'Subscription Aggregator',
+            sampleKeywords: ['daily milk subscription', 'morning delivery milk', 'bbdaily milk', 'subscribe milk online'],
+            keyDifferentiator: 'Rides BigBasket’s existing city logistics and wallet, bundling milk with daily groceries.',
+          },
+          {
+            domain: 'akshayakalpa.org',
+            name: 'Akshayakalpa Organic',
+            industry: 'Certified Organic Milk & Dairy',
+            description: 'Certified organic farmer-owned dairy delivering antibiotic-free milk, curd, paneer, ghee and cheese on subscription across South India.',
+            location: 'Tiptur, Karnataka, India',
+            overlapScore: 87,
+            marketPosition: 'Premium Organic Challenger',
+            sampleKeywords: ['organic milk subscription', 'antibiotic free milk', 'organic dairy delivery', 'a2 milk online'],
+            keyDifferentiator: 'Certified-organic farmer network with full traceability from farm to doorstep.',
+          },
+          {
+            domain: 'heritagefoods.in',
+            name: 'Heritage Foods',
+            industry: 'Dairy Products & Fresh Milk',
+            description: 'Listed dairy company supplying fresh milk, curd, paneer, ghee and value-added dairy across South and Western India.',
+            location: 'Hyderabad, India',
+            overlapScore: 84,
+            marketPosition: 'Established Regional Major',
+            sampleKeywords: ['heritage milk delivery', 'fresh milk supplier', 'dairy company india', 'buy paneer online'],
+            keyDifferentiator: 'Direct farmer procurement with a large chilled distribution footprint.',
+          },
+        ];
+      }
+
+      // Worldwide dairy
+      return [
+        {
+          domain: 'danone.com',
+          name: 'Danone',
+          industry: 'Dairy & Plant-Based Nutrition',
+          description: 'Global dairy and nutrition group behind Activia, Alpro and a broad fresh dairy portfolio sold in over 120 markets.',
+          location: 'Paris, France',
+          overlapScore: 93,
+          marketPosition: 'Global Dairy Leader',
+          sampleKeywords: ['fresh dairy products', 'yogurt brand', 'dairy nutrition company', 'milk products global'],
+          keyDifferentiator: 'Worldwide fresh dairy distribution and one of the strongest yogurt portfolios in the category.',
+        },
+        {
+          domain: 'arlafoods.com',
+          name: 'Arla Foods',
+          industry: 'Dairy Cooperative & Milk Products',
+          description: 'Farmer-owned European dairy cooperative producing fresh milk, butter, cheese and yogurt for global retail markets.',
+          location: 'Viby, Denmark',
+          overlapScore: 90,
+          marketPosition: 'Cooperative Powerhouse',
+          sampleKeywords: ['organic milk supplier', 'dairy cooperative', 'fresh milk brand', 'butter and cheese producer'],
+          keyDifferentiator: 'Farmer-owned structure with large-scale organic milk supply across Europe.',
+        },
+        {
+          domain: 'organicvalley.coop',
+          name: 'Organic Valley',
+          industry: 'Organic Dairy Cooperative',
+          description: 'Farmer-owned organic dairy cooperative selling grass-fed and organic milk, cheese and butter across the United States.',
+          location: 'La Farge, Wisconsin, USA',
+          overlapScore: 87,
+          marketPosition: 'Organic Category Specialist',
+          sampleKeywords: ['organic milk brand', 'grass fed milk', 'organic dairy cooperative', 'whole milk delivery'],
+          keyDifferentiator: 'Family-farm cooperative model with strict organic and pasture standards.',
+        },
+        {
+          domain: 'fairlife.com',
+          name: 'fairlife',
+          industry: 'Filtered & Value-Added Milk',
+          description: 'Ultra-filtered milk brand offering higher-protein, lactose-free milk and protein shakes through US retail.',
+          location: 'Chicago, Illinois, USA',
+          overlapScore: 84,
+          marketPosition: 'Premium Value-Added Challenger',
+          sampleKeywords: ['ultra filtered milk', 'lactose free milk', 'high protein milk', 'premium milk brand'],
+          keyDifferentiator: 'Proprietary cold-filtration process positioning milk as a functional nutrition product.',
+        },
+        {
+          domain: 'lactalis.com',
+          name: 'Lactalis',
+          industry: 'Dairy Manufacturing & Distribution',
+          description: 'The world’s largest dairy products group, producing milk, cheese, butter and cream under brands including Président and Parmalat.',
+          location: 'Laval, France',
+          overlapScore: 82,
+          marketPosition: 'Global Manufacturing Giant',
+          sampleKeywords: ['dairy manufacturer', 'milk and cheese producer', 'global dairy group', 'branded dairy products'],
+          keyDifferentiator: 'The largest dairy processing footprint in the world across 50+ countries.',
+        },
+      ];
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 2. FOOD PROCESSING / AGRO / FRUIT PULP / MANGO / BEVERAGES / SPICES / EXPORTS
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('pulp') ||
@@ -841,7 +1096,7 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 2. LOGISTICS / TRANSPORT / FREIGHT / WAREHOUSING / FLEET / SUPPLY CHAIN
+    // 3. LOGISTICS / TRANSPORT / FREIGHT / WAREHOUSING / FLEET / SUPPLY CHAIN
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('transport') ||
@@ -1034,7 +1289,7 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 3. SEO / MARKETING / DIGITAL AGENCIES / CONTENT TOOLS
+    // 4. SEO / MARKETING / DIGITAL AGENCIES / CONTENT TOOLS
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('seo') ||
@@ -1225,7 +1480,7 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 3. SAAS / SOFTWARE / TECH / CLOUD / DEVELOPER TOOLS
+    // 5. SAAS / SOFTWARE / TECH / CLOUD / DEVELOPER TOOLS
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('saas') ||
@@ -1418,7 +1673,7 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 4. E-COMMERCE / RETAIL / B2B WHOLESALE / DISTRIBUTION
+    // 6. E-COMMERCE / RETAIL / B2B WHOLESALE / DISTRIBUTION
     // ──────────────────────────────────────────────────────────
     if (
       text.includes('shop') ||
@@ -1611,7 +1866,7 @@ export class MarketResearchService {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 5. NO CURATED COVERAGE FOR THIS NICHE
+    // 7. NO CURATED COVERAGE FOR THIS NICHE
     // ──────────────────────────────────────────────────────────
     //
     // This used to return TCS, Mahindra and Godrej for a regional client, and
@@ -1803,6 +2058,9 @@ export class MarketResearchService {
 
   private inferSubjectFromDomain(domain: string): string {
     const lower = domain.toLowerCase();
+    if (lower.includes('milk') || lower.includes('dairy') || lower.includes('dudh') || lower.includes('doodh')) {
+      return 'Dairy, Fresh Milk Delivery & Milk Subscriptions';
+    }
     if (lower.includes('seo') || lower.includes('growth') || lower.includes('rank')) return 'AI SEO & Organic Search Growth';
     if (lower.includes('shop') || lower.includes('store') || lower.includes('cart')) return 'E-Commerce & Digital Merchandising';
     if (lower.includes('app') || lower.includes('cloud') || lower.includes('tech')) return 'Cloud Software & SaaS Technologies';

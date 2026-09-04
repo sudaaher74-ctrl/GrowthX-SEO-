@@ -1094,6 +1094,13 @@ export interface AutoIdentifiedCompetitor {
   /** Title tag read from the live site while verifying. */
   verifiedTitle?: string;
   verifiedAt?: string;
+  /**
+   * `content` — the homepage was read and matched this market.
+   * `reachable` — a live server answered but refused to serve a bot, which is
+   * how most large consumer brands respond. The company is proven real; its
+   * copy was not read, and the badge says so rather than overstating.
+   */
+  verificationLevel?: "content" | "reachable";
   source?: "ai" | "curated";
 }
 

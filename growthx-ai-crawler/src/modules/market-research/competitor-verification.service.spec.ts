@@ -21,7 +21,10 @@ function candidate(overrides: Partial<VerifiableCompetitor> = {}): VerifiableCom
 
 /** A live page whose copy mentions the client's market. */
 function page(body: string, title = 'Sahyadri Farms — Fruit Pulp & Purees') {
-  return { data: `<html><head><title>${title}</title></head><body>${body}</body></html>` };
+  return {
+    status: 200,
+    data: `<html><head><title>${title}</title></head><body>${body}</body></html>`,
+  };
 }
 
 const NICHE = 'Fruit pulp, aseptic mango puree, concentrates and IQF processing for bulk export';
@@ -129,6 +132,77 @@ describe('CompetitorVerificationService', () => {
       'self',
     ]);
     expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
+  it('keeps a large brand whose WAF answers a bot with 403', async () => {
+    // Amul, Nestlé and most consumer brands refuse a non-browser client. A
+    // refusal still proves a server is there, which a fabricated domain never
+    // manages — dropping these was deleting the best-known names in the market.
+    mockedAxios.get.mockResolvedValue({ status: 403, data: 'Access denied' });
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'milkbasket.com', name: 'Milkbasket' })],
+      'milquufresh.in',
+      NICHE,
+    );
+
+    expect(outcome.rejected).toHaveLength(0);
+    expect(outcome.verified).toHaveLength(1);
+    expect(outcome.verified[0].verificationLevel).toBe('reachable');
+  });
+
+  it('still drops a domain whose every address refuses to connect', async () => {
+    mockedAxios.get.mockRejectedValue(new Error('getaddrinfo ENOTFOUND nowhere.in'));
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'nowhere.in', name: 'Nowhere Dairy' })],
+      'milquufresh.in',
+      NICHE,
+    );
+
+    expect(outcome.verified).toHaveLength(0);
+    expect(outcome.rejected[0].reason).toBe('offline');
+  });
+
+  it('reads a single-page app that only describes itself in its head and JSON-LD', async () => {
+    mockedAxios.get.mockResolvedValue({
+      status: 200,
+      data:
+        '<html><head><title>Country Delight</title>' +
+        '<meta name="description" content="Farm fresh milk delivered to your doorstep every morning.">' +
+        '<script type="application/ld+json">{"@type":"Organization","name":"Country Delight",' +
+        '"description":"Daily milk and dairy subscriptions delivered to the doorstep."}</script>' +
+        '</head><body><div id="root"></div></body></html>',
+    });
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'countrydelight.in', name: 'Country Delight' })],
+      'milquufresh.in',
+      'Dairy, fresh milk delivery and daily milk subscriptions',
+    );
+
+    expect(outcome.rejected).toHaveLength(0);
+    expect(outcome.verified[0].verificationLevel).toBe('content');
+    expect(outcome.verified[0].matchedTerms).toContain('milk');
+  });
+
+  it('matches a niche word against the inflection a real site writes', async () => {
+    // "dairy" on the client's side, "dairies" on the competitor's page.
+    mockedAxios.get.mockResolvedValue(
+      page(
+        'One of the largest cooperative dairies in western India, collecting from 200,000 farmers. '.repeat(4),
+        'Gokul — Kolhapur Zilla Sahakari Dudh Utpadak Sangh',
+      ),
+    );
+
+    const outcome = await service.verify(
+      [candidate({ domain: 'gokulmilk.coop', name: 'Gokul Milk' })],
+      'milquufresh.in',
+      'Dairy products and doorstep delivery',
+    );
+
+    expect(outcome.verified).toHaveLength(1);
+    expect(outcome.verified[0].matchedTerms).toContain('dairy');
   });
 
   it('does not apply the relevance test when the niche is too vague to judge on', async () => {

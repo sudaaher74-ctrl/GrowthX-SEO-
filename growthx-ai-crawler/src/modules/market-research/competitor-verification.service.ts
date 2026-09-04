@@ -23,6 +23,17 @@ export interface VerifiedCompetitor extends VerifiableCompetitor {
   verifiedAt: string;
   /** Which niche terms the live site actually shares with the client. */
   matchedTerms: string[];
+  /**
+   * How far the check got.
+   *
+   * `content` — the homepage was read and its copy matched this market.
+   * `reachable` — a real server answered but refused to serve the page to a
+   * bot (Cloudflare, a WAF, a 403 on a non-browser client). Large consumer
+   * brands do this routinely, and dropping them was losing exactly the
+   * competitors an operator most expects to see. A fabricated domain cannot
+   * reach this state: there is no server behind it to refuse anything.
+   */
+  verificationLevel: 'content' | 'reachable';
 }
 
 export interface RejectedCompetitor {
@@ -111,6 +122,13 @@ const PARKED_MARKERS = [
   'apache2 ubuntu default page',
   'welcome to nginx',
 ];
+
+/**
+ * Statuses that mean "a real server refused a bot", not "no such company".
+ * Cloudflare, Akamai and most enterprise WAFs answer an unknown client this
+ * way, so these prove the domain is live without proving what is on it.
+ */
+const BOT_BLOCKED_STATUSES = new Set([401, 402, 403, 405, 406, 409, 418, 429, 503]);
 
 /** Words too generic to prove two businesses are in the same market. */
 const STOPWORDS = new Set([
@@ -279,7 +297,18 @@ export class CompetitorVerificationService {
 
     let html = '';
     let reached = false;
-    for (const url of [`https://${candidate.domain}`, `http://${candidate.domain}`]) {
+    let blockedStatus = 0;
+
+    // `www.` is tried too: plenty of established companies serve the apex only
+    // as a redirect, and some not at all. Losing a real competitor to a missing
+    // subdomain is the same failure as losing it to a 403.
+    const urls = [
+      `https://${candidate.domain}`,
+      `https://www.${candidate.domain}`,
+      `http://${candidate.domain}`,
+    ];
+
+    for (const url of urls) {
       try {
         const res = await axios.get(url, {
           timeout: this.TIMEOUT_MS,
@@ -289,15 +318,43 @@ export class CompetitorVerificationService {
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
               'Chrome/124.0.0.0 Safari/537.36 GrowthX-MarketBot/1.0',
             Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
           },
-          validateStatus: (status) => status < 400,
+          // Anything short of a transport failure is an answer from a real
+          // server, so the status is inspected here rather than thrown away as
+          // an exception with no detail.
+          validateStatus: () => true,
         });
-        html = typeof res.data === 'string' ? res.data : '';
-        reached = true;
-        if (html) break;
+
+        if (res.status < 400) {
+          html = typeof res.data === 'string' ? res.data : '';
+          reached = true;
+          if (html) break;
+          continue;
+        }
+
+        if (BOT_BLOCKED_STATUSES.has(res.status)) {
+          blockedStatus = res.status;
+          continue;
+        }
       } catch (err) {
         this.logger.debug(`Verification fetch failed for ${url}: ${err}`);
       }
+    }
+
+    // A WAF saying "no" still proves a server is there. Amul, Nestlé and most
+    // large consumer brands answer a non-browser client with 403 or 429, and
+    // treating that as "this company does not exist" was quietly deleting the
+    // best-known names in the market from every result.
+    if (!reached && blockedStatus) {
+      return {
+        ...candidate,
+        verified: true,
+        verifiedTitle: candidate.name,
+        verifiedAt: new Date().toISOString(),
+        matchedTerms: [],
+        verificationLevel: 'reachable',
+      };
     }
 
     if (!reached) {
@@ -308,27 +365,43 @@ export class CompetitorVerificationService {
     }
 
     const $ = cheerio.load(html);
-    const title = $('title').first().text().replace(/\s+/g, ' ').trim();
+    const title =
+      $('title').first().text().replace(/\s+/g, ' ').trim() ||
+      $('meta[property="og:title"]').attr('content')?.trim() ||
+      '';
     const description =
       $('meta[name="description"]').attr('content')?.trim() ||
       $('meta[property="og:description"]').attr('content')?.trim() ||
       '';
 
+    // A single-page app serves an empty <body> and puts everything a crawler
+    // can read in the head and its structured data. Reading only <body> text
+    // marked those sites `empty` — which is most modern consumer brands.
+    const structured = this.structuredText($);
+    const headings = $('h1, h2')
+      .map((_, el) => $(el).text())
+      .get()
+      .join(' ');
+    const keywords = $('meta[name="keywords"]').attr('content') || '';
+
     $('script, style, noscript, svg').remove();
     const body = $('body').text().replace(/\s+/g, ' ').trim();
-    const pageText = `${title} ${description} ${body}`.toLowerCase();
+    const readable = `${title} ${description} ${keywords} ${headings} ${structured}`
+      .replace(/\s+/g, ' ')
+      .trim();
+    const pageText = `${readable} ${body}`.toLowerCase();
 
     if (PARKED_MARKERS.some((marker) => pageText.includes(marker))) {
       return reject('parked', 'The domain serves a parking, for-sale or placeholder page.');
     }
-    if (body.length < 200 && !description) {
+    if (body.length < 200 && readable.length < 60) {
       return reject('empty', 'The page has almost no content — not a trading company site.');
     }
 
     // Relevance is what keeps an unrelated multinational out of a Nashik fruit
     // exporter's competitor set. With no niche vocabulary to compare against we
     // cannot judge it, so a reachable, non-parked site is allowed through.
-    const matchedTerms = nicheTerms.filter((term) => pageText.includes(term));
+    const matchedTerms = nicheTerms.filter((term) => this.mentions(pageText, term));
     if (nicheTerms.length >= 3 && matchedTerms.length === 0) {
       return reject(
         'off_niche',
@@ -342,7 +415,53 @@ export class CompetitorVerificationService {
       verifiedTitle: title.slice(0, 160) || candidate.name,
       verifiedAt: new Date().toISOString(),
       matchedTerms: matchedTerms.slice(0, 6),
+      verificationLevel: 'content',
     };
+  }
+
+  /** Company name and description from JSON-LD, which SPAs still render. */
+  private structuredText($: cheerio.CheerioAPI): string {
+    const parts: string[] = [];
+
+    $('script[type="application/ld+json"]').each((_, el) => {
+      const raw = $(el).contents().text().trim();
+      if (!raw || raw.length > 200_000) return;
+      try {
+        const walk = (node: any, depth = 0) => {
+          if (!node || depth > 4) return;
+          if (Array.isArray(node)) {
+            node.forEach((item) => walk(item, depth + 1));
+            return;
+          }
+          if (typeof node !== 'object') return;
+          for (const key of ['name', 'description', 'slogan', 'alternateName']) {
+            if (typeof node[key] === 'string') parts.push(node[key]);
+          }
+          for (const value of Object.values(node)) walk(value, depth + 1);
+        };
+        walk(JSON.parse(raw));
+      } catch {
+        // Malformed JSON-LD is common and is not a reason to fail the check.
+      }
+    });
+
+    return parts.join(' ').slice(0, 4000);
+  }
+
+  /**
+   * Whether the page uses a niche word in any ordinary inflection.
+   *
+   * A plain substring test already covers plurals like `milk` → `milks`, but
+   * not the `y` → `ies` forms an English site actually writes: a dairy company
+   * describes itself as one of the region's "dairies", and a delivery service
+   * talks about "deliveries". Those pages were being called off-niche.
+   */
+  private mentions(pageText: string, term: string): boolean {
+    if (pageText.includes(term)) return true;
+    if (term.length >= 5 && term.endsWith('y')) {
+      return pageText.includes(`${term.slice(0, -1)}ie`);
+    }
+    return false;
   }
 
   /** Distinctive words from the client's niche, used as the relevance test. */
