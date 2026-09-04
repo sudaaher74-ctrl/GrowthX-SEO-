@@ -81,6 +81,14 @@ services:
       # search refuses outright rather than returning results.
       - key: GOOGLE_PLACES_API_KEY
         sync: false
+      # Instagram competitor ingestion, via Business Discovery. Both are needed
+      # together: the token authorizes, the account id is the Instagram
+      # Business account the lookup runs *from*. One platform-owned account
+      # serves every customer. Long-lived tokens expire after ~60 days.
+      - key: INSTAGRAM_ACCESS_TOKEN
+        sync: false
+      - key: INSTAGRAM_BUSINESS_ACCOUNT_ID
+        sync: false
       # Competitor content ingestion. Without it the Cross-Competitor Matrix,
       # Video Intelligence and pattern detection have nothing to read: they
       # report that plainly rather than filling in, so an unset key looks like

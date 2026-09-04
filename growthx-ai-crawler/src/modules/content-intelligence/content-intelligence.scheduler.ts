@@ -91,23 +91,35 @@ export class ContentIntelligenceScheduler {
    * deployments that had a YouTube key configured and working.
    *
    * At 03:00 so the content is in place before change detection reads it.
-   * Roughly 3-5 quota units per account against a 10,000/day allowance.
+   * YouTube costs roughly 3-5 quota units per account against a 10,000/day
+   * allowance; Instagram Business Discovery is one call per account.
    */
   @Cron('0 3 * * *')
   async handleDailyCompetitorContentSync(): Promise<void> {
     if (process.env.COMPETITOR_CRON_ENABLED === 'false') return;
-    if (!process.env.YOUTUBE_API_KEY) {
+
+    // Each platform has its own credentials and either can be configured
+    // alone, so the sweep collects whichever it can rather than refusing
+    // outright because one is missing.
+    const platforms: string[] = [];
+    if (process.env.YOUTUBE_API_KEY) platforms.push('YOUTUBE');
+    if (process.env.INSTAGRAM_ACCESS_TOKEN && process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
+      platforms.push('INSTAGRAM');
+    }
+
+    if (platforms.length === 0) {
       this.logger.warn(
-        'Competitor content sync skipped: YOUTUBE_API_KEY is not set, so no competitor uploads can be collected.',
+        'Competitor content sync skipped: no ingestion credentials are set (YOUTUBE_API_KEY, or ' +
+          'INSTAGRAM_ACCESS_TOKEN with INSTAGRAM_BUSINESS_ACCOUNT_ID), so no competitor posts can be collected.',
       );
       return;
     }
 
-    this.logger.log('Starting daily competitor content sync...');
+    this.logger.log(`Starting daily competitor content sync for ${platforms.join(', ')}...`);
 
     try {
       const accounts = await this.prisma.competitorAccount.findMany({
-        where: { platform: 'YOUTUBE', isActive: true },
+        where: { platform: { in: platforms }, isActive: true },
         select: {
           id: true,
           handle: true,
@@ -116,14 +128,14 @@ export class ContentIntelligenceScheduler {
         },
       });
 
-      this.logger.log(`Found ${accounts.length} active YouTube competitor account(s).`);
+      this.logger.log(`Found ${accounts.length} active competitor account(s) to sync.`);
 
       let imported = 0;
       let failures = 0;
 
       for (const account of accounts) {
         try {
-          const result = await this.socialScraper.syncYoutubeAccountContent(
+          const result = await this.socialScraper.syncAccountContent(
             account.organizationId,
             account.projectId,
             account.id,

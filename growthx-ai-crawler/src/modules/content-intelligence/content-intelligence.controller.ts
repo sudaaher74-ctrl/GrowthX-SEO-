@@ -170,7 +170,7 @@ export class ContentIntelligenceController {
     @Param('projectId') projectId: string,
     @Param('accountId') accountId: string,
   ) {
-    return this.socialScraper.syncYoutubeAccountContent(req.organizationId, projectId, accountId);
+    return this.socialScraper.syncAccountContent(req.organizationId, projectId, accountId);
   }
 
   // ── Classification ───────────────────────────────────────────────────────

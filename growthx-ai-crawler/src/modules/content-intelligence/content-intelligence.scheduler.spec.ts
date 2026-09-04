@@ -28,7 +28,7 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
     competitorMonitorService = { runCompetitorChangeDetection: jest.fn().mockResolvedValue([]) };
     contentStrategyService = { generateStrategy: jest.fn().mockResolvedValue({}) };
     socialScraper = {
-      syncYoutubeAccountContent: jest.fn().mockResolvedValue({ imported: 3, fetched: 3 }),
+      syncAccountContent: jest.fn().mockResolvedValue({ imported: 3, fetched: 3 }),
     };
     scheduler = new ContentIntelligenceScheduler(
       prisma,
@@ -77,8 +77,8 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
 
     await scheduler.handleDailyCompetitorContentSync();
 
-    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledTimes(2);
-    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledWith('org1', 'p1', 'acc1');
+    expect(socialScraper.syncAccountContent).toHaveBeenCalledTimes(2);
+    expect(socialScraper.syncAccountContent).toHaveBeenCalledWith('org1', 'p1', 'acc1');
   });
 
   it('keeps going when one channel fails', async () => {
@@ -87,21 +87,23 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
       { id: 'acc1', handle: '@deleted', projectId: 'p1', organizationId: 'org1' },
       { id: 'acc2', handle: '@amul', projectId: 'p1', organizationId: 'org1' },
     ]);
-    socialScraper.syncYoutubeAccountContent
+    socialScraper.syncAccountContent
       .mockRejectedValueOnce(new Error('channel not found'))
       .mockResolvedValueOnce({ imported: 5, fetched: 5 });
 
     await scheduler.handleDailyCompetitorContentSync();
 
-    expect(socialScraper.syncYoutubeAccountContent).toHaveBeenCalledTimes(2);
+    expect(socialScraper.syncAccountContent).toHaveBeenCalledTimes(2);
   });
 
   it('does not attempt a sync it cannot perform', async () => {
     delete process.env.YOUTUBE_API_KEY;
+    delete process.env.INSTAGRAM_ACCESS_TOKEN;
+    delete process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
 
     await scheduler.handleDailyCompetitorContentSync();
 
-    expect(socialScraper.syncYoutubeAccountContent).not.toHaveBeenCalled();
+    expect(socialScraper.syncAccountContent).not.toHaveBeenCalled();
   });
 
   it('honours the kill switch for the content sweep too', async () => {
@@ -110,7 +112,24 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
 
     await scheduler.handleDailyCompetitorContentSync();
 
-    expect(socialScraper.syncYoutubeAccountContent).not.toHaveBeenCalled();
+    expect(socialScraper.syncAccountContent).not.toHaveBeenCalled();
+  });
+
+  it('syncs whichever platforms are configured, not all or nothing', async () => {
+    // Each platform has its own credentials, so one missing set must not stop
+    // the other from being collected.
+    process.env.INSTAGRAM_ACCESS_TOKEN = 'a-long-lived-instagram-token-1234567890';
+    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID = '17841400000000000';
+    delete process.env.YOUTUBE_API_KEY;
+    prisma.competitorAccount.findMany.mockResolvedValue([
+      { id: 'acc1', handle: '@countrydelight', projectId: 'p1', organizationId: 'org1' },
+    ]);
+
+    await scheduler.handleDailyCompetitorContentSync();
+
+    const where = prisma.competitorAccount.findMany.mock.calls[0][0].where;
+    expect(where.platform.in).toEqual(['INSTAGRAM']);
+    expect(socialScraper.syncAccountContent).toHaveBeenCalledTimes(1);
   });
 
   it('leaves failed competitors out of the recurring sweep', () => {

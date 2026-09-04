@@ -211,6 +211,19 @@ export class HealthController implements OnApplicationBootstrap {
           'be added by hand before classification, pattern detection, gap analysis and strategy can run.',
       },
       {
+        name: 'Competitor content ingestion (Instagram)',
+        envVar: 'INSTAGRAM_ACCESS_TOKEN + INSTAGRAM_BUSINESS_ACCOUNT_ID',
+        // Both or neither: a token without the account id has nothing to run
+        // the Business Discovery query from.
+        configured:
+          realKey(process.env.INSTAGRAM_ACCESS_TOKEN) &&
+          Boolean(process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim()),
+        consequence:
+          'Competitor Instagram posts are not collected, so the cross-competitor matrix and pattern detection see ' +
+          'only whatever other platforms provide. Note that Business Discovery reads Business and Creator accounts ' +
+          'only; a competitor posting from a personal account cannot be read by any compliant method.',
+      },
+      {
         name: 'Billing (Razorpay)',
         envVar: 'RAZORPAY_KEY_ID',
         configured: realKey(process.env.RAZORPAY_KEY_ID),

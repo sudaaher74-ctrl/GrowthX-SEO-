@@ -1,6 +1,26 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { google } from 'googleapis';
+import axios from 'axios';
+
+/** The slice of Business Discovery this reads. */
+interface InstagramBusinessDiscovery {
+  followers_count?: number;
+  media_count?: number;
+  media?: {
+    data?: Array<{
+      id?: string;
+      caption?: string;
+      like_count?: number;
+      comments_count?: number;
+      timestamp?: string;
+      permalink?: string;
+      media_url?: string;
+      thumbnail_url?: string;
+      media_type?: string;
+    }>;
+  };
+}
 
 @Injectable()
 export class SocialScraperService {
@@ -247,6 +267,154 @@ export class SocialScraperService {
     return { platform: 'YOUTUBE', handle: account.handle, fetched: videoIds.length, imported };
   }
 
+  /**
+   * Syncs one competitor account, whichever platform it is on.
+   *
+   * The controller used to call the YouTube method directly, so an Instagram
+   * account's sync button reached YouTube code that immediately rejected it.
+   * Dispatching here keeps the caller honest about what it is asking for.
+   */
+  async syncAccountContent(
+    organizationId: string,
+    projectId: string,
+    accountId: string,
+    maxResults = 25,
+  ): Promise<{ platform: string; handle: string; fetched: number; imported: number }> {
+    const account = await this.prisma.competitorAccount.findFirst({
+      where: { id: accountId, organizationId, projectId },
+      select: { platform: true, handle: true },
+    });
+    if (!account) {
+      throw new NotFoundException('Competitor account not found for this project.');
+    }
+
+    if (account.platform === 'YOUTUBE') {
+      return this.syncYoutubeAccountContent(organizationId, projectId, accountId, maxResults);
+    }
+    if (account.platform === 'INSTAGRAM') {
+      return this.syncInstagramAccountContent(organizationId, projectId, accountId, maxResults);
+    }
+    return this.unsupportedPlatform(account.platform, account.handle);
+  }
+
+  /**
+   * Pulls a competitor's recent Instagram posts into the same pipeline.
+   *
+   * Uses Business Discovery, which is the only way Meta permits reading an
+   * account you do not own: the query runs *from* an Instagram Business
+   * account the deployment owns and names the competitor by username. One
+   * platform-owned account therefore serves every customer, exactly as one
+   * YouTube key does — no per-customer Facebook app, and no scraping, which
+   * would breach Meta's terms and break whenever the markup changed.
+   *
+   * Two limits are inherent rather than incidental, and worth knowing before
+   * anyone reads a gap as a finding. Only Business and Creator accounts are
+   * discoverable — a competitor on a personal account returns nothing, which
+   * is not the same as posting nothing. And Business Discovery exposes likes
+   * and comments but no view or play counts, so `engagementAvailable` is set
+   * from what actually came back rather than assumed.
+   */
+  async syncInstagramAccountContent(
+    organizationId: string,
+    projectId: string,
+    accountId: string,
+    maxResults = 25,
+  ): Promise<{ platform: string; handle: string; fetched: number; imported: number }> {
+    const account = await this.prisma.competitorAccount.findFirst({
+      where: { id: accountId, organizationId, projectId },
+    });
+    if (!account) {
+      throw new NotFoundException('Competitor account not found for this project.');
+    }
+    if (account.platform !== 'INSTAGRAM') {
+      return this.unsupportedPlatform(account.platform, account.handle);
+    }
+
+    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+    const igUserId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+    if (!token || !igUserId) {
+      throw new ServiceUnavailableException(
+        'Instagram ingestion is not configured: INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID must both ' +
+          'be set. Add competitor posts manually until they are.',
+      );
+    }
+
+    const username = account.handle.replace(/^@/, '').trim();
+    const fields =
+      `business_discovery.username(${username}){followers_count,media_count,` +
+      `media.limit(${maxResults}){id,caption,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url,media_type}}`;
+
+    let discovery: InstagramBusinessDiscovery | undefined;
+    try {
+      const { data } = await axios.get<{ business_discovery?: InstagramBusinessDiscovery }>(
+        `https://graph.facebook.com/v21.0/${igUserId}`,
+        { params: { fields, access_token: token }, timeout: 20_000 },
+      );
+      discovery = data.business_discovery;
+    } catch (err: any) {
+      const detail = err?.response?.data?.error?.message || err?.message || 'unknown error';
+      // Meta returns the same shape for "no such account", "not a business
+      // account" and "token expired", and the customer's next step differs
+      // for each — so the message is passed through rather than flattened.
+      throw new ServiceUnavailableException(`Instagram lookup failed for @${username}: ${detail}`);
+    }
+
+    if (!discovery) {
+      throw new NotFoundException(
+        `@${username} could not be read through Instagram Business Discovery. Only Business and Creator accounts ` +
+          'are discoverable; a personal account cannot be read this way.',
+      );
+    }
+
+    const media = discovery.media?.data ?? [];
+    const existing = await this.prisma.competitorContent.findMany({
+      where: { organizationId, projectId, accountId: account.id },
+      select: { contentUrl: true },
+    });
+    const seen = new Set(existing.map((row) => row.contentUrl).filter(Boolean));
+
+    let imported = 0;
+    for (const post of media) {
+      const url = post.permalink;
+      if (!url || seen.has(url)) continue;
+
+      const caption = post.caption ?? null;
+      await this.prisma.competitorContent.create({
+        data: {
+          organizationId,
+          projectId,
+          accountId: account.id,
+          platform: 'INSTAGRAM',
+          contentType: this.instagramContentType(post.media_type),
+          title: caption ? caption.split('\n')[0].slice(0, 200) : null,
+          description: caption,
+          caption,
+          hashtags: hashtagsFrom(caption),
+          contentUrl: url,
+          thumbnailUrl: post.thumbnail_url ?? post.media_url ?? null,
+          publishedAt: post.timestamp ? new Date(post.timestamp) : null,
+          // Business Discovery reports no view or play count at all.
+          viewsCount: null,
+          likesCount: post.like_count ?? null,
+          commentsCount: post.comments_count ?? null,
+          engagementAvailable: post.like_count != null || post.comments_count != null,
+        },
+      });
+      imported++;
+    }
+
+    await this.markSynced(account.id);
+    this.logger.log(`Imported ${imported} new Instagram item(s) for @${username}.`);
+    return { platform: 'INSTAGRAM', handle: account.handle, fetched: media.length, imported };
+  }
+
+  /** Maps Meta's media_type onto the pipeline's content types. */
+  private instagramContentType(mediaType?: string): string {
+    if (mediaType === 'VIDEO') return 'REEL';
+    if (mediaType === 'CAROUSEL_ALBUM') return 'CAROUSEL';
+    return 'IMAGE';
+  }
+
   private unsupportedPlatform(platform: string, handle: string): never {
     throw new ServiceUnavailableException(
       `Automated ${platform} ingestion is not available. ` +
@@ -293,4 +461,11 @@ function numberOrNull(value?: string | null): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Hashtags as written in the caption, which is where Instagram keeps them. */
+function hashtagsFrom(caption: string | null): string[] {
+  if (!caption) return [];
+  const found = caption.match(/#[\p{L}\p{N}_]+/gu) ?? [];
+  return [...new Set(found.map((tag) => tag.slice(1).toLowerCase()))].slice(0, 30);
 }

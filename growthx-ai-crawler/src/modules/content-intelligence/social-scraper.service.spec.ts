@@ -11,6 +11,9 @@ jest.mock('googleapis', () => ({
   },
 }));
 
+jest.mock('axios');
+
+import axios from 'axios';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
@@ -44,6 +47,127 @@ describe('SocialScraperService — competitor content ingestion', () => {
 
     service = module.get(SocialScraperService);
     delete process.env.YOUTUBE_API_KEY;
+    delete process.env.INSTAGRAM_ACCESS_TOKEN;
+    delete process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+    (axios.get as jest.Mock).mockReset();
+  });
+
+  describe('Instagram, via Business Discovery', () => {
+    const instagramAccount = {
+      id: 'acc_ig',
+      organizationId: ORG,
+      projectId: PROJ,
+      platform: 'INSTAGRAM',
+      handle: '@countrydelight',
+    };
+
+    function configured() {
+      process.env.INSTAGRAM_ACCESS_TOKEN = 'a-long-lived-instagram-token-1234567890';
+      process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID = '17841400000000000';
+      prisma.competitorAccount.findFirst.mockResolvedValue(instagramAccount);
+    }
+
+    it('needs both credentials, and says which are missing', async () => {
+      prisma.competitorAccount.findFirst.mockResolvedValue(instagramAccount);
+      process.env.INSTAGRAM_ACCESS_TOKEN = 'a-long-lived-instagram-token-1234567890';
+      // The account id is the thing the query runs FROM; a token alone cannot.
+
+      await expect(service.syncInstagramAccountContent(ORG, PROJ, 'acc_ig')).rejects.toThrow(
+        /INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID/,
+      );
+      expect(axios.get).not.toHaveBeenCalled();
+    });
+
+    it('imports posts and reads hashtags out of the caption', async () => {
+      configured();
+      (axios.get as jest.Mock).mockResolvedValue({
+        data: {
+          business_discovery: {
+            media: {
+              data: [
+                {
+                  id: '1',
+                  caption: 'Fresh milk at your door\n#milk #DairyFresh #milk',
+                  like_count: 240,
+                  comments_count: 12,
+                  timestamp: '2026-09-01T06:00:00+0000',
+                  permalink: 'https://www.instagram.com/p/ABC123/',
+                  media_type: 'VIDEO',
+                  thumbnail_url: 'https://cdn/thumb.jpg',
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const result = await service.syncInstagramAccountContent(ORG, PROJ, 'acc_ig');
+
+      expect(result).toMatchObject({ platform: 'INSTAGRAM', fetched: 1, imported: 1 });
+      const row = prisma.competitorContent.create.mock.calls[0][0].data;
+      expect(row.platform).toBe('INSTAGRAM');
+      expect(row.contentType).toBe('REEL');
+      expect(row.likesCount).toBe(240);
+      // Business Discovery reports no views at all — null, never zero.
+      expect(row.viewsCount).toBeNull();
+      expect(row.engagementAvailable).toBe(true);
+      expect(row.hashtags.sort()).toEqual(['dairyfresh', 'milk']);
+      expect(row.title).toBe('Fresh milk at your door');
+    });
+
+    it('does not re-import a post it already has', async () => {
+      configured();
+      prisma.competitorContent.findMany.mockResolvedValue([
+        { contentUrl: 'https://www.instagram.com/p/ABC123/' },
+      ]);
+      (axios.get as jest.Mock).mockResolvedValue({
+        data: {
+          business_discovery: {
+            media: {
+              data: [{ id: '1', permalink: 'https://www.instagram.com/p/ABC123/', media_type: 'IMAGE' }],
+            },
+          },
+        },
+      });
+
+      const result = await service.syncInstagramAccountContent(ORG, PROJ, 'acc_ig');
+
+      expect(result.imported).toBe(0);
+      expect(prisma.competitorContent.create).not.toHaveBeenCalled();
+    });
+
+    it('passes through what Meta said rather than flattening every failure', async () => {
+      // "No such account", "not a business account" and "token expired" all
+      // arrive the same shape and need different fixes from the customer.
+      configured();
+      (axios.get as jest.Mock).mockRejectedValue({
+        response: { data: { error: { message: 'Error validating access token: Session has expired' } } },
+      });
+
+      await expect(service.syncInstagramAccountContent(ORG, PROJ, 'acc_ig')).rejects.toThrow(
+        /Session has expired/,
+      );
+    });
+
+    it('explains that a personal account cannot be read at all', async () => {
+      configured();
+      (axios.get as jest.Mock).mockResolvedValue({ data: {} });
+
+      await expect(service.syncInstagramAccountContent(ORG, PROJ, 'acc_ig')).rejects.toThrow(
+        /Business and Creator accounts are discoverable/,
+      );
+    });
+
+    it('routes a sync to the platform the account is actually on', async () => {
+      configured();
+      (axios.get as jest.Mock).mockResolvedValue({
+        data: { business_discovery: { media: { data: [] } } },
+      });
+
+      const result = await service.syncAccountContent(ORG, PROJ, 'acc_ig');
+
+      expect(result.platform).toBe('INSTAGRAM');
+    });
   });
 
   it('refuses an account belonging to another organization', async () => {
