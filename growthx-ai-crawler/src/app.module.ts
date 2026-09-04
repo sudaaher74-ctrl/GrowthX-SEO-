@@ -49,10 +49,12 @@ import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { VoiceAgentModule } from './modules/voice-agent/voice-agent.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
+import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
 
 
 @Module({
   imports: [
+    CompetitorActionEngineModule,
     DiagnosticsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // `@nestjs/throttler` was a dependency but was never registered, so no

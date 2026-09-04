@@ -346,6 +346,8 @@ model Project {
   WeeklyDelta          WeeklyDelta[]
   ContentIntelligenceConfig ContentIntelligenceConfig?
   businessProfile      ProjectBusinessProfile?
+  competitorFindings   CompetitorFinding[]
+  strategyRuns         StrategyRun[]
   ContentStrategy      ContentStrategy[]
   integrations         Integration[]
   socialPosts          SocialPost[]
@@ -545,6 +547,17 @@ model CompetitorDomain {
   industry       String?
   description    String?
   phone          String?
+  /// The name this competitor trades under on Google Maps, which is often not
+  /// the name on their website and is what a Places lookup must match.
+  mapsName       String?
+  /// Channel URL or @handle. Resolved to a channel id at sync time.
+  youtubeUrl     String?
+  /// Professional (Business/Creator) account handle. Personal accounts cannot
+  /// be read by any compliant API, so one stored here may still be unreadable.
+  instagramHandle String?
+  /// City or service area this competitor actually operates in, which is what
+  /// makes a local comparison meaningful.
+  city           String?
   /// 0-100, how reliably the discovered identity is believed to be this
   /// competitor. Null until discovery has run. Never assume a match without it.
   confidenceScore Int?
@@ -564,6 +577,7 @@ model CompetitorDomain {
   updatedAt      DateTime            @default(now()) @updatedAt
   project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   socialAccounts CompetitorAccount[]
+  findings       CompetitorFinding[]
 
   @@unique([projectId, domain])
   @@index([projectId])
@@ -721,6 +735,12 @@ model ProjectBusinessProfile {
   confidence      String   @default("medium")
   /// Where each fact came from, so a wrong profile can be traced.
   signals         String[]
+  /// What the business is trying to achieve. Set by the operator, never
+  /// detected: the same site can be run for leads or for brand awareness and
+  /// only the owner knows which, yet it changes how every action ranks.
+  businessGoal    String?
+  /// Who they sell to, in the operator's own words.
+  targetAudience  String?
   /// ai | heuristic — how the profile was produced.
   source          String   @default("heuristic")
   detectedAt      DateTime @default(now())
@@ -2183,4 +2203,174 @@ model AgentToolCall {
 
   @@index([sessionId, createdAt])
   @@index([toolName, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Competitor-to-Action Engine
+//
+// The product already collects plenty of competitor signal. What it could not
+// do was answer "so what should this business do next, and on what evidence?"
+// These three models are that missing layer: an observation, a run that reads
+// observations, and an action a person can actually pick up.
+//
+// The hard rule everywhere below is that a recommendation cannot exist without
+// the evidence that produced it. An action links to the findings behind it, a
+// finding links to the URL it was read from and the date it was read, and
+// nothing is stored that was not observed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Which surface a finding was observed on.
+enum FindingCategory {
+  TECHNICAL_SEO
+  CONTENT_GAP
+  LOCAL_SEO
+  GOOGLE_BUSINESS_PROFILE
+  YOUTUBE
+  INSTAGRAM
+  AI_SEARCH
+}
+
+/// How much weight a finding can carry.
+///
+/// HIGH is a fact read directly from a page or an API. MEDIUM is a sound
+/// inference from those facts. LOW is a signal worth showing but not worth
+/// acting on alone — it is never enough on its own to raise an action above
+/// MEDIUM priority.
+enum FindingConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ActionPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// Who should pick the action up. Shown so a plan can be handed out rather
+/// than read.
+enum ActionOwner {
+  FOUNDER
+  MARKETER
+  SEO_SPECIALIST
+  DESIGNER
+  DEVELOPER
+}
+
+enum ActionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+}
+
+/// One observed signal, with everything needed to check it.
+///
+/// Deliberately not a metric row. A metric answers "what is the number"; a
+/// finding answers "what did we see, where, when, and why does it matter",
+/// which is the only kind of input a recommendation can honestly be built on.
+model CompetitorFinding {
+  id             String            @id @default(uuid())
+  organizationId String
+  projectId      String
+  /// Null when the finding is about the customer's own site rather than a
+  /// rival — "you have no city pages" is as much a finding as "they have six".
+  competitorId   String?
+  category       FindingCategory
+  /// Short, human, and specific: "Two competitors have city landing pages".
+  summary        String
+  /// The observation itself, in plain language.
+  detail         String
+  /// Where it was read. A page URL, a Maps listing, a channel — anything the
+  /// operator can open to see the same thing.
+  sourceUrl      String?
+  /// The platform the observation came from: WEBSITE | GOOGLE_MAPS | YOUTUBE |
+  /// INSTAGRAM | SEARCH_CONSOLE.
+  sourcePlatform String
+  /// The measured value behind the finding, when there is one.
+  metricName     String?
+  metricValue    Float?
+  /// The customer's equivalent, so a gap is visible without arithmetic.
+  customerValue  Float?
+  confidence     FindingConfidence @default(MEDIUM)
+  /// When the underlying data was read, not when the row was written: a
+  /// finding built from a week-old crawl must not look like today's.
+  observedAt     DateTime
+  createdAt      DateTime          @default(now())
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  competitor CompetitorDomain? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+  actions    StrategyAction[]
+
+  @@index([projectId, category])
+  @@index([projectId, observedAt])
+}
+
+/// One generation of the 30-day plan.
+///
+/// Kept as a run rather than overwriting a single plan so an operator can see
+/// what changed between one week and the next, and so an action carried over
+/// from a previous run is distinguishable from a new one.
+model StrategyRun {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  /// PENDING | RUNNING | COMPLETED | FAILED
+  status         String   @default("PENDING")
+  /// The goal the plan was written against, copied in so a later change to the
+  /// profile does not silently reinterpret an old plan.
+  businessGoal   String?
+  /// How many findings the plan was built from. A plan from three findings and
+  /// a plan from forty deserve different trust, and the number says so.
+  findingsUsed   Int      @default(0)
+  /// Which surfaces had no data at all, so the plan can admit its blind spots
+  /// instead of quietly omitting them.
+  coverageGaps   String[]
+  error          String?
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actions StrategyAction[]
+
+  @@index([projectId, startedAt])
+}
+
+/// One thing to do, why, and what it was based on.
+model StrategyAction {
+  id             String         @id @default(uuid())
+  organizationId String
+  projectId      String
+  runId          String
+  category       FindingCategory
+  title          String
+  /// What to do, step by step. Stored as steps rather than prose so the UI can
+  /// render a checklist and a person can stop halfway.
+  steps          String[]
+  /// Why this is worth doing, in plain language.
+  rationale      String
+  expectedImpact String
+  /// Rough hours. Deliberately coarse — a false precision here would be read
+  /// as a commitment.
+  effortHours    Int
+  priority       ActionPriority
+  owner          ActionOwner
+  /// 0-100. Computed, never authored: see OpportunityScoringService.
+  opportunityScore Int
+  /// The score in words, so nobody has to trust a number they cannot unpack.
+  scoreExplanation String
+  status         ActionStatus   @default(NOT_STARTED)
+  dueDate        DateTime?
+  /// Set the first time status became DONE, for completion reporting.
+  completedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  run      StrategyRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// The evidence this action rests on. An action with none should not exist.
+  findings CompetitorFinding[]
+
+  @@index([projectId, status])
+  @@index([runId, opportunityScore])
 }

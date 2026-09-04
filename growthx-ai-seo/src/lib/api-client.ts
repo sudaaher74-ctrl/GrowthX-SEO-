@@ -245,6 +245,8 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
 const get = <T>(path: string) => request<T>(path);
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+const patch = <T>(path: string, body?: unknown) =>
+  request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
 
 // ──────────────────────────────────────────────────────────────── types
 
@@ -1138,6 +1140,87 @@ export interface AutoIdentifiedCompetitor {
   source?: "search" | "ai" | "curated";
 }
 
+export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
+export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type FindingCategoryValue =
+  | "TECHNICAL_SEO"
+  | "CONTENT_GAP"
+  | "LOCAL_SEO"
+  | "GOOGLE_BUSINESS_PROFILE"
+  | "YOUTUBE"
+  | "INSTAGRAM"
+  | "AI_SEARCH";
+
+/** One piece of evidence, with everything needed to go and check it. */
+export interface CompetitorFindingRow {
+  id: string;
+  category: FindingCategoryValue;
+  summary: string;
+  detail: string;
+  source: {
+    competitor: string;
+    platform: string;
+    url: string | null;
+    observedAt: string;
+  };
+  metric: { name: string; competitor: number | null; you: number | null } | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface StrategyActionRow {
+  id: string;
+  category: FindingCategoryValue;
+  title: string;
+  steps: string[];
+  rationale: string;
+  expectedImpact: string;
+  effortHours: number;
+  priority: ActionPriorityValue;
+  owner: string;
+  opportunityScore: number;
+  /** The score in words, so the number can be argued with. */
+  scoreExplanation: string;
+  status: ActionStatusValue;
+  dueDate: string | null;
+  evidence: Array<{
+    id: string;
+    summary: string;
+    sourceUrl: string | null;
+    sourcePlatform: string;
+    observedAt: string;
+  }>;
+}
+
+export interface StrategyPlan {
+  needsData: boolean;
+  reason?: string;
+  runId?: string;
+  generatedAt?: string;
+  businessGoal?: string | null;
+  findingsUsed?: number;
+  /** Surfaces the plan could not see, stated rather than silently omitted. */
+  coverageGaps?: string[];
+  actions: StrategyActionRow[];
+}
+
+export interface ActionEngineOverview {
+  needsData: boolean;
+  reason?: string;
+  competitorsTracked: number;
+  lastRefreshedAt: string | null;
+  findingsUsed?: number;
+  coverageGaps?: string[];
+  outperformingYou?: Array<{ name: string; areas: string[]; findingCount: number }>;
+  thisWeek?: Array<{
+    id: string;
+    title: string;
+    priority: ActionPriorityValue;
+    opportunityScore: number;
+    scoreExplanation: string;
+    evidence: Array<{ id: string; summary: string; sourceUrl: string | null }>;
+  }>;
+}
+
 /** What the platform read off the client's own website. */
 export interface DetectedBusinessProfile {
   domain: string;
@@ -1590,6 +1673,37 @@ export const api = {
     ),
 
   // ── Search Console ───────────────────────────────────────────────────────
+  // ── Competitor-to-Action Engine ────────────────────────────────────────────
+  //
+  // Every response here is either real stored evidence or an explicit
+  // needs-data state. Nothing is estimated client-side.
+
+  actionEngineOverview: (projectId: string) =>
+    get<ActionEngineOverview>(`/api/projects/${projectId}/action-engine/overview`),
+
+  actionEngineFindings: (projectId: string, category?: string) =>
+    get<CompetitorFindingRow[]>(
+      `/api/projects/${projectId}/action-engine/findings${category ? `?category=${encodeURIComponent(category)}` : ""}`,
+    ),
+
+  actionEngineStrategy: (projectId: string) =>
+    get<StrategyPlan>(`/api/projects/${projectId}/action-engine/strategy`),
+
+  actionEngineGenerate: (projectId: string) =>
+    post<{ runId: string; actions: number }>(`/api/projects/${projectId}/action-engine/strategy/generate`, {}),
+
+  actionEngineSetStatus: (projectId: string, actionId: string, status: ActionStatusValue) =>
+    patch<{ id: string; status: ActionStatusValue }>(
+      `/api/projects/${projectId}/action-engine/actions/${actionId}`,
+      { status },
+    ),
+
+  actionEngineSetGoal: (projectId: string, businessGoal: string, targetAudience?: string) =>
+    patch<{ businessGoal: string | null }>(`/api/projects/${projectId}/action-engine/business-goal`, {
+      businessGoal,
+      targetAudience,
+    }),
+
   gscProperties: (projectId: string) =>
     get<{
       properties: { propertyId: string; kind: "DOMAIN" | "URL_PREFIX"; permissionLevel?: string }[];
