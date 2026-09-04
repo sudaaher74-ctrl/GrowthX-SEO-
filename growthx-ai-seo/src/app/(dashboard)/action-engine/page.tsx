@@ -24,6 +24,7 @@ import {
 import { LoadingState, NoDataState, FailedState } from "@/components/ui/truthful-state";
 import { api, ActionPriorityValue, ActionStatusValue, StrategyActionRow } from "@/lib/api-client";
 import { CompetitorSetup } from "./competitor-setup";
+import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 
@@ -86,7 +87,7 @@ export default function ActionEnginePage() {
 }
 
 function ActionEngineClient() {
-  const { projectId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("overview");
 
@@ -180,7 +181,19 @@ function ActionEngineClient() {
       )}
 
       {tab === "overview" && <Overview query={overview} />}
-      {tab === "setup" && <CompetitorSetup projectId={projectId} />}
+      {tab === "setup" && (
+        <div className="space-y-5">
+          <AutoCompetitorsPanel
+            projectId={projectId}
+            orgId={orgId}
+            onAddedSuccess={() => {
+              qc.invalidateQueries({ queryKey: ["action-engine-competitors", projectId] });
+              qc.invalidateQueries({ queryKey: ["action-engine-overview", projectId] });
+            }}
+          />
+          <CompetitorSetup projectId={projectId} />
+        </div>
+      )}
       {tab === "strategy" && <Strategy query={strategy} projectId={projectId} />}
       {tab === "activity" && <Activity runStatus={runStatus} overview={overview} />}
       {TAB_CATEGORIES[tab] && (

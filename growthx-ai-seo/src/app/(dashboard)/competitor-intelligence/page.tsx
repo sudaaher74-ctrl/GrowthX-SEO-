@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/console";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
+import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import {
   TruthfulState,
   MetricBadge,
@@ -122,6 +123,7 @@ function CompetitorIntelligenceClient() {
   const competitorsList = competitorsQuery.data ?? [];
 
   const tabs = [
+    { id: "identify", label: "Find Competitors" },
     { id: "benchmarks", label: "Comparison Benchmarks" },
     { id: "website", label: "Website Competitors" },
     { id: "local", label: "Local Competitors (Public Only)" },
@@ -268,7 +270,21 @@ function CompetitorIntelligenceClient() {
       {/* Tabs */}
       <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
-      {/* Tab 1: Comparison Benchmarks */}
+      {/* Tab 1: Automatic identification.
+          This panel existed and worked but nothing rendered it after the page
+          consolidation, so the scan was unreachable from the product while its
+          code and API were entirely intact. */}
+      {activeTab === "identify" && (
+        <AutoCompetitorsPanel
+          projectId={projectId!}
+          orgId={orgId}
+          onAddedSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+          }}
+        />
+      )}
+
+      {/* Tab 2: Comparison Benchmarks */}
       {activeTab === "benchmarks" && (
         <div className="space-y-4">
           <Panel
