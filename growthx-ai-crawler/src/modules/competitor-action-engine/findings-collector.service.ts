@@ -370,6 +370,22 @@ export function technicalFindings(customer: SiteProfile): DraftFinding[] {
     });
   }
 
+  if (customer.pagesNoindex > 0) {
+    findings.push({
+      category: 'TECHNICAL_SEO',
+      summary: `${customer.pagesNoindex} of your pages tell search engines not to index them`,
+      detail:
+        'These pages carry a noindex directive, so they cannot appear in search however good they are. ' +
+        'Sometimes that is intentional — a thank-you page, a staging leftover — and sometimes it is a ' +
+        'staging setting that shipped. Each one is worth a look.',
+      sourcePlatform: 'WEBSITE',
+      metricName: 'pages_noindex',
+      customerValue: customer.pagesNoindex,
+      confidence: 'HIGH',
+      observedAt,
+    });
+  }
+
   // Structured data is what lets an assistant quote a page rather than
   // paraphrase around it, so its absence is an AI-search finding.
   const schemaShare = customer.totalPages > 0 ? customer.pagesWithSchema / customer.totalPages : 0;

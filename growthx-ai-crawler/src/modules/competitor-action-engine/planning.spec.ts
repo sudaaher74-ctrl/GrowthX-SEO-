@@ -108,6 +108,43 @@ describe('technicalFindings', () => {
     expect(technicalFindings(clean)).toHaveLength(0);
   });
 
+  it('reports pages that tell search engines not to index them', () => {
+    // Counted but never surfaced until now: a noindex that shipped by accident
+    // costs a page all of its traffic, silently.
+    const findings = technicalFindings(
+      buildSiteProfile('mine.com', [page({ robotsMeta: 'noindex, follow' }), page()]),
+    );
+
+    const noindex = findings.find((finding) => finding.metricName === 'pages_noindex');
+    expect(noindex).toBeDefined();
+    expect(noindex!.customerValue).toBe(1);
+  });
+
+  it('turns a noindex finding into its own action, not a meta-description one', () => {
+    const findings = technicalFindings(
+      buildSiteProfile('mine.com', [page({ robotsMeta: 'noindex' }), page()]),
+    );
+    const noindex = findings.find((finding) => finding.metricName === 'pages_noindex')!;
+
+    const [action] = planActions([
+      {
+        id: 'n1',
+        competitorId: null,
+        category: 'TECHNICAL_SEO',
+        summary: noindex.summary,
+        detail: noindex.detail,
+        metricValue: null,
+        customerValue: noindex.customerValue ?? null,
+        confidence: 'HIGH',
+      },
+    ]);
+
+    expect(action.title).toContain('noindex');
+    // One accidental noindex is total loss on that page, so it is not ranked
+    // by how many there are.
+    expect(action.impact).toBe('HIGH');
+  });
+
   it('flags thin structured data as an AI-search problem', () => {
     const pages = Array.from({ length: 10 }, () => page({ schemaCount: 0 }));
     const findings = technicalFindings(buildSiteProfile('mine.com', pages));

@@ -18,8 +18,11 @@ export interface SiteProfile {
   pagesNoindex: number;
   pagesWithSchema: number;
   brokenLinks: number;
-  /** Most recent blog/article page, for content freshness. */
-  newestContentAt: Date | null;
+  // Content freshness is deliberately absent. The obvious implementation —
+  // the newest blog page's crawledAt — is the date we fetched it, not the date
+  // it was published, and the crawler stores no publish date. A field that
+  // looks like freshness and is really crawl recency is worse than no field:
+  // it would rank a stale site highly for having been crawled this morning.
   /** A sample URL per page type, so a finding can link to what was seen. */
   exampleUrlByType: Record<string, string>;
 }
@@ -33,7 +36,6 @@ export const EMPTY_PROFILE: Omit<SiteProfile, 'domain'> = {
   pagesNoindex: 0,
   pagesWithSchema: 0,
   brokenLinks: 0,
-  newestContentAt: null,
   exampleUrlByType: {},
 };
 
@@ -66,7 +68,6 @@ export function buildSiteProfile(domain: string, pages: ProfilePage[]): SiteProf
   let pagesMissingH1 = 0;
   let pagesNoindex = 0;
   let pagesWithSchema = 0;
-  let newestContentAt: Date | null = null;
   let crawledAt: Date | null = null;
 
   for (const page of reachable) {
@@ -78,9 +79,6 @@ export function buildSiteProfile(domain: string, pages: ProfilePage[]): SiteProf
     if (/noindex/i.test(page.robotsMeta ?? '')) pagesNoindex++;
     if (page.schemaCount > 0) pagesWithSchema++;
 
-    if (page.pageType === 'BLOG' && (!newestContentAt || page.crawledAt > newestContentAt)) {
-      newestContentAt = page.crawledAt;
-    }
     if (!crawledAt || page.crawledAt > crawledAt) crawledAt = page.crawledAt;
   }
 
@@ -94,7 +92,6 @@ export function buildSiteProfile(domain: string, pages: ProfilePage[]): SiteProf
     pagesNoindex,
     pagesWithSchema,
     brokenLinks: pages.filter((page) => page.statusCode >= 400).length,
-    newestContentAt,
     exampleUrlByType,
   };
 }

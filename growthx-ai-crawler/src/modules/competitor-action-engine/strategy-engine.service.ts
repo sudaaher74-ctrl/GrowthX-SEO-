@@ -256,6 +256,30 @@ function technicalActions(findings: PlannerFinding[]): DraftAction[] {
     const count = finding.customerValue ?? 0;
     const isBroken = /returned an error/.test(finding.summary);
     const isMeta = /meta description/.test(finding.summary);
+    const isNoindex = /not to index/.test(finding.summary);
+
+    if (isNoindex) {
+      return {
+        category: 'TECHNICAL_SEO' as const,
+        title: `Review ${count} page${count === 1 ? '' : 's'} marked noindex`,
+        steps: [
+          'List every page carrying a noindex directive.',
+          'Separate the deliberate ones — thank-you pages, internal search results, duplicates — from the rest.',
+          'For anything that should rank, remove the directive and request re-indexing in Search Console.',
+          'Check your staging configuration, which is where an accidental sitewide noindex usually comes from.',
+        ],
+        rationale: finding.detail,
+        expectedImpact:
+          'A page marked noindex earns nothing from search no matter how good it is. If even one is a mistake, ' +
+          'this is the cheapest traffic on the list.',
+        // Cheap to check, and the downside of one wrong noindex is total.
+        impact: 'HIGH' as const,
+        effortHours: 2,
+        findingIds: [finding.id],
+        competitorsWithEvidence: 0,
+        confidence: finding.confidence,
+      };
+    }
 
     return {
       category: 'TECHNICAL_SEO' as const,
