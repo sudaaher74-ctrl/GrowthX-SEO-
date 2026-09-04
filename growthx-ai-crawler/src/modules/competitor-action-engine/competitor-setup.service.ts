@@ -52,7 +52,7 @@ export class CompetitorSetupService {
     };
   }
 
-  async create(projectId: string, input: CompetitorInput) {
+  async create(organizationId: string, projectId: string, input: CompetitorInput) {
     const domain = normalizeDomain(input.websiteUrl || '');
     if (!domain || !domain.includes('.')) {
       throw new BadRequestException('A valid competitor website URL is required.');
@@ -73,7 +73,7 @@ export class CompetitorSetupService {
       throw new BadRequestException(`${domain} is already tracked for this project.`);
     }
 
-    return this.prisma.competitorDomain.create({
+    const competitor = await this.prisma.competitorDomain.create({
       data: {
         projectId,
         domain,
@@ -88,9 +88,22 @@ export class CompetitorSetupService {
         // has been crawled yet and the row must not claim otherwise.
       },
     });
+
+    await this.syncSocialAccounts(organizationId, projectId, competitor.id, {
+      youtubeUrl: competitor.youtubeUrl,
+      instagramHandle: competitor.instagramHandle,
+      displayName: competitor.name ?? competitor.domain,
+    });
+
+    return competitor;
   }
 
-  async update(projectId: string, competitorId: string, input: Partial<CompetitorInput>) {
+  async update(
+    organizationId: string,
+    projectId: string,
+    competitorId: string,
+    input: Partial<CompetitorInput>,
+  ) {
     const existing = await this.prisma.competitorDomain.findFirst({
       where: { id: competitorId, projectId },
       select: { id: true, domain: true },
@@ -110,7 +123,7 @@ export class CompetitorSetupService {
       }
     }
 
-    return this.prisma.competitorDomain.update({
+    const updated = await this.prisma.competitorDomain.update({
       where: { id: existing.id },
       data: {
         ...(input.businessName !== undefined
@@ -124,6 +137,78 @@ export class CompetitorSetupService {
           ? { instagramHandle: normalizeHandle(input.instagramHandle) }
           : {}),
       },
+    });
+
+    await this.syncSocialAccounts(organizationId, projectId, updated.id, {
+      youtubeUrl: updated.youtubeUrl,
+      instagramHandle: updated.instagramHandle,
+      displayName: updated.name ?? updated.domain,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Turns the handles typed into the form into accounts the sweep can read.
+   *
+   * Without this the fields were decorative. Content ingestion iterates
+   * `CompetitorAccount`, and those rows were only ever created by social
+   * discovery crawling a competitor's site for links — so a handle entered by
+   * hand reached the database and stopped there, and the operator had no way
+   * to tell that the channel they had just supplied was never being synced.
+   *
+   * A handle that is cleared or replaced deactivates its old account rather
+   * than deleting it: the content already collected under it stays attached to
+   * something, and reinstating the handle picks the history back up.
+   */
+  private async syncSocialAccounts(
+    organizationId: string,
+    projectId: string,
+    competitorId: string,
+    identities: { youtubeUrl: string | null; instagramHandle: string | null; displayName: string },
+  ): Promise<void> {
+    const wanted: Array<{ platform: 'YOUTUBE' | 'INSTAGRAM'; handle: string }> = [];
+
+    const youtube = youtubeHandle(identities.youtubeUrl);
+    if (youtube) wanted.push({ platform: 'YOUTUBE', handle: youtube });
+    if (identities.instagramHandle) {
+      wanted.push({ platform: 'INSTAGRAM', handle: identities.instagramHandle });
+    }
+
+    for (const entry of wanted) {
+      await this.prisma.competitorAccount.upsert({
+        where: {
+          projectId_platform_handle: {
+            projectId,
+            platform: entry.platform,
+            handle: entry.handle,
+          },
+        },
+        update: { competitorId, isActive: true, displayName: identities.displayName },
+        create: {
+          organizationId,
+          projectId,
+          competitorId,
+          platform: entry.platform,
+          handle: entry.handle,
+          displayName: identities.displayName,
+          discoverySource: 'MANUAL',
+          isActive: true,
+        },
+      });
+    }
+
+    // Anything previously entered for this competitor that is no longer wanted.
+    const keep = wanted.map((entry) => entry.handle);
+    await this.prisma.competitorAccount.updateMany({
+      where: {
+        projectId,
+        competitorId,
+        discoverySource: 'MANUAL',
+        platform: { in: ['YOUTUBE', 'INSTAGRAM'] },
+        ...(keep.length ? { handle: { notIn: keep } } : {}),
+      },
+      data: { isActive: false },
     });
   }
 
@@ -140,6 +225,30 @@ export class CompetitorSetupService {
     await this.prisma.competitorDomain.delete({ where: { id: existing.id } });
     return { removed: existing.domain };
   }
+}
+
+/**
+ * The channel identifier out of whatever form it was pasted in.
+ *
+ * `@handle`, a `/channel/UC…` id and a bare handle are all accepted; the
+ * scraper resolves whichever it is to a channel id at sync time.
+ */
+export function youtubeHandle(value?: string | null): string | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return null;
+
+  const channelId = /youtube\.com\/channel\/([^/?#]+)/i.exec(raw);
+  if (channelId) return channelId[1];
+
+  const atHandle = /youtube\.com\/@([^/?#]+)/i.exec(raw);
+  if (atHandle) return `@${atHandle[1]}`;
+
+  const legacy = /youtube\.com\/(?:c|user)\/([^/?#]+)/i.exec(raw);
+  if (legacy) return legacy[1];
+
+  if (raw.startsWith('@')) return raw;
+  // A bare word is a handle; anything with a slash we could not read.
+  return raw.includes('/') ? null : `@${raw}`;
 }
 
 /** `@handle`, `handle` and a profile URL all mean the same account. */

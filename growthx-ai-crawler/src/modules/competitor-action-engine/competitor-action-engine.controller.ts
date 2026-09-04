@@ -99,8 +99,12 @@ export class CompetitorActionEngineController {
 
   @Post('competitors')
   @ApiOperation({ summary: 'Track a competitor', description: 'Up to five per project.' })
-  addCompetitor(@Param('projectId') projectId: string, @Body() body: CompetitorDto) {
-    return this.setup.create(projectId, body);
+  addCompetitor(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: CompetitorDto,
+  ) {
+    return this.setup.create(req.user?.organizationId || req.organizationId, projectId, body);
   }
 
   @Patch('competitors/:competitorId')
@@ -110,11 +114,17 @@ export class CompetitorActionEngineController {
       'Everything except the website, which identifies the competitor and anchors its crawl history.',
   })
   updateCompetitor(
+    @Req() req: any,
     @Param('projectId') projectId: string,
     @Param('competitorId') competitorId: string,
     @Body() body: UpdateCompetitorDto,
   ) {
-    return this.setup.update(projectId, competitorId, body);
+    return this.setup.update(
+      req.user?.organizationId || req.organizationId,
+      projectId,
+      competitorId,
+      body,
+    );
   }
 
   @Delete('competitors/:competitorId')
