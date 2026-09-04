@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { CompetitorCrawlService } from './competitor-crawl.service';
 import { CompetitorMonitorService } from './competitor-monitor.service';
 import { ContentStrategyService } from './content-strategy.service';
+import { TRACKED_COMPETITOR_STATUSES } from './competitor-status';
 
 /**
  * Automated Cron Scheduler for Competitor Intelligence & Recurring Site Crawls.
@@ -40,7 +41,7 @@ export class ContentIntelligenceScheduler {
     try {
       const activeCompetitors = await this.prisma.competitorDomain.findMany({
         where: {
-          status: { in: ['ACTIVE', 'ANALYZING', 'PENDING'] },
+          status: { in: TRACKED_COMPETITOR_STATUSES },
         },
         select: {
           id: true,
@@ -87,7 +88,7 @@ export class ContentIntelligenceScheduler {
     try {
       const projects = await this.prisma.project.findMany({
         where: {
-          competitors: { some: { status: 'ACTIVE' } },
+          competitors: { some: { status: { in: TRACKED_COMPETITOR_STATUSES } } },
         },
         select: {
           id: true,
@@ -96,7 +97,7 @@ export class ContentIntelligenceScheduler {
         },
       });
 
-      this.logger.log(`Found ${projects.length} project(s) with active competitor accounts.`);
+      this.logger.log(`Found ${projects.length} project(s) with tracked competitors.`);
 
       for (const p of projects) {
         try {

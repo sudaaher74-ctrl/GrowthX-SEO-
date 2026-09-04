@@ -28,6 +28,7 @@ import { SocialDiscoveryService } from '../content-intelligence/social-discovery
 import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
 import { CompetitorVerificationService, RejectedCompetitor, VerifiableCompetitor } from './competitor-verification.service';
 import { CompetitorDiscoveryService } from './competitor-discovery.service';
+import { COMPETITOR_STATUS } from '../content-intelligence/competitor-status';
 import { WebSearchService } from './web-search.service';
 import {
   ANSWER_INSTRUCTIONS,
@@ -695,7 +696,7 @@ export class MarketResearchService {
           industry: item.industry || undefined,
           description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
-          status: 'ANALYZED',
+          status: COMPETITOR_STATUS.ANALYZED,
           lastAnalyzedAt: new Date(),
         },
         create: {
@@ -706,7 +707,7 @@ export class MarketResearchService {
           industry: item.industry || undefined,
           description: item.description || (item.location ? `Based in ${item.location}` : undefined),
           confidenceScore: score,
-          status: 'ANALYZED',
+          status: COMPETITOR_STATUS.ANALYZED,
           lastAnalyzedAt: new Date(),
         },
       });
