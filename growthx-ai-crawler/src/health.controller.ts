@@ -137,13 +137,38 @@ export class HealthController implements OnApplicationBootstrap {
         consequence: 'Market Research cannot run at all without one of these.',
       },
       {
-        name: 'Live web search',
+        name: 'Live web search (Tavily)',
+        envVar: 'TAVILY_API_KEY',
+        // This entry used to check OPENROUTER_API_KEY / OPENAI_API_KEY, from
+        // when search meant a model's hosted web plugin. `WebSearchService`
+        // has read TAVILY_API_KEY since it was introduced, so the report was
+        // answering about a key the searching code does not consult — and it
+        // now gates two more features than it did then.
+        configured: realKey(process.env.TAVILY_API_KEY),
+        consequence:
+          'Three things degrade without it. Competitors are found from model recall and the curated list ' +
+          'only, so a client outside the curated industries may get few or none. The keyword gap matrix ' +
+          'cannot see who ranks for a term, so every competitor column reads "not measured". And Market ' +
+          "Research answers from the client's own data with no public sources cited.",
+      },
+      {
+        name: 'Model-hosted web search',
         envVar: 'OPENROUTER_API_KEY (with credit) or OPENAI_API_KEY',
         // Groq has no hosted search, and OpenRouter bills the web plugin.
         configured: openai || (openrouter && marketProvider !== 'groq'),
         consequence:
-          'Market Research answers from the client\'s own crawl, prompts and visibility data only; ' +
-          'no public web sources are cited.',
+          'A second search path Market Research can fall back on. Not required when Tavily is configured.',
+      },
+      {
+        name: 'Recurring competitor crawls',
+        envVar: 'COMPETITOR_CRON_ENABLED',
+        // A kill switch is invisible once flipped: the jobs log one line and
+        // return, and every tab fed by them simply stays empty.
+        configured: process.env.COMPETITOR_CRON_ENABLED !== 'false',
+        consequence:
+          'The daily competitor recrawl and change-detection sweeps are switched off, so competitor pages ' +
+          'and content are never refreshed and the tabs reading them stay empty. Unset this variable, or ' +
+          'set it to anything but "false", to re-enable them.',
       },
       {
         name: 'Semantic retrieval (embeddings)',

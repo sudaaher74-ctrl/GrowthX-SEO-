@@ -48,10 +48,12 @@ import { ContentIntelligenceModule } from './modules/content-intelligence/conten
 import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { VoiceAgentModule } from './modules/voice-agent/voice-agent.module';
+import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 
 
 @Module({
   imports: [
+    DiagnosticsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // `@nestjs/throttler` was a dependency but was never registered, so no
     // route had any rate limit at all. Two buckets: a burst ceiling and a
