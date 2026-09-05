@@ -30,6 +30,7 @@ import {
   Zap,
   Check,
   Activity,
+  Layers,
 } from "lucide-react";
 import {
   ActionButton,
@@ -215,6 +216,7 @@ function CompetitorIntelligenceClient() {
   const [addMode, setAddMode] = useState<"website" | "local" | "manual">("website");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState<"all" | "spotlight">("all");
 
   // Add form fields
   const [competitorName, setCompetitorName] = useState("");
@@ -345,6 +347,60 @@ function CompetitorIntelligenceClient() {
     }
     return competitorsList[0];
   }, [competitorsList, selectedCompetitorId]);
+
+  // Simultaneous multi-competitor comparison data and rankings
+  const allEntitiesRanked = useMemo(() => {
+    const customerHealth = clientRow?.health ?? 5;
+    const customerShare = clientRow?.aiCitationSharePct ?? (visibility.data?.summary?.citationSharePct ?? 0);
+    const customerReviews = localSeo.data?.reviewCount ?? 0;
+    const customerRating = localSeo.data?.rating ?? 0;
+
+    const list = [
+      {
+        id: "you",
+        isYou: true,
+        name: clientRow?.name || "Your Business",
+        domain: clientRow?.domain || "aivaenterprises.com",
+        health: customerHealth,
+        share: customerShare,
+        rating: customerRating,
+        reviews: customerReviews,
+      },
+      ...competitorsList.map((c: any) => {
+        const sov = visibility.data?.shareOfVoice?.find((s) => s.domain === c.domain);
+        return {
+          id: c.id,
+          isYou: false,
+          name: c.label || c.domain,
+          domain: c.domain,
+          health: typeof c.healthScore === "number" ? c.healthScore : null,
+          share: typeof c.aiCitationSharePct === "number" ? c.aiCitationSharePct : (sov?.sharePct ?? null),
+          rating: typeof c.rating === "number" ? c.rating : null,
+          reviews: typeof c.reviewCount === "number" ? c.reviewCount : null,
+        };
+      }),
+    ];
+
+    // Compute health rankings
+    const sortedByHealth = [...list].sort((a, b) => (b.health ?? -1) - (a.health ?? -1));
+    const healthRankMap = new Map<string, number>();
+    sortedByHealth.forEach((item, idx) => healthRankMap.set(item.id, idx + 1));
+
+    // Determine category champions
+    const techLeader = sortedByHealth[0];
+    const citationLeader = [...list].sort((a, b) => (b.share ?? -1) - (a.share ?? -1))[0];
+    const reviewLeader = [...list].sort((a, b) => (b.reviews ?? -1) - (a.reviews ?? -1))[0];
+
+    return {
+      list: list.map((item) => ({
+        ...item,
+        rank: healthRankMap.get(item.id) || 1,
+      })),
+      techLeader,
+      citationLeader,
+      reviewLeader,
+    };
+  }, [clientRow, localSeo.data, competitorsList, visibility.data]);
 
   return (
     <div className="space-y-5 pb-12">
@@ -618,160 +674,430 @@ function CompetitorIntelligenceClient() {
             </div>
           </div>
 
-          {/* TIER 2: Interactive Head-to-Head (H2H) Comparison Spotlight */}
+          {/* TIER 2: Compare All Simultaneously or 1-on-1 Spotlight */}
           {selectedCompetitor && (
             <div className="rounded-2xl border bg-white p-5 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-brand-100">
                 <div>
                   <div className="flex items-center gap-2">
                     <Swords size={16} className="text-brand-900" />
-                    <h3 className="text-[14px] font-bold text-brand-950">Head-to-Head Comparison Spotlight</h3>
+                    <h3 className="text-[14px] font-bold text-brand-950">
+                      {compareMode === "all" ? "Multi-Competitor Landscape Comparison" : "Head-to-Head 1-on-1 Spotlight"}
+                    </h3>
                     <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
-                      Interactive Matchup
+                      {compareMode === "all" ? `All ${cohortStats.totalTracked} Entities Parallel` : "Interactive Matchup"}
                     </span>
                   </div>
                   <p className="text-[11.5px] text-brand-500 mt-0.5">
-                    Side-by-side technical, AI authority, and reputation benchmark against your chosen rival
+                    {compareMode === "all"
+                      ? "Simultaneous side-by-side benchmark of your domain against every tracked rival in parallel"
+                      : "Side-by-side technical, AI authority, and reputation benchmark against your chosen rival"}
                   </p>
                 </div>
 
-                {/* Rival Selector Dropdown */}
-                <div className="flex items-center gap-2">
-                  <label className="text-[11px] font-medium text-brand-500 whitespace-nowrap">Compare vs:</label>
-                  <select
-                    value={selectedCompetitor.id}
-                    onChange={(e) => setSelectedCompetitorId(e.target.value)}
-                    aria-label="Select rival for head-to-head comparison"
-                    className="h-8 rounded-lg border bg-white px-2.5 text-[12px] font-semibold text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                    style={{ borderColor: "var(--border-color)" }}
-                  >
-                    {competitorsList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label || c.domain}
-                      </option>
-                    ))}
-                  </select>
+                {/* View Mode Switcher */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex rounded-lg border p-0.5 bg-brand-50" style={{ borderColor: "var(--border-color)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setCompareMode("all")}
+                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
+                        compareMode === "all"
+                          ? "bg-white text-brand-950 shadow-2xs"
+                          : "text-brand-500 hover:text-brand-950"
+                      }`}
+                    >
+                      <Layers size={12} />
+                      Compare All ({cohortStats.totalTracked})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareMode("spotlight")}
+                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
+                        compareMode === "spotlight"
+                          ? "bg-white text-brand-950 shadow-2xs"
+                          : "text-brand-500 hover:text-brand-950"
+                      }`}
+                    >
+                      <Swords size={12} />
+                      1-on-1 Spotlight
+                    </button>
+                  </div>
+
+                  {compareMode === "spotlight" && (
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[11px] font-medium text-brand-500 whitespace-nowrap">Rival:</label>
+                      <select
+                        value={selectedCompetitor.id}
+                        onChange={(e) => setSelectedCompetitorId(e.target.value)}
+                        aria-label="Select rival for head-to-head comparison"
+                        className="h-8 rounded-lg border bg-white px-2.5 text-[12px] font-semibold text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
+                        style={{ borderColor: "var(--border-color)" }}
+                      >
+                        {competitorsList.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label || c.domain}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Side-by-side comparison layout */}
-              <div className="grid grid-cols-1 md:grid-cols-11 gap-4 pt-5 items-center">
-                {/* Left: You */}
-                <div className="md:col-span-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-[13px] text-brand-950">{clientRow?.name || "Your Business"}</span>
-                          <span className="rounded bg-brand-950 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">You</span>
+              {/* MODE A: Compare All Competitors Simultaneously */}
+              {compareMode === "all" && (
+                <div className="space-y-4 pt-4">
+                  {/* Category Champions Quick Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-1">
+                    <div className="flex items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/40 px-3.5 py-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                        <Award size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Tech SEO Champion</div>
+                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
+                          {allEntitiesRanked.techLeader?.name} ({allEntitiesRanked.techLeader?.health != null ? `${allEntitiesRanked.techLeader.health}/100` : "—"})
                         </div>
-                        <p className="font-mono text-[11px] text-brand-500">{clientRow?.domain || "aivaenterprises.com"}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      Active Project
-                    </span>
-                  </div>
 
-                  {/* Metrics Row */}
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-200/60 text-center">
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerHealth}/100</div>
+                    <div className="flex items-center gap-2.5 rounded-xl border border-brand-200 bg-brand-50/50 px-3.5 py-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+                        <Sparkles size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">AI Citations Leader</div>
+                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
+                          {allEntitiesRanked.citationLeader?.name} ({allEntitiesRanked.citationLeader?.share != null ? `${allEntitiesRanked.citationLeader.share}%` : "—"})
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerShare}%</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-950">
-                        {cohortStats.customerReviews ? cohortStats.customerReviews.toLocaleString() : "0"}
+
+                    <div className="flex items-center gap-2.5 rounded-xl border border-brand-200 bg-brand-50/50 px-3.5 py-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                        <Star size={15} className="fill-amber-500 text-amber-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">Review Volume Leader</div>
+                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
+                          {allEntitiesRanked.reviewLeader?.name} ({allEntitiesRanked.reviewLeader?.reviews ? allEntitiesRanked.reviewLeader.reviews.toLocaleString() : "0"})
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Center: VS & Advantages */}
-                <div className="md:col-span-3 flex flex-col items-center justify-center text-center px-2 py-1 space-y-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-950 text-white font-black text-[12px] shadow-xs ring-4 ring-brand-100">
-                    VS
+                  {/* Multi-Card Parallel Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                    {allEntitiesRanked.list.map((entity) => {
+                      const isYou = entity.isYou;
+                      const isSelected = selectedCompetitor?.id === entity.id;
+                      const healthDelta = entity.health != null && cohortStats.customerHealth != null
+                        ? entity.health - cohortStats.customerHealth
+                        : null;
+
+                      return (
+                        <div
+                          key={entity.id}
+                          className={`rounded-xl border p-4 flex flex-col justify-between transition ${
+                            isYou
+                              ? "border-brand-950 bg-brand-50/40 ring-1 ring-brand-950/20 shadow-xs"
+                              : isSelected
+                              ? "border-brand-400 bg-white shadow-xs"
+                              : "border-brand-200 bg-white hover:border-brand-300 shadow-2xs"
+                          }`}
+                        >
+                          <div className="space-y-3.5">
+                            {/* Card Header */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <EntityAvatar name={entity.name} isYou={isYou} />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-[13px] text-brand-950 truncate">
+                                      {entity.name}
+                                    </span>
+                                    {isYou && (
+                                      <span className="rounded bg-brand-950 px-1.5 py-0.2 text-[8.5px] font-bold uppercase text-white shrink-0">
+                                        You
+                                      </span>
+                                    )}
+                                  </div>
+                                  <a
+                                    href={`https://${entity.domain}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-0.5 font-mono text-[10.5px] text-brand-400 hover:text-brand-700 truncate"
+                                  >
+                                    {entity.domain}
+                                    <ExternalLink size={9} className="shrink-0" />
+                                  </a>
+                                </div>
+                              </div>
+
+                              {/* Rank badge */}
+                              <span
+                                className={`shrink-0 flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold font-mono ${
+                                  entity.rank === 1
+                                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                    : entity.rank === 2
+                                    ? "bg-slate-100 text-slate-700 border border-slate-200"
+                                    : "bg-brand-100 text-brand-600"
+                                }`}
+                              >
+                                #{entity.rank}
+                              </span>
+                            </div>
+
+                            {/* Metric 1: Tech SEO Health */}
+                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold uppercase text-brand-400">Tech SEO Health</span>
+                                {entity.health != null ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono font-bold text-[13px] text-brand-950">
+                                      {entity.health}
+                                      <span className="text-[10px] text-brand-400 font-normal">/100</span>
+                                    </span>
+                                    {!isYou && healthDelta != null && healthDelta !== 0 && (
+                                      <span
+                                        className={`text-[9.5px] font-mono font-semibold px-1 rounded ${
+                                          healthDelta > 0
+                                            ? "bg-amber-100 text-amber-700"
+                                            : "bg-emerald-100 text-emerald-700"
+                                        }`}
+                                      >
+                                        {healthDelta > 0 ? `+${healthDelta}` : `${healthDelta}`} vs You
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[10.5px] font-mono text-brand-400">Ready for crawl</span>
+                                )}
+                              </div>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    (entity.health ?? 0) >= 70 ? "bg-emerald-500" : (entity.health ?? 0) >= 40 ? "bg-amber-500" : "bg-rose-500"
+                                  }`}
+                                  style={{ width: `${Math.min(100, Math.max(5, entity.health ?? 5))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Metric 2: AI Citation Share */}
+                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold uppercase text-brand-400">AI Citation Share</span>
+                                <span className="font-mono font-bold text-[13px] text-brand-950">
+                                  {entity.share != null ? `${entity.share}%` : "—"}
+                                </span>
+                              </div>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                                <div
+                                  className="h-full rounded-full bg-brand-950"
+                                  style={{ width: `${Math.min(100, Math.max(0, entity.share ?? 0))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Metric 3: Google Reputation */}
+                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold uppercase text-brand-400">Reputation</span>
+                                {entity.rating != null && entity.rating > 0 ? (
+                                  <div className="flex items-center gap-1">
+                                    <Star size={11} className="fill-amber-400 text-amber-400" />
+                                    <span className="font-bold text-[12px] text-brand-950">{entity.rating.toFixed(1)}</span>
+                                    <span className="font-mono text-[10px] text-brand-400">
+                                      ({entity.reviews ? entity.reviews.toLocaleString() : 0})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10.5px] font-mono text-brand-400">Pending GMB</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Advantage / Posture Tag */}
+                            <div>
+                              {isYou ? (
+                                <span className="block text-center rounded-md bg-brand-100 border border-brand-200 px-2 py-1 text-[10.5px] font-semibold text-brand-800">
+                                  ⭐ Baseline Workspace Site
+                                </span>
+                              ) : (
+                                <span
+                                  className={`block text-center rounded-md px-2 py-1 text-[10.5px] font-semibold ${
+                                    entity.rank === 1
+                                      ? "bg-amber-50 border border-amber-200 text-amber-800"
+                                      : (entity.health ?? 0) >= cohortStats.customerHealth
+                                      ? "bg-rose-50 border border-rose-200 text-rose-700"
+                                      : "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                                  }`}
+                                >
+                                  {entity.rank === 1
+                                    ? "Market Health Leader"
+                                    : (entity.health ?? 0) >= cohortStats.customerHealth
+                                    ? "Rival Technical Lead"
+                                    : "You Outperform on SEO"}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Actions */}
+                          <div className="pt-3 mt-3 border-t border-brand-100 flex items-center justify-between gap-1">
+                            {isYou ? (
+                              <span className="text-[10.5px] font-medium text-brand-400 italic">Primary Workspace</span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setSelectedCompetitorId(entity.id);
+                                    setCompareMode("spotlight");
+                                  }}
+                                  className="text-[11px] font-semibold text-brand-700 hover:text-brand-950 transition flex items-center gap-1"
+                                >
+                                  1-on-1 Spotlight →
+                                </button>
+                                <button
+                                  onClick={() => crawlCompetitorMutation.mutate(entity.id)}
+                                  disabled={crawlCompetitorMutation.isPending}
+                                  title="Crawl public website"
+                                  className="rounded p-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100 transition"
+                                >
+                                  <RefreshCw size={11} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  <div className="space-y-1 w-full max-w-[210px]">
-                    {cohortStats.customerHealth >= ((selectedCompetitor as any).healthScore || 0) ? (
-                      <span className="flex items-center justify-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-[10.5px] font-semibold text-emerald-700">
-                        <Check size={12} /> Tech Health Advantage
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10.5px] font-semibold text-amber-700">
-                        <Zap size={12} /> Rival Health Lead
-                      </span>
-                    )}
-
-                    <span className="flex items-center justify-center gap-1 rounded-md bg-brand-50 border border-brand-200 px-2 py-1 text-[10.5px] font-semibold text-brand-700">
-                      <Sparkles size={11} /> AI Citation Opportunity
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => crawlCompetitorMutation.mutate(selectedCompetitor.id)}
-                    disabled={crawlCompetitorMutation.isPending}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-950 underline underline-offset-2 transition"
-                  >
-                    {crawlCompetitorMutation.isPending ? (
-                      <>
-                        <RefreshCw size={11} className="animate-spin" /> Crawling Rival...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw size={11} /> Refresh Public Signals
-                      </>
-                    )}
-                  </button>
                 </div>
+              )}
 
-                {/* Right: Selected Competitor */}
-                <div className="md:col-span-4 rounded-xl border border-brand-200 bg-white p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <EntityAvatar name={selectedCompetitor.label || selectedCompetitor.domain} />
+              {/* MODE B: 1-on-1 Head-to-Head Spotlight */}
+              {compareMode === "spotlight" && (
+                <div className="grid grid-cols-1 md:grid-cols-11 gap-4 pt-5 items-center">
+                  {/* Left: You */}
+                  <div className="md:col-span-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[13px] text-brand-950">{clientRow?.name || "Your Business"}</span>
+                            <span className="rounded bg-brand-950 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">You</span>
+                          </div>
+                          <p className="font-mono text-[11px] text-brand-500">{clientRow?.domain || "aivaenterprises.com"}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        Active Project
+                      </span>
+                    </div>
+
+                    {/* Metrics Row */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-200/60 text-center">
                       <div>
-                        <span className="font-bold text-[13px] text-brand-950">
-                          {selectedCompetitor.label || selectedCompetitor.domain}
-                        </span>
-                        <p className="font-mono text-[11px] text-brand-500">{selectedCompetitor.domain}</p>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerHealth}/100</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerShare}%</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-950">
+                          {cohortStats.customerReviews ? cohortStats.customerReviews.toLocaleString() : "0"}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
-                      Tracked Rival
-                    </span>
                   </div>
 
-                  {/* Metrics Row */}
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-100 text-center">
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-700">
-                        {(selectedCompetitor as any).healthScore != null ? `${(selectedCompetitor as any).healthScore}/100` : "Ready"}
-                      </div>
+                  {/* Center: VS & Advantages */}
+                  <div className="md:col-span-3 flex flex-col items-center justify-center text-center px-2 py-1 space-y-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-950 text-white font-black text-[12px] shadow-xs ring-4 ring-brand-100">
+                      VS
                     </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-700">
-                        {(selectedCompetitor as any).aiCitationSharePct != null ? `${(selectedCompetitor as any).aiCitationSharePct}%` : "—"}
-                      </div>
+
+                    <div className="space-y-1 w-full max-w-[210px]">
+                      {cohortStats.customerHealth >= ((selectedCompetitor as any).healthScore || 0) ? (
+                        <span className="flex items-center justify-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-[10.5px] font-semibold text-emerald-700">
+                          <Check size={12} /> Tech Health Advantage
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10.5px] font-semibold text-amber-700">
+                          <Zap size={12} /> Rival Health Lead
+                        </span>
+                      )}
+
+                      <span className="flex items-center justify-center gap-1 rounded-md bg-brand-50 border border-brand-200 px-2 py-1 text-[10.5px] font-semibold text-brand-700">
+                        <Sparkles size={11} /> AI Citation Opportunity
+                      </span>
                     </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
-                      <div className="font-mono font-bold text-[15px] text-brand-700">
-                        {(selectedCompetitor as any).reviewCount != null ? (selectedCompetitor as any).reviewCount.toLocaleString() : "—"}
+
+                    <button
+                      onClick={() => crawlCompetitorMutation.mutate(selectedCompetitor.id)}
+                      disabled={crawlCompetitorMutation.isPending}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-950 underline underline-offset-2 transition"
+                    >
+                      {crawlCompetitorMutation.isPending ? (
+                        <>
+                          <RefreshCw size={11} className="animate-spin" /> Crawling Rival...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={11} /> Refresh Public Signals
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Right: Selected Competitor */}
+                  <div className="md:col-span-4 rounded-xl border border-brand-200 bg-white p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <EntityAvatar name={selectedCompetitor.label || selectedCompetitor.domain} />
+                        <div>
+                          <span className="font-bold text-[13px] text-brand-950">
+                            {selectedCompetitor.label || selectedCompetitor.domain}
+                          </span>
+                          <p className="font-mono text-[11px] text-brand-500">{selectedCompetitor.domain}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
+                        Tracked Rival
+                      </span>
+                    </div>
+
+                    {/* Metrics Row */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-100 text-center">
+                      <div>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-700">
+                          {(selectedCompetitor as any).healthScore != null ? `${(selectedCompetitor as any).healthScore}/100` : "Ready"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-700">
+                          {(selectedCompetitor as any).aiCitationSharePct != null ? `${(selectedCompetitor as any).aiCitationSharePct}%` : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
+                        <div className="font-mono font-bold text-[15px] text-brand-700">
+                          {(selectedCompetitor as any).reviewCount != null ? (selectedCompetitor as any).reviewCount.toLocaleString() : "—"}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
