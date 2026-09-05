@@ -11,6 +11,7 @@ import { CreatorService } from './creator.service';
 import { CampaignService } from './campaign.service';
 import { SocialScraperService } from './social-scraper.service';
 import { SocialDiscoveryService } from './social-discovery.service';
+import { OwnSocialSyncService } from './own-social-sync.service';
 import { CompetitorCrawlService } from './competitor-crawl.service';
 import { VideoIntelligenceService } from './video-intelligence.service';
 import { CrossCompetitorMatrixService } from './cross-competitor-matrix.service';
@@ -44,6 +45,7 @@ import { CompetitorActionEngineModule } from '../competitor-action-engine/compet
     CampaignService,
     SocialScraperService,
     SocialDiscoveryService,
+    OwnSocialSyncService,
     CompetitorCrawlService,
     VideoIntelligenceService,
     CrossCompetitorMatrixService,
@@ -53,10 +55,17 @@ import { CompetitorActionEngineModule } from '../competitor-action-engine/compet
     ContentIntelligenceScheduler,
   ],
   exports: [
+    // The three stages the nightly analysis chain walks in order. They were
+    // providers only, reachable from this module's own controller and nowhere
+    // else, which is part of why nothing ever ran them in sequence.
+    ClassificationService,
+    PatternDetectionService,
+    GapAnalysisService,
     ContentStrategyService,
     ContentCreationService,
     SocialScraperService,
     SocialDiscoveryService,
+    OwnSocialSyncService,
     CompetitorCrawlService,
     VideoIntelligenceService,
     CrossCompetitorMatrixService,

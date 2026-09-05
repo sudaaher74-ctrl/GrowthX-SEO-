@@ -7,6 +7,8 @@ import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
 import { CompetitorLocalService } from './competitor-local.service';
 import { WebsiteComparisonService } from './website-comparison.service';
+import { CompetitorSeoReportService } from './competitor-seo-report.service';
+import { SiteProfileLoader } from './site-profile.loader';
 import { LocalSeoModule } from '../local-seo/local-seo.module';
 
 /**
@@ -27,6 +29,8 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     CompetitorSetupService,
     CompetitorLocalService,
     WebsiteComparisonService,
+    CompetitorSeoReportService,
+    SiteProfileLoader,
   ],
   exports: [
     FindingsCollectorService,
@@ -35,6 +39,8 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     CompetitorSetupService,
     CompetitorLocalService,
     WebsiteComparisonService,
+    CompetitorSeoReportService,
+    SiteProfileLoader,
   ],
 })
 export class CompetitorActionEngineModule {}

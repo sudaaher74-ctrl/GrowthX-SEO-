@@ -658,7 +658,15 @@ model SocialPost {
   fetchedAt      DateTime  @default(now())
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@unique([platform, postId])
+  /// Scoped to the project, which is what a post belongs to here.
+  ///
+  /// Keyed on [platform, postId] alone, one competitor's video could exist in
+  /// this table only once across the whole installation — so the second agency
+  /// to track the same channel silently overwrote the first agency's row and
+  /// took the post with it. Competitor sites are deliberately shared between
+  /// projects, so two projects reading the same channel is the normal case,
+  /// not an edge one.
+  @@unique([projectId, platform, postId])
   @@index([projectId, platform, isCompetitor])
 }
 

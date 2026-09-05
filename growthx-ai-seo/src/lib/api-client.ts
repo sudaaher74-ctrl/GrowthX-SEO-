@@ -1443,6 +1443,55 @@ export interface DiscoveryStatus {
   }[];
 }
 
+
+/** One problem the crawl found on a site, and where to see it. */
+export interface CompetitorIssueGroup {
+  issueType: string;
+  severity: string;
+  pages: number;
+  description: string;
+  recommendation: string;
+  exampleUrls: string[];
+}
+
+/** A number for the competitor set beside your own. */
+export interface CompetitorSideBySide {
+  label: string;
+  whatItMeans: string;
+  higherIsBetter: boolean;
+  them: number | null;
+  you: number | null;
+  leader: "them" | "you" | "level" | "unknown";
+}
+
+export interface CompetitorSeoReport {
+  competitor: { id: string; name: string; domain: string; status: string; lastAnalyzedAt: string | null };
+  crawl: {
+    crawledAt: string | null;
+    pagesCrawled: number | null;
+    healthScore: number | null;
+    verdict: string;
+  };
+  coverage: { pageType: string; label: string; count: number; exampleUrl: string | null }[];
+  issues: CompetitorIssueGroup[];
+  issuesBySeverity: Record<string, number>;
+  comparison: CompetitorSideBySide[];
+  notes: string[];
+}
+
+/** One stage of the nightly analysis, and what it actually did. */
+export interface AnalysisStage {
+  stage: string;
+  outcome: "ran" | "nothing_to_do" | "failed";
+  detail: string;
+}
+
+export interface AnalysisRun {
+  projectId: string;
+  startedAt: string;
+  stages: AnalysisStage[];
+}
+
 export const api = {
   // SEO Tools
   generateSchema: async (projectId: string, url: string, type: string) => 
@@ -1578,6 +1627,14 @@ export const api = {
     get<MarketOutcomeRow[]>(`/api/projects/${projectId}/market-research/outcomes`),
   measureMarketAction: (projectId: string, actionId: string) =>
     post<MarketOutcomeRow>(`/api/projects/${projectId}/market-research/actions/${actionId}/measure`, {}),
+
+  // ── Competitor SEO detail
+  getCompetitorSeoReport: (projectId: string, competitorId: string) =>
+    get<CompetitorSeoReport>(
+      `/api/projects/${projectId}/action-engine/competitors/${competitorId}/seo-report`,
+    ),
+  runAnalysis: (projectId: string) =>
+    post<AnalysisRun>(`/api/projects/${projectId}/discovery/analyze`, {}),
 
   // ── Discovery pipeline
   getDiscoveryStatus: (projectId: string) =>

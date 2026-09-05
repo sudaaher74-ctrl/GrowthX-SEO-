@@ -55,6 +55,7 @@ describe('ContentStrategyService', () => {
         findUnique: jest.fn().mockResolvedValue({ name: 'milquufresh', websites: [{ domain: 'milquufresh.in' }] }),
       },
       socialPost: { findMany: jest.fn().mockResolvedValue([]) },
+      competitorContent: { findMany: jest.fn().mockResolvedValue([]) },
       page: { findMany: jest.fn().mockResolvedValue([]) },
       contentStrategy: {
         create: jest.fn().mockImplementation(({ data }: any) => {
@@ -260,5 +261,108 @@ describe('ContentStrategyService', () => {
     expect(created.title).toContain('Foundational');
     const { prompt } = router.generate.mock.calls[0][0];
     expect(prompt).toContain('No competitor patterns, gaps, or social posts have been collected');
+  });
+
+  // The only writer of socialPost's competitor half had no callers, so this
+  // section was blank in every strategy ever produced while the same posts sat
+  // in CompetitorContent, collected nightly.
+  it('reads competitor posts from the table the nightly sweep fills', async () => {
+    prisma.competitorContent.findMany.mockResolvedValue([
+      {
+        platform: 'YOUTUBE',
+        contentType: 'SHORT',
+        title: 'Farm to door in 12 hours',
+        caption: null,
+        viewsCount: 40000,
+        likesCount: 900,
+        commentsCount: 40,
+        account: { handle: '@rival', displayName: 'Rival' },
+      },
+    ]);
+
+    await service.generateStrategy(PROJ, ORG);
+
+    const prompt = router.generate.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('TOP PERFORMING COMPETITOR SOCIAL POSTS');
+    expect(prompt).toContain('Farm to door in 12 hours');
+    expect(prompt).toContain('Views: 40000');
+  });
+
+  // Several platforms report no views and some hide likes. A zero there would
+  // tell the model a post nobody could measure had flopped.
+  it('writes n/a for a figure the platform did not report, never a zero', async () => {
+    prisma.competitorContent.findMany.mockResolvedValue([
+      {
+        platform: 'INSTAGRAM',
+        contentType: 'REEL',
+        title: 'Behind the scenes',
+        caption: null,
+        viewsCount: null,
+        likesCount: 120,
+        commentsCount: null,
+        account: { handle: '@rival', displayName: 'Rival' },
+      },
+    ]);
+
+    await service.generateStrategy(PROJ, ORG);
+
+    const prompt = router.generate.mock.calls[0][0].prompt as string;
+    expect(prompt).toContain('Views: n/a');
+    expect(prompt).toContain('Likes: 120');
+    expect(prompt).toContain('Comments: n/a');
+  });
+
+  describe('the per-format plan', () => {
+    const rival = (over: Record<string, unknown> = {}) => ({
+      platform: 'INSTAGRAM',
+      contentType: 'REEL',
+      title: 'A reel',
+      caption: null,
+      publishedAt: new Date('2026-08-01T00:00:00Z'),
+      viewsCount: 1000,
+      likesCount: 100,
+      commentsCount: 5,
+      account: { handle: '@rival', displayName: 'Rival' },
+      ...over,
+    });
+
+    it('asks for one plan per format, grounded in the collected figures', async () => {
+      prisma.competitorContent.findMany.mockResolvedValue([
+        rival({ viewsCount: 800, publishedAt: new Date('2026-08-01T00:00:00Z') }),
+        rival({ viewsCount: 1200, publishedAt: new Date('2026-08-08T00:00:00Z') }),
+        rival({ viewsCount: 1000, publishedAt: new Date('2026-08-15T00:00:00Z') }),
+      ]);
+
+      await service.generateStrategy(PROJ, ORG);
+
+      const prompt = router.generate.mock.calls[0][0].prompt as string;
+      expect(prompt).toContain('HOW EACH FORMAT PERFORMS FOR COMPETITORS');
+      expect(prompt).toContain('INSTAGRAM_REEL');
+      expect(prompt).toContain('median 1000 views');
+      expect(prompt).toContain('formatPlaybooks');
+    });
+
+    it('names the formats rivals publish and the brand does not', async () => {
+      prisma.competitorContent.findMany.mockResolvedValue([rival({ platform: 'YOUTUBE', contentType: 'SHORT' })]);
+
+      await service.generateStrategy(PROJ, ORG);
+
+      const prompt = router.generate.mock.calls[0][0].prompt as string;
+      expect(prompt).toContain('FORMATS COMPETITORS PUBLISH AND YOU DO NOT');
+      expect(prompt).toContain('YOUTUBE_SHORT');
+    });
+
+    // A cadence "grounded in the evidence" with no evidence behind it is the
+    // same invention the rest of this service goes out of its way to avoid.
+    it('tells the model not to supply figures it has not been given', async () => {
+      prisma.competitorContent.findMany.mockResolvedValue([]);
+
+      await service.generateStrategy(PROJ, ORG);
+
+      const prompt = router.generate.mock.calls[0][0].prompt as string;
+      expect(prompt).toContain('No format figures have been collected');
+      expect(prompt).toContain('leave `successSignal` empty');
+      expect(prompt).not.toContain('HOW EACH FORMAT PERFORMS FOR COMPETITORS');
+    });
   });
 });

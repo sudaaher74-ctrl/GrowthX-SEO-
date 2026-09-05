@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { buildFormatEvidence, describeFormats, FormatPost } from './format-evidence';
 
 const STRATEGY_SCHEMA = {
   type: 'object',
-  required: ['executiveSummary', 'contentPillars', 'platformFrequency', 'campaignIdeas', 'hooks'],
+  required: ['executiveSummary', 'contentPillars', 'platformFrequency', 'campaignIdeas', 'hooks', 'formatPlaybooks'],
   properties: {
     executiveSummary: { type: 'string' },
     contentPillars: {
@@ -79,6 +80,33 @@ const STRATEGY_SCHEMA = {
         linkedin: { type: 'string' },
       },
     },
+    // One plan per format the brand should actually publish. The free-text
+    // platformStrategy above says what to do on Instagram; this says what a
+    // reel is, how often, opening how, about what — which is the difference
+    // between a strategy someone can read and one someone can execute.
+    formatPlaybooks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['format', 'postsPerWeek', 'why'],
+        properties: {
+          /// INSTAGRAM_REEL | INSTAGRAM_POST | INSTAGRAM_CAROUSEL | YOUTUBE_LONG |
+          /// YOUTUBE_SHORT | BLOG_ARTICLE
+          format: { type: 'string' },
+          postsPerWeek: { type: 'number' },
+          /// What in the collected evidence supports publishing this at all.
+          why: { type: 'string' },
+          /// How a piece in this format is built, start to finish.
+          structure: { type: 'array', items: { type: 'string' } },
+          /// Opening lines that suit this format, in this brand's voice.
+          hookPatterns: { type: 'array', items: { type: 'string' } },
+          /// Specific subjects to cover, drawn from the gaps and pillars.
+          topicIdeas: { type: 'array', items: { type: 'string' } },
+          /// What a good result looks like, only where the data supports saying.
+          successSignal: { type: 'string' },
+        },
+      },
+    },
     roadmap30Day: { type: 'array', items: { type: 'string' } },
     roadmap60Day: { type: 'array', items: { type: 'string' } },
     roadmap90Day: { type: 'array', items: { type: 'string' } },
@@ -118,8 +146,32 @@ export class ContentStrategyService {
         where: { id: projectId },
         include: { websites: { select: { domain: true }, take: 3 } },
       }),
-      this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: false }, orderBy: { engagementRate: 'desc' }, take: 10 }),
-      this.prisma.socialPost.findMany({ where: { projectId, isCompetitor: true }, orderBy: { engagementRate: 'desc' }, take: 10 }),
+      this.prisma.socialPost.findMany({
+        where: { projectId, isCompetitor: false, engagementRate: { not: null } },
+        orderBy: { engagementRate: 'desc' },
+        take: 10,
+      }),
+      // Read from CompetitorContent, which is where the nightly sweep actually
+      // puts competitor posts. This asked `socialPost` for them, and the only
+      // writer of that half of the table had no callers — so "top performing
+      // competitor posts" was blank in every strategy this service has ever
+      // produced, while the same posts sat one table over.
+      this.prisma.competitorContent.findMany({
+        where: { projectId, ...(orgId ? { organizationId: orgId } : {}), engagementAvailable: true },
+        select: {
+          platform: true,
+          title: true,
+          caption: true,
+          contentType: true,
+          publishedAt: true,
+          viewsCount: true,
+          likesCount: true,
+          commentsCount: true,
+          account: { select: { handle: true, displayName: true } },
+        },
+        orderBy: { likesCount: 'desc' },
+        take: 10,
+      }),
       this.prisma.page.findMany({
         where: { crawlJob: { website: { projectId } }, statusCode: 200, title: { not: null } },
         select: { url: true, title: true, metaDescription: true, h1: true },
@@ -155,6 +207,39 @@ export class ContentStrategyService {
       })
       .slice(0, 15);
 
+    // What each format is actually doing in this market, on both sides. The
+    // per-format plan below is written from this rather than from what tends to
+    // work in general, which is the difference between a playbook for this
+    // brand and one that would suit any brand.
+    const formatEvidence = buildFormatEvidence(
+      topCompetitorPosts.map(
+        (c): FormatPost => ({
+          platform: c.platform,
+          // Nullable in the model, because a manually added post need not say
+          // what kind it is. Grouped as UNSPECIFIED rather than guessed at.
+          contentType: c.contentType ?? 'UNSPECIFIED',
+          views: c.viewsCount,
+          likes: c.likesCount,
+          comments: c.commentsCount,
+          publishedAt: c.publishedAt,
+          headline: c.title ?? c.caption,
+        }),
+      ),
+      topOwnedPosts.map(
+        (p): FormatPost => ({
+          platform: p.platform,
+          // SocialPost records no format, so its posts are grouped as POST.
+          // Naming that plainly beats inferring a format from a URL shape.
+          contentType: 'POST',
+          views: p.views,
+          likes: p.likes,
+          comments: p.comments,
+          publishedAt: p.publishedAt,
+          headline: p.content,
+        }),
+      ),
+    );
+
     const dataBasis = {
       patterns: patterns.length,
       gaps: gaps.length,
@@ -168,6 +253,14 @@ export class ContentStrategyService {
 
     const post = (p: (typeof topOwnedPosts)[number]) =>
       `- [${p.platform}] ${p.authorHandle}: "${p.content ?? ''}" | Engagement: ${p.engagementRate?.toFixed(2) ?? 'n/a'}% | Likes: ${p.likes}`;
+
+    // Views and likes are nullable throughout, because several platforms
+    // report neither. "n/a" is written where a figure is missing rather than a
+    // zero, so the model is never told a post nobody could measure flopped.
+    const rivalPost = (c: (typeof topCompetitorPosts)[number]) =>
+      `- [${c.platform} ${c.contentType}] ${c.account?.displayName || c.account?.handle || 'unknown'}: ` +
+      `"${(c.title ?? c.caption ?? '').slice(0, 140)}" | Views: ${c.viewsCount ?? 'n/a'} | ` +
+      `Likes: ${c.likesCount ?? 'n/a'} | Comments: ${c.commentsCount ?? 'n/a'}`;
 
     let parsed: any;
     let usedModel = 'ai-router';
@@ -201,7 +294,22 @@ export class ContentStrategyService {
           gaps.map((g) => `- [${g.gapType}] ${g.title}: ${g.description} | Opportunity: ${g.opportunityScore}/100`),
         ),
         this.section('TOP PERFORMING OWNED SOCIAL POSTS', topOwnedPosts.map(post)),
-        this.section('TOP PERFORMING COMPETITOR SOCIAL POSTS', topCompetitorPosts.map(post)),
+        this.section('TOP PERFORMING COMPETITOR SOCIAL POSTS', topCompetitorPosts.map(rivalPost)),
+        formatEvidence.competitors.length
+          ? this.section(
+              'HOW EACH FORMAT PERFORMS FOR COMPETITORS (medians, so one viral post does not set the target)',
+              describeFormats(formatEvidence.competitors),
+            )
+          : null,
+        formatEvidence.own.length
+          ? this.section('HOW YOUR OWN POSTS PERFORM, BY FORMAT', describeFormats(formatEvidence.own))
+          : null,
+        formatEvidence.formatsTheyUseYouDoNot.length
+          ? this.section(
+              'FORMATS COMPETITORS PUBLISH AND YOU DO NOT',
+              formatEvidence.formatsTheyUseYouDoNot.map((format) => `- ${format}`),
+            )
+          : null,
         ...(competitorDomains.length
           ? [this.section('TRACKED COMPETITORS', competitorDomains.map((c: any) => `- ${c.label || c.domain} (${c.domain})`))]
           : []),
@@ -221,6 +329,16 @@ export class ContentStrategyService {
             'Do not infer the sector from the brand name; the pages say what it is.'
           : null,
         'The strategy must be specific to this brand\'s industry and goals.',
+        'Write formatPlaybooks as one entry per format this brand should publish — reels, feed posts, ' +
+          'carousels, long video, shorts, articles — covering only the formats that suit this business. ' +
+          'Each entry says how often, how a piece is built, how it opens, and what to make it about.',
+        formatEvidence.competitors.length
+          ? 'Ground each playbook in the format figures above: recommend a cadence in the region of what ' +
+            'competitors sustain, and say in `why` which figure supports it. Where a median is absent the ' +
+            'platform did not report it — do not supply a number in its place.'
+          : 'No format figures have been collected, so leave `successSignal` empty and write `why` from the ' +
+            "business context rather than citing performance you have not seen.",
+        ...(formatEvidence.notes.length ? [formatEvidence.notes.map((note) => `NOTE: ${note}`).join('\n')] : []),
       ]
         .filter((line) => line !== null)
         .join('\n')
@@ -398,7 +516,7 @@ export class ContentStrategyService {
         organizationId: orgId,
         projectId,
         title: `${hasEvidence ? 'Content Strategy' : 'Foundational Content Strategy'} — ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`,
-        content: { ...parsed, contentPillars, dataBasis },
+        content: { ...parsed, contentPillars, dataBasis, formatEvidence },
         contentPillars,
         platformFrequency: this.toFrequencyMap(parsed.platformFrequency),
         campaignIdeas: parsed.campaignIdeas ?? [],

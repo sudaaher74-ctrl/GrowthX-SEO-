@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
 import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
 import { MarketResearchModule } from '../market-research/market-research.module';
 import { DiscoveryPipelineController } from './discovery-pipeline.controller';
 import { DiscoveryPipelineService } from './discovery-pipeline.service';
 import { DiscoveryStatusService } from './discovery-status.service';
+import { AnalysisPipelineService } from './analysis-pipeline.service';
 
 /**
  * Chains the onboarding steps that were each waiting to be pressed.
@@ -16,9 +18,9 @@ import { DiscoveryStatusService } from './discovery-status.service';
  * being a cycle Nest cannot resolve.
  */
 @Module({
-  imports: [DatabaseModule, MarketResearchModule, ContentIntelligenceModule],
+  imports: [DatabaseModule, MarketResearchModule, ContentIntelligenceModule, CompetitorActionEngineModule],
   controllers: [DiscoveryPipelineController],
-  providers: [DiscoveryPipelineService, DiscoveryStatusService],
-  exports: [DiscoveryPipelineService, DiscoveryStatusService],
+  providers: [DiscoveryPipelineService, DiscoveryStatusService, AnalysisPipelineService],
+  exports: [DiscoveryPipelineService, DiscoveryStatusService, AnalysisPipelineService],
 })
 export class DiscoveryPipelineModule {}

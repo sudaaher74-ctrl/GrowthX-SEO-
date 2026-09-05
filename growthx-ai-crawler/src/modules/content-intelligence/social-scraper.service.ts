@@ -22,118 +22,59 @@ interface InstagramBusinessDiscovery {
   };
 }
 
+/**
+ * One post read from a platform, before anything decides where to store it.
+ *
+ * The customer's own account and a competitor's are read through the same
+ * APIs and differ only in which table the result belongs in, so the reading
+ * stops here and the caller decides.
+ *
+ * Every count is nullable on purpose. A platform that does not report views —
+ * Instagram Business Discovery does not — must produce null, never zero: a
+ * post nobody watched and a post whose views we cannot see are opposite facts
+ * about the same content, and averaging zeros into an engagement figure is how
+ * a healthy account gets reported as a failing one.
+ */
+export interface FetchedPost {
+  platform: 'YOUTUBE' | 'INSTAGRAM';
+  postId: string;
+  /** VIDEO | SHORT | REEL | IMAGE | CAROUSEL */
+  contentType: string;
+  title: string | null;
+  description: string | null;
+  caption: string | null;
+  hashtags: string[];
+  contentUrl: string;
+  thumbnailUrl: string | null;
+  publishedAt: Date | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  /** False when the platform reported no engagement figures at all. */
+  engagementAvailable: boolean;
+}
+
 @Injectable()
 export class SocialScraperService {
   private readonly logger = new Logger(SocialScraperService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Fetches the latest public posts from a competitor's YouTube channel
+  /*
+   * `fetchYoutubeCompetitorData` was removed rather than repointed.
+   *
+   * It wrote competitor videos into `socialPost` and had no callers anywhere —
+   * not a controller, not a scheduler, not another service. Nothing had ever
+   * run it, so the competitor half of `socialPost` was always empty; and the
+   * content strategy read exactly that half for "top performing competitor
+   * posts", so that section of every strategy prompt was blank while the same
+   * videos sat in `CompetitorContent`, collected nightly.
+   *
+   * Competitor content belongs in `CompetitorContent`, which classification,
+   * pattern detection, gap analysis and the strategy all read.
+   * `syncYoutubeAccountContent` fills it. `socialPost` now holds one thing —
+   * the customer's own posts — which is what `isCompetitor` was for.
    */
-  async fetchYoutubeCompetitorData(projectId: string, channelId: string): Promise<void> {
-    try {
-      const apiKey = process.env.YOUTUBE_API_KEY;
-      if (!apiKey) {
-        // Returning quietly here made a sync look like it worked and produced
-        // nothing, which is indistinguishable from a competitor who posts
-        // nothing. The caller has to be able to tell the difference.
-        throw new ServiceUnavailableException(
-          'YouTube ingestion is not configured: YOUTUBE_API_KEY is not set. ' +
-            'Add competitor posts manually until it is.',
-        );
-      }
-
-      const youtube = google.youtube({ version: 'v3', auth: apiKey });
-
-      // Get channel details to find the uploads playlist ID
-      const channelRes = await youtube.channels.list({
-        part: ['contentDetails', 'snippet', 'statistics'],
-        id: [channelId],
-      });
-
-      const channel = channelRes.data.items?.[0];
-      if (!channel) {
-        throw new Error(`Channel ${channelId} not found`);
-      }
-
-      const uploadsPlaylistId = channel.contentDetails?.relatedPlaylists?.uploads;
-      if (!uploadsPlaylistId) {
-        throw new Error(`No uploads playlist found for channel ${channelId}`);
-      }
-
-      // Fetch the latest 10 videos
-      const playlistRes = await youtube.playlistItems.list({
-        part: ['snippet'],
-        playlistId: uploadsPlaylistId,
-        maxResults: 10,
-      });
-
-      const videoIds = playlistRes.data.items?.map(item => item.snippet?.resourceId?.videoId).filter(Boolean) as string[];
-
-      if (!videoIds.length) {
-        return;
-      }
-
-      // Fetch stats for these videos
-      const videoRes = await youtube.videos.list({
-        part: ['snippet', 'statistics'],
-        id: videoIds,
-      });
-
-      const videos = videoRes.data.items || [];
-
-      // Save to database
-      for (const video of videos) {
-        const stats = video.statistics;
-        const snippet = video.snippet;
-        const views = parseInt(stats?.viewCount || '0', 10);
-        const likes = parseInt(stats?.likeCount || '0', 10);
-        const comments = parseInt(stats?.commentCount || '0', 10);
-        
-        // Simple engagement rate calculation for YouTube: (likes + comments) / views
-        const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
-
-        await this.prisma.socialPost.upsert({
-          where: {
-            platform_postId: {
-              platform: 'YOUTUBE',
-              postId: video.id!,
-            }
-          },
-          update: {
-            likes,
-            comments,
-            views,
-            engagementRate,
-            fetchedAt: new Date(),
-          },
-          create: {
-            projectId,
-            platform: 'YOUTUBE',
-            postId: video.id!,
-            isCompetitor: true,
-            authorHandle: channel.snippet?.title || channelId,
-            content: snippet?.title,
-            url: `https://www.youtube.com/watch?v=${video.id}`,
-            publishedAt: new Date(snippet?.publishedAt || Date.now()),
-            likes,
-            comments,
-            views,
-            engagementRate,
-            fetchedAt: new Date(),
-          }
-        });
-      }
-      
-      this.logger.log(`Successfully fetched ${videos.length} competitor YouTube videos for ${channelId}`);
-    } catch (error) {
-      // A missing key is a configuration answer the caller needs, not a
-      // transient error to log and hide.
-      if (error instanceof ServiceUnavailableException) throw error;
-      this.logger.error(`Error fetching YouTube competitor data for ${channelId}`, error);
-    }
-  }
 
   /**
    * Instagram and Facebook ingestion is not built.
@@ -185,6 +126,54 @@ export class SocialScraperService {
       return this.unsupportedPlatform(account.platform, account.handle);
     }
 
+    const posts = await this.readYoutubeUploads(account.handle, maxResults);
+
+    const existing = await this.prisma.competitorContent.findMany({
+      where: { organizationId, projectId, accountId: account.id },
+      select: { contentUrl: true },
+    });
+    const seen = new Set(existing.map((row) => row.contentUrl).filter(Boolean));
+
+    let imported = 0;
+    for (const post of posts) {
+      if (seen.has(post.contentUrl)) continue;
+      await this.prisma.competitorContent.create({
+        data: {
+          organizationId,
+          projectId,
+          accountId: account.id,
+          platform: 'YOUTUBE',
+          contentType: post.contentType,
+          title: post.title,
+          description: post.description,
+          caption: post.caption,
+          hashtags: post.hashtags,
+          contentUrl: post.contentUrl,
+          thumbnailUrl: post.thumbnailUrl,
+          publishedAt: post.publishedAt,
+          viewsCount: post.views,
+          likesCount: post.likes,
+          commentsCount: post.comments,
+          engagementAvailable: post.engagementAvailable,
+        },
+      });
+      imported++;
+    }
+
+    await this.markSynced(account.id);
+    this.logger.log(`Imported ${imported} new YouTube item(s) for ${account.handle}.`);
+    return { platform: 'YOUTUBE', handle: account.handle, fetched: posts.length, imported };
+  }
+
+  /**
+   * A channel's recent uploads, normalised, with nothing written.
+   *
+   * Split out from the competitor sync because the customer's own channel is
+   * read exactly the same way — same API, same key, same shapes — and only the
+   * table the result lands in differs. Two copies of this would be two places
+   * for the Shorts rule or the hidden-likes handling to drift.
+   */
+  async readYoutubeUploads(handle: string, maxResults = 25): Promise<FetchedPost[]> {
     const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
       throw new ServiceUnavailableException(
@@ -194,12 +183,12 @@ export class SocialScraperService {
     }
 
     const youtube = google.youtube({ version: 'v3', auth: apiKey });
-    const channelId = await this.resolveChannelId(youtube, account.handle);
+    const channelId = await this.resolveChannelId(youtube, handle);
 
     const channelRes = await youtube.channels.list({ part: ['contentDetails'], id: [channelId] });
     const uploads = channelRes.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
     if (!uploads) {
-      throw new NotFoundException(`YouTube channel ${account.handle} has no public uploads playlist.`);
+      throw new NotFoundException(`YouTube channel ${handle} has no public uploads playlist.`);
     }
 
     const playlist = await youtube.playlistItems.list({
@@ -207,15 +196,10 @@ export class SocialScraperService {
       playlistId: uploads,
       maxResults,
     });
-    const items = playlist.data.items ?? [];
-    const videoIds = items
+    const videoIds = (playlist.data.items ?? [])
       .map((i) => i.contentDetails?.videoId)
       .filter((id): id is string => Boolean(id));
-
-    if (videoIds.length === 0) {
-      await this.markSynced(account.id);
-      return { platform: 'YOUTUBE', handle: account.handle, fetched: 0, imported: 0 };
-    }
+    if (videoIds.length === 0) return [];
 
     // Statistics live on the video resource, not the playlist item.
     const details = await youtube.videos.list({
@@ -223,48 +207,28 @@ export class SocialScraperService {
       id: videoIds,
     });
 
-    const existing = await this.prisma.competitorContent.findMany({
-      where: { organizationId, projectId, accountId: account.id },
-      select: { contentUrl: true },
-    });
-    const seen = new Set(existing.map((row) => row.contentUrl).filter(Boolean));
-
-    let imported = 0;
-    for (const video of details.data.items ?? []) {
-      const url = `https://www.youtube.com/watch?v=${video.id}`;
-      if (seen.has(url)) continue;
-
+    return (details.data.items ?? []).map((video) => {
       const snippet = video.snippet;
       const stats = video.statistics;
-
-      await this.prisma.competitorContent.create({
-        data: {
-          organizationId,
-          projectId,
-          accountId: account.id,
-          platform: 'YOUTUBE',
-          contentType: this.youtubeContentType(video.contentDetails?.duration),
-          title: snippet?.title ?? null,
-          description: snippet?.description ?? null,
-          caption: snippet?.title ?? null,
-          hashtags: snippet?.tags ?? [],
-          contentUrl: url,
-          thumbnailUrl: snippet?.thumbnails?.high?.url ?? snippet?.thumbnails?.default?.url ?? null,
-          publishedAt: snippet?.publishedAt ? new Date(snippet.publishedAt) : null,
-          viewsCount: numberOrNull(stats?.viewCount),
-          likesCount: numberOrNull(stats?.likeCount),
-          commentsCount: numberOrNull(stats?.commentCount),
-          // Only true when the platform actually reported engagement: a video
-          // with likes hidden must not be read as a video nobody liked.
-          engagementAvailable: stats?.likeCount != null || stats?.viewCount != null,
-        },
-      });
-      imported++;
-    }
-
-    await this.markSynced(account.id);
-    this.logger.log(`Imported ${imported} new YouTube item(s) for ${account.handle}.`);
-    return { platform: 'YOUTUBE', handle: account.handle, fetched: videoIds.length, imported };
+      return {
+        platform: 'YOUTUBE' as const,
+        postId: video.id!,
+        contentType: this.youtubeContentType(video.contentDetails?.duration),
+        title: snippet?.title ?? null,
+        description: snippet?.description ?? null,
+        caption: snippet?.title ?? null,
+        hashtags: snippet?.tags ?? [],
+        contentUrl: `https://www.youtube.com/watch?v=${video.id}`,
+        thumbnailUrl: snippet?.thumbnails?.high?.url ?? snippet?.thumbnails?.default?.url ?? null,
+        publishedAt: snippet?.publishedAt ? new Date(snippet.publishedAt) : null,
+        views: numberOrNull(stats?.viewCount),
+        likes: numberOrNull(stats?.likeCount),
+        comments: numberOrNull(stats?.commentCount),
+        // Only true when the platform actually reported engagement: a video
+        // with likes hidden must not be read as a video nobody liked.
+        engagementAvailable: stats?.likeCount != null || stats?.viewCount != null,
+      };
+    });
   }
 
   /**
@@ -330,6 +294,54 @@ export class SocialScraperService {
       return this.unsupportedPlatform(account.platform, account.handle);
     }
 
+    const posts = await this.readInstagramMedia(account.handle, maxResults);
+
+    const existing = await this.prisma.competitorContent.findMany({
+      where: { organizationId, projectId, accountId: account.id },
+      select: { contentUrl: true },
+    });
+    const seen = new Set(existing.map((row) => row.contentUrl).filter(Boolean));
+
+    let imported = 0;
+    for (const post of posts) {
+      if (seen.has(post.contentUrl)) continue;
+      await this.prisma.competitorContent.create({
+        data: {
+          organizationId,
+          projectId,
+          accountId: account.id,
+          platform: 'INSTAGRAM',
+          contentType: post.contentType,
+          title: post.title,
+          description: post.description,
+          caption: post.caption,
+          hashtags: post.hashtags,
+          contentUrl: post.contentUrl,
+          thumbnailUrl: post.thumbnailUrl,
+          publishedAt: post.publishedAt,
+          viewsCount: post.views,
+          likesCount: post.likes,
+          commentsCount: post.comments,
+          engagementAvailable: post.engagementAvailable,
+        },
+      });
+      imported++;
+    }
+
+    await this.markSynced(account.id);
+    this.logger.log(`Imported ${imported} new Instagram item(s) for ${account.handle}.`);
+    return { platform: 'INSTAGRAM', handle: account.handle, fetched: posts.length, imported };
+  }
+
+  /**
+   * Recent media for one Instagram Business account, normalised, nothing written.
+   *
+   * Business Discovery reads any Business or Creator account by username from
+   * the platform account the deployment owns, so the customer's own account is
+   * read by exactly this call too — the only difference is where the result is
+   * stored.
+   */
+  async readInstagramMedia(handle: string, maxResults = 25): Promise<FetchedPost[]> {
     const token = process.env.INSTAGRAM_ACCESS_TOKEN;
     const igUserId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
     if (!token || !igUserId) {
@@ -339,7 +351,7 @@ export class SocialScraperService {
       );
     }
 
-    const username = account.handle.replace(/^@/, '').trim();
+    const username = handle.replace(/^@/, '').trim();
     const fields =
       `business_discovery.username(${username}){followers_count,media_count,` +
       `media.limit(${maxResults}){id,caption,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url,media_type}}`;
@@ -354,8 +366,8 @@ export class SocialScraperService {
     } catch (err: any) {
       const detail = err?.response?.data?.error?.message || err?.message || 'unknown error';
       // Meta returns the same shape for "no such account", "not a business
-      // account" and "token expired", and the customer's next step differs
-      // for each — so the message is passed through rather than flattened.
+      // account" and "token expired", and the caller's next step differs for
+      // each — so the message is passed through rather than flattened.
       throw new ServiceUnavailableException(`Instagram lookup failed for @${username}: ${detail}`);
     }
 
@@ -366,46 +378,28 @@ export class SocialScraperService {
       );
     }
 
-    const media = discovery.media?.data ?? [];
-    const existing = await this.prisma.competitorContent.findMany({
-      where: { organizationId, projectId, accountId: account.id },
-      select: { contentUrl: true },
-    });
-    const seen = new Set(existing.map((row) => row.contentUrl).filter(Boolean));
-
-    let imported = 0;
-    for (const post of media) {
-      const url = post.permalink;
-      if (!url || seen.has(url)) continue;
-
-      const caption = post.caption ?? null;
-      await this.prisma.competitorContent.create({
-        data: {
-          organizationId,
-          projectId,
-          accountId: account.id,
-          platform: 'INSTAGRAM',
+    return (discovery.media?.data ?? [])
+      .filter((post) => Boolean(post.permalink && post.id))
+      .map((post) => {
+        const caption = post.caption ?? null;
+        return {
+          platform: 'INSTAGRAM' as const,
+          postId: post.id!,
           contentType: this.instagramContentType(post.media_type),
           title: caption ? caption.split('\n')[0].slice(0, 200) : null,
           description: caption,
           caption,
           hashtags: hashtagsFrom(caption),
-          contentUrl: url,
+          contentUrl: post.permalink!,
           thumbnailUrl: post.thumbnail_url ?? post.media_url ?? null,
           publishedAt: post.timestamp ? new Date(post.timestamp) : null,
           // Business Discovery reports no view or play count at all.
-          viewsCount: null,
-          likesCount: post.like_count ?? null,
-          commentsCount: post.comments_count ?? null,
+          views: null,
+          likes: post.like_count ?? null,
+          comments: post.comments_count ?? null,
           engagementAvailable: post.like_count != null || post.comments_count != null,
-        },
+        };
       });
-      imported++;
-    }
-
-    await this.markSynced(account.id);
-    this.logger.log(`Imported ${imported} new Instagram item(s) for @${username}.`);
-    return { platform: 'INSTAGRAM', handle: account.handle, fetched: media.length, imported };
   }
 
   /** Maps Meta's media_type onto the pipeline's content types. */
