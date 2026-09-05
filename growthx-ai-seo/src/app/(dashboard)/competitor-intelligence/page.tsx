@@ -52,6 +52,7 @@ import { AutoCompetitorsPanel } from "@/components/market-research/auto-competit
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
+import { CompetitorImprovementPlanPanel } from "@/components/competitor/competitor-improvement-plan-panel";
 import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
 import {
   TruthfulState,
@@ -65,6 +66,7 @@ const TABS = [
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
   { id: "keywords", label: "Competitor Keywords" },
+  { id: "improvement-plan", label: "30-Day Improvement Plan" },
 ];
 
 const DEFAULT_TAB = "benchmarks";
@@ -1297,6 +1299,15 @@ function CompetitorIntelligenceClient() {
       {/* Tab 4: Competitor Keywords & Placement Blueprints */}
       {activeTab === "keywords" && (
         <CompetitorKeywordsPanel
+          projectId={projectId!}
+          customerDomain={clientRow?.domain || "our site"}
+          competitors={competitorsList}
+        />
+      )}
+
+      {/* Tab 5: 30-Day Competitor SEO Domination Plan */}
+      {activeTab === "improvement-plan" && (
+        <CompetitorImprovementPlanPanel
           projectId={projectId!}
           customerDomain={clientRow?.domain || "our site"}
           competitors={competitorsList}
