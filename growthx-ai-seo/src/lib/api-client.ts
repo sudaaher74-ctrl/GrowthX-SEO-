@@ -1533,25 +1533,228 @@ export interface AnalysisRun {
   stages: AnalysisStage[];
 }
 
+// ── SEO tools ─────────────────────────────────────────────────────────────
+//
+// Each of these mirrors the JSON schema its backend service pins the model to
+// (META_JSON_SCHEMA, IMAGE_OPTIMIZER_SCHEMA and friends in
+// `src/modules/seo-tools/`). Those schemas set `additionalProperties: false`
+// and list every required key, so these shapes are the contract rather than a
+// guess at it. `model` is attached by the service after parsing.
+
+export interface GeneratedSchemaResult {
+  /** Raw JSON-LD, including the surrounding <script> tags. */
+  schema: string;
+  rationale: string;
+  model: string;
+}
+
+export interface MetaOptimizationResult {
+  currentTitle: string;
+  currentDescription: string;
+  titleScore: number;
+  descriptionScore: number;
+  analysis: string;
+  proposedVariations: Array<{ title: string; description: string; rationale: string }>;
+  model: string;
+}
+
+export interface ImageSeoResult {
+  pageTitle: string;
+  summary: string;
+  overallScore: number;
+  images: Array<{
+    src: string;
+    currentAlt: string;
+    suggestedAlt: string;
+    seoScore: number;
+    issues: string[];
+    recommendedFileName: string;
+    rationale: string;
+  }>;
+  model: string;
+}
+
+export type InternalLinkType =
+  | "TOPICAL_AUTHORITY"
+  | "PRODUCT_CONVERSION"
+  | "PILLAR_PAGE"
+  | "RELATED_GUIDE"
+  | "FOUNDATIONAL_CONTENT";
+
+export interface InternalLinkSuggestions {
+  pageTitle: string;
+  summary: string;
+  linkHealthScore: number;
+  currentInternalLinksCount: number;
+  suggestions: Array<{
+    targetUrl: string;
+    targetTitle: string;
+    recommendedAnchorText: string;
+    sentenceContext: string;
+    linkType: InternalLinkType;
+    relevancyScore: number;
+    rationale: string;
+  }>;
+  model: string;
+}
+
+/** Mirrors SeoGapRow. A null coverage means "not measured", never "no". */
+export interface SeoGapRow {
+  keyword: string;
+  impressions: number | null;
+  position: number | null;
+  customerCoverage: boolean | null;
+  competitorCoverage: Record<string, boolean | null>;
+  gapStatus:
+    | "CUSTOMER_MISSING"
+    | "CUSTOMER_WINNING"
+    | "OPTIMIZED"
+    | "UNTRACKED_OPPORTUNITY"
+    | "UNKNOWN";
+  opportunityScore: number;
+}
+
+/** Mirrors SeoGapMatrix. `keywordSource` is "none" when no terms are known. */
+export interface SeoGapMatrix {
+  customerDomain: string;
+  competitors: Array<{ id: string; name: string; domain: string }>;
+  keywordMatrix: SeoGapRow[];
+  keywordSource: "search_console" | "detected_keywords" | "site_topics" | "none";
+  competitorCoverageMeasured: boolean;
+  notes: string[];
+}
+
+export interface SeoGapInsights {
+  insights: string;
+  recommendedContent: Array<{ title: string; type: string; targetKeyword: string }>;
+}
+
+// ── Google Business Profile fixes ─────────────────────────────────────────
+//
+// Two different shapes on purpose: `analyzeGbp` hands back what the model
+// proposed, before it is persisted; `getGbpProposals` reads the stored
+// GbpFixProposal rows, which carry an id and a review status on top.
+
+export interface GbpFixSuggestion {
+  /** The profile field being changed, e.g. "description" or "services". */
+  field: string;
+  currentValue?: string;
+  proposedValue: string;
+  rationale: string;
+}
+
+export interface GbpFixProposal extends GbpFixSuggestion {
+  id: string;
+  projectId: string;
+  currentValue: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "PUSHED";
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Voice agent (Aiva) ──────────────────────────────────
+
+/**
+ * The structured panel data a voice tool can return alongside its spoken
+ * summary. Each variant mirrors exactly what `voice-tools.service.ts` emits on
+ * the backend; the panel switches on `type` to decide what to draw.
+ */
+export type AivaUiPayload =
+  | {
+      type: "crawl_status";
+      domain: string;
+      status: string;
+      pagesCrawled: number;
+      issuesFound: number;
+      errorMessage?: string | null;
+    }
+  | { type: "competitor_list"; competitors: Array<{ domain: string; label?: string | null }> }
+  | {
+      type: "audit_summary";
+      domain: string;
+      pagesCrawled: number;
+      totalIssues: number;
+      criticalCount: number;
+      highCount: number;
+    }
+  | {
+      type: "gap_insights";
+      // Shape fixed by the JSON schema seo-competitors.service.ts asks the
+      // model for: a prose paragraph plus exactly three content ideas.
+      insights: string;
+      recommendedContent: Array<{ title: string; type: string; targetKeyword: string }>;
+      missingKeywords: string[];
+    }
+  | {
+      // `contentPillars` and `campaignIdeas` are Json columns, so only the
+      // fields the panel reads are claimed here.
+      type: "seo_strategy";
+      pillars: Array<{ name: string; description: string }>;
+      campaigns: Array<{ name: string; rationale: string }>;
+    }
+  | { type: "blog_ideas"; topic: string; items: string[] }
+  | { type: "meta_tags"; targetUrl: string; title: string; description: string }
+  | { type: "competitor_scrape_result"; url: string; target: string; extractedData: string }
+  | { type: "social_draft"; trend: string; platform: string; postText: string };
+
+export interface VoiceConfirmationRequired {
+  message: string;
+  /** True when the tool must not run until the user confirms. */
+  blocking: boolean;
+}
+
+/** Mirrors the backend's VoiceAgentResult. */
+export interface VoiceAgentResult {
+  success: boolean;
+  tool: string | null;
+  data: unknown;
+  /** Short sentence(s) for speech. Always present, even on failure. */
+  spokenSummary: string;
+  navigateTo?: string;
+  confirmationRequired?: VoiceConfirmationRequired;
+  /** Technical detail, deliberately not spoken. */
+  error?: string;
+  uiPayload?: AivaUiPayload;
+}
+
+/**
+ * Mirrors the backend's VoiceChatRequest, with two fields widened to what this
+ * client can actually supply: the session is null until `createSession`
+ * resolves, and a project is only set once one is selected. The backend
+ * declares both required and only validates `text`, so a command fired before
+ * the session lands still reaches it — worth closing, but not by silently
+ * changing what the voice agent does mid-command.
+ */
+export interface VoiceChatRequest {
+  text: string;
+  sessionId: string | null;
+  projectId?: string;
+  confirmed?: boolean;
+  pendingTool?: string;
+  pendingParams?: Record<string, unknown>;
+  context?: { path?: string };
+}
+
 export const api = {
   // SEO Tools
   generateSchema: async (projectId: string, url: string, type: string) => 
-    post<any>(`/api/projects/${projectId}/seo-tools/schema/generate`, { url, type }),
+    post<GeneratedSchemaResult>(`/api/projects/${projectId}/seo-tools/schema/generate`, { url, type }),
   analyzeMetaTags: async (projectId: string, url: string) => 
-    post<any>(`/api/projects/${projectId}/seo-tools/meta/analyze`, { url }),
+    post<MetaOptimizationResult>(`/api/projects/${projectId}/seo-tools/meta/analyze`, { url }),
   optimizeImages: async (projectId: string, url: string) => 
-    post<any>(`/api/projects/${projectId}/seo-tools/images/analyze`, { url }),
+    post<ImageSeoResult>(`/api/projects/${projectId}/seo-tools/images/analyze`, { url }),
   suggestInternalLinks: async (projectId: string, url: string) => 
-    post<any>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
+    post<InternalLinkSuggestions>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
   getSeoGapMatrix: async (projectId: string) =>
-    get<any>(`/api/projects/${projectId}/seo-tools/competitor-matrix`),
+    get<SeoGapMatrix>(`/api/projects/${projectId}/seo-tools/competitor-matrix`),
   generateSeoGapInsights: async (projectId: string) =>
-    post<any>(`/api/projects/${projectId}/seo-tools/seo-insights`, {}),
+    post<SeoGapInsights>(`/api/projects/${projectId}/seo-tools/seo-insights`, {}),
 
   // ── Voice Agent
   voice: {
-    createSession: async (projectId?: string) => post<any>('/api/voice/session', { projectId }),
-    chat: async (payload: any) => post<any>('/api/voice/chat', payload),
+    createSession: async (projectId?: string) =>
+      post<{ sessionId: string; createdAt: string }>('/api/voice/session', { projectId }),
+    chat: async (payload: VoiceChatRequest) => post<VoiceAgentResult>('/api/voice/chat', payload),
   },
 
   // ── Auth
@@ -1585,12 +1788,12 @@ export const api = {
   connectLocalBusiness: (projectId: string, data: { businessName: string; address: string; rating: number; reviewCount: number }) =>
     post<LocalSeoData>(`/api/projects/${projectId}/local-seo/connect`, data),
   getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
-  analyzeGbp: (projectId: string) => post<any[]>(`/api/projects/${projectId}/local-seo/gbp/analyze`, {}),
-  getGbpProposals: (projectId: string) => get<any[]>(`/api/projects/${projectId}/local-seo/gbp/proposals`),
+  analyzeGbp: (projectId: string) => post<GbpFixSuggestion[]>(`/api/projects/${projectId}/local-seo/gbp/analyze`, {}),
+  getGbpProposals: (projectId: string) => get<GbpFixProposal[]>(`/api/projects/${projectId}/local-seo/gbp/proposals`),
   approveGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/approve`, {}),
   rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
   runGeoGridScan: (projectId: string, body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: number; radiusKm?: number }) =>
-    post<any>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
+    post<GeoGridScanResult>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
   getLocalReviews: (projectId: string) => get<LocalReview[]>(`/api/projects/${projectId}/local-seo/reviews`),
   syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
   draftReviewReply: (projectId: string, reviewId: string, tone?: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, { tone }),

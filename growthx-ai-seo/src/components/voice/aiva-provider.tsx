@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, auth } from '@/lib/api-client';
+import { api, auth, type AivaUiPayload, type VoiceAgentResult } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
 import { usePathname } from 'next/navigation';
 
@@ -55,11 +55,6 @@ export type AivaState =
   | 'completed'
   | 'error';
 
-interface ConfirmationRequired {
-  message: string;
-  blocking: boolean;
-}
-
 /**
  * The Web Speech API is not in TypeScript's DOM lib — it remains non-standard
  * and vendor-prefixed — so the parts this provider uses are declared here
@@ -102,59 +97,6 @@ interface SpeechCapableWindow extends Window {
   webkitAudioContext?: typeof AudioContext;
 }
 
-/**
- * The structured panel data a voice tool can return alongside its spoken
- * summary. Each variant mirrors exactly what `voice-tools.service.ts` emits on
- * the backend; the panel switches on `type` to decide what to draw.
- */
-export type AivaUiPayload =
-  | {
-      type: 'crawl_status';
-      domain: string;
-      status: string;
-      pagesCrawled: number;
-      issuesFound: number;
-      errorMessage?: string | null;
-    }
-  | { type: 'competitor_list'; competitors: Array<{ domain: string; label?: string | null }> }
-  | {
-      type: 'audit_summary';
-      domain: string;
-      pagesCrawled: number;
-      totalIssues: number;
-      criticalCount: number;
-      highCount: number;
-    }
-  | {
-      type: 'gap_insights';
-      // Shape fixed by the JSON schema seo-competitors.service.ts asks the
-      // model for: a prose paragraph plus exactly three content ideas.
-      insights: string;
-      recommendedContent: Array<{ title: string; type: string; targetKeyword: string }>;
-      missingKeywords: string[];
-    }
-  | {
-      // `contentPillars` and `campaignIdeas` are Json columns, so only the
-      // fields the panel reads are claimed here.
-      type: 'seo_strategy';
-      pillars: Array<{ name: string; description: string }>;
-      campaigns: Array<{ name: string; rationale: string }>;
-    }
-  | { type: 'blog_ideas'; topic: string; items: string[] }
-  | { type: 'meta_tags'; targetUrl: string; title: string; description: string }
-  | { type: 'competitor_scrape_result'; url: string; target: string; extractedData: string }
-  | { type: 'social_draft'; trend: string; platform: string; postText: string };
-
-interface VoiceAgentResult {
-  success: boolean;
-  tool: string | null;
-  data: unknown;
-  spokenSummary: string;
-  navigateTo?: string;
-  confirmationRequired?: ConfirmationRequired;
-  error?: string;
-  uiPayload?: AivaUiPayload;
-}
 
 interface AivaContextType {
   state: AivaState;
