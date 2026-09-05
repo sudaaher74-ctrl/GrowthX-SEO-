@@ -33,6 +33,7 @@ import {
   Layers,
   Loader2,
   Radar,
+  Trash2,
 } from "lucide-react";
 import {
   ActionButton,
@@ -367,6 +368,28 @@ function CompetitorIntelligenceClient() {
     },
     onError: (err: any) => {
       setStatusMessage(err.message || "Public crawl queue request received.");
+    },
+  });
+
+  const [competitorToDelete, setCompetitorToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const removeCompetitorMutation = useMutation({
+    mutationFn: (competitorId: string) => api.removeCompetitor(projectId!, competitorId),
+    onSuccess: () => {
+      const deletedName = competitorToDelete?.name;
+      setStatusMessage(
+        deletedName
+          ? `Removed "${deletedName}" from competitor tracking.`
+          : "Competitor removed successfully.",
+      );
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
+      setCompetitorToDelete(null);
+    },
+    onError: (err: any) => {
+      setStatusMessage(err.message || "Failed to delete competitor.");
+      setCompetitorToDelete(null);
     },
   });
 
@@ -708,6 +731,60 @@ function CompetitorIntelligenceClient() {
         </div>
       )}
 
+      {/* Delete Competitor Confirmation Modal */}
+      {competitorToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600 border border-rose-100">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-brand-950">Delete Tracked Competitor</h3>
+                <p className="text-[11.5px] text-brand-500">Stop monitoring this rival</p>
+              </div>
+            </div>
+
+            <p className="text-[12.5px] text-brand-700 leading-relaxed">
+              Are you sure you want to stop tracking <strong className="text-brand-950 font-semibold">{competitorToDelete.name}</strong>?
+              This will remove them from your benchmark cohort, crawl comparisons, and opportunity gaps.
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCompetitorToDelete(null)}
+                disabled={removeCompetitorMutation.isPending}
+                className="rounded-lg border border-brand-200 bg-white px-3.5 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => removeCompetitorMutation.mutate(competitorToDelete.id)}
+                disabled={removeCompetitorMutation.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition shadow-2xs"
+              >
+                {removeCompetitorMutation.isPending ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={12} />
+                    <span>Delete Competitor</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
@@ -990,18 +1067,34 @@ function CompetitorIntelligenceClient() {
                                 </div>
                               </div>
 
-                              {/* Rank badge */}
-                              <span
-                                className={`shrink-0 flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold font-mono ${
-                                  entity.rank === 1
-                                    ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                    : entity.rank === 2
-                                    ? "bg-slate-100 text-slate-700 border border-slate-200"
-                                    : "bg-brand-100 text-brand-600"
-                                }`}
-                              >
-                                #{entity.rank}
-                              </span>
+                              {/* Rank badge + Delete button */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span
+                                  className={`flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold font-mono ${
+                                    entity.rank === 1
+                                      ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                      : entity.rank === 2
+                                      ? "bg-slate-100 text-slate-700 border border-slate-200"
+                                      : "bg-brand-100 text-brand-600"
+                                  }`}
+                                >
+                                  #{entity.rank}
+                                </span>
+                                {!isYou && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCompetitorToDelete({ id: entity.id, name: entity.name });
+                                    }}
+                                    className="flex h-6 w-6 items-center justify-center rounded-md text-brand-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                                    title={`Delete ${entity.name}`}
+                                    aria-label={`Delete ${entity.name}`}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* Metric 1: Tech SEO Health */}
@@ -1127,15 +1220,29 @@ function CompetitorIntelligenceClient() {
                                 >
                                   1-on-1 Spotlight →
                                 </button>
-                                <button
-                                  onClick={() => crawlCompetitorMutation.mutate(entity.id)}
-                                  disabled={crawlCompetitorMutation.isPending}
-                                  title="Crawl public website"
-                                  className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-brand-500 hover:text-brand-950 hover:bg-brand-100 transition"
-                                >
-                                  <RefreshCw size={10} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
-                                  <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Crawl"}</span>
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => crawlCompetitorMutation.mutate(entity.id)}
+                                    disabled={crawlCompetitorMutation.isPending}
+                                    title="Crawl public website"
+                                    className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-brand-500 hover:text-brand-950 hover:bg-brand-100 transition"
+                                  >
+                                    <RefreshCw size={10} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
+                                    <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Crawl"}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCompetitorToDelete({ id: entity.id, name: entity.name });
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
+                                    title={`Delete ${entity.name}`}
+                                  >
+                                    <Trash2 size={10} />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
                               </>
                             )}
                           </div>
@@ -1237,9 +1344,25 @@ function CompetitorIntelligenceClient() {
                           <p className="font-mono text-[11px] text-brand-500">{selectedCompetitor.domain}</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
-                        Tracked Rival
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
+                          Tracked Rival
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCompetitorToDelete({
+                              id: selectedCompetitor.id,
+                              name: selectedCompetitor.label || selectedCompetitor.domain,
+                            })
+                          }
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-brand-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                          title={`Delete ${selectedCompetitor.label || selectedCompetitor.domain}`}
+                          aria-label={`Delete ${selectedCompetitor.label || selectedCompetitor.domain}`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Metrics Row */}
@@ -1435,6 +1558,20 @@ function CompetitorIntelligenceClient() {
                                       className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition shadow-2xs"
                                     >
                                       Compare 1-on-1
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCompetitorToDelete({
+                                          id: comp.id,
+                                          name: comp.label || comp.domain,
+                                        })
+                                      }
+                                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition shadow-2xs"
+                                      title={`Delete ${comp.label || comp.domain}`}
+                                      aria-label={`Delete ${comp.label || comp.domain}`}
+                                    >
+                                      <Trash2 size={12} />
                                     </button>
                                   </div>
                                 </Td>

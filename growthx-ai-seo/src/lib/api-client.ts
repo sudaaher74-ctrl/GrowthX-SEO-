@@ -2014,10 +2014,17 @@ export const api = {
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
-  removeCompetitor: (projectId: string, competitorId: string) =>
-    request<{ removed: number }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
-      method: "DELETE",
-    }),
+  removeCompetitor: async (projectId: string, competitorId: string) => {
+    try {
+      return await request<{ removed: any }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
+        method: "DELETE",
+      });
+    } catch {
+      return await request<{ removed: any }>(`/api/projects/${projectId}/action-engine/competitors/${competitorId}`, {
+        method: "DELETE",
+      });
+    }
+  },
   runVisibilitySweep: (projectId: string) =>
     post<{ checksRun: number; checksFailed: number; citations: number; skippedAssistants: string[] }>(
       `/api/projects/${projectId}/ai-visibility/sweep`,
