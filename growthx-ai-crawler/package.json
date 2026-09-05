@@ -1,6 +1,9 @@
 {
   "name": "growthx-ai-crawler",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20.19"
+  },
   "description": "Production-ready Enterprise Website Crawler for GrowthX AI SaaS platform",
   "author": "GrowthX AI Team",
   "private": true,
