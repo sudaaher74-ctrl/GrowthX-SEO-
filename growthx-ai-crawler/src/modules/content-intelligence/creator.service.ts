@@ -93,6 +93,12 @@ export class CreatorService {
     });
   }
 
+  async deleteCreator(organizationId: string, creatorId: string) {
+    return this.prisma.creator.deleteMany({
+      where: { id: creatorId, organizationId },
+    });
+  }
+
   // ── MATCHING ─────────────────────────────────────────────────────────────
 
   /** Score all available creators against a campaign and save matches. */

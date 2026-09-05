@@ -17,6 +17,7 @@ import {
   Globe,
   Layers,
   Award,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/console";
 import { useWorkspace, usePortfolio, useStrategies, useStrategy, useGenerateStrategy } from "@/hooks/use-growthx";
@@ -26,6 +27,7 @@ import { SocialContentFeedsPanel } from "@/components/social/social-content-feed
 import { SocialMarketTrendsPanel } from "@/components/social/social-market-trends-panel";
 import { SocialViralSpyPanel } from "@/components/social/social-viral-spy-panel";
 import { SocialCalendarPanel } from "@/components/social/social-calendar-panel";
+import { SocialCreatorsPanel } from "@/components/social/social-creators-panel";
 
 const CATEGORIES = [
   { id: "accounts", label: "Social Accounts & Footprint", icon: Share2 },
@@ -33,6 +35,7 @@ const CATEGORIES = [
   { id: "trends", label: "Market Trends & Hook Bank", icon: TrendingUp },
   { id: "viral-spy", label: "Viral Spy & Counter-Actions", icon: Flame },
   { id: "calendar", label: "Publishing Schedule", icon: Calendar },
+  { id: "creators", label: "Content Creators Network", icon: Users },
 ] as const;
 
 type SocialCategoryTab = (typeof CATEGORIES)[number]["id"];
@@ -199,6 +202,14 @@ function SocialMediaClient() {
         <SocialCalendarPanel
           projectId={projectId!}
           businessName={businessName}
+        />
+      )}
+
+      {activeTab === "creators" && (
+        <SocialCreatorsPanel
+          projectId={projectId!}
+          businessName={businessName}
+          customerDomain={customerDomain}
         />
       )}
     </div>

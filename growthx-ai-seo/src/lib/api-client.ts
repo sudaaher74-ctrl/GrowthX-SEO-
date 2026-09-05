@@ -2209,6 +2209,10 @@ export const api = {
     request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
       method: 'PATCH', body: JSON.stringify(body),
     }),
+  deleteCreator: (projectId: string, creatorId: string) =>
+    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
+      method: 'DELETE',
+    }),
 
   // Outreach
   generateOutreachMessage: (projectId: string, body: GenerateOutreachBody) =>
@@ -2689,6 +2693,12 @@ export interface Creator {
   tags: string[];
   status: string;
   createdAt: string;
+  instagramUrl?: string | null;
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
+  linkedinUrl?: string | null;
+  xUrl?: string | null;
+  contactUrl?: string | null;
 }
 
 export interface AddCreatorBody {
@@ -2705,6 +2715,13 @@ export interface AddCreatorBody {
   averageBudget?: number;
   notes?: string;
   tags?: string[];
+  instagramUrl?: string;
+  youtubeUrl?: string;
+  tiktokUrl?: string;
+  linkedinUrl?: string;
+  xUrl?: string;
+  contactUrl?: string;
+  profileUrl?: string;
 }
 
 export interface CreatorMatch {

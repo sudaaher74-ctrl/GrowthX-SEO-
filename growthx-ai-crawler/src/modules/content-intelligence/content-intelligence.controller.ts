@@ -442,6 +442,11 @@ export class ContentIntelligenceController {
     return this.creator.updateCreator(req.organizationId, creatorId, body);
   }
 
+  @Delete('creators/:creatorId')
+  async deleteCreator(@Req() req: any, @Param('creatorId') creatorId: string) {
+    return this.creator.deleteCreator(req.organizationId, creatorId);
+  }
+
   @Post('creators/outreach')
   async generateOutreach(@Req() req: any, @Param('projectId') projectId: string, @Body() body: any) {
     return this.creator.generateOutreachMessage(req.organizationId, projectId, body);
