@@ -82,8 +82,6 @@ function IntegrationsClient() {
 
   const gsc = googleQuery.data?.providers.find((p) => p.id === "search_console");
   const ga4 = googleQuery.data?.providers.find((p) => p.id === "analytics");
-  const gbp = googleQuery.data?.providers.find((p) => p.id === "business_profile");
-
   // Authorize mutations
   const authorizeGoogle = useMutation({
     mutationFn: (provider: string) => api.googleAuthorizeUrl(projectId!, provider, "/integrations"),

@@ -493,8 +493,6 @@ ${competitorProfiles
     );
   }
 
-  const isLoading = websiteCmpQuery.isLoading;
-
   return (
     <div className="space-y-6">
       {/* 1. Header Strategic Agenda Banner */}

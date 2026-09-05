@@ -116,9 +116,13 @@ export function VideoScriptGeneratorModal({
 
   // Caption & Hashtags
   const caption = useMemo(() => {
-    const cleanTopic = topic.replace(/[^\w\s]/gi, "");
     return `🚨 ${hooks[selectedHookIndex].onScreenText}\n\nMost people spend hours over-complicating this, but the actual fix takes under 10 minutes when you have the right data.\n\nHere's what you need to do:\n1. Audit your competitor's top performing pages\n2. Fill the specific content gap they left open\n3. Automate your internal linking structure\n\n💬 Comment "BLUEPRINT" below and I'll send our exact checklist straight to your DMs!\n\nSave this for when you need it next 📌\n\n#seo #digitalmarketing #contentcreator #growthmarketing #ecommerce #reelsviral #growthx #videostrategy #socialmediatips`;
-  }, [topic, hooks, selectedHookIndex]);
+    // NOTE: `topic` is deliberately absent from these dependencies because the
+    // caption above never reads it. The user's typed topic does not reach the
+    // generated caption at all — a `cleanTopic` was computed here and thrown
+    // away, so every caption comes out identical. Left as-is: deciding where
+    // the topic belongs in this copy is a content decision, not a lint fix.
+  }, [hooks, selectedHookIndex]);
 
   const fullBrief = useMemo(() => {
     return `--- VIDEO PRODUCTION BRIEF ---\nPlatform: ${platform}\nTopic: ${topic}\nBrand: ${businessName} (${customerDomain})\n\nHOOK:\n${hooks[selectedHookIndex].spoken}\n\nSCENES:\n${scenes

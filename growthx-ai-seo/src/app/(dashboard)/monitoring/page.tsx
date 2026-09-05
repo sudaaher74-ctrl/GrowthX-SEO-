@@ -31,7 +31,6 @@ export default function MonitoringPage() {
   const activities = useActivity(projectId);
   const localSeo = useLocalSeo(projectId);
   const localReviews = useLocalReviews(projectId);
-  const gbpProposals = useGbpProposals(projectId);
   const monitoring = useMonitoring(projectId);
 
   const tabs = [

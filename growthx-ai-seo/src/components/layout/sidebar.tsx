@@ -108,9 +108,6 @@ export function Sidebar({
 
 
   const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
-  const crawlPct =
-    crawlQuota && crawlQuota.limit ? Math.min(100, (crawlQuota.used / crawlQuota.limit) * 100) : 0;
-
   return (
     <>
       {mobileOpen && (
@@ -385,10 +382,4 @@ function initialsOf(name: string): string {
   if (!words.length) return "?";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1000)}k`;
-  return String(n);
 }

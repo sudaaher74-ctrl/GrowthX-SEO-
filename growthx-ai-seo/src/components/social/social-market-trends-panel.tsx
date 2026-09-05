@@ -20,8 +20,6 @@ export function SocialMarketTrendsPanel({ projectId, businessName }: SocialMarke
     enabled: Boolean(projectId),
   });
 
-  const patterns = matrixQuery.data?.commonPatterns || [];
-
   const marketTrends = [
     {
       title: "15–30s High-Velocity Problem/Solution Reels",

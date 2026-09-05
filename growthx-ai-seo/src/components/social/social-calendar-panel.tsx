@@ -19,8 +19,6 @@ export function SocialCalendarPanel({ projectId, businessName }: SocialCalendarP
     enabled: Boolean(projectId),
   });
 
-  const items = calendarQuery.data || [];
-
   // Grounded schedule days
   const scheduleDays = [
     {

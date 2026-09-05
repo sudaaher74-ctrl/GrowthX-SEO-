@@ -107,11 +107,6 @@ function SearchPerformanceClient() {
     queryFn: () => api.ga4Timeseries(projectId!, days),
     enabled: !!projectId && ga4Connected,
   });
-  const ga4PageValue = useQuery({
-    queryKey: ["ga4-page-value", projectId, days],
-    queryFn: () => api.ga4PageValue(projectId!, days),
-    enabled: !!projectId && ga4Connected,
-  });
 
   // Sync Mutations
   const gscSync = useMutation({

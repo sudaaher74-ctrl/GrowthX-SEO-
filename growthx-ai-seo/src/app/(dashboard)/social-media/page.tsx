@@ -56,7 +56,6 @@ function SocialMediaClient() {
   // Strategy Queries & Mutations
   const strategies = useStrategies(projectId);
   const activeStrategyId = strategies.data?.[0]?.id ?? null;
-  const strategyReport = useStrategy(projectId, activeStrategyId);
   const generateStrategyMutation = useGenerateStrategy(projectId);
 
   // Competitor Query

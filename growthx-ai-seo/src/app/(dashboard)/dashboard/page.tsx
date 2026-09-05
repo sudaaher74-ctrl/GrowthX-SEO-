@@ -35,7 +35,6 @@ export default function UnifiedDashboardPage() {
   const visibility = useVisibility(projectId);
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
-  const monitoring = useMonitoring(projectId);
 
   const opportunities = useQuery({
     queryKey: ["opportunities", projectId],

@@ -462,8 +462,6 @@ export function CompetitorKeywordsPanel({
 
   const isCompetitorLoading = competitorPagesQuery.isLoading;
   const competitorPagesCount = competitorPagesQuery.data?.length || 0;
-  const ourPagesCount = ourPagesQuery.data?.data?.length || 0;
-
   return (
     <div className="space-y-6">
       {/* 1. Header Bar: Competitor Selector & Quick Stats */}
