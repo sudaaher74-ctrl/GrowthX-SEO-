@@ -50,7 +50,6 @@ import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/
 import { api } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
-import { CompetitorSeoReportPanel } from "@/components/competitor/seo-report";
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
 import {
@@ -64,9 +63,6 @@ const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
-  { id: "seo-quality", label: "SEO Deep Dive" },
-  { id: "local", label: "Local Competitors (Public Only)" },
-  { id: "market-trends", label: "Market Trends & AI Strategy" },
 ];
 
 const DEFAULT_TAB = "benchmarks";
@@ -230,12 +226,6 @@ function CompetitorIntelligenceClient() {
   const competitorsQuery = useQuery({
     queryKey: ["competitors", projectId],
     queryFn: () => api.listCompetitors(projectId!),
-    enabled: !!projectId,
-  });
-
-  const marketIntelligence = useQuery({
-    queryKey: ["market-intelligence", projectId],
-    queryFn: () => api.getMarketIntelligence(projectId!),
     enabled: !!projectId,
   });
 
@@ -1300,92 +1290,6 @@ function CompetitorIntelligenceClient() {
       {/* Tab 3: Competitor Content & Website Opportunities */}
       {(activeTab === "opportunities" || activeTab === "website") && (
         <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
-      )}
-
-      {/* Everything the crawler found on one competitor's site, beside your
-          own. The crawl already scored every competitor and listed the
-          problems behind the score — it goes through the same crawler as the
-          customer's site — and until now nothing read either. */}
-      {activeTab === "seo-quality" && (
-        <CompetitorSeoReportPanel projectId={projectId!} competitors={competitorsList} />
-      )}
-
-      {activeTab === "local" && (
-        <Panel
-          title="Local Competitor Profiles (Public Data Only)"
-          subtitle="Google Maps, Places, and public listing signals"
-        >
-          <div className="p-6 space-y-4">
-            <p className="text-[12px] text-brand-500 leading-relaxed">
-              Public local data includes business category, public rating, total review count, verified address, and Google Maps listing URLs.
-            </p>
-            {competitorsList.length === 0 ? (
-              <TruthfulState
-                icon={MapPin}
-                title="No Local Competitors Added"
-                missing="Add local competitors to track Google Maps rating and review volume gaps."
-                action={{ label: "Add Local Competitor", onClick: () => setShowAddModal(true) }}
-                compact
-              />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {competitorsList.map((comp) => (
-                  <div key={comp.id} className="p-4 rounded-xl border bg-white space-y-2" style={{ borderColor: "var(--border-color)" }}>
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-brand-950 text-[13px]">{comp.label || comp.domain}</h4>
-                      <span className="text-[10px] text-brand-400 font-mono">Public Place</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[12px] text-brand-600">
-                      <span>Rating: <strong>{(comp as any).rating ? `${(comp as any).rating.toFixed(1)} ★` : "N/A"}</strong></span>
-                      <span>Reviews: <strong>{(comp as any).reviewCount ?? 0}</strong></span>
-                    </div>
-                    <div className="text-[11px] text-brand-400">
-                      Domain: <span className="font-mono">{comp.domain}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Panel>
-      )}
-
-      {/* Tab 4: Market Trends & AI Strategy */}
-      {activeTab === "market-trends" && (
-        <div className="space-y-4">
-          <Panel
-            title="Industry Market Trends & AI Strategy"
-            subtitle="Search demand patterns and automated tactical recommendations"
-          >
-            <div className="p-6 space-y-4">
-              <div className="rounded-xl border p-5 bg-brand-50/30" style={{ borderColor: "var(--border-color)" }}>
-                <h4 className="text-[13px] font-semibold text-brand-950">Market Intelligence Summary</h4>
-                {/* Two chips used to sit here, one grading search demand and
-                    one grading competitive velocity. Both were string literals
-                    — every customer saw the same two verdicts whatever their
-                    market, their competitors, or whether anything had been
-                    crawled, under a heading promising market intelligence. The
-                    sentence above them claimed we were aggregating weekly
-                    search patterns, which nothing was doing either. Nothing
-                    replaces them: there is no measurement behind any of it to
-                    render, and a tab that admits its limits is worth more than
-                    one that fills them in. The exact chip text is a rule in
-                    scripts/check-no-fabricated-data.mjs, so it cannot come
-                    back. */}
-                {marketIntelligence.data?.sentimentSummary ? (
-                  <p className="text-[12px] text-brand-500 mt-1 leading-relaxed">
-                    {marketIntelligence.data.sentimentSummary}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-[12px] leading-relaxed text-brand-400">
-                    No market signals have been measured for this project yet. This section fills in once
-                    Search Console is connected and your competitors have been crawled.
-                  </p>
-                )}
-              </div>
-            </div>
-          </Panel>
-        </div>
       )}
     </div>
   );
