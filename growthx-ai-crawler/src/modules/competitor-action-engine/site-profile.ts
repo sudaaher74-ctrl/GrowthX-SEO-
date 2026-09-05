@@ -18,6 +18,25 @@ export interface SiteProfile {
   pagesNoindex: number;
   pagesWithSchema: number;
   brokenLinks: number;
+  /**
+   * The crawl's own health score, 0-100, or null when the crawl did not
+   * record one.
+   *
+   * Every crawl computes this and stores it on the job — competitors' crawls
+   * included, since they run through the same crawler. Nothing read it for a
+   * competitor, so the one number that most directly answers "how good is
+   * their SEO?" was being computed and thrown away on every competitor sweep.
+   */
+  healthScore: number | null;
+  /**
+   * Open issues the crawl found, counted by severity.
+   *
+   * Deduplicated the same way the health score deduplicates them, so the
+   * counts and the score describe the same set of problems. An empty record
+   * means the crawl found none; it is not the same as a crawl that never ran,
+   * which is what `crawledAt: null` says.
+   */
+  issuesBySeverity: Record<string, number>;
   // Content freshness is deliberately absent. The obvious implementation —
   // the newest blog page's crawledAt — is the date we fetched it, not the date
   // it was published, and the crawler stores no publish date. A field that
@@ -36,6 +55,8 @@ export const EMPTY_PROFILE: Omit<SiteProfile, 'domain'> = {
   pagesNoindex: 0,
   pagesWithSchema: 0,
   brokenLinks: 0,
+  healthScore: null,
+  issuesBySeverity: {},
   exampleUrlByType: {},
 };
 
@@ -59,7 +80,11 @@ export interface ProfilePage {
  * not a service page anyone can reach, and counting it would invent coverage
  * the customer does not have.
  */
-export function buildSiteProfile(domain: string, pages: ProfilePage[]): SiteProfile {
+export function buildSiteProfile(
+  domain: string,
+  pages: ProfilePage[],
+  crawl?: { healthScore: number | null; issuesBySeverity: Record<string, number> },
+): SiteProfile {
   const reachable = pages.filter((page) => page.statusCode >= 200 && page.statusCode < 300);
 
   const byType: Record<string, number> = {};
@@ -92,8 +117,15 @@ export function buildSiteProfile(domain: string, pages: ProfilePage[]): SiteProf
     pagesNoindex,
     pagesWithSchema,
     brokenLinks: pages.filter((page) => page.statusCode >= 400).length,
+    healthScore: crawl?.healthScore ?? null,
+    issuesBySeverity: crawl?.issuesBySeverity ?? {},
     exampleUrlByType,
   };
+}
+
+/** How many issues of a severity a crawl found, treating absent as zero. */
+export function issuesOf(profile: SiteProfile, severity: string): number {
+  return profile.issuesBySeverity[severity] ?? 0;
 }
 
 /** How many pages of a kind a site has, treating absent as zero. */

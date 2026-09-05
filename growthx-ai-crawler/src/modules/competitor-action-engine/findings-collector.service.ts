@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FindingCategory, FindingConfidence, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { SiteProfile, ProfilePage, buildSiteProfile, countOf, EMPTY_PROFILE } from './site-profile';
+import { SiteProfile, countOf, issuesOf, EMPTY_PROFILE } from './site-profile';
+import { SiteProfileLoader } from './site-profile.loader';
 
 /** A finding before it is written, so the comparison logic stays pure. */
 export interface DraftFinding {
@@ -46,7 +47,10 @@ const COVERAGE_TYPES: Array<{ type: string; label: string; category: FindingCate
 export class FindingsCollectorService {
   private readonly logger = new Logger(FindingsCollectorService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profiles: SiteProfileLoader,
+  ) {}
 
   /**
    * Collects findings for a project and replaces the previous set.
@@ -61,7 +65,7 @@ export class FindingsCollectorService {
     coverageGaps: string[];
   }> {
     const [customerProfile, competitors] = await Promise.all([
-      this.customerProfile(projectId),
+      this.profiles.forProject(projectId),
       this.competitorProfiles(projectId),
     ]);
 
@@ -85,6 +89,7 @@ export class FindingsCollectorService {
       );
     } else if (customerProfile) {
       drafts.push(...coverageFindings(customerProfile, crawledRivals));
+      drafts.push(...seoQualityFindings(customerProfile, crawledRivals));
     }
 
     const youtube = await this.socialFindings(projectId, 'YOUTUBE');
@@ -116,16 +121,6 @@ export class FindingsCollectorService {
     return { findings: drafts.length, coverageGaps };
   }
 
-  /** The customer's own site, from its most recent crawl. */
-  private async customerProfile(projectId: string): Promise<SiteProfile | null> {
-    const website = await this.prisma.website.findFirst({
-      where: { projectId },
-      select: { id: true, domain: true },
-    });
-    if (!website) return null;
-    return this.profileForWebsite(website.id, website.domain);
-  }
-
   private async competitorProfiles(
     projectId: string,
   ): Promise<Array<{ id: string; name: string; profile: SiteProfile }>> {
@@ -139,7 +134,7 @@ export class FindingsCollectorService {
     for (const competitor of competitors) {
       const name = competitor.name || competitor.label || competitor.domain;
       const profile = competitor.websiteId
-        ? await this.profileForWebsite(competitor.websiteId, competitor.domain)
+        ? await this.profiles.forWebsite(competitor.websiteId, competitor.domain)
         : null;
       results.push({
         id: competitor.id,
@@ -148,46 +143,6 @@ export class FindingsCollectorService {
       });
     }
     return results;
-  }
-
-  /** Pages from the newest completed crawl of one website. */
-  private async profileForWebsite(websiteId: string, domain: string): Promise<SiteProfile | null> {
-    const job = await this.prisma.crawlJob.findFirst({
-      where: { websiteId, status: 'COMPLETED' },
-      orderBy: { finishedAt: 'desc' },
-      select: { id: true },
-    });
-    if (!job) return null;
-
-    const pages = await this.prisma.page.findMany({
-      where: { crawlJobId: job.id },
-      select: {
-        url: true,
-        statusCode: true,
-        title: true,
-        metaDescription: true,
-        robotsMeta: true,
-        h1: true,
-        pageType: true,
-        crawledAt: true,
-        _count: { select: { schemas: true } },
-      },
-      take: 500,
-    });
-
-    const shaped: ProfilePage[] = pages.map((page) => ({
-      url: page.url,
-      statusCode: page.statusCode,
-      title: page.title,
-      metaDescription: page.metaDescription,
-      robotsMeta: page.robotsMeta,
-      h1: page.h1,
-      pageType: page.pageType,
-      crawledAt: page.crawledAt,
-      schemaCount: page._count.schemas,
-    }));
-
-    return buildSiteProfile(domain, shaped);
   }
 
   /**
@@ -388,6 +343,97 @@ export class FindingsCollectorService {
  * Only counted where the crawl actually looked, so a thin crawl produces few
  * findings rather than a clean bill of health.
  */
+/**
+ * Where a competitor's site is technically healthier than the customer's.
+ *
+ * The crawler scores every site it crawls and lists the problems behind the
+ * score, and it does this for competitors too — they go through the same
+ * crawler. Until now nothing read either for a competitor, so the product
+ * could tell a customer how many blog posts a rival had and not that the
+ * rival's site was in better technical shape, which is the question "how good
+ * is their SEO?" actually asks.
+ *
+ * Only a competitor genuinely ahead produces a finding. A customer already
+ * leading needs no action, and a finding saying so would compete for space in
+ * a plan with the ones that do.
+ */
+export function seoQualityFindings(
+  customer: SiteProfile,
+  competitors: Array<{ id: string; name: string; profile: SiteProfile }>,
+): DraftFinding[] {
+  const findings: DraftFinding[] = [];
+  const observedAt = customer.crawledAt ?? new Date();
+
+  // Health score. Skipped entirely when either side has none: a crawl that
+  // finished before the score was recorded has no opinion to compare, and
+  // treating its absence as zero would report every such competitor as far
+  // behind.
+  const scored = competitors.filter((entry) => entry.profile.healthScore != null);
+  if (customer.healthScore != null && scored.length > 0) {
+    const ahead = scored
+      .filter((entry) => entry.profile.healthScore! > customer.healthScore!)
+      .sort((a, b) => b.profile.healthScore! - a.profile.healthScore!);
+
+    if (ahead.length > 0) {
+      const leader = ahead[0];
+      const gap = leader.profile.healthScore! - customer.healthScore;
+      findings.push({
+        competitorId: leader.id,
+        category: 'TECHNICAL_SEO',
+        summary: `${leader.name} scores ${leader.profile.healthScore} on site health against your ${customer.healthScore}`,
+        detail:
+          `${ahead.map((entry) => `${entry.name} (${entry.profile.healthScore})`).join(', ')} ` +
+          `${plural(ahead.length, 'is', 'are')} ahead of ${customer.domain} on the crawler's own health score, ` +
+          `which weights each problem found by what it costs. Closing the ${gap}-point gap to ${leader.name} means ` +
+          'clearing the problems listed in the findings below, heaviest first.',
+        sourcePlatform: 'WEBSITE',
+        metricName: 'health_score',
+        metricValue: leader.profile.healthScore!,
+        customerValue: customer.healthScore,
+        confidence: 'HIGH',
+        observedAt,
+      });
+    }
+  }
+
+  // Serious problems, per severity. A competitor carrying fewer than the
+  // customer is the comparison worth drawing; the count of their problems on
+  // its own tells the customer nothing to do.
+  for (const severity of ['CRITICAL', 'HIGH'] as const) {
+    const mine = issuesOf(customer, severity);
+    if (mine === 0) continue;
+
+    const cleaner = competitors
+      .filter((entry) => entry.profile.crawledAt != null && issuesOf(entry.profile, severity) < mine)
+      .sort((a, b) => issuesOf(a.profile, severity) - issuesOf(b.profile, severity));
+    if (cleaner.length === 0) continue;
+
+    const best = cleaner[0];
+    const theirs = issuesOf(best.profile, severity);
+    const wording = severity === 'CRITICAL' ? 'critical' : 'high-priority';
+
+    findings.push({
+      competitorId: best.id,
+      category: 'TECHNICAL_SEO',
+      summary: `${mine} ${wording} SEO ${plural(mine, 'problem', 'problems')} on your site against ${best.name}'s ${theirs}`,
+      detail:
+        `The crawler found ${mine} distinct ${wording} ${plural(mine, 'problem', 'problems')} on ${customer.domain} and ` +
+        `${theirs} on ${best.profile.domain}. ` +
+        (severity === 'CRITICAL'
+          ? 'Critical problems keep pages out of search results altogether, so they come before any new content.'
+          : 'High-priority problems cost rankings on pages that are indexed, which is cheaper to fix than to out-write.'),
+      sourcePlatform: 'WEBSITE',
+      metricName: `issues_${severity.toLowerCase()}`,
+      metricValue: theirs,
+      customerValue: mine,
+      confidence: 'HIGH',
+      observedAt,
+    });
+  }
+
+  return findings;
+}
+
 export function technicalFindings(customer: SiteProfile): DraftFinding[] {
   const findings: DraftFinding[] = [];
   const observedAt = customer.crawledAt ?? new Date();

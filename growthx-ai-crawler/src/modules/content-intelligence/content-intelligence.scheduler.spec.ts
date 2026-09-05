@@ -195,4 +195,17 @@ describe('ContentIntelligenceScheduler — competitor sweeps', () => {
 
     expect(competitorMonitorService.runCompetitorChangeDetection).toHaveBeenCalledWith('org1', 'p1');
   });
+
+  describe('the weekly strategy refresh', () => {
+    // The two arguments were the other way round, so the service looked the
+    // project up by the organisation's id, found nothing, and threw. The sweep
+    // logged itself as running every Monday and had never written a strategy.
+    it('identifies the project by its own id, not the organisation\'s', async () => {
+      prisma.project.findMany.mockResolvedValue([{ id: 'p1', organizationId: 'org1', name: 'Client' }]);
+
+      await scheduler.handleWeeklyOpportunityAndStrategyRefresh();
+
+      expect(contentStrategyService.generateStrategy).toHaveBeenCalledWith('p1', 'org1');
+    });
+  });
 });

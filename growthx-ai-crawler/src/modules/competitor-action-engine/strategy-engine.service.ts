@@ -11,6 +11,17 @@ export interface PlannerFinding {
   category: FindingCategory;
   summary: string;
   detail: string;
+  /**
+   * Which measurement this finding is about, e.g. `pages_noindex`.
+   *
+   * The planner used to decide what an action should say by matching phrases
+   * in the summary — /returned an error/, /meta description/ — which made the
+   * wording of a sentence a customer reads part of the control flow. A finding
+   * whose summary was reworded, or a new kind of finding whose summary matched
+   * none of the patterns, silently fell through to whichever branch came last
+   * and was titled as something it was not.
+   */
+  metricName: string | null;
   metricValue: number | null;
   customerValue: number | null;
   confidence: FindingConfidence;
@@ -124,6 +135,7 @@ export class StrategyEngineService {
           category: true,
           summary: true,
           detail: true,
+          metricName: true,
           metricValue: true,
           customerValue: true,
           confidence: true,
@@ -254,9 +266,14 @@ export function planActions(findings: PlannerFinding[]): DraftAction[] {
 function technicalActions(findings: PlannerFinding[]): DraftAction[] {
   return findings.map((finding) => {
     const count = finding.customerValue ?? 0;
-    const isBroken = /returned an error/.test(finding.summary);
-    const isMeta = /meta description/.test(finding.summary);
-    const isNoindex = /not to index/.test(finding.summary);
+    const metric = finding.metricName ?? '';
+    const isBroken = metric === 'broken_urls';
+    const isMeta = metric === 'pages_missing_meta_description';
+    const isNoindex = metric === 'pages_noindex';
+
+    if (metric === 'health_score' || metric.startsWith('issues_')) {
+      return healthAction(finding, metric);
+    }
 
     if (isNoindex) {
       return {
@@ -320,6 +337,69 @@ function technicalActions(findings: PlannerFinding[]): DraftAction[] {
       confidence: finding.confidence,
     };
   });
+}
+
+/**
+ * The action behind a competitor being in better technical shape.
+ *
+ * Deliberately one action rather than a list: the health score is a summary of
+ * the individual problems, and the crawl already reports each of those as its
+ * own finding with its own action. Restating them here would have the customer
+ * do the same work twice and count it twice on the plan.
+ */
+function healthAction(finding: PlannerFinding, metric: string): DraftAction {
+  const mine = finding.customerValue ?? 0;
+  const theirs = finding.metricValue ?? 0;
+
+  if (metric === 'health_score') {
+    const gap = Math.round(theirs - mine);
+    return {
+      category: 'TECHNICAL_SEO' as const,
+      title: `Close the ${gap}-point site health gap`,
+      steps: [
+        'Open the latest crawl and sort its findings by severity.',
+        'Clear every critical problem first: those keep pages out of search results altogether.',
+        'Then the high-priority ones, worst-affected pages first.',
+        'Re-crawl and check the score has moved. It is the same measure on both sites, so the gap is directly comparable.',
+      ],
+      rationale: finding.detail,
+      expectedImpact:
+        'Technical faults cost rankings on pages that already exist, so clearing them earns from content ' +
+        'already written rather than requiring more of it.',
+      impact: gap >= 20 ? ('HIGH' as const) : gap >= 10 ? ('MEDIUM' as const) : ('LOW' as const),
+      // Reading the crawl and working the list, scaled to how far behind the site is.
+      effortHours: Math.min(24, Math.max(4, Math.round(gap / 2))),
+      findingIds: [finding.id],
+      competitorsWithEvidence: finding.competitorId ? 1 : 0,
+      confidence: finding.confidence,
+    };
+  }
+
+  const critical = metric === 'issues_critical';
+  const wording = critical ? 'critical' : 'high-priority';
+  const count = Math.round(mine);
+
+  return {
+    category: 'TECHNICAL_SEO' as const,
+    title: `Clear ${count} ${wording} SEO problem${count === 1 ? '' : 's'}`,
+    steps: [
+      `Filter the latest crawl to ${wording} findings.`,
+      'Group them by kind — one fix usually clears many pages at once.',
+      'Work the groups by how many pages each affects.',
+      `Re-crawl to confirm the count has dropped below the ${Math.round(theirs)} your closest competitor carries.`,
+    ],
+    rationale: finding.detail,
+    expectedImpact: critical
+      ? 'Critical faults keep pages out of search results entirely, so each one cleared can turn a page that ' +
+        'earns nothing into one that earns something.'
+      : 'High-priority faults cost rankings on pages that are already indexed, which is cheaper to fix than to ' +
+        'out-write.',
+    impact: critical ? ('HIGH' as const) : ('MEDIUM' as const),
+    effortHours: Math.min(20, Math.max(2, Math.round(count / 4))),
+    findingIds: [finding.id],
+    competitorsWithEvidence: finding.competitorId ? 1 : 0,
+    confidence: finding.confidence,
+  };
 }
 
 function coverageActions(findings: PlannerFinding[]): DraftAction[] {

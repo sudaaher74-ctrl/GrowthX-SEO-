@@ -7,6 +7,7 @@ import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
 import { WebsiteComparisonService } from './website-comparison.service';
+import { CompetitorSeoReportService } from './competitor-seo-report.service';
 
 export class UpdateActionDto {
   @IsEnum(ActionStatus)
@@ -91,6 +92,7 @@ export class CompetitorActionEngineController {
     private readonly read: StrategyReadService,
     private readonly setup: CompetitorSetupService,
     private readonly comparison: WebsiteComparisonService,
+    private readonly seoReport: CompetitorSeoReportService,
   ) {}
 
   @Get('website-comparison')
@@ -102,6 +104,21 @@ export class CompetitorActionEngineController {
   })
   websiteComparison(@Param('projectId') projectId: string) {
     return this.comparison.compare(projectId);
+  }
+
+  @Get('competitors/:competitorId/seo-report')
+  @ApiOperation({
+    summary: "Everything the crawler found on one competitor's site, beside your own",
+    description:
+      'The health score, the problems behind it grouped by kind with example URLs, page coverage by ' +
+      'kind, and a row-by-row comparison with your site. A competitor with no crawl reports nulls and ' +
+      'says why, rather than rendering zeros that would read as a perfect record.',
+  })
+  competitorSeoReport(
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+  ) {
+    return this.seoReport.report(projectId, competitorId);
   }
 
   @Get('competitors')

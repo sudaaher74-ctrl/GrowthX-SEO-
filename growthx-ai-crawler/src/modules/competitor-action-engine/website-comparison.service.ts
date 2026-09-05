@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { SiteProfile, ProfilePage, buildSiteProfile, countOf, EMPTY_PROFILE } from './site-profile';
+import { SiteProfile, countOf, issuesOf } from './site-profile';
+import { SiteProfileLoader } from './site-profile.loader';
 
 /** One thing worth comparing, and how each site does on it. */
 export interface ComparisonRow {
@@ -10,6 +11,7 @@ export interface ComparisonRow {
   whatItMeans: string;
   /** True when a bigger number is better; false for counts of problems. */
   higherIsBetter: boolean;
+  /** Null when this was not measured on the site, which is never a zero. */
   you: number | null;
   competitors: Array<{ id: string; name: string; value: number | null }>;
   /** Competitors measurably ahead of the customer on this row. */
@@ -54,7 +56,10 @@ export interface WebsiteComparison {
  */
 @Injectable()
 export class WebsiteComparisonService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profiles: SiteProfileLoader,
+  ) {}
 
   async compare(projectId: string): Promise<WebsiteComparison> {
     const website = await this.prisma.website.findFirst({
@@ -62,7 +67,7 @@ export class WebsiteComparisonService {
       select: { id: true, domain: true },
     });
 
-    const customerProfile = website ? await this.profileFor(website.id, website.domain) : null;
+    const customerProfile = website ? await this.profiles.forWebsite(website.id, website.domain) : null;
 
     const tracked = await this.prisma.competitorDomain.findMany({
       where: { projectId },
@@ -75,7 +80,9 @@ export class WebsiteComparisonService {
       competitors.push({
         id: competitor.id,
         name: competitor.name || competitor.label || competitor.domain,
-        profile: competitor.websiteId ? await this.profileFor(competitor.websiteId, competitor.domain) : null,
+        profile: competitor.websiteId
+          ? await this.profiles.forWebsite(competitor.websiteId, competitor.domain)
+          : null,
       });
     }
 
@@ -97,45 +104,6 @@ export class WebsiteComparisonService {
         .map((row) => ({ area: row.label, verdict: row.verdict, gap: row.gapToBest ?? 0 })),
     };
   }
-
-  private async profileFor(websiteId: string, domain: string): Promise<SiteProfile | null> {
-    const job = await this.prisma.crawlJob.findFirst({
-      where: { websiteId, status: 'COMPLETED' },
-      orderBy: { finishedAt: 'desc' },
-      select: { id: true },
-    });
-    if (!job) return null;
-
-    const pages = await this.prisma.page.findMany({
-      where: { crawlJobId: job.id },
-      select: {
-        url: true,
-        statusCode: true,
-        title: true,
-        metaDescription: true,
-        robotsMeta: true,
-        h1: true,
-        pageType: true,
-        crawledAt: true,
-        _count: { select: { schemas: true } },
-      },
-      take: 500,
-    });
-
-    const shaped: ProfilePage[] = pages.map((page) => ({
-      url: page.url,
-      statusCode: page.statusCode,
-      title: page.title,
-      metaDescription: page.metaDescription,
-      robotsMeta: page.robotsMeta,
-      h1: page.h1,
-      pageType: page.pageType,
-      crawledAt: page.crawledAt,
-      schemaCount: page._count.schemas,
-    }));
-
-    return buildSiteProfile(domain, shaped);
-  }
 }
 
 function summarize(
@@ -153,6 +121,16 @@ function summarize(
   };
 }
 
+/**
+ * Rows whose value can be missing even on a crawled site.
+ *
+ * The health score is one: an older crawl, finished before the score was
+ * recorded, has pages but no score. Reporting that as zero would put a site
+ * at the bottom of the table for a gap in our own records rather than
+ * anything about the site, so these rows report null and say so.
+ */
+type RowValue = number | null;
+
 /** The rows a business owner can act on, in the order they usually matter. */
 const ROWS: Array<{
   key: string;
@@ -168,8 +146,35 @@ const ROWS: Array<{
    * every time.
    */
   noun: { one: string; many: string };
-  read: (profile: SiteProfile) => number;
+  read: (profile: SiteProfile) => RowValue;
 }> = [
+  {
+    key: 'health_score',
+    label: 'SEO health score',
+    whatItMeans:
+      "The crawler's overall verdict on a site, out of 100, from the problems it found weighted by how much each one costs. The single number to read first: everything below explains it.",
+    higherIsBetter: true,
+    noun: { one: 'point', many: 'points' },
+    read: (p) => p.healthScore,
+  },
+  {
+    key: 'critical_issues',
+    label: 'Critical SEO problems',
+    whatItMeans:
+      'Faults serious enough to keep a page out of search results altogether, or to send visitors to an error. These are fixed before anything else on this list.',
+    higherIsBetter: false,
+    noun: { one: 'critical problem', many: 'critical problems' },
+    read: (p) => issuesOf(p, 'CRITICAL'),
+  },
+  {
+    key: 'high_issues',
+    label: 'High-priority SEO problems',
+    whatItMeans:
+      'Faults that cost rankings on pages that do get indexed — a missing title, a broken canonical, a page nothing links to.',
+    higherIsBetter: false,
+    noun: { one: 'high-priority problem', many: 'high-priority problems' },
+    read: (p) => issuesOf(p, 'HIGH'),
+  },
   {
     key: 'location_pages',
     label: 'Location pages',
@@ -295,7 +300,7 @@ export function buildComparisonRows(
       competitors: values,
       aheadOfYou: ahead.map((entry) => entry.name),
       gapToBest,
-      verdict: verdictFor(row.noun, row.higherIsBetter, you, ahead, gapToBest),
+      verdict: verdictFor(row.noun, row.higherIsBetter, customer != null, you, ahead, gapToBest),
     };
   });
 }
@@ -304,11 +309,18 @@ export function buildComparisonRows(
 function verdictFor(
   noun: { one: string; many: string },
   higherIsBetter: boolean,
+  crawled: boolean,
   you: number | null,
   ahead: Array<{ name: string; value: number }>,
   gapToBest: number | null,
 ): string {
-  if (you == null) return 'Your site has not been crawled yet, so there is nothing to compare against.';
+  if (!crawled) return 'Your site has not been crawled yet, so there is nothing to compare against.';
+  // Crawled, but this row has no figure — a crawl finished before the health
+  // score was recorded has pages and no score. Saying "not crawled" here would
+  // be wrong about the site, and saying "zero" would be worse.
+  if (you == null) {
+    return 'This has not been measured on your site yet. It is recorded on the next crawl.';
+  }
   if (ahead.length === 0) {
     return higherIsBetter
       ? `No tracked competitor has more than your ${you}. This is not a gap.`

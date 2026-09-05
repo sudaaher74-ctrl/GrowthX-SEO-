@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DiscoveryPipelineService } from './discovery-pipeline.service';
 import { DiscoveryStatusService } from './discovery-status.service';
+import { AnalysisPipelineService } from './analysis-pipeline.service';
 
 /**
  * The onboarding run, from "website added" through to "competitors tracked".
@@ -19,6 +20,7 @@ export class DiscoveryPipelineController {
   constructor(
     private readonly status: DiscoveryStatusService,
     private readonly pipeline: DiscoveryPipelineService,
+    private readonly analysis: AnalysisPipelineService,
   ) {}
 
   @Get('status')
@@ -31,6 +33,20 @@ export class DiscoveryPipelineController {
   @ApiParam({ name: 'projectId' })
   getStatus(@Req() req: any, @Param('projectId') projectId: string) {
     return this.status.getStatus(req.user?.organizationId || req.organizationId, projectId);
+  }
+
+  @Post('analyze')
+  @ApiOperation({
+    summary: 'Run the competitor analysis now rather than waiting for tonight',
+    description:
+      'Classifies collected competitor content, detects creative patterns, finds content gaps, rebuilds ' +
+      'the findings, and regenerates the action plan and content strategy — in that order, since each ' +
+      'stage refuses to run without the one before it. Reports what each stage did, and a stage that had ' +
+      'no input says so rather than being counted as done.',
+  })
+  @ApiParam({ name: 'projectId' })
+  analyze(@Req() req: any, @Param('projectId') projectId: string) {
+    return this.analysis.run(req.user?.organizationId || req.organizationId, projectId);
   }
 
   @Post('crawl-pending-competitors')

@@ -6,6 +6,7 @@ import { MarketResearchService } from '../market-research/market-research.servic
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 import { COMPETITOR_STATUS } from '../content-intelligence/competitor-status';
 import { chooseOwnProfiles, CandidateProfile, ChosenProfile } from './own-social-accounts';
+import { AnalysisPipelineService } from './analysis-pipeline.service';
 
 /** How many identified competitors are tracked without anyone being asked. */
 const AUTO_TRACK_LIMIT = 5;
@@ -35,6 +36,7 @@ export class DiscoveryPipelineService implements OnModuleInit {
     private readonly crawler: CrawlerService,
     private readonly research: MarketResearchService,
     private readonly competitorCrawl: CompetitorCrawlService,
+    private readonly analysis: AnalysisPipelineService,
   ) {}
 
   onModuleInit(): void {
@@ -225,6 +227,38 @@ export class DiscoveryPipelineService implements OnModuleInit {
     await this.step(`social accounts for competitor ${competitor.domain}`, () =>
       this.recordCompetitorSocialAccounts(crawlJobId, competitor),
     );
+
+    await this.step(`analysis check for ${competitor.domain}`, () =>
+      this.analyseWhenAllCompetitorsAreIn(competitor.projectId),
+    );
+  }
+
+  /**
+   * Runs the analysis as soon as the last competitor's first crawl lands.
+   *
+   * Otherwise a customer who added competitors in the morning would see the
+   * comparison fill in and the strategy stay empty until the 06:00 sweep the
+   * following day — the point at which the product stops describing rivals and
+   * starts saying what to do about them.
+   *
+   * Only on the first pass. Once a project has an action plan, the nightly
+   * sweep keeps it current, and re-running the whole chain on every recurring
+   * competitor crawl would spend a model call per competitor per night for an
+   * answer that had not changed.
+   */
+  private async analyseWhenAllCompetitorsAreIn(projectId: string): Promise<void> {
+    const [waiting, alreadyPlanned, project] = await Promise.all([
+      this.prisma.competitorDomain.count({ where: { projectId, lastAnalyzedAt: null } }),
+      this.prisma.strategyRun.count({ where: { projectId } }),
+      this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } }),
+    ]);
+
+    if (waiting > 0 || alreadyPlanned > 0 || !project) return;
+
+    this.logger.log(`Every tracked competitor for project ${projectId} has been crawled; running the analysis.`);
+    const run = await this.analysis.run(project.organizationId, projectId);
+    const ran = run.stages.filter((stage) => stage.outcome === 'ran').length;
+    this.logger.log(`First analysis for project ${projectId}: ${ran} of ${run.stages.length} stages did work.`);
   }
 
   /** The customer's own accounts, as published on their own site. */

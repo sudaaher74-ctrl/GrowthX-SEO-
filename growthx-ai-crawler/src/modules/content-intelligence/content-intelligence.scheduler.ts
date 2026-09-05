@@ -245,7 +245,12 @@ export class ContentIntelligenceScheduler {
       for (const p of projects) {
         try {
           this.logger.log(`[Cron] Refreshing strategy and opportunities for project ${p.name}...`);
-          await this.contentStrategyService.generateStrategy(p.organizationId, p.id);
+          // (projectId, organizationId) — the two were the other way round
+          // here, so every weekly run looked the project up by the
+          // organisation's id, found nothing, and threw "that project no
+          // longer exists" into the catch below. The sweep reported itself as
+          // running for years of Mondays and had never written a strategy.
+          await this.contentStrategyService.generateStrategy(p.id, p.organizationId);
         } catch (err: any) {
           this.logger.error(`[Cron] Strategy refresh failed for project ${p.id}: ${err.message}`);
         }

@@ -154,6 +154,7 @@ describe('technicalFindings', () => {
         category: 'TECHNICAL_SEO',
         summary: noindex.summary,
         detail: noindex.detail,
+        metricName: 'pages_noindex',
         metricValue: null,
         customerValue: noindex.customerValue ?? null,
         confidence: 'HIGH',
@@ -188,12 +189,61 @@ describe('planActions', () => {
       category: 'LOCAL_SEO',
       summary: 'acme has 4 location or city pages and you have 0',
       detail: 'acme has 4; you have 0.',
+      metricName: 'coverage_location',
       metricValue: 4,
       customerValue: 0,
       confidence: 'HIGH',
       ...overrides,
     };
   }
+
+  // The planner used to pick a branch by matching phrases in the sentence a
+  // customer reads, so a finding whose wording matched none of them fell
+  // through to the last branch and was titled as something it was not.
+  it('titles a technical action from what it measures, not from its wording', () => {
+    const [action] = planActions([
+      finding({
+        category: 'TECHNICAL_SEO',
+        metricName: 'health_score',
+        summary: 'Alpha scores 91 on site health against your 62',
+        detail: 'Alpha (91) is ahead of you.com on the health score.',
+        metricValue: 91,
+        customerValue: 62,
+      }),
+    ]);
+
+    expect(action.title).toBe('Close the 29-point site health gap');
+    expect(action.impact).toBe('HIGH');
+  });
+
+  it('scales the health-gap action to how far behind the site is', () => {
+    const wide = planActions([
+      finding({ category: 'TECHNICAL_SEO', metricName: 'health_score', metricValue: 95, customerValue: 40 }),
+    ])[0];
+    const narrow = planActions([
+      finding({ category: 'TECHNICAL_SEO', metricName: 'health_score', metricValue: 72, customerValue: 68 }),
+    ])[0];
+
+    expect(wide.impact).toBe('HIGH');
+    expect(narrow.impact).toBe('LOW');
+    expect(wide.effortHours).toBeGreaterThan(narrow.effortHours);
+  });
+
+  it('writes clearing serious problems as its own action, ranked by severity', () => {
+    const critical = planActions([
+      finding({ category: 'TECHNICAL_SEO', metricName: 'issues_critical', metricValue: 2, customerValue: 9 }),
+    ])[0];
+    const high = planActions([
+      finding({ category: 'TECHNICAL_SEO', metricName: 'issues_high', metricValue: 5, customerValue: 20 }),
+    ])[0];
+
+    expect(critical.title).toBe('Clear 9 critical SEO problems');
+    expect(critical.impact).toBe('HIGH');
+    expect(high.title).toBe('Clear 20 high-priority SEO problems');
+    expect(high.impact).toBe('MEDIUM');
+    // The target is the competitor's own count, so the customer knows when to stop.
+    expect(critical.steps.join(' ')).toContain('below the 2');
+  });
 
   it('writes an action that carries the evidence it came from', () => {
     const [action] = planActions([finding()]);

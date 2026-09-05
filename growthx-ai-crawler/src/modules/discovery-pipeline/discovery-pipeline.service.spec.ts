@@ -21,6 +21,7 @@ describe('DiscoveryPipelineService', () => {
   let crawler: any;
   let research: any;
   let competitorCrawl: any;
+  let analysis: any;
   let service: DiscoveryPipelineService;
 
   beforeEach(() => {
@@ -40,6 +41,7 @@ describe('DiscoveryPipelineService', () => {
       socialAccount: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
       competitorAccount: { upsert: jest.fn().mockResolvedValue({}) },
       siteSocialLink: { findMany: jest.fn().mockResolvedValue([]) },
+      strategyRun: { count: jest.fn().mockResolvedValue(0) },
     };
     crawler = { onCrawlCompleted: jest.fn() };
     research = {
@@ -48,8 +50,9 @@ describe('DiscoveryPipelineService', () => {
       addSelectedCompetitors: jest.fn().mockResolvedValue({ count: 0, addedCompetitors: [] }),
     };
     competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j2' }) };
+    analysis = { run: jest.fn().mockResolvedValue({ projectId: 'p1', startedAt: '', stages: [] }) };
 
-    service = new DiscoveryPipelineService(prisma, crawler, research, competitorCrawl);
+    service = new DiscoveryPipelineService(prisma, crawler, research, competitorCrawl, analysis);
   });
 
   it('subscribes to crawl completion at start-up rather than being injected into the crawler', () => {
@@ -247,6 +250,51 @@ describe('DiscoveryPipelineService', () => {
         ([arg]: any[]) => 'instagramHandle' in arg.data,
       );
       expect(handleWrites).toHaveLength(0);
+    });
+  });
+
+  describe('starting the analysis once the competitors are in', () => {
+    beforeEach(() => {
+      prisma.website.findUnique.mockResolvedValue(competitorSite);
+    });
+
+    it('runs the analysis when the last competitor crawl lands', async () => {
+      prisma.competitorDomain.count.mockResolvedValue(0);
+
+      await service.handleCrawlCompleted('j2', 'w2');
+
+      expect(analysis.run).toHaveBeenCalledWith('org1', 'p1');
+    });
+
+    it('waits while any tracked competitor is still uncrawled', async () => {
+      prisma.competitorDomain.count.mockResolvedValue(2);
+
+      await service.handleCrawlCompleted('j2', 'w2');
+
+      expect(analysis.run).not.toHaveBeenCalled();
+    });
+
+    // The nightly sweep keeps the plan current. Re-running the whole chain on
+    // every recurring crawl would spend a model call per competitor per night
+    // for an answer that had not changed.
+    it('does not re-run the whole chain once a project already has a plan', async () => {
+      prisma.competitorDomain.count.mockResolvedValue(0);
+      prisma.strategyRun.count.mockResolvedValue(1);
+
+      await service.handleCrawlCompleted('j2', 'w2');
+
+      expect(analysis.run).not.toHaveBeenCalled();
+    });
+
+    it('still marks the competitor analysed when the analysis itself fails', async () => {
+      prisma.competitorDomain.count.mockResolvedValue(0);
+      analysis.run.mockRejectedValue(new Error('model unavailable'));
+
+      await expect(service.handleCrawlCompleted('j2', 'w2')).resolves.toBeUndefined();
+      expect(prisma.competitorDomain.update).toHaveBeenCalledWith({
+        where: { id: 'c1' },
+        data: { status: 'ANALYZED', lastAnalyzedAt: expect.any(Date) },
+      });
     });
   });
 
