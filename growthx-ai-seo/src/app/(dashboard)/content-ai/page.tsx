@@ -1,10 +1,24 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { ExternalLink, GitBranch, Loader2, PenLine, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  GitBranch,
+  Layers,
+  Loader2,
+  PenLine,
+  Plus,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { ActionButton, PageHeader, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, type ContentPiece } from "@/lib/api-client";
 import { QueryState } from "@/components/ui/query-state";
+import { CreateArticleModal } from "@/components/content/create-article-modal";
+import { ArticlePreviewModal } from "@/components/content/article-preview-modal";
 import {
   useAutomationRuns,
   useConnectRepository,
@@ -33,10 +47,14 @@ export default function ContentAiPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [showConnect, setShowConnect] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [previewPiece, setPreviewPiece] = useState<ContentPiece | null>(null);
   const [form, setForm] = useState({ owner: "", name: "", accessToken: "", defaultBranch: "main" });
 
   const latestStrategy = strategies.data?.[0];
-  const drafted = (pieces.data ?? []).filter((p) => p.status === "DRAFTED");
+  const allPieces = pieces.data ?? [];
+  const drafted = allPieces.filter((p) => p.status === "DRAFTED");
+  const uniqueQueries = new Set(allPieces.map((p) => p.targetQuery).filter(Boolean)).size;
   
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -52,19 +70,102 @@ export default function ContentAiPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Content AI"
-        subtitle="Plan, draft, and ship pages targeted at the prompts competitors are winning"
+        title="AI Content Studio & Auto-Publisher"
+        subtitle="Generate rank-ready, GEO-optimized articles with 45-word definition blocks, comparison tables, and FAQ schema."
         actions={
-          <ActionButton
-            variant="primary"
-            icon={planContent.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            onClick={() => planContent.mutate()}
-            disabled={planContent.isPending || !projectId || !latestStrategy}
-          >
-            {planContent.isPending ? "Planning…" : "Plan from strategy"}
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="primary"
+              icon={<Plus size={13} />}
+              onClick={() => setCreateModalOpen(true)}
+              disabled={!projectId}
+            >
+              Create Custom Article
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              icon={planContent.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              onClick={() => planContent.mutate()}
+              disabled={planContent.isPending || !projectId || !latestStrategy}
+            >
+              {planContent.isPending ? "Planning…" : "Plan from Strategy"}
+            </ActionButton>
+          </div>
         }
       />
+
+      {/* 4 Studio Executive KPI Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Total Content Pipeline</span>
+            <FileText size={15} className="text-brand-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-brand-950 dark:text-brand-100">
+              {allPieces.length}
+            </span>
+            <span className="text-xs text-brand-400">articles tracked</span>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+            Planned, drafted, and published content assets
+          </p>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Ready to Publish</span>
+            <CheckCircle2 size={15} className="text-emerald-500" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-brand-950 dark:text-brand-100">
+              {drafted.length}
+            </span>
+            <span className="text-xs text-brand-400">/ {allPieces.length} completed</span>
+            <Pill tone={drafted.length > 0 ? "good" : "default"}>
+              {drafted.length > 0 ? "Ready to Ship" : "Needs Drafting"}
+            </Pill>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+            Drafted with GEO answer blocks and Schema JSON-LD
+          </p>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Target Queries Covered</span>
+            <Zap size={15} className="text-amber-500" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-brand-950 dark:text-brand-100">
+              {uniqueQueries}
+            </span>
+            <span className="text-xs text-brand-400">search intents</span>
+            <Pill tone="info">High Intent</Pill>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+            Keywords targeted against competitor organic footprint
+          </p>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">Repository & PR Auto-Sync</span>
+            <GitBranch size={15} className="text-blue-500" />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="font-mono text-xs font-bold text-brand-950 dark:text-brand-100 truncate max-w-[160px]">
+              {repo.data ? `${repo.data.owner}/${repo.data.name}` : "Not connected"}
+            </span>
+            <Pill tone={repo.data ? "good" : "warn"}>
+              {repo.data ? "Connected" : "Setup Needed"}
+            </Pill>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+            {repo.data ? `Auto-ships to ${repo.data.defaultBranch} via PR` : "Connect GitHub repo below to auto-publish"}
+          </p>
+        </Panel>
+      </div>
 
       {!latestStrategy && !strategies.isLoading && (
         <div className="rounded-xl border bg-brand-50 px-4 py-2.5 text-[12px] text-brand-500" style={{ borderColor: "var(--color-line)" }}>
@@ -134,18 +235,45 @@ export default function ContentAiPage() {
                   <Td><span className="font-mono text-[11.5px] text-brand-500">{piece.targetQuery ?? "—"}</span></Td>
                   <Td><Pill tone={STATUS_TONE[piece.status]}>{piece.status}</Pill></Td>
                   <Td align="right">
-                    {piece.status === "PLANNED" && (
-                      <ActionButton
-                        icon={draftContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
-                        onClick={() => draftContent.mutate(piece.id)}
-                        disabled={draftContent.isPending}
-                      >
-                        Draft
-                      </ActionButton>
-                    )}
-                    {piece.status === "COMMITTED" && piece.filePath && (
-                      <span className="font-mono text-[11px] text-brand-400">{piece.filePath}</span>
-                    )}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {piece.status === "DRAFTED" && (
+                        <>
+                          <ActionButton
+                            variant="secondary"
+                            icon={<BookOpen size={11} className="text-accent-600" />}
+                            onClick={() => setPreviewPiece(piece)}
+                          >
+                            Preview & Read
+                          </ActionButton>
+                          <ActionButton
+                            icon={draftContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
+                            onClick={() => draftContent.mutate(piece.id)}
+                            disabled={draftContent.isPending}
+                          >
+                            Re-draft
+                          </ActionButton>
+                        </>
+                      )}
+                      {piece.status === "PLANNED" && (
+                        <ActionButton
+                          variant="primary"
+                          icon={draftContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                          onClick={() => draftContent.mutate(piece.id)}
+                          disabled={draftContent.isPending}
+                        >
+                          Draft Article
+                        </ActionButton>
+                      )}
+                      {(piece.status === "COMMITTED" || piece.status === "PUBLISHED") && (
+                        <ActionButton
+                          variant="secondary"
+                          icon={<BookOpen size={11} />}
+                          onClick={() => setPreviewPiece(piece)}
+                        >
+                          View Article
+                        </ActionButton>
+                      )}
+                    </div>
                   </Td>
                 </Tr>
               ))}
@@ -245,6 +373,26 @@ export default function ContentAiPage() {
             </tbody>
           </Table>
         </Panel>
+      )}
+
+      {/* Modals */}
+      {createModalOpen && projectId && (
+        <CreateArticleModal
+          projectId={projectId}
+          onClose={() => setCreateModalOpen(false)}
+        />
+      )}
+
+      {previewPiece && (
+        <ArticlePreviewModal
+          piece={previewPiece}
+          repoConnected={Boolean(repo.data)}
+          onClose={() => setPreviewPiece(null)}
+          onShip={(pieceId) => {
+            runContent.mutate([pieceId]);
+            setPreviewPiece(null);
+          }}
+        />
       )}
     </div>
   );

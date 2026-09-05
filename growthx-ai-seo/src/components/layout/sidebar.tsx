@@ -101,6 +101,13 @@ export function Sidebar({
       aliases: ["/competitors", "/market"],
     },
     {
+      label: "Content Studio",
+      href: "/content-ai",
+      icon: Edit3,
+      aliases: ["/content"],
+      tag: "AI Gen",
+    },
+    {
       label: "Social Media",
       href: "/social-media",
       icon: Share2,

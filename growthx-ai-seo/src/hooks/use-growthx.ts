@@ -577,6 +577,15 @@ export function usePlanContent(projectId: string | null) {
   });
 }
 
+export function useCreateContentPiece(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; targetQuery?: string; format?: string; rationale?: string }) =>
+      api.createContentPiece(projectId!, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["content-pieces", projectId] }),
+  });
+}
+
 export function useDraftContent(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

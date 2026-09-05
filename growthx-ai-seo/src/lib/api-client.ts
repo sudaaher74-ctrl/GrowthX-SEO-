@@ -524,6 +524,7 @@ export interface ContentPiece {
   filePath: string | null;
   generatedByModel: string | null;
   metaDescription: string | null;
+  body?: string | null;
   createdAt: string;
 }
 
@@ -2085,6 +2086,10 @@ export const api = {
     body: { owner: string; name: string; accessToken: string; defaultBranch?: string; framework?: string; contentDir?: string; autoMerge?: boolean },
   ) => post<SiteRepository>(`/api/projects/${projectId}/automation/repository`, body),
   planContent: (projectId: string) => post<ContentPiece[]>(`/api/projects/${projectId}/automation/content/plan`, {}),
+  createContentPiece: (
+    projectId: string,
+    body: { title: string; targetQuery?: string; format?: string; rationale?: string },
+  ) => post<ContentPiece>(`/api/projects/${projectId}/automation/content/custom`, body),
   listContent: (projectId: string) => get<ContentPiece[]>(`/api/projects/${projectId}/automation/content`),
   draftContent: (projectId: string, pieceId: string) =>
     post<ContentPiece>(`/api/projects/${projectId}/automation/content/${pieceId}/draft`, {}),

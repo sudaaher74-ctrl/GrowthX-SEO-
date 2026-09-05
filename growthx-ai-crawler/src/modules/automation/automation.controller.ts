@@ -82,6 +82,16 @@ export class AutomationController {
     return this.content.planFromStrategy(projectId);
   }
 
+  @Post('content/custom')
+  @ApiOperation({ summary: 'Create a custom planned content piece' })
+  @ApiParam({ name: 'projectId' })
+  createCustom(
+    @Param('projectId') projectId: string,
+    @Body() body: { title: string; targetQuery?: string; format?: string; rationale?: string },
+  ) {
+    return this.content.createCustomPiece(projectId, body);
+  }
+
   @Get('content')
   @ApiOperation({ summary: 'Planned, drafted and shipped content for this client' })
   @ApiParam({ name: 'projectId' })

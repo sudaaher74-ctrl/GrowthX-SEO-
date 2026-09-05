@@ -15,7 +15,11 @@ const PAGE_SCHEMA = {
     body: {
       type: 'string',
       description:
-        'The full page in Markdown. Use ## and ### headings. 800-1500 words. No front matter, no H1 — the title becomes the H1.',
+        'The full page in Markdown. Must start with an H2 Key Overview / Direct Answer Block (45-55 words), contain a Markdown comparison/benchmark data table, and structured headings (## and ###). 1200-2500 words. No front matter, no H1 — the title becomes the H1.',
+    },
+    faqSchema: {
+      type: 'string',
+      description: 'Valid Schema.org FAQPage JSON-LD string with 3-5 high intent Q&As related to the target query.',
     },
   },
   required: ['title', 'metaDescription', 'slug', 'body'],
@@ -23,11 +27,14 @@ const PAGE_SCHEMA = {
 } as const;
 
 const SYSTEM_PROMPT =
-  'You are writing a page that will be published on a client\'s live website. ' +
-  'Write for their actual customers, in their domain, using only facts evidenced ' +
-  'by the brief. Never invent statistics, prices, awards, client names, or ' +
-  'testimonials. If you would need a specific number you do not have, write ' +
-  'around it. Respond only with JSON matching the schema.';
+  'You are an expert Generative Engine Optimization (GEO) and SEO content architect writing a page for a client\'s live website. ' +
+  'Structure the article to rank in Google and win direct answer citations in Google AI Overviews, ChatGPT Search, and Perplexity. ' +
+  'Requirements: ' +
+  '1. Begin the body with "## Key Overview & Direct Answer" containing a punchy 45-55 word direct declarative summary. ' +
+  '2. Include a detailed Markdown Comparison / Benchmark Data Table providing high information gain. ' +
+  '3. Provide authoritative, thorough analysis (1200-2500 words) using clean ## and ### headings. ' +
+  '4. Never invent client names or false statistics; focus on domain expertise, architectural trade-offs, and verified best practices. ' +
+  'Respond only with JSON matching the schema.';
 
 @Injectable()
 export class ContentGenerationService {
@@ -136,15 +143,48 @@ export class ContentGenerationService {
       throw new ServiceUnavailableException('The model returned an unusable page. Please retry.');
     }
 
+    let finalBody = parsed.body;
+    if (parsed.faqSchema && !finalBody.includes('application/ld+json')) {
+      finalBody += `\n\n\`\`\`html\n<script type="application/ld+json">\n${parsed.faqSchema.trim()}\n</script>\n\`\`\`\n`;
+    }
+
     return this.prisma.contentPiece.update({
       where: { id: pieceId },
       data: {
         title: parsed.title,
         metaDescription: parsed.metaDescription ?? null,
         slug: this.slugify(parsed.slug || parsed.title),
-        body: parsed.body,
+        body: finalBody,
         generatedByModel: completion.model,
         status: ContentPieceStatus.DRAFTED,
+      },
+    });
+  }
+
+  /** Creates a custom planned content piece directly from the UI. */
+  async createCustomPiece(
+    projectId: string,
+    data: { title: string; targetQuery?: string; format?: string; rationale?: string },
+  ) {
+    if (!data.title?.trim()) {
+      throw new BadRequestException('Title is required');
+    }
+    const slug = this.slugify(data.title);
+    return this.prisma.contentPiece.upsert({
+      where: { projectId_slug: { projectId, slug } },
+      update: {
+        format: data.format || 'Article',
+        targetQuery: data.targetQuery,
+        rationale: data.rationale,
+      },
+      create: {
+        projectId,
+        slug,
+        title: data.title.trim(),
+        format: data.format || 'Article',
+        targetQuery: data.targetQuery?.trim() || null,
+        rationale: data.rationale?.trim() || null,
+        status: ContentPieceStatus.PLANNED,
       },
     });
   }
@@ -185,6 +225,7 @@ export class ContentGenerationService {
         filePath: true,
         generatedByModel: true,
         metaDescription: true,
+        body: true,
         createdAt: true,
       },
     });
