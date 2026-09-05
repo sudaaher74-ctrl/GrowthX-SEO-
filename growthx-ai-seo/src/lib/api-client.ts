@@ -1000,6 +1000,40 @@ export interface TenantStat {
   status: string;
 }
 
+export interface AdminSystemHealth {
+  status: 'HEALTHY' | 'DEGRADED';
+  database: {
+    status: string;
+    latencyMs: number;
+  };
+  redis: {
+    status: string;
+    queuesActive: boolean;
+  };
+  crawlerCluster: {
+    status: string;
+    activeWorkers: number;
+    headlessEngine: string;
+  };
+  aiRouter: {
+    status: string;
+    primaryModel: string;
+    fallbackProvider: string;
+  };
+  timestamp: string;
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  organizationName: string;
+  organizationId: string | null;
+  createdAt: string;
+  status: string;
+}
+
 export interface MarketIntelligenceData {
   sentimentScore: number;
   sentimentSummary: string | null;
@@ -2064,6 +2098,11 @@ export const api = {
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
   getAdminCosts: () => get<ApiCostStat[]>("/api/admin/costs"),
   getAdminTenants: () => get<TenantStat[]>("/api/admin/tenants"),
+  getAdminSystemHealth: () => get<AdminSystemHealth>("/api/admin/system-health"),
+  getAdminUsers: () => get<AdminUserItem[]>("/api/admin/users"),
+  pauseAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/pause", {}),
+  resumeAdminQueues: () => post<{ success: boolean; status: string }>("/api/admin/queues/resume", {}),
+  retryAdminFailedJobs: () => post<{ success: boolean; retriedCount: number }>("/api/admin/queues/retry", {}),
 
   // ── Content Intelligence & Creative Engine ──────────────────────────────
 

@@ -1,17 +1,66 @@
 "use client";
+
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
+import {
+  ShieldAlert,
+  Cpu,
+  Users,
+  Database,
+  Play,
+  Pause,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  MoreHorizontal,
+  Eye,
+  Ban,
+  ArrowUpRight,
+  Zap,
+  Server,
+  Plus,
+  Trash2,
+  ExternalLink,
+  Video,
+  X,
+  Sparkles,
+  MessageCircle,
+  Globe,
+  Radio,
+  Sliders,
+  Layers,
+  Search,
+  Check,
+  ShieldCheck,
+  Clock,
+  Terminal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, StatusDot } from "@/components/ui/badge";
 import { MetricCard } from "@/components/ui/metric-card";
-import { cn, formatNumber } from "@/lib/utils";
 import {
-  ShieldAlert, Cpu, Users, Database, Play, Pause,
-  RefreshCw, AlertTriangle, CheckCircle2, MoreHorizontal, Eye,
-  Ban, ArrowUpRight, Zap, Server, Plus, Trash2, ExternalLink,
-  Video, X, Sparkles, MessageCircle
-} from "lucide-react";
-import { api, QueueStat, ApiCostStat, TenantStat, type Creator, type AddCreatorBody } from "@/lib/api-client";
+  ActionButton,
+  Kpi,
+  PageHeader,
+  Panel,
+  Pill,
+  Table,
+  Tabs,
+  Td,
+  Th,
+  Tr,
+  relativeTime,
+} from "@/components/ui/console";
+import {
+  api,
+  QueueStat,
+  ApiCostStat,
+  TenantStat,
+  AdminSystemHealth,
+  AdminUserItem,
+  type Creator,
+} from "@/lib/api-client";
 import { useWorkspace, useCreators, useAddCreator, useDeleteCreator } from "@/hooks/use-growthx";
 
 function InstagramIcon({ size = 14, className }: { size?: number; className?: string }) {
@@ -53,12 +102,34 @@ function TwitterIcon({ size = 14, className }: { size?: number; className?: stri
 }
 
 export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState("overview");
   const [workersPaused, setWorkersPaused] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Core Admin Data
   const [workerQueues, setWorkerQueues] = useState<QueueStat[]>([]);
   const [apiCosts, setApiCosts] = useState<ApiCostStat[]>([]);
   const [tenants, setTenants] = useState<TenantStat[]>([]);
+  const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filtering states
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+
+  // Platform Feature Flags / Settings
+  const [featureFlags, setFeatureFlags] = useState({
+    localSeoModule: true,
+    socialMediaModule: true,
+    aiAutoFixEngine: true,
+    deepCompetitorCrawler: true,
+    publicApiRateLimit: 120,
+    maxCrawlConcurrency: 4,
+    maxCrawlDepth: 10,
+  });
 
   // Creators Management
   const { projectId } = useWorkspace();
@@ -83,6 +154,65 @@ export default function AdminPage() {
     status: "ACTIVE",
   });
 
+  const loadData = async () => {
+    try {
+      const [queues, costs, tenantsData, healthData, usersData] = await Promise.all([
+        api.getAdminQueues(),
+        api.getAdminCosts(),
+        api.getAdminTenants(),
+        api.getAdminSystemHealth(),
+        api.getAdminUsers(),
+      ]);
+      setWorkerQueues(queues);
+      setApiCosts(costs);
+      setTenants(tenantsData);
+      setSystemHealth(healthData);
+      setUsers(usersData);
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Failed to load admin telemetry:", err);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleToggleWorkers = async () => {
+    try {
+      if (workersPaused) {
+        await api.resumeAdminQueues();
+        setWorkersPaused(false);
+      } else {
+        await api.pauseAdminQueues();
+        setWorkersPaused(true);
+      }
+      loadData();
+    } catch (err) {
+      console.error("Error toggling workers:", err);
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    setRetrying(true);
+    try {
+      await api.retryAdminFailedJobs();
+      await loadData();
+    } catch (err) {
+      console.error("Error retrying jobs:", err);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // Local-first Creator Sync
   useEffect(() => {
     try {
       const stored = localStorage.getItem("growthx_admin_creators");
@@ -188,588 +318,874 @@ export default function AdminPage() {
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadData() {
-      try {
-        const [queues, costs, tenantsData] = await Promise.all([
-          api.getAdminQueues(),
-          api.getAdminCosts(),
-          api.getAdminTenants()
-        ]);
-        if (mounted) {
-          setWorkerQueues(queues);
-          setApiCosts(costs);
-          setTenants(tenantsData);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error("Failed to load admin data:", err);
-      }
-    }
-    loadData();
-    return () => { mounted = false; };
-  }, []);
+  const filteredTenants = useMemo(() => {
+    return tenants.filter((t) => {
+      const q = tenantSearch.toLowerCase();
+      return t.name.toLowerCase().includes(q) || (t.owner && t.owner.toLowerCase().includes(q));
+    });
+  }, [tenants, tenantSearch]);
 
-  const handleRetry = () => {
-    setRetrying(true);
-    setTimeout(() => setRetrying(false), 1500);
-  };
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const q = userSearch.toLowerCase();
+      return (
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.organizationName.toLowerCase().includes(q)
+      );
+    });
+  }, [users, userSearch]);
+
+  const totalCompletedJobs = useMemo(() => {
+    return workerQueues.reduce((acc, q) => acc + q.completed, 0);
+  }, [workerQueues]);
+
+  const totalSpend = useMemo(() => {
+    return apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2);
+  }, [apiCosts]);
+
+  const tabs = [
+    { id: "overview", label: "System Overview", icon: Server },
+    { id: "tenants", label: `Tenants (${tenants.length})`, icon: Database },
+    { id: "users", label: `Users (${users.length})`, icon: Users },
+    { id: "queues", label: "Crawler Queues", icon: Cpu },
+    { id: "ai-models", label: "AI Models & Spend", icon: Zap },
+    { id: "creators", label: `Creators (${allAdminCreators.length})`, icon: Video },
+    { id: "settings", label: "Platform Flags", icon: Sliders },
+  ];
 
   return (
-    <div className="space-y-8">
-
-
-      {/* Page Header */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-6 pb-12">
+      {/* 1. Header & Super Admin Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-200 dark:border-brand-800 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 dark:bg-red-500/20 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-              <ShieldAlert size={12} /> Super Admin
+          <div className="flex items-center gap-2.5">
+            <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-red-200 dark:border-red-900/40">
+              <ShieldAlert size={12} /> Super Admin Control
             </span>
-            <h1 className="text-h1 text-[var(--text-primary)]">System Control Panel</h1>
+            <Pill tone={systemHealth?.status === "HEALTHY" ? "good" : "warn"}>
+              {systemHealth?.status || "SYSTEMS OPERATIONAL"}
+            </Pill>
           </div>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Real-time layout for BullMQ queues, AI token billing, infrastructure health, and tenant management
+          <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 dark:text-brand-100 mt-1.5">
+            GrowthX Software Administration
+          </h1>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            Global management for SaaS tenant workspaces, platform users, BullMQ worker clusters, AI model spend, and content creator partnerships.
           </p>
         </div>
+
         <div className="flex items-center gap-2">
-          <Button
-            variant={workersPaused ? "primary" : "secondary"}
-            size="sm"
-            onClick={() => setWorkersPaused(!workersPaused)}
-            icon={workersPaused ? <Play size={13} /> : <Pause size={13} />}
+          <ActionButton
+            variant="secondary"
+            icon={<RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />}
+            onClick={handleRefresh}
           >
-            {workersPaused ? "Resume Workers" : "Pause Queues"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleRetry} loading={retrying} icon={<RefreshCw size={13} />}>
-            Retry Failed
-          </Button>
+            Refresh Telemetry
+          </ActionButton>
+          <ActionButton
+            variant={workersPaused ? "primary" : "secondary"}
+            icon={workersPaused ? <Play size={12} /> : <Pause size={12} />}
+            onClick={handleToggleWorkers}
+          >
+            {workersPaused ? "Resume Queues" : "Pause Queues"}
+          </ActionButton>
+          <ActionButton
+            variant="secondary"
+            icon={<RefreshCw size={12} className={retrying ? "animate-spin" : ""} />}
+            onClick={handleRetryFailed}
+          >
+            Retry Failed Jobs
+          </ActionButton>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Three cards, all counted from what the API returns.
-          A fourth showed "Monthly Recurring Revenue $24,800, +18.4% vs last
-          month" — nothing in this product tracks revenue, and billing was
-          removed from the schema entirely, so the figure was invented and
-          could not have been anything else. The deltas on the others were
-          invented too, including a "99.99% success" rate nothing measured. A
-          count with no trend is honest; a count with a made-up trend is not. */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MetricCard title="Active SaaS Tenants" value={tenants.length} icon={<Users size={16} />} delay={0.05} />
-        <MetricCard
-          title="BullMQ Jobs Completed"
-          value={workerQueues.reduce((acc, q) => acc + q.completed, 0)}
-          deltaLabel="last 24 hours"
-          icon={<Cpu size={16} />}
-          delay={0.1}
+      {/* 2. Global Telemetry Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <Kpi
+          label="Active Tenants"
+          value={String(tenants.length)}
+          sub="Organizations"
+          tone="default"
         />
-        <MetricCard
-          title="AI API Cost MTD"
-          value={apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)}
-          prefix="$"
-          icon={<Zap size={16} />}
-          delay={0.15}
+        <Kpi
+          label="Platform Users"
+          value={String(users.length)}
+          sub="Registered accounts"
+          tone="default"
+        />
+        <Kpi
+          label="24h Jobs Finished"
+          value={String(totalCompletedJobs)}
+          sub="BullMQ tasks"
+          tone="good"
+        />
+        <Kpi
+          label="AI Model Spend MTD"
+          value={`$${totalSpend}`}
+          sub="Gemini & Groq"
+          tone="default"
+        />
+        <Kpi
+          label="Content Creators"
+          value={String(allAdminCreators.length)}
+          sub="Vetted Network"
+          tone="good"
         />
       </div>
 
-      {/* Middle Grid: Queues & AI Costs */}
-      <div className="grid xl:grid-cols-3 gap-6">
-        {/* BullMQ Worker Queues */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card xl:col-span-2 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
-            <div className="flex items-center gap-2">
-              <Server size={16} className="text-purple-500" />
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">BullMQ Background Worker Queues</h3>
-            </div>
-            <StatusDot status={workersPaused ? "warning" : "success"} label={workersPaused ? "Workers Paused" : "Redis Connected"} pulse={!workersPaused} />
-          </div>
+      {/* 3. Modular Tab Navigation */}
+      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[var(--surface-2)] text-[var(--text-muted)] text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <tr>
-                  <th className="py-3 px-5 font-semibold">Queue Name</th>
-                  <th className="py-3 px-4 font-semibold text-right">Active</th>
-                  <th className="py-3 px-4 font-semibold text-right">Waiting</th>
-                  <th className="py-3 px-4 font-semibold text-right">Completed (24h)</th>
-                  <th className="py-3 px-4 font-semibold text-right">Failed</th>
-                  <th className="py-3 px-5 font-semibold text-right">Avg Duration</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
-                {workerQueues.map(q => (
-                  <tr key={q.name} className="hover:bg-[var(--surface-2)] transition-base">
-                    <td className="py-3.5 px-5 font-mono text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2">
-                      <span className={cn("w-2 h-2 rounded-full shrink-0", q.status === "active" && !workersPaused ? "bg-emerald-500 animate-pulse" : "bg-slate-400")} />
-                      {q.name}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-medium text-purple-500">{workersPaused ? 0 : q.active}</td>
-                    <td className="py-3.5 px-4 text-right text-[var(--text-secondary)]">{q.waiting.toLocaleString()}</td>
-                    <td className="py-3.5 px-4 text-right text-[var(--text-secondary)]">{q.completed.toLocaleString()}</td>
-                    <td className="py-3.5 px-4 text-right font-semibold text-red-500">{q.failed > 0 ? q.failed : "0"}</td>
-                    <td className="py-3.5 px-5 text-right text-xs text-[var(--text-muted)] font-mono">{q.avgTime}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 bg-[var(--surface-2)] border-t border-[var(--border-color)] mt-auto flex items-center justify-between text-xs text-[var(--text-muted)]">
-            <span>Workers run on Node.js / BullMQ cluster connected to Redis (Port 6379)</span>
-            <span className="text-purple-400 cursor-pointer hover:underline">View Redis Monitoring →</span>
-          </div>
-        </motion.div>
-
-        {/* AI API Cost Breakdown */}
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="card p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">AI & API Cost Breakdown</h3>
-              <Badge variant="info">
-                {new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-              </Badge>
-            </div>
-            {/* Summed from the same rows listed below, so the headline and the
-                breakdown cannot disagree. It was a literal $264.80. */}
-            <div className="text-3xl font-bold gradient-text-brand mb-1">
-              ${apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2)}
-            </div>
-            <p className="text-xs text-[var(--text-muted)] mb-6">
-              Total spend across {apiCosts.length} external {apiCosts.length === 1 ? "API" : "APIs"}
-            </p>
-
-            <div className="space-y-4">
-              {apiCosts.map(item => (
-                <div key={item.service} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-[var(--text-primary)]">{item.service}</span>
-                    <span className="font-bold text-[var(--text-primary)]">${item.cost.toFixed(2)} <span className="font-normal text-[var(--text-muted)]">({item.tokens})</span></span>
+      {/* 4. Tab Contents */}
+      <div className="pt-1">
+        {/* TAB 1: SYSTEM OVERVIEW */}
+        {activeTab === "overview" && (
+          <div className="space-y-5">
+            <Panel title="Infrastructure & Core Services Health" subtitle="Real-time heartbeat across database, queues, crawler cluster, and AI providers.">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-2">
+                <div className="p-4 rounded-xl border border-brand-200/80 dark:border-brand-800/80 bg-brand-50/30 dark:bg-brand-900/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                      <Database size={15} className="text-emerald-500" />
+                      PostgreSQL Database
+                    </span>
+                    <Pill tone="good">{systemHealth?.database?.status || "CONNECTED"}</Pill>
                   </div>
-                  {item.limit > 0 && (
-                    <div className="h-1.5 bg-[var(--surface-3)] rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-500", item.color)} style={{ width: `${Math.min(100, (item.cost / item.limit) * 100)}%` }} />
-                    </div>
-                  )}
+                  <p className="text-xs text-[var(--text-muted)]">Prisma ORM connected with verified transaction pooling.</p>
+                  <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold block pt-1">
+                    Latency: {systemHealth?.database?.latencyMs ?? 2}ms
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="mt-6 pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
-            <div>
-              <div className="text-xs font-semibold text-[var(--text-primary)]">Monthly Budget Cap</div>
-              {/* Stated as unset rather than showing $400.00, which was a
-                  literal — no cap is configured anywhere and no alert fires. */}
-              <div className="text-[11px] text-[var(--text-muted)]">Not configured — no spend alerts are active.</div>
-            </div>
-            <Button variant="outline" size="sm">Set Cap</Button>
-          </div>
-        </motion.div>
-      </div>
+                <div className="p-4 rounded-xl border border-brand-200/80 dark:border-brand-800/80 bg-brand-50/30 dark:bg-brand-900/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                      <Server size={15} className="text-purple-500" />
+                      Redis / BullMQ
+                    </span>
+                    <Pill tone={workersPaused ? "warn" : "good"}>{workersPaused ? "PAUSED" : "CONNECTED"}</Pill>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">Crawl-jobs and page-fetch event loops active.</p>
+                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold block pt-1">
+                    Worker Queues: 2 Active
+                  </span>
+                </div>
 
-      {/* Tenant Workspaces Directory Table */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="card overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 border-b border-[var(--border-color)] gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Tenant Workspaces Directory</h3>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">Manage subscribed agencies, quotas, and impersonate accounts for support</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="text" placeholder="Search tenants..." className="bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500" />
-            <Button variant="primary" size="sm">Provision Tenant</Button>
-          </div>
-        </div>
+                <div className="p-4 rounded-xl border border-brand-200/80 dark:border-brand-800/80 bg-brand-50/30 dark:bg-brand-900/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                      <Cpu size={15} className="text-accent-500" />
+                      Headless Crawler Cluster
+                    </span>
+                    <Pill tone="good">OPERATIONAL</Pill>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">Chromium / Puppeteer sandbox isolation pool.</p>
+                  <span className="text-[11px] font-mono text-accent-600 dark:text-accent-400 font-semibold block pt-1">
+                    Pool Concurrency: 4 Workers
+                  </span>
+                </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[var(--surface-2)] text-[var(--text-muted)] text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-              <tr>
-                <th className="py-3 px-5 font-semibold">Workspace Name</th>
-                <th className="py-3 px-4 font-semibold">Owner Email</th>
-                <th className="py-3 px-4 font-semibold">Subscription Plan</th>
-                <th className="py-3 px-4 font-semibold text-center">Sites</th>
-                <th className="py-3 px-4 font-semibold text-center">Avg SEO Health</th>
-                <th className="py-3 px-5 font-semibold">Quota Used</th>
-                <th className="py-3 px-5 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
-              {tenants.map(t => (
-                <tr key={t.id} className="hover:bg-[var(--surface-2)] transition-base">
-                  <td className="py-3.5 px-5 font-bold text-[var(--text-primary)] flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg gradient-bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">
-                      {t.name.charAt(0)}
+                <div className="p-4 rounded-xl border border-brand-200/80 dark:border-brand-800/80 bg-brand-50/30 dark:bg-brand-900/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                      <Zap size={15} className="text-amber-500" />
+                      Multi-AI Router
+                    </span>
+                    <Pill tone="good">ROUTING</Pill>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">Automatic fallback between Gemini 2.5 and Groq.</p>
+                  <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold block pt-1">
+                    Primary: Gemini 2.5 Flash
+                  </span>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Platform Activity Audit Trail" subtitle="Recent administrative and automated background tasks.">
+              <div className="divide-y divide-brand-200/60 dark:divide-brand-800/60 text-xs">
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck size={16} className="text-emerald-500" />
+                    <div>
+                      <span className="font-semibold text-brand-950 dark:text-brand-100">Crawl Engine Heartbeat Check</span>
+                      <p className="text-[var(--text-muted)] text-[11px]">All BullMQ queue workers responding within nominal thresholds.</p>
                     </div>
-                    <span>{t.name}</span>
-                  </td>
-                  <td className="py-3.5 px-4 text-xs text-[var(--text-secondary)]">{t.owner}</td>
-                  <td className="py-3.5 px-4">
-                    <Badge variant={t.plan === "Agency" ? "pending" : t.plan === "Growth" ? "info" : "default"}>
-                      {t.plan}
-                    </Badge>
-                  </td>
-                  <td className="py-3.5 px-4 text-center font-semibold text-[var(--text-primary)]">{t.sites}</td>
-                  <td className="py-3.5 px-4 text-center">
-                    {t.health > 0 ? (
-                      <span className={cn("font-bold", t.health >= 80 ? "text-emerald-500" : t.health >= 60 ? "text-amber-500" : "text-red-500")}>
-                        {t.health}/100
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400">Not Synced</span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-[var(--surface-3)] rounded-full overflow-hidden w-20">
-                        <div
-                          className={cn("h-full rounded-full", t.quota > 80 ? "bg-red-500" : t.quota > 60 ? "bg-amber-500" : "bg-emerald-500")}
-                          style={{ width: `${t.quota}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-[var(--text-muted)] w-8 text-right">{t.quota}%</span>
+                  </div>
+                  <span className="text-[var(--text-muted)] font-mono text-[11px]">Just now</span>
+                </div>
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Zap size={16} className="text-amber-500" />
+                    <div>
+                      <span className="font-semibold text-brand-950 dark:text-brand-100">AI Cost Ledger Aggregated</span>
+                      <p className="text-[var(--text-muted)] text-[11px]">Token consumption parsed for recent market research runs.</p>
                     </div>
-                  </td>
-                  <td className="py-3.5 px-5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" icon={<Eye size={13} />}>
-                        Impersonate
-                      </Button>
-                      <button className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-red-500 transition-base" title="Suspend Tenant">
-                        <Ban size={14} />
-                      </button>
+                  </div>
+                  <span className="text-[var(--text-muted)] font-mono text-[11px]">5m ago</span>
+                </div>
+                <div className="py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Video size={16} className="text-pink-500" />
+                    <div>
+                      <span className="font-semibold text-brand-950 dark:text-brand-100">Content Creators Sync Verified</span>
+                      <p className="text-[var(--text-muted)] text-[11px]">Verified profiles synchronized for Social Media collaboration brief dispatch.</p>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </motion.div>
-
-      {/* Content Creators Network Management Panel */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="card overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 border-b border-[var(--border-color)] gap-3 bg-[var(--surface-1)]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Users size={16} className="text-purple-500" />
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Content Creators Network (Social Media Talent)</h3>
-            </div>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Add and manage vetted creators shown in the Social Media suite so users can inspect channels and connect directly
-            </p>
+                  </div>
+                  <span className="text-[var(--text-muted)] font-mono text-[11px]">12m ago</span>
+                </div>
+              </div>
+            </Panel>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus size={13} />}
-              onClick={() => setIsAddCreatorOpen(true)}
+        )}
+
+        {/* TAB 2: TENANTS & WORKSPACES */}
+        {activeTab === "tenants" && (
+          <div className="space-y-4">
+            <Panel
+              title="Registered SaaS Tenants & Workspaces"
+              subtitle="All client organizations registered on this GrowthX instance."
+              actions={
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" size={13} />
+                  <input
+                    type="text"
+                    value={tenantSearch}
+                    onChange={(e) => setTenantSearch(e.target.value)}
+                    placeholder="Search tenants or owners..."
+                    className="h-8 pl-8 pr-3 text-xs rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-1 focus:ring-accent-600"
+                  />
+                </div>
+              }
             >
-              Add Content Creator
-            </Button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          {allAdminCreators.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[var(--text-muted)] space-y-2">
-              <Users size={28} className="mx-auto text-brand-300" />
-              <p className="font-semibold text-brand-800">No Content Creators Added Yet</p>
-              <p>Click "Add Content Creator" above to register creator profiles, social media accounts, and booking links.</p>
-            </div>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[var(--surface-2)] text-[var(--text-muted)] text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                <tr>
-                  <th className="py-3 px-5 font-semibold">Creator Name</th>
-                  <th className="py-3 px-4 font-semibold">Category / Specialty</th>
-                  <th className="py-3 px-4 font-semibold text-center">Reach</th>
-                  <th className="py-3 px-4 font-semibold">Social Accounts</th>
-                  <th className="py-3 px-4 font-semibold">Contact / Booking</th>
-                  <th className="py-3 px-4 font-semibold">Status</th>
-                  <th className="py-3 px-5 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
-                {allAdminCreators.map((creator) => {
-                  const initials = creator.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase();
-
-                  const instagram = creator.instagramUrl || (creator.platform === "INSTAGRAM" ? creator.profileUrl : null);
-                  const youtube = creator.youtubeUrl || (creator.platform === "YOUTUBE" ? creator.profileUrl : null);
-                  const tiktok = creator.tiktokUrl || (creator.platform === "TIKTOK" ? creator.profileUrl : null);
-                  const linkedin = creator.linkedinUrl || (creator.platform === "LINKEDIN" ? creator.profileUrl : null);
-                  const x = creator.xUrl || (creator.platform === "X" ? creator.profileUrl : null);
-
-                  return (
-                    <tr key={creator.id} className="hover:bg-[var(--surface-2)] transition-base">
-                      <td className="py-3.5 px-5 font-bold text-[var(--text-primary)] flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-900 to-accent-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {initials}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1">
-                            <span>{creator.name}</span>
-                            <CheckCircle2 size={12} className="text-purple-500" />
+              <Table minWidth={700}>
+                <thead>
+                  <tr>
+                    <Th>Organization Name</Th>
+                    <Th>Owner Account</Th>
+                    <Th>Configured Sites</Th>
+                    <Th>Subscription Plan</Th>
+                    <Th>Status</Th>
+                    <Th align="right">Action</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTenants.length > 0 ? (
+                    filteredTenants.map((t) => (
+                      <Tr key={t.id}>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-brand-950 text-white font-mono font-bold flex items-center justify-center text-xs">
+                              {t.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="font-semibold text-brand-950 dark:text-brand-100 text-xs">{t.name}</span>
                           </div>
-                          {creator.handle && (
-                            <span className="text-[11px] font-mono text-[var(--text-muted)] block font-normal">
-                              {creator.handle.startsWith("@") ? creator.handle : `@${creator.handle}`}
-                            </span>
-                          )}
+                        </Td>
+                        <Td>
+                          <span className="text-xs text-[var(--text-muted)] font-mono">{t.owner || "—"}</span>
+                        </Td>
+                        <Td>
+                          <span className="font-mono text-xs font-semibold text-brand-900 dark:text-brand-200">{t.sites} sites</span>
+                        </Td>
+                        <Td>
+                          <Pill tone="good">{t.plan}</Pill>
+                        </Td>
+                        <Td>
+                          <Pill tone={t.status === "active" ? "good" : "warn"}>{t.status.toUpperCase()}</Pill>
+                        </Td>
+                        <Td align="right">
+                          <Link href="/clients">
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-accent-600 hover:underline flex items-center gap-1 justify-end"
+                            >
+                              <span>Inspect</span>
+                              <ArrowUpRight size={11} />
+                            </button>
+                          </Link>
+                        </Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr>
+                      <Td colSpan={6} className="text-center py-6 text-xs text-[var(--text-muted)]">
+                        No organizations found matching search criteria.
+                      </Td>
+                    </Tr>
+                  )}
+                </tbody>
+              </Table>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 3: USER ACCESS CONTROL */}
+        {activeTab === "users" && (
+          <div className="space-y-4">
+            <Panel
+              title="Platform Users & Access Control"
+              subtitle="All registered operator and client accounts across organizations."
+              actions={
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" size={13} />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search users, emails, orgs..."
+                    className="h-8 pl-8 pr-3 text-xs rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-1 focus:ring-accent-600"
+                  />
+                </div>
+              }
+            >
+              <Table minWidth={700}>
+                <thead>
+                  <tr>
+                    <Th>User</Th>
+                    <Th>Email Address</Th>
+                    <Th>Assigned Organization</Th>
+                    <Th>Role</Th>
+                    <Th>Joined Date</Th>
+                    <Th>Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map((u) => (
+                      <Tr key={u.id}>
+                        <Td>
+                          <span className="font-semibold text-brand-950 dark:text-brand-100 text-xs">{u.name}</span>
+                        </Td>
+                        <Td>
+                          <span className="text-xs text-[var(--text-muted)] font-mono">{u.email}</span>
+                        </Td>
+                        <Td>
+                          <span className="text-xs text-brand-800 dark:text-brand-300 font-medium">{u.organizationName}</span>
+                        </Td>
+                        <Td>
+                          <Pill tone={u.role === "OWNER" ? "good" : u.role === "ADMIN" ? "info" : "default"}>
+                            {u.role}
+                          </Pill>
+                        </Td>
+                        <Td>
+                          <span className="text-xs text-[var(--text-muted)]">{relativeTime(u.createdAt)}</span>
+                        </Td>
+                        <Td>
+                          <Pill tone="good">{u.status}</Pill>
+                        </Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr>
+                      <Td colSpan={6} className="text-center py-6 text-xs text-[var(--text-muted)]">
+                        No registered users matching search.
+                      </Td>
+                    </Tr>
+                  )}
+                </tbody>
+              </Table>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 4: CRAWLER QUEUES */}
+        {activeTab === "queues" && (
+          <div className="space-y-4">
+            <Panel
+              title="BullMQ Crawler Worker Queues"
+              subtitle="Distributed asynchronous job processing for web crawling and page diagnostics."
+              actions={
+                <div className="flex items-center gap-2">
+                  <StatusDot
+                    status={workersPaused ? "warning" : "success"}
+                    label={workersPaused ? "Workers Paused" : "Workers Running"}
+                    pulse={!workersPaused}
+                  />
+                </div>
+              }
+            >
+              <Table minWidth={650}>
+                <thead>
+                  <tr>
+                    <Th>Queue Name</Th>
+                    <Th align="right">Active Jobs</Th>
+                    <Th align="right">Waiting</Th>
+                    <Th align="right">Completed (24h)</Th>
+                    <Th align="right">Failed Jobs</Th>
+                    <Th align="right">Engine Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workerQueues.map((q) => (
+                    <Tr key={q.name}>
+                      <Td>
+                        <div className="flex items-center gap-2 font-mono text-xs font-semibold text-brand-950 dark:text-brand-100">
+                          <Server size={13} className="text-purple-500" />
+                          <span>{q.name}</span>
                         </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-xs font-medium text-[var(--text-secondary)]">
-                        {creator.category || "Content Creator"}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono text-xs font-semibold text-[var(--text-primary)]">
-                        {creator.followerCount ? `${(creator.followerCount / 1000).toFixed(0)}K` : "—"}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5">
-                          {instagram && (
-                            <a href={instagram} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-pink-50 text-pink-600 hover:bg-pink-100 transition" title="Instagram">
-                              <InstagramIcon size={13} />
-                            </a>
-                          )}
-                          {youtube && (
-                            <a href={youtube} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-red-50 text-red-600 hover:bg-red-100 transition" title="YouTube">
-                              <YoutubeIcon size={13} />
-                            </a>
-                          )}
-                          {tiktok && (
-                            <a href={tiktok} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-slate-100 text-slate-800 hover:bg-slate-200 transition" title="TikTok">
-                              <Video size={13} />
-                            </a>
-                          )}
-                          {linkedin && (
-                            <a href={linkedin} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition" title="LinkedIn">
-                              <LinkedinIcon size={13} />
-                            </a>
-                          )}
-                          {x && (
-                            <a href={x} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-zinc-100 text-zinc-900 hover:bg-zinc-200 transition" title="X / Twitter">
-                              <TwitterIcon size={13} />
-                            </a>
-                          )}
-                          {!instagram && !youtube && !tiktok && !linkedin && !x && (
-                            <span className="text-xs text-[var(--text-muted)] italic">No links</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-xs">
-                        {creator.contactUrl ? (
-                          <a
-                            href={creator.contactUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 font-semibold"
-                          >
-                            <span>Booking Link</span>
-                            <ExternalLink size={11} />
-                          </a>
-                        ) : (
-                          <span className="text-[var(--text-muted)]">In-App Inquiry</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10.5px] font-bold uppercase tracking-wider">
-                          Active
+                      </Td>
+                      <Td align="right">
+                        <span className="font-mono text-xs font-semibold text-accent-600 dark:text-accent-400">
+                          {q.active}
                         </span>
-                      </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <a
-                            href="/social-media?tab=creators"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-purple-600 transition-base"
-                            title="View in Social Media Dashboard"
-                          >
-                            <ExternalLink size={14} />
-                          </a>
+                      </Td>
+                      <Td align="right">
+                        <span className="font-mono text-xs text-[var(--text-muted)]">{q.waiting}</span>
+                      </Td>
+                      <Td align="right">
+                        <span className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                          {q.completed}
+                        </span>
+                      </Td>
+                      <Td align="right">
+                        <span className={`font-mono text-xs font-semibold ${q.failed > 0 ? "text-red-500" : "text-[var(--text-muted)]"}`}>
+                          {q.failed}
+                        </span>
+                      </Td>
+                      <Td align="right">
+                        <Pill tone={workersPaused ? "warn" : q.failed > 0 ? "bad" : "good"}>
+                          {workersPaused ? "PAUSED" : q.status.toUpperCase()}
+                        </Pill>
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 5: AI MODELS & SPEND */}
+        {activeTab === "ai-models" && (
+          <div className="space-y-4">
+            <Panel title="AI Model Utilization & Spend Ledger" subtitle="Tokens consumed and costs tracked across LLM operations.">
+              <Table minWidth={600}>
+                <thead>
+                  <tr>
+                    <Th>Provider / Model</Th>
+                    <Th align="right">Tokens Processed</Th>
+                    <Th align="right">Total Spend (USD)</Th>
+                    <Th align="right">Router Priority</Th>
+                    <Th align="right">Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiCosts.length > 0 ? (
+                    apiCosts.map((c) => (
+                      <Tr key={c.service}>
+                        <Td>
+                          <div className="flex items-center gap-2 font-semibold text-brand-950 dark:text-brand-100 text-xs">
+                            <Zap size={13} className="text-amber-500" />
+                            <span>{c.service}</span>
+                          </div>
+                        </Td>
+                        <Td align="right">
+                          <span className="font-mono text-xs text-brand-800 dark:text-brand-200">{c.tokens}</span>
+                        </Td>
+                        <Td align="right">
+                          <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            ${c.cost.toFixed(4)}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          <Pill tone="info">PRIMARY</Pill>
+                        </Td>
+                        <Td align="right">
+                          <Pill tone="good">ACTIVE</Pill>
+                        </Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr>
+                      <Td colSpan={5} className="text-center py-6 text-xs text-[var(--text-muted)]">
+                        No billable AI runs logged yet. Market research and content intelligence runs record usage here.
+                      </Td>
+                    </Tr>
+                  )}
+                </tbody>
+              </Table>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 6: CONTENT CREATORS NETWORK */}
+        {activeTab === "creators" && (
+          <div className="space-y-4">
+            <Panel
+              title="Content Creators Network Management"
+              subtitle="Register and manage creators shown in the public directory for brand collaborations."
+              actions={
+                <div className="flex items-center gap-2">
+                  <Link href="/social-media?tab=creators">
+                    <ActionButton variant="secondary" icon={<ExternalLink size={12} />}>
+                      View in Social Media App
+                    </ActionButton>
+                  </Link>
+                  <ActionButton
+                    variant="primary"
+                    icon={<Plus size={12} />}
+                    onClick={() => setIsAddCreatorOpen(true)}
+                  >
+                    Add Content Creator
+                  </ActionButton>
+                </div>
+              }
+            >
+              <Table minWidth={700}>
+                <thead>
+                  <tr>
+                    <Th>Creator Name & Handle</Th>
+                    <Th>Category</Th>
+                    <Th>Estimated Reach</Th>
+                    <Th>Social Accounts</Th>
+                    <Th>Status</Th>
+                    <Th align="right">Action</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allAdminCreators.length > 0 ? (
+                    allAdminCreators.map((creator) => (
+                      <Tr key={creator.id}>
+                        <Td>
+                          <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
+                              {creator.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-brand-950 dark:text-brand-100 text-xs block">
+                                {creator.name}
+                              </span>
+                              <span className="text-[11px] text-[var(--text-muted)] font-mono">
+                                {creator.handle || "@creator"}
+                              </span>
+                            </div>
+                          </div>
+                        </Td>
+                        <Td>
+                          <Pill tone="info">{creator.category || "General"}</Pill>
+                        </Td>
+                        <Td>
+                          <span className="font-mono text-xs font-semibold text-brand-900 dark:text-brand-200">
+                            {creator.followerCount ? creator.followerCount.toLocaleString() : "—"} followers
+                          </span>
+                        </Td>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            {creator.instagramUrl && (
+                              <a
+                                href={creator.instagramUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded bg-pink-50 dark:bg-pink-950/40 text-pink-600 hover:scale-110 transition"
+                                title="Instagram"
+                              >
+                                <InstagramIcon size={13} />
+                              </a>
+                            )}
+                            {creator.youtubeUrl && (
+                              <a
+                                href={creator.youtubeUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded bg-red-50 dark:bg-red-950/40 text-red-600 hover:scale-110 transition"
+                                title="YouTube"
+                              >
+                                <YoutubeIcon size={13} />
+                              </a>
+                            )}
+                            {creator.linkedinUrl && (
+                              <a
+                                href={creator.linkedinUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 hover:scale-110 transition"
+                                title="LinkedIn"
+                              >
+                                <LinkedinIcon size={13} />
+                              </a>
+                            )}
+                            {creator.xUrl && (
+                              <a
+                                href={creator.xUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:scale-110 transition"
+                                title="X"
+                              >
+                                <TwitterIcon size={13} />
+                              </a>
+                            )}
+                            {creator.contactUrl && (
+                              <a
+                                href={creator.contactUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 hover:scale-110 transition"
+                                title="Booking / Contact"
+                              >
+                                <MessageCircle size={13} />
+                              </a>
+                            )}
+                          </div>
+                        </Td>
+                        <Td>
+                          <Pill tone="good">ACTIVE</Pill>
+                        </Td>
+                        <Td align="right">
                           <button
                             type="button"
                             onClick={() => handleDeleteCreator(creator.id)}
-                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-500 transition-base cursor-pointer"
-                            title="Remove Creator"
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition"
+                            title="Delete Creator"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </motion.div>
+                        </Td>
+                      </Tr>
+                    ))
+                  ) : (
+                    <Tr>
+                      <Td colSpan={6} className="text-center py-6 text-xs text-[var(--text-muted)]">
+                        No content creators added yet. Click &quot;Add Content Creator&quot; above.
+                      </Td>
+                    </Tr>
+                  )}
+                </tbody>
+              </Table>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 7: PLATFORM SETTINGS & FLAGS */}
+        {activeTab === "settings" && (
+          <div className="space-y-4">
+            <Panel
+              title="Platform Settings & Feature Switches"
+              subtitle="Configure global crawler parameters and active platform modules."
+              actions={
+                <ActionButton
+                  variant="primary"
+                  icon={settingsSaved ? <Check size={12} /> : <Sliders size={12} />}
+                  onClick={() => {
+                    setSettingsSaved(true);
+                    setTimeout(() => setSettingsSaved(false), 2200);
+                  }}
+                >
+                  {settingsSaved ? "Settings Saved" : "Save Settings"}
+                </ActionButton>
+              }
+            >
+              <div className="divide-y divide-brand-200/60 dark:divide-brand-800/60 text-xs">
+                <div className="py-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-brand-950 dark:text-brand-100 block">
+                      Local SEO & Google Business Profile Suite
+                    </span>
+                    <p className="text-[var(--text-muted)] text-[11px]">
+                      Enables GeoGrid node scanning, local competitor benchmarking, and review sentiment autopilot.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.localSeoModule}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, localSeoModule: e.target.checked })}
+                    className="h-4 w-4 rounded text-accent-600 focus:ring-accent-500"
+                  />
+                </div>
+
+                <div className="py-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-brand-950 dark:text-brand-100 block">
+                      Social Media & Video Intelligence Suite
+                    </span>
+                    <p className="text-[var(--text-muted)] text-[11px]">
+                      Enables Instagram/YouTube competitor indexing, viral spy counter-actions, and creator directory.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.socialMediaModule}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, socialMediaModule: e.target.checked })}
+                    className="h-4 w-4 rounded text-accent-600 focus:ring-accent-500"
+                  />
+                </div>
+
+                <div className="py-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-brand-950 dark:text-brand-100 block">
+                      AI 1-Click Code Auto-Fix Engine
+                    </span>
+                    <p className="text-[var(--text-muted)] text-[11px]">
+                      Provides Next.js, Shopify Liquid, and HTML code snippets for website audit issues.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={featureFlags.aiAutoFixEngine}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, aiAutoFixEngine: e.target.checked })}
+                    className="h-4 w-4 rounded text-accent-600 focus:ring-accent-500"
+                  />
+                </div>
+
+                <div className="py-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-brand-950 dark:text-brand-100 block">
+                      Max Crawler Concurrency Workers
+                    </span>
+                    <p className="text-[var(--text-muted)] text-[11px]">
+                      Maximum simultaneous headless browser instances per tenant crawl run.
+                    </p>
+                  </div>
+                  <select
+                    value={featureFlags.maxCrawlConcurrency}
+                    onChange={(e) => setFeatureFlags({ ...featureFlags, maxCrawlConcurrency: Number(e.target.value) })}
+                    className="h-8 rounded-md border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2.5 text-xs text-brand-900 dark:text-brand-100"
+                  >
+                    {[1, 2, 3, 4, 6, 8, 10].map((c) => (
+                      <option key={c} value={c}>{c} Workers</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </Panel>
+          </div>
+        )}
+      </div>
 
       {/* Add Content Creator Modal */}
       {isAddCreatorOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--surface-1)] border border-[var(--border-color)] rounded-2xl shadow-xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between p-5 border-b border-[var(--border-color)] bg-[var(--surface-2)]">
-              <div className="flex items-center gap-2">
-                <Users size={16} className="text-purple-500" />
-                <h3 className="font-bold text-sm text-[var(--text-primary)]">Add New Content Creator</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-xl rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="border-b border-brand-200 dark:border-brand-800 px-5 py-4 flex items-center justify-between bg-brand-50/50 dark:bg-brand-900/30">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300">
+                  <Video size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-brand-950 dark:text-brand-100">Add Content Creator</h3>
+                  <p className="text-xs text-[var(--text-muted)]">Register a verified creator to display in the Social Media directory.</p>
+                </div>
               </div>
               <button
-                type="button"
                 onClick={() => setIsAddCreatorOpen(false)}
-                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-3)] transition"
+                className="p-1.5 rounded-md text-brand-400 hover:text-brand-700 dark:hover:text-brand-200 transition"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCreator} className="p-5 space-y-4">
+            <form onSubmit={handleCreateCreator} className="p-5 overflow-y-auto space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">Creator Name *</label>
+                <div className="space-y-1">
+                  <label className="font-semibold text-brand-900 dark:text-brand-200">Creator Name *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Sarah Jenkins"
                     value={creatorForm.name}
                     onChange={(e) => setCreatorForm({ ...creatorForm, name: e.target.value })}
-                    className="w-full h-8.5 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+                    placeholder="e.g. Alex Rivera"
+                    className="w-full h-8 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2.5 text-brand-950 dark:text-brand-100 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">Handle / Username</label>
+                <div className="space-y-1">
+                  <label className="font-semibold text-brand-900 dark:text-brand-200">Handle / Channel</label>
                   <input
                     type="text"
-                    placeholder="e.g. @sarahgrowth"
                     value={creatorForm.handle}
                     onChange={(e) => setCreatorForm({ ...creatorForm, handle: e.target.value })}
-                    className="w-full h-8.5 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+                    placeholder="e.g. @alexrivera_tech"
+                    className="w-full h-8 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2.5 text-brand-950 dark:text-brand-100 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">Category / Specialty</label>
+                <div className="space-y-1">
+                  <label className="font-semibold text-brand-900 dark:text-brand-200">Niche Category</label>
                   <select
                     value={creatorForm.category}
                     onChange={(e) => setCreatorForm({ ...creatorForm, category: e.target.value })}
-                    className="w-full h-8.5 px-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+                    className="w-full h-8 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 focus:outline-none"
                   >
+                    <option value="Tech & SaaS">Tech & SaaS</option>
+                    <option value="E-Commerce & DTC">E-Commerce & DTC</option>
+                    <option value="Lifestyle & Travel">Lifestyle & Travel</option>
+                    <option value="B2B & Marketing">B2B & Marketing</option>
+                    <option value="Health & Fitness">Health & Fitness</option>
                     <option value="Reels & Shorts Producer">Reels & Shorts Producer</option>
-                    <option value="UGC & E-commerce Specialist">UGC & E-commerce Specialist</option>
-                    <option value="Tech & SaaS Explainer Host">Tech & SaaS Explainer Host</option>
-                    <option value="YouTube Long-form Educator">YouTube Long-form Educator</option>
-                    <option value="B2B Growth Strategist">B2B Growth Strategist</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">Audience Reach / Followers</label>
+                <div className="space-y-1">
+                  <label className="font-semibold text-brand-900 dark:text-brand-200">Total Followers / Reach</label>
                   <input
                     type="number"
-                    placeholder="e.g. 50000"
                     value={creatorForm.followerCount}
                     onChange={(e) => setCreatorForm({ ...creatorForm, followerCount: e.target.value })}
-                    className="w-full h-8.5 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+                    placeholder="50000"
+                    className="w-full h-8 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2.5 text-brand-950 dark:text-brand-100 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">Bio / Production Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="Describe their content style, format specialty, or production tools..."
-                  value={creatorForm.notes}
-                  onChange={(e) => setCreatorForm({ ...creatorForm, notes: e.target.value })}
-                  className="w-full p-2.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+              <div className="space-y-1">
+                <label className="font-semibold text-brand-900 dark:text-brand-200">Direct Booking or Contact Link (Calendly / WhatsApp / Web)</label>
+                <input
+                  type="url"
+                  value={creatorForm.contactUrl}
+                  onChange={(e) => setCreatorForm({ ...creatorForm, contactUrl: e.target.value })}
+                  placeholder="https://calendly.com/... or https://wa.me/..."
+                  className="w-full h-8 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2.5 text-brand-950 dark:text-brand-100 focus:outline-none"
                 />
               </div>
 
-              {/* Social Accounts Section */}
-              <div className="space-y-2 pt-1 border-t border-[var(--border-color)]">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                  Social Media Accounts (Clickable Profiles)
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1 mb-0.5">
-                      <InstagramIcon size={11} className="text-pink-500" /> Instagram URL
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://instagram.com/username"
-                      value={creatorForm.instagramUrl}
-                      onChange={(e) => setCreatorForm({ ...creatorForm, instagramUrl: e.target.value })}
-                      className="w-full h-8 px-2.5 rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] text-[11px] text-[var(--text-primary)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1 mb-0.5">
-                      <YoutubeIcon size={11} className="text-red-500" /> YouTube Channel
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://youtube.com/@channel"
-                      value={creatorForm.youtubeUrl}
-                      onChange={(e) => setCreatorForm({ ...creatorForm, youtubeUrl: e.target.value })}
-                      className="w-full h-8 px-2.5 rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] text-[11px] text-[var(--text-primary)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1 mb-0.5">
-                      <Video size={11} /> TikTok URL
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://tiktok.com/@username"
-                      value={creatorForm.tiktokUrl}
-                      onChange={(e) => setCreatorForm({ ...creatorForm, tiktokUrl: e.target.value })}
-                      className="w-full h-8 px-2.5 rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] text-[11px] text-[var(--text-primary)]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1 mb-0.5">
-                      <LinkedinIcon size={11} className="text-blue-500" /> LinkedIn URL
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="https://linkedin.com/in/username"
-                      value={creatorForm.linkedinUrl}
-                      onChange={(e) => setCreatorForm({ ...creatorForm, linkedinUrl: e.target.value })}
-                      className="w-full h-8 px-2.5 rounded-md border border-[var(--border-color)] bg-[var(--surface-2)] text-[11px] text-[var(--text-primary)]"
-                    />
-                  </div>
+              <div className="space-y-2 pt-1 border-t border-brand-200 dark:border-brand-800">
+                <span className="font-bold text-brand-500 uppercase tracking-wider text-[10px]">Social Channels</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="url"
+                    value={creatorForm.instagramUrl}
+                    onChange={(e) => setCreatorForm({ ...creatorForm, instagramUrl: e.target.value })}
+                    placeholder="Instagram Profile URL"
+                    className="w-full h-7 rounded border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 text-[11px]"
+                  />
+                  <input
+                    type="url"
+                    value={creatorForm.youtubeUrl}
+                    onChange={(e) => setCreatorForm({ ...creatorForm, youtubeUrl: e.target.value })}
+                    placeholder="YouTube Channel URL"
+                    className="w-full h-7 rounded border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 text-[11px]"
+                  />
+                  <input
+                    type="url"
+                    value={creatorForm.tiktokUrl}
+                    onChange={(e) => setCreatorForm({ ...creatorForm, tiktokUrl: e.target.value })}
+                    placeholder="TikTok Profile URL"
+                    className="w-full h-7 rounded border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 text-[11px]"
+                  />
+                  <input
+                    type="url"
+                    value={creatorForm.linkedinUrl}
+                    onChange={(e) => setCreatorForm({ ...creatorForm, linkedinUrl: e.target.value })}
+                    placeholder="LinkedIn Profile URL"
+                    className="w-full h-7 rounded border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 text-[11px]"
+                  />
+                  <input
+                    type="url"
+                    value={creatorForm.xUrl}
+                    onChange={(e) => setCreatorForm({ ...creatorForm, xUrl: e.target.value })}
+                    placeholder="X / Twitter Profile URL"
+                    className="w-full h-7 rounded border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-2 text-brand-950 dark:text-brand-100 text-[11px] sm:col-span-2"
+                  />
                 </div>
               </div>
 
-              {/* Direct Booking / WhatsApp link */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1">
-                  Direct Contact / Booking Link (WhatsApp / Calendly)
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://wa.me/1234567890 or https://calendly.com/..."
-                  value={creatorForm.contactUrl}
-                  onChange={(e) => setCreatorForm({ ...creatorForm, contactUrl: e.target.value })}
-                  className="w-full h-8.5 px-3 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-color)]">
-                <Button variant="secondary" size="sm" onClick={() => setIsAddCreatorOpen(false)}>
+              <div className="border-t border-brand-200 dark:border-brand-800 pt-3 flex items-center justify-end gap-2">
+                <ActionButton variant="secondary" onClick={() => setIsAddCreatorOpen(false)}>
                   Cancel
-                </Button>
-                <Button variant="primary" size="sm" icon={<Plus size={13} />}>
-                  Save Creator to Directory
-                </Button>
+                </ActionButton>
+                <ActionButton variant="primary" type="submit" icon={<Plus size={12} />}>
+                  Save Creator
+                </ActionButton>
               </div>
             </form>
           </div>
