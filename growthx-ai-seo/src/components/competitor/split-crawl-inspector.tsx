@@ -15,6 +15,7 @@ import {
   Zap,
   Layers,
   ChevronDown,
+  ChevronUp,
   Check,
   Compass,
   HelpCircle,
@@ -50,6 +51,7 @@ export interface NormalizedCrawlPage {
   path: string;
   title: string;
   h1: string[];
+  h2?: string[];
   pageType: string;
   wordCount: number;
   statusCode: number | null;
@@ -99,6 +101,7 @@ export function SplitCrawlInspector({
   // Selected pair for page-to-page diff
   const [selectedOurUrl, setSelectedOurUrl] = useState<string | null>(null);
   const [selectedTheirUrl, setSelectedTheirUrl] = useState<string | null>(null);
+  const [isDiffExpanded, setIsDiffExpanded] = useState<boolean>(false);
 
   // 1. Fetch our latest crawl job & crawled pages
   const ourCrawl = useLatestCrawl(customerDomain || null);
@@ -140,6 +143,7 @@ export function SplitCrawlInspector({
       path: getPathname(p.url),
       title: p.title || getPathname(p.url).replace(/\//g, " ").trim() || "Home Page",
       h1: Array.isArray(p.h1) ? p.h1 : p.h1 ? [p.h1] : [],
+      h2: Array.isArray(p.h2) ? p.h2 : p.h2 ? [p.h2] : [],
       pageType: (p.pageType || "OTHER").toUpperCase(),
       wordCount: typeof p.wordCount === "number" ? p.wordCount : 0,
       statusCode: typeof p.statusCode === "number" ? p.statusCode : null,
@@ -157,6 +161,7 @@ export function SplitCrawlInspector({
       path: getPathname(p.url),
       title: p.title || getPathname(p.url).replace(/\//g, " ").trim() || "Competitor Page",
       h1: Array.isArray(p.h1) ? p.h1 : p.h1 ? [p.h1] : [],
+      h2: Array.isArray(p.h2) ? p.h2 : p.h2 ? [p.h2] : [],
       pageType: (p.pageType || "OTHER").toUpperCase(),
       wordCount: typeof p.wordCount === "number" ? p.wordCount : 0,
       statusCode: typeof p.statusCode === "number" ? p.statusCode : null,
@@ -227,6 +232,7 @@ export function SplitCrawlInspector({
   // Handle page pairing
   const handleSelectOurPage = (page: NormalizedCrawlPage) => {
     setSelectedOurUrl(page.url);
+    setIsDiffExpanded(true);
     // Auto find closest on competitor side
     const match =
       normalizedTheirPages.find((p) => p.path === page.path) ||
@@ -237,6 +243,7 @@ export function SplitCrawlInspector({
 
   const handleSelectTheirPage = (page: NormalizedCrawlPage) => {
     setSelectedTheirUrl(page.url);
+    setIsDiffExpanded(true);
     // Auto find closest on our side
     const match =
       normalizedOurPages.find((p) => p.path === page.path) ||
@@ -377,18 +384,48 @@ export function SplitCrawlInspector({
 
       {/* ── Active Page-to-Page Direct Diff Card ────────────────────────── */}
       {activeOurPage && activeTheirPage && (
-        <div className="rounded-xl border border-brand-300 bg-white shadow-xs overflow-hidden">
-          <div className="bg-brand-950 px-4 py-2.5 flex items-center justify-between text-white">
+        <div className="rounded-xl border border-brand-300 bg-white shadow-xs overflow-hidden transition-all duration-200">
+          {/* Clickable Header Bar */}
+          <div
+            onClick={() => setIsDiffExpanded((prev) => !prev)}
+            className="bg-brand-950 px-4 py-2.5 flex items-center justify-between text-white cursor-pointer hover:bg-brand-900 transition-colors select-none"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsDiffExpanded((prev) => !prev);
+              }
+            }}
+            aria-expanded={isDiffExpanded}
+          >
             <div className="flex items-center gap-2 text-[12px] font-bold">
               <Sparkles size={13} className="text-amber-400" />
               <span>PAGE-TO-PAGE DIRECT MATCH DIFF</span>
+              <span className="hidden sm:inline-block rounded-full bg-brand-800/90 px-2 py-0.5 text-[10px] font-semibold text-brand-200 border border-brand-700">
+                {isDiffExpanded ? "Expanded Comparison View" : "Click to expand details"}
+              </span>
             </div>
-            <span className="text-[11px] text-brand-300">
-              Click any page below to switch comparison pair
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-brand-300 hidden md:inline">
+                Click any page below to switch comparison pair
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDiffExpanded((prev) => !prev);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-800 hover:bg-brand-700 px-2.5 py-1 text-[11px] font-semibold text-white transition shadow-2xs border border-brand-700"
+              >
+                <span>{isDiffExpanded ? "Collapse Details" : "Expand Content Comparison"}</span>
+                {isDiffExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-brand-100 p-4 gap-y-4 md:gap-y-0">
+          {/* Quick Summary Row */}
+          <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-brand-100 p-4 gap-y-4 md:gap-y-0 bg-white">
             {/* Left: Your Page */}
             <div className="md:col-span-5 space-y-2 md:pr-4">
               <div className="flex items-center justify-between">
@@ -411,7 +448,7 @@ export function SplitCrawlInspector({
                   <span>{activeOurPage.path}</span>
                   <ExternalLink size={10} className="shrink-0 text-brand-400" />
                 </a>
-                <div className="text-[11.5px] text-brand-600 font-medium mt-0.5">
+                <div className="text-[11.5px] text-brand-600 font-medium mt-0.5 line-clamp-1">
                   {activeOurPage.title}
                 </div>
               </div>
@@ -433,7 +470,7 @@ export function SplitCrawlInspector({
                 Word Diff
               </span>
               {activeTheirPage.wordCount > activeOurPage.wordCount ? (
-                <div className="rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-center">
+                <div className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1 text-center">
                   <span className="font-mono font-black text-[13px] text-amber-700">
                     +{activeTheirPage.wordCount - activeOurPage.wordCount}
                   </span>
@@ -442,7 +479,7 @@ export function SplitCrawlInspector({
                   </p>
                 </div>
               ) : activeOurPage.wordCount > activeTheirPage.wordCount ? (
-                <div className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-center">
+                <div className="rounded-md bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-center">
                   <span className="font-mono font-black text-[13px] text-emerald-700">
                     +{activeOurPage.wordCount - activeTheirPage.wordCount}
                   </span>
@@ -477,7 +514,7 @@ export function SplitCrawlInspector({
                   <span>{activeTheirPage.path}</span>
                   <ExternalLink size={10} className="shrink-0 text-brand-400" />
                 </a>
-                <div className="text-[11.5px] text-brand-600 font-medium mt-0.5">
+                <div className="text-[11.5px] text-brand-600 font-medium mt-0.5 line-clamp-1">
                   {activeTheirPage.title}
                 </div>
               </div>
@@ -493,6 +530,416 @@ export function SplitCrawlInspector({
               </div>
             </div>
           </div>
+
+          {/* Collapsed State Banner: prompts user to click to expand */}
+          {!isDiffExpanded && (
+            <button
+              type="button"
+              onClick={() => setIsDiffExpanded(true)}
+              className="w-full py-2 px-4 bg-brand-50/80 hover:bg-brand-100 border-t border-brand-200 text-brand-700 hover:text-brand-950 text-[11.5px] font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <span>Click to expand full page content comparison (H1, Subheadings, Meta, Copy Depth & Gaps)</span>
+              <ChevronDown size={13} className="text-brand-500" />
+            </button>
+          )}
+
+          {/* Expanded State: Deep Content Comparison & Short Actionable Verdict */}
+          {isDiffExpanded && (
+            <div className="border-t border-brand-200 bg-brand-50/30 p-4 space-y-4">
+              {/* Section Sub-header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-900 text-white font-bold text-[10px]">
+                    VS
+                  </span>
+                  <div>
+                    <h4 className="text-[13px] font-bold text-brand-950">
+                      Side-by-Side Page Content Anatomy
+                    </h4>
+                    <p className="text-[11px] text-brand-500">
+                      Inspect what content the competitor uses on their page versus what content you have on yours.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDiffExpanded(false)}
+                  className="text-[11px] font-semibold text-brand-600 hover:text-brand-950 flex items-center gap-1 transition cursor-pointer"
+                >
+                  <span>Collapse view</span>
+                  <ChevronUp size={12} />
+                </button>
+              </div>
+
+              {/* Side-by-Side Content Columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* ── Left Column: Your Page Content ── */}
+                <div className="rounded-xl border border-brand-200 bg-white p-3.5 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-brand-950" />
+                      <span className="font-bold text-[12px] text-brand-950">
+                        Your Page Content ({customerDomain})
+                      </span>
+                    </div>
+                    <span className="font-mono text-[10.5px] text-brand-500">
+                      {activeOurPage.path}
+                    </span>
+                  </div>
+
+                  {/* Title Tag */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Title Tag</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeOurPage.title ? `${activeOurPage.title.length} chars` : "0 chars"}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-brand-50/70 border border-brand-100 text-[11.5px] text-brand-900 font-medium leading-relaxed">
+                      {activeOurPage.title || <span className="text-brand-400 italic">No title tag detected</span>}
+                    </div>
+                  </div>
+
+                  {/* Primary Heading (H1) */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Primary Heading (H1)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeOurPage.h1.length} found
+                      </span>
+                    </div>
+                    {activeOurPage.h1.length > 0 ? (
+                      <div className="space-y-1">
+                        {activeOurPage.h1.map((heading, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 p-2 rounded-lg bg-emerald-50/50 border border-emerald-200 text-[11.5px] text-emerald-950 font-semibold">
+                            <span className="px-1 py-0.2 rounded bg-emerald-200 text-emerald-800 text-[9px] font-black shrink-0 uppercase mt-0.5">
+                              H1
+                            </span>
+                            <span className="break-words">{heading}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
+                        <AlertTriangle size={12} className="shrink-0 text-amber-600" />
+                        <span>No H1 heading found on this page. Search engines rely on H1 for topic clarity.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Secondary Headings (H2) */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Key Sections / Subheadings (H2)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeOurPage.h2?.length ?? 0} found
+                      </span>
+                    </div>
+                    {activeOurPage.h2 && activeOurPage.h2.length > 0 ? (
+                      <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                        {activeOurPage.h2.map((sub, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 p-1.5 rounded-md bg-brand-50 border border-brand-100 text-[11px] text-brand-800 font-medium">
+                            <span className="px-1 py-0.2 rounded bg-brand-200 text-brand-700 text-[9px] font-bold shrink-0 uppercase mt-0.5">
+                              H2
+                            </span>
+                            <span className="break-words">{sub}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-brand-50/60 border border-brand-100 text-[11px] text-brand-500 italic">
+                        No H2 subheadings detected on this page.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meta Description */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Meta Description (SERP Snippet)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeOurPage.metaDescription ? `${activeOurPage.metaDescription.length} chars` : "Missing"}
+                      </span>
+                    </div>
+                    {activeOurPage.metaDescription ? (
+                      <div className="p-2 rounded-lg bg-brand-50/70 border border-brand-100 text-[11px] text-brand-800 leading-relaxed">
+                        &ldquo;{activeOurPage.metaDescription}&rdquo;
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
+                        <AlertTriangle size={12} className="shrink-0 text-amber-600" />
+                        <span>Missing meta description. Google will generate snippets from random body text.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content Depth Assessment */}
+                  <div className="pt-2 border-t border-brand-100 flex items-center justify-between text-[11px]">
+                    <span className="text-brand-500 font-medium">Content Depth:</span>
+                    <span className={`font-semibold ${activeOurPage.wordCount < 100 ? "text-amber-700" : activeOurPage.wordCount < 400 ? "text-blue-700" : "text-emerald-700"}`}>
+                      {activeOurPage.wordCount < 100
+                        ? "Thin Content (<100 words)"
+                        : activeOurPage.wordCount < 400
+                        ? "Concise Page (100-400 words)"
+                        : "Comprehensive Depth (>400 words)"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Right Column: Competitor Page Content ── */}
+                <div className="rounded-xl border border-brand-200 bg-white p-3.5 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-brand-400" />
+                      <span className="font-bold text-[12px] text-brand-700">
+                        Competitor Content ({competitorDisplayName})
+                      </span>
+                    </div>
+                    <span className="font-mono text-[10.5px] text-brand-500">
+                      {activeTheirPage.path}
+                    </span>
+                  </div>
+
+                  {/* Title Tag */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Title Tag</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeTheirPage.title ? `${activeTheirPage.title.length} chars` : "0 chars"}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-brand-50/70 border border-brand-100 text-[11.5px] text-brand-900 font-medium leading-relaxed">
+                      {activeTheirPage.title || <span className="text-brand-400 italic">No title tag detected</span>}
+                    </div>
+                  </div>
+
+                  {/* Primary Heading (H1) */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Primary Heading (H1)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeTheirPage.h1.length} found
+                      </span>
+                    </div>
+                    {activeTheirPage.h1.length > 0 ? (
+                      <div className="space-y-1">
+                        {activeTheirPage.h1.map((heading, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 p-2 rounded-lg bg-brand-100/60 border border-brand-200 text-[11.5px] text-brand-950 font-semibold">
+                            <span className="px-1 py-0.2 rounded bg-brand-300 text-brand-900 text-[9px] font-black shrink-0 uppercase mt-0.5">
+                              H1
+                            </span>
+                            <span className="break-words">{heading}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-brand-50 border border-brand-100 text-[11px] text-brand-500 italic">
+                        No H1 heading detected on competitor page.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Secondary Headings (H2) */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Key Sections / Subheadings (H2)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeTheirPage.h2?.length ?? 0} found
+                      </span>
+                    </div>
+                    {activeTheirPage.h2 && activeTheirPage.h2.length > 0 ? (
+                      <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                        {activeTheirPage.h2.map((sub, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 p-1.5 rounded-md bg-brand-50 border border-brand-100 text-[11px] text-brand-800 font-medium">
+                            <span className="px-1 py-0.2 rounded bg-brand-200 text-brand-700 text-[9px] font-bold shrink-0 uppercase mt-0.5">
+                              H2
+                            </span>
+                            <span className="break-words">{sub}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-brand-50/60 border border-brand-100 text-[11px] text-brand-500 italic">
+                        No H2 subheadings detected on competitor page.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meta Description */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-1">
+                      <span>Meta Description (SERP Snippet)</span>
+                      <span className="font-mono text-[10px] text-brand-400">
+                        {activeTheirPage.metaDescription ? `${activeTheirPage.metaDescription.length} chars` : "Missing"}
+                      </span>
+                    </div>
+                    {activeTheirPage.metaDescription ? (
+                      <div className="p-2 rounded-lg bg-brand-50/70 border border-brand-100 text-[11px] text-brand-800 leading-relaxed">
+                        &ldquo;{activeTheirPage.metaDescription}&rdquo;
+                      </div>
+                    ) : (
+                      <div className="p-2 rounded-lg bg-brand-50 border border-brand-100 text-[11px] text-brand-500 italic">
+                        No meta description tag provided by competitor.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content Depth Assessment */}
+                  <div className="pt-2 border-t border-brand-100 flex items-center justify-between text-[11px]">
+                    <span className="text-brand-500 font-medium">Content Depth:</span>
+                    <span className={`font-semibold ${activeTheirPage.wordCount < 100 ? "text-amber-700" : activeTheirPage.wordCount < 400 ? "text-blue-700" : "text-emerald-700"}`}>
+                      {activeTheirPage.wordCount < 100
+                        ? "Thin Content (<100 words)"
+                        : activeTheirPage.wordCount < 400
+                        ? "Concise Page (100-400 words)"
+                        : "Comprehensive Depth (>400 words)"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Short Comparison & Actionable Verdict ── */}
+              <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-white to-brand-50/50 p-4 space-y-3.5 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-md bg-indigo-600 text-white">
+                    <Sparkles size={13} />
+                  </div>
+                  <div>
+                    <h5 className="text-[12.5px] font-bold text-brand-950">
+                      Short Content Comparison & Actionable Verdict
+                    </h5>
+                    <p className="text-[11px] text-brand-600">
+                      Quick takeaway of how your page compares directly against {competitorDisplayName} on this URL.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3 Comparison Insight Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Card 1: Content Volume Delta */}
+                  <div className="rounded-lg border border-brand-200 bg-white p-3 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                      1. Content Volume
+                    </span>
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {activeTheirPage.wordCount > activeOurPage.wordCount ? (
+                        <>
+                          <span className="font-mono font-bold text-[13px] text-amber-700">
+                            +{activeTheirPage.wordCount - activeOurPage.wordCount} words
+                          </span>
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                            Deficit
+                          </span>
+                        </>
+                      ) : activeOurPage.wordCount > activeTheirPage.wordCount ? (
+                        <>
+                          <span className="font-mono font-bold text-[13px] text-emerald-700">
+                            +{activeOurPage.wordCount - activeTheirPage.wordCount} words
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                            Advantage
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-mono font-bold text-[13px] text-brand-700">
+                          Equal ({activeOurPage.wordCount} words)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10.5px] text-brand-600 leading-snug">
+                      {activeTheirPage.wordCount > activeOurPage.wordCount
+                        ? `Competitor provides ${Math.round((activeTheirPage.wordCount / Math.max(activeOurPage.wordCount, 1)) * 10) / 10}x more content depth on this page.`
+                        : activeOurPage.wordCount > activeTheirPage.wordCount
+                        ? `You have greater textual depth than the competitor on this matching page.`
+                        : `Both pages carry identical text volume.`}
+                    </p>
+                  </div>
+
+                  {/* Card 2: Heading Targeting */}
+                  <div className="rounded-lg border border-brand-200 bg-white p-3 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                      2. Heading Structure
+                    </span>
+                    <div className="pt-0.5">
+                      <span className="text-[11.5px] font-bold text-brand-900 block truncate">
+                        {activeOurPage.h1.length > 0 ? "H1 Active" : "Missing H1"} vs {activeTheirPage.h1.length > 0 ? "Rival H1 Active" : "Rival Missing H1"}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-brand-600 leading-snug">
+                      {activeOurPage.h1.length === 0
+                        ? "Your page lacks an H1 tag. Adding one is a quick-win ranking signal."
+                        : activeTheirPage.h1.length === 0
+                        ? "You have an H1 while competitor has none, giving you stronger topical clarity."
+                        : "Both pages define H1 tags. Ensure your heading aligns closely with search queries."}
+                    </p>
+                  </div>
+
+                  {/* Card 3: SERP Snippet / Meta */}
+                  <div className="rounded-lg border border-brand-200 bg-white p-3 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                      3. SERP Snippet (Meta)
+                    </span>
+                    <div className="pt-0.5">
+                      <span className="text-[11.5px] font-bold text-brand-900 block truncate">
+                        {activeOurPage.metaDescription ? "Meta Configured" : "Meta Missing"} vs {activeTheirPage.metaDescription ? "Rival Configured" : "Rival Missing"}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-brand-600 leading-snug">
+                      {!activeOurPage.metaDescription && activeTheirPage.metaDescription
+                        ? "Rival has a custom search snippet; your page risks poor CTR without one."
+                        : activeOurPage.metaDescription && !activeTheirPage.metaDescription
+                        ? "You have a tailored meta description while rival has left theirs empty."
+                        : activeOurPage.metaDescription
+                        ? "Both pages have meta descriptions defined for search results."
+                        : "Both pages lack meta descriptions. Add one to capture higher organic CTR."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3 Quick Action Steps */}
+                <div className="p-3 rounded-lg bg-white border border-brand-200 space-y-2">
+                  <span className="text-[11px] font-bold text-brand-950 flex items-center gap-1.5">
+                    <CheckCircle2 size={12} className="text-emerald-600" />
+                    Recommended Actions for this Page:
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] text-brand-700">
+                    <div className="flex items-start gap-1.5">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-900 font-bold text-[9px]">
+                        1
+                      </span>
+                      <span>
+                        {activeTheirPage.wordCount > activeOurPage.wordCount
+                          ? `Add ~${Math.min(500, activeTheirPage.wordCount - activeOurPage.wordCount)} words covering key features, benefits, and user FAQs.`
+                          : `Keep copy fresh and structured with bullet points and clear call-to-actions.`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-900 font-bold text-[9px]">
+                        2
+                      </span>
+                      <span>
+                        {activeOurPage.h1.length === 0
+                          ? `Add an H1 heading reflecting primary user intent on "${activeOurPage.path}".`
+                          : `Add 2-3 H2 subheadings to organize subtopics and answer long-tail search questions.`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-900 font-bold text-[9px]">
+                        3
+                      </span>
+                      <span>
+                        {!activeOurPage.metaDescription
+                          ? `Write a 140-160 character meta description with a clear value proposition and CTA.`
+                          : `Review meta description length (${activeOurPage.metaDescription.length} chars) to optimize click-through rate.`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

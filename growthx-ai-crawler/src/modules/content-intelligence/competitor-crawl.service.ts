@@ -382,7 +382,7 @@ export class CompetitorCrawlService {
         statusCode: { gte: 200, lt: 300 },
         ...(options.pageType ? { pageType: options.pageType } : {}),
       },
-      select: { url: true, title: true, metaDescription: true, h1: true, pageType: true, wordCount: true, statusCode: true, responseTimeMs: true },
+      select: { url: true, title: true, metaDescription: true, h1: true, h2: true, pageType: true, wordCount: true, statusCode: true, responseTimeMs: true },
       orderBy: { url: 'asc' },
       take: Math.min(options.limit ?? 100, 300),
     });

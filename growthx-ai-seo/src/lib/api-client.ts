@@ -1820,7 +1820,7 @@ export const api = {
     ),
 
   listCompetitorPages: (projectId: string, competitorId: string, pageType?: string) =>
-    get<Array<{ url: string; title: string | null; metaDescription: string | null; h1: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }>>(
+    get<Array<{ url: string; title: string | null; metaDescription: string | null; h1: string[]; h2?: string[]; pageType: string; wordCount: number; statusCode: number; responseTimeMs: number }>>(
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
     ),
 
