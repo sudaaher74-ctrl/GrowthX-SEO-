@@ -17,27 +17,29 @@ import {
 } from "@/hooks/use-growthx";
 import { CommandPalette } from "@/components/ui/command-palette";
 
-/** Breadcrumb scope + title for each route, matching the 11-section IA. */
+/** Breadcrumb scope + title for each route, matching E-Commerce & Google Business Profile IA. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/clients": { scope: "Portfolio", title: "Projects" },
-  "/dashboard": { scope: "Workspace", title: "Dashboard" },
-  "/website": { scope: "Workspace", title: "Website Audit" },
-  "/technical-seo": { scope: "Workspace", title: "Website Audit" },
+  "/dashboard": { scope: "E-Commerce", title: "Dashboard" },
+  "/website": { scope: "E-Commerce", title: "Website Audit" },
+  "/technical-seo": { scope: "E-Commerce", title: "Website Audit" },
+  "/competitor-intelligence": { scope: "E-Commerce", title: "Competitor Intelligence" },
+  "/competitors": { scope: "E-Commerce", title: "Competitor Intelligence" },
+  "/social-media": { scope: "E-Commerce", title: "Social Media" },
+  "/local": { scope: "Google Business Profile", title: "Local SEO" },
+  "/monitoring": { scope: "Google Business Profile", title: "Monitoring" },
+  "/market-research": { scope: "Google Business Profile", title: "Market Research" },
   "/search-performance": { scope: "Workspace", title: "Search Performance" },
   "/search/search-console": { scope: "Workspace", title: "Search Performance" },
   "/analytics": { scope: "Workspace", title: "Search Performance" },
   "/ai-visibility": { scope: "Workspace", title: "AI Visibility" },
   "/search": { scope: "Workspace", title: "AI Visibility" },
   "/geo-tracking": { scope: "Workspace", title: "AI Visibility" },
-  "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },
-  "/competitors": { scope: "Workspace", title: "Competitor Intelligence" },
-  "/market-research": { scope: "Workspace", title: "Market Research" },
-  "/local": { scope: "Workspace", title: "Local SEO" },
   "/content-opportunities": { scope: "Workspace", title: "Content & Opportunities" },
   "/opportunities": { scope: "Workspace", title: "Content & Opportunities" },
   "/content-intelligence": { scope: "Workspace", title: "Content & Opportunities" },
   "/content": { scope: "Workspace", title: "Content & Opportunities" },
-  "/monitoring": { scope: "Workspace", title: "Monitoring" },
+  "/marketing": { scope: "Workspace", title: "Marketing" },
   "/reports": { scope: "Workspace", title: "Reports" },
   "/integrations": { scope: "Workspace", title: "Integrations" },
   "/settings": { scope: "Workspace", title: "Settings" },

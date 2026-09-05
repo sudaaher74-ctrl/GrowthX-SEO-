@@ -30,7 +30,8 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
-  Bot
+  Bot,
+  Share2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -82,9 +83,8 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
-  // 11 Core Navigation Sections organized around the unified customer workflow:
-  // ADD BUSINESS → CONNECT DATA → AUDIT → PRIORITIZE → TAKE ACTION → MONITOR → REPORT
-  const clientNav: NavItem[] = [
+  // 1. E-Commerce Navigation Group
+  const ecommerceNav: NavItem[] = [
     { label: "Dashboard", href: "/dashboard", icon: Activity },
     {
       label: "Website Audit",
@@ -95,38 +95,26 @@ export function Sidebar({
       tagTone: "danger",
     },
     {
-      label: "Search Performance",
-      href: "/search-performance",
-      icon: TrendingUp,
-      aliases: ["/search/search-console", "/analytics"],
-    },
-    {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Sparkles,
-      aliases: ["/search", "/geo-tracking"],
-    },
-    {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
     },
     {
-      label: "Market Research",
-      href: "/market-research",
-      icon: Telescope,
+      label: "Social Media",
+      href: "/social-media",
+      icon: Share2,
+      aliases: ["/content-intelligence", "/marketing"],
     },
+  ];
+
+  // 2. Google Business Profile Navigation Group
+  const gbpNav: NavItem[] = [
     {
       label: "Local SEO",
       href: "/local",
       icon: MapPin,
-    },
-    {
-      label: "Content & Opportunities",
-      href: "/content-opportunities",
-      icon: ListChecks,
-      aliases: ["/opportunities", "/content-intelligence", "/content", "/strategy"],
+      aliases: ["/geo-tracking"],
     },
     {
       label: "Monitoring",
@@ -134,9 +122,9 @@ export function Sidebar({
       icon: HeartPulse,
     },
     {
-      label: "Reports",
-      href: "/reports",
-      icon: FileText,
+      label: "Market Research",
+      href: "/market-research",
+      icon: Telescope,
     },
   ];
 
@@ -234,10 +222,24 @@ export function Sidebar({
               )}
             </div>
 
-            <div className="mt-2">
-              {clientNav.map((item) => (
-                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
-              ))}
+            {/* E-Commerce Section */}
+            <div className="mt-3">
+              <SectionLabel>E-Commerce</SectionLabel>
+              <div className="space-y-0.5 mt-1">
+                {ecommerceNav.map((item) => (
+                  <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+                ))}
+              </div>
+            </div>
+
+            {/* Google Business Profile Section */}
+            <div className="mt-4">
+              <SectionLabel>Google Business Profile</SectionLabel>
+              <div className="space-y-0.5 mt-1">
+                {gbpNav.map((item) => (
+                  <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+                ))}
+              </div>
             </div>
 
             <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
