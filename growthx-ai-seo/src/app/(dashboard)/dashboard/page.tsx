@@ -22,6 +22,10 @@ import {
   TrendingUp,
   Users,
   Zap,
+  Crosshair,
+  Share2,
+  Flame,
+  Navigation,
 } from "lucide-react";
 import {
   ActionButton,
@@ -518,74 +522,154 @@ export default function UnifiedDashboardPage() {
         </Panel>
       </div>
 
-      {/* Row 4: Monitoring & Competitors Baseline */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Monitoring Health Status */}
-        <div className="rounded-xl border bg-white p-4 shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[12px] font-semibold text-brand-950 flex items-center gap-1.5">
-              <HeartPulse size={14} className="text-brand-500" />
-              Monitoring Status
-            </span>
-            <Link href="/monitoring" className="text-[11px] font-semibold text-accent-700 hover:underline">
-              Configure →
-            </Link>
+      {/* Row 4: Multi-Pillar Command Center (Competitors, Local 3-Pack, Social, 30-Day Plan) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Pillar 1: Competitor Intelligence Battlecard */}
+        <div className="rounded-xl border bg-white dark:bg-brand-950 p-4 shadow-2xs flex flex-col justify-between" style={{ borderColor: "var(--border-color)" }}>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                <Crosshair size={14} className="text-accent-600 dark:text-accent-400" />
+                Competitor Intelligence
+              </span>
+              <Pill tone="info">{trackedCompetitors.data?.length ?? 0} Rivals</Pill>
+            </div>
+            <p className="text-[11.5px] text-brand-600 dark:text-brand-400 mb-3">
+              {trackedCompetitors.data?.[0]?.domain
+                ? `Benchmarked against ${trackedCompetitors.data[0].domain}`
+                : "Identify and track search competitors."}
+            </p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Content Gap:</span>
+                <span className="font-semibold text-brand-900 dark:text-brand-200">Active Analysis</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Keyword Matrix:</span>
+                <span className="font-semibold text-brand-900 dark:text-brand-200">Side-by-Side</span>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-brand-500">Uptime & SSL Check:</span>
-              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                Active
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-brand-500">Daily Crawl Watcher:</span>
-              <span className="font-semibold text-brand-700">
-                {crawlCompleted ? "Monitoring" : "Not started"}
-              </span>
-            </div>
+          <div className="pt-3 border-t border-brand-100 dark:border-brand-900 mt-3">
+            <Link
+              href="/competitor-intelligence"
+              className="text-[11.5px] font-semibold text-accent-700 dark:text-accent-400 hover:underline flex items-center gap-1"
+            >
+              <span>View Benchmark & Gaps</span>
+              <ArrowRight size={11} />
+            </Link>
           </div>
         </div>
 
-        {/* Competitor Benchmark Snapshot */}
-        <div className="rounded-xl border bg-white p-4 shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[12px] font-semibold text-brand-950 flex items-center gap-1.5">
-              <Users size={14} className="text-brand-500" />
-              Competitor Gap
-            </span>
-            <Link href="/competitor-intelligence" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              View intelligence →
-            </Link>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-brand-500">Tracked Competitors:</span>
-              <span className="font-semibold text-brand-950 font-mono">
-                {trackedCompetitors.data?.length ?? 0}
+        {/* Pillar 2: Google 3-Pack & Local SEO Radar */}
+        <div className="rounded-xl border bg-white dark:bg-brand-950 p-4 shadow-2xs flex flex-col justify-between" style={{ borderColor: "var(--border-color)" }}>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                <Navigation size={14} className="text-emerald-600 dark:text-emerald-400" />
+                Google 3-Pack Radar
               </span>
+              <Pill tone={localSeo.data ? "good" : "default"}>
+                {localSeo.data ? "24/7 ACTIVE" : "DISCONNECTED"}
+              </Pill>
             </div>
-            <div className="flex items-center justify-between text-[11.5px]">
-              <span className="text-brand-500">Local Public Data:</span>
-              <span className="text-[10px] text-brand-400 italic">Public maps data only</span>
+            <p className="text-[11.5px] text-brand-600 dark:text-brand-400 mb-3 truncate">
+              {localSeo.data?.businessName || "Connect Google Business Profile"}
+            </p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Google Rating:</span>
+                <span className="font-semibold text-amber-500 font-mono">
+                  {localSeo.data?.rating ? `${localSeo.data.rating.toFixed(1)} ★` : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Verified Reviews:</span>
+                <span className="font-semibold text-brand-900 dark:text-brand-200 font-mono">
+                  {localSeo.data?.reviewCount ?? 0}
+                </span>
+              </div>
             </div>
+          </div>
+          <div className="pt-3 border-t border-brand-100 dark:border-brand-900 mt-3">
+            <Link
+              href="/monitoring"
+              className="text-[11.5px] font-semibold text-accent-700 dark:text-accent-400 hover:underline flex items-center gap-1"
+            >
+              <span>Open 3-Pack Watchdog</span>
+              <ArrowRight size={11} />
+            </Link>
           </div>
         </div>
 
-        {/* Completed Work / Reports Ready */}
-        <div className="rounded-xl border bg-white p-4 shadow-2xs sm:col-span-2 lg:col-span-1" style={{ borderColor: "var(--border-color)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[12px] font-semibold text-brand-950 flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-brand-500" />
-              Reports & Audit History
-            </span>
-            <Link href="/reports" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              Open reports →
+        {/* Pillar 3: Social & Video Intelligence */}
+        <div className="rounded-xl border bg-white dark:bg-brand-950 p-4 shadow-2xs flex flex-col justify-between" style={{ borderColor: "var(--border-color)" }}>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                <Share2 size={14} className="text-pink-600 dark:text-pink-400" />
+                Social & Video Radar
+              </span>
+              <Pill tone="info">Instagram & YT</Pill>
+            </div>
+            <p className="text-[11.5px] text-brand-600 dark:text-brand-400 mb-3">
+              Reverse-engineer viral competitor Reels and YouTube Shorts.
+            </p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Viral Breakouts:</span>
+                <span className="font-semibold text-pink-600 dark:text-pink-400">100K+ View Spy</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Creator Network:</span>
+                <span className="font-semibold text-brand-900 dark:text-brand-200">Talk With Us</span>
+              </div>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-brand-100 dark:border-brand-900 mt-3">
+            <Link
+              href="/social-media"
+              className="text-[11.5px] font-semibold text-accent-700 dark:text-accent-400 hover:underline flex items-center gap-1"
+            >
+              <span>Explore Social Suite</span>
+              <ArrowRight size={11} />
             </Link>
           </div>
-          <p className="text-[11.5px] text-brand-500">
-            Generate executive monthly summaries and share crawl deliverables directly with clients.
-          </p>
+        </div>
+
+        {/* Pillar 4: 30-Day Improvement Plan Roadmap */}
+        <div className="rounded-xl border bg-white dark:bg-brand-950 p-4 shadow-2xs flex flex-col justify-between" style={{ borderColor: "var(--border-color)" }}>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[12px] font-semibold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
+                <TrendingUp size={14} className="text-purple-600 dark:text-purple-400" />
+                30-Day Action Roadmap
+              </span>
+              <Pill tone="good">ACTIVE PLAN</Pill>
+            </div>
+            <p className="text-[11.5px] text-brand-600 dark:text-brand-400 mb-3">
+              Actionable to-do list derived across benchmark, gap, and keyword data.
+            </p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Strategy Objective:</span>
+                <span className="font-semibold text-brand-900 dark:text-brand-200">Overtake Competitor</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Execution Cadence:</span>
+                <span className="font-semibold text-purple-600 dark:text-purple-400">Weekly Milestones</span>
+              </div>
+            </div>
+          </div>
+          <div className="pt-3 border-t border-brand-100 dark:border-brand-900 mt-3">
+            <Link
+              href="/competitor-intelligence?tab=plan"
+              className="text-[11.5px] font-semibold text-accent-700 dark:text-accent-400 hover:underline flex items-center gap-1"
+            >
+              <span>Open 30-Day Roadmap</span>
+              <ArrowRight size={11} />
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -18,10 +18,12 @@ import {
   Layers,
   Award,
   Users,
+  Film,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/console";
 import { useWorkspace, usePortfolio, useStrategies, useStrategy, useGenerateStrategy } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
+import { VideoScriptGeneratorModal } from "@/components/social/video-script-generator-modal";
 import { SocialAccountsPanel } from "@/components/social/social-accounts-panel";
 import { SocialContentFeedsPanel } from "@/components/social/social-content-feeds-panel";
 import { SocialMarketTrendsPanel } from "@/components/social/social-market-trends-panel";
@@ -58,6 +60,9 @@ function SocialMediaClient() {
     ? requestedTab!
     : DEFAULT_TAB;
 
+  const [scriptModalOpen, setScriptModalOpen] = useState(false);
+  const [scriptModalTopic, setScriptModalTopic] = useState<string | undefined>(undefined);
+
   const setActiveTab = (tab: SocialCategoryTab) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tab);
@@ -90,12 +95,23 @@ function SocialMediaClient() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                setScriptModalTopic("3 Critical Reasons Competitors Are Outranking You");
+                setScriptModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-pink-600 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-pink-700 transition shadow-xs cursor-pointer"
+            >
+              <Film size={13} />
+              <span>AI Video Script & Hooks</span>
+            </button>
+            <button
+              type="button"
               onClick={() => generateStrategyMutation.mutate()}
               disabled={generateStrategyMutation.isPending}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-brand-900 transition shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Sparkles size={13} className={generateStrategyMutation.isPending ? "animate-spin" : "text-amber-400"} />
-              <span>{generateStrategyMutation.isPending ? "Generating Strategy..." : "Regenerate AI Social Strategy"}</span>
+              <span>{generateStrategyMutation.isPending ? "Generating Strategy..." : "Regenerate Strategy"}</span>
             </button>
           </div>
         }
@@ -210,6 +226,15 @@ function SocialMediaClient() {
           projectId={projectId!}
           businessName={businessName}
           customerDomain={customerDomain}
+        />
+      )}
+
+      {scriptModalOpen && (
+        <VideoScriptGeneratorModal
+          initialTopic={scriptModalTopic}
+          businessName={businessName}
+          customerDomain={customerDomain}
+          onClose={() => setScriptModalOpen(false)}
         />
       )}
     </div>

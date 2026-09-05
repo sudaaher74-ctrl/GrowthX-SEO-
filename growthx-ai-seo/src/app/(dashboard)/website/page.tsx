@@ -15,9 +15,11 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Sparkles,
   X,
   Zap,
 } from "lucide-react";
+import { AutoFixModal } from "@/components/website/auto-fix-modal";
 import {
   ActionButton,
   Kpi,
@@ -95,6 +97,7 @@ function WebsiteClient() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
+  const [selectedFixIssue, setSelectedFixIssue] = useState<CrawlIssue | null>(null);
 
   const issues = useCrawlIssues(
     crawl.data?.id ?? null,
@@ -603,8 +606,18 @@ function WebsiteClient() {
                           </Td>
                           <Td align="right">
                             <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedFixIssue(issue)}
+                                className="inline-flex items-center gap-1 rounded bg-accent-600 px-2 py-1 text-[11px] font-semibold text-white shadow-2xs hover:bg-accent-700 transition"
+                                title="Generate AI Auto-Fix snippet"
+                              >
+                                <Sparkles size={11} />
+                                <span>Auto-Fix</span>
+                              </button>
                               {hasEvidence && (
                                 <button
+                                  type="button"
                                   onClick={() => setExpandedEvidenceId(isExpanded ? null : issue.id)}
                                   className="inline-flex items-center gap-1 rounded border bg-white px-2 py-1 text-[11px] font-medium text-brand-700 shadow-2xs hover:bg-brand-50 transition"
                                 >
@@ -743,6 +756,13 @@ function WebsiteClient() {
           severityCounts={severityCounts}
           qualityDiagnostics={qualityDiagnostics}
           onClose={() => setShowBreakdown(false)}
+        />
+      )}
+
+      {selectedFixIssue && (
+        <AutoFixModal
+          issue={selectedFixIssue}
+          onClose={() => setSelectedFixIssue(null)}
         />
       )}
     </div>
