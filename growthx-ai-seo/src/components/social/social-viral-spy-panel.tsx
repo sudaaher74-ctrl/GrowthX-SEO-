@@ -2,28 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Sparkles,
-  Eye,
-  Heart,
-  MessageSquare,
-  Copy,
-  Check,
-  Calendar,
-  Film,
-  ArrowRight,
-  TrendingUp,
-  AlertCircle,
-  Video,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  Play,
-  Share2,
-  ExternalLink,
-  Flame,
-  Zap,
-} from "lucide-react";
+import { Sparkles, Heart, MessageSquare, Copy, Check, Calendar, Film, Video, ChevronDown, ChevronUp, Flame } from "lucide-react";
 import { api, VideoBriefAndScript } from "@/lib/api-client";
 import { TruthfulState } from "@/components/ui/truthful-state";
 
@@ -73,10 +52,8 @@ export interface ViralCompetitorCase {
 
 export function SocialViralSpyPanel({
   projectId,
-  customerDomain,
   businessName,
   competitors,
-  onNavigateToCalendar,
 }: SocialViralSpyPanelProps) {
   const queryClient = useQueryClient();
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);

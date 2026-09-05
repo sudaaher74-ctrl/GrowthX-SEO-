@@ -2,26 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Video,
-  Eye,
-  Heart,
-  MessageSquare,
-  Search,
-  Filter,
-  ExternalLink,
-  Sparkles,
-  Hash,
-  Play,
-  FileText,
-  Layers,
-  ArrowUpRight,
-  TrendingUp,
-} from "lucide-react";
-import { api, CompetitorContent } from "@/lib/api-client";
-import { TruthfulState, LoadingState } from "@/components/ui/truthful-state";
-
-interface TrackedCompetitorSummary {
+import { Video, Eye, Heart, MessageSquare, Search, Sparkles } from "lucide-react";
+import { api } from "@/lib/api-client";interface TrackedCompetitorSummary {
   id: string;
   domain: string;
   label?: string | null;
@@ -37,7 +19,6 @@ interface SocialContentFeedsPanelProps {
 
 export function SocialContentFeedsPanel({
   projectId,
-  customerDomain,
   competitors,
   onSelectForCounterStrategy,
 }: SocialContentFeedsPanelProps) {

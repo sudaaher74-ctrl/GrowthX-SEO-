@@ -1,20 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import {
-  X,
-  Sparkles,
-  Copy,
-  Check,
-  GitBranch,
-  Code2,
-  FileText,
-  Layers,
-  ExternalLink,
-  BookOpen,
-  CheckCircle2,
-  Zap,
-} from "lucide-react";
+import { X, Sparkles, Copy, Check, GitBranch, Code2, FileText, Layers, BookOpen, CheckCircle2 } from "lucide-react";
 import { ActionButton, Pill } from "@/components/ui/console";
 import type { ContentPiece } from "@/lib/api-client";
 

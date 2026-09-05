@@ -2,22 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Panel, ActionButton, Table, Th, Td, Tr } from "@/components/ui/console";
-import {
-  Users,
-  Search,
-  Plus,
-  Trash2,
-  ExternalLink,
-  Star,
-  Trophy,
-  TrendingUp,
-  ShieldAlert,
-  Loader2,
-  CheckCircle2,
-  Target,
-  Sparkles,
-  MapPin,
-} from "lucide-react";
+import { Search, Plus, Trash2, ExternalLink, Star, Trophy, ShieldAlert, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 import { useSearchLocalBusiness } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 

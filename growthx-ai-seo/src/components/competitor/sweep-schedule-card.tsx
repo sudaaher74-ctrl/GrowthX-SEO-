@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Calendar, CheckCircle2, RefreshCw, Zap } from "lucide-react";
+import { Clock, RefreshCw } from "lucide-react";
 import { useRunSweep } from "@/hooks/use-growthx";
 
 interface SweepScheduleCardProps {

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Panel, ActionButton } from "@/components/ui/console";
-import { Map, Loader2, Zap, Trophy, Navigation, Compass, Star, CheckCircle2, ExternalLink } from "lucide-react";
+import { Map, Loader2, Zap, Trophy, Compass, Star, ExternalLink } from "lucide-react";
 import { useRunGeoGridScan } from "@/hooks/use-growthx";
 import type { GeoGridScanResult, GridNode } from "@/lib/api-client";
 

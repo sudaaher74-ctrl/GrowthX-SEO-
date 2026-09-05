@@ -13,24 +13,7 @@ import {
   Th,
   Tr,
 } from "@/components/ui/console";
-import {
-  MapPin,
-  Star,
-  Link as LinkIcon,
-  BarChart3,
-  Zap,
-  Loader2,
-  Search,
-  Map,
-  ShieldAlert,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Phone,
-  Building2,
-  ExternalLink,
-} from "lucide-react";
+import { MapPin, Star, Link as LinkIcon, BarChart3, Zap, Loader2, Search, Map, Users } from "lucide-react";
 import {
   useWorkspace,
   useLocalSeo,
@@ -45,13 +28,7 @@ import { GeoGridPanel } from "./GeoGridPanel";
 import { ReviewsPanel } from "./ReviewsPanel";
 import { LocalCompetitorsPanel } from "./LocalCompetitorsPanel";
 import { CitationsAuditPanel } from "./CitationsAuditPanel";
-import {
-  TruthfulState,
-  MetricBadge,
-  TruthfulKpiCard,
-  LoadingState,
-  NotConnectedState,
-} from "@/components/ui/truthful-state";
+import { TruthfulState, TruthfulKpiCard, LoadingState } from "@/components/ui/truthful-state";
 
 interface LocalBusinessPlace {
   placeId: string;

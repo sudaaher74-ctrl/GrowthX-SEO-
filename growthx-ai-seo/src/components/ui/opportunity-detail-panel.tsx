@@ -1,8 +1,4 @@
-import * as React from "react";
-import { Button } from "./button";
-import { cn } from "@/lib/utils";
-
-export interface OpportunityProps {
+import { Button } from "./button";export interface OpportunityProps {
   title: string;
   evidence: string[];
   businessImpact: string;

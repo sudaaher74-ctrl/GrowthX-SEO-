@@ -2,12 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import {
-  Search, ArrowRight, Sparkles, Globe, BarChart3, Search as SearchIcon,
-  Zap, FileText, Bot, MapPin, Target, Eye, Sliders, Code, Link2,
-  Image, GitBranch, Play, FileSpreadsheet, CreditCard, Settings,
-  HelpCircle, Moon, Sun, RefreshCw, Plus, Check, CornerDownLeft, Share2
-} from "lucide-react";
+import { Search, Sparkles, Globe, BarChart3, Search as SearchIcon, Zap, FileText, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {

@@ -2,20 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  TrendingUp,
-  Sparkles,
-  Copy,
-  Check,
-  Zap,
-  Flame,
-  Clock,
-  Layers,
-  Award,
-  Video,
-  Play,
-  BarChart3,
-} from "lucide-react";
+import { TrendingUp, Sparkles, Copy, Check, Flame } from "lucide-react";
 import { api } from "@/lib/api-client";
 
 interface SocialMarketTrendsPanelProps {

@@ -1,21 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import {
-  BookOpen,
-  CheckCircle2,
-  ExternalLink,
-  FileText,
-  GitBranch,
-  Layers,
-  Loader2,
-  PenLine,
-  Plus,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { BookOpen, CheckCircle2, ExternalLink, FileText, GitBranch, Loader2, PenLine, Plus, Sparkles, Zap } from "lucide-react";
 import { ActionButton, PageHeader, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
-import { ApiError, type ContentPiece } from "@/lib/api-client";
+import { type ContentPiece } from "@/lib/api-client";
 import { QueryState } from "@/components/ui/query-state";
 import { CreateArticleModal } from "@/components/content/create-article-modal";
 import { ArticlePreviewModal } from "@/components/content/article-preview-modal";

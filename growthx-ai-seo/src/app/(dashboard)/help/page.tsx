@@ -1,7 +1,5 @@
 "use client";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { HelpCircle, Book, MessageCircle, Video, ChevronDown, ChevronUp } from "lucide-react";
+import { motion } from "framer-motion";import { Book, MessageCircle, Video, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 

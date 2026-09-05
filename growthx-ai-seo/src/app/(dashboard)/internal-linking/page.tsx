@@ -1,20 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Sparkles,
-  Globe,
-  RefreshCw,
-  Link2,
-  ExternalLink,
-  ArrowRight,
-  Copy,
-  Check,
-  CheckCircle2,
-  Network,
-  Compass,
-  Zap,
-} from "lucide-react";
+import { Sparkles, Globe, RefreshCw, Link2, ExternalLink, Copy, Check, Network, Zap } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
 import { useWorkspace } from "@/hooks/use-growthx";

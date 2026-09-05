@@ -1,25 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  MapPin,
-  Sparkles,
-  RefreshCw,
-  Search,
-  Crosshair,
-  Compass,
-  Trophy,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2,
-  Zap,
-  Info,
-  ChevronRight,
-  Sliders,
-  Layers,
-  Star,
-  Plus,
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { MapPin, Sparkles, RefreshCw, Search, Crosshair, Compass, AlertTriangle, Zap, ChevronRight, Star, Plus } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
 import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep } from "@/hooks/use-growthx";

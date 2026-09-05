@@ -2,10 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import {
-  Layers, RefreshCw, TrendingDown, TrendingUp, Target,
-  CheckCircle2, Clock, Check, ChevronRight, Zap, Filter
-} from "lucide-react";
+import { Layers, RefreshCw, TrendingDown, TrendingUp, Target, CheckCircle2, Filter } from "lucide-react";
 import { api, type ContentGap } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 

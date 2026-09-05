@@ -1,21 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Code2,
-  Copy,
-  ExternalLink,
-  Layers,
-  Loader2,
-  Sparkles,
-  Terminal,
-  X,
-  Zap,
-} from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, Sparkles, X } from "lucide-react";
 import { ActionButton, Pill } from "@/components/ui/console";
 import type { CrawlIssue } from "@/lib/api-client";
 

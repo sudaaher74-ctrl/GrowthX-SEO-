@@ -2,33 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Globe,
-  FileText,
-  Search,
-  RefreshCw,
-  ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  TrendingUp,
-  Zap,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  Check,
-  Compass,
-  HelpCircle,
-  MapPin,
-  Target,
-  Sparkles,
-  SlidersHorizontal,
-} from "lucide-react";
-import { api, CrawlPage } from "@/lib/api-client";
-import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
-import { LoadingState } from "@/components/ui/truthful-state";
-
-interface TrackedCompetitorSummary {
+import { Globe, Search, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";interface TrackedCompetitorSummary {
   id: string;
   domain: string;
   label?: string | null;

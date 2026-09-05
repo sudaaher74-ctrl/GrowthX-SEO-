@@ -3,23 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Share2,
-  Video,
-  Sparkles,
-  TrendingUp,
-  Calendar,
-  Flame,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  ExternalLink,
-  Globe,
-  Layers,
-  Award,
-  Users,
-  Film,
-} from "lucide-react";
+import { Share2, Video, Sparkles, TrendingUp, Calendar, Flame, Users, Film } from "lucide-react";
 import { PageHeader } from "@/components/ui/console";
 import { useWorkspace, usePortfolio, useStrategies, useStrategy, useGenerateStrategy } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";

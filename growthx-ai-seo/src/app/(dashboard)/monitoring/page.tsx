@@ -4,44 +4,8 @@ import type { GridNode } from "@/lib/api-client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Activity,
-  AlertCircle,
-  AlertTriangle,
-  ArrowUpRight,
-  Bell,
-  CheckCircle2,
-  ExternalLink,
-  Eye,
-  Globe,
-  HeartPulse,
-  History,
-  Loader2,
-  MapPin,
-  MessageSquare,
-  Navigation,
-  Radio,
-  RefreshCw,
-  Share2,
-  ShieldAlert,
-  ShieldCheck,
-  Star,
-  Zap,
-} from "lucide-react";
-import {
-  ActionButton,
-  Kpi,
-  NotConnected,
-  PageHeader,
-  Panel,
-  Pill,
-  Table,
-  Tabs,
-  Td,
-  Th,
-  Tr,
-  relativeTime,
-} from "@/components/ui/console";
+import { Activity, AlertCircle, ArrowUpRight, Bell, CheckCircle2, Globe, Loader2, MapPin, MessageSquare, Navigation, Radio, ShieldAlert, ShieldCheck, Star } from "lucide-react";
+import { ActionButton, Kpi, PageHeader, Panel, Pill, Table, Tabs, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import type { LocalReview } from "@/lib/api-client";
 import {
   useWorkspace,

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Plus, X, Send, Star } from "lucide-react";
+import { Users, Plus, X, Send } from "lucide-react";
 import { api, type AddCreatorBody, type Creator } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 

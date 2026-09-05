@@ -1,33 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import {
-  CheckCircle2,
-  ExternalLink,
-  HelpCircle,
-  History,
-  Loader2,
-  MinusCircle,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-  TrendingUp,
-  XCircle,
-} from "lucide-react";
-import {
-  ActionButton,
-  Kpi,
-  Mono,
-  PageHeader,
-  Panel,
-  StatusNote,
-  Table,
-  Td,
-  Th,
-  Tr,
-  Tabs,
-} from "@/components/ui/console";
+import { CheckCircle2, Loader2, MinusCircle, Plus, RefreshCw, Sparkles, XCircle } from "lucide-react";
+import { ActionButton, Mono, PageHeader, Panel, StatusNote, Table, Td, Th, Tr, Tabs } from "@/components/ui/console";
 import {
   useWorkspace,
   useVisibility,
@@ -36,12 +11,7 @@ import {
   useAddPrompts,
 } from "@/hooks/use-growthx";
 import { Button } from "@/components/ui/button";
-import {
-  TruthfulState,
-  MetricBadge,
-  TruthfulKpiCard,
-  LoadingState,
-} from "@/components/ui/truthful-state";
+import { TruthfulState, TruthfulKpiCard } from "@/components/ui/truthful-state";
 import { errorMessage } from "@/lib/error-message";
 
 export default function AiVisibilityPage() {

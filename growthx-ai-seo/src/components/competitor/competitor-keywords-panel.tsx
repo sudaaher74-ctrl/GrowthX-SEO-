@@ -1,34 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Sparkles,
-  ExternalLink,
-  Copy,
-  Check,
-  Search,
-  ArrowRight,
-  ArrowLeftRight,
-  TrendingUp,
-  Target,
-  FileText,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  Globe,
-  SlidersHorizontal,
-  Zap,
-  CheckCircle2,
-  AlertTriangle,
-  Compass,
-  HelpCircle,
-  Hash,
-  LayoutTemplate,
-  Maximize2,
-  RefreshCw,
-} from "lucide-react";
+import { useState, useMemo } from "react";import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Sparkles, Copy, Check, Search, ArrowLeftRight, Target, ChevronDown, ChevronUp, Globe, CheckCircle2, Hash, LayoutTemplate, RefreshCw } from "lucide-react";
 import { api, type TrackedCompetitor, type CrawlPage } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
 import { LoadingState, TruthfulState } from "@/components/ui/truthful-state";

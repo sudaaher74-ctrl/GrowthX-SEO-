@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Send, Check, ChevronRight, Clock } from "lucide-react";
+import { Send, Check, Clock } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 

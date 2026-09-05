@@ -1,23 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  Users,
-  Search,
-  MessageCircle,
-  ExternalLink,
-  CheckCircle2,
-  Sparkles,
-  Send,
-  Video,
-  X,
-  Phone,
-  Mail,
-  Calendar,
-  Briefcase,
-  Layers,
-  ArrowRight,
-} from "lucide-react";
+import { Users, Search, MessageCircle, ExternalLink, CheckCircle2, Sparkles, Send, Video, X, Calendar, ArrowRight } from "lucide-react";
 import { useCreators } from "@/hooks/use-growthx";
 import type { Creator } from "@/lib/api-client";
 
@@ -77,7 +61,6 @@ interface SocialCreatorsPanelProps {
 export function SocialCreatorsPanel({
   projectId,
   businessName,
-  customerDomain,
 }: SocialCreatorsPanelProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");

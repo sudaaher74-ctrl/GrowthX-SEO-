@@ -1,19 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Database,
-  HelpCircle,
-  Info,
-  Loader2,
-  PlugZap,
-  RefreshCw,
-  Settings2,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Database, Info, Loader2, PlugZap, RefreshCw, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type MetricState = "MEASURED" | "ESTIMATED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "NOT_CONNECTED";

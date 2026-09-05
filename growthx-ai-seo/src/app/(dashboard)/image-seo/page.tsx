@@ -1,19 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Sparkles,
-  Globe,
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  Image as ImageIcon,
-  Copy,
-  Check,
-  FileText,
-  HelpCircle,
-  ExternalLink,
-} from "lucide-react";
+import { Sparkles, Globe, RefreshCw, AlertTriangle, Image as ImageIcon, Copy, Check, FileText, ExternalLink } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
 import { useWorkspace } from "@/hooks/use-growthx";

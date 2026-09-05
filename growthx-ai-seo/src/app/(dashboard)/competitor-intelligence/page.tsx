@@ -1,71 +1,16 @@
 "use client";
 
 import { Suspense, useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Crosshair,
-  Target,
-  Sparkles,
-  Plus,
-  RefreshCw,
-  Globe,
-  MapPin,
-  ExternalLink,
-  ShieldAlert,
-  Search,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Building2,
-  Phone,
-  Clock,
-  ChevronRight,
-  TrendingUp,
-  BarChart3,
-  Award,
-  Star,
-  Swords,
-  Zap,
-  Check,
-  Activity,
-  Layers,
-  Loader2,
-  Radar,
-  Trash2,
-} from "lucide-react";
-import {
-  ActionButton,
-  PageHeader,
-  Panel,
-  Table,
-  Th,
-  Tr,
-  Td,
-  Tabs,
-  StatusNote,
-  MeterBar,
-  Pill,
-  relativeTime,
-} from "@/components/ui/console";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Sparkles, Plus, RefreshCw, Globe, ExternalLink, ShieldAlert, CheckCircle2, Building2, Clock, Award, Star, Swords, Zap, Check, Activity, Layers, Loader2, Radar, Trash2 } from "lucide-react";
+import { ActionButton, PageHeader, Panel, Table, Th, Tr, Td, Tabs, StatusNote } from "@/components/ui/console";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
-import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
-import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
+import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
 import { CompetitorImprovementPlanPanel } from "@/components/competitor/competitor-improvement-plan-panel";
 import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
-import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
-import {
-  TruthfulState,
-  MetricBadge,
-  TruthfulKpiCard,
-  LoadingState,
-} from "@/components/ui/truthful-state";
-
-const TABS = [
+import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },

@@ -2,25 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Globe,
-  Share2,
-  ExternalLink,
-  RefreshCw,
-  Plus,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  Sparkles,
-  ShieldCheck,
-  Video,
-  Layers,
-  ArrowUpRight,
-} from "lucide-react";
-import { api, CompetitorAccount } from "@/lib/api-client";
-import { TruthfulState } from "@/components/ui/truthful-state";
-
-interface TrackedCompetitorSummary {
+import { Globe, Share2, RefreshCw, CheckCircle2, Video, ArrowUpRight } from "lucide-react";
+import { api } from "@/lib/api-client";interface TrackedCompetitorSummary {
   id: string;
   domain: string;
   label?: string | null;

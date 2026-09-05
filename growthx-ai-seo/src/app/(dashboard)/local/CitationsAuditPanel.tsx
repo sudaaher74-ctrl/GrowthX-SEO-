@@ -2,21 +2,7 @@
 
 import { useState } from "react";
 import { Panel, ActionButton, Table, Th, Td, Tr } from "@/components/ui/console";
-import {
-  Link as LinkIcon,
-  CheckCircle2,
-  AlertTriangle,
-  ExternalLink,
-  Copy,
-  Check,
-  RefreshCw,
-  Loader2,
-  ShieldCheck,
-  Globe,
-  MapPin,
-  Phone,
-  Building,
-} from "lucide-react";
+import { Link as LinkIcon, CheckCircle2, AlertTriangle, ExternalLink, Copy, Check, RefreshCw, Loader2, Globe, Building } from "lucide-react";
 import { TruthfulState } from "@/components/ui/truthful-state";
 
 export interface DirectoryCitationItem {

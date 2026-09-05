@@ -787,13 +787,6 @@ export interface ExecutiveSummary {
   openOpportunities: { total: number; highPotential: number };
 }
 
-export interface TrackedCompetitor {
-  id: string;
-  domain: string;
-  label: string | null;
-  createdAt: string;
-}
-
 export interface SiteRepository {
   id: string;
   projectId: string;
@@ -1212,10 +1205,20 @@ export interface CompetitorSetupInput {
   city?: string;
 }
 
+/**
+ * A competitor as `listCompetitors` returns it.
+ *
+ * This was declared twice in this file, so TypeScript merged the two silently
+ * and the real shape was visible in neither: the first declaration listed four
+ * fields, and a reader who found it first had no way to know the type actually
+ * carried eighteen. Consolidated here, `createdAt` included — it comes back
+ * with the rest of the CompetitorDomain row.
+ */
 export interface TrackedCompetitor {
   id: string;
   domain: string;
   name: string | null;
+  createdAt: string;
   label: string | null;
   industry: string | null;
   city: string | null;

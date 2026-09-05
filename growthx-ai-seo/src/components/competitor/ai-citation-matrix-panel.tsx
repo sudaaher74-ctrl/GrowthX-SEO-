@@ -3,29 +3,9 @@
 import type { TrackedCompetitor } from "@/lib/api-client";
 
 import { useState, useMemo } from "react";
-import {
-  Sparkles,
-  Search,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ExternalLink,
-  Zap,
-  Bot,
-  RefreshCw,
-  TrendingUp,
-  TrendingDown,
-  Award,
-  Layers,
-  HelpCircle,
-  Copy,
-  Check,
-  Building2,
-  AlertTriangle,
-  Activity,
-} from "lucide-react";
+import { Sparkles, Search, CheckCircle2, XCircle, Clock, Zap, Bot, RefreshCw, TrendingUp, TrendingDown, Award, Layers, Copy, Check, Building2, Activity } from "lucide-react";
 import { useTrackedPrompts, useVisibility, useRunSweep } from "@/hooks/use-growthx";
-import type { TrackedPromptRow, VisibilityReport } from "@/lib/api-client";
+import type { TrackedPromptRow } from "@/lib/api-client";
 import { LoadingState } from "@/components/ui/truthful-state";
 import { SweepScheduleCard } from "./sweep-schedule-card";
 
@@ -45,7 +25,6 @@ interface AiCitationMatrixPanelProps {
 export function AiCitationMatrixPanel({
   projectId,
   customerDomain,
-  competitors,
 }: AiCitationMatrixPanelProps) {
   const visibility = useVisibility(projectId, 28);
   const trackedPrompts = useTrackedPrompts(projectId);

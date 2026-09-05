@@ -2,12 +2,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Crosshair, Plus, Trash2, Eye, EyeOff, ExternalLink,
-  Globe, Upload, X, ChevronDown, Play, Sparkles,
-  MessageSquare, Heart, CheckCircle2, Tag, Zap, RefreshCw, BarChart2
-} from "lucide-react";
-import { api, type AddCompetitorAccountBody, type CompetitorContent } from "@/lib/api-client";
+import { Crosshair, Plus, Trash2, Eye, EyeOff, ExternalLink, Globe, Upload, X, Sparkles, MessageSquare, Heart, CheckCircle2, Tag, Zap, BarChart2 } from "lucide-react";
+import { api, type AddCompetitorAccountBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 
 const PLATFORMS = ["INSTAGRAM", "FACEBOOK", "YOUTUBE", "TIKTOK", "TWITTER", "LINKEDIN"];

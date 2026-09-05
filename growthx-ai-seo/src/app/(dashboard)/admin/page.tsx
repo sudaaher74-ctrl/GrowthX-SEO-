@@ -1,57 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import {
-  ShieldAlert,
-  Cpu,
-  Users,
-  Database,
-  Play,
-  Pause,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-  MoreHorizontal,
-  Eye,
-  Ban,
-  ArrowUpRight,
-  Zap,
-  Server,
-  Plus,
-  Trash2,
-  ExternalLink,
-  Video,
-  X,
-  Sparkles,
-  MessageCircle,
-  Globe,
-  Radio,
-  Sliders,
-  Layers,
-  Search,
-  Check,
-  ShieldCheck,
-  Clock,
-  Terminal,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge, StatusDot } from "@/components/ui/badge";
-import { MetricCard } from "@/components/ui/metric-card";
-import {
-  ActionButton,
-  Kpi,
-  PageHeader,
-  Panel,
-  Pill,
-  Table,
-  Tabs,
-  Td,
-  Th,
-  Tr,
-  relativeTime,
-} from "@/components/ui/console";
+import Link from "next/link";import { ShieldAlert, Cpu, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Plus, Trash2, ExternalLink, Video, X, MessageCircle, Sliders, Search, Check, ShieldCheck } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { ActionButton, Kpi, Panel, Pill, Table, Tabs, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import {
   api,
   QueueStat,

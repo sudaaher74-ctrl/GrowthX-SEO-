@@ -1,24 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Calendar,
-  Clock,
-  CheckCircle2,
-  Plus,
-  Video,
-  ExternalLink,
-  Share2,
-  Sparkles,
-  Layers,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { api, CalendarItem } from "@/lib/api-client";
-import { TruthfulState } from "@/components/ui/truthful-state";
-
-interface SocialCalendarPanelProps {
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar, Video } from "lucide-react";
+import { api } from "@/lib/api-client";interface SocialCalendarPanelProps {
   projectId: string;
   businessName: string;
 }

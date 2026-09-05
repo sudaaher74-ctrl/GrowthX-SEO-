@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/console";
 import { MeasureKpi } from "@/components/ui/measure-kpi";
 import { LayoutDashboard, FileBarChart, Users, FileSignature, Download, Loader2 } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar, CartesianGrid } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   useWorkspace,
   usePortfolio,

@@ -4,35 +4,8 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertCircle,
-  AlertTriangle,
-  BarChart3,
-  CheckCircle2,
-  Database,
-  ExternalLink,
-  GitBranch,
-  Globe,
-  HelpCircle,
-  Loader2,
-  MapPin,
-  PlugZap,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Zap,
-} from "lucide-react";
-import {
-  ActionButton,
-  PageHeader,
-  Panel,
-  Table,
-  Th,
-  Tr,
-  Td,
-  relativeTime,
-} from "@/components/ui/console";
+import { BarChart3, Database, ExternalLink, GitBranch, Loader2, MapPin, PlugZap, RefreshCw, Search, Trash2 } from "lucide-react";
+import { ActionButton, PageHeader, relativeTime } from "@/components/ui/console";
 import {
   useConnectRepository,
   useRepository,
@@ -42,11 +15,7 @@ import {
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
-import {
-  MetricBadge,
-  TruthfulState,
-  LoadingState,
-} from "@/components/ui/truthful-state";
+import { MetricBadge } from "@/components/ui/truthful-state";
 
 export default function IntegrationsPage() {
   return (

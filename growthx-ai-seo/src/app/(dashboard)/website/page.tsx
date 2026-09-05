@@ -1,24 +1,6 @@
 "use client";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import {
-  Activity,
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  HelpCircle,
-  Info,
-  Layout,
-  LayoutGrid,
-  Loader2,
-  RefreshCw,
-  Search,
-  Sparkles,
-  X,
-  Zap,
-} from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Info, Layout, LayoutGrid, Loader2, RefreshCw, Search, Sparkles, X, Zap } from "lucide-react";
 import { AutoFixModal } from "@/components/website/auto-fix-modal";
 import {
   ActionButton,
@@ -1220,8 +1202,6 @@ function ScoreBreakdownModal({
   totalFindings,
   uniqueOpenIssues,
   resolvedIssues,
-  severityCounts,
-  qualityDiagnostics,
   onClose,
 }: {
   score: number | null;

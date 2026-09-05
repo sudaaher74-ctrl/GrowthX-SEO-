@@ -1,28 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Clock,
-  Copy,
-  ExternalLink,
-  Film,
-  Flame,
-  Layers,
-  MessageSquare,
-  Play,
-  Send,
-  Share2,
-  Sparkles,
-  User,
-  Users,
-  Video,
-  X,
-  Zap,
-} from "lucide-react";
+import { Check, CheckCircle2, Copy, Film, Flame, Send, Users, X } from "lucide-react";
 import { ActionButton, Pill } from "@/components/ui/console";
 import { useCreators, useWorkspace } from "@/hooks/use-growthx";
 import type { Creator } from "@/lib/api-client";

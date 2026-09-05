@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
-import { Code, GitBranch, GitPullRequest, Server, Zap, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Code, GitBranch, Server, Zap, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import {
   ActionButton,
   PageHeader,
@@ -13,10 +13,7 @@ import {
   Tr,
 } from "@/components/ui/console";
 import { OpportunityDetailPanel } from "@/components/ui/opportunity-detail-panel";
-import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";
-import type { CrawlIssue } from "@/lib/api-client";
-
-function EngineerClient() {
+import { useWorkspace, usePortfolio, useLatestCrawl, useCrawlIssues, useAnalyzeIssue, useAutoFixIssue, useApproveFix } from "@/hooks/use-growthx";function EngineerClient() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
@@ -166,11 +163,7 @@ function EngineerClient() {
       </div>
     </div>
   );
-}
-
-// Need to import Search for icons
-import { Search } from "lucide-react";
-import { QueryState } from "@/components/ui/query-state";
+}import { QueryState } from "@/components/ui/query-state";
 
 export default function EngineerPage() {
   return (

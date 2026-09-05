@@ -3,36 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Activity,
-  BarChart,
-  Brain,
-  ChevronsUpDown,
-  Cpu,
-  CreditCard,
-  Crosshair,
-  Edit3,
-  FileText,
-  Globe,
-  HeartPulse,
-  LayoutGrid,
-  ListChecks,
-  LogOut,
-  MapPin,
-  Megaphone,
-  MoreHorizontal,
-  PanelLeftClose,
-  Search,
-  Settings,
-  Sparkles,
-  TrendingUp,
-  Telescope,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  Bot,
-  Share2,
-} from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Edit3, Globe, HeartPulse, LayoutGrid, LogOut, MapPin, MoreHorizontal, PanelLeftClose, Settings, Telescope, Share2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";

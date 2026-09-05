@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Plus, X, RefreshCw, Check, Clock, Users } from "lucide-react";
+import { Zap, Plus, X, Clock, Users } from "lucide-react";
 import { api, type CreateCampaignBody, type CICampaign } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 

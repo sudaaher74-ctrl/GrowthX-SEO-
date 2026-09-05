@@ -1,47 +1,12 @@
 "use client";
 
-import { Suspense, useState, useId } from "react";
+import { Suspense, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  BarChart3,
-  ExternalLink,
-  Globe,
-  HelpCircle,
-  Layers,
-  LineChart as LineChartIcon,
-  Loader2,
-  PlugZap,
-  RefreshCw,
-  Search as SearchIcon,
-  Smartphone,
-  TrendingUp,
-} from "lucide-react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from "recharts";
-import {
-  ActionButton,
-  Kpi,
-  Panel,
-  PageHeader,
-  Table,
-  Td,
-  Th,
-  Tr,
-  Tabs,
-  relativeTime,
-} from "@/components/ui/console";
+import { BarChart3, Globe, Layers, Loader2, RefreshCw, Search as SearchIcon, Smartphone, TrendingUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { ActionButton, Kpi, Panel, PageHeader, Table, Td, Th, Tr, Tabs } from "@/components/ui/console";
 import { useWorkspace } from "@/hooks/use-growthx";
-import { api, type GscPoint, type Ga4Point, type GscRow } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
 import {

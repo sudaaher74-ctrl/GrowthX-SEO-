@@ -1,45 +1,10 @@
 "use client";
 
-import { Suspense, useState, useRef } from "react";
+import { Suspense, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  Clock,
-  Cpu,
-  Edit3,
-  ExternalLink,
-  FileText,
-  Globe,
-  HelpCircle,
-  Layers,
-  Link as LinkIcon,
-  Loader2,
-  MapPin,
-  PenTool,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Target,
-  TrendingUp,
-  UploadCloud,
-  X,
-  Zap,
-} from "lucide-react";
-import {
-  ActionButton,
-  PageHeader,
-  Panel,
-  Table,
-  Th,
-  Tr,
-  Td,
-  Tabs,
-  relativeTime,
-} from "@/components/ui/console";
+import { Check, Globe, Loader2, PenTool, Plus, Sparkles, Target, X } from "lucide-react";
+import { ActionButton, PageHeader, Panel, Table, Th, Tr, Td, Tabs } from "@/components/ui/console";
 import {
   useWorkspace,
   useContentPieces,
@@ -47,13 +12,8 @@ import {
   useDraftContent,
   useRunContent,
 } from "@/hooks/use-growthx";
-import { api, type GrowthOpportunity, type ContentPiece } from "@/lib/api-client";
-import {
-  TruthfulState,
-  MetricBadge,
-  TruthfulKpiCard,
-  LoadingState,
-} from "@/components/ui/truthful-state";
+import { api } from "@/lib/api-client";
+import { TruthfulState, LoadingState } from "@/components/ui/truthful-state";
 
 export default function ContentOpportunitiesPage() {
   return (

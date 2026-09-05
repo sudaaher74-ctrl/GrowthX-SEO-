@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { cn, formatNumber, getDeltaColor, getDeltaSign } from "@/lib/utils";
+import { cn, formatNumber, getDeltaSign } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 

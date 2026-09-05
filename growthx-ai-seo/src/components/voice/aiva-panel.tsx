@@ -1,10 +1,7 @@
-'use client';
-
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+'use client';import { motion, AnimatePresence } from 'framer-motion';
 import { useAiva } from './aiva-provider';
 import { AivaOrb } from './aiva-orb';
-import { X, Mic } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function AivaPanel() {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, X, Loader2, PenLine, Target, Layers, HelpCircle } from "lucide-react";
-import { ActionButton, Pill } from "@/components/ui/console";
+import { Sparkles, X, Loader2, PenLine } from "lucide-react";
+import { ActionButton } from "@/components/ui/console";
 import { useCreateContentPiece, useDraftContent } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 

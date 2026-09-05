@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Code, Globe, Play, Copy, CheckCircle, Search, RefreshCw } from "lucide-react";
+import { Sparkles, Code, Globe, Copy, CheckCircle, RefreshCw } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { PageHeader, Panel, ActionButton } from "@/components/ui/console";
+import { PageHeader, ActionButton } from "@/components/ui/console";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 

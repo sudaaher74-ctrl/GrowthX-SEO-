@@ -1,17 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import {
-  api,
-  ApiError,
-  auth,
-  askResearchStream,
-  type ResearchProgressEvent,
-  type Role,
-  LocalSeoData,
-  type AddCreatorBody,
-  type Creator,
-} from "@/lib/api-client";
+import { useEffect, useSyncExternalStore } from "react";
+import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody } from "@/lib/api-client";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();

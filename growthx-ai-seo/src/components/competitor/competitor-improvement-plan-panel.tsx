@@ -1,40 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
-import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Calendar,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Copy,
-  Check,
-  Sparkles,
-  TrendingUp,
-  Target,
-  ArrowRight,
-  Layers,
-  Globe,
-  Shield,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle,
-  Filter,
-  ExternalLink,
-  Zap,
-  Hash,
-  Compass,
-  HelpCircle,
-  FileText,
-  Flame,
-  Award,
-  ListTodo,
-} from "lucide-react";
+import { useState, useMemo, useEffect } from "react";import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, Clock, Copy, Check, Target, Globe, Flame, Award, ListTodo } from "lucide-react";
 import { api, CoverageOpportunity, type TrackedCompetitor } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
-import { LoadingState, TruthfulState } from "@/components/ui/truthful-state";
+import { TruthfulState } from "@/components/ui/truthful-state";
 
 /**
  * These panels are handed rows straight from `listCompetitors`. The local

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, auth, type AivaUiPayload, type VoiceAgentResult } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
@@ -29,7 +29,7 @@ const playTone = (frequency: number, type: OscillatorType, duration: number, vol
   
     osc.start(ctx.currentTime + startTime);
     osc.stop(ctx.currentTime + startTime + duration);
-  } catch (err) {
+  } catch {
     // Ignore AudioContext errors if blocked by browser
   }
 };
@@ -204,7 +204,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             clearTimeout(silenceTimeout);
             silenceTimeout = setTimeout(() => {
               if (stateRef.current === 'listening') {
-                try { recognition.stop(); } catch (e) {}
+                try { recognition.stop(); } catch {}
               }
             }, 2000);
           }
@@ -233,19 +233,19 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           setTimeout(() => {
             try {
               if (recognitionRef.current) recognitionRef.current.start();
-            } catch (e) {}
+            } catch {}
           }, 100);
         };
 
         recognitionRef.current = recognition;
         // Start listening immediately in background for wake word
-        try { recognition.start(); } catch (e) {}
+        try { recognition.start(); } catch {}
         
         return () => {
           recognition.onend = null;
           recognition.onerror = null;
           recognition.onresult = null;
-          try { recognition.stop(); } catch (e) {}
+          try { recognition.stop(); } catch {}
         };
       }
       synthRef.current = window.speechSynthesis;
@@ -353,7 +353,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       if (res.navigateTo) {
         router.push(res.navigateTo);
       }
-    } catch (err) {
+    } catch {
       setState('error');
       const errorMsg = 'Sorry, I encountered an error.';
       setAssistantMessage(errorMsg);
@@ -383,7 +383,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       if (synthRef.current) synthRef.current.cancel();
       try {
         recognitionRef.current.start();
-      } catch (err) {
+      } catch {
         // Already started
       }
     } else {
@@ -435,7 +435,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       if (res.navigateTo) {
         router.push(res.navigateTo);
       }
-    } catch (err) {
+    } catch {
       setState('error');
       setAssistantMessage('Confirmation failed.');
       speak('Confirmation failed.');

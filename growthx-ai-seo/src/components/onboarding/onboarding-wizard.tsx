@@ -1,28 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BarChart3,
-  Building2,
-  CheckCircle2,
-  Database,
-  ExternalLink,
-  GitBranch,
-  Globe,
-  HelpCircle,
-  Layers,
-  Loader2,
-  MapPin,
-  PlugZap,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowLeft, ArrowRight, BarChart3, CheckCircle2, ExternalLink, GitBranch, Globe, Loader2, MapPin, Search, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, type DiscoveryStatus, type DiscoveryStep } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";

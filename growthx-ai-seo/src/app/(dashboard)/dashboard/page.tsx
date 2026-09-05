@@ -1,32 +1,6 @@
-"use client";
-import { useState } from "react";
-import Link from "next/link";
+"use client";import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Activity,
-  AlertCircle,
-  ArrowRight,
-  BarChart3,
-  CheckCircle2,
-  ExternalLink,
-  Globe,
-  HeartPulse,
-  HelpCircle,
-  Layers,
-  MapPin,
-  PlugZap,
-  Plus,
-  RefreshCw,
-  Search,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Zap,
-  Crosshair,
-  Share2,
-  Flame,
-  Navigation,
-} from "lucide-react";
+import { AlertCircle, ArrowRight, Globe, Plus, RefreshCw, TrendingUp, Zap, Crosshair, Share2, Navigation } from "lucide-react";
 import {
   ActionButton,
   PageHeader,
@@ -47,15 +21,7 @@ import {
 } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import {
-  TruthfulKpiCard,
-  MetricBadge,
-  TruthfulState,
-  NotConnectedState,
-  NotConfiguredState,
-  NoDataState,
-  LoadingState,
-} from "@/components/ui/truthful-state";
+import { TruthfulKpiCard, TruthfulState, NotConnectedState, LoadingState } from "@/components/ui/truthful-state";
 
 export default function UnifiedDashboardPage() {
   const { orgId, projectId, projects } = useWorkspace();

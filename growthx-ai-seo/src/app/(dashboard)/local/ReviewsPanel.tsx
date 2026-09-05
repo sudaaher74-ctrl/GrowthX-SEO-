@@ -1,20 +1,6 @@
 import { useState } from "react";
 import { Panel, ActionButton } from "@/components/ui/console";
-import {
-  Star,
-  Loader2,
-  Sparkles,
-  Send,
-  CheckCircle2,
-  Copy,
-  Check,
-  ExternalLink,
-  MessageSquare,
-  Heart,
-  ShieldCheck,
-  Briefcase,
-  Share2,
-} from "lucide-react";
+import { Star, Loader2, Sparkles, Send, CheckCircle2, Copy, Check, ExternalLink, MessageSquare, Heart, ShieldCheck, Briefcase } from "lucide-react";
 import { useLocalReviews, useSyncLocalReviews, useDraftReviewReply, usePublishReviewReply } from "@/hooks/use-growthx";
 import type { LocalReview } from "@/lib/api-client";
 
