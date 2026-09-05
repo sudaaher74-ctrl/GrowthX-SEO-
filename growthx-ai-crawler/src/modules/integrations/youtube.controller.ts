@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { YoutubeService } from './youtube.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Response } from 'express';
@@ -11,7 +11,7 @@ export class YoutubeController {
   @UseGuards(JwtAuthGuard)
   getAuthUrl(@Query('projectId') projectId: string) {
     if (!projectId) {
-      throw new Error('projectId is required');
+      throw new BadRequestException('projectId is required');
     }
     const url = this.youtubeService.getAuthUrl(projectId);
     return { url };

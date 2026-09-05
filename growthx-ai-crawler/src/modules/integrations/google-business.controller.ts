@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, Req, UseGuards, Param } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { GoogleBusinessService } from './google-business.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Response } from 'express';
@@ -11,7 +11,7 @@ export class GoogleBusinessController {
   @UseGuards(JwtAuthGuard)
   getAuthUrl(@Query('projectId') projectId: string) {
     if (!projectId) {
-      throw new Error('projectId is required');
+      throw new BadRequestException('projectId is required');
     }
     const url = this.googleBusinessService.getAuthUrl(projectId);
     return { url };

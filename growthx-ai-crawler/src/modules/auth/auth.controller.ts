@@ -1,7 +1,7 @@
 import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { GoogleAuthGuard } from './google-auth.guard';
 import { AllowWithoutOrganization } from './allow-without-organization.decorator';
 import { UsersService } from '../users/users.service';
 
@@ -32,13 +32,13 @@ export class AuthController {
   }
 
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   async googleAuth(@Req() req: any) {
     // Initiates the Google OAuth flow
   }
 
   @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() req: any, @Res() res: any) {
     const tokens = await this.authService.login(req.user);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
