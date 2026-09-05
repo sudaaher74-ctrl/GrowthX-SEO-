@@ -79,7 +79,7 @@ export function SocialAccountsPanel({
       );
       setTimeout(() => setScanMessage(null), 4000);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setScanMessage(`Scan completed: ${err.message || "No public social links found in website header/footer."}`);
       setTimeout(() => setScanMessage(null), 4000);
     },

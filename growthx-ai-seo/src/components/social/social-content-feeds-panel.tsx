@@ -32,7 +32,7 @@ interface SocialContentFeedsPanelProps {
   projectId: string;
   customerDomain: string;
   competitors: TrackedCompetitorSummary[];
-  onSelectForCounterStrategy?: (content: any) => void;
+  onSelectForCounterStrategy?: (content: unknown) => void;
 }
 
 export function SocialContentFeedsPanel({
@@ -248,10 +248,10 @@ export function SocialContentFeedsPanel({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {["ALL", "REELS", "SHORTS", "VIDEO", "POST"].map((fmt) => (
+            {(["ALL", "REELS", "SHORTS", "VIDEO", "POST"] as const).map((fmt) => (
               <button
                 key={fmt}
-                onClick={() => setFormatFilter(fmt as any)}
+                onClick={() => setFormatFilter(fmt)}
                 className={`rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase transition ${
                   formatFilter === fmt
                     ? "bg-brand-200 text-brand-950"

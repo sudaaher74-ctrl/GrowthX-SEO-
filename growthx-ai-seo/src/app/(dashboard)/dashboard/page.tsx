@@ -94,8 +94,8 @@ export default function UnifiedDashboardPage() {
   // Health Score computation (0-100 or null if no crawl)
   const crawlCompleted = crawl.data && crawl.data.status === "COMPLETED";
   const healthScore = crawlCompleted ? (crawl.data?.healthScore ?? client?.health ?? null) : null;
-  const criticalCount = issues.data?.meta?.countsBySeverity?.critical ?? (issues.data as any)?.criticalCount ?? 0;
-  const highCount = issues.data?.meta?.countsBySeverity?.high ?? (issues.data as any)?.highCount ?? 0;
+  const criticalCount = issues.data?.meta?.countsBySeverity?.critical ?? 0;
+  const highCount = issues.data?.meta?.countsBySeverity?.high ?? 0;
   const uniqueIssuesCount = issues.data?.meta?.uniqueOpenIssues ?? issues.data?.meta?.total ?? 0;
 
   // Fix next queue: sort worst issues first (Critical -> High -> Medium -> Low)

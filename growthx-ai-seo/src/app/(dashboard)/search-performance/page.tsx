@@ -328,8 +328,8 @@ function SearchPerformanceClient() {
                             tickFormatter={(v) => (metric === "ctr" ? pct(v) : metric === "position" ? v.toFixed(1) : num(v))}
                           />
                           <Tooltip
-                            formatter={(v: any) => [metric === "ctr" ? pct(v) : metric === "position" ? v.toFixed(1) : num(v), METRICS.find(m => m.key === metric)?.label]}
-                            labelFormatter={(l: any) => new Date(l).toDateString()}
+                            formatter={(v) => [metric === "ctr" ? pct(Number(v)) : metric === "position" ? Number(v).toFixed(1) : num(Number(v)), METRICS.find(m => m.key === metric)?.label]}
+                            labelFormatter={(l) => new Date(String(l)).toDateString()}
                           />
                           <Line
                             type="monotone"
@@ -389,7 +389,7 @@ function SearchPerformanceClient() {
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
                           <XAxis dataKey="date" tickFormatter={day} tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
                           <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={num} />
-                          <Tooltip formatter={(v: any, name: any) => [num(v), name]} />
+                          <Tooltip formatter={(v, name) => [num(Number(v)), name]} />
                           <Line type="monotone" dataKey="sessions" stroke="var(--color-accent-600)" strokeWidth={2} dot={false} name="Sessions" />
                           <Line type="monotone" dataKey="users" stroke="var(--color-series-2)" strokeWidth={2} dot={false} name="Users" />
                         </LineChart>

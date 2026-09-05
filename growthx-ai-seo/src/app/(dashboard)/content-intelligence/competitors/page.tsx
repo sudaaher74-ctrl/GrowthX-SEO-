@@ -100,7 +100,8 @@ export default function CompetitorWorkspacePage() {
     publishedAt: "",
   });
   const ingestMut = useMutation({
-    mutationFn: (body: any) =>
+    // Takes no argument: the payload is read from `ingestForm` state.
+    mutationFn: () =>
       api.ingestCompetitorContent(projectId!, { accountId: ingestAccountId!, ...ingestForm }),
     onSuccess: () => {
       setIngestAccountId(null);
@@ -553,7 +554,7 @@ export default function CompetitorWorkspacePage() {
               </div>
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setIngestAccountId(null)} className="flex-1 rounded-lg border py-2 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>Cancel</button>
-                <button onClick={() => ingestMut.mutate({})} disabled={!ingestForm.caption || ingestMut.isPending}
+                <button onClick={() => ingestMut.mutate()} disabled={!ingestForm.caption || ingestMut.isPending}
                   className="flex-1 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
                   {ingestMut.isPending ? "Saving…" : "Add Content"}
                 </button>

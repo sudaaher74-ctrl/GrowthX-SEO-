@@ -397,10 +397,16 @@ export default function LocalPage() {
                       />
                     </div>
                   </Panel>
+                  {/*
+                    No placeId is passed: `getLocalSeo` returns a LocalLocation
+                    row, which has no such column, so the `as any` that used to
+                    be here always resolved to undefined. ReviewsPanel treats it
+                    as optional and simply omits the "write a review" deep link,
+                    which is what has always happened.
+                  */}
                   <ReviewsPanel
                     projectId={projectId}
                     businessName={localSeo.businessName}
-                    placeId={(localSeo as any).placeId}
                   />
                 </div>
               )}

@@ -129,7 +129,7 @@ export default function MetaOptimizerPage() {
                 Optimized Variations
               </h3>
               
-              {data.proposedVariations.map((v: any, i: number) => (
+              {data.proposedVariations.map((v, i) => (
                 <motion.div 
                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
                   key={i}

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, Plus, Sparkles, X, Check, Clock, RefreshCw, Download, FileText } from "lucide-react";
-import { api, type CalendarItem, type GenerateContentBody } from "@/lib/api-client";
+import { api, type CalendarItem, type GenerateContentBody, type CreateCalendarItemBody } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { exportCalendarToCsv, exportCalendarToMarkdown } from "@/lib/export-utils";
 
@@ -115,7 +115,7 @@ export default function CalendarPage() {
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => api.createCalendarItem(projectId!, body),
+    mutationFn: (body: CreateCalendarItemBody) => api.createCalendarItem(projectId!, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["ci-calendar"] }); setShowCreate(false); },
   });
 
@@ -233,7 +233,7 @@ export default function CalendarPage() {
                 ].map(({ label, key, options }) => (
                   <div key={key}>
                     <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <select value={(generateForm as any)[key]} onChange={(e) => setGenerateForm(f => ({ ...f, [key]: e.target.value }))}
+                    <select value={generateForm[key as keyof typeof generateForm]} onChange={(e) => setGenerateForm(f => ({ ...f, [key]: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       {options.map(o => <option key={o}>{o}</option>)}
                     </select>
@@ -294,7 +294,7 @@ export default function CalendarPage() {
                 ].map(({ label, key, options }) => (
                   <div key={key}>
                     <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <select value={(createForm as any)[key]} onChange={(e) => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    <select value={createForm[key as keyof typeof createForm]} onChange={(e) => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }}>
                       {options.map(o => <option key={o}>{o}</option>)}
                     </select>

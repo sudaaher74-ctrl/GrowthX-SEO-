@@ -137,7 +137,7 @@ export function SplitCrawlInspector({
   // Normalize Our Pages
   const normalizedOurPages: NormalizedCrawlPage[] = useMemo(() => {
     const raw = ourPagesQuery.data?.data || [];
-    return raw.map((p: any, idx: number) => ({
+    return raw.map((p, idx) => ({
       id: p.id || `our-${idx}`,
       url: p.url,
       path: getPathname(p.url),
@@ -155,7 +155,7 @@ export function SplitCrawlInspector({
   // Normalize Competitor Pages
   const normalizedTheirPages: NormalizedCrawlPage[] = useMemo(() => {
     const raw = competitorPagesQuery.data || [];
-    return raw.map((p: any, idx: number) => ({
+    return raw.map((p, idx) => ({
       id: `their-${idx}`,
       url: p.url,
       path: getPathname(p.url),

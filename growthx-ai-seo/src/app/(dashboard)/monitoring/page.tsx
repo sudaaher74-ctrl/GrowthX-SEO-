@@ -1,5 +1,7 @@
 "use client";
 
+import type { GridNode } from "@/lib/api-client";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -84,9 +86,14 @@ export default function MonitoringPage() {
 
   // 3-Pack Presence & Geo-Rank calculations
   const businessName = gbpData?.businessName || client?.name || "Connected Business";
-  const geoGrid = (gbpData as any)?.geoGrid;
-  const gridNodes = geoGrid?.nodes || [];
-  const in3PackNodes = gridNodes.filter((n: any) => n.rank <= 3 && n.rank > 0);
+  // `getLocalSeo` returns a LocalLocation row, and there is no geo grid on it —
+  // that comes from the separate geo-grid scan endpoint. The `as any` here hid
+  // that: `geoGrid` has always been undefined, so the 3-pack figure below has
+  // never had a value to show and always renders "—". Pointing this at
+  // `runGeoGridScan` is a behaviour change rather than a typing one, so the gap
+  // is left visible instead of cast away.
+  const gridNodes: GridNode[] = [];
+  const in3PackNodes = gridNodes.filter((n) => n.rank <= 3 && n.rank > 0);
   const threePackDefensePct = gridNodes.length > 0 ? Math.round((in3PackNodes.length / gridNodes.length) * 100) : null;
 
   // Review urgency indicators

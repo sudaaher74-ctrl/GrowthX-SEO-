@@ -32,18 +32,16 @@ import {
   Award,
   ListTodo,
 } from "lucide-react";
-import { api, CoverageOpportunity } from "@/lib/api-client";
+import { api, CoverageOpportunity, type TrackedCompetitor } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
 import { LoadingState, TruthfulState } from "@/components/ui/truthful-state";
 
-interface TrackedCompetitorInfo {
-  id: string;
-  label?: string | null;
-  domain: string;
-  name?: string | null;
-  websiteId?: string | null;
-  [key: string]: any;
-}
+/**
+ * These panels are handed rows straight from `listCompetitors`. The local
+ * duplicate of that shape needed an `any` index signature purely to stay
+ * assignable from the real type, and declared a `websiteId` nothing ever read.
+ */
+type TrackedCompetitorInfo = TrackedCompetitor;
 
 interface CompetitorImprovementPlanPanelProps {
   projectId: string;
@@ -358,14 +356,14 @@ export function CompetitorImprovementPlanPanel({
     // ── WEEK 3: Keyword Supremacy & Topical Clustering ───────────────────────
     // Extract top keyword opportunities from Tab 4 crawled pages
     const ourPages = ourPagesQuery.data?.data || [];
-    const ourWords = new Set(ourPages.flatMap((p: any) => extractWords(p.title || "")));
+    const ourWords = new Set(ourPages.flatMap((p) => extractWords(p.title || "")));
 
     let keywordTasksAdded = 0;
     competitors.forEach((comp, compIdx) => {
       const compPages = competitorPagesQueries[compIdx]?.data || [];
       const compWordCounts = new Map<string, number>();
 
-      compPages.forEach((p: any) => {
+      compPages.forEach((p) => {
         const words = extractWords(p.title);
         words.forEach((w) => {
           if (w.length >= 4 && !ourWords.has(w)) {
@@ -727,7 +725,7 @@ ${competitorProfiles
             <span className="text-[12px] text-brand-500 font-medium">Status:</span>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as "ALL" | "INCOMPLETE" | "COMPLETED")}
               className="rounded-lg border border-brand-200 bg-white py-1.5 pl-3 pr-8 text-[12px] font-medium text-brand-900 shadow-2xs focus:border-brand-950 focus:outline-none"
             >
               <option value="ALL">All Items</option>

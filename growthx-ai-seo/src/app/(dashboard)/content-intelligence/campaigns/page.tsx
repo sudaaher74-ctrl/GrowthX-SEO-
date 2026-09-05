@@ -178,7 +178,7 @@ export default function CampaignsPage() {
                 ].map(({ label, key, placeholder }) => (
                   <div key={key}>
                     <label className="mb-1 block text-[11px] font-medium text-brand-600">{label}</label>
-                    <input value={(form as any)[key] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
+                    <input value={form[key as keyof typeof form] ?? ""} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
                       placeholder={placeholder} className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none focus:ring-1 focus:ring-accent-600" style={{ borderColor: "var(--color-brand-200)" }} />
                   </div>
                 ))}

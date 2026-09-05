@@ -1,5 +1,7 @@
 "use client";
 
+import type { TrackedCompetitor } from "@/lib/api-client";
+
 import { useState, useMemo } from "react";
 import {
   Sparkles,
@@ -27,14 +29,12 @@ import type { TrackedPromptRow, VisibilityReport } from "@/lib/api-client";
 import { LoadingState } from "@/components/ui/truthful-state";
 import { SweepScheduleCard } from "./sweep-schedule-card";
 
-interface TrackedCompetitorInfo {
-  id: string;
-  label?: string | null;
-  domain: string;
-  name?: string | null;
-  websiteId?: string | null;
-  [key: string]: any;
-}
+/**
+ * These panels are handed rows straight from `listCompetitors`. The local
+ * duplicate of that shape needed an `any` index signature purely to stay
+ * assignable from the real type, and declared a `websiteId` nothing ever read.
+ */
+type TrackedCompetitorInfo = TrackedCompetitor;
 
 interface AiCitationMatrixPanelProps {
   projectId: string;

@@ -239,7 +239,9 @@ function ContentOpportunitiesClient() {
                           {op.evidence && op.evidence.length > 0 && (
                             <div className="text-[11.5px] text-brand-500 bg-brand-50/50 rounded-lg p-2.5 mt-2 border border-brand-100">
                               <strong>Evidence:</strong>{" "}
-                              {op.evidence.map((e) => typeof e === "string" ? e : (e as any).detail || (e as any).fact || JSON.stringify(e)).join("; ")}
+                              {op.evidence
+                                .map((e) => `${e.label}: ${e.value}`)
+                                .join("; ")}
                             </div>
                           )}
                         </div>

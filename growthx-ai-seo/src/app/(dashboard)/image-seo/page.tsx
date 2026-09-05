@@ -186,15 +186,15 @@ export default function ImageSeoPage() {
             {/* Filter Tabs */}
             <div className="flex items-center justify-between border-b border-brand-200 pb-3">
               <div className="flex gap-2">
-                {[
+                {([
                   { id: "ALL", label: `All (${data.images.length})` },
                   { id: "MISSING", label: `Missing Alt (${missingAltCount})` },
                   { id: "NEEDS_IMPROVEMENT", label: "Needs Improvement" },
                   { id: "GOOD", label: "Optimized" },
-                ].map((tab) => (
+                ] as const).map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setFilter(tab.id as any)}
+                    onClick={() => setFilter(tab.id)}
                     className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition ${
                       filter === tab.id
                         ? "bg-brand-950 text-white"

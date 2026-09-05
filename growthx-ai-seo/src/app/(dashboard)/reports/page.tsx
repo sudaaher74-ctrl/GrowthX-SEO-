@@ -145,8 +145,8 @@ export default function ReportsPage() {
                         <Kpi
                           label="Site Health Score"
                           value={
-                            (siteHealth as any).healthScore != null
-                              ? `${(siteHealth as any).healthScore}/100`
+                            siteHealth.healthScore != null
+                              ? `${siteHealth.healthScore}/100`
                               : crawl.data?.healthScore != null
                                 ? `${crawl.data.healthScore}/100`
                                 : client?.health != null
@@ -158,7 +158,7 @@ export default function ReportsPage() {
                             // 100, so a project we had never scored rendered
                             // green — the one colour that says "you are fine".
                             const score =
-                              (siteHealth as any).healthScore ??
+                              siteHealth.healthScore ??
                               crawl.data?.healthScore ??
                               client?.health;
                             if (score == null) return "default";

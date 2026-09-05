@@ -16,8 +16,9 @@ export interface OpportunityProps {
   onCreateTask?: () => void;
   isAnalyzing?: boolean;
   isGenerating?: boolean;
-  analysisData?: any;
-  patchData?: any;
+  // Rendered verbatim through JSON.stringify, never field-accessed.
+  analysisData?: unknown;
+  patchData?: unknown;
 }
 
 export function OpportunityDetailPanel({
@@ -100,15 +101,15 @@ export function OpportunityDetailPanel({
         {onCreateTask && <Button variant="outline" size="sm" onClick={onCreateTask}>Create Task</Button>}
       </div>
 
-      {(analysisData || patchData) && (
+      {(analysisData != null || patchData != null) && (
         <div className="p-4 border-t bg-black text-green-400 font-mono text-xs overflow-auto max-h-64">
-          {analysisData && (
+          {analysisData != null && (
             <div className="mb-4">
               <div className="text-gray-400 mb-1">{"// Analysis Complete"}</div>
               <pre>{JSON.stringify(analysisData, null, 2)}</pre>
             </div>
           )}
-          {patchData && (
+          {patchData != null && (
             <div>
               <div className="text-gray-400 mb-1">{"// Patch Generated"}</div>
               <pre>{JSON.stringify(patchData, null, 2)}</pre>

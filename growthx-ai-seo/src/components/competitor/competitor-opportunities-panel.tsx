@@ -25,17 +25,15 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { LoadingState, NoDataState } from "@/components/ui/truthful-state";
-import { api, CoverageOpportunity } from "@/lib/api-client";
+import { api, CoverageOpportunity, type TrackedCompetitor } from "@/lib/api-client";
 import { WebsiteComparisonPanel } from "./website-comparison";
 
-interface TrackedCompetitorInfo {
-  id: string;
-  label?: string | null;
-  domain: string;
-  name?: string | null;
-  websiteId?: string | null;
-  [key: string]: any;
-}
+/**
+ * These panels are handed rows straight from `listCompetitors`. The local
+ * duplicate of that shape needed an `any` index signature purely to stay
+ * assignable from the real type, and declared a `websiteId` nothing ever read.
+ */
+type TrackedCompetitorInfo = TrackedCompetitor;
 
 interface CompetitorOpportunitiesPanelProps {
   projectId: string;

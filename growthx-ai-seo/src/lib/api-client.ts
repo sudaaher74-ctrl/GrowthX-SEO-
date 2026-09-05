@@ -400,26 +400,7 @@ export interface CrawlJob {
   healthScore?: number | null;
   uniqueIssuesCount?: number;
   resolvedIssuesCount?: number;
-  qualityDiagnostics?: {
-    durationSeconds?: number;
-    startedAt?: string;
-    finishedAt?: string;
-    pagesCrawled?: number;
-    statusCodes?: Record<string, number>;
-    avgResponseTimeMs?: number;
-    sitemapFound?: boolean;
-    sitemapUrlsCount?: number;
-    totalFindings?: number;
-    uniqueIssuesCount?: number;
-    resolvedIssuesCount?: number;
-    scoreBreakdown?: {
-      baseScore: number;
-      totalPenalty: number;
-      penaltiesCount: number;
-      normalizedPenaltyPerUrl: number;
-      pagesCrawled: number;
-    };
-  } | null;
+  qualityDiagnostics?: CrawlQualityDiagnostics | null;
   startedAt: string | null;
   finishedAt: string | null;
   website?: { domain: string; url: string };
@@ -442,6 +423,15 @@ export interface CrawlPage {
   wordCount: number;
   readingTimeMin: number;
   crawledAt: string;
+  // The pages endpoint does a `findMany` with no `select`, so every Page
+  // column comes back. These were missing here, which is what pushed the
+  // split-crawl inspector onto `any`.
+  h1: string[];
+  h2: string[];
+  pageType: string;
+  metaDescription: string | null;
+  canonicalUrl: string | null;
+  responseTimeMs: number;
   performance?: CrawlPerformance | null;
 }
 
@@ -780,6 +770,11 @@ export interface SiteHealth {
   pagesCrawled: number;
   criticalIssues: number;
   totalIssues: number;
+  // These three are returned by executive-summary.service.ts but were missing
+  // here, which is why the reports page reached for them through `as any`.
+  uniqueIssuesCount?: number;
+  resolvedIssuesCount?: number;
+  healthScore?: number | null;
   crawledAt: string | null;
   source: string;
 }
@@ -1735,6 +1730,71 @@ export interface VoiceChatRequest {
   context?: { path?: string };
 }
 
+/**
+ * Crawl quality telemetry, built in `crawler.service.ts` when a job finishes
+ * and stored as a Json column. Every field is optional on purpose: jobs that
+ * never completed carry none of it, and rows written before a key existed
+ * still come back without it.
+ */
+export interface CrawlQualityDiagnostics {
+  durationSeconds?: number;
+  startedAt?: string;
+  finishedAt?: string;
+  pagesCrawled?: number;
+  /** Status code bucket ("2xx", "4xx", …) to count. */
+  statusCodes?: Record<string, number>;
+  avgResponseTimeMs?: number;
+  sitemapFound?: boolean;
+  sitemapUrlsCount?: number;
+  totalFindings?: number;
+  uniqueIssuesCount?: number;
+  resolvedIssuesCount?: number;
+  scoreBreakdown?: {
+    baseScore: number;
+    totalPenalty: number;
+    penaltiesCount: number;
+    normalizedPenaltyPerUrl: number;
+    pagesCrawled: number;
+  };
+}
+
+/** Per-channel guidance on a content strategy. Every field is optional: the
+ *  strategy page falls back to its own copy when the model omits one. */
+export interface PlatformStrategy {
+  instagramReels?: string;
+  youtubeLongForm?: string;
+  youtubeShorts?: string;
+  seoArticles?: string;
+}
+
+/** The four-week rollout plan, each week a list of actions. */
+export interface Roadmap30Day {
+  week1_Foundation?: string[];
+  week2_ProofAndProjects?: string[];
+  week3_PricingAndComparison?: string[];
+  week4_Conversion?: string[];
+}
+
+/** Request body for the video ingestion endpoint; mirrors IngestVideoPayload. */
+export interface IngestVideoPayload {
+  accountId: string;
+  platform: "YOUTUBE" | "INSTAGRAM";
+  contentType: "REEL" | "VIDEO" | "SHORT";
+  title?: string;
+  caption?: string;
+  description?: string;
+  contentUrl?: string;
+  thumbnailUrl?: string;
+  duration?: number;
+  viewsCount?: number;
+  likesCount?: number;
+  commentsCount?: number;
+  sharesCount?: number;
+  publishedAt?: string;
+  rawTranscript?: string;
+  rawOcrText?: string;
+}
+
 export const api = {
   // SEO Tools
   generateSchema: async (projectId: string, url: string, type: string) => 
@@ -1973,7 +2033,7 @@ export const api = {
         countsBySeverity: Record<string, number>;
         countsByCategory: Record<string, number>;
         countsByConfidence: Record<string, number>;
-        qualityDiagnostics?: any;
+        qualityDiagnostics?: CrawlQualityDiagnostics | null;
       };
     }>(`/api/crawls/${jobId}/issues${suffix}`);
   },
@@ -2062,7 +2122,21 @@ export const api = {
       projectId: string;
       timestamp: string;
       competitorsCrawled: number;
-      crawlResults: any[];
+      /**
+       * One entry per competitor. The scheduler pushes a success row spread
+       * from `startCrawl`, or a failure row carrying the domain and the error.
+       */
+      crawlResults: Array<
+        | {
+            competitorId: string;
+            status: "SUCCESS";
+            jobId: string;
+            websiteId: string;
+            domain: string;
+            pageLimit: number;
+          }
+        | { competitorId: string; domain: string; status: "FAILED"; error: string }
+      >;
       newAlertsGenerated: number;
     }>(`/api/projects/${projectId}/content-intelligence/cron/trigger-sync`, {}),
 
@@ -2403,10 +2477,10 @@ export const api = {
 
   // ── Competitor Social Video Intelligence Endpoints ───────────────────────
   discoverSocialProfiles: (projectId: string, body: { website: string; businessName?: string; location?: string; industry?: string }) =>
-    post<{ competitorDomain: any; accounts: CompetitorAccount[] }>(`/api/projects/${projectId}/content-intelligence/discover-profiles`, body),
+    post<{ competitorDomain: TrackedCompetitor; accounts: CompetitorAccount[] }>(`/api/projects/${projectId}/content-intelligence/discover-profiles`, body),
 
-  ingestAndAnalyzeVideo: (projectId: string, body: any) =>
-    post<{ content: CompetitorContent; analysis: any }>(`/api/projects/${projectId}/content-intelligence/analyze-video`, body),
+  ingestAndAnalyzeVideo: (projectId: string, body: IngestVideoPayload) =>
+    post<{ content: CompetitorContent; analysis: unknown }>(`/api/projects/${projectId}/content-intelligence/analyze-video`, body),
 
   getVideoDetails: (projectId: string, contentId: string) =>
     get<CompetitorContent>(`/api/projects/${projectId}/content-intelligence/video-details/${contentId}`),
@@ -2426,8 +2500,8 @@ export const api = {
   getCompetitorAlerts: (projectId: string) =>
     get<CompetitorChangeAlert[]>(`/api/projects/${projectId}/content-intelligence/competitor-alerts`),
 
-  recordOutcome: (projectId: string, body: any) =>
-    post<{ success: boolean; message: string; outcomeSummary: any }>(`/api/projects/${projectId}/content-intelligence/record-outcome`, body),
+  recordOutcome: (projectId: string, body: Record<string, unknown>) =>
+    post<{ success: boolean; message: string; outcomeSummary: unknown }>(`/api/projects/${projectId}/content-intelligence/record-outcome`, body),
 
   updateAlertStatus: (projectId: string, alertId: string, status: string) =>
     request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/competitor-alerts/${alertId}/status`, {
@@ -2856,8 +2930,8 @@ export interface ContentStrategy {
     ctaStrategy?: string;
     /** Counts of the inputs the strategy was generated from. All zero on a cold start. */
     dataBasis?: { patterns: number; gaps: number; ownedPosts: number; competitorPosts: number };
-    platformStrategy?: any;
-    roadmap30Day?: any;
+    platformStrategy?: PlatformStrategy | null;
+    roadmap30Day?: Roadmap30Day | null;
     roadmap60Day?: string;
     roadmap90Day?: string;
   };

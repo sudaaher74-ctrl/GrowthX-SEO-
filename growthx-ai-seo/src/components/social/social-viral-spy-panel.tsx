@@ -93,7 +93,7 @@ export function SocialViralSpyPanel({
 
   // Generate video script mutation
   const generateScriptMutation = useMutation({
-    mutationFn: (data: { topic: string; platform?: any; opportunityContext?: string }) =>
+    mutationFn: (data: { topic: string; platform?: string; opportunityContext?: string }) =>
       api.generateVideoScript(projectId, data),
   });
 

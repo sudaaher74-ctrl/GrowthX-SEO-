@@ -36,7 +36,7 @@ import {
   Tr,
   relativeTime,
 } from "@/components/ui/console";
-import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
+import { api, type CrawlIssue, type CrawlPage, type CrawlQualityDiagnostics } from "@/lib/api-client";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -1230,7 +1230,7 @@ function ScoreBreakdownModal({
   uniqueOpenIssues: number;
   resolvedIssues: number;
   severityCounts: Record<string, number>;
-  qualityDiagnostics?: any;
+  qualityDiagnostics?: CrawlQualityDiagnostics | null;
   onClose: () => void;
 }) {
   return (

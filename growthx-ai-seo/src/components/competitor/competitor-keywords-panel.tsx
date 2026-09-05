@@ -29,18 +29,16 @@ import {
   Maximize2,
   RefreshCw,
 } from "lucide-react";
-import { api } from "@/lib/api-client";
+import { api, type TrackedCompetitor, type CrawlPage } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
 import { LoadingState, TruthfulState } from "@/components/ui/truthful-state";
 
-interface TrackedCompetitorInfo {
-  id: string;
-  label?: string | null;
-  domain: string;
-  name?: string | null;
-  websiteId?: string | null;
-  [key: string]: any;
-}
+/**
+ * These panels are handed rows straight from `listCompetitors`. The local
+ * duplicate of that shape needed an `any` index signature purely to stay
+ * assignable from the real type, and declared a `websiteId` nothing ever read.
+ */
+type TrackedCompetitorInfo = TrackedCompetitor;
 
 interface CompetitorKeywordsPanelProps {
   projectId: string;
@@ -168,7 +166,15 @@ function titleCase(str: string): string {
 }
 
 /** Aggregate extracted page data into structured keyword profiles */
-function buildKeywordProfiles(pages: any[]): Map<string, ExtractedKeywordProfile> {
+/**
+ * Takes the fields this actually reads rather than a full CrawlPage: the
+ * competitor-pages query returns a narrower projection than the crawl-pages
+ * one, and both are valid inputs here.
+ */
+type KeywordSourcePage = Pick<CrawlPage, "url" | "title" | "metaDescription" | "pageType" | "h1"> &
+  Partial<Pick<CrawlPage, "h2">>;
+
+function buildKeywordProfiles(pages: KeywordSourcePage[]): Map<string, ExtractedKeywordProfile> {
   const map = new Map<string, ExtractedKeywordProfile>();
 
   pages.forEach((page) => {

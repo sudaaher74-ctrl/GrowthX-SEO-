@@ -221,7 +221,9 @@ export function VideoScriptGeneratorModal({
               <label className="text-[11px] font-bold uppercase tracking-wider text-brand-500">Platform Format</label>
               <select
                 value={platform}
-                onChange={(e) => setPlatform(e.target.value as any)}
+                onChange={(e) =>
+                  setPlatform(e.target.value as "INSTAGRAM_REEL" | "YOUTUBE_SHORTS" | "TIKTOK")
+                }
                 className="w-full h-9 rounded-lg border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 px-3 text-xs font-semibold text-brand-950 dark:text-brand-100 focus:outline-none focus:ring-1 focus:ring-accent-600"
               >
                 <option value="INSTAGRAM_REEL">Instagram Reel (9:16)</option>
