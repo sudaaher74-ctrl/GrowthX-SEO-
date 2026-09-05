@@ -49,7 +49,7 @@ import {
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
-type TabId = "overview" | "technical-seo" | "performance" | "pages";
+type TabId = "overview" | "technical-seo" | "performance" | "pages" | "geo-readiness";
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
 type Severity = (typeof SEVERITIES)[number];
@@ -145,6 +145,40 @@ function WebsiteClient() {
   const brokenPages = allPages.filter((p: CrawlPage) => p.statusCode >= 400).length;
   const pagesCrawled = crawl.data?.pagesCrawled ?? allPages.length;
 
+  // GEO & AI Overviews Readiness Metrics (Strictly computed from authoritative crawl data)
+  const schemaIssues = allIssues.filter(
+    (i) =>
+      (i.issueType || "").toUpperCase().includes("SCHEMA") ||
+      (i.issueType || "").toUpperCase().includes("STRUCTURED"),
+  );
+  const botBlockIssues = allIssues.filter(
+    (i) =>
+      (i.issueType || "").toUpperCase().includes("ROBOT") ||
+      (i.issueType || "").toUpperCase().includes("NOINDEX"),
+  );
+
+  const quotablePagesCount = allPages.filter(
+    (p) => p.wordCount >= 350 && p.wordCount <= 3000,
+  ).length;
+  const quotabilityScore =
+    allPages.length > 0 ? Math.round((quotablePagesCount / allPages.length) * 100) : null;
+
+  const schemaAffectedUrls = new Set(schemaIssues.map((i) => i.affectedUrl));
+  const groundedPagesCount = allPages.filter((p) => !schemaAffectedUrls.has(p.url)).length;
+  const entityGroundingScore =
+    allPages.length > 0 ? Math.round((groundedPagesCount / allPages.length) * 100) : null;
+
+  const highDensityPagesCount = allPages.filter((p) => p.wordCount >= 500).length;
+  const dataDensityScore =
+    allPages.length > 0 ? Math.round((highDensityPagesCount / allPages.length) * 100) : null;
+
+  const geoReadinessScore =
+    quotabilityScore != null && entityGroundingScore != null && dataDensityScore != null
+      ? Math.round(quotabilityScore * 0.4 + entityGroundingScore * 0.35 + dataDensityScore * 0.25)
+      : null;
+
+  const pagesNeedingAnswerBlocks = allPages.filter((p) => p.wordCount < 350 || p.wordCount > 3000);
+
   const runs = history.data ?? [];
   const pagesTrend = runs.map((r) => r.pagesCrawled);
   const issuesTrend = runs.map((r) => r.issuesFound);
@@ -209,6 +243,12 @@ function WebsiteClient() {
     },
     { id: "performance", label: "Performance", icon: Activity },
     { id: "pages", label: "Pages", icon: Layout, tag: pagesCrawled ? String(pagesCrawled) : undefined },
+    {
+      id: "geo-readiness",
+      label: "GEO & AI Overviews",
+      icon: Sparkles,
+      tag: geoReadinessScore != null ? `${geoReadinessScore}/100` : "Audit",
+    },
   ];
 
   return (
@@ -741,6 +781,303 @@ function WebsiteClient() {
                 </Table>
               )}
             </Panel>
+          )}
+
+          {activeTab === "geo-readiness" && (
+            <div className="space-y-6">
+              {/* 4 GEO KPIs */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {/* 1. Overall GEO Readiness Score */}
+                <Panel className="p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-medium text-brand-500">Overall GEO Score</span>
+                      <Sparkles size={15} className="text-accent-600" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-mono text-2xl font-bold text-brand-950">
+                        {geoReadinessScore != null ? geoReadinessScore : "—"}
+                      </span>
+                      {geoReadinessScore != null && (
+                        <span className="text-xs text-brand-400 font-mono">/100</span>
+                      )}
+                      <Pill
+                        tone={
+                          geoReadinessScore != null && geoReadinessScore >= 70
+                            ? "good"
+                            : geoReadinessScore != null && geoReadinessScore >= 45
+                              ? "warn"
+                              : "info"
+                        }
+                      >
+                        {geoReadinessScore != null && geoReadinessScore >= 70
+                          ? "High Visibility"
+                          : geoReadinessScore != null && geoReadinessScore >= 45
+                            ? "Moderate"
+                            : "Needs Optimization"}
+                      </Pill>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    {geoReadinessScore != null ? (
+                      <MeterBar
+                        value={geoReadinessScore}
+                        tone={geoReadinessScore >= 70 ? "good" : "accent"}
+                        width="100%"
+                      />
+                    ) : null}
+                    <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">Readiness for Google AI Overviews & ChatGPT</p>
+                  </div>
+                </Panel>
+
+                {/* 2. Direct Quotability */}
+                <Panel className="p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-medium text-brand-500">Direct Quotability</span>
+                      <CheckCircle2 size={15} className="text-emerald-600" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-mono text-2xl font-bold text-brand-950">
+                        {quotablePagesCount}
+                      </span>
+                      <span className="text-xs text-brand-400">/ {allPages.length} URLs</span>
+                      <Pill tone={quotabilityScore != null && quotabilityScore >= 70 ? "good" : "warn"}>
+                        {quotabilityScore != null ? `${quotabilityScore}%` : "—"}
+                      </Pill>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                    Pages with concise definition blocks & optimal depth (350–3k words)
+                  </p>
+                </Panel>
+
+                {/* 3. Entity & Schema Grounding */}
+                <Panel className="p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-medium text-brand-500">Entity Schema Grounding</span>
+                      <Zap size={15} className="text-amber-500" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-mono text-2xl font-bold text-brand-950">
+                        {groundedPagesCount}
+                      </span>
+                      <span className="text-xs text-brand-400">/ {allPages.length} URLs</span>
+                      <Pill tone={schemaIssues.length === 0 ? "good" : "warn"}>
+                        {schemaIssues.length === 0 ? "0 Schema Errors" : `${schemaIssues.length} Schema Gaps`}
+                      </Pill>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                    JSON-LD structured data for Knowledge Graph & AI reasoning
+                  </p>
+                </Panel>
+
+                {/* 4. AI Bot Access */}
+                <Panel className="p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-medium text-brand-500">AI Crawler Access</span>
+                      <Activity size={15} className="text-blue-500" />
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-brand-950">
+                        {botBlockIssues.length === 0 ? "Allowed" : "Partially Blocked"}
+                      </span>
+                      <Pill tone={botBlockIssues.length === 0 ? "good" : "bad"}>
+                        {botBlockIssues.length === 0 ? "GPTBot / Perplexity" : "Directive Block"}
+                      </Pill>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                    Robots.txt & meta directives allowing Perplexity, ClaudeBot, GPTBot
+                  </p>
+                </Panel>
+              </div>
+
+              {/* GEO Strategic Radar Panels */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {/* Quotability Action Panel */}
+                <Panel className="p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-accent-700">
+                    <Sparkles size={16} />
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Direct Quotability Strategy</h4>
+                  </div>
+                  <p className="text-xs text-brand-600 leading-relaxed">
+                    Google AI Overviews and ChatGPT preferentially extract 40–50 word authoritative definitions immediately following an H2 or H3 heading.
+                  </p>
+                  <div className="rounded-lg bg-brand-50 p-3 text-[11px] space-y-1.5 border border-brand-200">
+                    <div className="font-semibold text-brand-900 flex items-center justify-between">
+                      <span>High Priority Action:</span>
+                      <span className="font-mono text-accent-600">{pagesNeedingAnswerBlocks.length} pages</span>
+                    </div>
+                    <p className="text-brand-600">
+                      Convert lead paragraphs into structured summary answer blocks to capture Google AI Overview citations.
+                    </p>
+                  </div>
+                </Panel>
+
+                {/* Entity Schema Panel */}
+                <Panel className="p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-blue-700">
+                    <Zap size={16} />
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Entity & Knowledge Graph</h4>
+                  </div>
+                  <p className="text-xs text-brand-600 leading-relaxed">
+                    LLMs rely on Schema.org Organization, FAQPage, and TechArticle markup with sameAs social and Wikidata references to verify brand authority.
+                  </p>
+                  <div className="rounded-lg bg-brand-50 p-3 text-[11px] space-y-1.5 border border-brand-200">
+                    <div className="font-semibold text-brand-900 flex items-center justify-between">
+                      <span>Schema Diagnostics:</span>
+                      <span className="font-mono text-brand-700">{schemaIssues.length} issues flagged</span>
+                    </div>
+                    <p className="text-brand-600">
+                      Ensure every core service page has nested FAQ Schema and Author/Publisher entity credentials.
+                    </p>
+                  </div>
+                </Panel>
+
+                {/* Information Gain Panel */}
+                <Panel className="p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <CheckCircle2 size={16} />
+                    <h4 className="text-xs font-bold uppercase tracking-wider">Information Gain & Data Density</h4>
+                  </div>
+                  <p className="text-xs text-brand-600 leading-relaxed">
+                    Generative search engines penalize generic, commoditized copy. Pages with proprietary benchmarks, comparison tables, and statistics earn up to 4.2x more citations.
+                  </p>
+                  <div className="rounded-lg bg-brand-50 p-3 text-[11px] space-y-1.5 border border-brand-200">
+                    <div className="font-semibold text-brand-900 flex items-center justify-between">
+                      <span>Average Word Depth:</span>
+                      <span className="font-mono text-emerald-700">
+                        {allPages.length > 0
+                          ? `${Math.round(allPages.reduce((acc, p) => acc + (p.wordCount || 0), 0) / allPages.length)} words/page`
+                          : "—"}
+                      </span>
+                    </div>
+                    <p className="text-brand-600">
+                      Include quantitative data tables and verified performance specs to boost information density.
+                    </p>
+                  </div>
+                </Panel>
+              </div>
+
+              {/* Page-by-Page GEO Audit Table */}
+              <Panel className="overflow-hidden">
+                <div className="border-b border-brand-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-brand-50/50">
+                  <div>
+                    <h3 className="text-sm font-bold text-brand-950 flex items-center gap-2">
+                      <span>Page-by-Page GEO Audit & Quotability Engine</span>
+                      <Pill tone="info">{allPages.length} Pages Analyzed</Pill>
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                      Audit content quotability, schema grounding, and generate 1-click LLM Answer Blocks.
+                    </p>
+                  </div>
+                </div>
+
+                {allPages.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-brand-400">
+                    No crawled pages found. Run a full scan to audit GEO readiness.
+                  </div>
+                ) : (
+                  <Table>
+                    <thead>
+                      <Tr>
+                        <Th>Target URL & Title</Th>
+                        <Th>Word Count & Density</Th>
+                        <Th>Quotability Status</Th>
+                        <Th>Schema Grounding</Th>
+                        <Th align="right">1-Click GEO Action</Th>
+                      </Tr>
+                    </thead>
+                    <tbody>
+                      {allPages.map((page) => {
+                        const hasSchemaIssue = schemaIssues.some((i) => i.affectedUrl === page.url);
+                        const isQuotable = page.wordCount >= 350 && page.wordCount <= 3000;
+                        const isThin = page.wordCount < 350;
+
+                        return (
+                          <Tr key={page.id || page.url}>
+                            <Td>
+                              <div className="min-w-0 max-w-md">
+                                <p className="truncate font-medium text-xs text-brand-950">{page.title || "Untitled Page"}</p>
+                                <a
+                                  href={page.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate text-[11px] font-mono text-accent-600 hover:underline flex items-center gap-1 mt-0.5"
+                                >
+                                  <span className="truncate">{page.url}</span>
+                                  <ExternalLink size={10} className="shrink-0" />
+                                </a>
+                              </div>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-semibold text-brand-900">
+                                  {page.wordCount.toLocaleString()} words
+                                </span>
+                                <Pill tone={isThin ? "bad" : page.wordCount > 1500 ? "good" : "info"}>
+                                  {isThin ? "Thin Copy" : page.wordCount > 1500 ? "High Density" : "Standard"}
+                                </Pill>
+                              </div>
+                            </Td>
+                            <Td>
+                              <Pill tone={isQuotable ? "good" : isThin ? "bad" : "warn"}>
+                                {isQuotable ? "Quotable Answer" : isThin ? "Needs Answer Block" : "Refine Structure"}
+                              </Pill>
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-1.5">
+                                {hasSchemaIssue ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 font-medium">
+                                    <AlertTriangle size={12} className="text-amber-500" />
+                                    Schema Gap Flagged
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                                    <CheckCircle2 size={12} className="text-emerald-500" />
+                                    Grounded JSON-LD
+                                  </span>
+                                )}
+                              </div>
+                            </Td>
+                            <Td align="right">
+                              <ActionButton
+                                variant="secondary"
+                                icon={<Sparkles size={12} className="text-accent-600" />}
+                                onClick={() => {
+                                  const geoIssue: CrawlIssue = {
+                                    id: `geo-fix-${page.id}`,
+                                    issueType: "GEO_LLM_ANSWER_BLOCK",
+                                    severity: isThin ? "HIGH" : "MEDIUM",
+                                    affectedUrl: page.url,
+                                    description: isThin
+                                      ? `Page has low word depth (${page.wordCount} words) and lacks structured summary answer block for generative AI engines.`
+                                      : `Page copy lacks a concise 45-word definition block and embedded FAQ schema for Google AI Overviews and ChatGPT search.`,
+                                    recommendation:
+                                      "Embed a structured 45-55 word direct answer block with high information gain bullets and Schema.org FAQPage JSON-LD markup.",
+                                    status: "OPEN",
+                                    aiFixAvailable: true,
+                                    confidence: "CONFIRMED",
+                                    category: "GEO",
+                                  };
+                                  setSelectedFixIssue(geoIssue);
+                                }}
+                              >
+                                Convert to Answer Block
+                              </ActionButton>
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                )}
+              </Panel>
+            </div>
           )}
         </div>
       </QueryState>

@@ -53,6 +53,7 @@ import { WebsiteComparisonPanel } from "@/components/competitor/website-comparis
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
 import { CompetitorImprovementPlanPanel } from "@/components/competitor/competitor-improvement-plan-panel";
+import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
 import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
 import {
   TruthfulState,
@@ -66,6 +67,7 @@ const TABS = [
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
   { id: "keywords", label: "Competitor Keywords" },
+  { id: "ai-citations", label: "AI Search Matrix (GEO)" },
   { id: "improvement-plan", label: "30-Day Improvement Plan" },
 ];
 
@@ -1305,7 +1307,16 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {/* Tab 5: 30-Day Competitor SEO Domination Plan */}
+      {/* Tab 5: AI Search Recommendation & Citation Matrix (GEO) */}
+      {activeTab === "ai-citations" && (
+        <AiCitationMatrixPanel
+          projectId={projectId!}
+          customerDomain={clientRow?.domain || "our site"}
+          competitors={competitorsList}
+        />
+      )}
+
+      {/* Tab 6: 30-Day Competitor SEO Domination Plan */}
       {activeTab === "improvement-plan" && (
         <CompetitorImprovementPlanPanel
           projectId={projectId!}
