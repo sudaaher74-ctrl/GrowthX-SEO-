@@ -1100,197 +1100,189 @@ function CompetitorIntelligenceClient() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* TIER 3: High-Fidelity Comparison Benchmarks Table */}
-          <Panel
-            title="Customer vs Competitor Benchmarks"
-            subtitle="Side-by-side comparison of authoritative search presence, reputation, and technical posture"
-            actions={
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-brand-400">
-                  {competitorsList.length + 1} entities monitored
-                </span>
-              </div>
-            }
-          >
-            <div className="p-0">
-              <Table minWidth={900}>
-                <thead>
-                  <tr>
-                    <Th>Entity</Th>
-                    <Th>Domain</Th>
-                    <Th align="right">Google Reputation</Th>
-                    <Th align="right">AI Citation Share</Th>
-                    <Th align="right">Tech Health</Th>
-                    <Th align="right">Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Your Business (Customer) */}
-                  <Tr className="bg-brand-50/50 font-medium border-l-2 border-l-brand-950">
-                    <Td>
-                      <div className="flex items-center gap-2.5">
-                        <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="rounded bg-brand-950 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-                              You
-                            </span>
-                            <span className="font-bold text-brand-950">{clientRow?.name || "Your Business"}</span>
-                          </div>
-                          <span className="text-[11px] text-brand-400">Primary Workspace Site</span>
-                        </div>
-                      </div>
-                    </Td>
-                    <Td>
-                      <a
-                        href={clientRow?.domain ? `https://${clientRow.domain}` : "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-mono text-[12px] text-brand-700 hover:text-brand-950 transition"
-                      >
-                        {clientRow?.domain || "—"}
-                        <ExternalLink size={11} className="text-brand-400" />
-                      </a>
-                    </Td>
-                    <Td align="right">
-                      <StarRatingDisplay
-                        rating={localSeo.data?.rating}
-                        reviews={localSeo.data?.reviewCount}
-                      />
-                    </Td>
-                    <Td align="right">
-                      <div className="flex flex-col items-end gap-1 min-w-[70px]">
-                        <span className="font-mono font-bold text-[12px] text-brand-950">
-                          {cohortStats.customerShare}%
-                        </span>
-                        <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
-                          <div
-                            className="h-full rounded-full bg-brand-950"
-                            style={{ width: `${Math.min(100, Math.max(0, cohortStats.customerShare))}%` }}
-                          />
-                        </div>
-                      </div>
-                    </Td>
-                    <Td align="right">
-                      <HealthScoreBar score={cohortStats.customerHealth} />
-                    </Td>
-                    <Td align="right">
-                      <span className="inline-block rounded-md bg-brand-100 px-2 py-1 text-[11px] font-semibold text-brand-700">
-                        Current Site
+              {/* TIER 3: High-Fidelity Comparison Benchmarks Table (Only in 'Compare All' mode) */}
+              {compareMode === "all" && (
+                <Panel
+                  title="Customer vs Competitor Benchmarks"
+                  subtitle="Side-by-side comparison of authoritative search presence, reputation, and technical posture"
+                  actions={
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-medium text-brand-400">
+                        {competitorsList.length + 1} entities monitored
                       </span>
-                    </Td>
-                  </Tr>
-
-                  {/* Tracked Competitors */}
-                  {competitorsList.length === 0 ? (
-                    <Tr>
-                      <Td colSpan={6}>
-                        <div className="py-12 text-center">
-                          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-500 mb-2">
-                            <Crosshair size={20} />
-                          </div>
-                          <p className="text-[13px] font-semibold text-brand-950">No competitors tracked yet</p>
-                          <p className="text-[12px] text-brand-400 mt-0.5">
-                            Add rival domains to unlock head-to-head benchmarking and competitive gap detection.
-                          </p>
-                          <button
-                            onClick={() => setShowAddModal(true)}
-                            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90"
-                          >
-                            <Plus size={12} /> Add First Competitor
-                          </button>
-                        </div>
-                      </Td>
-                    </Tr>
-                  ) : (
-                    competitorsList.map((comp) => {
-                      const isSelected = selectedCompetitor?.id === comp.id;
-                      return (
-                        <Tr
-                          key={comp.id}
-                          className={isSelected ? "bg-brand-50/30" : undefined}
-                        >
+                    </div>
+                  }
+                >
+                  <div className="p-0">
+                    <Table minWidth={900}>
+                      <thead>
+                        <tr>
+                          <Th>Entity</Th>
+                          <Th>Domain</Th>
+                          <Th align="right">Google Reputation</Th>
+                          <Th align="right">AI Citation Share</Th>
+                          <Th align="right">Tech Health</Th>
+                          <Th align="right">Action</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Your Business (Customer) */}
+                        <Tr className="bg-brand-50/50 font-medium border-l-2 border-l-brand-950">
                           <Td>
                             <div className="flex items-center gap-2.5">
-                              <EntityAvatar name={comp.label || comp.domain} />
+                              <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
                               <div>
-                                <span className="font-semibold text-brand-950 text-[13px]">
-                                  {comp.label || comp.domain}
-                                </span>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="rounded bg-brand-100 px-1.5 py-0.2 text-[9px] font-semibold text-brand-600 uppercase">
-                                    Rival
+                                <div className="flex items-center gap-1.5">
+                                  <span className="rounded bg-brand-950 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+                                    You
                                   </span>
-                                  <span className="text-[10.5px] text-brand-400">Tracked competitor</span>
+                                  <span className="font-bold text-brand-950">{clientRow?.name || "Your Business"}</span>
                                 </div>
+                                <span className="text-[11px] text-brand-400">Primary Workspace Site</span>
                               </div>
                             </div>
                           </Td>
                           <Td>
                             <a
-                              href={`https://${comp.domain}`}
+                              href={clientRow?.domain ? `https://${clientRow.domain}` : "#"}
                               target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 font-mono text-[12px] text-brand-500 hover:text-brand-950 transition"
+                              rel="noopener noreferrer"
+                              className="group inline-flex items-center gap-1 font-mono text-[12px] text-brand-700 hover:text-brand-950 hover:underline"
                             >
-                              {comp.domain}
-                              <ExternalLink size={11} className="text-brand-300" />
+                              <span>{clientRow?.domain || "—"}</span>
+                              <ExternalLink size={10} className="shrink-0 text-brand-400 group-hover:text-brand-600" />
                             </a>
                           </Td>
                           <Td align="right">
                             <StarRatingDisplay
-                              rating={(comp as any).rating}
-                              reviews={(comp as any).reviewCount}
+                              rating={cohortStats.customerRating}
+                              reviews={cohortStats.customerReviews}
                             />
                           </Td>
                           <Td align="right">
-                            {(comp as any).aiCitationSharePct != null ? (
-                              <div className="flex flex-col items-end gap-1 min-w-[70px]">
-                                <span className="font-mono text-[12px] text-brand-700">
-                                  {(comp as any).aiCitationSharePct}%
-                                </span>
-                                <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
-                                  <div
-                                    className="h-full rounded-full bg-brand-400"
-                                    style={{ width: `${Math.min(100, Math.max(0, (comp as any).aiCitationSharePct))}%` }}
-                                  />
-                                </div>
+                            <div className="flex flex-col items-end gap-1 min-w-[70px]">
+                              <span className="font-mono text-[12px] font-bold text-brand-950">
+                                {cohortStats.customerShare != null ? `${cohortStats.customerShare}%` : "—"}
+                              </span>
+                              <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
+                                <div
+                                  className="h-full rounded-full bg-brand-950"
+                                  style={{ width: `${Math.min(100, Math.max(0, cohortStats.customerShare || 0))}%` }}
+                                />
                               </div>
-                            ) : (
-                              <span className="font-mono text-[11.5px] text-brand-400">—</span>
-                            )}
-                          </Td>
-                          <Td align="right">
-                            <HealthScoreBar score={(comp as any).healthScore} />
-                          </Td>
-                          <Td align="right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => {
-                                  setSelectedCompetitorId(comp.id);
-                                  window.scrollTo({ top: 120, behavior: "smooth" });
-                                }}
-                                className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition ${
-                                  isSelected
-                                    ? "border-brand-950 bg-brand-950 text-white"
-                                    : "border-brand-200 bg-white text-brand-700 hover:bg-brand-50"
-                                }`}
-                              >
-                                {isSelected ? "Comparing" : "Compare VS"}
-                              </button>
                             </div>
                           </Td>
+                          <Td align="right">
+                            <HealthScoreBar score={cohortStats.customerHealth} />
+                          </Td>
+                          <Td align="right">
+                            <span className="inline-flex items-center rounded-md bg-brand-100 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                              Current Site
+                            </span>
+                          </Td>
                         </Tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </Table>
+
+                        {/* Tracked Competitors */}
+                        {competitorsList.length === 0 ? (
+                          <Tr>
+                            <Td colSpan={6} className="py-8 text-center">
+                              <div className="flex flex-col items-center justify-center space-y-2">
+                                <Building2 size={24} className="text-brand-300" />
+                                <p className="text-[12px] font-medium text-brand-600">No tracked rivals found yet.</p>
+                                <p className="text-[11px] text-brand-400">
+                                  Add rival domains to unlock head-to-head benchmarking and competitive gap detection.
+                                </p>
+                              </div>
+                            </Td>
+                          </Tr>
+                        ) : (
+                          competitorsList.map((comp) => {
+                            const isSelected = selectedCompetitor?.id === comp.id;
+                            return (
+                              <Tr
+                                key={comp.id}
+                                className={`transition hover:bg-brand-50/30 ${
+                                  isSelected ? "bg-brand-50/60 font-medium" : ""
+                                }`}
+                              >
+                                <Td>
+                                  <div className="flex items-center gap-2.5">
+                                    <EntityAvatar name={comp.label || comp.domain} />
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-brand-950">
+                                          {comp.label || comp.domain}
+                                        </span>
+                                      </div>
+                                      <span className="rounded bg-brand-100/60 px-1 py-0.2 text-[9.5px] font-medium uppercase tracking-wider text-brand-500">
+                                        Tracked competitor
+                                      </span>
+                                    </div>
+                                  </div>
+                                </Td>
+                                <Td>
+                                  <a
+                                    href={`https://${comp.domain}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group inline-flex items-center gap-1 font-mono text-[12px] text-brand-600 hover:text-brand-950 hover:underline"
+                                  >
+                                    <span>{comp.domain}</span>
+                                    <ExternalLink size={10} className="shrink-0 text-brand-400 group-hover:text-brand-600" />
+                                  </a>
+                                </Td>
+                                <Td align="right">
+                                  <StarRatingDisplay
+                                    rating={(comp as any).rating}
+                                    reviews={(comp as any).reviewCount}
+                                  />
+                                </Td>
+                                <Td align="right">
+                                  {(comp as any).aiCitationSharePct != null ? (
+                                    <div className="flex flex-col items-end gap-1 min-w-[70px]">
+                                      <span className="font-mono text-[12px] text-brand-700">
+                                        {(comp as any).aiCitationSharePct}%
+                                      </span>
+                                      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
+                                        <div
+                                          className="h-full rounded-full bg-brand-400"
+                                          style={{ width: `${Math.min(100, Math.max(0, (comp as any).aiCitationSharePct))}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono text-[11.5px] text-brand-400">—</span>
+                                  )}
+                                </Td>
+                                <Td align="right">
+                                  <HealthScoreBar score={(comp as any).healthScore} />
+                                </Td>
+                                <Td align="right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setSelectedCompetitorId(comp.id);
+                                        setCompareMode("spotlight");
+                                        window.scrollTo({ top: 120, behavior: "smooth" });
+                                      }}
+                                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition shadow-2xs"
+                                    >
+                                      Compare 1-on-1
+                                    </button>
+                                  </div>
+                                </Td>
+                              </Tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
+                </Panel>
+              )}
             </div>
-          </Panel>
+          )}
 
           {/* Downside Split Version: Page-to-Page Crawl Telemetry & Comparison */}
           {selectedCompetitor && (
