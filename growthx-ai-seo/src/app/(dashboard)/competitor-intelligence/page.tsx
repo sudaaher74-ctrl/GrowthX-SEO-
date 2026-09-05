@@ -51,6 +51,7 @@ import { api } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import { CompetitorSeoReportPanel } from "@/components/competitor/seo-report";
+import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import {
   TruthfulState,
   MetricBadge,
@@ -61,7 +62,7 @@ import {
 const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
-  { id: "website", label: "Website Competitors" },
+  { id: "opportunities", label: "Competitor Opportunities" },
   { id: "seo-quality", label: "SEO Deep Dive" },
   { id: "local", label: "Local Competitors (Public Only)" },
   { id: "market-trends", label: "Market Trends & AI Strategy" },
@@ -1292,12 +1293,10 @@ function CompetitorIntelligenceClient() {
         </div>
       )}
 
-      {/* Tab 2: Website Competitors */}
-      {/* Tab 3: the real website comparison.
-          This printed a competitor's name and the words "Available upon sweep"
-          against a field nothing populated, so it could never show data however
-          much had been crawled. */}
-      {activeTab === "website" && <WebsiteComparisonPanel projectId={projectId!} />}
+      {/* Tab 3: Competitor Content & Website Opportunities */}
+      {(activeTab === "opportunities" || activeTab === "website") && (
+        <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
+      )}
 
       {/* Everything the crawler found on one competitor's site, beside your
           own. The crawl already scored every competitor and listed the
