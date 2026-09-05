@@ -81,6 +81,8 @@ model CrawlJob {
   internalGraphs InternalGraph[]
   issues         Issue[]
   pages          Page[]
+  /// Social profiles this crawl found published on the site.
+  socialLinks    SiteSocialLink[]
 
   @@index([websiteId, status])
   @@index([createdAt])
@@ -319,6 +321,14 @@ model Project {
   /// figure is excluded from MRR rather than being guessed at.
   retainerMonthlyMinor Int?
   retainerCurrency     String                 @default("INR")
+  /// When automatic competitor identification last ran to completion for this
+  /// project.
+  ///
+  /// Set so it runs once, off the first crawl, and never again on its own. A
+  /// customer who reviewed the five we found and deleted four made a decision;
+  /// a recurring crawl that re-identified competitors would silently undo it,
+  /// and "the list is empty" would be indistinguishable from "we never looked".
+  competitorsIdentifiedAt DateTime?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   ClientPortalConfig   ClientPortalConfig?
@@ -595,6 +605,39 @@ model CompetitorDomain {
   @@unique([projectId, domain])
   @@index([projectId])
   @@index([projectId, status])
+}
+
+/// A social profile found published on a crawled site.
+///
+/// Written during the crawl, from the outbound links the crawler already
+/// collected, so a customer's own accounts and a competitor's are discovered
+/// the same way with no second fetch of anybody's site.
+///
+/// Held per crawl job rather than per site so that pageCount keeps meaning
+/// what it says. A row shared across a site's monthly crawls would count
+/// sightings for as long as the customer stayed, and "on 400 of 40 pages" is
+/// not a number anything can reason about.
+model SiteSocialLink {
+  id          String   @id @default(uuid())
+  crawlJobId  String
+  crawlJob    CrawlJob @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  /// INSTAGRAM | FACEBOOK | YOUTUBE | LINKEDIN | TWITTER | TIKTOK
+  platform    String
+  /// `@name`, `company/name` or a Facebook page name, as the platform writes it.
+  handle      String
+  profileUrl  String
+  /// How many of this crawl's pages link to this profile.
+  ///
+  /// This is what separates a site's own account from someone else's: a
+  /// business puts its profiles in the footer, so they appear on every page,
+  /// while a link to a partner or a quoted post appears once. Without it there
+  /// is no honest way to choose between two Instagram links on one site.
+  pageCount   Int      @default(0)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now()) @updatedAt
+
+  @@unique([crawlJobId, platform, handle])
+  @@index([crawlJobId])
 }
 
 model SocialPost {
@@ -1865,6 +1908,16 @@ model SocialAccount {
   tokenExpiresAt     DateTime?
   scopes             String[]  @default([])
   status             String    @default("DISCONNECTED")  /// CONNECTED | DISCONNECTED | EXPIRED | ERROR
+  /// The profile page, when the account was found rather than connected.
+  profileUrl         String?
+  /// WEBSITE_CRAWL | MANUAL | OAUTH — how this account came to be known.
+  ///
+  /// A discovered account is a lead for the operator to connect, not a
+  /// connection: DISCONNECTED with a handle and this set means "we found this
+  /// published on your site", which is a different claim from "you connected
+  /// it", and nothing may treat the two alike.
+  discoverySource    String?
+  discoveredAt       DateTime?
   lastPublishedAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

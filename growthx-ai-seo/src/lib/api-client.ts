@@ -1407,6 +1407,42 @@ export interface MarketOutcomeRow {
 
 // ──────────────────────────────────────────────────────────────── the API
 
+
+/** One step of the run from "website added" to "competitors tracked". */
+export interface DiscoveryStep {
+  state: "pending" | "running" | "done" | "skipped" | "failed";
+  /** What the step found, in plain words. Never a guess, never a filler zero. */
+  detail: string;
+  at?: string;
+}
+
+export interface DiscoveryStatus {
+  projectId: string;
+  domain: string | null;
+  steps: {
+    websiteAdded: DiscoveryStep;
+    websiteCrawled: DiscoveryStep;
+    businessIdentified: DiscoveryStep;
+    competitorsIdentified: DiscoveryStep;
+    competitorsCrawled: DiscoveryStep;
+    socialAccountsFound: DiscoveryStep;
+  };
+  competitors: {
+    id: string;
+    domain: string;
+    name: string | null;
+    status: string;
+    lastAnalyzedAt: string | null;
+    socialAccounts: { platform: string; handle: string }[];
+  }[];
+  ownSocialAccounts: {
+    platform: string;
+    handle: string | null;
+    profileUrl: string | null;
+    origin: "crawl" | "connected";
+  }[];
+}
+
 export const api = {
   // SEO Tools
   generateSchema: async (projectId: string, url: string, type: string) => 
@@ -1542,6 +1578,12 @@ export const api = {
     get<MarketOutcomeRow[]>(`/api/projects/${projectId}/market-research/outcomes`),
   measureMarketAction: (projectId: string, actionId: string) =>
     post<MarketOutcomeRow>(`/api/projects/${projectId}/market-research/actions/${actionId}/measure`, {}),
+
+  // ── Discovery pipeline
+  getDiscoveryStatus: (projectId: string) =>
+    get<DiscoveryStatus>(`/api/projects/${projectId}/discovery/status`),
+  crawlPendingCompetitors: (projectId: string) =>
+    post<{ started: boolean }>(`/api/projects/${projectId}/discovery/crawl-pending-competitors`, {}),
 
   // ── Organizations & projects
   listOrganizations: () => get<{ id: string; name: string; slug: string }[]>("/organizations"),

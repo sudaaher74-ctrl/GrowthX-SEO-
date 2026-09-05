@@ -8,6 +8,7 @@ import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
 import { canonicalUrl } from './canonical-url';
 import { isCrawlablePage, isHtmlResponse } from './crawlable';
+import { extractSocialProfiles } from './social-links';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -21,11 +22,15 @@ import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import * as url from 'url';
 
+/** Notified after a crawl job has finished and its results are stored. */
+export type CrawlCompletionHandler = (jobId: string, websiteId: string) => Promise<void>;
+
 @Injectable()
 export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CrawlerService.name);
   private readonly localVisited = new Map<string, Set<string>>();
   private readonly jobSitemapUrls = new Map<string, Set<string>>();
+  private readonly completionHandlers: CrawlCompletionHandler[] = [];
 
   /**
    * How long a job may go without recording a page before it is treated as
@@ -468,7 +473,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           this.performanceService.fetchPageSpeedMetrics(page.id, normUrl).catch(() => {});
         }
 
-        // 6. Enqueue internal links for BFS crawling
+        // 6. Record the social profiles this page links out to
+        if (fetchRes.statusCode === 200) {
+          await this.recordSocialLinks(payload.jobId, links.externalLinks);
+        }
+
+        // 7. Enqueue internal links for BFS crawling
         if (fetchRes.statusCode === 200 && fetchRes.html) {
           await this.discoverInternalLinksAndEnqueue(payload, links.internalLinks, page.id);
         }
@@ -484,6 +494,54 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             await this.completeJob(payload.jobId);
           }
         }
+      }
+    }
+  }
+
+  /**
+   * Stores the social profiles a page links to, against the site being crawled.
+   *
+   * Written per page rather than once at the end because the page fetches are
+   * distributed across workers and no single process sees the whole crawl. The
+   * per-profile page count is the point: a business's own accounts sit in the
+   * footer and so arrive once per page, while a link to a partner's profile
+   * arrives once, and that difference is the only honest way to pick a site's
+   * own account when it publishes more than one. Counted against the job, so
+   * the figure stays comparable to that crawl's own page total.
+   *
+   * External links are otherwise not persisted at all, and deliberately still
+   * are not — a site's outbound links run to hundreds per page and none of the
+   * rest is read by anything.
+   */
+  private async recordSocialLinks(crawlJobId: string, externalLinks: { targetUrl: string }[]): Promise<void> {
+    if (!crawlJobId || !externalLinks?.length) return;
+
+    const profiles = extractSocialProfiles(externalLinks.map((link) => link.targetUrl));
+    if (profiles.length === 0) return;
+
+    for (const profile of profiles) {
+      try {
+        await this.prisma.siteSocialLink.upsert({
+          where: {
+            crawlJobId_platform_handle: {
+              crawlJobId,
+              platform: profile.platform,
+              handle: profile.handle,
+            },
+          },
+          update: { pageCount: { increment: 1 }, profileUrl: profile.profileUrl },
+          create: {
+            crawlJobId,
+            platform: profile.platform,
+            handle: profile.handle,
+            profileUrl: profile.profileUrl,
+            pageCount: 1,
+          },
+        });
+      } catch (err) {
+        // A profile that fails to store costs this site one discovery lead. It
+        // must not fail the page, which carries the crawl's actual findings.
+        this.logger.debug(`Could not record ${profile.platform} ${profile.handle}: ${err}`);
       }
     }
   }
@@ -735,6 +793,46 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);
+
+    await this.announceCompletion(jobId, job.websiteId);
+  }
+
+  /**
+   * Tells whoever is listening that a crawl finished, and what it crawled.
+   *
+   * A finished crawl is the start of the rest of the customer's onboarding —
+   * the business behind the site is read from it, competitors are identified
+   * from that, and their crawls follow — but none of that work can be reached
+   * from here by an import. The chain runs
+   * pipeline -> market research -> competitor crawl -> this service, so
+   * injecting the pipeline would close the loop and Nest would refuse to
+   * build the graph.
+   *
+   * Listeners register themselves instead, which keeps every dependency in
+   * this module pointing one way: the crawler still knows nothing about who
+   * consumes a crawl, and a deployment with no listener behaves exactly as
+   * this service did before.
+   */
+  private async announceCompletion(jobId: string, websiteId: string): Promise<void> {
+    for (const handler of this.completionHandlers) {
+      try {
+        await handler(jobId, websiteId);
+      } catch (err) {
+        // The crawl is finished and stored. Whatever a listener wanted to do
+        // with it is follow-on work, and failing it must not un-finish a job.
+        this.logger.error(`[JOB ${jobId}] Crawl completion handler failed`, err);
+      }
+    }
+  }
+
+  /**
+   * Registers work to run once a crawl has completed and been stored.
+   *
+   * Called by the listener during its own module init, so ordering does not
+   * matter: a crawl cannot complete before the application has started.
+   */
+  onCrawlCompleted(handler: CrawlCompletionHandler): void {
+    this.completionHandlers.push(handler);
   }
 
   /**
