@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { ClassificationService } from '../content-intelligence/classification.service';
+import { SocialScraperService } from '../content-intelligence/social-scraper.service';
 import { OwnSocialSyncService } from '../content-intelligence/own-social-sync.service';
 import { PatternDetectionService } from '../content-intelligence/pattern-detection.service';
 import { GapAnalysisService } from '../content-intelligence/gap-analysis.service';
@@ -26,11 +27,11 @@ export interface AnalysisRun {
 /**
  * The analysis that turns collected competitor data into a plan.
  *
- * Six stages, each refusing to run without the one before it: the customer's
- * own posts are collected, competitor content is classified, classifications
- * become creative patterns, patterns become content gaps, crawls and gaps
- * become findings, and findings become a dated action plan and a content
- * strategy that can finally see both sides.
+ * Seven stages, each refusing to run without the one before it: competitor
+ * posts are collected, the customer's own posts are collected, that content is
+ * classified, classifications become creative patterns, patterns become
+ * content gaps, crawls and gaps become findings, and findings become a dated
+ * action plan and a content strategy that can finally see both sides.
  *
  * Every stage was built, tested, and reachable only from a manual POST. The
  * one scheduled job in this area generated a content strategy every Monday
@@ -48,6 +49,7 @@ export class AnalysisPipelineService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly scraper: SocialScraperService,
     private readonly ownSocial: OwnSocialSyncService,
     private readonly classification: ClassificationService,
     private readonly patterns: PatternDetectionService,
@@ -99,6 +101,10 @@ export class AnalysisPipelineService {
   async run(organizationId: string, projectId: string): Promise<AnalysisRun> {
     const startedAt = new Date();
     const stages: AnalysisStage[] = [];
+
+    stages.push(
+      await this.stage('collect_competitor_content', () => this.collectCompetitorContent(organizationId, projectId)),
+    );
 
     stages.push(
       await this.stage('own_social', async () => {
@@ -172,6 +178,80 @@ export class AnalysisPipelineService {
     return { projectId, startedAt: startedAt.toISOString(), stages };
   }
 
+  /**
+   * Pulls each tracked competitor's recent posts before anything reads them.
+   *
+   * This chain classified competitor content and never collected any. The
+   * 03:00 sweep collects, this ran at 06:00, and nightly that ordering is
+   * correct — but it left the two paths that matter most to a new customer
+   * reading yesterday's collection or none at all: the on-demand run, and the
+   * run that fires the moment a project's last competitor crawl lands. A
+   * project set up this morning would classify nothing, detect no patterns and
+   * find no gaps, and every stage would truthfully report that it had nothing
+   * to work with.
+   *
+   * Re-collecting three hours after the sweep costs almost nothing: the import
+   * deduplicates on content URL, so a second pass on an unchanged channel
+   * writes no rows, and YouTube charges a handful of quota units per account
+   * against a daily allowance in the thousands.
+   */
+  private async collectCompetitorContent(
+    organizationId: string,
+    projectId: string,
+  ): Promise<{ did: boolean; detail: string }> {
+    const platforms = configuredPlatforms();
+    if (platforms.length === 0) {
+      return {
+        did: false,
+        detail:
+          'No ingestion credentials are set (YOUTUBE_API_KEY, or INSTAGRAM_ACCESS_TOKEN with ' +
+          'INSTAGRAM_BUSINESS_ACCOUNT_ID), so no competitor posts can be collected automatically.',
+      };
+    }
+
+    const accounts = await this.prisma.competitorAccount.findMany({
+      where: { projectId, platform: { in: platforms }, isActive: true },
+      select: { id: true, handle: true, platform: true, organizationId: true },
+    });
+    if (accounts.length === 0) {
+      return {
+        did: false,
+        detail:
+          `No ${platforms.join(' or ')} account is known for any tracked competitor. They are found ` +
+          "automatically from the links published on each competitor's own website when it is crawled.",
+      };
+    }
+
+    let imported = 0;
+    const failed: string[] = [];
+
+    for (const account of accounts) {
+      try {
+        const result = await this.scraper.syncAccountContent(
+          account.organizationId || organizationId,
+          projectId,
+          account.id,
+        );
+        imported += result.imported;
+      } catch (err) {
+        // One channel that has been renamed, deleted or made private must not
+        // stop the rest — and must not be reported as having nothing to say.
+        failed.push(`${account.handle} (${err instanceof Error ? err.message : String(err)})`);
+      }
+    }
+
+    const detail = [
+      imported > 0
+        ? `Collected ${imported} new competitor post(s) from ${accounts.length} account(s).`
+        : `Checked ${accounts.length} competitor account(s); nothing new since the last run.`,
+      failed.length ? `Could not read: ${failed.join('; ')}.` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return { did: imported > 0, detail };
+  }
+
   private async stage(
     name: string,
     run: () => Promise<{ did: boolean; detail: string }>,
@@ -185,6 +265,21 @@ export class AnalysisPipelineService {
       return { stage: name, outcome: 'failed', detail };
     }
   }
+}
+
+/**
+ * Platforms this deployment can actually read, from what is configured.
+ *
+ * Each has its own credentials and either can be set alone, so the collector
+ * takes whichever it can rather than refusing outright because one is missing.
+ */
+function configuredPlatforms(): string[] {
+  const platforms: string[] = [];
+  if (process.env.YOUTUBE_API_KEY) platforms.push('YOUTUBE');
+  if (process.env.INSTAGRAM_ACCESS_TOKEN && process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
+    platforms.push('INSTAGRAM');
+  }
+  return platforms;
 }
 
 /** What the content strategy stage produced, without guessing at its shape. */
