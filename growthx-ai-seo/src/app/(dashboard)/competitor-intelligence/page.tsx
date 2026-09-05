@@ -51,6 +51,7 @@ import { api } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
+import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
 import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
 import {
   TruthfulState,
@@ -63,6 +64,7 @@ const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
+  { id: "keywords", label: "Competitor Keywords" },
 ];
 
 const DEFAULT_TAB = "benchmarks";
@@ -1290,6 +1292,15 @@ function CompetitorIntelligenceClient() {
       {/* Tab 3: Competitor Content & Website Opportunities */}
       {(activeTab === "opportunities" || activeTab === "website") && (
         <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
+      )}
+
+      {/* Tab 4: Competitor Keywords & Placement Blueprints */}
+      {activeTab === "keywords" && (
+        <CompetitorKeywordsPanel
+          projectId={projectId!}
+          customerDomain={clientRow?.domain || "our site"}
+          competitors={competitorsList}
+        />
       )}
     </div>
   );
