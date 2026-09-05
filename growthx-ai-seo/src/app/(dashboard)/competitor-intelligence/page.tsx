@@ -52,6 +52,7 @@ import { AutoCompetitorsPanel } from "@/components/market-research/auto-competit
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import { CompetitorSeoReportPanel } from "@/components/competitor/seo-report";
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
+import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
 import {
   TruthfulState,
   MetricBadge,
@@ -1290,6 +1291,17 @@ function CompetitorIntelligenceClient() {
               </Table>
             </div>
           </Panel>
+
+          {/* Downside Split Version: Page-to-Page Crawl Telemetry & Comparison */}
+          {selectedCompetitor && (
+            <SplitCrawlInspector
+              projectId={projectId!}
+              customerDomain={clientRow?.domain || "our site"}
+              competitor={selectedCompetitor}
+              allCompetitors={competitorsList}
+              onSelectCompetitor={(id) => setSelectedCompetitorId(id)}
+            />
+          )}
         </div>
       )}
 
