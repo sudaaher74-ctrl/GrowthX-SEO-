@@ -20,17 +20,6 @@ import {
   Building2,
   AlertTriangle,
 } from "lucide-react";
-import {
-  ActionButton,
-  Panel,
-  Table,
-  Th,
-  Tr,
-  Td,
-  Pill,
-  MeterBar,
-  relativeTime,
-} from "@/components/ui/console";
 import { useTrackedPrompts, useVisibility, useRunSweep } from "@/hooks/use-growthx";
 import type { TrackedPromptRow, VisibilityReport } from "@/lib/api-client";
 import { LoadingState } from "@/components/ui/truthful-state";
@@ -124,38 +113,40 @@ export function AiCitationMatrixPanel({
   return (
     <div className="space-y-6">
       {/* Top Banner with Run Sweep Action */}
-      <Panel className="p-5 bg-gradient-to-r from-blue-50/40 via-white to-purple-50/30 dark:from-blue-950/20 dark:via-brand-950 dark:to-purple-950/20 border-brand-200 dark:border-brand-800">
+      <div className="rounded-xl border border-brand-200 bg-white p-5 shadow-2xs">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
-                <Sparkles size={18} />
+              <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200">
+                <Sparkles size={16} />
               </span>
-              <h2 className="text-base font-bold text-brand-950 dark:text-brand-100">
+              <h2 className="text-[16px] font-bold text-brand-950">
                 AI Search Recommendation & Citation Matrix (GEO)
               </h2>
-              <Pill tone="info">Live Engine Diagnostics</Pill>
+              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10.5px] font-semibold text-blue-700 border border-blue-200">
+                Live Engine Diagnostics
+              </span>
             </div>
-            <p className="text-xs text-brand-600 dark:text-brand-400 max-w-3xl leading-relaxed">
+            <p className="text-xs text-brand-600 max-w-3xl leading-relaxed">
               Track whether Google AI Overviews, ChatGPT Search, and Perplexity recommend your brand or cite competitors. Uncover the content and entity gaps causing engines to favor rivals.
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <ActionButton
-              variant="primary"
-              icon={isScanning ? <RefreshCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            <button
               onClick={() => runSweep.mutate()}
               disabled={isScanning}
+              className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-brand-900 disabled:opacity-50 transition"
             >
-              {isScanning ? "Probing AI Engines…" : "Probe AI Search Engines"}
-            </ActionButton>
+              <RefreshCw size={13} className={isScanning ? "animate-spin" : ""} />
+              <span>{isScanning ? "Probing AI Engines…" : "Probe AI Search Engines"}</span>
+            </button>
           </div>
         </div>
-      </Panel>
+      </div>
 
       {/* Engine Citation Comparison Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {assistants.map((assistant) => {
           const statKey = Object.keys(engineStats).find((k) =>
             k.includes(assistant.id.replace("_", "")),
@@ -165,105 +156,125 @@ export function AiCitationMatrixPanel({
           const isWinning = sharePct != null && sharePct >= 40;
 
           return (
-            <Panel key={assistant.id} className="p-4 flex flex-col justify-between">
+            <div
+              key={assistant.id}
+              className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs flex flex-col justify-between space-y-3"
+            >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-brand-800 dark:text-brand-200 flex items-center gap-1.5">
-                    <assistant.icon size={14} className="text-brand-500" />
+                  <span className="text-xs font-semibold text-brand-900 flex items-center gap-1.5">
+                    <assistant.icon size={14} className="text-brand-600" />
                     {assistant.name}
                   </span>
-                  <Pill tone="default">{assistant.tag}</Pill>
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-brand-100 text-brand-600 border border-brand-200">
+                    {assistant.tag}
+                  </span>
                 </div>
 
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl font-bold text-brand-950 dark:text-brand-100">
+                  <span className="font-mono text-2xl font-bold text-brand-950">
                     {sharePct != null ? `${sharePct}%` : "—"}
                   </span>
-                  <span className="text-xs text-brand-400">citation share</span>
-                  <Pill tone={isWinning ? "good" : sharePct != null ? "warn" : "default"}>
+                  <span className="text-xs text-brand-500 font-medium">citation share</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                      isWinning
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : sharePct != null
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-brand-50 text-brand-600 border-brand-200"
+                    }`}
+                  >
                     {isWinning ? "Leading" : sharePct != null ? "Trailing" : "Pending probe"}
-                  </Pill>
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-3">
-                {sharePct != null ? (
-                  <MeterBar value={sharePct} tone={isWinning ? "good" : "accent"} width="100%" />
-                ) : null}
-                <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              <div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      isWinning ? "bg-emerald-500" : sharePct != null ? "bg-brand-950" : "bg-brand-300"
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(sharePct != null ? 5 : 0, sharePct ?? 0))}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-brand-500">
                   {stat ? `${stat.cited} citations out of ${stat.checked} queries` : "Run probe to measure citations"}
                 </p>
               </div>
-            </Panel>
+            </div>
           );
         })}
       </div>
 
       {/* Strategic GEO Playbook: 3 Action Pillars */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Panel className="p-4 space-y-2.5 border-l-4 border-l-blue-500">
-          <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-xs uppercase tracking-wider">
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-2.5 border-l-4 border-l-blue-500">
+          <div className="flex items-center gap-2 text-blue-700 font-bold text-xs uppercase tracking-wider">
             <Layers size={15} />
             <span>Pillar 1: Quotable Definition Blocks</span>
           </div>
-          <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+          <p className="text-xs text-brand-600 leading-relaxed">
             AI search engines ingest content through RAG chunking (typically 300–500 tokens). Pages with a clear 40–55 word direct definition right under the main H2 get extracted 3.8x more frequently into Google AI Overviews.
           </p>
-          <div className="text-[11px] font-mono text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2 rounded border border-blue-200 dark:border-blue-900">
+          <div className="rounded-lg bg-blue-50/60 border border-blue-200 p-2.5 text-[11px] font-mono text-blue-900 font-medium">
             Target: 45 words max · Bold core entity · Direct declarative syntax
           </div>
-        </Panel>
+        </div>
 
-        <Panel className="p-4 space-y-2.5 border-l-4 border-l-purple-500">
-          <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 font-bold text-xs uppercase tracking-wider">
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-2.5 border-l-4 border-l-purple-500">
+          <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider">
             <Zap size={15} />
             <span>Pillar 2: Entity Grounding & Knowledge Graph</span>
           </div>
-          <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+          <p className="text-xs text-brand-600 leading-relaxed">
             LLMs cross-reference brand authority via Schema.org JSON-LD and sameAs entity links (Wikidata, LinkedIn, Crunchbase). Unlinked brands get replaced by recognized competitors in ChatGPT Search.
           </p>
-          <div className="text-[11px] font-mono text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 p-2 rounded border border-purple-200 dark:border-purple-900">
+          <div className="rounded-lg bg-purple-50/60 border border-purple-200 p-2.5 text-[11px] font-mono text-purple-900 font-medium">
             Target: Schema Organization + sameAs Wikidata & LinkedIn links
           </div>
-        </Panel>
+        </div>
 
-        <Panel className="p-4 space-y-2.5 border-l-4 border-l-emerald-500">
-          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-2.5 border-l-4 border-l-emerald-500">
+          <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
             <Award size={15} />
             <span>Pillar 3: Information Gain & Benchmark Tables</span>
           </div>
-          <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+          <p className="text-xs text-brand-600 leading-relaxed">
             Perplexity AI and SearchGPT heavily prioritize structured comparison matrices and quantitative statistics. Generic prose is skipped in favor of competitor tables containing hard numbers.
           </p>
-          <div className="text-[11px] font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 p-2 rounded border border-emerald-200 dark:border-emerald-900">
+          <div className="rounded-lg bg-emerald-50/60 border border-emerald-200 p-2.5 text-[11px] font-mono text-emerald-900 font-medium">
             Target: Markdown / HTML tables with pricing, speed & feature specs
           </div>
-        </Panel>
+        </div>
       </div>
 
       {/* Tracked Prompts AI Recommendation Matrix */}
-      <Panel className="overflow-hidden">
-        <div className="border-b border-brand-200 dark:border-brand-800 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-brand-50/50 dark:bg-brand-900/20">
+      <div className="rounded-xl border border-brand-200 bg-white shadow-2xs overflow-hidden">
+        <div className="border-b border-brand-200 bg-brand-50/60 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-brand-950 dark:text-brand-100 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-brand-950 flex items-center gap-2">
               <span>High-Intent Commercial Query Matrix</span>
-              <Pill tone="info">{filteredPrompts.length} Prompts Monitored</Pill>
+              <span className="rounded px-2 py-0.5 text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                {filteredPrompts.length} Prompts Monitored
+              </span>
             </h3>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            <p className="text-xs text-brand-500 mt-0.5">
               Live citation verification across search assistants and diagnostic competitor gap rationale.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-brand-500">Filter Intent:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-brand-500 font-medium mr-1">Filter Intent:</span>
             {["ALL", "COMMERCIAL", "INFORMATIONAL", "TRANSACTIONAL"].map((intent) => (
               <button
                 key={intent}
                 onClick={() => setFilterIntent(intent)}
-                className={`px-2 py-1 rounded text-[11px] font-medium transition ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
                   filterIntent === intent
-                    ? "bg-brand-950 text-white dark:bg-brand-100 dark:text-brand-950 font-bold"
-                    : "bg-brand-100 dark:bg-brand-800 text-brand-600 dark:text-brand-300 hover:bg-brand-200"
+                    ? "bg-brand-950 text-white shadow-2xs"
+                    : "border border-brand-200 bg-white text-brand-600 hover:bg-brand-50 hover:text-brand-950 font-medium"
                 }`}
               >
                 {intent}
@@ -278,119 +289,142 @@ export function AiCitationMatrixPanel({
           </div>
         ) : filteredPrompts.length === 0 ? (
           <div className="p-10 text-center space-y-2">
-            <p className="text-xs font-medium text-brand-700 dark:text-brand-300">
+            <p className="text-xs font-semibold text-brand-800">
               No tracked prompts found for this workspace.
             </p>
-            <p className="text-xs text-[var(--text-muted)] max-w-md mx-auto">
+            <p className="text-xs text-brand-500 max-w-md mx-auto">
               Add commercial prompts in AI Visibility or click "Probe AI Search Engines" to initialize automated recommendation benchmarking.
             </p>
           </div>
         ) : (
-          <Table>
-            <thead>
-              <Tr>
-                <Th>Monitored Search Query</Th>
-                <Th>Intent</Th>
-                <Th>Google AI Overview</Th>
-                <Th>ChatGPT Search</Th>
-                <Th>Perplexity AI</Th>
-                <Th>Who AI Recommends</Th>
-                <Th>Gap Diagnosis</Th>
-                <Th align="right">GEO Counter-Action</Th>
-              </Tr>
-            </thead>
-            <tbody>
-              {filteredPrompts.map((prompt) => {
-                const checks = prompt.latestChecks ?? [];
-                const googleCheck = checks.find((c) => c.assistant.toLowerCase().includes("google"));
-                const chatGptCheck = checks.find((c) => c.assistant.toLowerCase().includes("chatgpt"));
-                const perplexityCheck = checks.find((c) => c.assistant.toLowerCase().includes("perplexity"));
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-brand-50/80 border-b border-brand-200">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Monitored Search Query
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Intent
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Google AI Overview
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    ChatGPT Search
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Perplexity AI
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Who AI Recommends
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600">
+                    Gap Diagnosis
+                  </th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-brand-600 text-right">
+                    GEO Counter-Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPrompts.map((prompt) => {
+                  const checks = prompt.latestChecks ?? [];
+                  const googleCheck = checks.find((c) => c.assistant.toLowerCase().includes("google"));
+                  const chatGptCheck = checks.find((c) => c.assistant.toLowerCase().includes("chatgpt"));
+                  const perplexityCheck = checks.find((c) => c.assistant.toLowerCase().includes("perplexity"));
 
-                const isCustomerCited = checks.some((c) => c.cited);
-                const allCompetitorsCited = Array.from(
-                  new Set(checks.flatMap((c) => c.competitorsCited ?? [])),
-                );
+                  const isCustomerCited = checks.some((c) => c.cited);
+                  const allCompetitorsCited = Array.from(
+                    new Set(checks.flatMap((c) => c.competitorsCited ?? [])),
+                  );
 
-                const gapDiagnosis = isCustomerCited
-                  ? "Brand cited as authoritative source. Maintain schema freshness."
-                  : allCompetitorsCited.length > 0
-                    ? `Engine cited ${allCompetitorsCited[0]} due to structured comparison matrix and high data density.`
-                    : "No direct brand citation. Engine synthesized general aggregate knowledge.";
+                  const gapDiagnosis = isCustomerCited
+                    ? "Brand cited as authoritative source. Maintain schema freshness."
+                    : allCompetitorsCited.length > 0
+                      ? `Engine cited ${allCompetitorsCited[0]} due to structured comparison matrix and high data density.`
+                      : "No direct brand citation. Engine synthesized general aggregate knowledge.";
 
-                return (
-                  <Tr key={prompt.id}>
-                    <Td>
-                      <div className="min-w-0 max-w-xs">
-                        <span className="font-medium text-xs text-brand-950 dark:text-brand-100 block truncate">
-                          "{prompt.text}"
+                  return (
+                    <tr key={prompt.id} className="border-b border-brand-100 hover:bg-brand-50/40 transition">
+                      <td className="px-4 py-3.5">
+                        <div className="min-w-0 max-w-xs">
+                          <span className="font-semibold text-xs text-brand-950 block truncate">
+                            "{prompt.text}"
+                          </span>
+                          {prompt.cluster && (
+                            <span className="text-[10.5px] text-brand-400 font-mono">
+                              Cluster: {prompt.cluster}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="rounded px-2 py-0.5 text-[10.5px] font-medium bg-brand-100 text-brand-700 border border-brand-200">
+                          {prompt.intent || "COMMERCIAL"}
                         </span>
-                        {prompt.cluster && (
-                          <span className="text-[10.5px] text-brand-400 font-mono">
-                            Cluster: {prompt.cluster}
-                          </span>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>
-                      <Pill tone="default">{prompt.intent || "COMMERCIAL"}</Pill>
-                    </Td>
-                    <Td>
-                      <EngineBadge check={googleCheck} />
-                    </Td>
-                    <Td>
-                      <EngineBadge check={chatGptCheck} />
-                    </Td>
-                    <Td>
-                      <EngineBadge check={perplexityCheck} />
-                    </Td>
-                    <Td>
-                      <div className="flex flex-wrap items-center gap-1 max-w-[160px]">
-                        {isCustomerCited && (
-                          <span className="inline-flex items-center gap-1 rounded bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            <CheckCircle2 size={10} /> You
-                          </span>
-                        )}
-                        {allCompetitorsCited.map((comp) => (
-                          <span
-                            key={comp}
-                            className="inline-flex items-center gap-1 rounded bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 truncate max-w-[120px]"
-                          >
-                            <Building2 size={10} className="shrink-0" />
-                            <span className="truncate">{comp}</span>
-                          </span>
-                        ))}
-                        {!isCustomerCited && allCompetitorsCited.length === 0 && (
-                          <span className="text-[11px] text-brand-400 italic">None cited</span>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>
-                      <p className="text-[11px] text-brand-600 dark:text-brand-400 max-w-xs leading-tight">
-                        {gapDiagnosis}
-                      </p>
-                    </Td>
-                    <Td align="right">
-                      <ActionButton
-                        variant="secondary"
-                        icon={
-                          copiedPromptId === prompt.id ? (
-                            <Check size={12} className="text-emerald-600" />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <EngineBadge check={googleCheck} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <EngineBadge check={chatGptCheck} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <EngineBadge check={perplexityCheck} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap items-center gap-1 max-w-[160px]">
+                          {isCustomerCited && (
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-bold text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 size={10} /> You
+                            </span>
+                          )}
+                          {allCompetitorsCited.map((comp) => (
+                            <span
+                              key={comp}
+                              className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-700 border border-rose-200 truncate max-w-[120px]"
+                            >
+                              <Building2 size={10} className="shrink-0" />
+                              <span className="truncate">{comp}</span>
+                            </span>
+                          ))}
+                          {!isCustomerCited && allCompetitorsCited.length === 0 && (
+                            <span className="text-[11px] text-brand-400 italic">None cited</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="text-[11.5px] text-brand-600 max-w-xs leading-relaxed">
+                          {gapDiagnosis}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <button
+                          onClick={() => handleCopyCounterPrompt(prompt)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-50 hover:border-brand-300 shadow-2xs transition"
+                        >
+                          {copiedPromptId === prompt.id ? (
+                            <>
+                              <Check size={12} className="text-emerald-600" />
+                              <span>Copied!</span>
+                            </>
                           ) : (
-                            <Copy size={12} className="text-accent-600" />
-                          )
-                        }
-                        onClick={() => handleCopyCounterPrompt(prompt)}
-                      >
-                        {copiedPromptId === prompt.id ? "Copied GEO Prompt" : "Counter-Content"}
-                      </ActionButton>
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
+                            <>
+                              <Copy size={12} className="text-brand-500" />
+                              <span>Counter-Content</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </Panel>
+      </div>
     </div>
   );
 }
@@ -409,13 +443,13 @@ function EngineBadge({
   }
   if (check.cited) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-        <CheckCircle2 size={11} className="text-emerald-500" /> Cited
+      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+        <CheckCircle2 size={11} className="text-emerald-600" /> Cited
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 dark:bg-brand-900/40 px-1.5 py-0.5 text-[11px] font-normal text-brand-500 border border-brand-200 dark:border-brand-800">
+    <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-normal text-brand-500 border border-brand-200">
       <XCircle size={11} className="text-brand-400" /> Missed
     </span>
   );

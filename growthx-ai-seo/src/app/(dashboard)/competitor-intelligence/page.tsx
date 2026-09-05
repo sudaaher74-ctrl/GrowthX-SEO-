@@ -207,14 +207,25 @@ function CompetitorIntelligenceClient() {
   const pathname = usePathname();
 
   const requestedTab = searchParams.get("tab");
-  const activeTab = TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : DEFAULT_TAB;
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    return TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : DEFAULT_TAB;
+  });
+
+  useEffect(() => {
+    if (requestedTab && TABS.some((tab) => tab.id === requestedTab) && requestedTab !== activeTab) {
+      setActiveTabState(requestedTab);
+    }
+  }, [requestedTab, activeTab]);
 
   const setActiveTab = (id: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", id);
-    // replace, not push: a tab is a view of one page, so it should not take a
-    // back press each to get out of. scroll:false keeps the page where it is.
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setActiveTabState(id);
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", id);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    } catch {
+      // ignore
+    }
   };
   const [showAddModal, setShowAddModal] = useState(false);
   const [addMode, setAddMode] = useState<"website" | "local" | "manual">("website");

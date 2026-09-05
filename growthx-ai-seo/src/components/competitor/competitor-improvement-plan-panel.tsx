@@ -530,23 +530,23 @@ ${competitorProfiles
   return (
     <div className="space-y-6">
       {/* 1. Header Strategic Agenda Banner */}
-      <div className="rounded-2xl border bg-white p-6 shadow-sm" style={{ borderColor: "var(--border-color)" }}>
+      <div className="rounded-xl border border-brand-200 bg-white p-5 shadow-2xs">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-950 text-white shadow-sm">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-950 text-white shadow-2xs">
                 <Flame size={18} className="text-amber-400" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[18px] font-bold tracking-tight text-brand-950">
+                  <h2 className="text-[16px] font-bold tracking-tight text-brand-950">
                     30-Day Competitor SEO Domination Plan
                   </h2>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 border border-emerald-200">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 border border-emerald-200">
                     Active Roadmap
                   </span>
                 </div>
-                <p className="text-[12px] text-brand-500">
+                <p className="text-[12px] text-brand-500 mt-0.5">
                   Synthesizing data from Benchmarks, Page Opportunities, and Keyword Gaps into a step-by-step roadmap to outrank your rivals.
                 </p>
               </div>
@@ -557,18 +557,16 @@ ${competitorProfiles
           <div className="flex items-center gap-2.5">
             <button
               onClick={copyPlanToClipboard}
-              className="flex items-center gap-1.5 rounded-xl border bg-white px-3.5 py-2 text-[12px] font-semibold text-brand-900 shadow-sm transition hover:bg-brand-50"
-              style={{ borderColor: "var(--border-color)" }}
+              className="flex items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-brand-800 shadow-2xs transition hover:bg-brand-50"
             >
-              {copiedPlan ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              {copiedPlan ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} className="text-brand-500" />}
               <span>{copiedPlan ? "Copied Roadmap!" : "Copy 30-Day Plan (Markdown)"}</span>
             </button>
 
             {completedCount > 0 && (
               <button
                 onClick={resetProgress}
-                className="rounded-xl border bg-brand-50/50 px-3 py-2 text-[11px] font-medium text-brand-600 transition hover:bg-brand-100"
-                style={{ borderColor: "var(--border-color)" }}
+                className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-[11px] font-medium text-brand-600 transition hover:bg-brand-100"
               >
                 Reset Progress
               </button>
@@ -577,7 +575,7 @@ ${competitorProfiles
         </div>
 
         {/* Progress Bar & Key Metric Highlights */}
-        <div className="mt-6 rounded-xl border bg-brand-50/50 p-4" style={{ borderColor: "var(--border-color)" }}>
+        <div className="mt-5 rounded-lg border border-brand-200 bg-brand-50/50 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <ListTodo size={16} className="text-brand-700" />
@@ -585,14 +583,14 @@ ${competitorProfiles
                 Sprint Execution Progress: {completedCount} of {totalTasks} Tasks Done
               </span>
             </div>
-            <span className="font-mono text-[13px] font-bold text-emerald-800">
+            <span className="font-mono text-[13px] font-bold text-emerald-700">
               {completionPct}% Complete
             </span>
           </div>
 
-          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-brand-200/60">
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-brand-200/70">
             <div
-              className="h-full rounded-full bg-emerald-600 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-emerald-500 transition-all duration-500 ease-out"
               style={{ width: `${completionPct}%` }}
             />
           </div>
@@ -619,12 +617,11 @@ ${competitorProfiles
           </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
           {competitorProfiles.map((prof) => (
             <div
               key={prof.competitorId}
-              className="rounded-2xl border bg-white p-5 shadow-sm space-y-3 transition hover:shadow-md"
-              style={{ borderColor: "var(--border-color)" }}
+              className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-3 transition hover:shadow-sm"
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -640,7 +637,7 @@ ${competitorProfiles
               </div>
 
               <div className="space-y-2 text-[12px]">
-                <div className="rounded-lg bg-brand-50/70 p-2.5 border" style={{ borderColor: "var(--border-color)" }}>
+                <div className="rounded-lg bg-brand-50/70 p-2.5 border border-brand-200">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
                     Where They Lead You
                   </span>
@@ -655,7 +652,7 @@ ${competitorProfiles
                   <p className="text-[11px] text-rose-700 font-medium mt-0.5">{prof.ourVulnerability}</p>
                 </div>
 
-                <div className="border-t pt-2" style={{ borderColor: "var(--border-color)" }}>
+                <div className="border-t border-brand-100 pt-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                     30-Day Counter-Strategy
                   </span>
@@ -676,56 +673,51 @@ ${competitorProfiles
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setSelectedWeekFilter("ALL")}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === "ALL"
-                  ? "bg-brand-950 text-white shadow-sm"
-                  : "bg-white border text-brand-700 hover:bg-brand-50"
+                  ? "bg-brand-950 text-white shadow-2xs"
+                  : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
-              style={selectedWeekFilter !== "ALL" ? { borderColor: "var(--border-color)" } : {}}
             >
               All Weeks ({roadmapTasks.length})
             </button>
             <button
               onClick={() => setSelectedWeekFilter(1)}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 1
-                  ? "bg-brand-950 text-white shadow-sm"
-                  : "bg-white border text-brand-700 hover:bg-brand-50"
+                  ? "bg-brand-950 text-white shadow-2xs"
+                  : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
-              style={selectedWeekFilter !== 1 ? { borderColor: "var(--border-color)" } : {}}
             >
               Week 1: Foundation
             </button>
             <button
               onClick={() => setSelectedWeekFilter(2)}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 2
-                  ? "bg-brand-950 text-white shadow-sm"
-                  : "bg-white border text-brand-700 hover:bg-brand-50"
+                  ? "bg-brand-950 text-white shadow-2xs"
+                  : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
-              style={selectedWeekFilter !== 2 ? { borderColor: "var(--border-color)" } : {}}
             >
               Week 2: Pages
             </button>
             <button
               onClick={() => setSelectedWeekFilter(3)}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 3
-                  ? "bg-brand-950 text-white shadow-sm"
-                  : "bg-white border text-brand-700 hover:bg-brand-50"
+                  ? "bg-brand-950 text-white shadow-2xs"
+                  : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
-              style={selectedWeekFilter !== 3 ? { borderColor: "var(--border-color)" } : {}}
             >
               Week 3: Keywords
             </button>
             <button
               onClick={() => setSelectedWeekFilter(4)}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 4
-                  ? "bg-brand-950 text-white shadow-sm"
-                  : "bg-white border text-brand-700 hover:bg-brand-50"
+                  ? "bg-brand-950 text-white shadow-2xs"
+                  : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
-              style={selectedWeekFilter !== 4 ? { borderColor: "var(--border-color)" } : {}}
             >
               Week 4: Authority
             </button>
@@ -736,8 +728,7 @@ ${competitorProfiles
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="rounded-xl border bg-white py-1.5 pl-3 pr-8 text-[12px] font-medium text-brand-900 shadow-sm focus:border-brand-950 focus:outline-none"
-              style={{ borderColor: "var(--border-color)" }}
+              className="rounded-lg border border-brand-200 bg-white py-1.5 pl-3 pr-8 text-[12px] font-medium text-brand-900 shadow-2xs focus:border-brand-950 focus:outline-none"
             >
               <option value="ALL">All Items</option>
               <option value="INCOMPLETE">To Do ({totalTasks - completedCount})</option>
@@ -749,7 +740,7 @@ ${competitorProfiles
         {/* Task Cards List */}
         <div className="space-y-3">
           {filteredTasks.length === 0 ? (
-            <div className="rounded-2xl border bg-white p-12 text-center shadow-sm" style={{ borderColor: "var(--border-color)" }}>
+            <div className="rounded-xl border border-brand-200 bg-white p-12 text-center shadow-2xs">
               <CheckCircle2 size={32} className="mx-auto text-emerald-600 mb-2" />
               <h4 className="text-[14px] font-bold text-brand-950">No tasks in this filter</h4>
               <p className="mt-1 text-[12px] text-brand-500">All tasks in this section have been completed or filtered out.</p>
@@ -762,12 +753,11 @@ ${competitorProfiles
                 <div
                   key={task.id}
                   onClick={() => toggleTask(task.id)}
-                  className={`group cursor-pointer rounded-2xl border bg-white p-5 transition hover:shadow-md ${
-                    isCompleted ? "opacity-75 bg-brand-50/20" : ""
+                  className={`group cursor-pointer rounded-xl border border-brand-200 bg-white p-4 shadow-2xs transition hover:border-brand-300 hover:shadow-xs ${
+                    isCompleted ? "opacity-75 bg-brand-50/30" : ""
                   }`}
-                  style={{ borderColor: "var(--border-color)" }}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3.5">
                     {/* Interactive Checkbox */}
                     <button
                       type="button"
@@ -789,7 +779,7 @@ ${competitorProfiles
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
-                            className={`text-[14px] font-bold transition ${
+                            className={`text-[13px] font-bold transition ${
                               isCompleted ? "text-brand-500 line-through" : "text-brand-950"
                             }`}
                           >
@@ -829,7 +819,7 @@ ${competitorProfiles
                       </p>
 
                       {/* Grounded Competitor Justification & Tags */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t text-[11px]" style={{ borderColor: "var(--border-color)" }}>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-brand-100 text-[11px]">
                         {task.competitorAdvantage ? (
                           <div className="flex items-center gap-1.5 text-brand-500">
                             <Target size={12} className="text-brand-400" />
@@ -841,7 +831,7 @@ ${competitorProfiles
 
                         <div className="flex flex-wrap items-center gap-1.5">
                           {task.tags.map((tag, idx) => (
-                            <span key={idx} className="rounded bg-brand-50 px-2 py-0.5 text-[10px] text-brand-600 border" style={{ borderColor: "var(--border-color)" }}>
+                            <span key={idx} className="rounded bg-brand-50 px-2 py-0.5 text-[10px] text-brand-600 border border-brand-200">
                               #{tag}
                             </span>
                           ))}
