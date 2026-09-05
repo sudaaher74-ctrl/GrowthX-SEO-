@@ -77,8 +77,12 @@ export class LocalSeoController {
   }
 
   @Post('reviews/:reviewId/draft')
-  async draftReviewReply(@Param('projectId') projectId: string, @Param('reviewId') reviewId: string) {
-    return this.reviewsService.draftReply(projectId, reviewId);
+  async draftReviewReply(
+    @Param('projectId') projectId: string,
+    @Param('reviewId') reviewId: string,
+    @Body() body?: { tone?: string },
+  ) {
+    return this.reviewsService.draftReply(projectId, reviewId, body?.tone);
   }
 
   @Post('reviews/:reviewId/publish')

@@ -1552,7 +1552,7 @@ export const api = {
     post<any>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
   getLocalReviews: (projectId: string) => get<LocalReview[]>(`/api/projects/${projectId}/local-seo/reviews`),
   syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
-  draftReviewReply: (projectId: string, reviewId: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, {}),
+  draftReviewReply: (projectId: string, reviewId: string, tone?: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, { tone }),
   publishReviewReply: (projectId: string, reviewId: string, replyText: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/publish`, { replyText }),
 
 

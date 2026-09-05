@@ -223,7 +223,11 @@ export function useSyncLocalReviews(projectId: string | null) {
 export function useDraftReviewReply(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (reviewId: string) => api.draftReviewReply(projectId!, reviewId),
+    mutationFn: (args: string | { reviewId: string; tone?: string }) => {
+      const reviewId = typeof args === "string" ? args : args.reviewId;
+      const tone = typeof args === "string" ? undefined : args.tone;
+      return api.draftReviewReply(projectId!, reviewId, tone);
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
   });
 }

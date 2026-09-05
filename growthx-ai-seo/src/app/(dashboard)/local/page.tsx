@@ -41,9 +41,10 @@ import {
   useApproveGbpFix,
   useRejectGbpFix,
 } from "@/hooks/use-growthx";
-import { errorMessage } from "@/lib/error-message";
 import { GeoGridPanel } from "./GeoGridPanel";
 import { ReviewsPanel } from "./ReviewsPanel";
+import { LocalCompetitorsPanel } from "./LocalCompetitorsPanel";
+import { CitationsAuditPanel } from "./CitationsAuditPanel";
 import {
   TruthfulState,
   MetricBadge,
@@ -396,34 +397,20 @@ export default function LocalPage() {
                       />
                     </div>
                   </Panel>
-                  <ReviewsPanel projectId={projectId} />
+                  <ReviewsPanel
+                    projectId={projectId}
+                    businessName={localSeo.businessName}
+                    placeId={(localSeo as any).placeId}
+                  />
                 </div>
               )}
 
               {/* Tab 3: Citations */}
               {activeTab === "citations" && (
-                <Panel title="Local Directory Citations (NAP)" subtitle="Name, address, and phone number consistency across web directories">
-                  <div className="p-6">
-                    {localSeo.citationsCount > 0 ? (
-                      <div className="space-y-4">
-                        <Kpi label="Active Verified Citations" value={localSeo.citationsCount.toString()} />
-                        <p className="text-[12px] text-brand-500">
-                          Directory listings verified on Yelp, YellowPages, Bing Places, and Apple Maps.
-                        </p>
-                      </div>
-                    ) : (
-                      <TruthfulState
-                        icon={LinkIcon}
-                        title="Citation Scan Not Run Yet"
-                        missing="No directory scan has been recorded for this local profile."
-                        whyItMatters="Inconsistent phone numbers, addresses, or duplicate listings lower Google Local Pack rankings."
-                        actionRequired="Launch directory scanner to audit citations."
-                        action={{ label: "Scan Citations", onClick: () => {}, variant: "primary" }}
-                        compact
-                      />
-                    )}
-                  </div>
-                </Panel>
+                <CitationsAuditPanel
+                  business={localSeo}
+                  onConnectClick={() => setActiveTab("profile")}
+                />
               )}
 
               {/* Tab 4: Local Rankings */}
@@ -479,26 +466,13 @@ export default function LocalPage() {
                 </Panel>
               )}
 
-              {/* Tab 5: Competitors (Public Only) */}
+              {/* Tab 5: Competitors Benchmark Matrix */}
               {activeTab === "competitors" && (
-                <Panel title="Nearby Local Competitors" subtitle="Publicly listed Google Maps businesses in your proximity">
-                  <div className="p-6 space-y-3">
-                    <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/50 p-3 text-[11.5px] text-brand-600">
-                      <ShieldAlert size={14} className="shrink-0 text-brand-500" />
-                      <span>
-                        Showing public Google Places data only. GrowthX never tracks or stores private competitor metrics.
-                      </span>
-                    </div>
-                    <p className="text-[12.5px] text-brand-500">
-                      Compare your Google Maps 3-Pack rating and review counts against nearby rivals.
-                    </p>
-                    <div className="pt-2">
-                      <ActionButton variant="secondary" onClick={() => setActiveTab("profile")}>
-                        Search Local Area Places
-                      </ActionButton>
-                    </div>
-                  </div>
-                </Panel>
+                <LocalCompetitorsPanel
+                  projectId={projectId}
+                  currentBusiness={localSeo}
+                  onOpenReviewsTab={() => setActiveTab("reviews")}
+                />
               )}
 
               {/* Tab 6: GeoGrid */}

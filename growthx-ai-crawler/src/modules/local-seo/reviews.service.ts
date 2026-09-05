@@ -44,7 +44,7 @@ export class ReviewsService {
     });
   }
 
-  async draftReply(projectId: string, reviewId: string) {
+  async draftReply(projectId: string, reviewId: string, tone?: string) {
     const review = await this.prisma.localReview.findUnique({
       where: { id: reviewId },
     });
@@ -59,14 +59,22 @@ export class ReviewsService {
 
     const businessName = business?.businessName || 'our business';
 
+    let toneInstruction = 'Maintain a courteous, polished, and professional tone.';
+    if (tone === 'WARM') {
+      toneInstruction = 'Adopt a warm, heartfelt, community-oriented tone that conveys genuine appreciation and connection.';
+    } else if (tone === 'DE_ESCALATION') {
+      toneInstruction = 'Adopt an empathetic, reassuring, solution-oriented tone. Express genuine care for their experience and focus on resolving dissatisfaction smoothly.';
+    }
+
     const prompt = `
       You are an expert customer service representative and Local SEO specialist.
-      Draft a professional, polite, and SEO-optimized response to the following Google Business Profile review.
+      Draft a response to the following Google Business Profile review.
       
       Business Name: ${businessName}
       Reviewer: ${review.authorName}
       Rating: ${review.rating} out of 5
       Review Text: ${review.text || '(No text provided)'}
+      Brand Tone Requirement: ${toneInstruction}
       
       Guidelines:
       - If it's a 5-star review, thank them sincerely and mention the specific service or product they praised (for SEO).
