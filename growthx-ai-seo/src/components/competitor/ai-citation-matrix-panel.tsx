@@ -12,6 +12,7 @@ import {
   Bot,
   RefreshCw,
   TrendingUp,
+  TrendingDown,
   Award,
   Layers,
   HelpCircle,
@@ -19,10 +20,12 @@ import {
   Check,
   Building2,
   AlertTriangle,
+  Activity,
 } from "lucide-react";
 import { useTrackedPrompts, useVisibility, useRunSweep } from "@/hooks/use-growthx";
 import type { TrackedPromptRow, VisibilityReport } from "@/lib/api-client";
 import { LoadingState } from "@/components/ui/truthful-state";
+import { SweepScheduleCard } from "./sweep-schedule-card";
 
 interface TrackedCompetitorInfo {
   id: string;
@@ -133,6 +136,13 @@ export function AiCitationMatrixPanel({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Last probed timestamp */}
+            {visibilityReport?.periodEnd && (
+              <span className="flex items-center gap-1 text-[10.5px] text-brand-400 font-mono">
+                <Clock size={11} />
+                Last probed {new Date(visibilityReport.periodEnd).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
             <button
               onClick={() => runSweep.mutate()}
               disabled={isScanning}
@@ -143,7 +153,61 @@ export function AiCitationMatrixPanel({
             </button>
           </div>
         </div>
+
+        {/* Citation Trend Sparkline — only when trend data is available */}
+        {visibilityReport?.trend && visibilityReport.trend.length >= 2 && (
+          <div className="mt-4 pt-4 border-t border-brand-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-brand-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Activity size={12} className="text-brand-500" />
+                Citation Share Trend (Last {visibilityReport.trend.length} Sweeps)
+              </span>
+              {(() => {
+                const trend = visibilityReport.trend;
+                const latest = trend[trend.length - 1]?.citationSharePct ?? 0;
+                const earliest = trend[0]?.citationSharePct ?? 0;
+                const delta = latest - earliest;
+                return (
+                  <span className={`flex items-center gap-1 text-[11px] font-semibold ${
+                    delta >= 0 ? "text-emerald-600" : "text-rose-600"
+                  }`}>
+                    {delta >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {delta >= 0 ? "+" : ""}{delta.toFixed(1)}% since first sweep
+                  </span>
+                );
+              })()}
+            </div>
+            <div className="flex items-end gap-1 h-10">
+              {visibilityReport.trend.map((point, i: number) => {
+                const maxPct = Math.max(...visibilityReport.trend!.map((p) => p.citationSharePct ?? 0), 1);
+                const heightPct = ((point.citationSharePct ?? 0) / maxPct) * 100;
+                const isLatest = i === visibilityReport.trend!.length - 1;
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col items-center justify-end group relative"
+                    title={`${point.weekStart ? new Date(point.weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Week"}: ${point.citationSharePct ?? 0}%`}
+                  >
+                    <div
+                      className={`w-full rounded-t transition-all ${
+                        isLatest ? "bg-accent-600" : "bg-brand-200 group-hover:bg-brand-400"
+                      }`}
+                      style={{ height: `${Math.max(8, heightPct)}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[9px] text-brand-400">{visibilityReport.trend[0]?.weekStart ? new Date(visibilityReport.trend[0].weekStart).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}</span>
+              <span className="text-[9px] text-brand-400">Latest</span>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Automated Visibility Sweeps Schedule */}
+      <SweepScheduleCard projectId={projectId} />
 
       {/* Engine Citation Comparison Cards */}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">

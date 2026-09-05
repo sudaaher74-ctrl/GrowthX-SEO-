@@ -31,6 +31,8 @@ import {
   Check,
   Activity,
   Layers,
+  Loader2,
+  Radar,
 } from "lucide-react";
 import {
   ActionButton,
@@ -70,6 +72,90 @@ const TABS = [
   { id: "ai-citations", label: "AI Search Matrix (GEO)" },
   { id: "improvement-plan", label: "30-Day Improvement Plan" },
 ];
+
+/**
+ * Live crawl progress strip shown below the page header while one or more
+ * competitors are being crawled. It polls automatically via the query's
+ * refetchInterval and disappears once all crawls complete.
+ */
+function CrawlStatusStrip({ competitors }: { competitors: any[] }) {
+  const crawling = competitors.filter(
+    (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
+  );
+  const done = competitors.filter(
+    (c) => c.crawlStatus === "DONE" || (c.status === "ACTIVE" && c.pagesCrawled != null && c.pagesCrawled > 0),
+  );
+
+  if (crawling.length === 0) return null;
+
+  return (
+    <div
+      className="rounded-xl border bg-gradient-to-r from-brand-50 to-white p-4 shadow-2xs"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-500 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent-600" />
+        </span>
+        <Radar size={13} className="text-accent-600" />
+        <span className="text-[12px] font-semibold text-brand-950">
+          Crawling {crawling.length} competitor{crawling.length > 1 ? "s" : ""} — auditing pages, tech health &amp; schema
+        </span>
+        <Loader2 size={12} className="animate-spin text-brand-400 ml-auto" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {crawling.map((c: any) => (
+          <div
+            key={c.id}
+            className="flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-bold text-brand-600">
+              {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11.5px] font-medium text-brand-950 truncate">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-brand-400">
+                {c.crawlStatus === "QUEUED" || c.status === "PENDING"
+                  ? "Queued — starting soon…"
+                  : c.pagesCrawled != null && c.pagesCrawled > 0
+                  ? `${c.pagesCrawled.toLocaleString()} pages indexed so far`
+                  : "Scanning site structure…"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Loader2 size={11} className="animate-spin text-accent-500" />
+            </div>
+          </div>
+        ))}
+
+        {done.map((c: any) => (
+          <div
+            key={c.id}
+            className="flex items-center gap-2.5 rounded-lg border bg-emerald-50/60 px-3 py-2"
+            style={{ borderColor: "var(--color-success-200, #a7f3d0)" }}
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-success-100 text-success-600">
+              <CheckCircle2 size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11.5px] font-medium text-brand-950 truncate">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-success-600">
+                {c.pagesCrawled != null ? `${c.pagesCrawled.toLocaleString()} pages — crawl complete` : "Crawl complete"}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-2.5 text-[10.5px] text-brand-400">
+        This page refreshes automatically every 4 seconds. Results appear once crawls finish.
+      </p>
+    </div>
+  );
+}
 
 const DEFAULT_TAB = "benchmarks";
 
@@ -244,6 +330,15 @@ function CompetitorIntelligenceClient() {
     queryKey: ["competitors", projectId],
     queryFn: () => api.listCompetitors(projectId!),
     enabled: !!projectId,
+    // Auto-poll every 4 s while any competitor is in-progress so the strip
+    // updates without the user doing anything.
+    refetchInterval: (query) => {
+      const list: any[] = query.state.data ?? [];
+      const activelyCrawling = list.some(
+        (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
+      );
+      return activelyCrawling ? 4_000 : false;
+    },
   });
 
   const addCompetitorMutation = useMutation({
@@ -488,6 +583,9 @@ function CompetitorIntelligenceClient() {
           </div>
         </StatusNote>
       )}
+
+      {/* Live Crawl Status Strip */}
+      <CrawlStatusStrip competitors={competitorsList} />
 
       {/* Public Data Privacy Disclaimer */}
       <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/50 px-3.5 py-2 text-[11.5px] text-brand-600">

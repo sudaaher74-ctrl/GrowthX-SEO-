@@ -499,32 +499,143 @@ function SearchPerformanceClient() {
             </div>
           </Panel>
 
-          {/* Striking Distance Opportunities */}
+          {/* Striking Distance Opportunities — Opportunity Cards */}
           {strikingDistance.data && strikingDistance.data.length > 0 && (
-            <Panel title="Striking Distance Opportunities (Page 2 Keywords)" subtitle="Keywords in positions 4–20 that can jump to Page 1 with minor on-page optimization">
-              <Table minWidth={700}>
+            <div className="rounded-xl border bg-white shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-brand-100)" }}>
+                <div>
+                  <h3 className="text-[13.5px] font-semibold text-brand-950 flex items-center gap-2">
+                    <TrendingUp size={15} className="text-amber-500" />
+                    Striking Distance Opportunities
+                  </h3>
+                  <p className="text-[11.5px] text-brand-500 mt-0.5">
+                    Page 2 keywords (pos. 4–20) that could jump to Page 1 with minor on-page improvements. {strikingDistance.data.length} keywords found.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+                {strikingDistance.data.slice(0, 8).map((r, i) => {
+                  const positionTier =
+                    r.position <= 10 ? "amber" :
+                    r.position <= 15 ? "orange" : "rose";
+                  const positionColor =
+                    positionTier === "amber" ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" :
+                    positionTier === "orange" ? "bg-orange-100 text-orange-800 ring-1 ring-orange-200" :
+                    "bg-rose-100 text-rose-800 ring-1 ring-rose-200";
+                  const potentialClicks = Math.round(r.impressions * 0.032);
+                  const ctrGap = Math.max(0, 0.032 - r.ctr);
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-xl border bg-gradient-to-br from-white to-brand-50/30 p-4 hover:shadow-sm transition group"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <span className={`shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full font-bold text-[11px] ${positionColor}`}>
+                          #{r.position.toFixed(0)}
+                        </span>
+                        <p className="flex-1 text-[12.5px] font-semibold text-brand-950 leading-snug line-clamp-2">
+                          {r.key}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                        <div className="rounded-lg bg-brand-50 px-2 py-1.5 border border-brand-100">
+                          <span className="block text-[13px] font-bold text-brand-950 font-mono">{num(r.impressions)}</span>
+                          <span className="text-[9.5px] text-brand-400 uppercase tracking-wider">Impressions</span>
+                        </div>
+                        <div className="rounded-lg bg-brand-50 px-2 py-1.5 border border-brand-100">
+                          <span className="block text-[13px] font-bold text-amber-700 font-mono">{pct(r.ctr)}</span>
+                          <span className="text-[9.5px] text-brand-400 uppercase tracking-wider">Current CTR</span>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 px-2 py-1.5 border border-emerald-100">
+                          <span className="block text-[13px] font-bold text-emerald-700 font-mono">+{num(potentialClicks)}</span>
+                          <span className="text-[9.5px] text-emerald-600 uppercase tracking-wider">Est. Clicks</span>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex justify-between text-[10px] text-brand-400 mb-1">
+                          <span>CTR Gap to Page 1 avg (3.2%)</span>
+                          <span className="text-amber-600 font-semibold">+{(ctrGap * 100).toFixed(1)}% potential</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-brand-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500"
+                            style={{ width: `${Math.min(100, (ctrGap / 0.032) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <a
+                        href={`/content-opportunities?q=${encodeURIComponent(r.key)}`}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-white py-1.5 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:border-brand-400 transition"
+                      >
+                        <TrendingUp size={11} />
+                        Create Content Brief
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {strikingDistance.data.length > 8 && (
+                <div className="px-5 pb-4 text-center">
+                  <span className="text-[11.5px] text-brand-400">
+                    + {strikingDistance.data.length - 8} more striking distance keywords in the full report
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CTR Opportunities Section */}
+          {ctrOpportunities.data && ctrOpportunities.data.length > 0 && (
+            <div className="rounded-xl border bg-white shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-brand-100)" }}>
+                <div>
+                  <h3 className="text-[13.5px] font-semibold text-brand-950 flex items-center gap-2">
+                    <BarChart3 size={15} className="text-blue-500" />
+                    CTR Improvement Opportunities
+                  </h3>
+                  <p className="text-[11.5px] text-brand-500 mt-0.5">
+                    Queries with high impressions but below-average click-through rates. Improve title tags and meta descriptions.
+                  </p>
+                </div>
+              </div>
+              <Table minWidth={600}>
                 <thead>
                   <tr>
                     <Th>Query</Th>
-                    <Th align="right">Position</Th>
                     <Th align="right">Impressions</Th>
-                    <Th align="right">CTR</Th>
-                    <Th align="right">Clicks</Th>
+                    <Th align="right">Current CTR</Th>
+                    <Th align="right">Avg Position</Th>
+                    <Th align="right">Est. Opportunity</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {strikingDistance.data.map((r, i) => (
-                    <Tr key={i}>
-                      <Td><span className="font-semibold text-brand-950">{r.key}</span></Td>
-                      <Td align="right"><span className="font-bold text-amber-700">#{r.position.toFixed(1)}</span></Td>
-                      <Td align="right"><span className="font-mono text-brand-500">{num(r.impressions)}</span></Td>
-                      <Td align="right"><span className="font-mono text-brand-600">{pct(r.ctr)}</span></Td>
-                      <Td align="right"><span className="font-mono font-bold text-brand-950">{num(r.clicks)}</span></Td>
-                    </Tr>
-                  ))}
+                  {ctrOpportunities.data.slice(0, 10).map((r, i) => {
+                    const estExtraClicks = Math.round(r.impressions * Math.max(0, 0.03 - r.ctr));
+                    return (
+                      <Tr key={i}>
+                        <Td><span className="font-semibold text-brand-950">{r.key}</span></Td>
+                        <Td align="right"><span className="font-mono text-brand-500">{num(r.impressions)}</span></Td>
+                        <Td align="right">
+                          <span className={`font-mono font-bold ${r.ctr < 0.01 ? "text-rose-600" : "text-amber-600"}`}>
+                            {pct(r.ctr)}
+                          </span>
+                        </Td>
+                        <Td align="right"><span className="font-mono text-brand-600">#{r.position.toFixed(1)}</span></Td>
+                        <Td align="right">
+                          <span className="font-mono font-bold text-emerald-600">+{num(estExtraClicks)} clicks</span>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
                 </tbody>
               </Table>
-            </Panel>
+            </div>
           )}
         </div>
       )}

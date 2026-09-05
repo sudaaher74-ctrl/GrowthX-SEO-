@@ -83,6 +83,14 @@ export default function UnifiedDashboardPage() {
     enabled: !!projectId,
   });
 
+  // 28-day GSC sparkline for dashboard organic panel
+  const gscSeries = useQuery({
+    queryKey: ["gsc-dash-series", projectId],
+    queryFn: () => api.gscTimeseries(projectId!, 28),
+    enabled: !!projectId && Boolean(executive.data?.connections?.searchConsole),
+    retry: false,
+  });
+
   // Health Score computation (0-100 or null if no crawl)
   const crawlCompleted = crawl.data && crawl.data.status === "COMPLETED";
   const healthScore = crawlCompleted ? (crawl.data?.healthScore ?? client?.health ?? null) : null;
@@ -420,6 +428,41 @@ export default function UnifiedDashboardPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* GSC Sparkline */}
+                {gscSeries.data && gscSeries.data.length >= 2 && (
+                  <div className="pt-2">
+                    <p className="text-[10px] font-semibold text-brand-400 uppercase tracking-wider mb-1.5">Search Clicks — 28 Day Trend</p>
+                    <div className="flex items-end gap-0.5 h-8">
+                      {gscSeries.data.map((point, i) => {
+                        const maxClicks = Math.max(...gscSeries.data!.map((p) => p.clicks ?? 0), 1);
+                        const heightPct = ((point.clicks ?? 0) / maxClicks) * 100;
+                        const isRecent = i >= gscSeries.data!.length - 3;
+                        return (
+                          <div
+                            key={i}
+                            className={`flex-1 rounded-t transition-all ${
+                              isRecent ? "bg-accent-500" : "bg-brand-200"
+                            }`}
+                            style={{ height: `${Math.max(6, heightPct)}%` }}
+                            title={`${point.date}: ${(point.clicks ?? 0).toLocaleString()} clicks`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Critical Issues Alert */}
+                {criticalCount > 0 && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2">
+                    <AlertCircle size={13} className="shrink-0 text-rose-500" />
+                    <span className="text-[11px] font-semibold text-rose-700">
+                      {criticalCount} Critical SEO issue{criticalCount > 1 ? "s" : ""} detected — fix immediately to protect rankings.
+                    </span>
+                    <Link href="/website" className="ml-auto text-[10.5px] font-bold text-rose-700 hover:underline shrink-0">Fix Now →</Link>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between text-[11px] text-brand-400 font-mono pt-2">
                   <span>Source: Google Search Console + GA4 APIs</span>

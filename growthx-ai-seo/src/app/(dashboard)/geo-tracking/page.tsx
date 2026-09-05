@@ -18,10 +18,11 @@ import {
   Sliders,
   Layers,
   Star,
+  Plus,
 } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
-import { useWorkspace } from "@/hooks/use-growthx";
+import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 
 interface GridNode {
@@ -81,11 +82,21 @@ const PRESET_KEYWORDS = [
 
 export default function GeoTrackingPage() {
   const { projectId } = useWorkspace();
+  const qc = useQueryClient();
   const [keyword, setKeyword] = useState("luxury jewellery store");
   const [businessName, setBusinessName] = useState("");
   const [gridSize, setGridSize] = useState<3 | 5>(3);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [selectedNode, setSelectedNode] = useState<GridNode | null>(null);
+
+  // AI Prompt Tracker state
+  const trackedPrompts = useTrackedPrompts(projectId);
+  const addPrompts = useAddPrompts(projectId);
+  const runSweep = useRunSweep(projectId);
+  const [newPrompt, setNewPrompt] = useState("");
+  const [newIntent, setNewIntent] = useState("COMMERCIAL");
+  const [showPromptAdd, setShowPromptAdd] = useState(false);
+  const [sweepStatus, setSweepStatus] = useState<string | null>(null);
 
   // Load connected local business name if available
   const localListing = useQuery({
@@ -146,11 +157,190 @@ export default function GeoTrackingPage() {
   return (
     <div className="flex-1 overflow-y-auto bg-brand-50">
       <PageHeader
-        title="Local Geo-Grid Map Pack Tracker"
-        subtitle="Simulate and track your Google Maps rankings across a live multi-point geo-coordinate matrix."
+        title="GEO Tracking — Local &amp; AI Visibility"
+        subtitle="Track your Google Map Pack rankings and monitor AI engine citation share across buyer intent prompts."
+        actions={
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              icon={<RefreshCw size={12} className={runSweep.isPending ? "animate-spin" : ""} />}
+              disabled={runSweep.isPending}
+              onClick={async () => {
+                setSweepStatus(null);
+                try {
+                  const res = await runSweep.mutateAsync();
+                  setSweepStatus(`Sweep complete — ${res.checksRun ?? 0} engine probes ran.`);
+                } catch (err: any) {
+                  setSweepStatus(err.message || "Sweep failed.");
+                }
+              }}
+            >
+              {runSweep.isPending ? "Probing Engines…" : "Run AI Sweep"}
+            </ActionButton>
+          </div>
+        }
       />
 
-      <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+
+        {/* ── AI Prompt Citation Tracker ───────────────────────────────────── */}
+        <div className="rounded-xl border bg-white shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
+          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--color-brand-100)" }}>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 border border-blue-200">
+                <Sparkles size={13} className="text-blue-600" />
+              </span>
+              <div>
+                <h3 className="text-[13px] font-semibold text-brand-950">AI Prompt Citation Tracker</h3>
+                <p className="text-[11px] text-brand-500">Track which buyer-intent queries get your brand cited by AI engines.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPromptAdd((v) => !v)}
+              className="flex items-center gap-1 rounded-lg border border-brand-200 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-700 hover:bg-brand-50 transition"
+            >
+              <Plus size={12} /> Add Prompt
+            </button>
+          </div>
+
+          {sweepStatus && (
+            <div className="mx-5 mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11.5px] text-emerald-700">
+              {sweepStatus}
+            </div>
+          )}
+
+          {/* Add prompt form */}
+          {showPromptAdd && (
+            <div className="mx-5 my-3 rounded-lg border border-brand-100 bg-brand-50 p-4">
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-[10.5px] font-semibold text-brand-600 uppercase tracking-wider mb-1">Prompt Text</label>
+                  <input
+                    value={newPrompt}
+                    onChange={(e) => setNewPrompt(e.target.value)}
+                    placeholder='e.g. "best digital marketing agency in Mumbai"'
+                    className="w-full h-9 rounded-lg border border-brand-200 px-3 text-[12px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
+                  />
+                </div>
+                <div className="w-36">
+                  <label className="block text-[10.5px] font-semibold text-brand-600 uppercase tracking-wider mb-1">Intent</label>
+                  <select
+                    value={newIntent}
+                    onChange={(e) => setNewIntent(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-brand-200 px-2 text-[12px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
+                  >
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="INFORMATIONAL">Informational</option>
+                    <option value="TRANSACTIONAL">Transactional</option>
+                    <option value="NAVIGATIONAL">Navigational</option>
+                  </select>
+                </div>
+                <button
+                  disabled={!newPrompt.trim() || addPrompts.isPending}
+                  onClick={async () => {
+                    if (!newPrompt.trim()) return;
+                    await addPrompts.mutateAsync([{ text: newPrompt.trim(), cluster: newIntent }]);
+                    setNewPrompt("");
+                    setShowPromptAdd(false);
+                  }}
+                  className="h-9 px-4 rounded-lg bg-brand-950 text-[12px] font-semibold text-white disabled:opacity-50 hover:bg-brand-900 transition"
+                >
+                  {addPrompts.isPending ? "Adding…" : "Add"}
+                </button>
+                <button onClick={() => setShowPromptAdd(false)} className="h-9 px-3 rounded-lg border border-brand-200 text-[12px] text-brand-600 hover:bg-brand-100">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Prompts table */}
+          {trackedPrompts.isLoading ? (
+            <div className="py-10 text-center text-[12px] text-brand-400">Loading prompts…</div>
+          ) : !trackedPrompts.data?.length ? (
+            <div className="py-12 text-center">
+              <Sparkles size={24} className="mx-auto mb-2 text-brand-200" />
+              <p className="text-[12px] font-medium text-brand-500">No prompts tracked yet</p>
+              <p className="text-[11px] text-brand-400 mt-1">Add buyer-intent queries to see if AI engines cite your brand.</p>
+              <button
+                onClick={() => setShowPromptAdd(true)}
+                className="mt-3 flex items-center gap-1 mx-auto rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-semibold text-white"
+              >
+                <Plus size={12} /> Add First Prompt
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
+              {(trackedPrompts.data ?? []).map((prompt) => {
+                const checks = prompt.latestChecks ?? [];
+                const citedCount = checks.filter((c) => c.cited).length;
+                const totalCount = checks.length;
+                const intentColor =
+                  (prompt.cluster ?? prompt.intent) === "COMMERCIAL" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                  (prompt.cluster ?? prompt.intent) === "TRANSACTIONAL" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  (prompt.cluster ?? prompt.intent) === "INFORMATIONAL" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                  "bg-brand-100 text-brand-600 border-brand-200";
+                return (
+                  <div key={prompt.id} className="px-5 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-[12.5px] font-medium text-brand-950">&#8220;{prompt.text}&#8221;</p>
+                          {(prompt.cluster ?? prompt.intent) && (
+                            <span className={`rounded border px-1.5 py-0.5 text-[9.5px] font-semibold ${intentColor}`}>
+                              {(prompt.cluster ?? prompt.intent)?.toUpperCase()}
+                            </span>
+                          )}
+                          {prompt.estimatedVolume != null && (
+                            <span className="text-[10px] text-brand-400 font-mono">{prompt.estimatedVolume.toLocaleString()} est. searches/mo</span>
+                          )}
+                        </div>
+                        {/* Citation dots per engine */}
+                        {checks.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {checks.map((check) => (
+                              <div key={check.assistant} className="flex items-center gap-1.5">
+                                <span
+                                  className={`flex h-5 w-5 items-center justify-center rounded-full text-white text-[8px] font-bold ${
+                                    check.cited ? "bg-emerald-500" : "bg-rose-400"
+                                  }`}
+                                  title={`${check.assistant}: ${check.cited ? "Cited" : "Not cited"} on ${new Date(check.checkedAt).toLocaleDateString()}`}
+                                >
+                                  {check.cited ? "✓" : "✕"}
+                                </span>
+                                <span className="text-[10px] text-brand-500">{check.assistant.replace(/_/g, " ")}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {checks.length === 0 && (
+                          <p className="mt-1 text-[10.5px] text-brand-400">Not probed yet — run an AI sweep to see citation status.</p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        {totalCount > 0 ? (
+                          <>
+                            <p className={`text-[14px] font-bold font-mono ${
+                              citedCount > 0 ? "text-emerald-600" : "text-rose-500"
+                            }`}>
+                              {citedCount}/{totalCount}
+                            </p>
+                            <p className="text-[10px] text-brand-400">engines cited</p>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-brand-300">Not probed</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Geo-Grid Scanner (unchanged below) ─────────────────────────── */}
         {/* Search & Config Bar */}
         <div className="bg-white rounded-xl border border-brand-200 p-6 shadow-sm">
           <div className="flex flex-col gap-5">
