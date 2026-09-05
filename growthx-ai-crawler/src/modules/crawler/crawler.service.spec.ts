@@ -258,4 +258,78 @@ describe('CrawlerService', () => {
       expect(fetchPage).not.toHaveBeenCalled();
     });
   });
+
+  describe('social profiles found while crawling', () => {
+    const linksTo = (...urls: string[]) => urls.map((targetUrl) => ({ targetUrl }));
+
+    function serviceWithSocialStore() {
+      const upsert = jest.fn().mockResolvedValue({});
+      const service = makeService({ prisma: { siteSocialLink: { upsert } } });
+      return { service, upsert };
+    }
+
+    it('stores each profile the page links to, against the site being crawled', async () => {
+      const { service, upsert } = serviceWithSocialStore();
+
+      await (service as any).recordSocialLinks(
+        'job1',
+        linksTo('https://www.instagram.com/clientco/', 'https://www.youtube.com/@clientco'),
+      );
+
+      expect(upsert).toHaveBeenCalledTimes(2);
+      const [instagram] = upsert.mock.calls[0];
+      // Counted against the job, so the figure stays comparable to that
+      // crawl's page total instead of accumulating over a site's whole history.
+      expect(instagram.where.crawlJobId_platform_handle).toEqual({
+        crawlJobId: 'job1',
+        platform: 'INSTAGRAM',
+        handle: '@clientco',
+      });
+      // The count is per page, and every page that carries the footer adds one.
+      expect(instagram.update.pageCount).toEqual({ increment: 1 });
+      expect(instagram.create.pageCount).toBe(1);
+    });
+
+    it('writes nothing for a page whose outbound links are not social', async () => {
+      const { service, upsert } = serviceWithSocialStore();
+
+      await (service as any).recordSocialLinks('job1', linksTo('https://partner.com/', 'https://news.site/a'));
+
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('does not fail the page when a profile cannot be stored', async () => {
+      const upsert = jest.fn().mockRejectedValue(new Error('unique violation'));
+      const service = makeService({ prisma: { siteSocialLink: { upsert } } });
+
+      await expect(
+        (service as any).recordSocialLinks('job1', linksTo('https://www.instagram.com/clientco/')),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('announcing a finished crawl', () => {
+    it('tells each registered listener which job finished and what it crawled', async () => {
+      const service = makeService();
+      const listener = jest.fn().mockResolvedValue(undefined);
+
+      service.onCrawlCompleted(listener);
+      await (service as any).announceCompletion('job1', 'w1');
+
+      expect(listener).toHaveBeenCalledWith('job1', 'w1');
+    });
+
+    // The crawl is finished and stored by this point; follow-on work failing
+    // must not un-finish it, nor stop the next listener.
+    it('carries on past a listener that throws', async () => {
+      const service = makeService();
+      const second = jest.fn().mockResolvedValue(undefined);
+
+      service.onCrawlCompleted(() => Promise.reject(new Error('discovery is down')));
+      service.onCrawlCompleted(second);
+
+      await expect((service as any).announceCompletion('job1', 'w1')).resolves.toBeUndefined();
+      expect(second).toHaveBeenCalled();
+    });
+  });
 });

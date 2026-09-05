@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,7 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api-client";
+import { api, type DiscoveryStatus, type DiscoveryStep } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -55,6 +55,21 @@ const PROJECT_TYPES = [
   { id: "saas", label: "SaaS & Software", desc: "Digital applications, recurring subscriptions, software platforms" },
   { id: "publisher", label: "Publisher / Content", desc: "Blogs, news media, high-volume informative publishing" },
   { id: "agency", label: "Agency / Client Project", desc: "Managing multi-client digital marketing and growth audits" },
+];
+
+/**
+ * The setup rows that only a person can complete, so nothing reports on them.
+ *
+ * Everything else on the checklist — the crawl, the business behind the site,
+ * its competitors, their crawls and everyone's social accounts — happens on
+ * its own once the crawl finishes and is read from the server, because a
+ * checklist the browser fills in from what it did in this session cannot say
+ * whether any of it has.
+ */
+const CONNECTION_STEPS: { id: string; label: string; href: string; status: StepStatus }[] = [
+  { id: "gsc", label: "Google Search Console Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
+  { id: "ga", label: "Google Analytics 4 Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
+  { id: "gbp", label: "Google Business Profile Connected", href: "/local", status: "NEEDS_CONNECTION" },
 ];
 
 export function OnboardingWizard({
@@ -92,17 +107,32 @@ export function OnboardingWizard({
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
 
-  // Step 5: Checklist item statuses
-  const [checklist, setChecklist] = useState<Record<string, StepStatus>>({
-    website_added: "NOT_STARTED",
-    crawl_completed: "NOT_STARTED",
-    gsc_connected: "NEEDS_CONNECTION",
-    ga_connected: "NEEDS_CONNECTION",
-    gbp_connected: "NEEDS_CONNECTION",
-    location_selected: "NOT_STARTED",
-    competitors_added: "NOT_STARTED",
-    report_ready: "NOT_STARTED",
-  });
+  const [discovery, setDiscovery] = useState<DiscoveryStatus | null>(null);
+
+  // Polled while the run is still moving. The steps fire one after another off
+  // the crawl — detect the business, identify competitors, crawl each of them,
+  // read the social profiles out of those crawls — so the customer would
+  // otherwise be looking at a page that gives no sign any of it is happening.
+  useEffect(() => {
+    if (currentStep !== 5 || !createdProjectId) return;
+
+    let cancelled = false;
+    const read = async () => {
+      try {
+        const status = await api.getDiscoveryStatus(createdProjectId);
+        if (!cancelled) setDiscovery(status);
+      } catch {
+        // The run continues on the server whether or not this poll lands.
+      }
+    };
+
+    void read();
+    const timer = setInterval(read, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [currentStep, createdProjectId]);
 
   const handleStep1Next = (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,12 +205,6 @@ export function OnboardingWizard({
       setProjectId(project.id);
       setCreatedProjectId(project.id);
 
-      // Update checklist
-      setChecklist((prev) => ({
-        ...prev,
-        website_added: "COMPLETED",
-      }));
-
       // 3. Register website
       const website = await api.registerWebsite(businessData.url.trim(), domain, project.id);
       setCreatedWebsiteId(website.id);
@@ -211,11 +235,6 @@ export function OnboardingWizard({
     setIsSubmitting(true);
     setErrorMessage("");
 
-    setChecklist((prev) => ({
-      ...prev,
-      crawl_completed: "IN_PROGRESS",
-    }));
-
     let domain = businessData.url.trim().toLowerCase();
     try {
       domain = domain.startsWith("http://") || domain.startsWith("https://") ? new URL(domain).hostname : domain;
@@ -234,11 +253,12 @@ export function OnboardingWizard({
         useSitemap: true,
       });
 
-      setChecklist((prev) => ({
-        ...prev,
-        crawl_completed: "COMPLETED",
-        report_ready: "COMPLETED",
-      }));
+      // Deliberately not marked complete here. `startCrawl` enqueues the
+      // crawl; it does not perform it. This used to tick both "Website Crawl &
+      // Health Audit" and "Executive SEO Baseline Report" the instant the
+      // request came back, so the customer was told the audit was finished
+      // while the first page was still being fetched. The checklist below now
+      // reads the server instead.
 
       // Invalidate portfolio and workspace
       await Promise.all([
@@ -249,10 +269,6 @@ export function OnboardingWizard({
 
       setCurrentStep(5);
     } catch (err: any) {
-      setChecklist((prev) => ({
-        ...prev,
-        crawl_completed: "FAILED",
-      }));
       setErrorMessage(err.message || "Failed to initiate crawl.");
     } finally {
       setIsSubmitting(false);
@@ -662,40 +678,58 @@ export function OnboardingWizard({
 
           <div className="space-y-2.5 mb-6">
             {[
-              { id: "website_added", label: "Website Added & Verified", href: "/website" },
-              { id: "crawl_completed", label: "Website Crawl & Health Audit", href: "/website" },
-              { id: "gsc_connected", label: "Google Search Console Connected", href: "/integrations" },
-              { id: "ga_connected", label: "Google Analytics 4 Connected", href: "/integrations" },
-              { id: "gbp_connected", label: "Google Business Profile Connected", href: "/local" },
-              { id: "location_selected", label: "Business Location & Niche Set", href: "/settings" },
-              { id: "competitors_added", label: "Tracked Competitors Added", href: "/competitor-intelligence" },
-              { id: "report_ready", label: "Executive SEO Baseline Report", href: "/reports" },
+              // The run the crawl sets off. Each detail line is what the
+              // server actually found, so "no competitor could be verified"
+              // reads differently from "we have not looked yet" — which is the
+              // distinction the customer needs while this is under way.
+              { id: "websiteAdded", label: "Website Added & Verified", href: "/website" },
+              { id: "websiteCrawled", label: "Website Crawl & Health Audit", href: "/website" },
+              { id: "businessIdentified", label: "Business Identified From Your Site", href: "/market-research" },
+              { id: "competitorsIdentified", label: "Competitors Identified", href: "/competitors" },
+              { id: "competitorsCrawled", label: "Competitor Sites Crawled", href: "/competitors" },
+              { id: "socialAccountsFound", label: "Social Accounts Found", href: "/content-intelligence" },
             ].map((item) => {
-              const status = checklist[item.id] || "NOT_STARTED";
+              const step = discovery?.steps?.[item.id as keyof DiscoveryStatus["steps"]];
               return (
-                <div
+                <ChecklistRow
                   key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-white"
-                  style={{ borderColor: "var(--border-color)" }}
-                >
-                  <span className="text-[12.5px] font-medium text-brand-950">{item.label}</span>
-                  <div className="flex items-center gap-2">
-                    <StatusPill status={status} />
-                    {item.href && (
-                      <button
-                        type="button"
-                        onClick={() => router.push(item.href)}
-                        className="p-1 text-brand-400 hover:text-brand-950 transition"
-                        title={`Go to ${item.label}`}
-                      >
-                        <ExternalLink size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  label={item.label}
+                  href={item.href}
+                  status={stepStatus(step)}
+                  detail={step?.detail}
+                  onNavigate={router.push}
+                />
               );
             })}
+
+            {CONNECTION_STEPS.map((item) => (
+              <ChecklistRow
+                key={item.id}
+                label={item.label}
+                href={item.href}
+                status={item.status}
+                onNavigate={router.push}
+              />
+            ))}
+
+            {/* Derived, not reported: the baseline report is written from the
+                crawl, so it is ready exactly when the crawl is. It used to be
+                ticked the moment the crawl was requested. */}
+            <ChecklistRow
+              label="Executive SEO Baseline Report"
+              href="/reports"
+              status={stepStatus(discovery?.steps?.websiteCrawled)}
+              onNavigate={router.push}
+            />
           </div>
+
+          {discovery && (
+            <p className="mb-6 text-[11.5px] text-brand-500">
+              These run on their own once the crawl finishes — identifying your business, then your
+              competitors, then crawling their sites and reading everyone&apos;s social profiles. You can
+              leave this page; it carries on without you, and competitors can be added or removed at any time.
+            </p>
+          )}
 
           <div className="flex justify-end pt-4 border-t" style={{ borderColor: "var(--border-color)" }}>
             <button
@@ -712,6 +746,68 @@ export function OnboardingWizard({
           </div>
         </motion.div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A discovery step as the checklist shows it.
+ *
+ * A step the server has not reported on yet is NOT_STARTED rather than
+ * anything more definite: before the first poll lands we know nothing about
+ * it, and saying otherwise is what made the old checklist announce a finished
+ * audit while the crawler was still on the first page.
+ */
+function stepStatus(step?: DiscoveryStep): StepStatus {
+  switch (step?.state) {
+    case "done":
+      return "COMPLETED";
+    case "running":
+      return "IN_PROGRESS";
+    case "failed":
+      return "FAILED";
+    case "skipped":
+      return "SKIPPED";
+    default:
+      return "NOT_STARTED";
+  }
+}
+
+function ChecklistRow({
+  label,
+  href,
+  status,
+  detail,
+  onNavigate,
+}: {
+  label: string;
+  href?: string;
+  status: StepStatus;
+  detail?: string;
+  onNavigate: (href: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-white"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <div className="min-w-0">
+        <span className="text-[12.5px] font-medium text-brand-950">{label}</span>
+        {detail && <p className="mt-0.5 text-[11.5px] text-brand-500 break-words">{detail}</p>}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <StatusPill status={status} />
+        {href && (
+          <button
+            type="button"
+            onClick={() => onNavigate(href)}
+            className="p-1 text-brand-400 hover:text-brand-950 transition"
+            title={`Go to ${label}`}
+          >
+            <ExternalLink size={13} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

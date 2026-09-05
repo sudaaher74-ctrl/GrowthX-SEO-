@@ -263,37 +263,19 @@ export class SocialDiscoveryService {
       detectedName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
     }
 
-    // Always guarantee social profiles for the competitor domain so tracking never returns 0
-    if (profiles.length === 0) {
-      const rootDomain = parsedDomain.split('.')[0] || 'competitor';
-      profiles.push({
-        platform: 'INSTAGRAM',
-        handle: `@${rootDomain}`,
-        profileUrl: `https://instagram.com/${rootDomain}`,
-        displayName: detectedName || parsedDomain,
-        matchConfidence: 85,
-        discoverySource: 'WEBSITE_CRAWL',
-        verificationStatus: 'VERIFIED',
-      });
-      profiles.push({
-        platform: 'YOUTUBE',
-        handle: `@${rootDomain}`,
-        profileUrl: `https://youtube.com/@${rootDomain}`,
-        displayName: detectedName || parsedDomain,
-        matchConfidence: 85,
-        discoverySource: 'WEBSITE_CRAWL',
-        verificationStatus: 'VERIFIED',
-      });
-      profiles.push({
-        platform: 'LINKEDIN',
-        handle: `company/${rootDomain}`,
-        profileUrl: `https://linkedin.com/company/${rootDomain}`,
-        displayName: detectedName || parsedDomain,
-        matchConfidence: 85,
-        discoverySource: 'WEBSITE_CRAWL',
-        verificationStatus: 'VERIFIED',
-      });
-    }
+    // No invented fallback.
+    //
+    // This used to manufacture @<domain-root> handles on Instagram, YouTube and
+    // LinkedIn whenever the scan found nothing, and store them with
+    // discoverySource WEBSITE_CRAWL, verificationStatus VERIFIED and a match
+    // confidence of 85 — none of which had happened. The comment said it was so
+    // "tracking never returns 0", and it worked: the count was never zero and
+    // was never real either. Every sweep downstream then spent quota looking up
+    // accounts nobody had ever seen, found nothing, and reported an empty
+    // competitor as an unproductive one.
+    //
+    // A business with no social presence published on its own site is a fact
+    // about that business, and reporting no profiles is how it gets said.
 
     return {
       businessName: detectedName || parsedDomain,
