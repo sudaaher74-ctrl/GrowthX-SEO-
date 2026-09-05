@@ -72,7 +72,31 @@ export function exportCalendarToMarkdown(items: CalendarItem[], projectName = 'E
   downloadFile(md, `${fileSlug}-plan.md`, 'text/markdown');
 }
 
-export function exportCompetitorDossier(competitorName: string, domain: string, pages: any[], videos: CompetitorContent[], gaps: any[]) {
+/** The page fields this dossier reads; anything else on the row is ignored. */
+interface DossierPage {
+  url?: string;
+  title?: string | null;
+  pageType?: string | null;
+  statusCode?: number | null;
+  wordCount?: number | null;
+}
+
+/** A content or catalog gap, as the opportunity endpoints return it. */
+interface DossierGap {
+  topic?: string | null;
+  title?: string | null;
+  angle?: string | null;
+  searchIntent?: string | null;
+  opportunityScore?: number | null;
+}
+
+export function exportCompetitorDossier(
+  competitorName: string,
+  domain: string,
+  pages: DossierPage[],
+  videos: CompetitorContent[],
+  gaps: DossierGap[],
+) {
   const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   
   let md = `# Competitor Intelligence Dossier: ${competitorName} (${domain})\n`;
@@ -124,7 +148,7 @@ export function exportCompetitorDossier(competitorName: string, domain: string, 
 
   if (gaps.length > 0) {
     md += `## 3. Recommended Growth Opportunities (Catalog & Content Gaps)\n\n`;
-    gaps.forEach((g: any, idx: number) => {
+    gaps.forEach((g, idx) => {
       md += `### ${idx + 1}. ${g.topic || g.title || 'Identified Gap'}\n`;
       if (g.opportunityScore != null) {
         md += `- **Opportunity Score**: ${g.opportunityScore}/100\n`;

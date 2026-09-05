@@ -357,7 +357,7 @@ export function AiCitationMatrixPanel({
               No tracked prompts found for this workspace.
             </p>
             <p className="text-xs text-brand-500 max-w-md mx-auto">
-              Add commercial prompts in AI Visibility or click "Probe AI Search Engines" to initialize automated recommendation benchmarking.
+              Add commercial prompts in AI Visibility or click &quot;Probe AI Search Engines&quot; to initialize automated recommendation benchmarking.
             </p>
           </div>
         ) : (
@@ -414,7 +414,7 @@ export function AiCitationMatrixPanel({
                       <td className="px-4 py-3.5">
                         <div className="min-w-0 max-w-xs">
                           <span className="font-semibold text-xs text-brand-950 block truncate">
-                            "{prompt.text}"
+                            &quot;{prompt.text}&quot;
                           </span>
                           {prompt.cluster && (
                             <span className="text-[10.5px] text-brand-400 font-mono">

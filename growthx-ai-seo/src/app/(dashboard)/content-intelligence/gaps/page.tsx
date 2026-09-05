@@ -51,7 +51,7 @@ export default function GapsPage() {
             </div>
             <div>
               <h1 className="text-[15px] font-semibold text-brand-950">Content Gap Analysis</h1>
-              <p className="text-[12px] text-brand-500">What competitors are doing, what you're missing, and where to differentiate.</p>
+              <p className="text-[12px] text-brand-500">What competitors are doing, what you&apos;re missing, and where to differentiate.</p>
             </div>
           </div>
           <button
@@ -82,7 +82,7 @@ export default function GapsPage() {
           <div className="rounded-xl border border-dashed bg-white py-16 text-center" style={{ borderColor: "var(--color-brand-200)" }}>
             <Target size={28} className="mx-auto mb-3 text-brand-300" />
             <p className="text-[13px] font-medium text-brand-950">No gaps analyzed yet</p>
-            <p className="mt-1 text-[12px] text-brand-500">Detect patterns first, then click "Re-analyze Gaps".</p>
+            <p className="mt-1 text-[12px] text-brand-500">Detect patterns first, then click &quot;Re-analyze Gaps&quot;.</p>
             <button onClick={() => analyzeMut.mutate()} disabled={analyzeMut.isPending}
               className="mt-4 mx-auto flex items-center gap-1.5 rounded-lg bg-warning-500 px-4 py-2 text-[12px] font-medium text-white disabled:opacity-60">
               {analyzeMut.isPending ? "Analyzing…" : "Analyze Now"}

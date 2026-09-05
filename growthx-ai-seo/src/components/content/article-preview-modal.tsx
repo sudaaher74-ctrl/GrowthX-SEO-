@@ -36,9 +36,13 @@ export function ArticlePreviewModal({
   const [activeTab, setActiveTab] = useState<PreviewTab>("reader");
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
-  if (!piece) return null;
-
-  const rawBody = piece.body || "# Draft in progress...\n\nThis content piece has not been drafted yet.";
+  // `piece` is null whenever there is nothing to preview. React matches hooks
+  // up by call order, so returning early here — above the three memos below —
+  // meant the component ran a different number of hooks depending on the prop,
+  // and crashed with "rendered more hooks than during the previous render" the
+  // moment a mounted instance went from no piece to one. The early return now
+  // happens after every hook has run.
+  const rawBody = piece?.body || "# Draft in progress...\n\nThis content piece has not been drafted yet.";
 
   // Extract GEO Answer Block if present in markdown
   const geoAnswerBlock = useMemo(() => {
@@ -53,6 +57,7 @@ export function ArticlePreviewModal({
 
   // Extract or synthesize valid Schema.org FAQ/Article JSON-LD
   const schemaJson = useMemo(() => {
+    if (!piece) return "";
     const jsonMatch = rawBody.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
     if (jsonMatch && jsonMatch[1]) {
       try {
@@ -98,6 +103,8 @@ export function ArticlePreviewModal({
     setCopiedType(type);
     setTimeout(() => setCopiedType(null), 2200);
   };
+
+  if (!piece) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">

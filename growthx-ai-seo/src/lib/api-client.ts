@@ -1798,8 +1798,16 @@ export const api = {
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
+  /**
+   * Returns the stored CompetitorDomain row, not the enriched shape
+   * `listCompetitors` builds — the scores and crawl state on that one are
+   * derived later, so only the record's own columns are typed here.
+   */
   addCompetitor: (projectId: string, domain: string, label?: string) =>
-    post(`/api/projects/${projectId}/ai-visibility/competitors`, { domain, label }),
+    post<Pick<TrackedCompetitor, "id" | "domain" | "label" | "name">>(
+      `/api/projects/${projectId}/ai-visibility/competitors`,
+      { domain, label },
+    ),
   /**
    * Reads a competitor's own site for the social profiles it links, and
    * registers them for content ingestion.
@@ -2016,11 +2024,11 @@ export const api = {
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
   removeCompetitor: async (projectId: string, competitorId: string) => {
     try {
-      return await request<{ removed: any }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
+      return await request<{ removed: number }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {
         method: "DELETE",
       });
     } catch {
-      return await request<{ removed: any }>(`/api/projects/${projectId}/action-engine/competitors/${competitorId}`, {
+      return await request<{ removed: string }>(`/api/projects/${projectId}/action-engine/competitors/${competitorId}`, {
         method: "DELETE",
       });
     }

@@ -254,7 +254,7 @@ export function ReviewsPanel({
                 </button>
               </div>
               <p className="text-[11px] text-brand-600 line-clamp-3 leading-relaxed">
-                "{smsTemplate}"
+                &quot;{smsTemplate}&quot;
               </p>
             </div>
           </div>
@@ -349,7 +349,7 @@ export function ReviewsPanel({
               <MessageSquare size={24} className="mx-auto text-brand-300 mb-2" />
               <p className="text-xs font-semibold text-brand-700">No reviews found for this profile.</p>
               <p className="text-[11.5px] text-brand-500 mt-1 max-w-sm mx-auto">
-                Click 'Sync Latest Reviews' above or send your direct review shortlink to recent customers.
+                Click &apos;Sync Latest Reviews&apos; above or send your direct review shortlink to recent customers.
               </p>
             </div>
           ) : (

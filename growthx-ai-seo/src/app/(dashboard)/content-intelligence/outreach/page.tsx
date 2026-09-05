@@ -66,7 +66,7 @@ export default function OutreachPage() {
           <div className="rounded-xl border border-dashed bg-white py-16 text-center" style={{ borderColor: "var(--color-brand-200)" }}>
             <Send size={28} className="mx-auto mb-3 text-brand-300" />
             <p className="text-[13px] font-medium text-brand-950">No outreach messages yet</p>
-            <p className="mt-1 text-[12px] text-brand-500">Go to Creator CRM, select a creator, and click "Outreach" to generate a collaboration request.</p>
+            <p className="mt-1 text-[12px] text-brand-500">Go to Creator CRM, select a creator, and click &quot;Outreach&quot; to generate a collaboration request.</p>
           </div>
         ) : (
           <div className="space-y-6">

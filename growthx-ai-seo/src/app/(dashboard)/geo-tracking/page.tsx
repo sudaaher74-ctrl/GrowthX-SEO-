@@ -24,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
 import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
+import { errorMessage } from "@/lib/error-message";
 
 interface GridNode {
   id: string;
@@ -170,8 +171,8 @@ export default function GeoTrackingPage() {
                 try {
                   const res = await runSweep.mutateAsync();
                   setSweepStatus(`Sweep complete — ${res.checksRun ?? 0} engine probes ran.`);
-                } catch (err: any) {
-                  setSweepStatus(err.message || "Sweep failed.");
+                } catch (err) {
+                  setSweepStatus(errorMessage(err));
                 }
               }}
             >

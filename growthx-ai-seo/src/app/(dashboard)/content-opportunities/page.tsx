@@ -416,7 +416,7 @@ function ContentOpportunitiesClient() {
       {activeTab === "internal-linking" && (
         <Panel title="Internal Link Graph Suggestions" subtitle="Add strategic contextual links between high-authority and striking-distance pages">
           <div className="p-6 text-center text-[12px] text-brand-400">
-            Calculated from your crawler's directed link graph to distribute PageRank efficiently.
+            Calculated from your crawler&apos;s directed link graph to distribute PageRank efficiently.
           </div>
         </Panel>
       )}

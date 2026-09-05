@@ -105,6 +105,11 @@ export function LocalCompetitorsPanel({
     }
 
     const newItem: LocalCompetitorItem = {
+      // `handleAddFromSearch` only ever runs from an onClick (line ~478), so
+      // this clock read never happens during render. The rule cannot see that,
+      // and flags this call while leaving the identical one in
+      // `handleAddManual` below alone.
+      // eslint-disable-next-line react-hooks/purity
       id: place.placeId || `comp_${Date.now()}`,
       name: place.name,
       address: place.address,

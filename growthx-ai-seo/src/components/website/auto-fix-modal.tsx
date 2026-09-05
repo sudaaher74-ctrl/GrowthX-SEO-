@@ -31,19 +31,25 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
   const [copied, setCopied] = useState(false);
   const [resolved, setResolved] = useState(false);
 
-  if (!issue) return null;
-
+  // `issue` is null whenever the modal has nothing to show. That check cannot
+  // come before the hooks below: React matches hooks up by call order, so a
+  // component that runs three fewer of them on some renders crashes with
+  // "rendered more hooks than during the previous render" the moment it is
+  // mounted with a null issue and then given one. Each memo handles the null
+  // case instead, and the early return happens once they have all run.
   const affectedPath = useMemo(() => {
+    if (!issue) return "";
     try {
       const url = new URL(issue.affectedUrl);
       return url.pathname || "/";
     } catch {
       return issue.affectedUrl;
     }
-  }, [issue.affectedUrl]);
+  }, [issue]);
 
   // Generate deterministic, accurate platform fixes based on issue type
   const fixData = useMemo(() => {
+    if (!issue) return null;
     const issueType = (issue.issueType || "").toUpperCase();
     const domain = (() => {
       try {
@@ -125,6 +131,7 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
   }, [issue, affectedPath]);
 
   const activeSnippet = useMemo(() => {
+    if (!fixData) return "";
     switch (platform) {
       case "nextjs":
         return fixData.afterNext;
@@ -140,6 +147,8 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
+
+  if (!issue || !fixData) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">

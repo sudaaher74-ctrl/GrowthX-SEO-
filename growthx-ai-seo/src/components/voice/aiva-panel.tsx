@@ -91,7 +91,7 @@ export function AivaPanel() {
                       exit={{ opacity: 0, height: 0 }}
                       className="w-full px-6 pt-5 pb-3 border-b border-white/10"
                     >
-                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ideas for "{uiPayload.topic}"</h4>
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ideas for &quot;{uiPayload.topic}&quot;</h4>
                       <ul className="space-y-3">
                         {uiPayload.items.map((idea: string, idx: number) => (
                           <li key={idx} className="flex items-start gap-3 text-[15px] text-gray-200 leading-snug">
@@ -162,7 +162,7 @@ export function AivaPanel() {
                     >
                       <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tracked Competitors</h4>
                       <div className="flex flex-wrap gap-2">
-                        {uiPayload.competitors.map((c: any, idx: number) => (
+                        {uiPayload.competitors.map((c, idx) => (
                           <div key={idx} className="px-3 py-1.5 bg-white/10 rounded-md text-sm text-white font-medium border border-white/5">
                             {c.domain}
                           </div>
@@ -205,7 +205,7 @@ export function AivaPanel() {
                           <div>
                             <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Content Pillars</span>
                             <ul className="space-y-2">
-                              {uiPayload.pillars.map((pillar: any, idx: number) => (
+                              {uiPayload.pillars.map((pillar, idx) => (
                                 <li key={idx} className="text-[14px] text-gray-300 leading-relaxed">
                                   <strong className="text-white">{pillar.name}:</strong> {pillar.description}
                                 </li>
@@ -217,7 +217,7 @@ export function AivaPanel() {
                           <div>
                             <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Top Campaigns</span>
                             <div className="space-y-3">
-                              {uiPayload.campaigns.map((camp: any, idx: number) => (
+                              {uiPayload.campaigns.map((camp, idx) => (
                                 <div key={idx} className="p-3 bg-white/5 rounded-xl border border-white/10">
                                   <h5 className="text-[13px] font-bold text-white mb-1">{camp.name}</h5>
                                   <p className="text-[12px] text-gray-400">{camp.rationale}</p>
@@ -280,7 +280,7 @@ export function AivaPanel() {
                           <div>
                             <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Recommended Content</span>
                             <div className="space-y-2">
-                              {uiPayload.recommendedContent.map((rec: any, idx: number) => (
+                              {uiPayload.recommendedContent.map((rec, idx) => (
                                 <div key={idx} className="p-2.5 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
                                   <div className="flex flex-col">
                                     <span className="text-[13px] font-semibold text-white">{rec.title}</span>
@@ -317,7 +317,7 @@ export function AivaPanel() {
                         <div>
                           <span className="text-xs font-semibold text-white uppercase tracking-wider block mb-2">Drafted Post</span>
                           <div className="text-[14px] text-gray-300 leading-relaxed whitespace-pre-wrap p-4 bg-white/5 rounded-xl border border-white/10 italic">
-                            "{uiPayload.postText}"
+                            &quot;{uiPayload.postText}&quot;
                           </div>
                         </div>
                       </div>

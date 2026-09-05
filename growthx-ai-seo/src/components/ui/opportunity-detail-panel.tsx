@@ -104,13 +104,13 @@ export function OpportunityDetailPanel({
         <div className="p-4 border-t bg-black text-green-400 font-mono text-xs overflow-auto max-h-64">
           {analysisData && (
             <div className="mb-4">
-              <div className="text-gray-400 mb-1">// Analysis Complete</div>
+              <div className="text-gray-400 mb-1">{"// Analysis Complete"}</div>
               <pre>{JSON.stringify(analysisData, null, 2)}</pre>
             </div>
           )}
           {patchData && (
             <div>
-              <div className="text-gray-400 mb-1">// Patch Generated</div>
+              <div className="text-gray-400 mb-1">{"// Patch Generated"}</div>
               <pre>{JSON.stringify(patchData, null, 2)}</pre>
             </div>
           )}

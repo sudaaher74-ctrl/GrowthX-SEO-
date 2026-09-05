@@ -22,7 +22,7 @@ import {
   relativeTime,
 } from "@/components/ui/console";
 import { LoadingState, NoDataState, FailedState } from "@/components/ui/truthful-state";
-import { api, ActionPriorityValue, ActionStatusValue, StrategyActionRow } from "@/lib/api-client";
+import { api, ActionPriorityValue, ActionStatusValue, StrategyActionRow, type ActionEngineOverview, type CompetitorFindingRow, type StrategyRunStatus, type StrategyPlan } from "@/lib/api-client";
 import { CompetitorSetup } from "./competitor-setup";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { useWorkspace } from "@/hooks/use-growthx";
@@ -205,7 +205,7 @@ function ActionEngineClient() {
   );
 }
 
-function Overview({ query }: { query: ReturnType<typeof useQuery<any>> }) {
+function Overview({ query }: { query: ReturnType<typeof useQuery<ActionEngineOverview>> }) {
   if (query.isLoading) return <LoadingState title="Reading what has been collected" />;
   if (query.isError) return <FailedState title="Overview unavailable" error={errorMessage(query.error)} />;
 
@@ -236,7 +236,7 @@ function Overview({ query }: { query: ReturnType<typeof useQuery<any>> }) {
           </p>
         ) : (
           <div className="space-y-2 py-1">
-            {data.outperformingYou.map((rival: any) => (
+            {data.outperformingYou.map((rival) => (
               <div
                 key={rival.name}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-color)] px-3 py-2.5"
@@ -263,7 +263,7 @@ function Overview({ query }: { query: ReturnType<typeof useQuery<any>> }) {
           </p>
         ) : (
           <ol className="space-y-3 py-1">
-            {data.thisWeek.map((action: any, index: number) => (
+            {data.thisWeek.map((action, index) => (
               <li key={action.id} className="rounded-lg border border-[var(--border-color)] px-3 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[12px] font-bold text-[var(--text-muted)]">{index + 1}</span>
@@ -284,7 +284,7 @@ function Overview({ query }: { query: ReturnType<typeof useQuery<any>> }) {
         )}
       </Panel>
 
-      {data.coverageGaps?.length > 0 && <CoverageGaps gaps={data.coverageGaps} />}
+      {(data.coverageGaps?.length ?? 0) > 0 && <CoverageGaps gaps={data.coverageGaps ?? []} />}
     </div>
   );
 }
@@ -293,7 +293,7 @@ function Strategy({
   query,
   projectId,
 }: {
-  query: ReturnType<typeof useQuery<any>>;
+  query: ReturnType<typeof useQuery<StrategyPlan>>;
   projectId: string;
 }) {
   const qc = useQueryClient();
@@ -342,7 +342,7 @@ function Strategy({
         </div>
       </Panel>
 
-      {data.coverageGaps?.length > 0 && <CoverageGaps gaps={data.coverageGaps} />}
+      {(data.coverageGaps?.length ?? 0) > 0 && <CoverageGaps gaps={data.coverageGaps ?? []} />}
     </div>
   );
 }
@@ -493,16 +493,16 @@ function PlatformTab({
   categories,
 }: {
   tab: TabKey;
-  query: ReturnType<typeof useQuery<any>>;
+  query: ReturnType<typeof useQuery<CompetitorFindingRow[]>>;
   categories: string[];
 }) {
   const instagramReady =
-    tab !== "instagram" || (query.data ?? []).some((finding: any) => finding.category === "INSTAGRAM");
+    tab !== "instagram" || (query.data ?? []).some((finding) => finding.category === "INSTAGRAM");
 
   if (query.isLoading) return <LoadingState title="Loading evidence" />;
   if (query.isError) return <FailedState title="Evidence unavailable" error={errorMessage(query.error)} />;
 
-  const rows = (query.data ?? []).filter((finding: any) => categories.includes(finding.category));
+  const rows = (query.data ?? []).filter((finding) => categories.includes(finding.category));
 
   // Instagram is built but contributes nothing until Meta credentials exist,
   // and an empty panel would read as "they post nothing" rather than "we are
@@ -546,8 +546,8 @@ function Activity({
   runStatus,
   overview,
 }: {
-  runStatus: ReturnType<typeof useQuery<any>>;
-  overview: ReturnType<typeof useQuery<any>>;
+  runStatus: ReturnType<typeof useQuery<StrategyRunStatus>>;
+  overview: ReturnType<typeof useQuery<ActionEngineOverview>>;
 }) {
   const status = runStatus.data;
 
@@ -571,7 +571,9 @@ function Activity({
         )}
       </Panel>
 
-      {overview.data?.coverageGaps?.length > 0 && <CoverageGaps gaps={overview.data.coverageGaps} />}
+      {(overview.data?.coverageGaps?.length ?? 0) > 0 && (
+        <CoverageGaps gaps={overview.data?.coverageGaps ?? []} />
+      )}
     </div>
   );
 }
@@ -585,11 +587,11 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FindingList({ rows }: { rows: any[] }) {
+function FindingList({ rows }: { rows: CompetitorFindingRow[] }) {
   return (
     <Panel title="What was observed" subtitle="Each row links to where it was read and when.">
       <div className="space-y-2 py-1">
-        {rows.map((finding: any) => (
+        {rows.map((finding) => (
           <div key={finding.id} className="rounded-lg border border-[var(--border-color)] px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <Pill>{CATEGORY_LABEL[finding.category] ?? finding.category}</Pill>

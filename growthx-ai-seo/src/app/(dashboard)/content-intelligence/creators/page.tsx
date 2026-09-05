@@ -230,7 +230,7 @@ export default function CreatorsPage() {
                 <button onClick={() => setOutreachCreator(null)} className="rounded-md p-1 hover:bg-brand-100"><X size={16} /></button>
               </div>
               <p className="mb-4 text-[11.5px] text-brand-500">
-                AI will draft a collaboration request for <strong className="text-brand-950">{outreachCreator.name}</strong>. You must approve it before it's sent.
+                AI will draft a collaboration request for <strong className="text-brand-950">{outreachCreator.name}</strong>. You must approve it before it&apos;s sent.
               </p>
               <div className="space-y-3">
                 <div>

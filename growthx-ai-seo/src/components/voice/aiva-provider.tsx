@@ -10,7 +10,8 @@ import { usePathname } from 'next/navigation';
 const playTone = (frequency: number, type: OscillatorType, duration: number, volume: number, startTime = 0) => {
   try {
     if (typeof window === 'undefined') return;
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContext =
+    window.AudioContext || (window as SpeechCapableWindow).webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
   const osc = ctx.createOscillator();
@@ -59,15 +60,100 @@ interface ConfirmationRequired {
   blocking: boolean;
 }
 
+/**
+ * The Web Speech API is not in TypeScript's DOM lib — it remains non-standard
+ * and vendor-prefixed — so the parts this provider uses are declared here
+ * rather than reaching for `any` at every call site.
+ */
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+interface SpeechRecognitionResultLike {
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternativeLike;
+}
+interface SpeechRecognitionResultListLike {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResultLike;
+}
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: SpeechRecognitionResultListLike;
+}
+interface SpeechRecognitionErrorEventLike {
+  error: string;
+}
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+/** Both spellings the browsers ship. */
+interface SpeechCapableWindow extends Window {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  webkitAudioContext?: typeof AudioContext;
+}
+
+/**
+ * The structured panel data a voice tool can return alongside its spoken
+ * summary. Each variant mirrors exactly what `voice-tools.service.ts` emits on
+ * the backend; the panel switches on `type` to decide what to draw.
+ */
+export type AivaUiPayload =
+  | {
+      type: 'crawl_status';
+      domain: string;
+      status: string;
+      pagesCrawled: number;
+      issuesFound: number;
+      errorMessage?: string | null;
+    }
+  | { type: 'competitor_list'; competitors: Array<{ domain: string; label?: string | null }> }
+  | {
+      type: 'audit_summary';
+      domain: string;
+      pagesCrawled: number;
+      totalIssues: number;
+      criticalCount: number;
+      highCount: number;
+    }
+  | {
+      type: 'gap_insights';
+      // Shape fixed by the JSON schema seo-competitors.service.ts asks the
+      // model for: a prose paragraph plus exactly three content ideas.
+      insights: string;
+      recommendedContent: Array<{ title: string; type: string; targetKeyword: string }>;
+      missingKeywords: string[];
+    }
+  | {
+      // `contentPillars` and `campaignIdeas` are Json columns, so only the
+      // fields the panel reads are claimed here.
+      type: 'seo_strategy';
+      pillars: Array<{ name: string; description: string }>;
+      campaigns: Array<{ name: string; rationale: string }>;
+    }
+  | { type: 'blog_ideas'; topic: string; items: string[] }
+  | { type: 'meta_tags'; targetUrl: string; title: string; description: string }
+  | { type: 'competitor_scrape_result'; url: string; target: string; extractedData: string }
+  | { type: 'social_draft'; trend: string; platform: string; postText: string };
+
 interface VoiceAgentResult {
   success: boolean;
   tool: string | null;
-  data: any;
+  data: unknown;
   spokenSummary: string;
   navigateTo?: string;
   confirmationRequired?: ConfirmationRequired;
   error?: string;
-  uiPayload?: any;
+  uiPayload?: AivaUiPayload;
 }
 
 interface AivaContextType {
@@ -82,7 +168,7 @@ interface AivaContextType {
   confirmAction: () => void;
   cancelAction: () => void;
   progressMessage: string | null;
-  uiPayload: any | null;
+  uiPayload: AivaUiPayload | null;
 }
 
 const AivaContext = createContext<AivaContextType | undefined>(undefined);
@@ -93,12 +179,15 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const [transcript, setTranscript] = useState('');
   const [assistantMessage, setAssistantMessage] = useState('How can I help you?');
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  const [uiPayload, setUiPayload] = useState<any | null>(null);
+  const [uiPayload, setUiPayload] = useState<AivaUiPayload | null>(null);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pendingConfirmation, setPendingConfirmation] = useState<{ tool: string; params: any } | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    tool: string;
+    params: Record<string, unknown>;
+  } | null>(null);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
@@ -106,6 +195,13 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const confirmActionRef = useRef<() => void>(() => {});
   const cancelActionRef = useRef<() => void>(() => {});
   const setIsOpenRef = useRef(setIsOpen);
+  // `speak` and `processTranscript` are declared further down but used by the
+  // mount effect above them. Reaching back for the declaration directly pins
+  // the effect to the very first render's copy, so later renders — and the
+  // state those closures read — never reach the speech callbacks. Same ref
+  // indirection `setIsOpenRef` already uses, kept current on every render.
+  const speakRef = useRef<(text: string, callback?: () => void) => void>(() => {});
+  const processTranscriptRef = useRef<() => void | Promise<void>>(() => {});
   const pathname = usePathname();
   
   useEffect(() => {
@@ -116,7 +212,9 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   // Initialize Speech APIs
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const speechWindow = window as SpeechCapableWindow;
+      const SpeechRecognition =
+        speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
@@ -125,7 +223,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
 
         let silenceTimeout: NodeJS.Timeout;
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
           let currentTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             currentTranscript += event.results[i][0].transcript;
@@ -170,7 +268,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           }
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
           if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'network') {
             return; // Ignore routine silences and background aborts
           }
@@ -181,7 +279,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           console.error('Speech recognition error', event.error);
           setState('error');
           setAssistantMessage('I had trouble hearing you. Please try again.');
-          speak('I had trouble hearing you. Please try again.');
+          speakRef.current('I had trouble hearing you. Please try again.');
           setTimeout(() => setState('idle'), 3000);
         };
 
@@ -215,7 +313,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   // Watch for state transitions that should trigger processing
   useEffect(() => {
     if (state === 'thinking') {
-      processTranscript();
+      processTranscriptRef.current();
     }
   }, [state]);
 
@@ -235,8 +333,8 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             auth: { token },
             transports: ['websocket'],
           });
-          socketRef.current.on(`aiva.progress.${res.sessionId}`, (payload: any) => {
-            setProgressMessage(payload.message);
+          socketRef.current.on(`aiva.progress.${res.sessionId}`, (payload: { message?: string }) => {
+            setProgressMessage(payload.message ?? null);
           });
         }
       } catch (err) {
@@ -297,7 +395,10 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       speak(res.spokenSummary, () => {
         if (res.confirmationRequired) {
           setState('confirming');
-          setPendingConfirmation({ tool: res.tool!, params: res.data ?? {} });
+          setPendingConfirmation({
+            tool: res.tool!,
+            params: (res.data as Record<string, unknown>) ?? {},
+          });
         } else if (res.success) {
           setState('completed');
           setTimeout(() => setState('idle'), 2000);
@@ -318,6 +419,18 @@ export function AivaProvider({ children }: { children: ReactNode }) {
       setTimeout(() => setState('idle'), 3000);
     }
   };
+
+  // Point the refs the effects above call through at this render's closures,
+  // so the speech callbacks always see current state rather than mount-time
+  // state. This has to sit below both declarations: reaching up to them from
+  // an effect declared earlier is the same stale-closure capture it replaces.
+  // Effects run after the commit, so the speech recognition callbacks — which
+  // only fire once the browser reports a result or an error — always find a
+  // current function here.
+  useEffect(() => {
+    speakRef.current = speak;
+    processTranscriptRef.current = processTranscript;
+  });
 
   const startListening = () => {
     if (recognitionRef.current) {

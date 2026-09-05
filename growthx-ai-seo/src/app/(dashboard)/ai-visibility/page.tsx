@@ -42,6 +42,7 @@ import {
   TruthfulKpiCard,
   LoadingState,
 } from "@/components/ui/truthful-state";
+import { errorMessage } from "@/lib/error-message";
 
 export default function AiVisibilityPage() {
   return (
@@ -70,8 +71,8 @@ function AiVisibilityClient() {
       await prompts.refetch();
       await visibility.refetch();
       setStatusMessage(`Sweep completed! Executed ${res.checksRun ?? 0} engine citation probes.`);
-    } catch (err: any) {
-      setStatusMessage(err.message || "Failed to execute visibility sweep.");
+    } catch (err) {
+      setStatusMessage(errorMessage(err));
     }
   };
 
@@ -84,7 +85,7 @@ function AiVisibilityClient() {
       setShowAddForm(false);
       await prompts.refetch();
       await handleSweep();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Add query error:", err);
     }
   };

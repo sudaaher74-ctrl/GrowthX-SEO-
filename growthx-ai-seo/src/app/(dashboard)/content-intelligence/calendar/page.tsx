@@ -55,7 +55,7 @@ function ContentItemCard({ item, onUpdateStatus }: { item: CalendarItem; onUpdat
             {item.contentPillar && <><span>·</span><span style={{ color: pillarColor }}>{item.contentPillar}</span></>}
             {item.campaign && <><span>·</span><span className="text-accent-600">{item.campaign.name}</span></>}
           </div>
-          {item.hook && <p className="mt-2 text-[11.5px] font-medium text-brand-950 italic">"{item.hook}"</p>}
+          {item.hook && <p className="mt-2 text-[11.5px] font-medium text-brand-950 italic">&quot;{item.hook}&quot;</p>}
           {item.caption && <p className="mt-1 text-[11px] text-brand-500 line-clamp-2">{item.caption}</p>}
           {item.scheduledFor && (
             <div className="mt-2 flex items-center gap-1 text-[10.5px] text-brand-400">

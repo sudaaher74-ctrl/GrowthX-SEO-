@@ -50,7 +50,7 @@ import {
   relativeTime,
 } from "@/components/ui/console";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
-import { api } from "@/lib/api-client";
+import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";
 import { WebsiteComparisonPanel } from "@/components/competitor/website-comparison";
 import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
@@ -79,7 +79,7 @@ const TABS = [
  * competitors are being crawled. It polls automatically via the query's
  * refetchInterval and disappears once all crawls complete.
  */
-function CrawlStatusStrip({ competitors }: { competitors: any[] }) {
+function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] }) {
   const crawling = competitors.filter(
     (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
   );
@@ -107,7 +107,7 @@ function CrawlStatusStrip({ competitors }: { competitors: any[] }) {
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {crawling.map((c: any) => (
+        {crawling.map((c) => (
           <div
             key={c.id}
             className="flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2"
@@ -132,7 +132,7 @@ function CrawlStatusStrip({ competitors }: { competitors: any[] }) {
           </div>
         ))}
 
-        {done.map((c: any) => (
+        {done.map((c) => (
           <div
             key={c.id}
             className="flex items-center gap-2.5 rounded-lg border bg-emerald-50/60 px-3 py-2"
@@ -334,7 +334,7 @@ function CompetitorIntelligenceClient() {
     // Auto-poll every 4 s while any competitor is in-progress so the strip
     // updates without the user doing anything.
     refetchInterval: (query) => {
-      const list: any[] = query.state.data ?? [];
+      const list = query.state.data ?? [];
       const activelyCrawling = list.some(
         (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
       );
@@ -345,7 +345,7 @@ function CompetitorIntelligenceClient() {
   const addCompetitorMutation = useMutation({
     mutationFn: (data: { domain: string; name?: string }) =>
       api.addCompetitor(projectId!, data.domain, data.name),
-    onSuccess: (newComp: any) => {
+    onSuccess: (newComp) => {
       setShowAddModal(false);
       setCompetitorDomain("");
       setCompetitorName("");
@@ -355,7 +355,7 @@ function CompetitorIntelligenceClient() {
         crawlCompetitorMutation.mutate(newComp.id);
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setFormError(err.message || "Failed to add competitor.");
     },
   });
@@ -366,7 +366,7 @@ function CompetitorIntelligenceClient() {
       setStatusMessage("Public crawler finished! Inspected rival site structure, tech health, and schema.");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setStatusMessage(err.message || "Public crawl queue request received.");
     },
   });
@@ -387,7 +387,7 @@ function CompetitorIntelligenceClient() {
       qc.invalidateQueries({ queryKey: ["visibility", projectId] });
       setCompetitorToDelete(null);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setStatusMessage(err.message || "Failed to delete competitor.");
       setCompetitorToDelete(null);
     },
@@ -411,7 +411,7 @@ function CompetitorIntelligenceClient() {
       addCompetitorMutation.mutate({ domain, name: competitorName.trim() });
     } else {
       // Local or manual
-      let domain = competitorDomain.trim() || `${competitorName.toLowerCase().replace(/\s+/g, "")}.com`;
+      const domain = competitorDomain.trim() || `${competitorName.toLowerCase().replace(/\s+/g, "")}.com`;
       addCompetitorMutation.mutate({ domain, name: competitorName.trim() });
     }
   };
@@ -425,7 +425,7 @@ function CompetitorIntelligenceClient() {
     setStatusMessage("Crawling all competitor websites... Auditing tech SEO health, page hierarchy, and schema.");
     try {
       await Promise.all(
-        competitorsList.map((c: any) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
+        competitorsList.map((c) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
       );
       await qc.invalidateQueries({ queryKey: ["competitors", projectId] });
       setStatusMessage("All competitor site audits completed and refreshed!");
@@ -440,13 +440,12 @@ function CompetitorIntelligenceClient() {
   const hasTriggeredInitialCrawl = useRef(false);
   useEffect(() => {
     if (!projectId || !competitorsList.length || hasTriggeredInitialCrawl.current) return;
-    const uncrawled = competitorsList.filter(
-      (c: any) => (c.healthScore == null || c.status === "PENDING") && !crawlCompetitorMutation.isPending
+    const uncrawled = competitorsList.filter((c) => (c.healthScore == null || c.status === "PENDING") && !crawlCompetitorMutation.isPending
     );
     if (uncrawled.length > 0) {
       hasTriggeredInitialCrawl.current = true;
       Promise.all(
-        uncrawled.map((c: any) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
+        uncrawled.map((c) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
       ).then(() => {
         qc.invalidateQueries({ queryKey: ["competitors", projectId] });
       });
@@ -461,14 +460,14 @@ function CompetitorIntelligenceClient() {
     const customerRating = localSeo.data?.rating ?? 0;
 
     const compHealthScores = competitorsList
-      .map((c: any) => c.healthScore)
+      .map((c) => c.healthScore)
       .filter((s): s is number => typeof s === "number" && s > 0);
     const avgCompHealth = compHealthScores.length
       ? Math.round(compHealthScores.reduce((a, b) => a + b, 0) / compHealthScores.length)
       : null;
 
     const compShares = competitorsList
-      .map((c: any) => {
+      .map((c) => {
         const sov = visibility.data?.shareOfVoice?.find((s) => s.domain === c.domain);
         return c.aiCitationSharePct ?? sov?.sharePct;
       })
@@ -479,14 +478,14 @@ function CompetitorIntelligenceClient() {
 
     const maxCompReviews = Math.max(
       0,
-      ...competitorsList.map((c: any) => c.reviewCount || 0)
+      ...competitorsList.map((c) => c.reviewCount || 0)
     );
 
     const totalTracked = competitorsList.length + 1;
 
     const allHealths = [
       { isYou: true, score: customerHealth },
-      ...competitorsList.map((c: any) => ({ isYou: false, score: c.healthScore || 0 })),
+      ...competitorsList.map((c) => ({ isYou: false, score: c.healthScore || 0 })),
     ].sort((a, b) => b.score - a.score);
     const healthRank = allHealths.findIndex((x) => x.isYou) + 1;
 
@@ -531,7 +530,7 @@ function CompetitorIntelligenceClient() {
         rating: customerRating,
         reviews: customerReviews,
       },
-      ...competitorsList.map((c: any) => {
+      ...competitorsList.map((c) => {
         const sov = visibility.data?.shareOfVoice?.find((s) => s.domain === c.domain);
         return {
           id: c.id,
@@ -1300,7 +1299,7 @@ function CompetitorIntelligenceClient() {
                     </div>
 
                     <div className="space-y-1 w-full max-w-[210px]">
-                      {cohortStats.customerHealth >= ((selectedCompetitor as any).healthScore || 0) ? (
+                      {cohortStats.customerHealth >= (selectedCompetitor.healthScore || 0) ? (
                         <span className="flex items-center justify-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-[10.5px] font-semibold text-emerald-700">
                           <Check size={12} /> Tech Health Advantage
                         </span>
@@ -1370,19 +1369,19 @@ function CompetitorIntelligenceClient() {
                       <div>
                         <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
                         <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {(selectedCompetitor as any).healthScore != null ? `${(selectedCompetitor as any).healthScore}/100` : "Ready"}
+                          {selectedCompetitor.healthScore != null ? `${selectedCompetitor.healthScore}/100` : "Ready"}
                         </div>
                       </div>
                       <div>
                         <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
                         <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {(selectedCompetitor as any).aiCitationSharePct != null ? `${(selectedCompetitor as any).aiCitationSharePct}%` : "—"}
+                          {selectedCompetitor.aiCitationSharePct != null ? `${selectedCompetitor.aiCitationSharePct}%` : "—"}
                         </div>
                       </div>
                       <div>
                         <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
                         <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {(selectedCompetitor as any).reviewCount != null ? (selectedCompetitor as any).reviewCount.toLocaleString() : "—"}
+                          {selectedCompetitor.reviewCount != null ? selectedCompetitor.reviewCount.toLocaleString() : "—"}
                         </div>
                       </div>
                     </div>
@@ -1523,20 +1522,20 @@ function CompetitorIntelligenceClient() {
                                 </Td>
                                 <Td align="right">
                                   <StarRatingDisplay
-                                    rating={(comp as any).rating}
-                                    reviews={(comp as any).reviewCount}
+                                    rating={comp.rating}
+                                    reviews={comp.reviewCount}
                                   />
                                 </Td>
                                 <Td align="right">
-                                  {(comp as any).aiCitationSharePct != null ? (
+                                  {comp.aiCitationSharePct != null ? (
                                     <div className="flex flex-col items-end gap-1 min-w-[70px]">
                                       <span className="font-mono text-[12px] text-brand-700">
-                                        {(comp as any).aiCitationSharePct}%
+                                        {comp.aiCitationSharePct}%
                                       </span>
                                       <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
                                         <div
                                           className="h-full rounded-full bg-brand-400"
-                                          style={{ width: `${Math.min(100, Math.max(0, (comp as any).aiCitationSharePct))}%` }}
+                                          style={{ width: `${Math.min(100, Math.max(0, comp.aiCitationSharePct))}%` }}
                                         />
                                       </div>
                                     </div>
@@ -1545,7 +1544,7 @@ function CompetitorIntelligenceClient() {
                                   )}
                                 </Td>
                                 <Td align="right">
-                                  <HealthScoreBar score={(comp as any).healthScore} />
+                                  <HealthScoreBar score={comp.healthScore} />
                                 </Td>
                                 <Td align="right">
                                   <div className="flex items-center justify-end gap-1.5">

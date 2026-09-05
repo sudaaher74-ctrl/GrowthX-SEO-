@@ -196,7 +196,7 @@ export default function CompetitorWorkspacePage() {
               <div className="rounded-xl border border-dashed bg-white py-16 text-center" style={{ borderColor: "var(--color-brand-200)" }}>
                 <Crosshair size={28} className="mx-auto mb-3 text-brand-300" />
                 <p className="text-[13px] font-medium text-brand-950">No competitor accounts yet</p>
-                <p className="mt-1 text-[12px] text-brand-500">Add a competitor's Instagram, YouTube, or Facebook account to start tracking.</p>
+                <p className="mt-1 text-[12px] text-brand-500">Add a competitor&apos;s Instagram, YouTube, or Facebook account to start tracking.</p>
                 <button onClick={() => setShowAdd(true)} className="mt-4 flex items-center gap-1.5 rounded-lg bg-accent-600 px-4 py-2 text-[12px] font-medium text-white mx-auto">
                   <Plus size={13} /> Add First Account
                 </button>

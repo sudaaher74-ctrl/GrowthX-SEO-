@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 import { api, type DiscoveryStatus, type DiscoveryStep } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { useQueryClient } from "@tanstack/react-query";
+// Aliased: this component already has an `errorMessage` state variable.
+import { errorMessage as toErrorMessage } from "@/lib/error-message";
 
 export type StepStatus =
   | "NOT_STARTED"
@@ -223,8 +225,8 @@ export function OnboardingWizard({
       }
 
       setCurrentStep(4);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to initialize business project.");
+    } catch (err) {
+      setErrorMessage(toErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -268,8 +270,8 @@ export function OnboardingWizard({
       ]);
 
       setCurrentStep(5);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to initiate crawl.");
+    } catch (err) {
+      setErrorMessage(toErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

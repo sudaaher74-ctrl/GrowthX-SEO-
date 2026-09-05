@@ -258,7 +258,7 @@ export function VideoScriptGeneratorModal({
                       <span className="text-xs font-bold text-brand-950 dark:text-brand-100">{h.name}</span>
                       <Pill tone={selectedHookIndex === idx ? "good" : "default"}>{h.tone}</Pill>
                     </div>
-                    <p className="text-[11px] text-brand-700 dark:text-brand-300 italic line-clamp-3">"{h.spoken}"</p>
+                    <p className="text-[11px] text-brand-700 dark:text-brand-300 italic line-clamp-3">&quot;{h.spoken}&quot;</p>
                   </div>
                   <span className="text-[10px] text-brand-500 font-semibold pt-2">
                     {selectedHookIndex === idx ? "✓ Selected Hook" : "Click to select"}
@@ -299,7 +299,7 @@ export function VideoScriptGeneratorModal({
                       <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block mb-0.5">
                         Teleprompter / Voiceover:
                       </span>
-                      <p className="text-brand-950 dark:text-brand-100 font-medium">"{scene.audio}"</p>
+                      <p className="text-brand-950 dark:text-brand-100 font-medium">&quot;{scene.audio}&quot;</p>
                     </div>
                   </div>
                 </div>

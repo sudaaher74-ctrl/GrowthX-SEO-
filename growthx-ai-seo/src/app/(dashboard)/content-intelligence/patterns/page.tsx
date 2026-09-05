@@ -159,7 +159,7 @@ export default function PatternsPage() {
               <div className="rounded-xl border border-dashed bg-white py-16 text-center shadow-2xs" style={{ borderColor: "var(--color-brand-200)" }}>
                 <Layers size={28} className="mx-auto mb-3 text-brand-300" />
                 <p className="text-[13px] font-medium text-brand-950">No patterns detected yet</p>
-                <p className="mt-1 text-[12px] text-brand-500">Add competitor content and run classification first, then click "Re-detect Patterns".</p>
+                <p className="mt-1 text-[12px] text-brand-500">Add competitor content and run classification first, then click &quot;Re-detect Patterns&quot;.</p>
                 <button
                   onClick={() => detectMut.mutate()}
                   disabled={detectMut.isPending}
@@ -286,7 +286,7 @@ export default function PatternsPage() {
               <div className="rounded-xl border border-dashed bg-white py-16 text-center shadow-2xs" style={{ borderColor: "var(--color-brand-200)" }}>
                 <Target size={28} className="mx-auto mb-3 text-brand-300" />
                 <p className="text-[13px] font-medium text-brand-950">No content gaps found for this filter</p>
-                <p className="mt-1 text-[12px] text-brand-500">Click "Re-analyze Gaps" to generate opportunities from detected competitor patterns.</p>
+                <p className="mt-1 text-[12px] text-brand-500">Click &quot;Re-analyze Gaps&quot; to generate opportunities from detected competitor patterns.</p>
                 <button
                   onClick={() => analyzeGapsMut.mutate()}
                   disabled={analyzeGapsMut.isPending}

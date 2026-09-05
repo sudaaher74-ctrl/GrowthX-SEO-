@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, X, Loader2, PenLine, Target, Layers, HelpCircle } from "lucide-react";
 import { ActionButton, Pill } from "@/components/ui/console";
 import { useCreateContentPiece, useDraftContent } from "@/hooks/use-growthx";
+import { errorMessage } from "@/lib/error-message";
 
 interface CreateArticleModalProps {
   projectId: string;
@@ -51,8 +52,8 @@ export function CreateArticleModal({ projectId, onClose, onSuccess }: CreateArti
 
       onSuccess?.();
       onClose();
-    } catch (err: any) {
-      setError(err?.message || "Failed to create content piece. Please try again.");
+    } catch (err) {
+      setError(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

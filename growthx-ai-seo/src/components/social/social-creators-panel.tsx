@@ -188,7 +188,7 @@ export function SocialCreatorsPanel({
             </h2>
             <p className="text-xs text-brand-200 leading-relaxed">
               Scale your social reach with vetted video creators, UGC specialists, and vertical short-form producers.
-              Review their verified social profiles and click <span className="font-semibold text-white">"Talk With Us"</span> to initiate branded campaigns.
+              Review their verified social profiles and click <span className="font-semibold text-white">&quot;Talk With Us&quot;</span> to initiate branded campaigns.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -461,7 +461,7 @@ export function SocialCreatorsPanel({
                   <h4 className="text-sm font-bold text-brand-950">Collaboration Brief Dispatched!</h4>
                   <p className="text-xs text-brand-600 max-w-sm mx-auto leading-relaxed">
                     Thank you! Your inquiry has been forwarded to{" "}
-                    <span className="font-semibold text-brand-950">{activeCreatorForContact.name}</span>'s team.
+                    <span className="font-semibold text-brand-950">{activeCreatorForContact.name}</span>&apos;s team.
                     We will review your campaign requirements and contact you within 24 hours.
                   </p>
                   <div className="pt-2">
