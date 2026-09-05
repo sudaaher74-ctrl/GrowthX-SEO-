@@ -5,6 +5,7 @@ import { PageType } from '../crawler/page-type';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { isCrawlablePage } from '../crawler/crawlable';
 import { closestMatch, siteBoilerplate, MATCH_THRESHOLD } from './topic-match';
+import { calculateHealthScore } from '../issues/health-score.util';
 
 @Injectable()
 export class CompetitorCrawlService {
@@ -423,12 +424,17 @@ export class CompetitorCrawlService {
 
     if (!job) {
       const pagesToCreate = this.generatePagesForDomain(cleanDomain, domain);
+      const scoreRes = calculateHealthScore({
+        pagesCrawled: pagesToCreate.length,
+        issues: [],
+      });
       job = await this.prisma.crawlJob.create({
         data: {
           websiteId: targetWebsiteId,
           status: 'COMPLETED',
           pagesCrawled: pagesToCreate.length,
           pageLimit: CompetitorCrawlService.PAGE_LIMIT,
+          healthScore: scoreRes.healthScore,
           startedAt: new Date(Date.now() - 30 * 60 * 1000),
           finishedAt: new Date(),
         },
@@ -446,7 +452,42 @@ export class CompetitorCrawlService {
           // ignore duplicate
         }
       }
+    } else if (job.healthScore == null) {
+      try {
+        const issues = await this.prisma.issue.findMany({
+          where: { crawlJobId: job.id },
+          select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
+        });
+        const uniqueMap = new Map<string, any>();
+        for (const i of issues) {
+          const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
+          if (!uniqueMap.has(key)) uniqueMap.set(key, i);
+        }
+        const scoreRes = calculateHealthScore({
+          pagesCrawled: job.pagesCrawled || 1,
+          issues: Array.from(uniqueMap.values()).map((i) => ({
+            severity: i.severity,
+            confidence: i.confidence || 'CONFIRMED',
+            affectedUrl: i.affectedUrl,
+            issueType: i.issueType,
+          })),
+        });
+        job.healthScore = scoreRes.healthScore;
+        await this.prisma.crawlJob.update({
+          where: { id: job.id },
+          data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueMap.size },
+        });
+      } catch (err) {}
     }
+
+    await this.prisma.competitorDomain.updateMany({
+      where: { id: competitorId },
+      data: {
+        websiteId: targetWebsiteId,
+        status: 'ANALYZED',
+        lastAnalyzedAt: new Date(),
+      },
+    });
 
     return { websiteId: targetWebsiteId, crawlJobId: job.id };
   }

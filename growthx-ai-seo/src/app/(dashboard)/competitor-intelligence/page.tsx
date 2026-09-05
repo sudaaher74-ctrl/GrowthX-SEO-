@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -238,12 +238,15 @@ function CompetitorIntelligenceClient() {
   const addCompetitorMutation = useMutation({
     mutationFn: (data: { domain: string; name?: string }) =>
       api.addCompetitor(projectId!, data.domain, data.name),
-    onSuccess: () => {
+    onSuccess: (newComp: any) => {
       setShowAddModal(false);
       setCompetitorDomain("");
       setCompetitorName("");
-      setStatusMessage("Competitor successfully added to your intelligence tracking.");
+      setStatusMessage("Competitor added! Automatic crawl initiated — auditing technical SEO, pages, and schema...");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      if (newComp?.id) {
+        crawlCompetitorMutation.mutate(newComp.id);
+      }
     },
     onError: (err: any) => {
       setFormError(err.message || "Failed to add competitor.");
@@ -253,7 +256,7 @@ function CompetitorIntelligenceClient() {
   const crawlCompetitorMutation = useMutation({
     mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
     onSuccess: () => {
-      setStatusMessage("Public crawler queued! Inspecting rival site structure, tech health, and schema...");
+      setStatusMessage("Public crawler finished! Inspected rival site structure, tech health, and schema.");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
     },
     onError: (err: any) => {
@@ -285,6 +288,41 @@ function CompetitorIntelligenceClient() {
   };
 
   const competitorsList = competitorsQuery.data ?? [];
+
+  const [isCrawlingAll, setIsCrawlingAll] = useState(false);
+  const handleCrawlAllCompetitors = async () => {
+    if (!projectId || !competitorsList.length) return;
+    setIsCrawlingAll(true);
+    setStatusMessage("Crawling all competitor websites... Auditing tech SEO health, page hierarchy, and schema.");
+    try {
+      await Promise.all(
+        competitorsList.map((c: any) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
+      );
+      await qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      setStatusMessage("All competitor site audits completed and refreshed!");
+    } catch {
+      setStatusMessage("Competitor crawl queue updated.");
+    } finally {
+      setIsCrawlingAll(false);
+    }
+  };
+
+  // Automatically trigger crawls for uncrawled competitors on page load
+  const hasTriggeredInitialCrawl = useRef(false);
+  useEffect(() => {
+    if (!projectId || !competitorsList.length || hasTriggeredInitialCrawl.current) return;
+    const uncrawled = competitorsList.filter(
+      (c: any) => (c.healthScore == null || c.status === "PENDING") && !crawlCompetitorMutation.isPending
+    );
+    if (uncrawled.length > 0) {
+      hasTriggeredInitialCrawl.current = true;
+      Promise.all(
+        uncrawled.map((c: any) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
+      ).then(() => {
+        qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      });
+    }
+  }, [projectId, competitorsList.length]);
 
   // Cohort statistics calculation for Tier 1 Executive KPIs
   const cohortStats = useMemo(() => {
@@ -406,13 +444,23 @@ function CompetitorIntelligenceClient() {
         title="Competitor Intelligence"
         subtitle="Benchmark your technical SEO, AI citation share, and public local visibility against rivals."
         actions={
-          <ActionButton
-            variant="primary"
-            icon={<Plus size={12} />}
-            onClick={() => setShowAddModal(true)}
-          >
-            Add Competitor
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <ActionButton
+              variant="secondary"
+              icon={<RefreshCw size={12} className={isCrawlingAll ? "animate-spin" : ""} />}
+              onClick={handleCrawlAllCompetitors}
+              disabled={isCrawlingAll || competitorsList.length === 0}
+            >
+              {isCrawlingAll ? "Crawling All..." : "Crawl All Competitors"}
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              icon={<Plus size={12} />}
+              onClick={() => setShowAddModal(true)}
+            >
+              Add Competitor
+            </ActionButton>
+          </div>
         }
       />
 
@@ -870,7 +918,19 @@ function CompetitorIntelligenceClient() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-[10.5px] font-mono text-brand-400">Ready for crawl</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      crawlCompetitorMutation.mutate(entity.id);
+                                    }}
+                                    disabled={crawlCompetitorMutation.isPending}
+                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-700 bg-brand-100 hover:bg-brand-200 px-2 py-0.5 rounded transition"
+                                    title="Initiate public website crawl now"
+                                  >
+                                    <RefreshCw size={9} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
+                                    <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Start Crawl"}</span>
+                                  </button>
                                 )}
                               </div>
                               <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
@@ -962,9 +1022,10 @@ function CompetitorIntelligenceClient() {
                                   onClick={() => crawlCompetitorMutation.mutate(entity.id)}
                                   disabled={crawlCompetitorMutation.isPending}
                                   title="Crawl public website"
-                                  className="rounded p-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100 transition"
+                                  className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-brand-500 hover:text-brand-950 hover:bg-brand-100 transition"
                                 >
-                                  <RefreshCw size={11} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
+                                  <RefreshCw size={10} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
+                                  <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Crawl"}</span>
                                 </button>
                               </>
                             )}

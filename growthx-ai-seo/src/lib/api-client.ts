@@ -1229,6 +1229,12 @@ export interface TrackedCompetitor {
   instagramHandle: string | null;
   status: string;
   lastAnalyzedAt: string | null;
+  healthScore?: number | null;
+  pagesCrawled?: number;
+  crawlStatus?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
+  aiCitationSharePct?: number | null;
   socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
 }
 

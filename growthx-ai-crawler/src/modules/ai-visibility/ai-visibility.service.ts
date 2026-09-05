@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AiAssistant, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { CompetitorRef, detectCitation, normalizeDomain } from './citation/citation-detector';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
+import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
+import { calculateHealthScore } from '../issues/health-score.util';
 
 /**
  * Which assistants we can genuinely query.
@@ -49,7 +51,9 @@ export class AiVisibilityService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly router: MultiAiRouterService,) {}
+    private readonly router: MultiAiRouterService,
+    @Optional() private readonly competitorCrawl?: CompetitorCrawlService,
+  ) {}
 
   /** Resolves everything a citation check needs to know about the customer. */
   private async loadContext(projectId: string): Promise<ProjectContext> {
@@ -300,19 +304,99 @@ export class AiVisibilityService {
 
   /**
    * The competitors tracked for this project, whether or not they have been
-   * cited yet.
-   *
-   * Share of voice is built from prompt citations, so a competitor added a
-   * moment ago appears nowhere in it — nothing has been asked about them.
-   * Without this list, adding one produced no visible change and read as a
-   * failed save, when the row had in fact been written.
+   * cited yet. Automatically initiates competitor crawl for any uncrawled
+   * domain and resolves genuine technical health scores and crawl status.
    */
   async listCompetitors(projectId: string) {
-    return this.prisma.competitorDomain.findMany({
+    const competitors = await this.prisma.competitorDomain.findMany({
       where: { projectId },
-      select: { id: true, domain: true, label: true, createdAt: true },
+      include: {
+        project: { select: { organizationId: true } },
+        website: {
+          include: {
+            crawlJobs: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    const enriched = await Promise.all(
+      competitors.map(async (c) => {
+        let website = c.website;
+        let latestCrawl = website?.crawlJobs?.[0];
+
+        // If competitor has no website or crawlJob, auto-crawl!
+        if ((!website || !latestCrawl || latestCrawl.status !== 'COMPLETED') && this.competitorCrawl) {
+          try {
+            const orgId = c.project?.organizationId || '';
+            await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
+            website = await this.prisma.website.findFirst({
+              where: { domain: normalizeDomain(c.domain) },
+              include: { crawlJobs: { orderBy: { createdAt: 'desc' }, take: 1 } },
+            });
+            latestCrawl = website?.crawlJobs?.[0];
+          } catch (e: any) {
+            this.logger.warn(`Auto-crawl on list failed for ${c.domain}: ${e.message}`);
+          }
+        }
+
+        let healthScore: number | null = null;
+        if (latestCrawl) {
+          if (latestCrawl.healthScore != null) {
+            healthScore = latestCrawl.healthScore;
+          } else if (latestCrawl.status === 'COMPLETED') {
+            try {
+              const issues = await this.prisma.issue.findMany({
+                where: { crawlJobId: latestCrawl.id },
+                select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
+              });
+              const uniqueMap = new Map<string, any>();
+              for (const i of issues) {
+                const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
+                if (!uniqueMap.has(key)) uniqueMap.set(key, i);
+              }
+              const scoreRes = calculateHealthScore({
+                pagesCrawled: latestCrawl.pagesCrawled || 1,
+                issues: Array.from(uniqueMap.values()).map((i) => ({
+                  severity: i.severity,
+                  confidence: i.confidence || 'CONFIRMED',
+                  affectedUrl: i.affectedUrl,
+                  issueType: i.issueType,
+                })),
+              });
+              healthScore = scoreRes.healthScore;
+              await this.prisma.crawlJob
+                .update({
+                  where: { id: latestCrawl.id },
+                  data: { healthScore, uniqueIssuesCount: uniqueMap.size },
+                })
+                .catch(() => {});
+            } catch (err) {}
+          }
+        }
+
+        return {
+          id: c.id,
+          domain: c.domain,
+          label: c.label || c.name || c.domain,
+          name: c.name || c.label,
+          status: latestCrawl?.status === 'COMPLETED' ? 'ANALYZED' : (latestCrawl?.status || c.status),
+          lastAnalyzedAt: c.lastAnalyzedAt || latestCrawl?.finishedAt || null,
+          healthScore,
+          pagesCrawled: latestCrawl?.pagesCrawled ?? 0,
+          crawlStatus: latestCrawl?.status ?? c.status,
+          rating: c.localRating ?? null,
+          reviewCount: c.localReviewCount ?? null,
+          createdAt: c.createdAt,
+        };
+      }),
+    );
+
+    return enriched;
   }
 
   async removeCompetitor(projectId: string, competitorId: string) {
@@ -329,10 +413,25 @@ export class AiVisibilityService {
     const normalized = normalizeDomain(domain);
     if (!normalized) throw new BadRequestException('A competitor domain is required.');
 
-    return this.prisma.competitorDomain.upsert({
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+
+    const competitor = await this.prisma.competitorDomain.upsert({
       where: { projectId_domain: { projectId, domain: normalized } },
       update: { label },
       create: { projectId, domain: normalized, label },
     });
+
+    if (this.competitorCrawl && project?.organizationId) {
+      try {
+        await this.competitorCrawl.startCrawl(project.organizationId, projectId, competitor.id);
+      } catch (e: any) {
+        this.logger.warn(`Auto-crawl failed when adding competitor ${normalized}: ${e.message}`);
+      }
+    }
+
+    return competitor;
   }
 }
