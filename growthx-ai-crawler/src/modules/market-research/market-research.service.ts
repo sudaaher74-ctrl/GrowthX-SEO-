@@ -25,7 +25,7 @@ import * as cheerio from 'cheerio';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { SocialDiscoveryService } from '../content-intelligence/social-discovery.service';
-import { BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
+import { BusinessProfilePatch, BusinessProfileService, DetectedBusinessProfile } from './business-profile.service';
 import { CompetitorVerificationService, RejectedCompetitor, VerifiableCompetitor } from './competitor-verification.service';
 import { CompetitorDiscoveryService } from './competitor-discovery.service';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
@@ -208,7 +208,7 @@ export class MarketResearchService {
   async setBusinessProfile(
     organizationId: string,
     projectId: string,
-    patch: { industry?: string; businessName?: string; region?: 'worldwide' | 'india' | 'maharashtra' },
+    patch: BusinessProfilePatch,
   ): Promise<DetectedBusinessProfile | null> {
     await this.assertProjectInOrg(organizationId, projectId);
     if (!this.businessProfiles) return null;

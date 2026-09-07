@@ -792,6 +792,11 @@ model ProjectBusinessProfile {
   city            String?
   state           String?
   country         String?
+  /// Street address and phone, as given by the operator during setup. Not
+  /// detected: a website rarely states either unambiguously, and a guess here
+  /// would be published as the business's own contact details.
+  address         String?
+  phone           String?
   /// Competitor search scope implied by the location: worldwide | india | maharashtra.
   suggestedRegion String   @default("worldwide")
   seedKeywords    String[]

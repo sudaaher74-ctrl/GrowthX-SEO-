@@ -1,5 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Configuration
+
+`NEXT_PUBLIC_API_URL` is required, and points at the crawler API this frontend
+talks to (for example `https://growthx-crawler-api.onrender.com`, or
+`http://localhost:3000` when running the API locally).
+
+It is read by `next build`, not at runtime — Next inlines `NEXT_PUBLIC_*` into
+the bundle — so it has to be set wherever the build happens: the project's
+environment variables on Vercel, or the `NEXT_PUBLIC_API_URL` build arg on the
+Docker image. Setting it only as a container runtime variable has no effect on
+an already built bundle.
+
+The build fails naming this variable if it is missing. It used to fall back to
+the hosted production API for any host that was not localhost, so a preview or
+staging deploy that forgot it read and wrote real customer records without
+saying so.
+
 ## Getting Started
 
 First, run the development server:

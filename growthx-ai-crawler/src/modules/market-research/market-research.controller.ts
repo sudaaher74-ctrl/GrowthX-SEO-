@@ -8,7 +8,7 @@ import { OutcomeMeasurementService } from './outcome-measurement.service';
 import { WeeklyDeltaService } from './weekly-delta.service';
 import { MarketWatchKind } from '@prisma/client';
 import { MarketActionStatus } from '@prisma/client';
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsNumber, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AskQuestionDto {
@@ -61,6 +61,16 @@ export class AutoIdentifyCompetitorsDto {
 }
 
 /** An operator correcting what the platform detected about their business. */
+/**
+ * What an operator may tell us about their own business.
+ *
+ * Setup collects the location, the offering, the business type and the contact
+ * details, and this DTO accepted none of them — `ValidationPipe` runs with
+ * `whitelist: true`, so everything not listed here was stripped before the
+ * service saw it and the wizard's whole form beyond name and industry went
+ * nowhere. An omitted field leaves the detected value alone rather than
+ * blanking it.
+ */
 export class BusinessProfileOverrideDto {
   @IsString()
   @IsOptional()
@@ -69,6 +79,43 @@ export class BusinessProfileOverrideDto {
   @IsString()
   @IsOptional()
   businessName?: string;
+
+  /** "B2B", "E-commerce", "SaaS" — how they sell, in the operator's terms. */
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  businessModel?: string;
+
+  /** Concrete products or services, as named by the operator. */
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  offerings?: string[];
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  city?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  state?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  country?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(300)
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  phone?: string;
 
   @IsString()
   @IsOptional()
