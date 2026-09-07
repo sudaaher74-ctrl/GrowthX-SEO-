@@ -856,15 +856,33 @@ export interface GridNode {
   lng: number;
   distanceKm: number;
   direction: string;
-  rank: number;
+  /** Null when the business did not appear in the results here at all. */
+  rank: number | null;
   businessFound: boolean;
+  /** How many results the source actually returned at this coordinate. */
+  resultCount: number;
   topCompetitors: {
     name: string;
     rank: number;
     rating?: number;
     reviewsCount?: number;
     distanceKm?: number;
+    isClient: boolean;
   }[];
+}
+
+export interface GeoGridRunSummary {
+  id: string;
+  keyword: string;
+  gridSize: number;
+  radiusKm: number;
+  averageRank: number | null;
+  foundCount: number;
+  top3Count: number;
+  top10Count: number;
+  pointCount: number;
+  source: string;
+  ranAt: string;
 }
 
 export interface GeoGridScanRequest {
@@ -872,7 +890,7 @@ export interface GeoGridScanRequest {
   businessName?: string;
   lat?: number;
   lng?: number;
-  gridSize?: 3 | 5;
+  gridSize?: 3 | 5 | 7 | 9;
   radiusKm?: number;
 }
 
@@ -883,13 +901,19 @@ export interface GeoGridScanResult {
   gridSize: number;
   radiusKm: number;
   scannedAt: string;
+  /** Identifier of the stored run, so it can be compared with earlier ones. */
+  runId: string;
+  /** Where the ranks came from, e.g. "GOOGLE_PLACES". */
+  source: string;
   metrics: {
-    averageGridRank: number;
+    /** Mean of the ranks actually observed. Null when found nowhere. */
+    averageGridRank: number | null;
     top3DominancePercentage: number;
     top1Count: number;
     top3Count: number;
     top10Count: number;
     unrankedCount: number;
+    foundCount: number;
   };
   nodes: GridNode[];
   aiGeoActionPlan: {
@@ -1864,6 +1888,10 @@ export const api = {
   rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
   runGeoGridScan: (projectId: string, body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: number; radiusKm?: number }) =>
     post<GeoGridScanResult>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
+  getGeoGridHistory: (projectId: string, keyword?: string) =>
+    get<GeoGridRunSummary[]>(
+      `/api/projects/${projectId}/local-seo/geo-grid/history${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`,
+    ),
   getLocalReviews: (projectId: string) => get<LocalReview[]>(`/api/projects/${projectId}/local-seo/reviews`),
   syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
   draftReviewReply: (projectId: string, reviewId: string, tone?: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, { tone }),

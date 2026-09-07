@@ -43,7 +43,7 @@ describe('ContentAgentService', () => {
           crawledAt: new Date('2026-08-01'),
         }),
       },
-      localLocation: { findUnique: jest.fn().mockResolvedValue(null) },
+      localLocation: { findFirst: jest.fn().mockResolvedValue(null) },
       contentPiece: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn(async ({ data }: any) => ({ id: 'piece_1', ...data })),

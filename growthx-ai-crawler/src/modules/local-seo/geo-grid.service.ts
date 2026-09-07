@@ -1,7 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
+
+export interface GridCompetitor {
+  name: string;
+  rank: number;
+  placeId?: string;
+  rating?: number;
+  reviewsCount?: number;
+  isClient: boolean;
+}
 
 export interface GridNode {
   id: string;
@@ -11,15 +20,18 @@ export interface GridNode {
   lng: number;
   distanceKm: number;
   direction: string;
-  rank: number; // 1 to 20 (21 represents 20+)
+  /**
+   * Where the business placed here, or null when it did not appear at all.
+   *
+   * Null rather than a sentinel like 21: "absent from the results" and "placed
+   * last" are different facts, and a heat map that renders them identically
+   * tells the operator something untrue.
+   */
+  rank: number | null;
   businessFound: boolean;
-  topCompetitors: {
-    name: string;
-    rank: number;
-    rating?: number;
-    reviewsCount?: number;
-    distanceKm?: number;
-  }[];
+  /** How many results the source actually returned at this coordinate. */
+  resultCount: number;
+  topCompetitors: GridCompetitor[];
 }
 
 export interface GeoGridScanRequest {
@@ -27,24 +39,29 @@ export interface GeoGridScanRequest {
   businessName?: string;
   lat?: number;
   lng?: number;
-  gridSize?: 3 | 5; // 3x3 or 5x5
-  radiusKm?: number; // e.g. 5km, 10km
+  gridSize?: 3 | 5 | 7 | 9;
+  radiusKm?: number;
 }
 
 export interface GeoGridScanResult {
+  runId: string;
   keyword: string;
   businessName: string;
   centerCoordinates: { lat: number; lng: number };
   gridSize: number;
   radiusKm: number;
   scannedAt: string;
+  source: string;
   metrics: {
-    averageGridRank: number;
+    /** Mean of the ranks actually observed. Null when found nowhere. */
+    averageGridRank: number | null;
     top3DominancePercentage: number;
     top1Count: number;
     top3Count: number;
     top10Count: number;
+    /** Coordinates where the business did not appear in the results at all. */
     unrankedCount: number;
+    foundCount: number;
   };
   nodes: GridNode[];
   aiGeoActionPlan: {
@@ -87,6 +104,12 @@ const AI_GEO_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+const VALID_GRID_SIZES = [3, 5, 7, 9] as const;
+/** Google Places returns at most 20 results per query. */
+const MAX_RESULTS_PER_POINT = 20;
+/** Concurrent Places calls. A 9x9 grid is 81 lookups; unbounded fan-out gets rate limited. */
+const LOOKUP_CONCURRENCY = 5;
+
 @Injectable()
 export class GeoGridService {
   private readonly logger = new Logger(GeoGridService.name);
@@ -96,48 +119,97 @@ export class GeoGridService {
     private readonly router: MultiAiRouterService,
   ) {}
 
+  /**
+   * Measures a keyword at every coordinate of an N x N grid and stores the run.
+   *
+   * Every rank here comes from a Google Places query issued at that coordinate.
+   * The previous implementation computed ranks from a distance formula plus a
+   * "quadrant bias", invented competitor names from a template, and hardcoded
+   * their ratings and review counts — a heat map that looked plausible and
+   * described nothing. That is the same failure already fixed in business
+   * search, review sync and citation counts, and it is why this method refuses
+   * rather than degrades when it has no source to measure with.
+   */
   async runGeoGridScan(
     projectId: string,
     organizationId: string,
     params: GeoGridScanRequest,
   ): Promise<GeoGridScanResult> {
-    const keyword = params.keyword.trim();
-    const gridSize = params.gridSize === 5 ? 5 : 3;
-    const radiusKm = params.radiusKm || 5;
-
-    // Resolve location and business name from project or location profile
-    let businessName = params.businessName?.trim();
-    let centerLat = params.lat;
-    let centerLng = params.lng;
-
-    if (!businessName || !centerLat || !centerLng) {
-      const [location, project] = await Promise.all([
-        this.prisma.localLocation.findUnique({ where: { projectId } }),
-        this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
-      ]);
-
-      businessName = businessName || location?.businessName || project?.name || 'My Local Business';
-      // Default to coordinates if not provided (e.g. SF, Mumbai, or London fallback)
-      centerLat = centerLat || 19.0760; // Mumbai / default commercial center
-      centerLng = centerLng || 72.8777;
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!apiKey) {
+      throw new ServiceUnavailableException(
+        'Geo-grid scanning is unavailable: GOOGLE_PLACES_API_KEY is not configured. ' +
+          'Set it to enable Google Places rank lookups; no grid can be measured without it.',
+      );
     }
 
-    this.logger.log(`Running ${gridSize}x${gridSize} geo-grid scan for "${businessName}" keyword: "${keyword}" radius: ${radiusKm}km`);
+    const keyword = params.keyword?.trim();
+    if (!keyword) {
+      throw new ServiceUnavailableException('A keyword is required to run a geo-grid scan.');
+    }
 
-    // Generate grid matrix
-    const nodes = this.generateGridNodes(centerLat, centerLng, gridSize, radiusKm, businessName, keyword);
+    const gridSize = (VALID_GRID_SIZES as readonly number[]).includes(params.gridSize ?? 0)
+      ? (params.gridSize as number)
+      : 3;
+    const radiusKm = params.radiusKm && params.radiusKm > 0 ? params.radiusKm : 5;
 
-    // Compute Metrics
-    const totalNodes = nodes.length;
-    const validRanks = nodes.map((n) => n.rank);
-    const averageGridRank = Number((validRanks.reduce((a, b) => a + b, 0) / totalNodes).toFixed(1));
-    const top1Count = nodes.filter((n) => n.rank === 1).length;
-    const top3Count = nodes.filter((n) => n.rank <= 3).length;
-    const top10Count = nodes.filter((n) => n.rank <= 10).length;
-    const unrankedCount = nodes.filter((n) => n.rank > 20).length;
-    const top3DominancePercentage = Math.round((top3Count / totalNodes) * 100);
+    const [location, project] = await Promise.all([
+      this.prisma.localLocation.findFirst({ where: { projectId } }),
+      this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+    ]);
 
-    // AI Geo-Dominance Strategy
+    const businessName = params.businessName?.trim() || location?.businessName || project?.name;
+    if (!businessName) {
+      throw new ServiceUnavailableException(
+        'Geo-grid scanning needs a business name to look for. Add a location profile to this project, ' +
+          'or pass a business name with the request.',
+      );
+    }
+
+    const centerLat = params.lat ?? location?.latitude;
+    const centerLng = params.lng ?? location?.longitude;
+    if (centerLat == null || centerLng == null) {
+      // The previous code defaulted to central Mumbai whenever coordinates were
+      // missing, which silently measured a grid around the wrong city.
+      throw new ServiceUnavailableException(
+        'Geo-grid scanning needs the coordinates of the business. Add latitude and longitude to the ' +
+          "project's location profile, or pass lat and lng with the request.",
+      );
+    }
+
+    this.logger.log(
+      `Geo-grid ${gridSize}x${gridSize} for "${businessName}" keyword "${keyword}" radius ${radiusKm}km`,
+    );
+
+    const coordinates = this.gridCoordinates(centerLat, centerLng, gridSize, radiusKm);
+    const nodes = await this.measureNodes(coordinates, keyword, businessName, radiusKm, gridSize, apiKey);
+
+    const found = nodes.filter((n) => n.rank != null).map((n) => n.rank as number);
+    const averageGridRank = found.length
+      ? Number((found.reduce((a, b) => a + b, 0) / found.length).toFixed(1))
+      : null;
+    const top1Count = found.filter((r) => r === 1).length;
+    const top3Count = found.filter((r) => r <= 3).length;
+    const top10Count = found.filter((r) => r <= 10).length;
+    const unrankedCount = nodes.length - found.length;
+    const top3DominancePercentage = Math.round((top3Count / nodes.length) * 100);
+
+    const run = await this.persistRun({
+      projectId,
+      locationId: location?.id ?? null,
+      keyword,
+      gridSize,
+      centerLat,
+      centerLng,
+      radiusKm,
+      averageRank: averageGridRank,
+      foundCount: found.length,
+      top3Count,
+      top10Count,
+      pointCount: nodes.length,
+      nodes,
+    });
+
     const aiGeoActionPlan = await this.generateAiActionPlan(
       businessName,
       keyword,
@@ -150,12 +222,14 @@ export class GeoGridService {
     );
 
     return {
+      runId: run.id,
       keyword,
       businessName,
       centerCoordinates: { lat: centerLat, lng: centerLng },
       gridSize,
       radiusKm,
-      scannedAt: new Date().toISOString(),
+      scannedAt: run.ranAt.toISOString(),
+      source: run.source,
       metrics: {
         averageGridRank,
         top3DominancePercentage,
@@ -163,6 +237,7 @@ export class GeoGridService {
         top3Count,
         top10Count,
         unrankedCount,
+        foundCount: found.length,
       },
       nodes,
       aiGeoActionPlan: aiGeoActionPlan.plan as any,
@@ -170,103 +245,238 @@ export class GeoGridService {
     };
   }
 
-  private generateGridNodes(
+  /**
+   * Previous runs for a project, newest first.
+   *
+   * The point of storing runs: a single grid is a snapshot, and "are we gaining
+   * ground in the north-east" needs the ones before it.
+   */
+  async history(projectId: string, keyword?: string, limit = 20) {
+    return this.prisma.geoGridRun.findMany({
+      where: { projectId, ...(keyword ? { keyword } : {}) },
+      orderBy: { ranAt: 'desc' },
+      take: Math.min(limit, 100),
+      select: {
+        id: true,
+        keyword: true,
+        gridSize: true,
+        radiusKm: true,
+        averageRank: true,
+        foundCount: true,
+        top3Count: true,
+        top10Count: true,
+        pointCount: true,
+        source: true,
+        ranAt: true,
+      },
+    });
+  }
+
+  /** One stored run with every coordinate and the businesses seen there. */
+  async run(runId: string) {
+    return this.prisma.geoGridRun.findUnique({
+      where: { id: runId },
+      include: {
+        points: {
+          orderBy: [{ row: 'asc' }, { col: 'asc' }],
+          include: { competitors: { orderBy: { rank: 'asc' } } },
+        },
+      },
+    });
+  }
+
+  private async persistRun(input: {
+    projectId: string;
+    locationId: string | null;
+    keyword: string;
+    gridSize: number;
+    centerLat: number;
+    centerLng: number;
+    radiusKm: number;
+    averageRank: number | null;
+    foundCount: number;
+    top3Count: number;
+    top10Count: number;
+    pointCount: number;
+    nodes: GridNode[];
+  }) {
+    return this.prisma.geoGridRun.create({
+      data: {
+        projectId: input.projectId,
+        locationId: input.locationId,
+        keyword: input.keyword,
+        gridSize: input.gridSize,
+        centerLat: input.centerLat,
+        centerLng: input.centerLng,
+        radiusKm: input.radiusKm,
+        averageRank: input.averageRank,
+        foundCount: input.foundCount,
+        top3Count: input.top3Count,
+        top10Count: input.top10Count,
+        pointCount: input.pointCount,
+        points: {
+          create: input.nodes.map((node) => ({
+            row: node.row,
+            col: node.col,
+            lat: node.lat,
+            lng: node.lng,
+            distanceKm: node.distanceKm,
+            direction: node.direction,
+            rank: node.rank,
+            resultCount: node.resultCount,
+            competitors: {
+              create: node.topCompetitors.map((c) => ({
+                rank: c.rank,
+                name: c.name,
+                placeId: c.placeId ?? null,
+                rating: c.rating ?? null,
+                reviewCount: c.reviewsCount ?? null,
+                isClient: c.isClient,
+              })),
+            },
+          })),
+        },
+      },
+    });
+  }
+
+  /** Runs the per-coordinate lookups with a bounded number in flight. */
+  private async measureNodes(
+    coordinates: Omit<GridNode, 'rank' | 'businessFound' | 'topCompetitors' | 'resultCount'>[],
+    keyword: string,
+    businessName: string,
+    radiusKm: number,
+    gridSize: number,
+    apiKey: string,
+  ): Promise<GridNode[]> {
+    // The radius each lookup is biased to: half a grid step, so neighbouring
+    // coordinates probe distinguishable areas rather than all returning the
+    // same city-wide result set.
+    const stepKm = gridSize > 1 ? (2 * radiusKm) / (gridSize - 1) : radiusKm;
+    const biasRadiusM = Math.max(500, Math.round((stepKm / 2) * 1000));
+
+    const nodes: GridNode[] = new Array(coordinates.length);
+    let cursor = 0;
+
+    const worker = async () => {
+      while (cursor < coordinates.length) {
+        const index = cursor++;
+        const coord = coordinates[index];
+        const results = await this.placesRankAt(keyword, coord.lat, coord.lng, biasRadiusM, apiKey);
+        const clientIndex = results.findIndex((r) => namesMatch(r.name, businessName));
+
+        nodes[index] = {
+          ...coord,
+          rank: clientIndex >= 0 ? clientIndex + 1 : null,
+          businessFound: clientIndex >= 0,
+          resultCount: results.length,
+          topCompetitors: results.slice(0, 5).map((r, i) => ({
+            name: r.name,
+            rank: i + 1,
+            placeId: r.placeId,
+            rating: r.rating,
+            reviewsCount: r.reviewsCount,
+            isClient: i === clientIndex,
+          })),
+        };
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(LOOKUP_CONCURRENCY, coordinates.length) }, () => worker()),
+    );
+
+    return nodes;
+  }
+
+  /** The ranked Places results for a keyword, as seen from one coordinate. */
+  private async placesRankAt(
+    keyword: string,
+    lat: number,
+    lng: number,
+    biasRadiusM: number,
+    apiKey: string,
+  ): Promise<{ placeId: string; name: string; rating?: number; reviewsCount?: number }[]> {
+    let response: Response;
+    try {
+      response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.rating,places.userRatingCount',
+        },
+        body: JSON.stringify({
+          textQuery: keyword,
+          maxResultCount: MAX_RESULTS_PER_POINT,
+          locationBias: {
+            circle: { center: { latitude: lat, longitude: lng }, radius: biasRadiusM },
+          },
+        }),
+      });
+    } catch (err) {
+      throw new BadGatewayException(
+        `Google Places lookup failed at ${lat},${lng}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      let message = `Google Places API returned HTTP ${response.status}`;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed?.error?.message) message = `Google Places API error (${response.status}): ${parsed.error.message}`;
+      } catch {
+        if (body) message += `: ${body}`;
+      }
+      this.logger.error(message);
+      throw new BadGatewayException(message);
+    }
+
+    const data = await response.json();
+    return (data.places || []).map((place: any) => ({
+      placeId: place.id,
+      name: place.displayName?.text || 'Unknown',
+      rating: place.rating ?? undefined,
+      reviewsCount: place.userRatingCount ?? undefined,
+    }));
+  }
+
+  /** The coordinates of the grid. Geometry only — no ranks are implied here. */
+  private gridCoordinates(
     centerLat: number,
     centerLng: number,
     gridSize: number,
     radiusKm: number,
-    businessName: string,
-    keyword: string,
-  ): GridNode[] {
-    const nodes: GridNode[] = [];
+  ): Omit<GridNode, 'rank' | 'businessFound' | 'topCompetitors' | 'resultCount'>[] {
     const kmPerLatDegree = 111.32;
     const kmPerLngDegree = 111.32 * Math.cos((centerLat * Math.PI) / 180);
-
     const halfGrid = Math.floor(gridSize / 2);
-    const stepKm = (2 * radiusKm) / (gridSize - 1);
+    const stepKm = gridSize > 1 ? (2 * radiusKm) / (gridSize - 1) : 0;
 
-    const competitorPool = [
-      `${keyword.split(' ')[0]} Hub`,
-      `Apex ${keyword.split(' ')[0]} Solutions`,
-      `Premier Local ${keyword.split(' ')[0]}`,
-      `Urban ${keyword.split(' ')[0]} Center`,
-      `Metro Services`,
-    ];
+    const coords: Omit<GridNode, 'rank' | 'businessFound' | 'topCompetitors' | 'resultCount'>[] = [];
 
     for (let r = 0; r < gridSize; r++) {
       for (let c = 0; c < gridSize; c++) {
         const offsetRow = r - halfGrid;
         const offsetCol = c - halfGrid;
+        const deltaYKm = -offsetRow * stepKm; // north is positive
+        const deltaXKm = offsetCol * stepKm; // east is positive
 
-        const deltaYKm = -offsetRow * stepKm; // North is positive
-        const deltaXKm = offsetCol * stepKm;  // East is positive
-
-        const nodeLat = Number((centerLat + deltaYKm / kmPerLatDegree).toFixed(6));
-        const nodeLng = Number((centerLng + deltaXKm / kmPerLngDegree).toFixed(6));
-
-        const distFromCenter = Number(Math.sqrt(deltaXKm * deltaXKm + deltaYKm * deltaYKm).toFixed(2));
-
-        // Determine cardinal direction label
-        let dir = 'Center';
-        if (offsetRow < 0 && offsetCol === 0) dir = 'North';
-        else if (offsetRow > 0 && offsetCol === 0) dir = 'South';
-        else if (offsetRow === 0 && offsetCol > 0) dir = 'East';
-        else if (offsetRow === 0 && offsetCol < 0) dir = 'West';
-        else if (offsetRow < 0 && offsetCol > 0) dir = 'North-East';
-        else if (offsetRow < 0 && offsetCol < 0) dir = 'North-West';
-        else if (offsetRow > 0 && offsetCol > 0) dir = 'South-East';
-        else if (offsetRow > 0 && offsetCol < 0) dir = 'South-West';
-
-        // Proximity-based ranking decay simulation:
-        // Center is usually rank 1-2, ranking decreases with distance + some quadrant noise
-        let baseRank = 1;
-        if (distFromCenter === 0) {
-          baseRank = 1;
-        } else {
-          // Distance penalty: ~1 rank drop per 1.5km + direction bias
-          const distancePenalty = Math.floor(distFromCenter / 1.5);
-          const quadrantBias = (offsetRow * 2 + offsetCol * 3 + 7) % 4; // realistic variance
-          baseRank = Math.min(21, 1 + distancePenalty + quadrantBias);
-        }
-
-        // Generate top 3 competitors at this node
-        const topCompetitors = [
-          {
-            name: baseRank === 1 ? businessName : competitorPool[(r + c) % competitorPool.length],
-            rank: 1,
-            rating: 4.8,
-            reviewsCount: 184 + r * 12,
-          },
-          {
-            name: baseRank === 2 ? businessName : competitorPool[(r + c + 1) % competitorPool.length],
-            rank: 2,
-            rating: 4.6,
-            reviewsCount: 92 + c * 8,
-          },
-          {
-            name: baseRank === 3 ? businessName : competitorPool[(r + c + 2) % competitorPool.length],
-            rank: 3,
-            rating: 4.4,
-            reviewsCount: 65 + r * 5,
-          },
-        ];
-
-        nodes.push({
+        coords.push({
           id: `node-${r}-${c}`,
           row: r,
           col: c,
-          lat: nodeLat,
-          lng: nodeLng,
-          distanceKm: distFromCenter,
-          direction: dir,
-          rank: baseRank,
-          businessFound: baseRank <= 20,
-          topCompetitors,
+          lat: Number((centerLat + deltaYKm / kmPerLatDegree).toFixed(6)),
+          lng: Number((centerLng + deltaXKm / kmPerLngDegree).toFixed(6)),
+          distanceKm: Number(Math.sqrt(deltaXKm * deltaXKm + deltaYKm * deltaYKm).toFixed(2)),
+          direction: cardinalDirection(offsetRow, offsetCol),
         });
       }
     }
 
-    return nodes;
+    return coords;
   }
 
   private async generateAiActionPlan(
@@ -274,29 +484,33 @@ export class GeoGridService {
     keyword: string,
     radiusKm: number,
     gridSize: number,
-    agr: number,
+    agr: number | null,
     top3Share: number,
     nodes: GridNode[],
     organizationId: string,
   ) {
-    const weakNodes = nodes.filter((n) => n.rank > 3);
-    const redNodes = nodes.filter((n) => n.rank > 9);
+    const absent = nodes.filter((n) => n.rank == null);
+    const weakNodes = nodes.filter((n) => n.rank != null && (n.rank as number) > 3);
+    const redNodes = nodes.filter((n) => n.rank != null && (n.rank as number) > 9);
 
     const systemPrompt = `You are a Local SEO & Google Business Profile (GBP) algorithm engineer.
 Analyze the local Geo-Grid rank heatmap data for the client and write an aggressive, high-ROI geo-expansion plan.
-Identify exactly why proximity decay is occurring in weaker quadrants and provide tactical recommendations (e.g. Geotagged review requests, Service Area Pages with schema, Localized citations, GPost updates).`;
+Identify exactly why proximity decay is occurring in weaker quadrants and provide tactical recommendations (e.g. Geotagged review requests, Service Area Pages with schema, Localized citations, GPost updates).
+Every rank below was measured. Where the business did not appear in the results at all, that is stated as "absent" — do not treat absent as a numeric rank.`;
 
     const prompt = `Client Business: "${businessName}"
 Target Local Keyword: "${keyword}"
 Grid Size: ${gridSize}x${gridSize} (${nodes.length} coordinate points)
 Coverage Radius: ${radiusKm} km
-Average Grid Rank (AGR): #${agr}
+Average Grid Rank (AGR), over the points where it appeared: ${agr == null ? 'not ranked anywhere' : `#${agr}`}
 Top 3 Dominance: ${top3Share}%
+Absent from results entirely: ${absent.length} of ${nodes.length} points
 
 Grid Node Summary:
-- Top 3 Rankings: ${nodes.length - weakNodes.length} nodes
+- Top 3 Rankings: ${nodes.length - weakNodes.length - absent.length} nodes
 - Weak / Peripheral Dropoffs: ${weakNodes.length} nodes
-- Critical Dropoff Directions: ${redNodes.map((n) => `${n.direction} (${n.distanceKm}km, Rank #${n.rank})`).slice(0, 8).join(', ') || 'None (Uniform dominance)'}
+- Critical Dropoff Directions: ${redNodes.map((n) => `${n.direction} (${n.distanceKm}km, Rank #${n.rank})`).slice(0, 8).join(', ') || 'None'}
+- Absent Directions: ${absent.map((n) => `${n.direction} (${n.distanceKm}km)`).slice(0, 8).join(', ') || 'None'}
 
 Generate a concise diagnosis, key vulnerabilities, and prioritized action items.`;
 
@@ -304,54 +518,48 @@ Generate a concise diagnosis, key vulnerabilities, and prioritized action items.
       const result = await this.router.generate({
         prompt,
         systemInstruction: systemPrompt,
-        task: AiTask.REASONING,
+        task: AiTask.LOCAL_SEO_ANALYSIS,
         organizationId,
         jsonSchema: AI_GEO_SCHEMA as unknown as Record<string, unknown>,
         maxTokens: 2500,
       });
 
       if (result.text?.trim()) {
-        const parsed = this.parseJson(result.text);
-        return {
-          plan: parsed,
-          model: result.model,
-        };
+        return { plan: this.parseJson(result.text), model: result.model };
       }
     } catch (err) {
-      this.logger.warn(`AI geo plan generation fallback: ${err}`);
+      this.logger.warn(`AI geo plan generation unavailable: ${err}`);
     }
 
-    // Heuristic fallback
+    // Fallback when no model answered. It describes only what the scan actually
+    // measured — the previous fallback asserted a "strong rank within the
+    // immediate 2km radius" regardless of what the grid showed.
     return {
       plan: {
-        diagnosis: `The business holds strong rank #${agr} within the immediate 2km radius of its physical center, but experiences significant rank decay toward the outer ${radiusKm}km boundary.`,
+        diagnosis:
+          agr == null
+            ? `"${businessName}" did not appear in the results for "${keyword}" at any of the ${nodes.length} coordinates scanned within ${radiusKm}km.`
+            : `"${businessName}" ranks #${agr} on average across the ${nodes.length - absent.length} of ${nodes.length} coordinates where it appeared, and is absent from ${absent.length}.`,
         keyVulnerabilities: [
-          'Proximity decay beyond primary ZIP code due to competitor density.',
-          'Lack of geotagged customer reviews from peripheral districts.',
-          'Missing location-specific service area landing pages.',
+          absent.length
+            ? `Absent from the result set entirely at ${absent.length} coordinate(s).`
+            : 'Appears in the result set at every coordinate scanned.',
+          redNodes.length
+            ? `Ranks outside the top 10 at ${redNodes.length} coordinate(s).`
+            : 'Ranks within the top 10 wherever it appears.',
         ],
         actionItems: [
           {
-            action: 'Build Geotargeted Sub-District Service Pages',
-            impact: 'HIGH',
-            targetZone: 'Outer Perimeter Nodes',
-            description: 'Create dedicated location landing pages targeting neighborhood terms and link them to your GBP listing.',
-          },
-          {
-            action: 'Campaign for Customer Reviews with Location Mentions',
-            impact: 'HIGH',
-            targetZone: 'Weak Quadrants',
-            description: 'Ask customers residing in peripheral areas to mention their neighborhood or city district in Google Reviews.',
-          },
-          {
-            action: 'Add Local Business Schema with Explicit geoCoordinates & areaServed',
-            impact: 'MEDIUM',
-            targetZone: 'Entire Radius',
-            description: 'Embed JSON-LD with geo.radius definitions spanning the target coverage area.',
+            action: 'Review the coordinates with the weakest placement',
+            impact: 'HIGH' as const,
+            targetZone: redNodes.length ? redNodes[0].direction : 'Outer perimeter',
+            description:
+              'An AI action plan could not be generated for this scan. The stored run holds the ranked ' +
+              'result set at every coordinate; the weakest directions are the place to start.',
           },
         ],
       },
-      model: 'heuristic',
+      model: 'unavailable',
     };
   }
 
@@ -359,4 +567,39 @@ Generate a concise diagnosis, key vulnerabilities, and prioritized action items.
   private parseJson(text: string): Record<string, any> {
     return parseModelJson(text, 'Geo grid');
   }
+}
+
+/**
+ * Whether a Places result is the tracked business.
+ *
+ * Compared loosely because Google's display name carries suffixes the operator
+ * did not type ("Bright Smile Dental" vs "Bright Smile Dental Clinic"), but
+ * never so loosely that a different business matches: one name must contain the
+ * whole of the other.
+ */
+function namesMatch(resultName: string, businessName: string): boolean {
+  const a = normalizeName(resultName);
+  const b = normalizeName(businessName);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cardinalDirection(offsetRow: number, offsetCol: number): string {
+  if (offsetRow === 0 && offsetCol === 0) return 'Center';
+  if (offsetRow < 0 && offsetCol === 0) return 'North';
+  if (offsetRow > 0 && offsetCol === 0) return 'South';
+  if (offsetRow === 0 && offsetCol > 0) return 'East';
+  if (offsetRow === 0 && offsetCol < 0) return 'West';
+  if (offsetRow < 0 && offsetCol > 0) return 'North-East';
+  if (offsetRow < 0 && offsetCol < 0) return 'North-West';
+  if (offsetRow > 0 && offsetCol > 0) return 'South-East';
+  return 'South-West';
 }

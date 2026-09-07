@@ -17,8 +17,21 @@ export class LocalSeoService {
    * fiction outlived the request. The client renders an empty state instead.
    */
   async getLocalSeo(projectId: string) {
-    return this.prisma.localLocation.findUnique({
+    // The project's primary location. Projects now hold many locations, so this
+    // is "the first one" rather than "the only one"; callers that need them all
+    // use listLocations.
+    return this.prisma.localLocation.findFirst({
       where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      include: { rankings: true },
+    });
+  }
+
+  /** Every location on a project, oldest first. */
+  async listLocations(projectId: string) {
+    return this.prisma.localLocation.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
       include: { rankings: true },
     });
   }
@@ -51,7 +64,8 @@ export class LocalSeoService {
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount',
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.location',
         },
         body: JSON.stringify({
           textQuery: query,
@@ -81,6 +95,10 @@ export class LocalSeoService {
         address: place.formattedAddress || '',
         rating: place.rating || 0,
         userRatingsTotal: place.userRatingCount || 0,
+        // Carried through so connecting a listing gives the geo grid a real
+        // centre instead of a default city.
+        latitude: place.location?.latitude,
+        longitude: place.location?.longitude,
       }));
     } catch (err) {
       if (err instanceof ServiceUnavailableException || err instanceof BadGatewayException) {
@@ -93,24 +111,43 @@ export class LocalSeoService {
     }
   }
 
+  /**
+   * Attaches a Google Places listing to a project as one of its locations.
+   *
+   * Keyed on (project, place): connecting the same listing twice updates it,
+   * connecting a second listing adds a location rather than replacing the first.
+   */
   async connectBusiness(
     projectId: string,
-    placeData: { businessName: string; address: string; rating: number; reviewCount: number }
+    placeData: {
+      businessName: string;
+      address: string;
+      rating: number;
+      reviewCount: number;
+      placeId?: string;
+      latitude?: number;
+      longitude?: number;
+    }
   ) {
     return this.prisma.localLocation.upsert({
-      where: { projectId },
+      where: { projectId_placeId: { projectId, placeId: placeData.placeId ?? '' } },
       update: {
         businessName: placeData.businessName,
         address: placeData.address,
         rating: placeData.rating,
         reviewCount: placeData.reviewCount,
+        latitude: placeData.latitude ?? undefined,
+        longitude: placeData.longitude ?? undefined,
       },
       create: {
         projectId,
+        placeId: placeData.placeId ?? '',
         businessName: placeData.businessName,
         address: placeData.address,
         rating: placeData.rating,
         reviewCount: placeData.reviewCount,
+        latitude: placeData.latitude ?? null,
+        longitude: placeData.longitude ?? null,
         // citationsCount is left at its column default of 0. It was previously
         // seeded with `Math.random() * 50 + 10` — a number with no relationship
         // to any citation, stored and then displayed as a measured figure.

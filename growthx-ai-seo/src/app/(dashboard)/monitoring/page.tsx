@@ -56,7 +56,7 @@ export default function MonitoringPage() {
   // `runGeoGridScan` is a behaviour change rather than a typing one, so the gap
   // is left visible instead of cast away.
   const gridNodes: GridNode[] = [];
-  const in3PackNodes = gridNodes.filter((n) => n.rank <= 3 && n.rank > 0);
+  const in3PackNodes = gridNodes.filter((n) => n.rank != null && n.rank <= 3);
   const threePackDefensePct = gridNodes.length > 0 ? Math.round((in3PackNodes.length / gridNodes.length) * 100) : null;
 
   // Review urgency indicators

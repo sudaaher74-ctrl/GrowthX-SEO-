@@ -52,7 +52,7 @@ export class GbpAnalyzerService {
       // 2. Fetch project context
       const project = await this.prisma.project.findUnique({
         where: { id: projectId },
-        select: { name: true, LocalLocation: true },
+        select: { name: true, locations: true },
       });
 
       const prompt = `
@@ -67,7 +67,7 @@ Identify any missing elements, weakly optimized descriptions, or missing service
       const result = await this.router.generate({
         prompt,
         systemInstruction: SYSTEM,
-        task: AiTask.REASONING,
+        task: AiTask.LOCAL_SEO_ANALYSIS,
         organizationId,
         jsonSchema: GBP_ANALYSIS_SCHEMA as unknown as Record<string, unknown>,
         maxTokens: 4000,

@@ -42,7 +42,7 @@ export class KeywordBusinessBridgeService {
       }),
       this.prisma.project.findUnique({
         where: { id: projectId },
-        include: { LocalLocation: true },
+        include: { locations: true },
       }),
       this.prisma.competitorAccount.findMany({
         where: {
@@ -53,7 +53,7 @@ export class KeywordBusinessBridgeService {
       }),
     ]);
 
-    const targetCity = project?.LocalLocation?.address ? project.LocalLocation.address.split(',')[0].trim() : 'Primary Market';
+    const targetCity = project?.locations?.[0]?.address ? project.locations[0].address.split(',')[0].trim() : 'Primary Market';
 
     if (gaps.length > 0) {
       return gaps.map((g: any) => {

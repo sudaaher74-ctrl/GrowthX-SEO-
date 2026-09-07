@@ -341,7 +341,7 @@ model Project {
   contentPieces        ContentPiece[]
   CustomReport         CustomReport[]
   IntegrationConfig    IntegrationConfig?
-  LocalLocation        LocalLocation?
+  locations            LocalLocation[]
   MarketIntelligence   MarketIntelligence?
   MonitoringConfig     MonitoringConfig?
   OutreachCampaign     OutreachCampaign[]
@@ -706,17 +706,37 @@ model AuditLog {
   @@index([organizationId, createdAt])
 }
 
+/// One physical location of a business.
+///
+/// `projectId` is deliberately not unique. The product sells to businesses with
+/// 5-100 locations and prices per location; one row per project made the ICP
+/// and the pricing model unrepresentable. A project with a single location is
+/// simply a project with one row.
 model LocalLocation {
   id             String         @id @default(uuid())
-  projectId      String         @unique
+  projectId      String
   businessName   String
   address        String
+  /// Google Places id, when the location was connected through Places. The
+  /// reliable way to recognise this business in a result set; name matching is
+  /// the fallback, not the intent.
+  placeId        String?
+  /// Coordinates of the storefront. Required before a geo grid can be run —
+  /// a grid centred on a guess measures the wrong neighbourhood.
+  latitude       Float?
+  longitude      Float?
   rating         Float          @default(0)
   reviewCount    Int            @default(0)
   citationsCount Int            @default(0)
+  createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rankings       LocalRanking[]
+
+  /// One row per place per project: reconnecting the same listing updates it
+  /// rather than adding a duplicate location to the bill.
+  @@unique([projectId, placeId])
+  @@index([projectId])
 }
 
 model GbpFixProposal {
@@ -2490,4 +2510,89 @@ model AiUsageRecord {
   @@index([projectId, createdAt])
   @@index([taskType, createdAt])
   @@index([provider, createdAt])
+}
+
+/// One geo-grid scan: a keyword measured at every coordinate of an N x N grid
+/// around a location, at one point in time.
+///
+/// Stored rather than computed-and-discarded because local rank history is the
+/// whole value of a geo grid — a single heat map is a screenshot, and "are we
+/// gaining ground in the north-east" is unanswerable without the previous runs.
+/// History like this cannot be backfilled later at any price.
+model GeoGridRun {
+  id         String  @id @default(uuid())
+  projectId  String
+  /// Null until a project has a location profile attached.
+  locationId String?
+  keyword    String
+  /// 3, 5, 7 or 9.
+  gridSize   Int
+  centerLat  Float
+  centerLng  Float
+  radiusKm   Float
+  /// Where the ranks came from. Only real sources are ever recorded here.
+  source     String  @default("GOOGLE_PLACES")
+
+  /// Mean rank across the points where the business was actually found. Null
+  /// when it was found nowhere — averaging in a placeholder for "absent" would
+  /// invent a number, and a missing business is not a rank-21 business.
+  averageRank   Float?
+  /// Points where the business appeared at all, and where it placed well.
+  foundCount    Int
+  top3Count     Int
+  top10Count    Int
+  /// Total coordinates scanned, i.e. gridSize squared.
+  pointCount    Int
+
+  ranAt     DateTime @default(now())
+  points    GeoGridPoint[]
+
+  @@index([projectId, keyword, ranAt])
+  @@index([locationId, ranAt])
+}
+
+/// One coordinate of a geo-grid scan.
+model GeoGridPoint {
+  id         String @id @default(uuid())
+  runId      String
+  row        Int
+  col        Int
+  lat        Float
+  lng        Float
+  distanceKm Float
+  /// "Center", "North", "South-East", and so on.
+  direction  String
+  /// Where the business placed at this coordinate. Null means it did not appear
+  /// in the result set at all — deliberately distinct from a numeric last place.
+  rank        Int?
+  /// How many results the source actually returned here, so a null rank can be
+  /// told apart from a coordinate that returned nothing.
+  resultCount Int
+
+  run         GeoGridRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  competitors GeoGridCompetitor[]
+
+  @@unique([runId, row, col])
+  @@index([runId])
+}
+
+/// A business that outranked, or shared the grid with, the client at one
+/// coordinate. Rows rather than a JSON blob so "who dominates the north-east,
+/// and since when" is a query instead of a re-parse.
+model GeoGridCompetitor {
+  id          String @id @default(uuid())
+  pointId     String
+  rank        Int
+  name        String
+  /// Google Places id, when the source supplied one.
+  placeId     String?
+  rating      Float?
+  reviewCount Int?
+  /// True when this row is the tracked business rather than a competitor.
+  isClient    Boolean @default(false)
+
+  point GeoGridPoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
+
+  @@index([pointId, rank])
+  @@index([name])
 }
