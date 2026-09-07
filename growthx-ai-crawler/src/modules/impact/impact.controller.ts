@@ -26,6 +26,20 @@ export class ImpactController {
     return this.impact.recordIntervention({ projectId, ...body });
   }
 
+  /**
+   * Deliberately declines a fix and enrols the page as a control.
+   *
+   * This is the endpoint nobody wants to call, and the one that makes every
+   * later lift figure mean something.
+   */
+  @Post('interventions/hold')
+  async hold(
+    @Param('projectId') projectId: string,
+    @Body() body: { issueId: string; changeClass: ChangeClass; summary?: string },
+  ) {
+    return this.impact.holdIssue({ projectId, ...body });
+  }
+
   @Post('interventions/:id/shipped')
   async markShipped(
     @Param('id') id: string,

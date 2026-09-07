@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AiAssistant, ChangeClass, InterventionArm } from '@prisma/client';
+import { AiAssistant, ChangeClass, InterventionArm, IssueStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 
 /** The windows the product reports on. */
@@ -87,6 +87,55 @@ export class ImpactService {
         pullRequestUrl: input.pullRequestUrl ?? null,
       },
     });
+  }
+
+  /**
+   * Records a page that needed a fix and deliberately did not get one.
+   *
+   * The holds are what separate a measurement from an anecdote, and they are
+   * the part nobody wants to create: it means looking at twenty pages that need
+   * the same fix, shipping fifteen and leaving five alone. Without them every
+   * later citation gain is a coincidence with good timing, which is exactly
+   * what the rest of the category reports.
+   *
+   * Marking the issue IGNORED and recording the hold happen together, in one
+   * transaction, so an issue cannot be quietly dismissed without the control
+   * group learning about it.
+   */
+  async holdIssue(input: {
+    projectId: string;
+    issueId: string;
+    changeClass: ChangeClass;
+    summary?: string;
+  }) {
+    const issue = await this.prisma.issue.findUnique({
+      where: { id: input.issueId },
+      select: { id: true, affectedUrl: true, issueType: true, status: true },
+    });
+    if (!issue) throw new NotFoundException(`Issue ${input.issueId} not found.`);
+    if (!issue.affectedUrl) {
+      throw new BadRequestException(
+        'This issue has no affected URL, so it cannot be held as a control — there is no page to measure.',
+      );
+    }
+
+    const [, intervention] = await this.prisma.$transaction([
+      this.prisma.issue.update({
+        where: { id: input.issueId },
+        data: { status: IssueStatus.IGNORED },
+      }),
+      this.prisma.fixIntervention.create({
+        data: {
+          projectId: input.projectId,
+          url: issue.affectedUrl,
+          changeClass: input.changeClass,
+          arm: InterventionArm.HOLD,
+          summary: input.summary ?? `Held as control: ${issue.issueType}`,
+        },
+      }),
+    ]);
+
+    return intervention;
   }
 
   /** Marks a recorded change as live, which starts its measurement clock. */

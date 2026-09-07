@@ -21,6 +21,7 @@ describe('ImpactService', () => {
     /** Checks returned for the hold-arm rate. */
     holdChecks?: { cited: boolean; citedUrl: string | null }[];
     existingOutcome?: { id: string } | null;
+    issue?: any;
   } = {}) {
     const [preTotal, preCited, postTotal, postCited] = options.project ?? [100, 10, 100, 20];
     const holds = options.holds ?? [];
@@ -58,6 +59,15 @@ describe('ImpactService', () => {
         count: promptCheckCount,
         findMany: jest.fn().mockResolvedValue(options.holdChecks ?? []),
       },
+      issue: {
+        findUnique: jest.fn().mockResolvedValue(
+          'issue' in options
+            ? (options as any).issue
+            : { id: 'iss-1', affectedUrl: 'https://example.com/held', issueType: 'MISSING_SCHEMA', status: 'OPEN' },
+        ),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn().mockImplementation(async (ops: any[]) => Promise.all(ops)),
       interventionOutcome: {
         findFirst: jest.fn().mockResolvedValue(options.existingOutcome ?? null),
         create: jest.fn().mockResolvedValue({}),
@@ -257,6 +267,54 @@ describe('ImpactService', () => {
       const where = prisma.interventionOutcome.findMany.mock.calls[0][0].where;
       expect(where.intervention).toMatchObject({ arm: InterventionArm.TREAT, rolledBackAt: null });
       expect(where.lift).toEqual({ not: null });
+    });
+  });
+  describe('holding a page as a control', () => {
+    it('records the hold and dismisses the issue in one transaction', async () => {
+      // An issue cannot be quietly dismissed without the control group learning
+      // about it, which is the only reason the holds stay representative.
+      const { service, prisma } = build();
+
+      await service.holdIssue({
+        projectId: 'p1',
+        issueId: 'iss-1',
+        changeClass: ChangeClass.SCHEMA_MARKUP,
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.issue.update).toHaveBeenCalledWith({
+        where: { id: 'iss-1' },
+        data: { status: 'IGNORED' },
+      });
+      expect(prisma.fixIntervention.create.mock.calls[0][0].data).toMatchObject({
+        projectId: 'p1',
+        url: 'https://example.com/held',
+        changeClass: ChangeClass.SCHEMA_MARKUP,
+        arm: InterventionArm.HOLD,
+      });
+    });
+
+    it('never sets a ship date on a hold', async () => {
+      const { service, prisma } = build();
+      await service.holdIssue({ projectId: 'p1', issueId: 'iss-1', changeClass: ChangeClass.FAQ_BLOCK });
+
+      expect(prisma.fixIntervention.create.mock.calls[0][0].data.shippedAt).toBeUndefined();
+    });
+
+    it('refuses an issue with no affected URL, since there is no page to measure', async () => {
+      const { service } = build({ issue: { id: 'iss-1', affectedUrl: null, issueType: 'X', status: 'OPEN' } });
+
+      await expect(
+        service.holdIssue({ projectId: 'p1', issueId: 'iss-1', changeClass: ChangeClass.METADATA }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('reports a missing issue rather than recording a hold against nothing', async () => {
+      const { service } = build({ issue: null });
+
+      await expect(
+        service.holdIssue({ projectId: 'p1', issueId: 'gone', changeClass: ChangeClass.METADATA }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

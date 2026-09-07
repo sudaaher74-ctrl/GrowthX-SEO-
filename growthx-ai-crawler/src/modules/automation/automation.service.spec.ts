@@ -15,6 +15,7 @@ import { ValidationService } from '../autonomous-engineer/agents/validation/vali
 import { AutoFixService } from '../ai/auto-fix.service';
 import { SecurityService } from '../security/security.service';
 import { AutomationService } from './automation.service';
+import { ImpactService } from '../impact/impact.service';
 import { ContentGenerationService } from './content-generation.service';
 
 const REPO = {
@@ -49,9 +50,11 @@ describe('AutomationService', () => {
   let patcher: any;
   let validation: any;
   let entitlements: any;
+  let impact: any;
   let workDir: string;
 
   beforeEach(async () => {
+    impact = { recordIntervention: jest.fn().mockResolvedValue({ id: 'int-1' }) };
     // A real temp directory so file resolution is genuinely exercised.
     workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-auto-'));
     await fs.mkdir(path.join(workDir, 'guides'), { recursive: true });
@@ -97,6 +100,7 @@ describe('AutomationService', () => {
         { provide: AutoFixService, useValue: {} },
         { provide: ContentGenerationService, useValue: { toMarkdownFile: () => '---\ntitle: "x"\n---\nbody\n' } },
         { provide: SecurityService, useValue: { encryptCredentials: (v: string) => `enc:${v}`, decryptCredentials: (v: string) => v.replace('enc:', '') } },
+        { provide: ImpactService, useValue: impact },
 ],
     }).compile();
 
@@ -257,6 +261,47 @@ describe('AutomationService', () => {
 
       expect(git.commitAndPush).not.toHaveBeenCalled();
       expect(run.status).toBe(AutomationRunStatus.FAILED);
+    });
+  });
+  describe('the intervention ledger', () => {
+    it('records every applied fix against the page it changed', async () => {
+      await service.runFixes('proj_1', 'org_1');
+
+      expect(impact.recordIntervention).toHaveBeenCalled();
+      const recorded = impact.recordIntervention.mock.calls[0][0];
+      expect(recorded).toMatchObject({
+        projectId: 'proj_1',
+        changeClass: expect.any(String),
+      });
+      expect(recorded.url).toBeTruthy();
+      expect(recorded.pullRequestUrl).toBeTruthy();
+    });
+
+    it('does not mark the change shipped, because a pull request is not production', async () => {
+      // The measurement clock has to start when the change reached users. A PR
+      // that sits unreviewed for three weeks would otherwise have three weeks
+      // of unrelated citation movement counted as its "after".
+      await service.runFixes('proj_1', 'org_1');
+
+      const recorded = impact.recordIntervention.mock.calls[0][0];
+      expect(recorded.shippedAt).toBeUndefined();
+    });
+
+    it('still opens the pull request when the ledger write fails', async () => {
+      // The customer's change is real either way, and the run's own record
+      // already holds the PR URL. Losing the bookkeeping must not lose the fix.
+      impact.recordIntervention.mockRejectedValue(new Error('database is down'));
+
+      const run = await service.runFixes('proj_1', 'org_1');
+      expect(run.status).toBe(AutomationRunStatus.AWAITING_REVIEW);
+      expect(run.pullRequestUrl).toBeTruthy();
+    });
+
+    it('records nothing when no fix was applied', async () => {
+      patcher.applyFix.mockResolvedValue({ applied: false, reason: 'no match' });
+
+      await service.runFixes('proj_1', 'org_1');
+      expect(impact.recordIntervention).not.toHaveBeenCalled();
     });
   });
 });
