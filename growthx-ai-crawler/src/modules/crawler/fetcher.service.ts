@@ -330,7 +330,13 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     const wordCount = bodyText.split(' ').filter(Boolean).length;
 
     if (wordCount < 30) {
-      if ($('#root').length > 0 || $('#app').length > 0 || $('div[id*="app"]').length > 0) {
+      if (
+        $('#root').length > 0 ||
+        $('#app').length > 0 ||
+        $('div[id*="app"]').length > 0 ||
+        html.includes('BAILOUT_TO_CLIENT_SIDE_RENDERING') ||
+        $('script[src], script[type="module"]').length > 0
+      ) {
         return true;
       }
     }
