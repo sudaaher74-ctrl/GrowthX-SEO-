@@ -154,7 +154,12 @@ export class CrawlController {
 
   @Post('crawls/start')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
+  @ApiOperation({
+    summary: 'Initiate a new high-concurrency crawl job for a registered website',
+    description:
+      'Ownership verification is not required by default — set REQUIRE_VERIFIED_DOMAIN_FOR_CRAWL=true ' +
+      'to require it. This summary used to say "verified website" while nothing here read isVerified.',
+  })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
   async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
@@ -166,6 +171,28 @@ export class CrawlController {
     const website = body.websiteId
       ? await this.websiteForCaller(req, { id: body.websiteId })
       : await this.websiteForCaller(req, { domain: body.domain as string });
+
+    // Nothing here read `isVerified`, though the route's own summary described
+    // the site as verified and the setup flow presents verification as a step.
+    // So the platform would fetch any domain a signed-in user cared to name, at
+    // up to the configured concurrency, on that user's say-so alone.
+    //
+    // Off by default, because turning it on would stop every existing customer
+    // who never published the DNS record — that is the operator's call, not a
+    // silent change of behaviour. Turn it on and domain ownership becomes a
+    // real prerequisite rather than a step that reports itself.
+    if (process.env.REQUIRE_VERIFIED_DOMAIN_FOR_CRAWL === 'true') {
+      const verified = await this.prisma.website.findUnique({
+        where: { id: website.id },
+        select: { isVerified: true },
+      });
+      if (!verified?.isVerified) {
+        throw new ForbiddenException(
+          `Ownership of ${website.domain} has not been verified. Publish the DNS TXT record shown when ` +
+            'the site was added, then verify it before crawling.',
+        );
+      }
+    }
 
     const jobId = await this.crawlerService.startCrawlJob(website.id, body);
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
