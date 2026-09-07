@@ -36,44 +36,19 @@ export class CrawlController {
    * organization, so `JwtAuthGuard` alone only proved the caller is *someone*.
    * Every one of them was readable by any logged-in user — and
    * `latest-crawl` takes a plain domain, so no id had to be guessed.
+   *
+   * The check itself lives in `OrgContextService`. This controller carried a
+   * byte-for-byte copy of it, which is how the two drifted: the copy on
+   * `POST /websites` lost its membership comparison and nobody noticed,
+   * because the service's version still had one.
    */
-  private async websiteForCaller(req: any, where: { id: string } | { domain: string }) {
-    const website = await this.prisma.website.findUnique({
-      where: where as any,
-      select: { id: true, domain: true, verificationToken: true, project: { select: { organizationId: true } } },
-    });
-    if (!website) throw new NotFoundException('Website not found');
-
-    const organizationId = website.project?.organizationId;
-    if (!organizationId) {
-      throw new ForbiddenException(
-        'This website is not attached to any organization, so access to it cannot be authorized.',
-      );
-    }
-
-    // Resolving the owner proves who the record belongs to, not that the
-    // caller is one of them. Both halves are the check.
-    await this.orgContext.assertMembership(req.user?.userId, organizationId);
-    return website;
+  private websiteForCaller(req: any, where: { id: string } | { domain: string }) {
+    return this.orgContext.assertWebsiteAccess(req.user?.userId, where);
   }
 
   /** Same, for a crawl job traced back through its website's project. */
-  private async crawlJobForCaller(req: any, jobId: string) {
-    const job = await this.prisma.crawlJob.findUnique({
-      where: { id: jobId },
-      include: { website: { include: { project: { select: { organizationId: true } } } } },
-    });
-    if (!job) throw new NotFoundException('Crawl job not found');
-
-    const organizationId = job.website.project?.organizationId;
-    if (!organizationId) {
-      throw new ForbiddenException(
-        'This crawl job is not attached to any organization, so access to it cannot be authorized.',
-      );
-    }
-
-    await this.orgContext.assertMembership(req.user?.userId, organizationId);
-    return job;
+  private crawlJobForCaller(req: any, jobId: string) {
+    return this.orgContext.assertCrawlJobAccess(req.user?.userId, jobId);
   }
 
   @Post('websites')
@@ -81,7 +56,16 @@ export class CrawlController {
   @ApiOperation({ summary: 'Register a new customer website for SEO auditing' })
   @ApiBody({ schema: { type: 'object', properties: { url: { type: 'string', example: 'https://growthx.ai' }, domain: { type: 'string', example: 'growthx.ai' }, projectId: { type: 'string' } } } })
   async registerWebsiteRoute(@Req() req: any, @Body() body: { url: string; domain: string; projectId?: string }) {
-    const organizationId = req.organizationId || "default-org";
+    // No `|| 'default-org'` fallback. That string is not an organization, so
+    // every ownership comparison below would have been made against a tenant
+    // that does not exist. `JwtAuthGuard` already refuses a caller with no
+    // organization, so an absent value here means the guard was bypassed and
+    // the right answer is to stop.
+    const organizationId: string | undefined = req.organizationId;
+    if (!organizationId) {
+      throw new ForbiddenException('No organization is attached to this request, so a website cannot be registered.');
+    }
+
     const existing = await this.prisma.website.findUnique({
       where: { domain: body.domain },
       select: { id: true, project: { select: { organizationId: true } } },
@@ -98,19 +82,21 @@ export class CrawlController {
       );
     }
 
-    // Only a genuinely new site counts against the plan's site allowance.
-    if (!existing) {
-    }
-
     // A project the caller does not belong to would park the site outside their
     // own organization, where the checks above cannot see it.
+    //
+    // The project's organization was already being read here and then never
+    // compared with anything, so the check this comment describes did not
+    // happen: any signed-in user could post another tenant's projectId and
+    // plant a website — and its whole crawl history — inside their workspace.
     if (body.projectId) {
       const project = await this.prisma.project.findUnique({
         where: { id: body.projectId },
         select: { organizationId: true },
       });
       if (!project) throw new NotFoundException('Project not found');
-          }
+      await this.orgContext.assertMembership(req.user?.userId, project.organizationId);
+    }
 
     return this.registerWebsite(body);
   }
@@ -168,7 +154,12 @@ export class CrawlController {
 
   @Post('crawls/start')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Initiate a new high-concurrency crawl job for a verified website' })
+  @ApiOperation({
+    summary: 'Initiate a new high-concurrency crawl job for a registered website',
+    description:
+      'Ownership verification is not required by default — set REQUIRE_VERIFIED_DOMAIN_FOR_CRAWL=true ' +
+      'to require it. This summary used to say "verified website" while nothing here read isVerified.',
+  })
   @ApiBody({ schema: { type: 'object', properties: { websiteId: { type: 'string' }, domain: { type: 'string' }, maxConcurrency: { type: 'number', example: 10 }, maxDepth: { type: 'number', example: 10 }, useSitemap: { type: 'boolean', example: true } } } })
   async startCrawlJob(@Req() req: any, @Body() body: { websiteId?: string; domain?: string; maxConcurrency?: number; maxDepth?: number; useSitemap?: boolean }) {
     if (!body.websiteId && !body.domain) throw new BadRequestException('websiteId or domain is required');
@@ -180,6 +171,28 @@ export class CrawlController {
     const website = body.websiteId
       ? await this.websiteForCaller(req, { id: body.websiteId })
       : await this.websiteForCaller(req, { domain: body.domain as string });
+
+    // Nothing here read `isVerified`, though the route's own summary described
+    // the site as verified and the setup flow presents verification as a step.
+    // So the platform would fetch any domain a signed-in user cared to name, at
+    // up to the configured concurrency, on that user's say-so alone.
+    //
+    // Off by default, because turning it on would stop every existing customer
+    // who never published the DNS record — that is the operator's call, not a
+    // silent change of behaviour. Turn it on and domain ownership becomes a
+    // real prerequisite rather than a step that reports itself.
+    if (process.env.REQUIRE_VERIFIED_DOMAIN_FOR_CRAWL === 'true') {
+      const verified = await this.prisma.website.findUnique({
+        where: { id: website.id },
+        select: { isVerified: true },
+      });
+      if (!verified?.isVerified) {
+        throw new ForbiddenException(
+          `Ownership of ${website.domain} has not been verified. Publish the DNS TXT record shown when ` +
+            'the site was added, then verify it before crawling.',
+        );
+      }
+    }
 
     const jobId = await this.crawlerService.startCrawlJob(website.id, body);
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };

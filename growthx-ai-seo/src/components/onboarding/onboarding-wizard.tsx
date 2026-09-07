@@ -24,7 +24,6 @@ export interface BusinessFormData {
   country: string;
   city: string;
   industry: string;
-  businessType: string;
   primaryOffering: string;
   address?: string;
   phone?: string;
@@ -76,7 +75,6 @@ export function OnboardingWizard({
     country: "United States",
     city: "",
     industry: "Technology",
-    businessType: "B2B",
     primaryOffering: "",
     address: "",
     phone: "",
@@ -88,6 +86,11 @@ export function OnboardingWizard({
   // Created entities in step 3/4
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
+
+  // What the verification attempt actually returned, and the DNS record to
+  // publish when it did not pass.
+  const [domainVerified, setDomainVerified] = useState(false);
+  const [verificationHint, setVerificationHint] = useState("");
 
   const [discovery, setDiscovery] = useState<DiscoveryStatus | null>(null);
 
@@ -191,14 +194,39 @@ export function OnboardingWizard({
       const website = await api.registerWebsite(businessData.url.trim(), domain, project.id);
       setCreatedWebsiteId(website.id);
 
-      // 4. Verify domain
-      await api.verifyDomain(website.id);
+      // 4. Attempt domain verification.
+      //
+      // The result used to be discarded. Verification is a DNS TXT record the
+      // customer publishes, so it fails for almost everyone at this point in
+      // setup — and the checklist then announced "Website Added & Verified"
+      // regardless. Onboarding still continues either way; what changes is that
+      // the outcome is carried forward and shown.
+      try {
+        const verification = await api.verifyDomain(website.id);
+        setDomainVerified(Boolean(verification?.isVerified));
+        setVerificationHint(verification?.isVerified ? "" : website.instructions ?? "");
+      } catch (verifyErr) {
+        setDomainVerified(false);
+        console.warn("Domain verification could not be attempted:", verifyErr);
+      }
 
-      // 5. Store business profile if endpoint exists
+      // 5. Store everything the customer just told us about their business.
+      //
+      // Only the name and industry used to be sent. The country, city, address,
+      // phone, primary offering and the project type chosen in step 2 were all
+      // collected and then dropped on the floor here — so the customer typed
+      // their location into a form and the product went on guessing it from
+      // their homepage.
       try {
         await api.setBusinessProfile(project.id, {
           businessName: businessData.name.trim(),
-          industry: businessData.industry || "General",
+          industry: businessData.industry.trim() || "General",
+          businessModel: PROJECT_TYPES.find((type) => type.id === projectType)?.label ?? projectType,
+          offerings: businessData.primaryOffering.trim() ? [businessData.primaryOffering.trim()] : undefined,
+          city: businessData.city.trim() || undefined,
+          country: businessData.country.trim() || undefined,
+          address: businessData.address?.trim() || undefined,
+          phone: businessData.phone?.trim() || undefined,
         });
       } catch (profileErr) {
         console.warn("Could not save extended profile metadata:", profileErr);
@@ -242,11 +270,17 @@ export function OnboardingWizard({
       // while the first page was still being fetched. The checklist below now
       // reads the server instead.
 
-      // Invalidate portfolio and workspace
+      // Invalidate portfolio and workspace.
+      //
+      // `latest-crawl` is keyed on the domain, not the website id — the query
+      // reads `GET /api/websites/:domain/latest-crawl`. Passing the id here
+      // matched no cache entry, so the dashboard went on showing whatever crawl
+      // it had loaded before onboarding.
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["portfolio", orgId] }),
         qc.invalidateQueries({ queryKey: ["projects", orgId] }),
-        qc.invalidateQueries({ queryKey: ["latest-crawl", createdWebsiteId] }),
+        qc.invalidateQueries({ queryKey: ["latest-crawl", domain] }),
+        qc.invalidateQueries({ queryKey: ["crawl-history", domain] }),
       ]);
 
       setCurrentStep(5);
@@ -664,7 +698,7 @@ export function OnboardingWizard({
               // server actually found, so "no competitor could be verified"
               // reads differently from "we have not looked yet" — which is the
               // distinction the customer needs while this is under way.
-              { id: "websiteAdded", label: "Website Added & Verified", href: "/website" },
+              { id: "websiteAdded", label: "Website Added & Ownership Verified", href: "/website" },
               { id: "websiteCrawled", label: "Website Crawl & Health Audit", href: "/website" },
               { id: "businessIdentified", label: "Business Identified From Your Site", href: "/market-research" },
               { id: "competitorsIdentified", label: "Competitors Identified", href: "/competitors" },
@@ -683,6 +717,17 @@ export function OnboardingWizard({
                 />
               );
             })}
+
+            {!domainVerified && verificationHint && (
+              <div
+                className="rounded-lg border bg-brand-50/60 p-3 text-[11.5px] leading-relaxed text-brand-700"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                <span className="font-semibold text-brand-950">Verify you own this domain.</span>{" "}
+                {verificationHint} The audit runs either way; verification is what lets GrowthX act on
+                the site rather than only read it.
+              </div>
+            )}
 
             {CONNECTION_STEPS.map((item) => (
               <ChecklistRow

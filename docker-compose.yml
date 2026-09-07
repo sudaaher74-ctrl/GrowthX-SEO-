@@ -71,13 +71,21 @@ services:
     build:
       context: ./growthx-ai-seo
       dockerfile: Dockerfile
+      args:
+        # A build arg, not a runtime variable. `next build` inlines
+        # NEXT_PUBLIC_* into the bundle, so setting it under `environment`
+        # below did nothing at all — the frontend in this stack was talking to
+        # the hosted API rather than the `api` service beside it.
+        #
+        # This is the URL the *browser* uses, so it is localhost rather than the
+        # compose service name: the request is made from the user's machine.
+        - NEXT_PUBLIC_API_URL=http://localhost:3000
     restart: always
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - NEXT_PUBLIC_API_URL=http://localhost:3000
     depends_on:
       - api
 

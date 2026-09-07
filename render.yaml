@@ -10,6 +10,14 @@ services:
     plan: free
     ipAllowList: []
 
+  # There is no separate worker service here, unlike docker-compose.yml.
+  #
+  # That is not an omission: main.ts and main-worker.ts boot the same AppModule,
+  # so this one process registers the BullMQ workers and the crawl schedules as
+  # well as serving HTTP. It does mean crawling competes with request handling
+  # for the same CPU and the same 300MB heap. Split it out — a second service
+  # from this Dockerfile running `node dist/main-worker.js` — when crawls start
+  # making the API slow rather than before.
   - type: web
     name: growthx-crawler-api
     env: docker

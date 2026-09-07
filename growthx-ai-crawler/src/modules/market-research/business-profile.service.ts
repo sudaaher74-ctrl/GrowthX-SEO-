@@ -33,6 +33,10 @@ export interface DetectedBusinessProfile {
   city: string;
   state: string;
   country: string;
+  /** Street address, as given by the operator. Never detected from the site. */
+  address: string;
+  /** Contact number, as given by the operator. Never detected from the site. */
+  phone: string;
   /** The competitor search scope this location implies. */
   suggestedRegion: MarketScopeRegion;
   /** Search phrases the client's own customers would use. */
@@ -43,6 +47,20 @@ export interface DetectedBusinessProfile {
   /** How the profile was produced. */
   source: 'ai' | 'heuristic';
   detectedAt: string;
+}
+
+/** What an operator may correct or supply about their own business. */
+export interface BusinessProfilePatch {
+  industry?: string;
+  businessName?: string;
+  businessModel?: string;
+  offerings?: string[];
+  city?: string;
+  state?: string;
+  country?: string;
+  address?: string;
+  phone?: string;
+  region?: MarketScopeRegion;
 }
 
 interface SiteEvidence {
@@ -213,16 +231,38 @@ export class BusinessProfileService {
   }
 
   /** Stores an operator's manual correction as the project's profile. */
+  /**
+   * Applies what the operator told us over what was read from the site.
+   *
+   * Setup asks for the location, the offering, the business model and the
+   * contact details, and none of them reached this method: the wizard could
+   * only send `industry` and `businessName`, so everything else the customer
+   * typed was dropped. An operator's own answer about their own business
+   * outranks anything inferred from their homepage, which is why the whole
+   * profile is marked high-confidence afterwards.
+   *
+   * A field the caller omits leaves the detected value alone; it does not blank
+   * it. That keeps a partially filled form from erasing a good detection.
+   */
   async overrideProfile(
     projectId: string,
     domain: string,
-    patch: { industry?: string; businessName?: string; region?: MarketScopeRegion },
+    patch: BusinessProfilePatch,
   ): Promise<DetectedBusinessProfile> {
     const base = await this.getProfile(projectId, domain);
+    const offerings = patch.offerings?.map((entry) => entry.trim()).filter(Boolean);
+
     const merged: DetectedBusinessProfile = {
       ...base,
       industry: patch.industry?.trim() || base.industry,
       businessName: patch.businessName?.trim() || base.businessName,
+      businessModel: patch.businessModel?.trim() || base.businessModel,
+      city: patch.city?.trim() || base.city,
+      state: patch.state?.trim() || base.state,
+      country: patch.country?.trim() || base.country,
+      address: patch.address?.trim() || base.address,
+      phone: patch.phone?.trim() || base.phone,
+      offerings: offerings?.length ? offerings : base.offerings,
       suggestedRegion: patch.region || base.suggestedRegion,
       confidence: 'high',
       signals: [...base.signals, 'Confirmed by operator'],
@@ -253,6 +293,8 @@ export class BusinessProfileService {
         city: row.city || '',
         state: row.state || '',
         country: row.country || '',
+        address: row.address || '',
+        phone: row.phone || '',
         suggestedRegion: (row.suggestedRegion || 'worldwide') as MarketScopeRegion,
         seedKeywords: row.seedKeywords || [],
         confidence: (row.confidence || 'medium') as DetectedBusinessProfile['confidence'],
@@ -277,6 +319,8 @@ export class BusinessProfileService {
       city: profile.city,
       state: profile.state,
       country: profile.country,
+      address: profile.address,
+      phone: profile.phone,
       suggestedRegion: profile.suggestedRegion,
       seedKeywords: profile.seedKeywords,
       confidence: profile.confidence,
@@ -506,6 +550,11 @@ export class BusinessProfileService {
         city,
         state,
         country,
+        // Detection never sets these: a site rarely states either
+        // unambiguously, and a wrong one would be published as the
+        // business's own contact details. Setup asks the operator instead.
+        address: '',
+        phone: '',
         suggestedRegion: this.regionFor(city, state, country, evidence),
         seedKeywords: this.stringList(parsed.seedKeywords, 8),
         confidence: (['high', 'medium', 'low'] as const).includes(parsed.confidence)
@@ -559,6 +608,11 @@ export class BusinessProfileService {
       city: this.titleCase(city),
       state: this.titleCase(state),
       country: this.titleCase(country),
+      // Never guessed from the site, for the same reason as the model path
+      // above: a wrong address or number would be published as the business's
+      // own contact details. Setup asks the operator.
+      address: '',
+      phone: '',
       suggestedRegion: this.regionFor(city, state, country, evidence),
       seedKeywords: matched?.keywords || [],
       confidence: matched && hasEvidence ? 'medium' : 'low',

@@ -9,11 +9,26 @@ const MANAGER_ROLES: ReadonlySet<Role> = new Set([Role.OWNER, Role.ADMIN]);
 export class OrganizationsService {
   constructor(private prisma: PrismaService) {}
 
-  async createOrganization(userId: string, data: Prisma.OrganizationCreateInput): Promise<Organization> {
-    return this.prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({ data });
-      
-      await tx.organizationMember.create({
+  /**
+   * Creates an organization and makes the caller its owner.
+   *
+   * `tx` lets a caller enlist this in a transaction it already opened — sign-up
+   * creates the user and their first workspace together, and a user left
+   * without a membership row is an account nobody can use: every request is
+   * refused by `JwtAuthGuard` for belonging to no organization, and signing up
+   * again is refused because the email is taken. Prisma does not nest
+   * `$transaction`, so the client has to be passed down rather than opened
+   * twice.
+   */
+  async createOrganization(
+    userId: string,
+    data: Prisma.OrganizationCreateInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Organization> {
+    const run = async (client: Prisma.TransactionClient) => {
+      const org = await client.organization.create({ data });
+
+      await client.organizationMember.create({
         data: {
           userId,
           organizationId: org.id,
@@ -22,7 +37,9 @@ export class OrganizationsService {
       });
 
       return org;
-    });
+    };
+
+    return tx ? run(tx) : this.prisma.$transaction(run);
   }
 
   async getOrganizationsForUser(userId: string): Promise<Organization[]> {

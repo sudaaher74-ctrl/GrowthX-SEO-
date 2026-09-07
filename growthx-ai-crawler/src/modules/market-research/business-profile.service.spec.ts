@@ -194,4 +194,46 @@ describe('BusinessProfileService', () => {
     expect(profile.confidence).toBe('high');
     expect(profile.signals).toContain('Confirmed by operator');
   });
+
+  /**
+   * Setup asks for the location, the offering, the business type and the
+   * contact details, and only `industry` and `businessName` could be sent —
+   * so everything else the customer typed was discarded at the end of step 3
+   * and the product went on guessing what the operator had already told it.
+   */
+  it('keeps the location, offering and contact details the operator gave', async () => {
+    mockedAxios.get = siteServing(NASHIK_EXPORTER);
+    const service = new BusinessProfileService(prisma, { isConfigured: () => false } as any);
+
+    const profile = await service.overrideProfile('p1', 'aivaenterprises.com', {
+      businessModel: 'E-commerce',
+      offerings: ['  Dried fruit wholesale  ', ''],
+      city: 'Nashik',
+      country: 'India',
+      address: '12 Market Road',
+      phone: '+91 90000 00000',
+    });
+
+    expect(profile.businessModel).toBe('E-commerce');
+    expect(profile.offerings).toEqual(['Dried fruit wholesale']);
+    expect(profile.city).toBe('Nashik');
+    expect(profile.country).toBe('India');
+    expect(profile.address).toBe('12 Market Road');
+    expect(profile.phone).toBe('+91 90000 00000');
+  });
+
+  /** A half-filled form must not wipe out what detection got right. */
+  it('leaves a detected value alone for a field the operator did not fill in', async () => {
+    mockedAxios.get = siteServing(NASHIK_EXPORTER);
+    const service = new BusinessProfileService(prisma, { isConfigured: () => false } as any);
+
+    const detected = await service.getProfile('p1', 'aivaenterprises.com');
+    const profile = await service.overrideProfile('p1', 'aivaenterprises.com', {
+      address: '12 Market Road',
+    });
+
+    expect(profile.city).toBe(detected.city);
+    expect(profile.industry).toBe(detected.industry);
+    expect(profile.offerings).toEqual(detected.offerings);
+  });
 });

@@ -9,29 +9,49 @@ function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
+    // A one-time code, not the session itself.
+    //
+    // Google's callback used to redirect here with `access_token` and
+    // `refresh_token` in the query string, so a thirty-day refresh token was
+    // written into the browser's history, sent in the `Referer` of anything
+    // this page loaded, and recorded by every proxy along the way. The code
+    // below authenticates nothing on its own and is dead within a minute.
+    const code = searchParams.get("code");
 
-    if (accessToken && refreshToken) {
-      auth.setToken(accessToken);
-      auth.setRefreshToken(refreshToken);
-      
-      // Auto-select an organization if possible
-      api.listOrganizations()
-        .then(orgs => {
-          if (orgs?.[0]?.id) auth.setOrgId(orgs[0].id);
-          router.push("/dashboard");
-        })
-        .catch(err => {
-          console.error("Failed to list orgs after google login", err);
-          router.push("/dashboard"); // Still go to dashboard, let it handle empty orgs
-        });
-    } else {
-      setError("Authentication failed. Tokens not found.");
-      setTimeout(() => {
-        router.push("/login");
-      }, 3000);
+    if (!code) {
+      setError("Authentication failed. No sign-in code was returned.");
+      const timer = setTimeout(() => router.push("/login"), 3000);
+      return () => clearTimeout(timer);
     }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await api.exchangeOAuthCode(code);
+      } catch {
+        if (cancelled) return;
+        setError("That sign-in link has expired. Redirecting you to sign in again…");
+        setTimeout(() => router.push("/login"), 3000);
+        return;
+      }
+
+      // Auto-select an organization if possible. A failure here is not a failed
+      // sign-in — the session is already established — so the dashboard gets to
+      // handle an unset workspace rather than the user being bounced back.
+      try {
+        const orgs = await api.listOrganizations();
+        if (orgs?.[0]?.id) auth.setOrgId(orgs[0].id);
+      } catch (err) {
+        console.error("Failed to list orgs after google login", err);
+      }
+
+      if (!cancelled) router.push("/dashboard");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, searchParams]);
 
   return (

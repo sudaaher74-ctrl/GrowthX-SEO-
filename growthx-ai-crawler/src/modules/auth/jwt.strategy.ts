@@ -21,10 +21,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // A refresh token is long-lived by design. Accepting one here would give it
-    // the same power as an access token for a month.
-    if (payload?.type === 'refresh') {
-      throw new UnauthorizedException('A refresh token cannot be used to authenticate a request.');
+    // Only an access token authenticates a request, and an access token is the
+    // one that carries no `type` at all.
+    //
+    // This used to name `refresh` specifically, which is a list that has to be
+    // remembered every time a new kind of token is minted — the OAuth exchange
+    // code was exactly that, and it would have been accepted here as a session.
+    // Refusing everything that declares a type keeps the next one out too.
+    if (payload?.type) {
+      throw new UnauthorizedException(
+        `A ${payload.type} token cannot be used to authenticate a request.`,
+      );
     }
 
     const user = await this.usersService.findById(payload.sub);

@@ -10,17 +10,6 @@ import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorat
  */
 describe('JwtAuthGuard — organization resolution', () => {
   const parentPrototype = Object.getPrototypeOf(JwtAuthGuard.prototype);
-  let previousEnv: string | undefined;
-
-  beforeAll(() => {
-    previousEnv = process.env.NODE_ENV;
-    // The non-production branch is a dev convenience that bypasses all of this.
-    process.env.NODE_ENV = 'production';
-  });
-
-  afterAll(() => {
-    process.env.NODE_ENV = previousEnv;
-  });
 
   beforeEach(() => {
     jest.spyOn(parentPrototype, 'canActivate').mockResolvedValue(true);
@@ -73,4 +62,31 @@ describe('JwtAuthGuard — organization resolution', () => {
 
     await expect(guardWith(false).canActivate(context)).resolves.toBe(false);
   });
+
+  /**
+   * The guard used to short-circuit to `true` for every request whenever
+   * NODE_ENV was not exactly 'production', signing the caller in as a
+   * hard-coded account without a token. NODE_ENV is unset under `nest start`
+   * and on any host that does not set it, so that branch was reachable in
+   * places nobody thought of as development.
+   */
+  it.each(['development', 'test', 'staging', undefined])(
+    'refuses an unauthenticated request with NODE_ENV=%s',
+    async (env) => {
+      const previous = process.env.NODE_ENV;
+      if (env === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = env;
+
+      try {
+        jest.spyOn(parentPrototype, 'canActivate').mockResolvedValue(false);
+        const { context, request } = contextFor(undefined);
+
+        await expect(guardWith(false).canActivate(context)).resolves.toBe(false);
+        expect(request.organizationId).toBeUndefined();
+      } finally {
+        if (previous === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previous;
+      }
+    },
+  );
 });

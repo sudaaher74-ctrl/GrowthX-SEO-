@@ -63,7 +63,7 @@ export class DiscoveryStatusService {
         websites: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          select: { id: true, domain: true },
+          select: { id: true, domain: true, isVerified: true, verifiedAt: true },
         },
       },
     });
@@ -104,9 +104,12 @@ export class DiscoveryStatusService {
       projectId,
       domain: website?.domain ?? null,
       steps: {
-        websiteAdded: website
-          ? { state: 'done', detail: website.domain, at: project.createdAt.toISOString() }
-          : { state: 'pending', detail: 'No website has been added to this project yet.' },
+        // Added and verified are two different facts, and this row used to
+        // report only the first while the checklist above it was labelled
+        // "Website Added & Verified". Domain ownership is a DNS TXT record the
+        // customer has to publish; saying it is done because a row exists tells
+        // them a check has passed that has not.
+        websiteAdded: this.websiteStep(website, project.createdAt),
 
         websiteCrawled: this.crawlStep(latestCrawl),
 
@@ -157,6 +160,32 @@ export class DiscoveryStatusService {
         profileUrl: account.profileUrl,
         origin: account.status === 'CONNECTED' ? 'connected' : 'crawl',
       })),
+    };
+  }
+
+  /** Whether the site is on the project, and whether its ownership is proven. */
+  private websiteStep(
+    website: { domain: string; isVerified: boolean; verifiedAt: Date | null } | null,
+    projectCreatedAt: Date,
+  ): DiscoveryStep {
+    if (!website) {
+      return { state: 'pending', detail: 'No website has been added to this project yet.' };
+    }
+
+    if (website.isVerified) {
+      return {
+        state: 'done',
+        detail: `${website.domain} — ownership verified`,
+        at: (website.verifiedAt ?? projectCreatedAt).toISOString(),
+      };
+    }
+
+    return {
+      state: 'running',
+      detail:
+        `${website.domain} — added, but ownership is not verified yet. Publish the DNS TXT record ` +
+        `shown on the website page, then verify.`,
+      at: projectCreatedAt.toISOString(),
     };
   }
 

@@ -19,6 +19,17 @@ COPY . .
 # Next.js telemetry is disabled
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Which API the built bundle talks to.
+#
+# `NEXT_PUBLIC_*` is inlined by `next build`, so it has to be present *here*,
+# at image build time. Passing it as a runtime environment variable to the
+# container — which is what docker-compose did — has no effect on an already
+# built bundle: the value was baked in when this line ran. The build now fails
+# with a message naming this variable rather than silently falling back to a
+# hosted API, so an image built without it does not reach a deploy.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
 
 # Production image, copy all the files and run next

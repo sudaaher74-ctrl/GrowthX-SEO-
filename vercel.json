@@ -1,5 +1,7 @@
 {
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd growthx-ai-seo && npm run build",
+  "installCommand": "cd growthx-ai-seo && npm install",
+  "outputDirectory": "growthx-ai-seo/.next",
   "framework": "nextjs"
 }

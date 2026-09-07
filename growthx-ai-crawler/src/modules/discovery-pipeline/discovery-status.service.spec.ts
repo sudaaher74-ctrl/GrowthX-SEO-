@@ -10,7 +10,7 @@ describe('DiscoveryStatusService', () => {
     createdAt: new Date('2026-09-01T00:00:00Z'),
     competitorsIdentifiedAt: null as Date | null,
     businessProfile: null as any,
-    websites: [{ id: 'w1', domain: 'clientco.com' }],
+    websites: [{ id: 'w1', domain: 'clientco.com', isVerified: false, verifiedAt: null as Date | null }],
   };
 
   beforeEach(() => {
@@ -31,10 +31,37 @@ describe('DiscoveryStatusService', () => {
   it('reports a fresh project as waiting on its first crawl', async () => {
     const status = await service.getStatus('org1', 'p1');
 
-    expect(status.steps.websiteAdded.state).toBe('done');
     expect(status.steps.websiteCrawled.state).toBe('pending');
     expect(status.steps.businessIdentified.state).toBe('pending');
     expect(status.steps.competitorsIdentified.state).toBe('pending');
+  });
+
+  /**
+   * Added and verified are two different facts. This step reported only the
+   * first while the setup checklist rendering it was labelled "Website Added &
+   * Verified", so a customer who had published no DNS record at all was told
+   * their domain was verified.
+   */
+  it('does not call a site verified just because it has been added', async () => {
+    const status = await service.getStatus('org1', 'p1');
+
+    expect(status.steps.websiteAdded.state).toBe('running');
+    expect(status.steps.websiteAdded.detail).toContain('not verified yet');
+    expect(status.steps.websiteAdded.detail).toContain('clientco.com');
+  });
+
+  it('reports a verified site as done, dated by its verification', async () => {
+    const verifiedAt = new Date('2026-09-03T10:00:00Z');
+    prisma.project.findFirst.mockResolvedValue({
+      ...project,
+      websites: [{ id: 'w1', domain: 'clientco.com', isVerified: true, verifiedAt }],
+    });
+
+    const status = await service.getStatus('org1', 'p1');
+
+    expect(status.steps.websiteAdded.state).toBe('done');
+    expect(status.steps.websiteAdded.detail).toContain('ownership verified');
+    expect(status.steps.websiteAdded.at).toBe(verifiedAt.toISOString());
   });
 
   // "Not crawled yet" and "crawled, has no pages" are opposite conclusions, so

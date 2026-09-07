@@ -3,6 +3,7 @@ import { DatabaseModule } from '../../database/database.module';
 import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
 import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
 import { MarketResearchModule } from '../market-research/market-research.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { DiscoveryPipelineController } from './discovery-pipeline.controller';
 import { DiscoveryPipelineService } from './discovery-pipeline.service';
 import { DiscoveryStatusService } from './discovery-status.service';
@@ -18,7 +19,15 @@ import { AnalysisPipelineService } from './analysis-pipeline.service';
  * being a cycle Nest cannot resolve.
  */
 @Module({
-  imports: [DatabaseModule, MarketResearchModule, ContentIntelligenceModule, CompetitorActionEngineModule],
+  imports: [
+    DatabaseModule,
+    MarketResearchModule,
+    ContentIntelligenceModule,
+    CompetitorActionEngineModule,
+    // The controller checks the caller is in the project's organization before
+    // it runs anything for that project.
+    OrganizationsModule,
+  ],
   controllers: [DiscoveryPipelineController],
   providers: [DiscoveryPipelineService, DiscoveryStatusService, AnalysisPipelineService],
   exports: [DiscoveryPipelineService, DiscoveryStatusService, AnalysisPipelineService],

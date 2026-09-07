@@ -4,16 +4,25 @@ import { JwtService } from '@nestjs/jwt';
 import { BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AuthService } from './auth.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 
 describe('AuthService', () => {
   let service: AuthService;
   let users: any;
+  let organizations: { createOrganization: jest.Mock };
+  let tx: { user: { create: jest.Mock } };
+  let prisma: { $transaction: jest.Mock };
   let jwt: { sign: jest.Mock; verify: jest.Mock };
 
   beforeEach(async () => {
     users = { findByEmail: jest.fn(), createUser: jest.fn(), findById: jest.fn() };
+    // Sign-up writes the user and their first workspace in one transaction, so
+    // the test runs the callback against a stand-in client.
+    tx = { user: { create: jest.fn() } };
+    prisma = { $transaction: jest.fn((run: any) => run(tx)) };
+    organizations = { createOrganization: jest.fn().mockResolvedValue({ id: 'org_1' }) };
     jwt = {
       // Distinguishes the two tokens so a test can tell them apart; the real
       // difference is the `type` claim and the expiry, asserted below.
@@ -25,8 +34,9 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         // AuthService creates a default organization on registration.
-        { provide: OrganizationsService, useValue: { createOrganization: jest.fn().mockResolvedValue({ id: 'org_1' }) } },
+        { provide: OrganizationsService, useValue: organizations },
         { provide: UsersService, useValue: users },
+        { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
       ],
     }).compile();
@@ -70,19 +80,22 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
+    beforeEach(() => {
+      tx.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+    });
+
     it('rejects an email that is already taken', async () => {
       users.findByEmail.mockResolvedValue({ id: 'existing' });
       await expect(service.register({ email: 'a@b.com', password: 'x' })).rejects.toThrow(BadRequestException);
-      expect(users.createUser).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('stores a hash, never the plaintext password', async () => {
       users.findByEmail.mockResolvedValue(null);
-      users.createUser.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 
       await service.register({ email: 'a@b.com', password: 'plaintext-secret' });
 
-      const stored = users.createUser.mock.calls[0][0];
+      const stored = tx.user.create.mock.calls[0][0].data;
       expect(stored.passwordHash).toBeDefined();
       expect(stored.passwordHash).not.toBe('plaintext-secret');
       expect(stored).not.toHaveProperty('password');
@@ -91,11 +104,40 @@ describe('AuthService', () => {
 
     it('returns a token so the user is signed in immediately', async () => {
       users.findByEmail.mockResolvedValue(null);
-      users.createUser.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 
       await expect(service.register({ email: 'a@b.com', password: 'x' })).resolves.toEqual(
         expect.objectContaining({ access_token: 'signed.jwt.token', refresh_token: 'signed.refresh.token' }),
       );
+    });
+
+    /**
+     * These were two separate writes. A failure on the second left a user row
+     * with no membership, and `JwtAuthGuard` refuses every workspace-scoped
+     * route for such an account while registering again is refused for the
+     * email being taken — an account nobody could use or recreate.
+     */
+    it('creates the account and its first workspace in one transaction', async () => {
+      users.findByEmail.mockResolvedValue(null);
+
+      await service.register({ email: 'a@b.com', password: 'x' });
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(organizations.createOrganization).toHaveBeenCalledWith('u1', expect.any(Object), tx);
+    });
+
+    /**
+     * The slug was the first eight characters of the user's uuid — 32 bits
+     * shared across every account, on a column that is unique.
+     */
+    it('gives each workspace a slug that will not collide with another account', async () => {
+      users.findByEmail.mockResolvedValue(null);
+      await service.register({ email: 'a@b.com', password: 'x' });
+      tx.user.create.mockResolvedValue({ id: 'u1', email: 'c@d.com' });
+      await service.register({ email: 'c@d.com', password: 'x' });
+
+      const [first, second] = organizations.createOrganization.mock.calls.map((call) => call[1].slug);
+      expect(first).not.toEqual(second);
+      expect(first).not.toContain('u1');
     });
   });
 

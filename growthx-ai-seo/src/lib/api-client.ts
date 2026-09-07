@@ -24,7 +24,16 @@ export function getApiBase(): string {
 
   if (isLocalhost) return "http://localhost:3000";
 
-  return "https://growthx-crawler-api.onrender.com";
+  // The comment above described this fallback as removed while the line was
+  // still here, so every deploy that forgot NEXT_PUBLIC_API_URL kept quietly
+  // reading and writing production records — including preview builds of
+  // unmerged branches. Refusing names the missing variable at the first
+  // request instead.
+  throw new Error(
+    "NEXT_PUBLIC_API_URL is not set, so this build has no API to talk to. " +
+      "Set it to your crawler API's base URL (for example https://growthx-crawler-api.onrender.com) " +
+      "in the hosting platform's environment settings and redeploy.",
+  );
 }
 
 // No module-level API_BASE constant: it would run getApiBase() at import time,
@@ -232,10 +241,14 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // Clearing the session used to leave the caller on the dashboard, where
     // every query then failed with a different error. Send them to sign in —
     // except when they are already on an auth page, which would loop.
+    // The same in development as in production. The session has just been
+    // cleared, so staying put means every query on the page fails with a
+    // different error — the exact outcome the comment above says to avoid. The
+    // development branch that skipped this paired with an API-side guard that
+    // signed every request in as a fixed account without a token; that guard is
+    // gone, so signing in again is the way back for everyone.
     const onAuthPage = ["/login", "/register"].includes(window.location.pathname);
-    if (!onAuthPage && process.env.NODE_ENV !== "production") {
-      console.warn("Bypassing 401 redirect in development mode.");
-    } else if (!onAuthPage) {
+    if (!onAuthPage) {
       window.location.href = "/login";
     }
   }
@@ -1343,6 +1356,9 @@ export interface DetectedBusinessProfile {
   city: string;
   state: string;
   country: string;
+  /** Supplied by the operator during setup, never detected from the site. */
+  address: string;
+  phone: string;
   suggestedRegion: MarketScopeRegion;
   seedKeywords: string[];
   confidence: "high" | "medium" | "low";
@@ -1833,6 +1849,20 @@ export const api = {
     if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
+  /**
+   * Trades the one-time code from the Google redirect for a session.
+   *
+   * The redirect used to carry the access and refresh tokens themselves in the
+   * query string, where the browser's history, the `Referer` header and every
+   * proxy log in between keep them. The code this replaces them with
+   * authenticates nothing and expires in a minute.
+   */
+  async exchangeOAuthCode(code: string) {
+    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/oauth/exchange", { code });
+    auth.setToken(result.access_token);
+    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
+    return result;
+  },
   getMe: () => get<UserProfile>('/auth/me'),
   logout: async () => {
     try {
@@ -1882,10 +1912,28 @@ export const api = {
     get<DetectedBusinessProfile | null>(
       `/api/projects/${projectId}/market-research/business-profile${refresh ? "?refresh=true" : ""}`,
     ),
-  /** Stores an operator's correction to the detected niche or geography. */
+  /**
+   * Stores what the operator told us about their own business.
+   *
+   * Only `industry` and `businessName` used to be accepted, which is why the
+   * setup wizard's location, offering, business type and contact fields were
+   * collected and then dropped. An omitted field leaves the detected value
+   * alone; it does not blank it.
+   */
   setBusinessProfile: (
     projectId: string,
-    body: { industry?: string; businessName?: string; region?: MarketScopeRegion },
+    body: {
+      industry?: string;
+      businessName?: string;
+      businessModel?: string;
+      offerings?: string[];
+      city?: string;
+      state?: string;
+      country?: string;
+      address?: string;
+      phone?: string;
+      region?: MarketScopeRegion;
+    },
   ) =>
     post<DetectedBusinessProfile | null>(
       `/api/projects/${projectId}/market-research/business-profile`,
@@ -1994,7 +2042,15 @@ export const api = {
       domain,
       projectId,
     }),
-  verifyDomain: (id: string) => post(`/api/websites/${id}/verify`, {}),
+  /**
+   * Attempts DNS TXT verification of a registered domain.
+   *
+   * Returns whether it passed rather than `unknown`: the caller has to be able
+   * to tell, and the onboarding wizard used to discard this and report the
+   * domain as verified either way.
+   */
+  verifyDomain: (id: string) =>
+    post<{ success: boolean; isVerified: boolean; message: string }>(`/api/websites/${id}/verify`, {}),
   startCrawl: (params: { websiteId?: string; domain?: string; maxDepth?: number; maxConcurrency?: number; useSitemap?: boolean }) =>
     post<{ success: boolean; jobId: string }>("/api/crawls/start", params),
   getCrawlJob: (jobId: string) => get<CrawlJob>(`/api/crawls/${jobId}`),

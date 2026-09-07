@@ -1,6 +1,8 @@
-import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PrismaService } from '../../database/prisma.service';
+import { OrgContextService } from '../organizations/org-context.service';
 import { DiscoveryPipelineService } from './discovery-pipeline.service';
 import { DiscoveryStatusService } from './discovery-status.service';
 import { AnalysisPipelineService } from './analysis-pipeline.service';
@@ -21,6 +23,8 @@ export class DiscoveryPipelineController {
     private readonly status: DiscoveryStatusService,
     private readonly pipeline: DiscoveryPipelineService,
     private readonly analysis: AnalysisPipelineService,
+    private readonly prisma: PrismaService,
+    private readonly orgContext: OrgContextService,
   ) {}
 
   @Get('status')
@@ -51,14 +55,26 @@ export class DiscoveryPipelineController {
 
   @Post('crawl-pending-competitors')
   @ApiOperation({
-    summary: 'Start the first crawl of any competitor still waiting for one',
+    summary: 'Start the first crawl of any of THIS project\'s competitors still waiting for one',
     description:
-      'The same sweep that runs every ten minutes, for an operator who has just added a competitor ' +
-      'and does not want to wait for it.',
+      'The same sweep that runs every ten minutes, narrowed to one project, for an operator who has ' +
+      'just added a competitor and does not want to wait for it.',
   })
   @ApiParam({ name: 'projectId' })
-  async crawlPending() {
-    await this.pipeline.crawlUncrawledCompetitors();
-    return { started: true };
+  async crawlPending(@Req() req: any, @Param('projectId') projectId: string) {
+    // The handler used to take no arguments at all: it declared a projectId in
+    // its path and its Swagger docs, then called the unfiltered sweep. One
+    // tenant pressing this started first crawls for up to 25 competitors
+    // belonging to whichever projects happened to be waiting — other
+    // organizations included — and pushed their own to the back of the queue.
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (!project) throw new NotFoundException('Project not found.');
+    await this.orgContext.assertMembership(req.user?.userId, project.organizationId);
+
+    const started = await this.pipeline.crawlUncrawledCompetitors(projectId);
+    return { started: started > 0, count: started };
   }
 }
