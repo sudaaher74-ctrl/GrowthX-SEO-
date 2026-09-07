@@ -20,7 +20,29 @@ export class GoogleAuthExceptionFilter implements ExceptionFilter {
 
     let errorMessage = 'Google authentication failed. Please try again.';
 
-    if (exception instanceof HttpException) {
+    const oauthError = (exception as any)?.oauthError;
+    if (oauthError) {
+      this.logger.error(
+        `Google OAuth token error: statusCode=${oauthError.statusCode} data=${JSON.stringify(oauthError.data)}`,
+      );
+      let details = '';
+      if (oauthError.data) {
+        try {
+          const parsed =
+            typeof oauthError.data === 'string'
+              ? JSON.parse(oauthError.data)
+              : oauthError.data;
+          details = parsed.error_description
+            ? `${parsed.error_description} (${parsed.error || 'oauth_error'})`
+            : parsed.error || String(oauthError.data);
+        } catch {
+          details = String(oauthError.data);
+        }
+      }
+      errorMessage = details
+        ? `Google sign-in error: ${details}`
+        : (exception instanceof Error ? exception.message : errorMessage);
+    } else if (exception instanceof HttpException) {
       const resp = exception.getResponse();
       if (typeof resp === 'string') {
         errorMessage = resp;
@@ -33,7 +55,7 @@ export class GoogleAuthExceptionFilter implements ExceptionFilter {
     }
 
     this.logger.error(
-      `Google OAuth error: ${errorMessage}`,
+      `Google OAuth redirecting with error: ${errorMessage}`,
       exception instanceof Error ? exception.stack : undefined,
     );
 

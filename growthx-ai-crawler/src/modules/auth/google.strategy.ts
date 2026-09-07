@@ -27,11 +27,28 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     private configService: ConfigService,
     private authService: AuthService,
   ) {
+    const rawClientId = configService.get<string>('GOOGLE_CLIENT_ID') || '';
+    const rawClientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET') || '';
+    const clientID = rawClientId.trim().replace(/^["']|["']$/g, '');
+    const clientSecret = rawClientSecret.trim().replace(/^["']|["']$/g, '');
+
+    // In production, default callbackURL to canonical HTTPS URL to guarantee
+    // the redirect_uri sent during token exchange exactly matches authorization.
+    const defaultCallback =
+      process.env.NODE_ENV === 'production'
+        ? 'https://growthx-crawler-api.onrender.com/auth/google/callback'
+        : '/auth/google/callback';
+
+    const callbackURL =
+      (configService.get<string>('GOOGLE_CALLBACK_URL') || defaultCallback)
+        .trim()
+        .replace(/^["']|["']$/g, '');
+
     // Only registered when `googleSignInConfigured()` holds, so these are set.
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID') as string,
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') as string,
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || '/auth/google/callback',
+      clientID,
+      clientSecret,
+      callbackURL,
       scope: ['email', 'profile'],
       proxy: true,
     });
