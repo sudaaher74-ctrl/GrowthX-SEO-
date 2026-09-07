@@ -39,17 +39,29 @@ time series. BrightLocal's entire retention comes from stored grid history.
 
 **4. The codebase contradicts the stated scope.**
 "What we deliberately do not build" excludes social media and content
-generation at scale. The repository contains `content-intelligence`,
-`outreach`, and `voice-agent` modules, `content/` and `social/` component
-trees, and six schema models dedicated to them — `ContentPiece`,
-`ContentStrategy`, `ContentIntelligenceConfig`, `OutreachCampaign`,
-`SocialPost`, `SiteSocialLink`. The founder has since confirmed content studio
-and social are out of scope. This matters beyond tidiness: a strategy document
-that says "we deliberately do not build X" while X sits in `main` is the exact
-failure mode described in §7 — breadth accumulating faster than the decision to
-build it. These surfaces should be removed, not left dormant. Dormant code is
-still maintenance, still onboarding surface, still something a diligence process
+generation at scale. The repository contains `content-intelligence` and
+`outreach` modules, `content/` and `social/` component trees, and six schema
+models dedicated to them — `ContentPiece`, `ContentStrategy`,
+`ContentIntelligenceConfig`, `OutreachCampaign`, `SocialPost`,
+`SiteSocialLink`. The founder has confirmed content studio and social are out
+of scope. This matters beyond tidiness: a strategy document that says "we
+deliberately do not build X" while X sits in `main` is the exact failure mode
+described in §7 — breadth accumulating faster than the decision to build it.
+These surfaces should be removed, not left dormant. Dormant code is still
+maintenance, still onboarding surface, still something a diligence process
 finds and asks about, and still a signal to the team that scope is negotiable.
+
+**The voice agent (AIVA) is explicitly retained by founder decision** and is
+excluded from that removal. It is a defensible exception rather than an
+inconsistency: `voice-tools.service.ts` is a tool-calling layer over the
+existing product surface, not a separate product line, so it adds no new
+domain, no new schema and no new sales motion. It is an *interface* to the
+three pillars. Judge it on one test only — whether it raises daily active use
+of the approval queue, which §1g identifies as the strongest system-of-record
+candidate in the product. A voice layer that makes a practice manager clear
+review responses by speaking rather than clicking strengthens the stickiest
+surface you have. A voice layer used only to query dashboards is a demo. The
+distinction is measurable, and worth measuring before it gets more investment.
 
 There are ~44 modules under `src/modules/` at pre-revenue. That is the shape of
 a company building breadth as a substitute for evidence.
@@ -686,10 +698,11 @@ counter-position of §6 is a claim rather than a product.
 
 **Stop immediately:**
 - **Stop building modules, and delete the ones already out of scope.** There
-  are ~44 at pre-revenue. Content studio, social, outreach and voice-agent are
-  confirmed out of scope and should be removed from the codebase and the schema,
-  not merely left unbuilt — along with their six models. Then freeze the feature
-  set at what 10 design partners need. Every module added before the causal
+  are ~44 at pre-revenue. Content studio, social and outreach are confirmed out
+  of scope and should be removed from the codebase and the schema, not merely
+  left unbuilt — along with their six models. The voice agent stays, by founder
+  decision, on the reading in §0: it is an interface to the pillars, not a
+  fourth pillar. Then freeze the feature set at what 10 design partners need. Every module added before the causal
   premise is tested increases surface area against a competitor who out-ships
   you on surface area by definition.
 - **Stop leading with measurement.** It is the commoditising half, it is the one
