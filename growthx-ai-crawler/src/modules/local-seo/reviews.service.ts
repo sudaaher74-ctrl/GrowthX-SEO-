@@ -53,7 +53,7 @@ export class ReviewsService {
       throw new NotFoundException('Review not found.');
     }
 
-    const business = await this.prisma.localLocation.findUnique({
+    const business = await this.prisma.localLocation.findFirst({
       where: { projectId },
     });
 

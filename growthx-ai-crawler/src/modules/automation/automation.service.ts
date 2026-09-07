@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import {
   AutomationRunKind,
   AutomationRunStatus,
@@ -7,6 +7,8 @@ import {
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PrismaService } from '../../database/prisma.service';
+import { ImpactService } from '../impact/impact.service';
+import { changeClassForFixType } from '../impact/change-class';
 import { GitService } from '../autonomous-engineer/agents/git/git.service';
 import { PatchGenerationService } from '../autonomous-engineer/agents/patch-generation/patch-generation.service';
 import { RepositoryUnderstandingService } from '../autonomous-engineer/agents/repository-understanding/repository-understanding.service';
@@ -37,7 +39,14 @@ export class AutomationService {
     private readonly validation: ValidationService,
     private readonly autoFix: AutoFixService,
     private readonly content: ContentGenerationService,
-    private readonly security: SecurityService,) {}
+    private readonly security: SecurityService,
+    /**
+     * Optional so the fix engine still runs where the impact module is not
+     * wired in. A run that cannot record its interventions is worse off, not
+     * broken — but it is worth knowing about, so it warns.
+     */
+    @Optional() private readonly impact?: ImpactService,
+  ) {}
 
   // ───────────────────────────────────────────────── repository connection
 
@@ -134,6 +143,8 @@ export class AutomationService {
 
       const changed: string[] = [];
       const skipped: string[] = [];
+      /** What was applied to which page, for the intervention ledger. */
+      const applied: { url: string; fixType: string; issueType: string }[] = [];
 
       for (const issue of issues) {
         const patch = this.parsePatch(issue.aiRecommendation?.recommendedFixPatch);
@@ -151,6 +162,13 @@ export class AutomationService {
         const outcome = await this.patcher.applyFix(target, patch.fixType, patch.proposedValue);
         if (outcome.applied) {
           changed.push(path.relative(workingDir, target));
+          if (issue.affectedUrl) {
+            applied.push({
+              url: issue.affectedUrl,
+              fixType: patch.fixType,
+              issueType: String(issue.issueType),
+            });
+          }
         } else {
           skipped.push(`${issue.issueType}: ${outcome.reason ?? 'not applied'}`);
         }
@@ -189,6 +207,8 @@ export class AutomationService {
         this.fixPrBody(issues, changed, skipped),
       );
       steps.push(this.step('pull_request', prUrl, true));
+
+      await this.recordInterventions(projectId, run.id, prUrl, applied);
 
       return this.finishRun(run.id, AutomationRunStatus.AWAITING_REVIEW, steps, {
         branch,
@@ -337,6 +357,52 @@ export class AutomationService {
       orderBy: { severity: 'asc' },
       take: MAX_FIXES_PER_RUN,
     });
+  }
+
+  /**
+   * Files every applied fix in the intervention ledger.
+   *
+   * `shippedAt` is deliberately left null. A pull request is not production, and
+   * the measurement clock has to start when the change reached users, not when
+   * it was proposed — a PR that sits unreviewed for three weeks would otherwise
+   * have three weeks of unrelated citation movement counted as its "after".
+   * ImpactService.markShipped sets it when the PR merges.
+   *
+   * Recording is best-effort: a ledger write must not fail a fix run whose PR
+   * is already open, because the customer's change is real either way and the
+   * run's own record already holds the PR URL.
+   */
+  private async recordInterventions(
+    projectId: string,
+    runId: string,
+    pullRequestUrl: string,
+    applied: { url: string; fixType: string; issueType: string }[],
+  ): Promise<void> {
+    if (applied.length === 0) return;
+    if (!this.impact) {
+      this.logger.warn(
+        `${applied.length} fix(es) shipped to a PR without being recorded: the impact ledger is not wired in, ` +
+          'so their effect on citation cannot be measured later.',
+      );
+      return;
+    }
+
+    for (const fix of applied) {
+      try {
+        await this.impact.recordIntervention({
+          projectId,
+          url: fix.url,
+          changeClass: changeClassForFixType(fix.fixType),
+          summary: `${fix.issueType}: ${fix.fixType}`,
+          automationRunId: runId,
+          pullRequestUrl,
+        });
+      } catch (error: any) {
+        this.logger.warn(
+          `Could not record intervention for ${fix.url} (${fix.fixType}): ${error.message}`,
+        );
+      }
+    }
   }
 
   private parsePatch(raw?: string | null): { fixType: string; proposedValue: string } | null {

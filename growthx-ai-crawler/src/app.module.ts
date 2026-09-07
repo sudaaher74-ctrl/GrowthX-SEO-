@@ -37,6 +37,7 @@ import { ActivityModule } from './modules/activity/activity.module';
 import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
+import { ImpactModule } from './modules/impact/impact.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
@@ -108,6 +109,7 @@ import { CompetitorActionEngineModule } from './modules/competitor-action-engine
     GroqModule,
     AdminModule,
     LocalSeoModule,
+    ImpactModule,
     OutreachModule,
     ReportingModule,
     MarketIntelligenceModule,

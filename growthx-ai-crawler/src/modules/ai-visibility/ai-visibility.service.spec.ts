@@ -32,6 +32,9 @@ describe('AiVisibilityService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       competitorDomain: { upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve(create)) },
+      // Checks record where they were asked from; a project with no location
+      // profile records null geography rather than failing.
+      localLocation: { findFirst: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn().mockImplementation((ops: any[]) => Promise.all(ops)),
     };
 
@@ -231,6 +234,59 @@ describe('AiVisibilityService', () => {
           where: { projectId_text: { projectId: 'proj_1', text: 'best jacket' } },
         }),
       );
+    });
+  });
+  describe('where the question was asked from', () => {
+    it('records the market on every check, so answers from different cities are distinguishable', async () => {
+      // "Best dentist near me" resolves differently in Bandra and in Pune. A
+      // citation record with no geography cannot tell those apart, and so
+      // cannot explain why a multi-location customer wins one market and not
+      // the next.
+      prisma.localLocation.findFirst.mockResolvedValue({
+        id: 'loc-1',
+        address: '12 Hill Road, Bandra West, Mumbai, 400050',
+        latitude: 19.0596,
+        longitude: 72.8295,
+      });
+
+      await service.sweepProject('proj_1', { assistants: [AiAssistant.CLAUDE] });
+
+      const written = prisma.promptCheck.create.mock.calls.map((c: any) => c[0].data);
+      expect(written.length).toBeGreaterThan(0);
+      for (const row of written) {
+        expect(row).toMatchObject({
+          locationId: 'loc-1',
+          metroId: 'mumbai',
+          latitude: 19.0596,
+          longitude: 72.8295,
+        });
+      }
+    });
+
+    it('records no geography rather than a guess when the project has no location', async () => {
+      prisma.localLocation.findFirst.mockResolvedValue(null);
+
+      await service.sweepProject('proj_1', { assistants: [AiAssistant.CLAUDE] });
+
+      const written = prisma.promptCheck.create.mock.calls.map((c: any) => c[0].data);
+      expect(written[0].metroId).toBeUndefined();
+      expect(written[0].latitude).toBeUndefined();
+    });
+  });
+  describe('when the only configured vendor is not the assistant being measured', () => {
+    it('records the check as an error, never as "not cited"', async () => {
+      // On a Sarvam-only install, a check for what ChatGPT says cannot run.
+      // The distinction that matters: "we could not ask" must never be stored
+      // in a way that later reads as "you were not cited", because the report
+      // counts those very differently and the customer cannot tell them apart.
+      router.generate.mockRejectedValue(new Error('OPENAI is not configured.'));
+
+      await service.sweepProject('proj_1', { assistants: [AiAssistant.CHATGPT] });
+
+      const written = prisma.promptCheck.create.mock.calls.map((c: any) => c[0].data);
+      expect(written).toHaveLength(1);
+      expect(written[0].error).toContain('not configured');
+      expect(written[0].cited).toBeUndefined();
     });
   });
 });

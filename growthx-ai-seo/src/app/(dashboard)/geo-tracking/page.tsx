@@ -16,13 +16,17 @@ interface GridNode {
   lng: number;
   distanceKm: number;
   direction: string;
-  rank: number;
+  /** Null when the business did not appear in the results here at all. */
+  rank: number | null;
   businessFound: boolean;
+  /** How many results Google actually returned at this coordinate. */
+  resultCount: number;
   topCompetitors: {
     name: string;
     rank: number;
     rating?: number;
     reviewsCount?: number;
+    isClient: boolean;
   }[];
 }
 
@@ -33,13 +37,16 @@ interface GeoGridScanResult {
   gridSize: number;
   radiusKm: number;
   scannedAt: string;
+  source: string;
   metrics: {
-    averageGridRank: number;
+    /** Mean of the ranks actually observed. Null when found nowhere. */
+    averageGridRank: number | null;
     top3DominancePercentage: number;
     top1Count: number;
     top3Count: number;
     top10Count: number;
     unrankedCount: number;
+    foundCount: number;
   };
   nodes: GridNode[];
   aiGeoActionPlan: {
@@ -68,7 +75,7 @@ export default function GeoTrackingPage() {
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState("luxury jewellery store");
   const [businessName, setBusinessName] = useState("");
-  const [gridSize, setGridSize] = useState<3 | 5>(3);
+  const [gridSize, setGridSize] = useState<3 | 5 | 7 | 9>(3);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [selectedNode, setSelectedNode] = useState<GridNode | null>(null);
 
@@ -122,7 +129,10 @@ export default function GeoTrackingPage() {
 
   const data = scanMut.data;
 
-  const getRankBadgeStyle = (rank: number) => {
+  const getRankBadgeStyle = (rank: number | null) => {
+    // Absent from the results is its own state, not the worst rank. Rendering
+    // it as a number would report a placing that was never observed.
+    if (rank == null) return "bg-slate-200 text-slate-500 ring-2 ring-slate-100";
     if (rank === 1) return "bg-emerald-500 text-white ring-4 ring-emerald-100 shadow-md shadow-emerald-500/20";
     if (rank <= 3) return "bg-emerald-600 text-white ring-2 ring-emerald-100";
     if (rank <= 9) return "bg-amber-500 text-white ring-2 ring-amber-100";
@@ -130,7 +140,8 @@ export default function GeoTrackingPage() {
     return "bg-rose-500 text-white ring-2 ring-rose-100";
   };
 
-  const getRankTextColor = (rank: number) => {
+  const getRankTextColor = (rank: number | null) => {
+    if (rank == null) return "text-slate-400";
     if (rank <= 3) return "text-emerald-600";
     if (rank <= 9) return "text-amber-600";
     if (rank <= 19) return "text-orange-600";
@@ -388,22 +399,17 @@ export default function GeoTrackingPage() {
                   Grid Size
                 </label>
                 <div className="flex rounded-md border border-brand-200 p-0.5 bg-brand-100">
-                  <button
-                    onClick={() => setGridSize(3)}
-                    className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
-                      gridSize === 3 ? "bg-white text-brand-950 shadow-sm" : "text-brand-500 hover:text-brand-950"
-                    }`}
-                  >
-                    3x3 (9 pts)
-                  </button>
-                  <button
-                    onClick={() => setGridSize(5)}
-                    className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
-                      gridSize === 5 ? "bg-white text-brand-950 shadow-sm" : "text-brand-500 hover:text-brand-950"
-                    }`}
-                  >
-                    5x5 (25 pts)
-                  </button>
+                  {([3, 5, 7, 9] as const).map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setGridSize(size)}
+                      className={`flex-1 py-1.5 text-[12px] font-medium rounded transition ${
+                        gridSize === size ? "bg-white text-brand-950 shadow-sm" : "text-brand-500 hover:text-brand-950"
+                      }`}
+                    >
+                      {size}x{size}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -449,7 +455,7 @@ export default function GeoTrackingPage() {
             <div className="text-center">
               <p className="text-sm font-semibold text-brand-950">Simulating Geo-Grid Local Coordinates...</p>
               <p className="text-[12px] text-brand-500 mt-1">
-                Calculating {gridSize * gridSize} coordinate nodes across a {radiusKm}km radius and retrieving Map Pack ranks.
+                Querying {gridSize * gridSize} coordinates across a {radiusKm}km radius against Google Places.
               </p>
             </div>
           </div>
@@ -464,7 +470,7 @@ export default function GeoTrackingPage() {
                 <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider">Average Grid Rank (AGR)</p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className={`text-3xl font-bold ${getRankTextColor(data.metrics.averageGridRank)}`}>
-                    #{data.metrics.averageGridRank}
+                    {data.metrics.averageGridRank == null ? "Not ranked" : `#${data.metrics.averageGridRank}`}
                   </span>
                   <span className="text-[12px] text-brand-500">across {data.nodes.length} nodes</span>
                 </div>
@@ -568,12 +574,16 @@ export default function GeoTrackingPage() {
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setSelectedNode(node)}
                           className={`relative flex items-center justify-center m-auto rounded-full font-bold text-[13px] transition cursor-pointer ${
-                            data.gridSize === 5 ? "w-10 h-10 text-[11px]" : "w-14 h-14"
+                            data.gridSize >= 7
+                              ? "w-8 h-8 text-[10px]"
+                              : data.gridSize === 5
+                              ? "w-10 h-10 text-[11px]"
+                              : "w-14 h-14"
                           } ${getRankBadgeStyle(node.rank)} ${
                             isSelected ? "ring-4 ring-white ring-offset-2 ring-offset-slate-900 z-20" : ""
                           }`}
                         >
-                          {node.rank > 20 ? "20+" : node.rank}
+                          {node.rank ?? "\u2014"}
                           {isCenter && (
                             <span className="absolute -top-1.5 -right-1 px-1 py-0.2 bg-white text-slate-900 rounded-full text-[8px] font-extrabold uppercase border shadow">
                               HQ
@@ -612,7 +622,7 @@ export default function GeoTrackingPage() {
                       <div className="text-right">
                         <span className="text-[11px] text-brand-500 block uppercase font-semibold">Rank at this Pin</span>
                         <span className={`text-2xl font-bold ${getRankTextColor(selectedNode.rank)}`}>
-                          #{selectedNode.rank > 20 ? "20+" : selectedNode.rank}
+                          {selectedNode.rank == null ? "Not in results" : `#${selectedNode.rank}`}
                         </span>
                       </div>
                     </div>
@@ -623,16 +633,18 @@ export default function GeoTrackingPage() {
                       </p>
                     </div>
 
-                    {/* Simulated Map Pack Results */}
+                    {/* Ranked results Google actually returned at this coordinate. */}
                     <div className="space-y-3 pt-2">
                       <p className="text-[11px] font-semibold text-brand-500 uppercase tracking-wider flex items-center justify-between">
-                        <span>Local 3-Pack at this spot</span>
-                        <span className="text-emerald-600">Simulated SERP</span>
+                        <span>Local results at this spot</span>
+                        <span className="text-emerald-600">
+                          {selectedNode.resultCount} live result{selectedNode.resultCount === 1 ? "" : "s"}
+                        </span>
                       </p>
 
                       <div className="space-y-2">
                         {selectedNode.topCompetitors.map((comp, i) => {
-                          const isClient = comp.name.toLowerCase().includes(data.businessName.toLowerCase());
+                          const isClient = comp.isClient;
                           return (
                             <div
                               key={i}

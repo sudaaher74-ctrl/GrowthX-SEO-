@@ -244,7 +244,7 @@ export class ContentAgentService {
         orderBy: { crawledAt: 'desc' },
         take: 12,
       }),
-      this.prisma.localLocation.findUnique({ where: { projectId } }),
+      this.prisma.localLocation.findFirst({ where: { projectId } }),
     ]);
 
     if (pages.length === 0) {

@@ -289,6 +289,11 @@ model Organization {
   id           String               @id @default(uuid())
   name         String
   slug         String               @unique
+  /// Monthly ceiling on AI provider spend, in USD. Null means no ceiling.
+  /// Enforced by AiUsageService against calls whose cost is actually known —
+  /// spend on models with no published rate cannot be counted, and the service
+  /// reports how many such calls it had to ignore rather than guessing.
+  aiMonthlyBudgetUsd Float?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   auditLogs    AuditLog[]
@@ -336,7 +341,7 @@ model Project {
   contentPieces        ContentPiece[]
   CustomReport         CustomReport[]
   IntegrationConfig    IntegrationConfig?
-  LocalLocation        LocalLocation?
+  locations            LocalLocation[]
   MarketIntelligence   MarketIntelligence?
   MonitoringConfig     MonitoringConfig?
   OutreachCampaign     OutreachCampaign[]
@@ -401,6 +406,19 @@ model PromptCheck {
   trackedPromptId  String
   assistant        AiAssistant
   checkedAt        DateTime      @default(now())
+  /// Where the question was asked from.
+  ///
+  /// A local answer is a different answer in every city: "best dentist near me"
+  /// resolves differently in Bandra and in Pune, and a citation record with no
+  /// geography cannot tell those apart or explain why a multi-location customer
+  /// wins in one market and not the next. Null means the check was not
+  /// geographically situated, which is itself worth being able to query for.
+  locationId       String?
+  /// Free-form market label, e.g. "mumbai" or "pune-west". Grouping key for
+  /// comparing the same prompt across markets.
+  metroId          String?
+  latitude         Float?
+  longitude        Float?
   /// Whether the customer's own domain appeared in the answer.
   cited            Boolean       @default(false)
   /// 1 = the customer was the first brand named. Null when not cited.
@@ -421,6 +439,8 @@ model PromptCheck {
   @@index([trackedPromptId, checkedAt])
   @@index([assistant, checkedAt])
   @@index([checkedAt])
+  @@index([metroId, checkedAt])
+  @@index([locationId, checkedAt])
 }
 
 /// How a client's website code is reached, so fixes and new content can be
@@ -701,17 +721,37 @@ model AuditLog {
   @@index([organizationId, createdAt])
 }
 
+/// One physical location of a business.
+///
+/// `projectId` is deliberately not unique. The product sells to businesses with
+/// 5-100 locations and prices per location; one row per project made the ICP
+/// and the pricing model unrepresentable. A project with a single location is
+/// simply a project with one row.
 model LocalLocation {
   id             String         @id @default(uuid())
-  projectId      String         @unique
+  projectId      String
   businessName   String
   address        String
+  /// Google Places id, when the location was connected through Places. The
+  /// reliable way to recognise this business in a result set; name matching is
+  /// the fallback, not the intent.
+  placeId        String?
+  /// Coordinates of the storefront. Required before a geo grid can be run —
+  /// a grid centred on a guess measures the wrong neighbourhood.
+  latitude       Float?
+  longitude      Float?
   rating         Float          @default(0)
   reviewCount    Int            @default(0)
   citationsCount Int            @default(0)
+  createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   rankings       LocalRanking[]
+
+  /// One row per place per project: reconnecting the same listing updates it
+  /// rather than adding a duplicate location to the bill.
+  @@unique([projectId, placeId])
+  @@index([projectId])
 }
 
 model GbpFixProposal {
@@ -2447,4 +2487,250 @@ model StrategyAction {
 
   @@index([projectId, status])
   @@index([runId, opportunityScore])
+}
+
+/// One AI provider call, recorded for cost attribution and budget enforcement.
+///
+/// Written best-effort after every routed call, successes and failures alike:
+/// a request that burned input tokens and then errored still cost money, and a
+/// ledger that records only successes understates the bill.
+///
+/// `organizationId` and `projectId` are deliberately loose ids rather than
+/// relations. This is a billing ledger — deleting a project should not erase
+/// the record of what that project spent.
+model AiUsageRecord {
+  id             String @id @default(uuid())
+  organizationId String?
+  projectId      String?
+  /// The semantic task the caller asked for — the router's `AiTask`, e.g.
+  /// "CODE_GENERATION". Text rather than a Prisma enum so the router can name a
+  /// new task without a migration; the router owns that vocabulary.
+  taskType       String
+  provider       String
+  model          String
+  inputTokens    Int    @default(0)
+  outputTokens   Int    @default(0)
+  /// Null when no published rate is known for the model. Never a guessed
+  /// number — the same rule the rest of the product applies to metrics applies
+  /// to cost, because a wrong margin is worse than an absent one.
+  estimatedCostUsd Float?
+  latencyMs        Int
+  /// OK | REFUSED | ERROR
+  status           String
+  /// Provider error message when status is ERROR. Truncated by the writer.
+  error            String?
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([taskType, createdAt])
+  @@index([provider, createdAt])
+}
+
+/// One geo-grid scan: a keyword measured at every coordinate of an N x N grid
+/// around a location, at one point in time.
+///
+/// Stored rather than computed-and-discarded because local rank history is the
+/// whole value of a geo grid — a single heat map is a screenshot, and "are we
+/// gaining ground in the north-east" is unanswerable without the previous runs.
+/// History like this cannot be backfilled later at any price.
+model GeoGridRun {
+  id         String  @id @default(uuid())
+  projectId  String
+  /// Null until a project has a location profile attached.
+  locationId String?
+  keyword    String
+  /// 3, 5, 7 or 9.
+  gridSize   Int
+  centerLat  Float
+  centerLng  Float
+  radiusKm   Float
+  /// Where the ranks came from. Only real sources are ever recorded here.
+  source     String  @default("GOOGLE_PLACES")
+
+  /// Mean rank across the points where the business was actually found. Null
+  /// when it was found nowhere — averaging in a placeholder for "absent" would
+  /// invent a number, and a missing business is not a rank-21 business.
+  averageRank   Float?
+  /// Points where the business appeared at all, and where it placed well.
+  foundCount    Int
+  top3Count     Int
+  top10Count    Int
+  /// Total coordinates scanned, i.e. gridSize squared.
+  pointCount    Int
+
+  ranAt     DateTime @default(now())
+  points    GeoGridPoint[]
+
+  @@index([projectId, keyword, ranAt])
+  @@index([locationId, ranAt])
+}
+
+/// One coordinate of a geo-grid scan.
+model GeoGridPoint {
+  id         String @id @default(uuid())
+  runId      String
+  row        Int
+  col        Int
+  lat        Float
+  lng        Float
+  distanceKm Float
+  /// "Center", "North", "South-East", and so on.
+  direction  String
+  /// Where the business placed at this coordinate. Null means it did not appear
+  /// in the result set at all — deliberately distinct from a numeric last place.
+  rank        Int?
+  /// How many results the source actually returned here, so a null rank can be
+  /// told apart from a coordinate that returned nothing.
+  resultCount Int
+
+  run         GeoGridRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  competitors GeoGridCompetitor[]
+
+  @@unique([runId, row, col])
+  @@index([runId])
+}
+
+/// A business that outranked, or shared the grid with, the client at one
+/// coordinate. Rows rather than a JSON blob so "who dominates the north-east,
+/// and since when" is a query instead of a re-parse.
+model GeoGridCompetitor {
+  id          String @id @default(uuid())
+  pointId     String
+  rank        Int
+  name        String
+  /// Google Places id, when the source supplied one.
+  placeId     String?
+  rating      Float?
+  reviewCount Int?
+  /// True when this row is the tracked business rather than a competitor.
+  isClient    Boolean @default(false)
+
+  point GeoGridPoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
+
+  @@index([pointId, rank])
+  @@index([name])
+}
+
+
+/// The kind of structural change a fix made.
+///
+/// A closed vocabulary on purpose. The question worth answering across every
+/// customer is "does adding FAQ markup to a service page move citation, and by
+/// how much, in this vertical, on this engine" — and that question is only
+/// askable if the change was filed under a name that recurs. Free text here
+/// would make the whole ledger unqueryable.
+enum ChangeClass {
+  SCHEMA_MARKUP
+  FAQ_BLOCK
+  ENTITY_DISAMBIGUATION
+  HEADING_STRUCTURE
+  COMPARISON_TABLE
+  AUTHOR_CREDENTIALS
+  INTERNAL_LINKS
+  FRESHNESS_UPDATE
+  CITED_STATISTIC
+  CANONICAL_CONSOLIDATION
+  METADATA
+  MEDIA_ALT
+  PAGE_SPEED
+  OTHER
+}
+
+/// Whether a candidate page was actually changed, or deliberately left alone.
+///
+/// The holds are the entire reason this table can support a causal claim.
+/// Without a comparable set of pages that were identified as needing the same
+/// fix and then not given it, a citation gain after a change is a coincidence
+/// with good timing — which is what every competitor in this category is
+/// currently able to report.
+enum InterventionArm {
+  TREAT
+  HOLD
+}
+
+/// One structural change shipped to a page — or deliberately withheld from it.
+///
+/// This is the row that makes the product's central claim checkable. Citation
+/// observations record what an engine said; crawled Page rows record what the
+/// page looked like at a point in time. Neither alone answers "did our change
+/// cause this", because nothing joined the two. This does.
+///
+/// `beforePageId` / `afterPageId` point at Page rows from the crawls either
+/// side of the change. Page is already a per-crawl snapshot with a contentHash,
+/// headings, metadata and schemas, so it is reused rather than duplicated.
+model FixIntervention {
+  id        String @id @default(uuid())
+  projectId String
+  /// The page the change was made to, as a URL: stable across re-crawls in a
+  /// way that a Page id (which is per crawl job) is not.
+  url       String
+  changeClass ChangeClass
+  arm         InterventionArm @default(TREAT)
+
+  /// Page rows from the crawl before and after the change.
+  beforePageId String?
+  afterPageId  String?
+
+  /// The automation run that produced the change, when it came from the fix
+  /// engine rather than being recorded by hand.
+  automationRunId String?
+  pullRequestUrl  String?
+  mergedSha       String?
+
+  /// A one-line description of what actually changed, for the human reading a
+  /// report. The queryable fact is changeClass; this is the colour.
+  summary String?
+
+  /// When the change reached production. Null for a HOLD, which by definition
+  /// never shipped — and for a TREAT that has not merged yet.
+  shippedAt    DateTime?
+  rolledBackAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  outcomes InterventionOutcome[]
+
+  @@index([projectId, changeClass, shippedAt])
+  @@index([projectId, arm])
+  @@index([url])
+}
+
+/// What happened to citation after an intervention, measured over one window.
+///
+/// Rates rather than counts, because the number of prompts tracked for a page
+/// changes over time. `lift` is difference-in-differences against the holds:
+/// (post - pre) - (controlPost - controlPre). Null when there were no holds to
+/// compare with, which is the honest answer — the alternative is reporting a
+/// before-and-after difference as though it were an effect.
+model InterventionOutcome {
+  id             String      @id @default(uuid())
+  interventionId String
+  /// Null means "across every engine", which is a different measurement from
+  /// any single engine's and is stored as its own row.
+  assistant      AiAssistant?
+  /// 7, 30, 60 or 90.
+  windowDays     Int
+
+  preCitationRate  Float
+  postCitationRate Float
+  preSampleSize    Int
+  postSampleSize   Int
+
+  controlPreRate    Float?
+  controlPostRate   Float?
+  controlSampleSize Int?
+
+  /// Difference-in-differences against the hold arm. Null without holds.
+  lift Float?
+
+  measuredAt DateTime @default(now())
+
+  intervention FixIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  /// Not a unique constraint: `assistant` is nullable to mean "all engines",
+  /// and Postgres treats NULLs as distinct, so a unique index over it would
+  /// silently fail to prevent the duplicate it appears to forbid. The service
+  /// looks the row up and updates it instead.
+  @@index([interventionId, windowDays])
+  @@index([interventionId])
 }

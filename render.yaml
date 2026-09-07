@@ -60,6 +60,15 @@ services:
       # ceiling (Pro 16384 / Business 128000).
       - key: SARVAM_MAX_OUTPUT_TOKENS
         value: "4096"
+      # Sarvam publishes no rate the router can hard-code. On an install where
+      # Sarvam is the primary or only vendor these matter more than they look:
+      # left unset, every call records at unknown cost, the AI spend ledger
+      # reports zero, and an organization's monthly AI budget can never fire.
+      # USD per million tokens, from your Sarvam plan.
+      - key: SARVAM_RATE_INPUT_PER_MTOK
+        sync: false
+      - key: SARVAM_RATE_OUTPUT_PER_MTOK
+        sync: false
       # Live web search for Market Research. Without it the tab answers from
       # the client's own crawl only and says so in the answer's evidence gaps;
       # no provider the router speaks to can search the web from a Chat
@@ -75,10 +84,13 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      # Local SEO business lookup. Uses Places API (NEW) — places.googleapis.com
-      # — which is a separate product to enable from the legacy Places API, and
-      # requires billing on the Google Cloud project. Without it, business
-      # search refuses outright rather than returning results.
+      # Local SEO business lookup AND geo-grid rank tracking. Uses Places API
+      # (NEW) — places.googleapis.com — a separate product to enable from the
+      # legacy Places API, requiring billing on the Google Cloud project.
+      # Without it, business search and geo-grid scanning both refuse outright
+      # rather than returning results. The geo grid previously simulated its
+      # ranks when this was absent; it no longer does, so an install without
+      # this key loses the heat map rather than showing an invented one.
       - key: GOOGLE_PLACES_API_KEY
         sync: false
       # Instagram competitor ingestion, via Business Discovery. Both are needed

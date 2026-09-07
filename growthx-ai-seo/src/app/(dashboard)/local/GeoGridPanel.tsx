@@ -31,9 +31,12 @@ export function GeoGridPanel({ projectId, businessName }: { projectId: string | 
     );
   };
 
-  const getRankColor = (rank: number, isSelected: boolean) => {
+  const getRankColor = (rank: number | null, isSelected: boolean) => {
     let base = "";
-    if (rank >= 1 && rank <= 3) {
+    if (rank == null) {
+      // Absent from the results is its own state, not the worst rank.
+      base = "bg-slate-200 text-slate-500 hover:bg-slate-100 shadow-slate-400/10";
+    } else if (rank >= 1 && rank <= 3) {
       base = "bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-500/20";
     } else if (rank >= 4 && rank <= 10) {
       base = "bg-amber-400 text-amber-950 hover:bg-amber-300 shadow-amber-500/20";
@@ -112,7 +115,11 @@ export function GeoGridPanel({ projectId, businessName }: { projectId: string | 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="p-3.5 bg-brand-50/70 rounded-lg border border-brand-200">
                 <p className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">Avg Grid Rank</p>
-                <p className="text-xl font-bold font-mono text-brand-950">#{scanResult.metrics.averageGridRank.toFixed(1)}</p>
+                <p className="text-xl font-bold font-mono text-brand-950">
+                  {scanResult.metrics.averageGridRank == null
+                    ? 'Not ranked'
+                    : `#${scanResult.metrics.averageGridRank.toFixed(1)}`}
+                </p>
               </div>
               <div className="p-3.5 bg-emerald-50/80 rounded-lg border border-emerald-200">
                 <p className="text-[11px] font-medium text-emerald-800 uppercase tracking-wider mb-1">3-Pack Dominance</p>
@@ -157,9 +164,11 @@ export function GeoGridPanel({ projectId, businessName }: { projectId: string | 
                         key={node.id}
                         onClick={() => setSelectedNodeId(node.id)}
                         className={`w-12 h-12 flex flex-col items-center justify-center rounded-lg text-sm font-extrabold cursor-pointer transition-all duration-150 relative ${getRankColor(node.rank, isSelected)}`}
-                        title={`[${node.direction}] Distance: ${node.distanceKm}km\nRank: #${node.rank}\nClick to inspect competitors`}
+                        title={`[${node.direction}] Distance: ${node.distanceKm}km\nRank: ${
+                          node.rank == null ? 'not in results' : `#${node.rank}`
+                        }\nClick to inspect competitors`}
                       >
-                        <span>{node.rank > 20 ? '20+' : `#${node.rank}`}</span>
+                        <span>{node.rank == null ? '\u2014' : `#${node.rank}`}</span>
                         <span className="text-[8px] font-mono tracking-tighter opacity-85">{node.direction.split('-').map(p => p[0]).join('')}</span>
                       </button>
                     );
@@ -201,11 +210,14 @@ export function GeoGridPanel({ projectId, businessName }: { projectId: string | 
                       </div>
                       <div className="text-right">
                         <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-bold ${
+                          selectedNode.rank == null ? 'bg-slate-100 text-slate-600' :
                           selectedNode.rank <= 3 ? 'bg-emerald-100 text-emerald-800' :
                           selectedNode.rank <= 10 ? 'bg-amber-100 text-amber-900' :
                           'bg-rose-100 text-rose-800'
                         }`}>
-                          Your Position: #{selectedNode.rank > 20 ? '20+' : selectedNode.rank}
+                          {selectedNode.rank == null
+                            ? 'Not in the results here'
+                            : `Your Position: #${selectedNode.rank}`}
                         </span>
                       </div>
                     </div>
@@ -288,7 +300,9 @@ export function GeoGridPanel({ projectId, businessName }: { projectId: string | 
                     <div className="p-3 bg-brand-50 rounded-lg border border-brand-200/80 text-xs">
                       <span className="font-bold text-brand-800">Zone Strategy: </span>
                       <span className="text-brand-600 leading-relaxed">
-                        {selectedNode.rank <= 3
+                        {selectedNode.rank == null
+                          ? `You did not appear in the results at all in this ${selectedNode.direction} sector. Competitors hold every position here, so this is a presence problem before it is a ranking one.`
+                          : selectedNode.rank <= 3
                           ? `You hold a prime Google Maps 3-Pack spot in this ${selectedNode.direction} sector. Protect it by actively maintaining a steady review flow from customers in this neighborhood.`
                           : selectedNode.rank <= 10
                           ? `High opportunity striking zone. You are ranking #${selectedNode.rank}. Acquiring 3-5 localized reviews mentioning keywords in this quadrant can move you into the top 3.`

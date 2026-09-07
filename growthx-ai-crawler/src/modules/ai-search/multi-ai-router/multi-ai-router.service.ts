@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
@@ -16,6 +16,7 @@ import {
   resolveSarvamReasoningEffort,
 } from '../../ai-engine/utils/sarvam-request.util';
 import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
+import { AiUsageService } from './ai-usage.service';
 
 export enum AiProvider {
   SARVAM = 'SARVAM',
@@ -26,8 +27,14 @@ export enum AiProvider {
   OPENROUTER = 'OPENROUTER',
 }
 
-/** What the caller wants done, independent of which vendor ends up serving it. */
-export enum AiTask {
+/**
+ * How a task is routed, independent of which vendor ends up serving it.
+ *
+ * Three profiles rather than one per task on purpose: the vendor preference
+ * order genuinely only has three shapes, and a table with one row per task
+ * drifts out of agreement with itself the first time a vendor is added.
+ */
+export enum RoutingProfile {
   /** Deep SEO reasoning, strategy, competitive analysis. */
   REASONING = 'REASONING',
   /** Generating code patches for the autonomous engineer. */
@@ -35,6 +42,68 @@ export enum AiTask {
   /** Cheap, high-volume extraction and classification. */
   FAST = 'FAST',
 }
+
+/**
+ * What the caller wants done. Named for the product surface that asks, not the
+ * model that answers, so the spend ledger reads as "what did the fix engine
+ * cost us" rather than "what did REASONING cost us".
+ *
+ * The first three values are the original routing profiles, kept as task names
+ * so existing callers keep working unchanged.
+ */
+export enum AiTask {
+  REASONING = 'REASONING',
+  CODE_GEN = 'CODE_GEN',
+  FAST = 'FAST',
+
+  SEO_RESEARCH = 'SEO_RESEARCH',
+  SEO_ANALYSIS = 'SEO_ANALYSIS',
+  COMPETITOR_ANALYSIS = 'COMPETITOR_ANALYSIS',
+  AI_VISIBILITY_ANALYSIS = 'AI_VISIBILITY_ANALYSIS',
+  PAGE_COMPARISON = 'PAGE_COMPARISON',
+  CONTENT_STRUCTURE_ANALYSIS = 'CONTENT_STRUCTURE_ANALYSIS',
+  ENTITY_ANALYSIS = 'ENTITY_ANALYSIS',
+  SEO_OPPORTUNITY_GENERATION = 'SEO_OPPORTUNITY_GENERATION',
+  CODE_GENERATION = 'CODE_GENERATION',
+  CODE_REVIEW = 'CODE_REVIEW',
+  FIX_VALIDATION = 'FIX_VALIDATION',
+  LOCAL_SEO_ANALYSIS = 'LOCAL_SEO_ANALYSIS',
+  REVIEW_RESPONSE_DRAFT = 'REVIEW_RESPONSE_DRAFT',
+  SUMMARY_GENERATION = 'SUMMARY_GENERATION',
+}
+
+/**
+ * Which routing profile each task uses.
+ *
+ * The judgement encoded here: anything that reads a page and decides what is
+ * wrong with it reasons; anything that writes or checks code needs the code
+ * profile; anything run hundreds of times per client per week is priced first
+ * and reasoned second, because at 300 prompts x 5 engines x weekly the cheap
+ * model is the difference between a viable gross margin and a services
+ * business.
+ */
+const TASK_PROFILE: Readonly<Record<AiTask, RoutingProfile>> = {
+  [AiTask.REASONING]: RoutingProfile.REASONING,
+  [AiTask.CODE_GEN]: RoutingProfile.CODE_GEN,
+  [AiTask.FAST]: RoutingProfile.FAST,
+
+  [AiTask.SEO_RESEARCH]: RoutingProfile.REASONING,
+  [AiTask.SEO_ANALYSIS]: RoutingProfile.REASONING,
+  [AiTask.COMPETITOR_ANALYSIS]: RoutingProfile.REASONING,
+  [AiTask.AI_VISIBILITY_ANALYSIS]: RoutingProfile.REASONING,
+  [AiTask.PAGE_COMPARISON]: RoutingProfile.REASONING,
+  [AiTask.SEO_OPPORTUNITY_GENERATION]: RoutingProfile.REASONING,
+
+  [AiTask.CODE_GENERATION]: RoutingProfile.CODE_GEN,
+  [AiTask.CODE_REVIEW]: RoutingProfile.CODE_GEN,
+  [AiTask.FIX_VALIDATION]: RoutingProfile.CODE_GEN,
+
+  [AiTask.CONTENT_STRUCTURE_ANALYSIS]: RoutingProfile.FAST,
+  [AiTask.ENTITY_ANALYSIS]: RoutingProfile.FAST,
+  [AiTask.LOCAL_SEO_ANALYSIS]: RoutingProfile.FAST,
+  [AiTask.REVIEW_RESPONSE_DRAFT]: RoutingProfile.FAST,
+  [AiTask.SUMMARY_GENERATION]: RoutingProfile.FAST,
+};
 
 export interface AiRequest {
   prompt: string;
@@ -44,6 +113,15 @@ export interface AiRequest {
   provider?: AiProvider;
   /** When present, the organization's plan decides which vendors are reachable. */
   organizationId?: string;
+  /** Attribution only — spend is reported per project as well as per org. */
+  projectId?: string;
+  /**
+   * Set false when the caller's configuration forbids switching vendors. The
+   * first provider is then the only one tried, and its failure is the answer:
+   * a customer who pinned a vendor for a compliance reason must not be quietly
+   * served by a different one.
+   */
+  allowFallback?: boolean;
   /** JSON Schema. When supplied, the response is constrained to match it. */
   jsonSchema?: Record<string, unknown>;
   maxTokens?: number;
@@ -82,12 +160,17 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
   'claude-haiku-4-5': { input: 1, output: 5 },
 };
 
-/** Which vendor each task prefers, best first. */
-const TASK_PREFERENCE: Readonly<Record<AiTask, readonly AiProvider[]>> = {
-  [AiTask.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [AiTask.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
+/** Which vendor each routing profile prefers, best first. */
+const TASK_PREFERENCE: Readonly<Record<RoutingProfile, readonly AiProvider[]>> = {
+  [RoutingProfile.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [RoutingProfile.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [RoutingProfile.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
+
+/** The routing profile a task uses. Unknown values reason rather than guess cheap. */
+export function profileFor(task: AiTask): RoutingProfile {
+  return TASK_PROFILE[task] ?? RoutingProfile.REASONING;
+}
 
 @Injectable()
 export class MultiAiRouterService {
@@ -120,7 +203,14 @@ export class MultiAiRouterService {
   private serverSideFallbackEnabled: boolean;
 
   constructor(
-    private readonly config: ConfigService,) {
+    private readonly config: ConfigService,
+    /**
+     * Optional so the router can still be constructed standalone (and in
+     * tests) without a database. When absent, calls run normally and simply
+     * go unrecorded.
+     */
+    @Optional() private readonly usageLedger?: AiUsageService,
+  ) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
@@ -191,7 +281,7 @@ export class MultiAiRouterService {
    */
   chainFor(task: AiTask): AiProvider[] {
     const allowed = this.configuredProviders();
-    return TASK_PREFERENCE[task].filter((p) => allowed.includes(p));
+    return TASK_PREFERENCE[profileFor(task)].filter((p) => allowed.includes(p));
   }
 
   /** The model each configured provider would use. Names only — never key material. */
@@ -221,13 +311,17 @@ export class MultiAiRouterService {
     const task = request.task ?? AiTask.REASONING;
     const allowed = this.configuredProviders();
 
+    // Checked before the call, not after: a ceiling that only reports overspend
+    // is a report, not a ceiling.
+    await this.usageLedger?.assertWithinBudget(request.organizationId);
+
     const targetProvider = request.provider;
 
     if (targetProvider) {
       if (!allowed.includes(targetProvider)) {
          throw new ServiceUnavailableException(`${targetProvider} is not configured.`);
       }
-      return this.invoke(targetProvider, request, task);
+      return this.invokeAndRecord(targetProvider, request, task);
     }
 
     const chain = this.chainFor(task);
@@ -241,11 +335,14 @@ export class MultiAiRouterService {
       );
     }
 
+    // A caller that forbids vendor switching gets the head of the chain only.
+    const attempts = request.allowFallback === false ? chain.slice(0, 1) : chain;
+
     let lastError: unknown;
-    for (const provider of chain) {
+    for (const provider of attempts) {
       try {
-        const completion = await this.invoke(provider, request, task);
-        if (completion.refused && chain.length > 1) {
+        const completion = await this.invokeAndRecord(provider, request, task);
+        if (completion.refused && attempts.length > 1) {
           this.logger.warn(`${provider} declined the request; trying the next provider.`);
           lastError = new Error(`${provider} declined the request.`);
           continue;
@@ -290,6 +387,53 @@ export class MultiAiRouterService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * `invoke` plus the ledger entry.
+   *
+   * Records failures as well as successes: a request that sent input tokens and
+   * then errored still cost money, and a ledger holding only the calls that
+   * worked understates the bill. Token counts are unknown on the error path, so
+   * they are written as zero with no cost rather than estimated.
+   */
+  private async invokeAndRecord(
+    provider: AiProvider,
+    request: AiRequest,
+    task: AiTask,
+  ): Promise<AiCompletion> {
+    const startedAt = Date.now();
+    try {
+      const completion = await this.invoke(provider, request, task);
+      this.usageLedger?.record({
+        organizationId: request.organizationId,
+        projectId: request.projectId,
+        taskType: task,
+        provider: completion.provider,
+        model: completion.model,
+        inputTokens: completion.usage.inputTokens,
+        outputTokens: completion.usage.outputTokens,
+        estimatedCostUsd: completion.usage.estimatedCostUsd,
+        latencyMs: Date.now() - startedAt,
+        status: completion.refused ? 'REFUSED' : 'OK',
+      });
+      return completion;
+    } catch (error) {
+      this.usageLedger?.record({
+        organizationId: request.organizationId,
+        projectId: request.projectId,
+        taskType: task,
+        provider,
+        model: this.configuredModels()[provider] ?? 'unknown',
+        inputTokens: 0,
+        outputTokens: 0,
+        estimatedCostUsd: null,
+        latencyMs: Date.now() - startedAt,
+        status: 'ERROR',
+        error: (error as Error)?.message ?? 'unknown',
+      });
+      throw error;
     }
   }
 
@@ -606,7 +750,13 @@ export class MultiAiRouterService {
       provider: AiProvider.SARVAM,
       model: json?.model ?? this.sarvamModel,
       text: message.text,
-      usage: this.usage(message.promptTokens, message.completionTokens),
+      // Sarvam publishes no rate we can hard-code, so cost is only known when
+      // the operator supplies one. This matters more than it looks: an install
+      // running entirely on Sarvam otherwise records every call at no cost, the
+      // ledger reports zero spend, and the organization's monthly budget can
+      // never fire. Set SARVAM_RATE_INPUT_PER_MTOK / SARVAM_RATE_OUTPUT_PER_MTOK
+      // to make the ceiling real.
+      usage: this.usage(message.promptTokens, message.completionTokens, this.envRate('SARVAM')),
       refused: false,
     };
   }
@@ -626,7 +776,7 @@ export class MultiAiRouterService {
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;

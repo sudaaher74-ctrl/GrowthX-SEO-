@@ -102,7 +102,7 @@ export class VideoScriptGeneratorService {
     const [project, config] = await Promise.all([
       this.prisma.project.findUnique({
         where: { id: projectId },
-        include: { LocalLocation: true },
+        include: { locations: true },
       }),
       this.prisma.contentIntelligenceConfig.findUnique({
         where: { projectId },
@@ -110,7 +110,7 @@ export class VideoScriptGeneratorService {
     ]);
 
     const brandName = project?.name || 'Our Brand';
-    const city = project?.LocalLocation?.address ? project.LocalLocation.address.split(',')[0].trim() : 'Our City';
+    const city = project?.locations?.[0]?.address ? project.locations[0].address.split(',')[0].trim() : 'Our City';
     const industry = config?.industrySkill || 'General B2B & Commercial';
 
     const prompt = `

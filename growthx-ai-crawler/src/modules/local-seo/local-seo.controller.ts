@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LocalSeoService } from './local-seo.service';
 import { GbpAnalyzerService } from './gbp-analyzer.service';
@@ -31,9 +31,23 @@ export class LocalSeoController {
   @Post('connect')
   async connectBusiness(
     @Param('projectId') projectId: string,
-    @Body() body: { businessName: string; address: string; rating: number; reviewCount: number }
+    @Body() body: {
+      businessName: string;
+      address: string;
+      rating: number;
+      reviewCount: number;
+      placeId?: string;
+      latitude?: number;
+      longitude?: number;
+    }
   ) {
     return this.localSeoService.connectBusiness(projectId, body);
+  }
+
+  /** Every location on the project. Projects may hold many. */
+  @Get('locations')
+  async listLocations(@Param('projectId') projectId: string) {
+    return this.localSeoService.listLocations(projectId);
   }
 
   @Post('gbp/analyze')
@@ -54,6 +68,22 @@ export class LocalSeoController {
   @Get('gbp/proposals')
   async getProposals(@Param('projectId') projectId: string) {
     return this.localSeoService.getProposals(projectId);
+  }
+
+  /** Previous geo-grid runs, newest first. A single grid is a snapshot. */
+  @Get('geo-grid/history')
+  async geoGridHistory(
+    @Param('projectId') projectId: string,
+    @Query('keyword') keyword?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.geoGridService.history(projectId, keyword, limit ? Number(limit) : undefined);
+  }
+
+  /** One stored run, with every coordinate and the businesses seen there. */
+  @Get('geo-grid/run/:runId')
+  async geoGridRun(@Param('runId') runId: string) {
+    return this.geoGridService.run(runId);
   }
 
   @Post('geo-grid/run')
