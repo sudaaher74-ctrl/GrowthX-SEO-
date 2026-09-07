@@ -428,7 +428,7 @@ function WebsiteClient() {
                   {/* Quality Diagnostics Card */}
                   <Panel title="Crawl quality diagnostics" subtitle="Crawler telemetry and reachability statistics" padded>
                     {/* Crawl Coverage Row */}
-                    {(qualityDiagnostics?.urlsDiscovered != null || qualityDiagnostics?.urlsCrawled != null) && (
+                    {(qualityDiagnostics?.urlsDiscovered != null || qualityDiagnostics?.pagesCrawled != null) && (
                       <div className="mb-3 rounded-lg border bg-brand-50/40 p-3">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-[10px] uppercase font-semibold text-brand-400">Crawl Coverage</span>
@@ -444,7 +444,7 @@ function WebsiteClient() {
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-brand-600">
                           <span><b className="text-brand-950">{(qualityDiagnostics?.urlsDiscovered ?? 0).toLocaleString()}</b> discovered</span>
-                          <span><b className="text-brand-950">{(qualityDiagnostics?.urlsCrawled ?? pagesCrawled).toLocaleString()}</b> crawled</span>
+                          <span><b className="text-brand-950">{(qualityDiagnostics?.pagesCrawled ?? pagesCrawled).toLocaleString()}</b> crawled</span>
                           {qualityDiagnostics?.urlsSkipped != null && qualityDiagnostics.urlsSkipped > 0 && (
                             <span><b className="text-brand-700">{qualityDiagnostics.urlsSkipped.toLocaleString()}</b> skipped</span>
                           )}
