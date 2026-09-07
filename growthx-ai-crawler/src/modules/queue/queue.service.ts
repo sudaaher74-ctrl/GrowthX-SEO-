@@ -159,6 +159,45 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Atomically pre-increments the pending task counter by the full batch size
+   * before enqueueing any individual task.
+   *
+   * This prevents the race condition where workers consume early tasks and
+   * decrement the counter to zero while the seed URL loop is still adding
+   * tasks. Under the old approach:
+   *   1. Loop: +1 → enqueue URL1
+   *   2. Worker: process URL1 → -1  (counter = 0!) → completeJob fires!
+   *   3. Loop: +1 → enqueue URL2  ← too late
+   *
+   * With pre-increment:
+   *   1. pre-increment by N (total batch)
+   *   2. Loop: enqueue URL1..N without touching counter
+   *   3. Workers decrement normally — counter only reaches 0 when all N are done
+   */
+  async bulkAddPageFetchTasks(payloads: PageFetchPayload[], delayMs: number = 0): Promise<void> {
+    if (!this.pageFetchQueue || payloads.length === 0) return;
+
+    // Pre-increment by total before any worker can see even the first task.
+    await this.incrementPendingTasks(payloads[0].jobId, payloads.length);
+
+    const jobs = payloads.map((payload) => ({
+      name: 'fetch-url',
+      data: payload,
+      opts: {
+        delay: delayMs,
+        removeOnComplete: true as const,
+        removeOnFail: true as const,
+        attempts: 2,
+        backoff: { type: 'fixed' as const, delay: 1000 },
+      },
+    }));
+
+    // BullMQ addBulk is atomic: all jobs land in Redis in one pipeline,
+    // so workers see none of them until all are committed.
+    await this.pageFetchQueue.addBulk(jobs);
+  }
+
   private readonly inMemoryTaskCounters = new Map<string, number>();
 
   async incrementPendingTasks(jobId: string, count: number = 1): Promise<number> {

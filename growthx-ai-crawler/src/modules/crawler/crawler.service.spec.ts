@@ -106,64 +106,63 @@ describe('CrawlerService', () => {
   });
 
   describe('visit deduplication', () => {
+    // The service handles duplicate URLs (from nav links, pagination, etc) so
+    // a page is fetched once per crawl, not every time a link points to it.
+
     it('reports a URL as unvisited the first time and visited after', async () => {
       const service = makeService();
       const mark = (url: string) => (service as any).markUrlVisited('job1', url);
 
-      expect(await mark('https://example.com/a')).toBe(false);
-      expect(await mark('https://example.com/a')).toBe(true);
-      expect(await mark('https://example.com/a')).toBe(true);
+      expect((await mark('https://example.com/a')).alreadyVisited).toBe(false);
+      expect((await mark('https://example.com/a')).alreadyVisited).toBe(true);
+      expect((await mark('https://example.com/a')).alreadyVisited).toBe(true);
     });
 
     it('tracks each URL separately', async () => {
       const service = makeService();
       const mark = (url: string) => (service as any).markUrlVisited('job1', url);
 
-      expect(await mark('https://example.com/a')).toBe(false);
-      expect(await mark('https://example.com/b')).toBe(false);
-      expect(await mark('https://example.com/a')).toBe(true);
+      expect((await mark('https://example.com/a')).alreadyVisited).toBe(false);
+      expect((await mark('https://example.com/b')).alreadyVisited).toBe(false);
+      expect((await mark('https://example.com/a')).alreadyVisited).toBe(true);
     });
 
-    // Two customers crawling the same site must not shorten each other's crawl.
     it('keeps separate visited sets per job', async () => {
       const service = makeService();
       const mark = (job: string, url: string) => (service as any).markUrlVisited(job, url);
 
-      expect(await mark('job1', 'https://example.com/a')).toBe(false);
-      expect(await mark('job2', 'https://example.com/a')).toBe(false);
-      expect(await mark('job1', 'https://example.com/a')).toBe(true);
+      expect((await mark('job1', 'https://example.com/a')).alreadyVisited).toBe(false);
+      expect((await mark('job2', 'https://example.com/a')).alreadyVisited).toBe(false);
+      expect((await mark('job1', 'https://example.com/a')).alreadyVisited).toBe(true);
     });
 
     describe('with Redis', () => {
       it('uses the shared set so parallel workers do not refetch', async () => {
-        const sadd = jest.fn().mockResolvedValue(1);
-        const expire = jest.fn().mockResolvedValue(1);
+        const sadd = jest.fn().mockResolvedValue(1); // 1 = added, was not there
+        const expire = jest.fn();
         const service = makeService({
-          queue: { getRedisClient: () => ({ sadd, expire }), pageFetchQueue: null },
+          queue: { getRedisClient: () => ({ scard: jest.fn(), sadd, expire }), pageFetchQueue: null },
         });
 
         const visited = await (service as any).markUrlVisited('job1', 'https://example.com/a');
 
-        expect(visited).toBe(false);
+        expect(visited.alreadyVisited).toBe(false);
         // The member is the canonical key, not the URL as linked, so the same
         // page reached via www. or http:// claims the same slot in the set.
         expect(sadd).toHaveBeenCalledWith('job:job1:visited', 'example.com/a');
-        // Without the TTL the set would outlive the crawl and suppress the
-        // next one for the same job id.
-        expect(expire).toHaveBeenCalledWith('job:job1:visited', 86400);
+        expect(expire).toHaveBeenCalledWith('job:job1:visited', 86400); // 24h TTL
       });
 
       it('treats a URL another worker already claimed as visited', async () => {
-        // sadd returns 0 when the member was already in the set.
-        const sadd = jest.fn().mockResolvedValue(0);
+        const sadd = jest.fn().mockResolvedValue(0); // 0 = already in set
         const expire = jest.fn();
         const service = makeService({
-          queue: { getRedisClient: () => ({ sadd, expire }), pageFetchQueue: null },
+          queue: { getRedisClient: () => ({ scard: jest.fn(), sadd, expire }), pageFetchQueue: null },
         });
 
         const visited = await (service as any).markUrlVisited('job1', 'https://example.com/a');
 
-        expect(visited).toBe(true);
+        expect(visited.alreadyVisited).toBe(true);
         expect(expire).not.toHaveBeenCalled();
       });
     });

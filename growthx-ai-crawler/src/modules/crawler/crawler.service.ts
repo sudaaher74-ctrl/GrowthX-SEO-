@@ -32,6 +32,15 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly jobSitemapUrls = new Map<string, Set<string>>();
   private readonly completionHandlers: CrawlCompletionHandler[] = [];
 
+  /** Per-job crawl statistics for richer qualityDiagnostics. */
+  private readonly jobStats = new Map<string, {
+    urlsDiscovered: number;
+    urlsSkipped: number;
+    robotsBlocked: number;
+    internalLinksFound: number;
+    crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL';
+  }>();
+
   /**
    * How long a job may go without recording a page before it is treated as
    * abandoned. Comfortably longer than a slow page fetch plus its retries, so a
@@ -40,6 +49,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private static readonly STALL_TIMEOUT_MS = 5 * 60 * 1000;
   private static readonly STALL_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
   private stallSweep?: NodeJS.Timeout;
+
 
   constructor(
     private readonly prisma: PrismaService,
@@ -205,6 +215,15 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: { status: 'RUNNING' } });
     this.metrics.activeCrawlJobs.inc();
 
+    // Initialize per-job stats tracking
+    this.jobStats.set(payload.jobId, {
+      urlsDiscovered: 0,
+      urlsSkipped: 0,
+      robotsBlocked: 0,
+      internalLinksFound: 0,
+      crawlStatus: 'COMPLETED',
+    });
+
     const seedUrls = new Set<string>();
     const sitemapSet = new Set<string>();
     seedUrls.add(this.normalizeUrl(payload.startUrl));
@@ -222,6 +241,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             sitemapSet.add(normLoc);
           }
         }
+        this.logger.log(`[JOB ${payload.jobId}] Sitemap discovery: ${sitemapResult.sitemapsDiscovered.length} sitemaps, ${sitemapResult.urls.length} URLs found.`);
       } catch (err) {
         this.logger.warn(`[JOB ${payload.jobId}] Sitemap discovery failed or incomplete`, err);
       }
@@ -229,11 +249,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
     this.jobSitemapUrls.set(payload.jobId, sitemapSet);
 
+    // Update urlsDiscovered stat with seed count
+    const stats = this.jobStats.get(payload.jobId);
+    if (stats) stats.urlsDiscovered = seedUrls.size;
+
+    this.logger.log(`[JOB ${payload.jobId}] Total seed URLs to crawl: ${seedUrls.size} (${sitemapSet.size} from sitemaps, 1 homepage)`);
+
+
     // If Redis is active, dispatch to BullMQ
     if (this.queue.pageFetchQueue) {
-      this.logger.log(`[JOB ${payload.jobId}] Enqueuing ${seedUrls.size} seed URLs to Redis...`);
+      this.logger.log(`[JOB ${payload.jobId}] Bulk-enqueueing ${seedUrls.size} seed URLs to Redis (atomic pre-increment)...`);
+
+      // Build all payloads first, THEN pre-increment + bulk-enqueue atomically.
+      // The old approach incremented +1 per URL inside the loop, so a worker
+      // could finish URL #1 and decrement the counter to 0 while URLs #2..N
+      // were still being added — triggering completeJob() prematurely and
+      // leaving the remainder of the sitemap uncrawled.
+      const seedPayloads: import('../queue/queue.service').PageFetchPayload[] = [];
       for (const targetUrl of seedUrls) {
-        await this.queue.addPageFetchTask({
+        seedPayloads.push({
           jobId: payload.jobId,
           websiteId: payload.websiteId,
           domain: payload.domain,
@@ -242,8 +276,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: delayMs,
           pageLimit: payload.pageLimit,
-        }, 0);
+        });
       }
+      await this.queue.bulkAddPageFetchTasks(seedPayloads, 0);
     } 
     // Fallback: Concurrent In-Memory Queue
     else {
@@ -309,17 +344,35 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     try {
       const normUrl = this.normalizeUrl(payload.targetUrl);
 
-      const isVisited = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
-      if (isVisited) {
+      const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
+      if (alreadyVisited) {
+        const stats = this.jobStats.get(payload.jobId);
+        if (stats) stats.urlsSkipped++;
+        return;
+      }
+      if (limitReached) {
+        // Mark the job status as LIMIT_REACHED so the UI shows it correctly
+        const stats = this.jobStats.get(payload.jobId);
+        if (stats) {
+          stats.urlsSkipped++;
+          stats.crawlStatus = 'LIMIT_REACHED';
+        }
         return;
       }
 
       if (payload.depth > payload.maxDepth) {
+        const stats = this.jobStats.get(payload.jobId);
+        if (stats) stats.urlsSkipped++;
         return;
       }
 
       const allowed = await this.robots.isUrlAllowed(normUrl);
       if (!allowed) {
+        const stats = this.jobStats.get(payload.jobId);
+        if (stats) {
+          stats.urlsSkipped++;
+          stats.robotsBlocked++;
+        }
         return;
       }
 
@@ -343,6 +396,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // early still decrements and still completes the crawl.
         this.logger.debug(`[JOB ${payload.jobId}] Skipping ${normUrl}: ${fetchRes.contentType} is not a page.`);
         return;
+
       }
 
       let snapshotUrl: string | undefined;
@@ -550,6 +604,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * Enqueues discovered internal links for BFS crawling
    */
   private async discoverInternalLinksAndEnqueue(payload: PageFetchPayload, internalLinks: any[], sourcePageId: string): Promise<void> {
+    // Collect all eligible BFS links first, then bulk-enqueue them atomically.
+    // Enqueueing one-by-one while workers are running creates the same race as
+    // the seed URL loop: a worker that finishes between two enqueue calls can
+    // drop the pending counter to 0 and trigger completeJob prematurely.
+    const newPayloads: PageFetchPayload[] = [];
+
     for (const link of internalLinks) {
       const targetClean = this.normalizeUrl(link.targetUrl);
 
@@ -572,7 +632,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       if (!isCrawlablePage(targetClean)) continue;
 
       if (payload.depth + 1 <= payload.maxDepth) {
-        const newPayload: PageFetchPayload = {
+        newPayloads.push({
           jobId: payload.jobId,
           websiteId: payload.websiteId,
           domain: payload.domain,
@@ -582,22 +642,30 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: payload.rateLimitDelayMs,
           pageLimit: payload.pageLimit,
-        };
-        
-        if (this.queue.pageFetchQueue) {
-          await this.queue.addPageFetchTask(newPayload, 0);
-        } else {
-          const localQueue = this.localJobQueues.get(payload.jobId);
-          if (localQueue) {
-            localQueue.push(newPayload);
-          }
-        }
+        });
+      }
+    }
+
+    if (newPayloads.length === 0) return;
+
+    if (this.queue.pageFetchQueue) {
+      // Bulk-enqueue: pre-increments by newPayloads.length atomically,
+      // then commits all jobs to Redis in one pipeline.
+      await this.queue.bulkAddPageFetchTasks(newPayloads, 0);
+    } else {
+      const localQueue = this.localJobQueues.get(payload.jobId);
+      if (localQueue) {
+        localQueue.push(...newPayloads);
       }
     }
   }
 
   /**
-   * Claims a URL for this job, returning true when it must not be fetched.
+   * Claims a URL for this job, returning a result object describing why (if) it
+   * must not be fetched.
+   *
+   * `alreadyVisited` — the URL was seen before; skip silently (normal dedup).
+   * `limitReached`   — the page ceiling was hit; the crawl is capped, not done.
    *
    * Every fetch passes through here in both the Redis and in-memory paths,
    * which is why the page ceiling is enforced here rather than at each of the
@@ -611,19 +679,21 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * path of every fetch, and a handful of extra pages on a cap of a few
    * hundred is not worth either.
    */
-  private async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<boolean> {
+  private async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<{ alreadyVisited: boolean; limitReached: boolean }> {
     const redisClient = this.queue.getRedisClient();
     const key = `job:${jobId}:visited`;
     const member = this.visitKey(targetUrl);
 
     if (redisClient) {
-      if (pageLimit && (await redisClient.scard(key)) >= pageLimit) return true;
+      if (pageLimit && (await redisClient.scard(key)) >= pageLimit) {
+        return { alreadyVisited: false, limitReached: true };
+      }
       const added = await redisClient.sadd(key, member);
       if (added === 1) {
         await redisClient.expire(key, 86400);
-        return false;
+        return { alreadyVisited: false, limitReached: false };
       }
-      return true;
+      return { alreadyVisited: true, limitReached: false };
     }
 
     let visitedSet = this.localVisited.get(jobId);
@@ -631,10 +701,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       visitedSet = new Set<string>();
       this.localVisited.set(jobId, visitedSet);
     }
-    if (pageLimit && visitedSet.size >= pageLimit) return true;
-    if (visitedSet.has(member)) return true;
+    if (pageLimit && visitedSet.size >= pageLimit) {
+      return { alreadyVisited: false, limitReached: true };
+    }
+    if (visitedSet.has(member)) {
+      return { alreadyVisited: true, limitReached: false };
+    }
     visitedSet.add(member);
-    return false;
+    return { alreadyVisited: false, limitReached: false };
   }
 
   async completeJob(jobId: string): Promise<void> {
@@ -737,16 +811,40 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const finishedAt = new Date();
     const durationSeconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
     const sitemapSet = this.jobSitemapUrls.get(jobId);
+    const stats = this.jobStats.get(jobId);
+
+    // Determine final crawl status:
+    // COMPLETED    — queue fully exhausted, no ceiling hit
+    // LIMIT_REACHED — page ceiling was hit (explicitly configured cap)
+    // PARTIAL      — stall sweep or error finalized a crawl before queue exhaustion
+    const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = stats?.crawlStatus ?? 'COMPLETED';
+
+    const urlsDiscovered = stats?.urlsDiscovered ?? totalPages;
+    const urlsSkipped = stats?.urlsSkipped ?? 0;
+    const robotsBlocked = stats?.robotsBlocked ?? 0;
+    const internalLinksFound = stats?.internalLinksFound ?? 0;
+    const urlsCrawled = totalPages;
+    const urlsEligible = Math.max(urlsDiscovered - urlsSkipped, urlsCrawled);
+    const crawlCoveragePercent = urlsDiscovered > 0 ? Math.round((urlsCrawled / urlsDiscovered) * 100) : 100;
 
     const qualityDiagnostics = {
       durationSeconds,
       startedAt: startedAt.toISOString(),
       finishedAt: finishedAt.toISOString(),
-      pagesCrawled: totalPages,
+      pagesCrawled: urlsCrawled,
       statusCodes: statusCodeDist,
       avgResponseTimeMs,
       sitemapFound: Boolean(sitemapSet && sitemapSet.size > 0),
       sitemapUrlsCount: sitemapSet?.size || 0,
+      // Richer crawl summary
+      urlsDiscovered,
+      urlsEligible,
+      urlsCrawled,
+      urlsSkipped,
+      robotsBlocked,
+      internalLinksFound,
+      crawlCoveragePercent,
+      crawlStatus,
       totalFindings,
       uniqueIssuesCount,
       resolvedIssuesCount,
@@ -769,15 +867,17 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.logger.log(
-      `[JOB ${jobId}] Finished with Health Score ${healthScore}/100, ${totalFindings} findings (${uniqueIssuesCount} unique open, ${resolvedIssuesCount} resolved), ${totalPages} pages in ${durationSeconds}s.`,
+      `[JOB ${jobId}] ${crawlStatus} — Health Score ${healthScore}/100, ${totalFindings} findings (${uniqueIssuesCount} unique, ${resolvedIssuesCount} resolved), ${urlsCrawled}/${urlsDiscovered} URLs in ${durationSeconds}s (coverage ${crawlCoveragePercent}%).`,
     );
 
     this.crawlerGateway.broadcastProgress(jobId, {
-      status: 'COMPLETED',
+      status: crawlStatus,
       pagesCrawled: totalPages,
       healthScore,
       uniqueIssuesCount,
       resolvedIssuesCount,
+      urlsDiscovered,
+      crawlCoveragePercent,
     });
 
     // Bill crawled pages against the plan allowance only now that the job has
@@ -793,6 +893,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);
+    this.jobStats.delete(jobId);
 
     await this.announceCompletion(jobId, job.websiteId);
   }

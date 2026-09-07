@@ -178,7 +178,14 @@ function WebsiteClient() {
   })();
 
   const statusTone = (status?: string): "good" | "warn" | "bad" | "default" =>
-    status === "COMPLETED" ? "good" : status === "FAILED" ? "bad" : status ? "warn" : "default";
+    status === "COMPLETED" ? "good"
+    : status === "FAILED" ? "bad"
+    : status === "LIMIT_REACHED" || status === "PARTIAL" ? "warn"
+    : status ? "warn" : "default";
+
+  // The crawlStatus in qualityDiagnostics is more specific than job.status (which is always COMPLETED)
+  const effectiveCrawlStatus = (qualityDiagnostics as any)?.crawlStatus ?? crawl.data?.status;
+
 
   useEffect(() => {
     if (crawl.data?.status === "COMPLETED") {
@@ -266,8 +273,8 @@ function WebsiteClient() {
         <SiteBanner
           domain={client?.domain ?? ""}
           health={healthScore}
-          status={crawl.data?.status}
-          statusTone={statusTone(crawl.data?.status)}
+          status={effectiveCrawlStatus}
+          statusTone={statusTone(effectiveCrawlStatus)}
           finishedAt={crawl.data?.finishedAt}
           duration={crawlDuration}
           criticalCount={severityCounts.CRITICAL}
@@ -341,7 +348,7 @@ function WebsiteClient() {
                 <Kpi
                   label="Crawl Status"
                   value={crawl.data?.finishedAt ? relativeTime(crawl.data.finishedAt) : "—"}
-                  aside={crawl.data?.status ? <Pill tone={statusTone(crawl.data.status)}>{crawl.data.status}</Pill> : null}
+                  aside={effectiveCrawlStatus ? <Pill tone={statusTone(effectiveCrawlStatus)}>{effectiveCrawlStatus}</Pill> : null}
                   sub={
                     crawlDuration
                       ? `Duration ${crawlDuration}${qualityDiagnostics?.avgResponseTimeMs ? ` · ${qualityDiagnostics.avgResponseTimeMs}ms avg latency` : ""}`
@@ -420,6 +427,36 @@ function WebsiteClient() {
                 <div className="flex flex-col gap-4">
                   {/* Quality Diagnostics Card */}
                   <Panel title="Crawl quality diagnostics" subtitle="Crawler telemetry and reachability statistics" padded>
+                    {/* Crawl Coverage Row */}
+                    {(qualityDiagnostics?.urlsDiscovered != null || qualityDiagnostics?.urlsCrawled != null) && (
+                      <div className="mb-3 rounded-lg border bg-brand-50/40 p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] uppercase font-semibold text-brand-400">Crawl Coverage</span>
+                          <span className="font-mono text-[12px] font-bold text-brand-950">
+                            {qualityDiagnostics?.crawlCoveragePercent ?? "—"}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-brand-200 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-accent-600 transition-all"
+                            style={{ width: `${Math.min(qualityDiagnostics?.crawlCoveragePercent ?? 0, 100)}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-brand-600">
+                          <span><b className="text-brand-950">{(qualityDiagnostics?.urlsDiscovered ?? 0).toLocaleString()}</b> discovered</span>
+                          <span><b className="text-brand-950">{(qualityDiagnostics?.urlsCrawled ?? pagesCrawled).toLocaleString()}</b> crawled</span>
+                          {qualityDiagnostics?.urlsSkipped != null && qualityDiagnostics.urlsSkipped > 0 && (
+                            <span><b className="text-brand-700">{qualityDiagnostics.urlsSkipped.toLocaleString()}</b> skipped</span>
+                          )}
+                          {qualityDiagnostics?.crawlStatus && qualityDiagnostics.crawlStatus !== "COMPLETED" && (
+                            <span className={`font-semibold ${qualityDiagnostics.crawlStatus === "LIMIT_REACHED" ? "text-warning-600" : "text-brand-400"}`}>
+                              {qualityDiagnostics.crawlStatus === "LIMIT_REACHED" ? "⚠ Page limit reached" : "Partial crawl"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3 text-[12px]">
                       <div className="rounded-lg border bg-white p-3">
                         <span className="text-[10px] uppercase font-semibold text-brand-400">HTTP Status Distribution</span>
@@ -454,6 +491,11 @@ function WebsiteClient() {
                             ? `Found (${qualityDiagnostics.sitemapUrlsCount ?? 0} URLs)`
                             : "Direct crawl"}
                         </p>
+                        {qualityDiagnostics?.internalLinksFound != null && qualityDiagnostics.internalLinksFound > 0 && (
+                          <p className="mt-0.5 text-[11px] text-brand-500">
+                            + {qualityDiagnostics.internalLinksFound.toLocaleString()} via internal links
+                          </p>
+                        )}
                       </div>
 
                       <div className="rounded-lg border bg-white p-3">
@@ -464,9 +506,11 @@ function WebsiteClient() {
                       </div>
 
                       <div className="rounded-lg border bg-white p-3">
-                        <span className="text-[10px] uppercase font-semibold text-brand-400">Resolved vs Previous</span>
-                        <p className="mt-1 text-[12.5px] font-medium text-success-600">
-                          {resolvedIssues > 0 ? `+${resolvedIssues} issues fixed` : "First crawl baseline"}
+                        <span className="text-[10px] uppercase font-semibold text-brand-400">Robots Blocked</span>
+                        <p className="mt-1 text-[12.5px] font-medium text-brand-950">
+                          {qualityDiagnostics?.robotsBlocked != null
+                            ? `${qualityDiagnostics.robotsBlocked.toLocaleString()} URLs`
+                            : "—"}
                         </p>
                       </div>
                     </div>
