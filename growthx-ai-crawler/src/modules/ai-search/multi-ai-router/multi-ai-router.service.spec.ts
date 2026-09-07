@@ -459,4 +459,56 @@ describe('MultiAiRouterService', () => {
       expect(result.provider).not.toBe(AiProvider.ANTHROPIC);
     });
   });
+  /**
+   * Running on one vendor is a supported configuration, not a degraded one.
+   * These tests hold the two halves of it: generation works, and measurement
+   * refuses rather than substituting a different model's opinion.
+   */
+  describe('a single-vendor install (Sarvam only)', () => {
+    function sarvamOnly() {
+      return build({
+        SARVAM_API_KEY: 'sv-real',
+        GEMINI_API_KEY: 'your_gemini_api_key_here',
+        OPENAI_API_KEY: 'your_openai_api_key_here',
+        ANTHROPIC_API_KEY: 'your_anthropic_api_key_here',
+      });
+    }
+
+    it('serves every routing profile from the one configured vendor', () => {
+      const { service } = sarvamOnly();
+      expect(service.configuredProviders()).toEqual([AiProvider.SARVAM]);
+
+      for (const task of Object.values(AiTask)) {
+        expect(service.chainFor(task)).toEqual([AiProvider.SARVAM]);
+      }
+    });
+
+    it('refuses a request pinned to a vendor that is not configured', async () => {
+      // This is the path AI visibility takes: a check for what ChatGPT says is
+      // pinned to OpenAI. Answering it from Sarvam instead would record one
+      // model's opinion as another's measurement.
+      const { service } = sarvamOnly();
+
+      await expect(
+        service.generate({ prompt: 'best dentist in Bandra', provider: AiProvider.OPENAI }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('reports no cost when no Sarvam rate is configured, rather than zero', async () => {
+      const { service } = sarvamOnly();
+      (service as any).sarvamKey = 'sv-real';
+      jest.spyOn(service as any, 'callSarvam').mockImplementation(async () => ({
+        provider: AiProvider.SARVAM,
+        model: 'sarvam-m',
+        text: 'answer',
+        usage: { inputTokens: 1000, outputTokens: 500, estimatedCostUsd: null },
+        refused: false,
+      }));
+
+      const result = await service.generate({ prompt: 'x' });
+      // Null, not 0: an unpriced call is unknown spend, and recording it as
+      // zero would let a monthly budget sit permanently unreached.
+      expect(result.usage.estimatedCostUsd).toBeNull();
+    });
+  });
 });

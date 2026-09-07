@@ -177,3 +177,40 @@ Following spec §51, corrected for what already exists.
 Not done, deliberately: nothing in G1–G6. Those are separate changes, and G1
 should be argued through before it is built, because it decides what the
 product can ever prove.
+
+---
+
+## 6. Running on Sarvam alone
+
+A single-vendor install is supported and tested. What it does and does not cover:
+
+**Works, unchanged.** Every generation task — SEO analysis, competitor teardown,
+market research, keyword research, opportunity generation, code generation and
+review, fix validation, review-response drafting, the GBP action plan, content
+structure and entity analysis. Sarvam sits in all three routing profiles, so
+with it as the only configured key every profile resolves to it and nothing
+needs reconfiguring.
+
+**Does not work, and must not be faked.** Answer Engine Visibility. Measuring
+what ChatGPT, Claude or Gemini says requires asking *that* assistant; the check
+is pinned to its vendor and the router refuses a pinned request when the vendor
+is unconfigured. Those checks are stored with an `error` set, which the report
+counts as "could not ask" rather than "not cited" — the two are different facts
+and a customer cannot tell them apart afterwards. Perplexity, AI Overviews and
+Copilot were already unmeasurable for want of a public API.
+
+So on Sarvam alone the AEV pillar is dark. That is the honest state, not a bug:
+answering "what does ChatGPT recommend" with a different model's opinion would
+be the most damaging fabrication in the product, because it looks exactly like a
+real measurement and is the number the whole pitch rests on.
+
+**Cost tracking needs one setting.** Sarvam publishes no rate the router can
+hard-code, so `SARVAM_RATE_INPUT_PER_MTOK` / `SARVAM_RATE_OUTPUT_PER_MTOK` must
+be set from your plan. Left blank on a Sarvam-only install, every call records
+at unknown cost, the ledger reports zero spend, and an organization's monthly AI
+budget can never fire — a ceiling that silently never triggers.
+
+**What one more key buys.** A single OpenAI or Anthropic key turns on citation
+measurement for that one assistant, which is enough to start the history clock
+that §3 of the defensibility audit identifies as the only thing a competitor
+cannot buy. Cheapest way to stop losing time.

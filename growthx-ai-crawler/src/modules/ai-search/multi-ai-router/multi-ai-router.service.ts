@@ -750,7 +750,13 @@ export class MultiAiRouterService {
       provider: AiProvider.SARVAM,
       model: json?.model ?? this.sarvamModel,
       text: message.text,
-      usage: this.usage(message.promptTokens, message.completionTokens),
+      // Sarvam publishes no rate we can hard-code, so cost is only known when
+      // the operator supplies one. This matters more than it looks: an install
+      // running entirely on Sarvam otherwise records every call at no cost, the
+      // ledger reports zero spend, and the organization's monthly budget can
+      // never fire. Set SARVAM_RATE_INPUT_PER_MTOK / SARVAM_RATE_OUTPUT_PER_MTOK
+      // to make the ceiling real.
+      usage: this.usage(message.promptTokens, message.completionTokens, this.envRate('SARVAM')),
       refused: false,
     };
   }
@@ -770,7 +776,7 @@ export class MultiAiRouterService {
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;
