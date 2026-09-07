@@ -34,6 +34,13 @@ interface ProjectContext {
   ownBrandNames: string[];
   competitors: CompetitorRef[];
   competitorLabels: Record<string, string>;
+  /** Where the questions are asked from. Null when the project has no location. */
+  origin: {
+    locationId: string;
+    metroId: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
 }
 
 export interface SweepResult {
@@ -78,8 +85,27 @@ export class AiVisibilityService {
       return { domain, names: c.label ? [c.label] : undefined };
     });
 
+    // Where these questions are being asked from. A local answer is a
+    // different answer in every city, so a citation record with no geography
+    // cannot explain why a multi-location customer wins in one market and not
+    // the next. Null when the project has no location profile, which is honest
+    // and still queryable.
+    const primaryLocation = await this.prisma.localLocation.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, address: true, latitude: true, longitude: true },
+    });
+
     return {
       organizationId: project.organizationId,
+      origin: primaryLocation
+        ? {
+            locationId: primaryLocation.id,
+            metroId: metroIdFrom(primaryLocation.address),
+            latitude: primaryLocation.latitude,
+            longitude: primaryLocation.longitude,
+          }
+        : null,
       ownDomains,
       // The project name is usually the brand, which catches "Northwind Outdoors"
       // where the domain label alone ("northwindoutdoors") would not.
@@ -102,7 +128,7 @@ export class AiVisibilityService {
     const provider = ASSISTANT_PROVIDER[assistant];
     if (!provider) {
       return this.prisma.promptCheck.create({
-        data: { trackedPromptId, assistant, error: UNSUPPORTED_REASON },
+        data: { trackedPromptId, assistant, error: UNSUPPORTED_REASON, ...originFields(context) },
       });
     }
 
@@ -121,7 +147,13 @@ export class AiVisibilityService {
 
       if (completion.refused) {
         return this.prisma.promptCheck.create({
-          data: { trackedPromptId, assistant, model: completion.model, error: 'Assistant declined to answer.' },
+          data: {
+            trackedPromptId,
+            assistant,
+            model: completion.model,
+            error: 'Assistant declined to answer.',
+            ...originFields(context),
+          },
         });
       }
 
@@ -142,12 +174,18 @@ export class AiVisibilityService {
           citedUrl: detection.citedUrl,
           competitorsCited: detection.competitorsCited,
           answerExcerpt: completion.text.slice(0, EXCERPT_LIMIT),
+          ...originFields(context),
         },
       });
     } catch (error: any) {
       this.logger.warn(`Check failed for ${assistant} on prompt ${trackedPromptId}: ${error.message}`);
       return this.prisma.promptCheck.create({
-        data: { trackedPromptId, assistant, error: String(error.message).slice(0, 500) },
+        data: {
+          trackedPromptId,
+          assistant,
+          error: String(error.message).slice(0, 500),
+          ...originFields(context),
+        },
       });
     }
   }
@@ -434,4 +472,33 @@ export class AiVisibilityService {
 
     return competitor;
   }
+}
+
+
+/** The geographic columns of a check, or empty when the project has no location. */
+function originFields(context: ProjectContext) {
+  if (!context.origin) return {};
+  return {
+    locationId: context.origin.locationId,
+    metroId: context.origin.metroId,
+    latitude: context.origin.latitude,
+    longitude: context.origin.longitude,
+  };
+}
+
+/**
+ * A coarse market key from a postal address, e.g. "mumbai".
+ *
+ * Deliberately crude: it groups checks for comparison across markets, and a
+ * wrong-but-consistent label still groups correctly. It is never displayed as
+ * the location itself.
+ */
+function metroIdFrom(address?: string | null): string | null {
+  if (!address) return null;
+  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
+  // Second-from-last is the city in most postal formats; the last is the
+  // country or postcode.
+  const city = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+  if (!city) return null;
+  return city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null;
 }

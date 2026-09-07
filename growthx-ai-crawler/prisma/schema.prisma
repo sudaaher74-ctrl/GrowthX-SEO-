@@ -406,6 +406,19 @@ model PromptCheck {
   trackedPromptId  String
   assistant        AiAssistant
   checkedAt        DateTime      @default(now())
+  /// Where the question was asked from.
+  ///
+  /// A local answer is a different answer in every city: "best dentist near me"
+  /// resolves differently in Bandra and in Pune, and a citation record with no
+  /// geography cannot tell those apart or explain why a multi-location customer
+  /// wins in one market and not the next. Null means the check was not
+  /// geographically situated, which is itself worth being able to query for.
+  locationId       String?
+  /// Free-form market label, e.g. "mumbai" or "pune-west". Grouping key for
+  /// comparing the same prompt across markets.
+  metroId          String?
+  latitude         Float?
+  longitude        Float?
   /// Whether the customer's own domain appeared in the answer.
   cited            Boolean       @default(false)
   /// 1 = the customer was the first brand named. Null when not cited.
@@ -426,6 +439,8 @@ model PromptCheck {
   @@index([trackedPromptId, checkedAt])
   @@index([assistant, checkedAt])
   @@index([checkedAt])
+  @@index([metroId, checkedAt])
+  @@index([locationId, checkedAt])
 }
 
 /// How a client's website code is reached, so fixes and new content can be
@@ -2595,4 +2610,127 @@ model GeoGridCompetitor {
 
   @@index([pointId, rank])
   @@index([name])
+}
+
+
+/// The kind of structural change a fix made.
+///
+/// A closed vocabulary on purpose. The question worth answering across every
+/// customer is "does adding FAQ markup to a service page move citation, and by
+/// how much, in this vertical, on this engine" — and that question is only
+/// askable if the change was filed under a name that recurs. Free text here
+/// would make the whole ledger unqueryable.
+enum ChangeClass {
+  SCHEMA_MARKUP
+  FAQ_BLOCK
+  ENTITY_DISAMBIGUATION
+  HEADING_STRUCTURE
+  COMPARISON_TABLE
+  AUTHOR_CREDENTIALS
+  INTERNAL_LINKS
+  FRESHNESS_UPDATE
+  CITED_STATISTIC
+  CANONICAL_CONSOLIDATION
+  METADATA
+  MEDIA_ALT
+  PAGE_SPEED
+  OTHER
+}
+
+/// Whether a candidate page was actually changed, or deliberately left alone.
+///
+/// The holds are the entire reason this table can support a causal claim.
+/// Without a comparable set of pages that were identified as needing the same
+/// fix and then not given it, a citation gain after a change is a coincidence
+/// with good timing — which is what every competitor in this category is
+/// currently able to report.
+enum InterventionArm {
+  TREAT
+  HOLD
+}
+
+/// One structural change shipped to a page — or deliberately withheld from it.
+///
+/// This is the row that makes the product's central claim checkable. Citation
+/// observations record what an engine said; crawled Page rows record what the
+/// page looked like at a point in time. Neither alone answers "did our change
+/// cause this", because nothing joined the two. This does.
+///
+/// `beforePageId` / `afterPageId` point at Page rows from the crawls either
+/// side of the change. Page is already a per-crawl snapshot with a contentHash,
+/// headings, metadata and schemas, so it is reused rather than duplicated.
+model FixIntervention {
+  id        String @id @default(uuid())
+  projectId String
+  /// The page the change was made to, as a URL: stable across re-crawls in a
+  /// way that a Page id (which is per crawl job) is not.
+  url       String
+  changeClass ChangeClass
+  arm         InterventionArm @default(TREAT)
+
+  /// Page rows from the crawl before and after the change.
+  beforePageId String?
+  afterPageId  String?
+
+  /// The automation run that produced the change, when it came from the fix
+  /// engine rather than being recorded by hand.
+  automationRunId String?
+  pullRequestUrl  String?
+  mergedSha       String?
+
+  /// A one-line description of what actually changed, for the human reading a
+  /// report. The queryable fact is changeClass; this is the colour.
+  summary String?
+
+  /// When the change reached production. Null for a HOLD, which by definition
+  /// never shipped — and for a TREAT that has not merged yet.
+  shippedAt    DateTime?
+  rolledBackAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  outcomes InterventionOutcome[]
+
+  @@index([projectId, changeClass, shippedAt])
+  @@index([projectId, arm])
+  @@index([url])
+}
+
+/// What happened to citation after an intervention, measured over one window.
+///
+/// Rates rather than counts, because the number of prompts tracked for a page
+/// changes over time. `lift` is difference-in-differences against the holds:
+/// (post - pre) - (controlPost - controlPre). Null when there were no holds to
+/// compare with, which is the honest answer — the alternative is reporting a
+/// before-and-after difference as though it were an effect.
+model InterventionOutcome {
+  id             String      @id @default(uuid())
+  interventionId String
+  /// Null means "across every engine", which is a different measurement from
+  /// any single engine's and is stored as its own row.
+  assistant      AiAssistant?
+  /// 7, 30, 60 or 90.
+  windowDays     Int
+
+  preCitationRate  Float
+  postCitationRate Float
+  preSampleSize    Int
+  postSampleSize   Int
+
+  controlPreRate    Float?
+  controlPostRate   Float?
+  controlSampleSize Int?
+
+  /// Difference-in-differences against the hold arm. Null without holds.
+  lift Float?
+
+  measuredAt DateTime @default(now())
+
+  intervention FixIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  /// Not a unique constraint: `assistant` is nullable to mean "all engines",
+  /// and Postgres treats NULLs as distinct, so a unique index over it would
+  /// silently fail to prevent the duplicate it appears to forbid. The service
+  /// looks the row up and updates it instead.
+  @@index([interventionId, windowDays])
+  @@index([interventionId])
 }

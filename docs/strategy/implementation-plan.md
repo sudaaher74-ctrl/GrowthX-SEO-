@@ -48,7 +48,7 @@ connect *to* them; nothing rewrites them.
 These are the things the spec asks for that the code genuinely cannot do today.
 Ordered by what blocks the most downstream work.
 
-### G1 — The citation schema cannot record the product's core loop *(blocking)*
+### ~~G1 — The citation schema cannot record the product's core loop~~ **(closed)**
 
 `PromptCheck` stores `cited`, `position`, `citedUrl`, `competitorsCited`,
 `answerExcerpt`. It has **no geographic dimension**, **no foreign key to the page
@@ -63,24 +63,37 @@ Everything in §15 ("Why Did I Lose?"), §33 and §34 depends on fixing this fir
 Every week run in the current shape is a week of measurement that can never be
 turned into evidence.
 
-**Fix:** add `geoPoint`/`metroId` to the observation, a `PageStateSnapshot`
-captured at check time, a `FixIntervention` join, and a control arm so §34 can
-distinguish an experiment from a coincidence. §33's "do not claim causation
-without sufficient evidence" is unenforceable without the control arm.
+**Closed.** `PromptCheck` now carries `locationId`, `metroId`, `latitude` and
+`longitude`. `FixIntervention` records each change under a closed `ChangeClass`
+vocabulary with an `InterventionArm` of TREAT or HOLD, pointing at the `Page`
+rows either side of it — `Page` is already a per-crawl snapshot with a
+contentHash, headings, metadata and schemas, so it is reused rather than
+duplicated. `InterventionOutcome` stores the measured result per engine per
+window. `ImpactService` computes difference-in-differences against the hold arm
+and returns `lift: null` with an `OBSERVED_CHANGE` interpretation when there are
+no holds, rather than passing a raw before/after difference off as an effect.
 
-### G2 — `LocalLocation.projectId` is `@unique` *(blocking §31)*
+### ~~G2 — `LocalLocation.projectId` is `@unique`~~ **(closed)**
 
-One location per project. §31 requires Organization → Project → **Locations**
-(plural) with bulk operations across them. Multi-location is not a feature that
-can be added on top of this constraint; the relation has to change first.
+**Closed.** Locations are many-per-project, keyed on (project, place) so
+reconnecting a listing updates it rather than adding a duplicate to the bill.
+Coordinates and a Places id were added, which is what makes a geo grid centre on
+the right storefront. Bulk operations across locations (§31) are still to build,
+but they are now representable.
 
-### G3 — Geo-grid results are never persisted *(blocking §28, §33)*
+### ~~G3 — Geo-grid results are never persisted~~ **(closed — and it was worse than that)**
 
-`geo-grid.service.ts` computes a grid on demand and writes nothing back. §28
-requires rank/keyword/competitor/distance/**date** per coordinate, and §33
-requires local visibility measured at 7/30/60/90 days. Neither is possible
-without storing the runs. This is the cheapest large win available: days of
-work, and it starts a history clock that cannot be backfilled later.
+The grid did not merely fail to persist — it was **entirely fabricated**. Ranks
+came from `1 + distancePenalty + quadrantBias`, competitor names from a template
+pool, and ratings and review counts were hardcoded. Nothing queried a ranking
+source. Persisting that would have poisoned the one asset worth having, because
+a fabricated history cannot be told apart from a real one afterwards.
+
+**Closed.** Ranks now come from a Google Places query issued at each coordinate,
+biased to that coordinate. Absence is recorded as null rather than a sentinel
+rank. The scan refuses when Places is unconfigured or the location has no
+coordinates, instead of defaulting to central Mumbai as it did. Runs are stored
+as `GeoGridRun` / `GeoGridPoint` / `GeoGridCompetitor` with history endpoints.
 
 ### G4 — Two competing AI provider abstractions *(spec §52 violation)*
 
