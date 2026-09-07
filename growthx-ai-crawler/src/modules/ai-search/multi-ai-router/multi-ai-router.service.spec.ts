@@ -1,6 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
-import { AiProvider, AiTask, MultiAiRouterService } from './multi-ai-router.service';
+import {
+  AiProvider,
+  AiTask,
+  MultiAiRouterService,
+  RoutingProfile,
+  profileFor,
+} from './multi-ai-router.service';
+import { AiUsageService } from './ai-usage.service';
 
 
 function build(env: Record<string, string> = {}, entitlementOverrides: any = {}) {
@@ -279,6 +286,177 @@ describe('MultiAiRouterService', () => {
 
       // 200 in @ $1.25/Mtok + 100 out @ $10/Mtok
       expect(result.usage.estimatedCostUsd).toBeCloseTo(0.00125, 6);
+    });
+  });
+  /**
+   * The task vocabulary is named for the product surface that asks, so the
+   * spend ledger reads as "what did the fix engine cost" rather than "what did
+   * REASONING cost". Routing still collapses to three profiles.
+   */
+  describe('task vocabulary', () => {
+    it('routes every declared task to a profile', () => {
+      for (const task of Object.values(AiTask)) {
+        expect(Object.values(RoutingProfile)).toContain(profileFor(task));
+      }
+    });
+
+    it('keeps the three original task names routing exactly as before', () => {
+      expect(profileFor(AiTask.REASONING)).toBe(RoutingProfile.REASONING);
+      expect(profileFor(AiTask.CODE_GEN)).toBe(RoutingProfile.CODE_GEN);
+      expect(profileFor(AiTask.FAST)).toBe(RoutingProfile.FAST);
+    });
+
+    it('sends code work to the code profile and analysis to reasoning', () => {
+      expect(profileFor(AiTask.CODE_GENERATION)).toBe(RoutingProfile.CODE_GEN);
+      expect(profileFor(AiTask.CODE_REVIEW)).toBe(RoutingProfile.CODE_GEN);
+      expect(profileFor(AiTask.FIX_VALIDATION)).toBe(RoutingProfile.CODE_GEN);
+      expect(profileFor(AiTask.COMPETITOR_ANALYSIS)).toBe(RoutingProfile.REASONING);
+      expect(profileFor(AiTask.PAGE_COMPARISON)).toBe(RoutingProfile.REASONING);
+    });
+
+    it('prices the per-prompt tasks cheaply', () => {
+      // These run 300 prompts x 5 engines x weekly per client. Routing them to
+      // a reasoning model is the difference between a viable gross margin and a
+      // services business.
+      expect(profileFor(AiTask.ENTITY_ANALYSIS)).toBe(RoutingProfile.FAST);
+      expect(profileFor(AiTask.REVIEW_RESPONSE_DRAFT)).toBe(RoutingProfile.FAST);
+      expect(profileFor(AiTask.SUMMARY_GENERATION)).toBe(RoutingProfile.FAST);
+    });
+
+    it('routes a named task to the same chain as its profile', () => {
+      const { service } = build();
+      expect(service.chainFor(AiTask.CODE_GENERATION)).toEqual(service.chainFor(AiTask.CODE_GEN));
+      expect(service.chainFor(AiTask.SEO_ANALYSIS)).toEqual(service.chainFor(AiTask.REASONING));
+    });
+  });
+
+  describe('spend ledger', () => {
+    function withLedger(env: Record<string, string> = {}) {
+      const record = jest.fn();
+      const assertWithinBudget = jest.fn().mockResolvedValue(undefined);
+      const ledger = { record, assertWithinBudget } as unknown as AiUsageService;
+      const values: Record<string, string> = {
+        GEMINI_API_KEY: 'gem-real',
+        OPENAI_API_KEY: 'oai-real',
+        ANTHROPIC_API_KEY: 'ant-real',
+        ANTHROPIC_SERVER_SIDE_FALLBACK: 'false',
+        ...env,
+      };
+      const config = { get: (key: string) => values[key] } as any;
+      return { service: new MultiAiRouterService(config, ledger), record, assertWithinBudget };
+    }
+
+    it('records a successful call against the org, project and task', async () => {
+      const { service, record } = withLedger();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await service.generate({
+        prompt: 'fix my canonical tags',
+        task: AiTask.CODE_GENERATION,
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+      });
+
+      expect(record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org-1',
+          projectId: 'proj-1',
+          taskType: AiTask.CODE_GENERATION,
+          provider: AiProvider.ANTHROPIC,
+          inputTokens: 1000,
+          outputTokens: 500,
+          status: 'OK',
+        }),
+      );
+    });
+
+    it('records a failed call, because the tokens it sent were still billed', async () => {
+      const { service, record } = withLedger();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('upstream 500'));
+      stubClients(service, { anthropic, openai: openAiStub(), gemini: geminiStub() });
+
+      await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      const failure = record.mock.calls.map((c) => c[0]).find((e) => e.status === 'ERROR');
+      expect(failure).toMatchObject({
+        provider: AiProvider.ANTHROPIC,
+        status: 'ERROR',
+        error: 'upstream 500',
+        estimatedCostUsd: null,
+      });
+    });
+
+    it('records one entry per provider attempted, not one per request', async () => {
+      const { service, record } = withLedger();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('down'));
+      stubClients(service, { anthropic, openai: openAiStub(), gemini: geminiStub() });
+
+      await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      expect(record.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('checks the budget before spending, not after', async () => {
+      const { service, assertWithinBudget } = withLedger();
+      const anthropic = anthropicStub();
+      stubClients(service, { anthropic });
+
+      await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      expect(assertWithinBudget).toHaveBeenCalledWith('org-1');
+      expect(assertWithinBudget.mock.invocationCallOrder[0]).toBeLessThan(
+        anthropic.create.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not call a provider at all when the budget refuses', async () => {
+      const { service, assertWithinBudget } = withLedger();
+      assertWithinBudget.mockRejectedValue(new Error('budget reached'));
+      const anthropic = anthropicStub();
+      stubClients(service, { anthropic });
+
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1' })).rejects.toThrow(
+        'budget reached',
+      );
+      expect(anthropic.create).not.toHaveBeenCalled();
+    });
+
+    it('runs normally when no ledger is wired in', async () => {
+      const { service } = build();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await expect(service.generate({ prompt: 'x' })).resolves.toMatchObject({
+        provider: AiProvider.ANTHROPIC,
+      });
+    });
+  });
+
+  describe('vendor pinning', () => {
+    it('does not silently switch vendors when the caller forbids fallback', async () => {
+      // A customer who pinned a vendor for a compliance reason must get an
+      // error, not a quiet answer from somebody else.
+      const { service } = build();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('anthropic down'));
+      const openai = openAiStub();
+      stubClients(service, { anthropic, openai, gemini: geminiStub() });
+
+      await expect(
+        service.generate({ prompt: 'x', allowFallback: false }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(openai.create).not.toHaveBeenCalled();
+    });
+
+    it('still falls through by default', async () => {
+      const { service } = build();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('anthropic down'));
+      stubClients(service, { anthropic, openai: openAiStub(), gemini: geminiStub() });
+
+      const result = await service.generate({ prompt: 'x' });
+      expect(result.provider).not.toBe(AiProvider.ANTHROPIC);
     });
   });
 });

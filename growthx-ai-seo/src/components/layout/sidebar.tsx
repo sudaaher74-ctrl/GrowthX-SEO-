@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Edit3, Globe, HeartPulse, LayoutGrid, LogOut, MapPin, MoreHorizontal, PanelLeftClose, Settings, Telescope, Share2 } from "lucide-react";
+import { Activity, Bell, ChevronsUpDown, Crosshair, Gauge, Globe, Grid3x3, LayoutGrid, LightbulbIcon, LogOut, MapPin, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Telescope, TrendingUp, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -54,8 +54,16 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
-  // 1. E-Commerce Navigation Group
-  const ecommerceNav: NavItem[] = [
+  // GrowthX is an SEO platform. Every group below answers one step of the
+  // measure -> diagnose -> fix -> ship -> measure loop; anything that does not
+  // is not in the primary navigation.
+  //
+  // Content Studio and Social Media were removed here deliberately. Their
+  // routes (/content-ai, /content, /social-media, /content-intelligence,
+  // /marketing) still resolve so existing links and bookmarks do not 404, but
+  // they are no longer part of the product's navigation and are not being
+  // developed further.
+  const seoNav: NavItem[] = [
     { label: "Dashboard", href: "/dashboard", icon: Activity },
     {
       label: "Website Audit",
@@ -71,39 +79,35 @@ export function Sidebar({
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
     },
+    { label: "AI Visibility", href: "/ai-visibility", icon: Sparkles },
     {
-      label: "Content Studio",
-      href: "/content-ai",
-      icon: Edit3,
-      aliases: ["/content"],
-      tag: "AI Gen",
+      label: "SEO Opportunities",
+      href: "/opportunities",
+      icon: LightbulbIcon,
+      aliases: ["/content-opportunities"],
     },
+    { label: "Fix Engine", href: "/engineer", icon: Wrench, aliases: ["/action-engine"] },
+    { label: "Market Research", href: "/market-research", icon: Telescope },
+  ];
+
+  const localNav: NavItem[] = [
+    { label: "Local SEO", href: "/local", icon: MapPin },
+    { label: "Geo Grid", href: "/geo-tracking", icon: Grid3x3 },
+  ];
+
+  const measurementNav: NavItem[] = [
+    { label: "Rankings", href: "/keywords", icon: TrendingUp },
     {
-      label: "Social Media",
-      href: "/social-media",
-      icon: Share2,
-      aliases: ["/content-intelligence", "/marketing"],
+      label: "Traffic & Performance",
+      href: "/search-performance",
+      icon: Gauge,
+      aliases: ["/analytics", "/search"],
     },
   ];
 
-  // 2. Google Business Profile Navigation Group
-  const gbpNav: NavItem[] = [
-    {
-      label: "Local SEO",
-      href: "/local",
-      icon: MapPin,
-      aliases: ["/geo-tracking"],
-    },
-    {
-      label: "Monitoring",
-      href: "/monitoring",
-      icon: HeartPulse,
-    },
-    {
-      label: "Market Research",
-      href: "/market-research",
-      icon: Telescope,
-    },
+  const automationNav: NavItem[] = [
+    { label: "Fixes", href: "/action-queue", icon: Wrench },
+    { label: "Alerts", href: "/monitoring", icon: Bell },
   ];
 
 
@@ -197,25 +201,21 @@ export function Sidebar({
               )}
             </div>
 
-            {/* E-Commerce Section */}
-            <div className="mt-3">
-              <SectionLabel>E-Commerce</SectionLabel>
-              <div className="space-y-0.5 mt-1">
-                {ecommerceNav.map((item) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
-                ))}
+            {[
+              { label: "SEO", items: seoNav },
+              { label: "Local SEO", items: localNav },
+              { label: "Measurement", items: measurementNav },
+              { label: "Automation", items: automationNav },
+            ].map((group, index) => (
+              <div key={group.label} className={index === 0 ? "mt-3" : "mt-4"}>
+                <SectionLabel>{group.label}</SectionLabel>
+                <div className="space-y-0.5 mt-1">
+                  {group.items.map((item) => (
+                    <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {/* Google Business Profile Section */}
-            <div className="mt-4">
-              <SectionLabel>Google Business Profile</SectionLabel>
-              <div className="space-y-0.5 mt-1">
-                {gbpNav.map((item) => (
-                  <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
-                ))}
-              </div>
-            </div>
+            ))}
 
             <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
               <NavLink 

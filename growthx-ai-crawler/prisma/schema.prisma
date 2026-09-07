@@ -289,6 +289,11 @@ model Organization {
   id           String               @id @default(uuid())
   name         String
   slug         String               @unique
+  /// Monthly ceiling on AI provider spend, in USD. Null means no ceiling.
+  /// Enforced by AiUsageService against calls whose cost is actually known —
+  /// spend on models with no published rate cannot be counted, and the service
+  /// reports how many such calls it had to ignore rather than guessing.
+  aiMonthlyBudgetUsd Float?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   auditLogs    AuditLog[]
@@ -2447,4 +2452,42 @@ model StrategyAction {
 
   @@index([projectId, status])
   @@index([runId, opportunityScore])
+}
+
+/// One AI provider call, recorded for cost attribution and budget enforcement.
+///
+/// Written best-effort after every routed call, successes and failures alike:
+/// a request that burned input tokens and then errored still cost money, and a
+/// ledger that records only successes understates the bill.
+///
+/// `organizationId` and `projectId` are deliberately loose ids rather than
+/// relations. This is a billing ledger — deleting a project should not erase
+/// the record of what that project spent.
+model AiUsageRecord {
+  id             String @id @default(uuid())
+  organizationId String?
+  projectId      String?
+  /// The semantic task the caller asked for — the router's `AiTask`, e.g.
+  /// "CODE_GENERATION". Text rather than a Prisma enum so the router can name a
+  /// new task without a migration; the router owns that vocabulary.
+  taskType       String
+  provider       String
+  model          String
+  inputTokens    Int    @default(0)
+  outputTokens   Int    @default(0)
+  /// Null when no published rate is known for the model. Never a guessed
+  /// number — the same rule the rest of the product applies to metrics applies
+  /// to cost, because a wrong margin is worse than an absent one.
+  estimatedCostUsd Float?
+  latencyMs        Int
+  /// OK | REFUSED | ERROR
+  status           String
+  /// Provider error message when status is ERROR. Truncated by the writer.
+  error            String?
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([taskType, createdAt])
+  @@index([provider, createdAt])
 }
