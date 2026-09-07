@@ -1,10 +1,7 @@
 import { ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { PrismaClient } from '@prisma/client';
 import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorator';
-
-const prisma = new PrismaClient();
 
 /**
  * Authenticates the request and puts the caller's organization where the API
@@ -30,21 +27,20 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (process.env.NODE_ENV !== 'production') {
-      const request = context.switchToHttp().getRequest();
-      try {
-        const user = await prisma.user.findUnique({ where: { email: 'dev@growthx.ai' } });
-        if (user) {
-          const membership = await prisma.organizationMember.findFirst({ where: { userId: user.id } });
-          if (membership) {
-            request.user = { userId: user.id, email: user.email, organizationId: membership.organizationId };
-            request.organizationId = membership.organizationId;
-            return true;
-          }
-        }
-      } catch (err) {}
-    }
-
+    // There is deliberately no development shortcut here.
+    //
+    // This guard used to return true for any request at all whenever NODE_ENV
+    // was something other than 'production', adopting a hard-coded
+    // `dev@growthx.ai` account and its organization. It ran before Passport, so
+    // no token was needed: every route on this API was open, as that account,
+    // to anyone who could reach the port. `nest start` leaves NODE_ENV unset,
+    // and so does any host that is not explicitly told otherwise, so
+    // "development only" was never a property of this code — only of one
+    // environment variable that nothing enforced.
+    //
+    // Sign in for local work the same way the product does: POST /auth/register
+    // or /auth/login and send the access token. `test_flow.sh` does exactly
+    // that.
     const allowed = (await super.canActivate(context)) as boolean;
     if (!allowed) return false;
 

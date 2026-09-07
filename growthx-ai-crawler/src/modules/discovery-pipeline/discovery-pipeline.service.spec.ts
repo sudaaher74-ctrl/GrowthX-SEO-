@@ -317,6 +317,30 @@ describe('DiscoveryPipelineService', () => {
       );
     });
 
+    /**
+     * The endpoint behind this took a projectId in its path and threw it away,
+     * so one tenant's "crawl pending competitors" swept up to 25 competitors
+     * belonging to whoever happened to be waiting — other organizations
+     * included.
+     */
+    it('sweeps only the given project when one is named', async () => {
+      await service.crawlUncrawledCompetitors('p1');
+
+      expect(prisma.competitorDomain.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: 'PENDING', lastAnalyzedAt: null, projectId: 'p1' },
+        }),
+      );
+    });
+
+    it('reports how many first crawls it started', async () => {
+      prisma.competitorDomain.findMany.mockResolvedValue([
+        { id: 'c9', domain: 'new.com', projectId: 'p1', project: { organizationId: 'org1' } },
+      ]);
+
+      await expect(service.crawlUncrawledCompetitors('p1')).resolves.toBe(1);
+    });
+
     // Both the API process and the worker boot the whole module tree, so this
     // cron body runs twice on every tick against the same database.
     it('leaves a competitor another process already claimed alone', async () => {

@@ -36,7 +36,23 @@ describe('CrawlController — crawl history', () => {
       },
       crawlJob: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined), resolve: jest.fn() };
+    // The controller resolves a website through OrgContextService rather than
+    // through a second copy of the same query kept in the controller — the two
+    // had already drifted. This stand-in walks the same three steps the real
+    // service does, so the cases below still assert what the route refuses.
+    orgContext = {
+      assertMembership: jest.fn().mockResolvedValue(undefined),
+      assertWebsiteAccess: jest.fn(async (userId: string, where: any) => {
+        const website = await prisma.website.findUnique({ where });
+        if (!website) throw new NotFoundException('Website not found');
+        if (!website.project?.organizationId) {
+          throw new ForbiddenException('This website is not attached to any organization.');
+        }
+        await orgContext.assertMembership(userId, website.project.organizationId);
+        return website;
+      }),
+      resolve: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CrawlController],

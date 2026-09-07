@@ -423,15 +423,24 @@ export class DiscoveryPipelineService implements OnModuleInit {
    * imports.
    */
   @Cron('*/10 * * * *')
-  async crawlUncrawledCompetitors(): Promise<void> {
-    if (process.env.COMPETITOR_CRON_ENABLED === 'false') return;
+  async crawlUncrawledCompetitors(projectId?: string): Promise<number> {
+    if (process.env.COMPETITOR_CRON_ENABLED === 'false') return 0;
 
+    // `projectId` narrows the sweep to one project. The scheduled run passes
+    // nothing and sweeps everything, which is its job; an operator pressing
+    // "crawl pending competitors" on their own project passes theirs, which
+    // stops one tenant's button from spending the crawl budget on — and
+    // starting fetches against — every other tenant's competitors.
     const waiting = await this.prisma.competitorDomain.findMany({
-      where: { status: COMPETITOR_STATUS.PENDING, lastAnalyzedAt: null },
+      where: {
+        status: COMPETITOR_STATUS.PENDING,
+        lastAnalyzedAt: null,
+        ...(projectId ? { projectId } : {}),
+      },
       select: { id: true, domain: true, projectId: true, project: { select: { organizationId: true } } },
       take: 25,
     });
-    if (waiting.length === 0) return;
+    if (waiting.length === 0) return 0;
 
     let started = 0;
     for (const competitor of waiting) {
@@ -468,6 +477,7 @@ export class DiscoveryPipelineService implements OnModuleInit {
     if (started > 0) {
       this.logger.log(`Started a first crawl for ${started} newly added competitor(s).`);
     }
+    return started;
   }
 
   /** Runs one step, logging a failure instead of ending the pipeline. */

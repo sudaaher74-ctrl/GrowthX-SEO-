@@ -1833,6 +1833,20 @@ export const api = {
     if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
     return result;
   },
+  /**
+   * Trades the one-time code from the Google redirect for a session.
+   *
+   * The redirect used to carry the access and refresh tokens themselves in the
+   * query string, where the browser's history, the `Referer` header and every
+   * proxy log in between keep them. The code this replaces them with
+   * authenticates nothing and expires in a minute.
+   */
+  async exchangeOAuthCode(code: string) {
+    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/oauth/exchange", { code });
+    auth.setToken(result.access_token);
+    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
+    return result;
+  },
   getMe: () => get<UserProfile>('/auth/me'),
   logout: async () => {
     try {
