@@ -1,30 +1,23 @@
 import { Global, Module } from '@nestjs/common';
-import { SarvamProvider } from './providers/sarvam.provider';
-import { GeminiProvider } from './providers/gemini.provider';
-import { OpenAiProvider } from './providers/openai.provider';
-import { ClaudeProvider } from './providers/claude.provider';
-import { AiProviderFactory } from './ai-provider.factory';
+import { AiSearchModule } from '../ai-search/ai-search.module';
 import { UnifiedAiService } from './unified-ai.service';
 import { UnifiedAiController } from './unified-ai.controller';
 
+/**
+ * The intelligence tasks (market research, competitor teardown, SEO analysis).
+ *
+ * There is no provider abstraction here any more. This module used to carry a
+ * second one — AiProviderFactory over four vendor classes — chosen by an env
+ * var with a fixed fallback chain and no task routing, no budget enforcement
+ * and no spend ledger. Two routers meant the most expensive calls in the
+ * product were the ones nobody could account for. Everything now goes through
+ * MultiAiRouterService.
+ */
 @Global()
 @Module({
+  imports: [AiSearchModule],
   controllers: [UnifiedAiController],
-  providers: [
-    SarvamProvider,
-    GeminiProvider,
-    OpenAiProvider,
-    ClaudeProvider,
-    AiProviderFactory,
-    UnifiedAiService,
-  ],
-  exports: [
-    UnifiedAiService,
-    AiProviderFactory,
-    SarvamProvider,
-    GeminiProvider,
-    OpenAiProvider,
-    ClaudeProvider,
-  ],
+  providers: [UnifiedAiService],
+  exports: [UnifiedAiService],
 })
 export class AiEngineModule {}

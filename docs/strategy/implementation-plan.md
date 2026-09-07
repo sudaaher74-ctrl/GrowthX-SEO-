@@ -95,17 +95,19 @@ rank. The scan refuses when Places is unconfigured or the location has no
 coordinates, instead of defaulting to central Mumbai as it did. Runs are stored
 as `GeoGridRun` / `GeoGridPoint` / `GeoGridCompetitor` with history endpoints.
 
-### G4 — Two competing AI provider abstractions *(spec §52 violation)*
+### ~~G4 — Two competing AI provider abstractions~~ **(closed)**
 
 `ai-engine/AiProviderFactory` (env-configured chain, 4 providers) and
 `ai-search/MultiAiRouterService` (task-routed, 6 providers, cost-aware) both
 exist. §6 requires that the rest of the application talk to *one* router.
-`MultiAiRouterService` is the better implementation and is now the one with cost
-tracking; `UnifiedAiService` should migrate onto it and `AiProviderFactory`
-should be retired.
-
-Note `UnifiedAiService.generateSocialStrategy` and `generateMarketingStrategy`
-are out of scope per §3 and should go with that migration.
+**Closed.** `UnifiedAiService` now runs every intelligence task through
+`MultiAiRouterService`, so task routing, refusal and JSON-validity fallback,
+budget enforcement and the spend ledger apply to them — previously the most
+expensive calls in the product were the ones nobody could account for. Each task
+is filed under its own `AiTask`, so the ledger reads by product surface.
+`AiProviderFactory`, its four vendor classes and `IAiProvider` are deleted.
+`generateSocialStrategy` and `generateMarketingStrategy` went with them, per §3
+and §49.
 
 ### G5 — No engine adapters for the public answer surfaces *(§10)*
 
@@ -130,16 +132,25 @@ Following spec §51, corrected for what already exists.
 |---|---|---|
 | 1 | Protect and stabilise: verify Website Audit, Competitor Intelligence, crawler, auth, database | **Done** — 104/1093 green baseline established and re-verified |
 | 2 | AI Router: task types, usage tracking, budgets | **Done** |
-| 2b | Retire the duplicate provider abstraction (G4) | Next |
-| 3 | AI Visibility: engine adapters (G5), geo dimension + page-state snapshot (G1) | Blocked on G1 schema |
-| 4 | Opportunity / Winning Page / "Why Did I Lose?" — extend `opportunities/` and Competitor Intelligence, do not duplicate | After 3 |
-| 5 | Fix Engine — already substantially built; add the `FixIntervention` join (G1) so shipped fixes are attributable | After 3 |
-| 6 | Local SEO — geo-grid persistence (G3), multi-location relation (G2) | G3 can start now, independent of G1 |
-| 7 | Impact + Experiments (§33, §34) with a control arm | Requires G1 |
+| 2b | Retire the duplicate provider abstraction (G4) | **Done** |
+| 3 | AI Visibility: geo dimension (G1) done; engine adapters (G5) outstanding | **G5 is the remaining gap** |
+| 4 | Opportunity / Winning Page / "Why Did I Lose?" — extend `opportunities/` and Competitor Intelligence, do not duplicate | Next |
+| 5 | Fix Engine — substantially built; needs to call `ImpactService.recordIntervention` when it opens a PR so the ledger fills | Next |
+| 6 | Local SEO — geo grid (G3) and multi-location (G2) done; bulk operations across locations outstanding | Partly done |
+| 7 | Impact + Experiments (§33, §34) with a control arm | **Done** (service + API; no UI yet) |
 | 8 | Alerts, reporting | Last |
 
-**Recommended immediate order:** G3 (independent, cheap, starts a clock),
-then G1 (unblocks phases 3–7), then G2, then G4.
+**G1, G2, G3 and G4 are closed.** The remaining work, in order:
+
+1. **Wire the fix engine to the ledger.** `ImpactService.recordIntervention` is
+   built and nothing calls it yet. Until the autonomous engineer records a
+   `FixIntervention` when it opens a PR, and a `HOLD` when a fix is identified
+   and declined, the ledger stays empty and none of §33 or §34 has anything to
+   measure. This is the highest-value remaining ticket and it is small.
+2. **G5 — engine adapters.** Still the correctness problem: asking the Claude
+   API a question does not measure what ChatGPT's search product shows a user,
+   and today's checks conflate the two.
+3. Impact and Experiments UI; bulk operations across locations.
 
 ---
 

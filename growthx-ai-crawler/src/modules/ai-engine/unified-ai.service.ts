@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderFactory } from './ai-provider.factory';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { parseModelJson } from './utils/json-extractor.util';
 import {
   AiBusinessContext,
   formatStandardBusinessPrompt,
@@ -11,15 +12,46 @@ import {
   ContentStrategyResult,
   KeywordResearchResult,
   BusinessInsightsResult,
-  SocialStrategyResult,
-  MarketingStrategyResult,
 } from './interfaces/ai-results.interface';
 
 @Injectable()
 export class UnifiedAiService {
   private readonly logger = new Logger(UnifiedAiService.name);
 
-  constructor(private readonly providerFactory: AiProviderFactory) {}
+  constructor(private readonly router: MultiAiRouterService) {}
+
+  /**
+   * Runs one intelligence task through the AI router.
+   *
+   * Everything goes through the router rather than a provider handle so that
+   * task-based vendor selection, refusal and JSON-validity fallback, budget
+   * enforcement and the spend ledger apply to these calls too. They previously
+   * used a second provider abstraction that had none of that, which meant the
+   * most expensive calls in the product were the ones nobody could account for.
+   */
+  private async run<T>(
+    context: AiBusinessContext,
+    systemInstruction: string,
+    prompt: string,
+    jsonSchema: Record<string, unknown>,
+    task: AiTask,
+    label: string,
+  ): Promise<T> {
+    const completion = await this.router.generate({
+      prompt,
+      systemInstruction,
+      task,
+      organizationId: context.organizationId,
+      jsonSchema,
+      maxTokens: 8000,
+    });
+
+    if (!completion.text?.trim()) {
+      throw new ServiceUnavailableException(`${label}: the model returned an empty answer.`);
+    }
+
+    return parseModelJson(completion.text, label) as T;
+  }
 
   /**
    * 1. Generates in-depth Market Research including industry overview, pain points,
@@ -99,11 +131,13 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<MarketResearchResult>(
-      prompt,
+    return this.run<MarketResearchResult>(
+      context,
       'You are a senior Market Research Director and Management Consultant.',
-      schema,
+      prompt,
+      schema as unknown as Record<string, unknown>,
+      AiTask.SEO_RESEARCH,
+      'Market research',
     );
   }
 
@@ -152,11 +186,13 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<CompetitorAnalysisResult>(
-      prompt,
+    return this.run<CompetitorAnalysisResult>(
+      context,
       'You are a premier Competitive Intelligence & Strategy Lead.',
-      schema,
+      prompt,
+      schema as unknown as Record<string, unknown>,
+      AiTask.COMPETITOR_ANALYSIS,
+      'Competitor analysis',
     );
   }
 
@@ -311,11 +347,13 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<SEOAnalysisResult>(
-      prompt,
+    return this.run<SEOAnalysisResult>(
+      context,
       'You are a Staff Technical SEO & Organic Growth Architect.',
-      schema,
+      prompt,
+      schema as unknown as Record<string, unknown>,
+      AiTask.SEO_ANALYSIS,
+      'SEO analysis',
     );
   }
 
@@ -494,11 +532,13 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<ContentStrategyResult>(
-      prompt,
+    return this.run<ContentStrategyResult>(
+      context,
       'You are a Head of Content & Growth Media Strategist.',
-      schema,
+      prompt,
+      schema as unknown as Record<string, unknown>,
+      AiTask.CONTENT_STRUCTURE_ANALYSIS,
+      'Content strategy',
     );
   }
 
@@ -579,11 +619,13 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<KeywordResearchResult>(
-      prompt,
+    return this.run<KeywordResearchResult>(
+      context,
       'You are a Principal Search & Keyword Intelligence Specialist.',
-      schema,
+      prompt,
+      schema as unknown as Record<string, unknown>,
+      AiTask.SEO_RESEARCH,
+      'Keyword research',
     );
   }
 
@@ -665,210 +707,15 @@ You MUST provide the following in structured JSON:
       ],
     };
 
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<BusinessInsightsResult>(
-      prompt,
+    return this.run<BusinessInsightsResult>(
+      context,
       'You are a Chief Strategy Officer and Growth Advisor.',
-      schema,
-    );
-  }
-
-  /**
-   * 7. Generates dedicated Social Media Strategy across platforms.
-   */
-  async generateSocialStrategy(context: AiBusinessContext): Promise<SocialStrategyResult> {
-    this.logger.log(`Generating Social Media Strategy for '${context.businessName}'...`);
-
-    const prompt = formatStandardBusinessPrompt(
-      context,
-      `Build a dedicated, high-converting Social Media Growth Strategy for this brand.
-You MUST provide the following in structured JSON:
-1. executiveSummary (clear vision for social presence and brand voice)
-2. platformStrategies (array of platform plans for Instagram, LinkedIn, YouTube, TikTok/X with platform, objective, contentFormats array, weeklyFrequency, bestTimesToPost)
-3. reelsAndShorts (array of 4-6 viral short-form concepts with concept, hook, audioVibe, cta)
-4. carousels (array of 3-4 educational slide-deck blueprints with topic, slideOutlines array, engagementTrigger)
-5. highConvertingHooks (array of 8-12 top-performing hook lines)
-6. hashtagVault (array of 3-4 hashtag banks grouped by niche with tags array)
-7. callToActionBank (array of 3-4 CTA groups categorized by goal with phrases array)`
-    );
-
-    const schema = {
-      type: 'object',
-      properties: {
-        executiveSummary: { type: 'string' },
-        platformStrategies: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              platform: { type: 'string' },
-              objective: { type: 'string' },
-              contentFormats: { type: 'array', items: { type: 'string' } },
-              weeklyFrequency: { type: 'string' },
-              bestTimesToPost: { type: 'string' },
-            },
-            required: ['platform', 'objective', 'contentFormats', 'weeklyFrequency', 'bestTimesToPost'],
-          },
-        },
-        reelsAndShorts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              concept: { type: 'string' },
-              hook: { type: 'string' },
-              audioVibe: { type: 'string' },
-              cta: { type: 'string' },
-            },
-            required: ['concept', 'hook', 'audioVibe', 'cta'],
-          },
-        },
-        carousels: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              topic: { type: 'string' },
-              slideOutlines: { type: 'array', items: { type: 'string' } },
-              engagementTrigger: { type: 'string' },
-            },
-            required: ['topic', 'slideOutlines', 'engagementTrigger'],
-          },
-        },
-        highConvertingHooks: { type: 'array', items: { type: 'string' } },
-        hashtagVault: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              niche: { type: 'string' },
-              tags: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['niche', 'tags'],
-          },
-        },
-        callToActionBank: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              goal: { type: 'string' },
-              phrases: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['goal', 'phrases'],
-          },
-        },
-      },
-      required: [
-        'executiveSummary',
-        'platformStrategies',
-        'reelsAndShorts',
-        'carousels',
-        'highConvertingHooks',
-        'hashtagVault',
-        'callToActionBank',
-      ],
-    };
-
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<SocialStrategyResult>(
       prompt,
-      'You are a Viral Social Media Strategist & Brand Architect.',
-      schema,
+      schema as unknown as Record<string, unknown>,
+      AiTask.SEO_ANALYSIS,
+      'Business insights',
     );
   }
 
-  /**
-   * 8. Generates overall Marketing & Go-To-Market Strategy.
-   */
-  async generateMarketingStrategy(context: AiBusinessContext): Promise<MarketingStrategyResult> {
-    this.logger.log(`Generating Marketing Strategy for '${context.businessName}'...`);
 
-    const prompt = formatStandardBusinessPrompt(
-      context,
-      `Craft an overarching Marketing & Go-To-Market Strategy for this business.
-You MUST provide the following in structured JSON:
-1. executiveSummary (comprehensive marketing vision and core strategy)
-2. brandPositioningStatement (single powerful positioning statement defining who, what, why, and differentiation)
-3. targetPersonas (array of target customer persona summaries)
-4. acquisitionChannels (array of 4-6 channels with channel, strategy, priority, budgetShareEstimate)
-5. conversionTactics (array of funnel optimizations across Top, Middle, and Bottom of funnel with funnelStage, tactics array, keyMetrics)
-6. growthRoadmap (array of 3-4 execution milestones with phase, duration, milestones array)
-7. budgetSuggestions (array of 4-6 budget allocations with category, percentage, rationale)`
-    );
-
-    const schema = {
-      type: 'object',
-      properties: {
-        executiveSummary: { type: 'string' },
-        brandPositioningStatement: { type: 'string' },
-        targetPersonas: { type: 'array', items: { type: 'string' } },
-        acquisitionChannels: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              channel: { type: 'string' },
-              strategy: { type: 'string' },
-              priority: { type: 'string' },
-              budgetShareEstimate: { type: 'string' },
-            },
-            required: ['channel', 'strategy', 'priority', 'budgetShareEstimate'],
-          },
-        },
-        conversionTactics: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              funnelStage: { type: 'string' },
-              tactics: { type: 'array', items: { type: 'string' } },
-              keyMetrics: { type: 'string' },
-            },
-            required: ['funnelStage', 'tactics', 'keyMetrics'],
-          },
-        },
-        growthRoadmap: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              phase: { type: 'string' },
-              duration: { type: 'string' },
-              milestones: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['phase', 'duration', 'milestones'],
-          },
-        },
-        budgetSuggestions: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              category: { type: 'string' },
-              percentage: { type: 'number' },
-              rationale: { type: 'string' },
-            },
-            required: ['category', 'percentage', 'rationale'],
-          },
-        },
-      },
-      required: [
-        'executiveSummary',
-        'brandPositioningStatement',
-        'targetPersonas',
-        'acquisitionChannels',
-        'conversionTactics',
-        'growthRoadmap',
-        'budgetSuggestions',
-      ],
-    };
-
-    const provider = this.providerFactory.getProvider();
-    return provider.generateStructuredJson<MarketingStrategyResult>(
-      prompt,
-      'You are a Global Chief Marketing Officer (CMO) and Go-To-Market Architect.',
-      schema,
-    );
-  }
 }

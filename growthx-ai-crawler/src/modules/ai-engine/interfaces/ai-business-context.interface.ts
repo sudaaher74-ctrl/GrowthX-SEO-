@@ -2,6 +2,13 @@
  * Standard business context required for every AI intelligence request.
  */
 export interface AiBusinessContext {
+  /**
+   * The organization the request is billed to. Carried so the AI router can
+   * attribute the spend and apply the organization's monthly budget; a request
+   * without it still runs, it is simply unattributed.
+   */
+  organizationId?: string;
+
   /** The name of the business or brand. */
   businessName: string;
 
