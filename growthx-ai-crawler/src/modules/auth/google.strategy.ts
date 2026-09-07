@@ -1,6 +1,6 @@
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, VerifyCallback } from 'passport-google-oauth20';
-import { Injectable } from '@nestjs/common';
+import { Strategy } from 'passport-google-oauth20';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 
@@ -31,8 +31,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     super({
       clientID: configService.get<string>('GOOGLE_CLIENT_ID') as string,
       clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') as string,
-      callbackURL: '/auth/google/callback',
+      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || '/auth/google/callback',
       scope: ['email', 'profile'],
+      proxy: true,
     });
   }
 
@@ -40,22 +41,24 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     accessToken: string,
     refreshToken: string,
     profile: any,
-    done: VerifyCallback,
   ): Promise<any> {
-    const { name, emails } = profile;
-    const email = emails[0].value;
+    const { name, emails } = profile || {};
+    const email = emails?.[0]?.value;
+
+    if (!email) {
+      throw new UnauthorizedException('No email address returned from Google account');
+    }
+
     const firstName = name?.givenName;
     const lastName = name?.familyName;
-    
-    try {
-      const user = await this.authService.validateGoogleUser({
-        email,
-        firstName,
-        lastName,
-      });
-      done(null, user);
-    } catch (err) {
-      done(err, false);
-    }
+
+    const user = await this.authService.validateGoogleUser({
+      email,
+      firstName,
+      lastName,
+    });
+
+    return user;
   }
 }
+

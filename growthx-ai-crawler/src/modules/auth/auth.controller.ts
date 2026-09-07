@@ -1,7 +1,8 @@
-import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res, UseFilters } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GoogleAuthGuard } from './google-auth.guard';
+import { GoogleAuthExceptionFilter } from './google-auth.filter';
 import { AllowWithoutOrganization } from './allow-without-organization.decorator';
 import { UsersService } from '../users/users.service';
 
@@ -33,16 +34,29 @@ export class AuthController {
 
   @Get('google')
   @UseGuards(GoogleAuthGuard)
+  @UseFilters(GoogleAuthExceptionFilter)
   async googleAuth(@Req() req: any) {
     // Initiates the Google OAuth flow
   }
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
+  @UseFilters(GoogleAuthExceptionFilter)
   async googleAuthRedirect(@Req() req: any, @Res() res: any) {
-    const tokens = await this.authService.login(req.user);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
+    const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = rawFrontendUrl.replace(/\/+$/, '');
+    try {
+      if (!req.user) {
+        throw new UnauthorizedException('No user information received from Google');
+      }
+      const tokens = await this.authService.login(req.user);
+      return res.redirect(
+        `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
+      );
+    } catch (err: any) {
+      const message = err?.message || 'Google authentication failed';
+      return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(message)}`);
+    }
   }
 
   @Get('me')

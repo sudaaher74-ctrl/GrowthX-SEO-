@@ -110,7 +110,9 @@ run_migrations_in_background() {
   # creating. Optional in the strict sense — neither may decide whether the API
   # serves traffic.
   run_optional_step "Membership repair" node scripts/repair-membership.js
-  run_optional_step "Page type backfill" node scripts/backfill-page-types.js
+  if [ "$RUN_PAGE_TYPE_BACKFILL" = "true" ]; then
+    run_optional_step "Page type backfill" node scripts/backfill-page-types.js
+  fi
 }
 
 run_migrations_in_background &

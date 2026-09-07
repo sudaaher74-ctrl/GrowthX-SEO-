@@ -114,11 +114,36 @@ export class AuthService {
         lastName: profile.lastName,
       });
 
-      // Auto-create a default workspace
-      await this.organizationsService.createOrganization(user.id, {
-        name: `${profile.firstName || 'My'} Workspace`,
-        slug: `workspace-${user.id.substring(0, 8)}`,
-      });
+      // Auto-create a default workspace with collision resilience
+      const slugSuffix = (user.id || '').replace(/-/g, '').substring(0, 10) || Math.random().toString(36).substring(2, 8);
+      try {
+        await this.organizationsService.createOrganization(user.id, {
+          name: `${profile.firstName || 'My'} Workspace`,
+          slug: `workspace-${slugSuffix}`,
+        });
+      } catch {
+        await this.organizationsService.createOrganization(user.id, {
+          name: `${profile.firstName || 'My'} Workspace`,
+          slug: `workspace-${Date.now().toString(36)}`,
+        });
+      }
+    } else {
+      // Ensure existing user has at least one organization
+      const orgs = await this.organizationsService.getOrganizationsForUser(user.id);
+      if (orgs.length === 0) {
+        const slugSuffix = (user.id || '').replace(/-/g, '').substring(0, 10) || Math.random().toString(36).substring(2, 8);
+        try {
+          await this.organizationsService.createOrganization(user.id, {
+            name: `${user.firstName || profile.firstName || 'My'} Workspace`,
+            slug: `workspace-${slugSuffix}`,
+          });
+        } catch {
+          await this.organizationsService.createOrganization(user.id, {
+            name: `${user.firstName || profile.firstName || 'My'} Workspace`,
+            slug: `workspace-${Date.now().toString(36)}`,
+          });
+        }
+      }
     }
     
     const { passwordHash: _passwordHash, ...result } = user;
