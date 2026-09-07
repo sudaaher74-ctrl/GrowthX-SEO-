@@ -1749,6 +1749,13 @@ export interface CrawlQualityDiagnostics {
   avgResponseTimeMs?: number;
   sitemapFound?: boolean;
   sitemapUrlsCount?: number;
+  urlsDiscovered?: number;
+  urlsEligible?: number;
+  urlsSkipped?: number;
+  robotsBlocked?: number;
+  internalLinksFound?: number;
+  crawlCoveragePercent?: number;
+  crawlStatus?: "COMPLETED" | "LIMIT_REACHED" | "PARTIAL";
   totalFindings?: number;
   uniqueIssuesCount?: number;
   resolvedIssuesCount?: number;
