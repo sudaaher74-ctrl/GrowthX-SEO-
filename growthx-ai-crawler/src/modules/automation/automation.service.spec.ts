@@ -209,6 +209,34 @@ describe('AutomationService', () => {
       expect(run.pullRequestUrl).toBe('https://github.com/acme/website/pull/7');
     });
 
+    it('regenerates a cached patch that fails to apply and retries once', async () => {
+      // A patch cached before a fix-generation bug was fixed (e.g. a schema
+      // issue that used to be mis-typed as META_TITLE) can fail forever on
+      // stale data even after the code that produced it is fixed.
+      patcher.applyFix
+        .mockResolvedValueOnce({ applied: false, reason: 'No metadata export to patch.' })
+        .mockResolvedValueOnce({ applied: true });
+
+      const run = await service.runFixes('proj_1', 'org_1');
+
+      expect(autoFix.generateFixPatch).toHaveBeenCalledWith('issue_1', 'org_1');
+      expect(patcher.applyFix).toHaveBeenCalledTimes(2);
+      expect(run.pullRequestUrl).toBe('https://github.com/acme/website/pull/7');
+    });
+
+    it('does not retry when a freshly generated patch still fails to apply', async () => {
+      prisma.issue.findMany.mockResolvedValue([
+        issue({ aiRecommendation: { recommendedFixPatch: 'not json' } }),
+      ]);
+      patcher.applyFix.mockResolvedValue({ applied: false, reason: 'still no good' });
+
+      const run = await service.runFixes('proj_1', 'org_1');
+
+      expect(autoFix.generateFixPatch).toHaveBeenCalledTimes(1);
+      expect(patcher.applyFix).toHaveBeenCalledTimes(1);
+      expect(run.error).toMatch(/Nothing could be applied/);
+    });
+
     it('skips the issue when no patch can be generated either', async () => {
       prisma.issue.findMany.mockResolvedValue([
         issue({ aiRecommendation: { recommendedFixPatch: 'not json' } }),

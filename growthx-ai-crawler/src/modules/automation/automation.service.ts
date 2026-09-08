@@ -172,6 +172,13 @@ export class AutomationService {
         // reported "no usable patch" while doing nothing. Generate it here
         // when it is missing, rather than requiring the caller to know.
         let patch = this.parsePatch(issue.aiRecommendation?.recommendedFixPatch);
+        // Whether `patch` came from the DB as-is, rather than being generated
+        // fresh just now. A cached patch can predate a fix-generation or
+        // patcher change (e.g. a schema issue that used to be mis-typed as
+        // META_TITLE) and keep failing forever on stale data even after the
+        // bug that produced it is fixed — so a failing cached patch gets one
+        // regenerate-and-retry before being reported as unfixable.
+        let patchIsCached = Boolean(patch);
         if (!patch) {
           try {
             await this.autoFix.generateFixPatch(issue.id, organizationId);
@@ -192,28 +199,57 @@ export class AutomationService {
           continue;
         }
 
-        // An orphan page is fixed by linking to it from elsewhere, not by
-        // editing the page itself — so INTERNAL_LINKING patches a different
-        // file (the homepage) than every other fix type.
-        const isInternalLinking = patch.fixType === 'INTERNAL_LINKING';
-        const target = isInternalLinking
-          ? await this.resolveInternalLinkSource(workingDir, issue.affectedUrl, repo.framework)
-          : await this.resolveTargetFile(workingDir, issue.affectedUrl, repo.framework);
+        const attemptApply = async (p: NonNullable<typeof patch>) => {
+          // An orphan page is fixed by linking to it from elsewhere, not by
+          // editing the page itself — so INTERNAL_LINKING patches a different
+          // file (the homepage) than every other fix type.
+          const isInternalLinking = p.fixType === 'INTERNAL_LINKING';
+          const attemptTarget = isInternalLinking
+            ? await this.resolveInternalLinkSource(workingDir, issue.affectedUrl, repo.framework)
+            : await this.resolveTargetFile(workingDir, issue.affectedUrl, repo.framework);
+          if (!attemptTarget) {
+            return { target: null, outcome: { applied: false, reason: 'no matching file in the repo' } };
+          }
+
+          // JSON-LD fix types carry only a human label ("Product JSON-LD") in
+          // proposedValue for display; the real object lives inside the
+          // <script> tag in codeSnippet. The patcher needs the real object.
+          const patchValue = JSON_LD_FIX_TYPES.has(p.fixType)
+            ? this.extractJsonLd(p.codeSnippet) ?? p.proposedValue
+            : p.proposedValue;
+
+          const outcome = await this.patcher.applyFix(attemptTarget, p.fixType, patchValue, {
+            href: isInternalLinking ? issue.affectedUrl : undefined,
+          });
+          return { target: attemptTarget, outcome };
+        };
+
+        let { target, outcome } = await attemptApply(patch);
+
+        if (!outcome.applied && patchIsCached) {
+          try {
+            await this.autoFix.generateFixPatch(issue.id, organizationId);
+            const refreshed = await this.prisma.aIRecommendation.findUnique({
+              where: { issueId: issue.id },
+              select: { recommendedFixPatch: true },
+            });
+            const retried = this.parsePatch(refreshed?.recommendedFixPatch);
+            if (retried) {
+              patch = retried;
+              patchIsCached = false;
+              ({ target, outcome } = await attemptApply(patch));
+            }
+          } catch {
+            // Keep the original (cached-patch) outcome — it is still more
+            // informative than the regeneration failure.
+          }
+        }
+
         if (!target) {
           skipped.push(`${issue.issueType} (${issue.affectedUrl}): no matching file in the repo`);
           continue;
         }
 
-        // JSON-LD fix types carry only a human label ("Product JSON-LD") in
-        // proposedValue for display; the real object lives inside the
-        // <script> tag in codeSnippet. The patcher needs the real object.
-        const patchValue = JSON_LD_FIX_TYPES.has(patch.fixType)
-          ? this.extractJsonLd(patch.codeSnippet) ?? patch.proposedValue
-          : patch.proposedValue;
-
-        const outcome = await this.patcher.applyFix(target, patch.fixType, patchValue, {
-          href: isInternalLinking ? issue.affectedUrl : undefined,
-        });
         if (outcome.applied) {
           changed.push(path.relative(workingDir, target));
           if (issue.affectedUrl) {
