@@ -162,9 +162,30 @@ export class AutomationService {
       const applied: { url: string; fixType: string; issueType: string }[] = [];
 
       for (const issue of issues) {
-        const patch = this.parsePatch(issue.aiRecommendation?.recommendedFixPatch);
+        // Two different writers use recommendedFixPatch. The crawl's analysis
+        // stores prose there, which cannot be applied; only AutoFixService
+        // writes the {fixType, proposedValue} JSON this needs. Nothing called
+        // it before a run, so every issue arrived unusable and every run
+        // reported "no usable patch" while doing nothing. Generate it here
+        // when it is missing, rather than requiring the caller to know.
+        let patch = this.parsePatch(issue.aiRecommendation?.recommendedFixPatch);
         if (!patch) {
-          skipped.push(`${issue.issueType}: no usable patch`);
+          try {
+            await this.autoFix.generateFixPatch(issue.id, organizationId);
+            const refreshed = await this.prisma.aIRecommendation.findUnique({
+              where: { issueId: issue.id },
+              select: { recommendedFixPatch: true },
+            });
+            patch = this.parsePatch(refreshed?.recommendedFixPatch);
+          } catch (error: any) {
+            skipped.push(
+              `${issue.issueType}: could not generate a fix (${this.describeRunFailure(error)})`,
+            );
+            continue;
+          }
+        }
+        if (!patch) {
+          skipped.push(`${issue.issueType}: no usable patch could be generated`);
           continue;
         }
 

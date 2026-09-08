@@ -48,6 +48,7 @@ describe('AutomationService', () => {
   let prisma: any;
   let git: any;
   let patcher: any;
+  let autoFix: any;
   let validation: any;
   let entitlements: any;
   let impact: any;
@@ -71,6 +72,11 @@ describe('AutomationService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       issue: { findMany: jest.fn().mockResolvedValue([issue()]) },
+      aIRecommendation: {
+        findUnique: jest.fn().mockResolvedValue({
+          recommendedFixPatch: JSON.stringify({ fixType: 'META_TITLE', proposedValue: 'Generated title' }),
+        }),
+      },
       contentPiece: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     };
 
@@ -81,6 +87,7 @@ describe('AutomationService', () => {
       createPullRequest: jest.fn().mockResolvedValue('https://github.com/acme/website/pull/7'),
     };
     patcher = { applyFix: jest.fn().mockResolvedValue({ applied: true }) };
+    autoFix = { generateFixPatch: jest.fn().mockResolvedValue({ fixType: 'META_TITLE' }) };
     validation = { validateRepository: jest.fn().mockResolvedValue({ success: true, output: '' }) };
 
     entitlements = {
@@ -97,7 +104,7 @@ describe('AutomationService', () => {
         { provide: PatchGenerationService, useValue: patcher },
         { provide: RepositoryUnderstandingService, useValue: { analyzeRepository: jest.fn().mockResolvedValue({ packageManager: 'npm' }) } },
         { provide: ValidationService, useValue: validation },
-        { provide: AutoFixService, useValue: {} },
+        { provide: AutoFixService, useValue: autoFix },
         { provide: ContentGenerationService, useValue: { toMarkdownFile: () => '---\ntitle: "x"\n---\nbody\n' } },
         { provide: SecurityService, useValue: { encryptCredentials: (v: string) => `enc:${v}`, decryptCredentials: (v: string) => v.replace('enc:', '') } },
         { provide: ImpactService, useValue: impact },
@@ -188,10 +195,38 @@ describe('AutomationService', () => {
       expect(run.error).toMatch(/no matching file/);
     });
 
-    it('skips an issue with an unparseable patch', async () => {
-      prisma.issue.findMany.mockResolvedValue([issue({ aiRecommendation: { recommendedFixPatch: 'not json' } })]);
+    it('generates the patch when the stored one is prose rather than JSON', async () => {
+      // The crawl's analysis writes prose into the same column, so arriving
+      // without an applicable patch is the normal case, not an error.
+      prisma.issue.findMany.mockResolvedValue([
+        issue({ aiRecommendation: { recommendedFixPatch: 'Add a descriptive title.' } }),
+      ]);
+
       const run = await service.runFixes('proj_1', 'org_1');
-      expect(run.error).toMatch(/no usable patch/);
+
+      expect(autoFix.generateFixPatch).toHaveBeenCalledWith('issue_1', 'org_1');
+      expect(patcher.applyFix).toHaveBeenCalled();
+      expect(run.pullRequestUrl).toBe('https://github.com/acme/website/pull/7');
+    });
+
+    it('skips the issue when no patch can be generated either', async () => {
+      prisma.issue.findMany.mockResolvedValue([
+        issue({ aiRecommendation: { recommendedFixPatch: 'not json' } }),
+      ]);
+      prisma.aIRecommendation.findUnique.mockResolvedValue({ recommendedFixPatch: 'still not json' });
+
+      const run = await service.runFixes('proj_1', 'org_1');
+      expect(run.error).toMatch(/no usable patch could be generated/);
+    });
+
+    it('reports a generator failure without aborting the run', async () => {
+      prisma.issue.findMany.mockResolvedValue([
+        issue({ aiRecommendation: { recommendedFixPatch: 'not json' } }),
+      ]);
+      autoFix.generateFixPatch.mockRejectedValue(new Error('model unavailable'));
+
+      const run = await service.runFixes('proj_1', 'org_1');
+      expect(run.error).toMatch(/could not generate a fix/);
     });
 
     it('stops early when there is nothing to fix', async () => {
