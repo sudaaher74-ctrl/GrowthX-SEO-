@@ -78,6 +78,25 @@ export class AdminService {
       }
     }
 
+    // Every call routed through MultiAiRouterService — Mammouth included — is
+    // booked to AiUsageRecord, not to marketResearchRun. Reading only the
+    // latter left the spend ledger empty while the router was billing all day.
+    const routed = await this.prisma.aiUsageRecord.groupBy({
+      by: ['provider', 'model'],
+      _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
+      _count: { _all: true },
+    });
+
+    for (const row of routed) {
+      const service = `${row.provider} / ${row.model}`;
+      const entry = byModel.get(service) ?? { tokens: 0, cost: 0 };
+      entry.tokens += (row._sum.inputTokens ?? 0) + (row._sum.outputTokens ?? 0);
+      // A provider with no configured rate reports tokens and no cost. A
+      // guessed price would be worse than an absent one.
+      entry.cost += row._sum.estimatedCostUsd ?? 0;
+      byModel.set(service, entry);
+    }
+
     return [...byModel.entries()]
       .sort((a, b) => b[1].tokens - a[1].tokens)
       .map(([service, totals]) => ({

@@ -37,7 +37,10 @@ describe('MammouthSeoService', () => {
 
       expect(res.connected).toBe(true);
       expect(res.provider).toBe('Mammouth AI');
-      expect(res.maskedKey).toBe('sk-mamm••••••••••••');
+      // No slice of the key may leave the server -- a prefix still narrows a
+      // brute force, and this value travels in an HTTP response body.
+      expect(res.maskedKey).toBe('••••••••••••');
+      expect(res.maskedKey).not.toContain('sk-');
       expect(res.model).toBe('mammouth-recommended');
     });
 

@@ -52,6 +52,7 @@ describe('HealthController', () => {
       SARVAM_API_KEY: undefined,
       GROQ_API_KEY: undefined,
       OPENROUTER_API_KEY: undefined,
+      MAMMOUTH_API_KEY: undefined,
     });
 
     const { ai } = controller.capabilities() as any;
@@ -69,6 +70,7 @@ describe('HealthController', () => {
       OPENAI_API_KEY: undefined,
       SARVAM_API_KEY: undefined,
       OPENROUTER_API_KEY: undefined,
+      MAMMOUTH_API_KEY: undefined,
     });
 
     const { ai } = controller.capabilities() as any;

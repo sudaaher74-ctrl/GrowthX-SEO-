@@ -295,6 +295,20 @@ export default function AdminPage() {
     return apiCosts.reduce((acc, c) => acc + c.cost, 0).toFixed(2);
   }, [apiCosts]);
 
+  // Derived from the ledger rather than hardcoded: the card read "Gemini &
+  // Groq" while every row in the table was Mammouth.
+  const spendProviders = useMemo(() => {
+    const names = [
+      ...new Set(
+        apiCosts
+          .map((c) => c.service.split("/")[0]?.trim())
+          .filter((n): n is string => Boolean(n)),
+      ),
+    ];
+    if (names.length === 0) return "No recorded usage";
+    return names.slice(0, 3).join(", ") + (names.length > 3 ? "…" : "");
+  }, [apiCosts]);
+
   const tabs = [
     { id: "overview", label: "System Overview", icon: Server },
     { id: "tenants", label: `Tenants (${tenants.length})`, icon: Database },
@@ -374,7 +388,7 @@ export default function AdminPage() {
         <Kpi
           label="AI Model Spend MTD"
           value={`$${totalSpend}`}
-          sub="Gemini & Groq"
+          sub={spendProviders}
           tone="default"
         />
         <Kpi

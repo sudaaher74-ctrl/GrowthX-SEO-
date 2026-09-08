@@ -29,6 +29,22 @@ describe('Mammouth AI Integration', () => {
       expect(model).toBe('gpt-4.1');
     });
 
+    it('treats mammouth-recommended as auto-select, not a pin', () => {
+      // The sentinel supports KEYWORD_ANALYSIS and CONTENT_ANALYSIS itself, so
+      // treating it as an explicit pin silently shadowed the capability table
+      // and sent that work to the generic model.
+      expect(
+        resolveMammouthModelForCapability(MammouthCapability.KEYWORD_ANALYSIS, {
+          userSelectedModel: 'mammouth-recommended',
+        }),
+      ).toBe('gemini-2.5-flash');
+      expect(
+        resolveMammouthModelForCapability(MammouthCapability.CONTENT_ANALYSIS, {
+          userSelectedModel: 'mammouth-recommended',
+        }),
+      ).toBe('claude-sonnet-4-6');
+    });
+
     it('accepts user selected model if it supports the capability', () => {
       const model = resolveMammouthModelForCapability(MammouthCapability.COMPETITOR_ANALYSIS, {
         userSelectedModel: 'claude-opus-4-8',
@@ -127,6 +143,35 @@ describe('Mammouth AI Integration', () => {
           provider: AiProvider.MAMMOUTH,
         }),
       ).rejects.toThrow('Mammouth AI authentication failed: invalid API key.');
+    });
+
+    it('never echoes the API key back in an unrecognised upstream error', async () => {
+      // A gateway that quotes the offending request without saying "api key"
+      // used to fall through to the generic branch, putting the raw bearer
+      // token in the HTTP response body handed to the browser.
+      const config = makeConfig({
+        MAMMOUTH_API_KEY: 'sk-mammouth-test-key',
+      });
+      const router = new MultiAiRouterService(config);
+
+      (router as any).mammouth = {
+        chat: {
+          completions: {
+            create: jest.fn().mockRejectedValue({
+              status: 400,
+              message: 'Malformed request for token sk-mammouth-test-key on tenant acme',
+            }),
+          },
+        },
+      };
+
+      const call = router.generate({
+        prompt: 'test prompt',
+        provider: AiProvider.MAMMOUTH,
+      });
+
+      await expect(call).rejects.toThrow(/Mammouth AI error/);
+      await expect(call).rejects.not.toThrow(/sk-mammouth-test-key/);
     });
 
     it('translates 429 rate limit errors cleanly', async () => {

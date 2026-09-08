@@ -12,7 +12,8 @@ import {
   RefreshCw, 
   Check, 
   ShieldCheck,
-  Server
+  Server,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { api, type MammouthConfig, type MammouthModelInfo } from "@/lib/api-clie
 export function AiConfigurationTab() {
   const [config, setConfig] = useState<MammouthConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -48,62 +50,20 @@ export function AiConfigurationTab() {
     setLoading(true);
     try {
       const data = await api.mammouth.getConfig();
+      setLoadError(null);
       setConfig(data);
       if (data.defaultModel) setSelectedModel(data.defaultModel);
       if (data.features) setFeatures(data.features);
-    } catch {
-      // Fallback state if server offline or initial setup
-      setConfig({
-        provider: "Mammouth AI",
-        isConfigured: true,
-        connected: true,
-        maskedKey: "••••••••••••",
-        defaultModel: "mammouth-recommended",
-        availableModels: [
-          {
-            id: "mammouth-recommended",
-            displayName: "Mammouth Recommended (Auto-Optimized)",
-            description: "Default high-performance general SEO reasoning model with low latency.",
-            capabilities: ["SEO_ANALYSIS", "CONTENT_ANALYSIS", "STRUCTURED_JSON"],
-            maxOutputTokens: 8192,
-          },
-          {
-            id: "gpt-4.1",
-            displayName: "GPT-4.1",
-            description: "Robust technical SEO reasoning and strict JSON schema compliance.",
-            capabilities: ["SEO_ANALYSIS", "TECHNICAL_SEO_REASONING", "STRUCTURED_JSON"],
-            maxOutputTokens: 8192,
-          },
-          {
-            id: "claude-sonnet-4-6",
-            displayName: "Claude Sonnet 4.6",
-            description: "Superior nuanced competitor gap analysis and editorial roadmaps.",
-            capabilities: ["COMPETITOR_ANALYSIS", "CONTENT_ANALYSIS", "LONG_FORM_REASONING"],
-            maxOutputTokens: 8192,
-          },
-          {
-            id: "gemini-2.5-flash",
-            displayName: "Gemini 2.5 Flash",
-            description: "High-speed multi-lingual keyword clustering and search intent tagging.",
-            capabilities: ["KEYWORD_ANALYSIS", "STRUCTURED_JSON"],
-            maxOutputTokens: 8192,
-          },
-          {
-            id: "sonar-pro",
-            displayName: "Sonar Pro (Search Engine Intelligence)",
-            description: "Search-grounded model optimal for AEV (AI Engine Visibility) & citation discovery.",
-            capabilities: ["AEV_ANALYSIS", "COMPETITOR_ANALYSIS"],
-            maxOutputTokens: 8192,
-          },
-        ],
-        features: {
-          websiteAudit: true,
-          competitorIntelligence: true,
-          keywordStrategy: true,
-          aevAnalysis: true,
-          seoRecommendations: true,
-        },
-      });
+    } catch (err: any) {
+      // Never synthesise a config here. This block used to hand back
+      // isConfigured/connected: true with a hardcoded model list, so an
+      // unreachable backend or a missing key still rendered "Connected" —
+      // a fabricated status that hid the outage it was reporting on.
+      setConfig(null);
+      setLoadError(
+        err?.message ||
+          "Could not reach the AI configuration service. Status unknown.",
+      );
     } finally {
       setLoading(false);
     }
@@ -156,6 +116,28 @@ export function AiConfigurationTab() {
       <div className="card p-8 flex items-center justify-center gap-3 text-sm text-[var(--text-muted)]">
         <Loader2 size={18} className="animate-spin text-purple-500" />
         <span>Loading AI Provider configuration...</span>
+      </div>
+    );
+  }
+
+  if (loadError || !config) {
+    return (
+      <div className="card p-8 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+          <AlertTriangle size={16} />
+          <span>AI configuration unavailable</span>
+        </div>
+        <p className="text-sm text-[var(--text-muted)]">
+          {loadError ??
+            "Could not reach the AI configuration service. Status unknown."}
+        </p>
+        <p className="text-xs text-[var(--text-muted)]">
+          Provider status is not shown while the service is unreachable, rather
+          than assumed to be connected.
+        </p>
+        <Button onClick={loadConfig} variant="outline" size="sm" className="w-fit">
+          Retry
+        </Button>
       </div>
     );
   }

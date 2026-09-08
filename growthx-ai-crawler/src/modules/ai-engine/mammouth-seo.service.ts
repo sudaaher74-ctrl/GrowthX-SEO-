@@ -226,9 +226,9 @@ export class MammouthSeoService {
     message: string;
   }> {
     const key = this.config.get<string>('MAMMOUTH_API_KEY') || '';
-    const maskedKey = key.length > 8
-      ? `${key.slice(0, 7)}••••••••••••`
-      : '••••••••••••';
+    // No slice of the key leaves the server: a prefix still narrows a brute
+    // force, and the frontend only ever renders fixed bullets anyway.
+    const maskedKey = '••••••••••••';
 
     if (!key || key.startsWith('your_') || key.startsWith('add-')) {
       return {
@@ -889,13 +889,25 @@ export class MammouthSeoService {
     };
   }
 
-  private parseResilientJson<T>(rawText: string, fallback: T): T {
-    if (!rawText?.trim()) return fallback;
+  /**
+   * A fallback here used to invent a health score and a summary sentence, which
+   * reached the dashboard indistinguishable from a real analysis. An unparseable
+   * model response is an outage, not a 75/100 site: fail loudly so the caller can
+   * surface a warning instead of a fabricated verdict.
+   */
+  private parseResilientJson<T>(rawText: string, _fallback: T): T {
+    if (!rawText?.trim()) {
+      throw new ServiceUnavailableException(
+        'Mammouth AI returned an empty response. No analysis was produced.',
+      );
+    }
     try {
       return extractAndParseJson(rawText) as T;
     } catch (err: any) {
-      this.logger.warn(`Failed to parse AI JSON response: ${err.message}. Using resilient fallback structure.`);
-      return fallback;
+      this.logger.warn(`Failed to parse AI JSON response: ${err.message}`);
+      throw new ServiceUnavailableException(
+        'Mammouth AI returned a malformed response. No analysis was produced.',
+      );
     }
   }
 

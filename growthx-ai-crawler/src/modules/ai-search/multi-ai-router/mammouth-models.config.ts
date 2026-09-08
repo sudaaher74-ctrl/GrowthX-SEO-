@@ -186,6 +186,9 @@ export const MAMMOUTH_MODELS: Readonly<Record<string, MammouthModelMetadata>> = 
  * Default model assignment per capability.
  * Overridable via environment variables (e.g. MAMMOUTH_MODEL_SEO_ANALYSIS="gpt-4.1").
  */
+/** Sentinel meaning "let the capability table choose", not a pinned model. */
+export const AUTO_SELECT_MODEL = 'mammouth-recommended';
+
 export const DEFAULT_CAPABILITY_MODELS: Readonly<Record<MammouthCapability, string>> = {
   [MammouthCapability.SEO_ANALYSIS]: 'mammouth-recommended',
   [MammouthCapability.KEYWORD_ANALYSIS]: 'gemini-2.5-flash',
@@ -207,8 +210,13 @@ export function resolveMammouthModelForCapability(
     userSelectedModel?: string;
   },
 ): string {
-  // 1. If user explicitly provided a model that supports this capability, check it
-  if (customConfig?.userSelectedModel) {
+  // 1. If the user explicitly pinned a model that supports this capability, honour it.
+  //    'mammouth-recommended' is the auto-select sentinel, not a pin — the UI
+  //    labels it "Auto-Optimized / intelligently selected based on task
+  //    capability". Treating it as a pin silently shadowed the per-capability
+  //    defaults below, sending keyword work to the generic model instead of
+  //    gemini-2.5-flash and content work instead of claude-sonnet-4-6.
+  if (customConfig?.userSelectedModel && customConfig.userSelectedModel !== AUTO_SELECT_MODEL) {
     const meta = MAMMOUTH_MODELS[customConfig.userSelectedModel];
     if (meta && meta.capabilities.includes(capability)) {
       return customConfig.userSelectedModel;

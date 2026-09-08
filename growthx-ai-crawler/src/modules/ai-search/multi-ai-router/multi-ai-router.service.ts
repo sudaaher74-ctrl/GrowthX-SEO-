@@ -196,6 +196,7 @@ export class MultiAiRouterService {
   private readonly sarvamReasoningEffort: SarvamReasoningEffort;
   private readonly mammouthModel: string;
   private readonly mammouthBaseUrl: string;
+  private mammouthKey?: string;
   private readonly mammouthTemperature: number;
   private readonly mammouthMaxTokens: number;
 
@@ -269,6 +270,7 @@ export class MultiAiRouterService {
     const rawMammouthKey = this.config.get<string>('MAMMOUTH_API_KEY');
     const mammouthKey = rawMammouthKey ? rawMammouthKey.trim().replace(/\.+$/, '') : undefined;
     if (this.isRealKey(mammouthKey)) {
+      this.mammouthKey = mammouthKey;
       this.mammouth = new OpenAI({
         apiKey: mammouthKey,
         baseURL: this.mammouthBaseUrl,
@@ -851,7 +853,9 @@ export class MultiAiRouterService {
       };
     } catch (error: any) {
       const status = error?.status || error?.statusCode;
-      const message = String(error?.message || error || 'Unknown Mammouth error');
+      const message = this.redactMammouthKey(
+        String(error?.message || error || 'Unknown Mammouth error'),
+      );
 
       if (status === 401 || /unauthorized|api key|invalid proxy server token/i.test(message)) {
         throw new ServiceUnavailableException('Mammouth AI authentication failed: invalid API key.');
@@ -865,6 +869,21 @@ export class MultiAiRouterService {
 
       throw new ServiceUnavailableException(`Mammouth AI error: ${message}`);
     }
+  }
+
+  /**
+   * Upstream errors quote the offending request back, and an OpenAI-compatible
+   * gateway will happily include the bearer token in that quote. The message
+   * ends up in an HTTP response body and in the logs, so scrub the key out of
+   * it before it travels anywhere.
+   */
+  private redactMammouthKey(message: string): string {
+    let out = message;
+    if (this.mammouthKey && this.mammouthKey.length >= 8) {
+      out = out.split(this.mammouthKey).join('[REDACTED]');
+    }
+    // Also catch any other bearer-style token the upstream echoed back.
+    return out.replace(/\b(sk|pk|api)[-_][A-Za-z0-9_-]{8,}/gi, '[REDACTED]');
   }
 
   private taskToCapability(task: AiTask): MammouthCapability {
