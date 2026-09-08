@@ -46,6 +46,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue, type TrackedCompetitor } from "@/lib/api-client";
 import { WebsiteTechnicalFixPanel } from "@/components/fix-engine/website-technical-fix-panel";
+import { AiVisibilityFixPanel } from "@/components/fix-engine/ai-visibility-fix-panel";
 import { Autonomous30DayPlanModal } from "@/components/fix-engine/autonomous-30day-plan-modal";
 
 export default function FixEnginePage() {
@@ -200,31 +201,14 @@ function FixEngineClient() {
         )}
 
         {activeTab === "ai-visibility-fix" && (
-          <Panel
-            title="AI Visibility Fix Engine (AEO & GEO)"
-            subtitle="Automated optimization for LLM Quotable Answer Blocks, Schema Grounding, and Google AI Overviews snippet eligibility."
-          >
-            <div className="p-8 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
-                <Sparkles size={24} />
-              </div>
-              <h3 className="text-base font-bold text-brand-950 dark:text-white">
-                AI Visibility Fix Engine
-              </h3>
-              <p className="text-xs text-brand-600 dark:text-brand-400 max-w-md mx-auto leading-relaxed">
-                This module analyzes whether ChatGPT, Claude, and Gemini cite your brand when buyers search conversational queries. It prepares 45-word quotable definition blocks, rich comparison matrices, and Knowledge Graph schema to win AI recommendations.
-              </p>
-              <div className="pt-2">
-                <Link
-                  href="/ai-visibility"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-950 text-white dark:bg-white dark:text-brand-950 text-xs font-bold hover:opacity-90 transition"
-                >
-                  <span>Open AI Visibility Council &amp; Superpowers</span>
-                  <ExternalLink size={13} />
-                </Link>
-              </div>
-            </div>
-          </Panel>
+          <AiVisibilityFixPanel
+            projectId={projectId!}
+            domain={activeDomain ?? undefined}
+            businessName={client?.name ?? undefined}
+            competitors={competitors}
+            onOpenAutoFixModal={(issue) => setAutoFixTarget(issue)}
+            onOpen30DayPlan={() => setShow30DayPlanModal(true)}
+          />
         )}
 
         {activeTab === "repo" && (

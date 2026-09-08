@@ -421,6 +421,16 @@ export function useQuerySpecializedAi(projectId: string | null) {
   });
 }
 
+export function useAeo(projectId: string | null) {
+  return useQuery({
+    queryKey: ["aeo", projectId],
+    queryFn: () => api.getAeo(projectId!),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+}
+
 export function useAutonomousPlanStatus(projectId: string | null) {
   return useQuery({
     queryKey: ["autonomous-plan-status", projectId],
