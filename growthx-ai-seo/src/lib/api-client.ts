@@ -1394,6 +1394,18 @@ export interface StrategyRunStatus {
   error: string | null;
 }
 
+export interface AutonomousPlanStatus {
+  projectId: string;
+  isApproved: boolean;
+  approvedAt: string | null;
+  currentDay: number;
+  totalDays: number;
+  runId: string | null;
+  status: string;
+  actionsCount: number;
+  completedActionsCount: number;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2407,6 +2419,12 @@ export const api = {
       businessGoal,
       targetAudience,
     }),
+
+  actionEngineAutonomousPlanStatus: (projectId: string) =>
+    get<AutonomousPlanStatus>(`/api/projects/${projectId}/action-engine/autonomous-plan`),
+
+  actionEngineApproveAutonomousPlan: (projectId: string) =>
+    post<AutonomousPlanStatus>(`/api/projects/${projectId}/action-engine/autonomous-plan/approve`, {}),
 
   gscProperties: (projectId: string) =>
     get<{

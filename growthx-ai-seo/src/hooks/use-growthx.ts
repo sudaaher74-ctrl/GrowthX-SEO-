@@ -421,6 +421,26 @@ export function useQuerySpecializedAi(projectId: string | null) {
   });
 }
 
+export function useAutonomousPlanStatus(projectId: string | null) {
+  return useQuery({
+    queryKey: ["autonomous-plan-status", projectId],
+    queryFn: () => api.actionEngineAutonomousPlanStatus(projectId!),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useApproveAutonomousPlan(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.actionEngineApproveAutonomousPlan(projectId!),
+    onSuccess: (data) => {
+      qc.setQueryData(["autonomous-plan-status", projectId], data);
+      qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
+    },
+  });
+}
+
 export function useAddCompetitor(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

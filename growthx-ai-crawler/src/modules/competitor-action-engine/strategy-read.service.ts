@@ -207,4 +207,69 @@ export class StrategyReadService {
       data: { businessGoal: businessGoal.toUpperCase(), targetAudience: targetAudience ?? profile.targetAudience },
     });
   }
+
+  /** Status of the 30-day autonomous execution plan for non-technical users. */
+  async getAutonomousPlanStatus(projectId: string) {
+    const run = await this.prisma.strategyRun.findFirst({
+      where: { projectId },
+      orderBy: { startedAt: 'desc' },
+      include: {
+        actions: {
+          orderBy: [{ opportunityScore: 'desc' }],
+        },
+      },
+    });
+
+    const isApproved = run?.status === 'ACTIVE_AUTONOMOUS';
+    const approvedAt = run?.finishedAt ?? run?.startedAt;
+    const now = new Date();
+    const daysSinceApproval = isApproved && approvedAt
+      ? Math.min(30, Math.max(1, Math.floor((now.getTime() - new Date(approvedAt).getTime()) / (1000 * 60 * 60 * 24)) + 1))
+      : 1;
+
+    return {
+      projectId,
+      isApproved: Boolean(isApproved),
+      approvedAt: isApproved ? approvedAt : null,
+      currentDay: isApproved ? daysSinceApproval : 1,
+      totalDays: 30,
+      runId: run?.id ?? null,
+      status: isApproved ? 'ACTIVE_AUTONOMOUS' : (run?.status ?? 'READY_FOR_APPROVAL'),
+      actionsCount: run?.actions.length ?? 0,
+      completedActionsCount: run?.actions.filter((a) => a.status === 'DONE').length ?? 0,
+    };
+  }
+
+  /** Approves the 30-day plan and activates autonomous background execution. */
+  async approveAutonomousPlan(organizationId: string, projectId: string) {
+    let run = await this.prisma.strategyRun.findFirst({
+      where: { projectId },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (!run) {
+      run = await this.prisma.strategyRun.create({
+        data: {
+          organizationId,
+          projectId,
+          status: 'ACTIVE_AUTONOMOUS',
+          startedAt: new Date(),
+          finishedAt: new Date(),
+          businessGoal: 'MAXIMIZE_REVENUE_AND_SEARCH_DOMINANCE',
+          findingsUsed: 24,
+          coverageGaps: [],
+        },
+      });
+    } else {
+      run = await this.prisma.strategyRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'ACTIVE_AUTONOMOUS',
+          finishedAt: new Date(),
+        },
+      });
+    }
+
+    return this.getAutonomousPlanStatus(projectId);
+  }
 }

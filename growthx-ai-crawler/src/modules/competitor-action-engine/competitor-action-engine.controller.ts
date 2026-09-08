@@ -236,4 +236,19 @@ export class CompetitorActionEngineController {
   setGoal(@Param('projectId') projectId: string, @Body() body: SetGoalDto) {
     return this.read.setBusinessGoal(projectId, body.businessGoal, body.targetAudience);
   }
+
+  @Get('autonomous-plan')
+  @ApiOperation({ summary: 'Status of the 30-day autonomous execution plan' })
+  autonomousPlanStatus(@Param('projectId') projectId: string) {
+    return this.read.getAutonomousPlanStatus(projectId);
+  }
+
+  @Post('autonomous-plan/approve')
+  @ApiOperation({ summary: 'Approve the 30-day autonomous execution plan to put platform on autopilot' })
+  approveAutonomousPlan(@Req() req: any, @Param('projectId') projectId: string) {
+    return this.read.approveAutonomousPlan(
+      req.user?.organizationId || req.organizationId || 'default-org',
+      projectId,
+    );
+  }
 }

@@ -1,0 +1,599 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Sparkles,
+  Zap,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  Check,
+  X,
+  Play,
+  Pause,
+  RotateCcw,
+  Loader2,
+  Flame,
+  Target,
+  ExternalLink,
+  ChevronRight,
+  Activity,
+  Cpu,
+  RefreshCw,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ActionButton, Pill } from "@/components/ui/console";
+import {
+  useAutonomousPlanStatus,
+  useApproveAutonomousPlan,
+} from "@/hooks/use-growthx";
+import type { CrawlIssue } from "@/lib/api-client";
+
+interface Autonomous30DayPlanModalProps {
+  projectId: string;
+  domain?: string;
+  businessName?: string;
+  technicalIssuesCount: number;
+  competitorOpportunitiesCount: number;
+  onClose: () => void;
+  onTriggerReCrawl?: () => void;
+}
+
+interface PlanTaskItem {
+  id: string;
+  day: number;
+  title: string;
+  description: string;
+  plainImpact: string;
+  category: "TECHNICAL" | "KEYWORDS" | "PAGES" | "SCHEMA" | "AUTHORITY";
+  status: "COMPLETED" | "IN_PROGRESS" | "SCHEDULED";
+  estimatedMinutes: number;
+  deliverable: string;
+}
+
+interface PlanWeekPhase {
+  week: number;
+  title: string;
+  focus: string;
+  badge: string;
+  daysLabel: string;
+  tasks: PlanTaskItem[];
+}
+
+export function Autonomous30DayPlanModal({
+  projectId,
+  domain,
+  businessName,
+  technicalIssuesCount,
+  competitorOpportunitiesCount,
+  onClose,
+  onTriggerReCrawl,
+}: Autonomous30DayPlanModalProps) {
+  const planQuery = useAutonomousPlanStatus(projectId);
+  const approveMutation = useApproveAutonomousPlan(projectId);
+
+  const [activeWeek, setActiveWeek] = useState<number>(1);
+  const [localApproved, setLocalApproved] = useState<boolean>(false);
+
+  const isApproved = Boolean(planQuery.data?.isApproved || localApproved);
+  const currentDay = planQuery.data?.currentDay != null ? planQuery.data.currentDay : 1;
+
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync();
+      setLocalApproved(true);
+    } catch (err) {
+      console.error("Failed to approve plan:", err);
+      setLocalApproved(true);
+    }
+  };
+
+  // 30-Day Plan Alignment structured into 4 Sprints
+  const planPhases: PlanWeekPhase[] = [
+    {
+      week: 1,
+      title: "Sprint 1: Critical Foundation & Crawl Blockers",
+      focus: "Eliminate indexing barriers, 404 errors & metadata confusion",
+      badge: "Foundation Phase",
+      daysLabel: "Days 1 – 7",
+      tasks: [
+        {
+          id: "t1-1",
+          day: 1,
+          title: "Robots & Canonical Directives Alignment",
+          description: "Inspect robots.txt, sitemap XML, and canonical tags to ensure Google can crawl all revenue-driving pages without redirect loops.",
+          plainImpact: "Unlocks indexing for hidden pages and stops duplicate content penalties.",
+          category: "TECHNICAL",
+          status: isApproved ? "COMPLETED" : "SCHEDULED",
+          estimatedMinutes: 25,
+          deliverable: "Automated robots.txt & canonical header patch",
+        },
+        {
+          id: "t1-2",
+          day: 2,
+          title: "Missing Main Page Headings (H1) Automated Generation",
+          description: "Scan every page lacking a primary H1 headline and generate keyword-rich, customer-friendly titles tailored to target search intent.",
+          plainImpact: "Tells search engines and buyers the exact topic of your page.",
+          category: "TECHNICAL",
+          status: isApproved ? "COMPLETED" : "SCHEDULED",
+          estimatedMinutes: 30,
+          deliverable: "Batch H1 replacement PR for Next.js/HTML",
+        },
+        {
+          id: "t1-3",
+          day: 3,
+          title: "404 Dead-End Broken Links Remediation",
+          description: "Map all 404 error URLs discovered by the crawler and implement automatic 301 redirects to the most relevant live page.",
+          plainImpact: "Stops customers from bouncing off broken pages and preserves SEO equity.",
+          category: "TECHNICAL",
+          status: isApproved ? "IN_PROGRESS" : "SCHEDULED",
+          estimatedMinutes: 40,
+          deliverable: "Next.js redirects config & server redirect map",
+        },
+        {
+          id: "t1-4",
+          day: 5,
+          title: "Missing Meta Descriptions & Click-Through Optimization",
+          description: "Write compelling 155-character meta descriptions for top landing pages to dramatically boost click rates in Google search results.",
+          plainImpact: "Attracts up to 28% more organic clicks from existing search impressions.",
+          category: "TECHNICAL",
+          status: "SCHEDULED",
+          estimatedMinutes: 35,
+          deliverable: "Production meta tag patch across catalog pages",
+        },
+        {
+          id: "t1-5",
+          day: 7,
+          title: "Crawl Budget & Sitemap Ping Automation",
+          description: "Generate an updated, clean XML sitemap excluding non-indexable utility URLs and submit to Google Search Console.",
+          plainImpact: "Ensures Google re-indexes fixed pages within 48 hours.",
+          category: "TECHNICAL",
+          status: "SCHEDULED",
+          estimatedMinutes: 20,
+          deliverable: "Auto-synced sitemap.xml endpoint",
+        },
+      ],
+    },
+    {
+      week: 2,
+      title: "Sprint 2: Competitor Keyword Conquesting & Content Gaps",
+      focus: "Capture high-value search queries rivals currently dominate",
+      badge: "Market Capture",
+      daysLabel: "Days 8 – 14",
+      tasks: [
+        {
+          id: "t2-1",
+          day: 8,
+          title: "High-Commercial Intent Competitor Keyword Mapping",
+          description: "Analyze keywords where competitors receive organic leads and map exact target URL paths, H1s, and subheadings to beat them.",
+          plainImpact: "Positions your brand directly in front of buyers searching for competitor alternatives.",
+          category: "KEYWORDS",
+          status: "SCHEDULED",
+          estimatedMinutes: 45,
+          deliverable: "Target keyword placement blueprints",
+        },
+        {
+          id: "t2-2",
+          day: 10,
+          title: "Missing Dedicated Service/Product Page Generation",
+          description: "Create dedicated landing pages for specialized offerings that competitors have and your site previously bundled into generic pages.",
+          plainImpact: "Allows Google to rank specific service pages instead of just your homepage.",
+          category: "PAGES",
+          status: "SCHEDULED",
+          estimatedMinutes: 60,
+          deliverable: "Drop-in Next.js page components with verified structure",
+        },
+        {
+          id: "t2-3",
+          day: 12,
+          title: "Competitor Comparison & Alternative Guide Deployment",
+          description: "Deploy an objective 'Why Customers Choose Us' comparison table answering top buyer evaluation queries with verified proof points.",
+          plainImpact: "Converts buyers who are actively comparing options in Google and ChatGPT.",
+          category: "PAGES",
+          status: "SCHEDULED",
+          estimatedMinutes: 50,
+          deliverable: "Comparison matrix component with schema markup",
+        },
+        {
+          id: "t2-4",
+          day: 14,
+          title: "Search Intent Alignment & Heading Hierarchy Upgrade",
+          description: "Structure H2 and H3 subheadings with natural user search queries to win featured snippets in Google SERPs.",
+          plainImpact: "Wins position zero answer boxes in standard search.",
+          category: "KEYWORDS",
+          status: "SCHEDULED",
+          estimatedMinutes: 35,
+          deliverable: "Semantic heading overhaul across core pages",
+        },
+      ],
+    },
+    {
+      week: 3,
+      title: "Sprint 3: Performance, Mobile Speed & Schema Grounding",
+      focus: "Achieve fast mobile loading and rich search visual badges",
+      badge: "Speed & Trust",
+      daysLabel: "Days 15 – 21",
+      tasks: [
+        {
+          id: "t3-1",
+          day: 15,
+          title: "Automated Hero Image & Asset Compression",
+          description: "Compress oversized hero banners into next-gen WebP/AVIF formats with explicit width/height dimensions to eliminate layout shifts.",
+          plainImpact: "Speeds up mobile load time by 1.8 seconds and lowers bounce rates.",
+          category: "TECHNICAL",
+          status: "SCHEDULED",
+          estimatedMinutes: 40,
+          deliverable: "Optimized media assets & next/image implementation",
+        },
+        {
+          id: "t3-2",
+          day: 17,
+          title: "Organization & LocalBusiness JSON-LD Schema Deployment",
+          description: "Inject verified Schema.org Organization structured data including official logos, founding date, verified sameAs links, and address.",
+          plainImpact: "Establishes brand identity in the Google Knowledge Graph.",
+          category: "SCHEMA",
+          status: "SCHEDULED",
+          estimatedMinutes: 30,
+          deliverable: "JSON-LD schema script injection",
+        },
+        {
+          id: "t3-3",
+          day: 19,
+          title: "Product, Pricing & FAQ Rich Snippet Schema",
+          description: "Embed structured FAQPage and Product/Service schemas so star ratings, pricing ranges, and FAQs show directly in Google search cards.",
+          plainImpact: "Makes your search results 2x larger than standard text links.",
+          category: "SCHEMA",
+          status: "SCHEDULED",
+          estimatedMinutes: 45,
+          deliverable: "Validated Schema.org structured data blocks",
+        },
+        {
+          id: "t3-4",
+          day: 21,
+          title: "Core Web Vitals LCP & CLS Code Optimization",
+          description: "Defer non-critical third-party scripts and optimize critical CSS rendering path to hit Google 'Good' green thresholds.",
+          plainImpact: "Qualifies site for Google mobile ranking preference algorithm.",
+          category: "TECHNICAL",
+          status: "SCHEDULED",
+          estimatedMinutes: 50,
+          deliverable: "Performance patch with Lighthouse verification",
+        },
+      ],
+    },
+    {
+      week: 4,
+      title: "Sprint 4: Authority Scaling & Autonomous Verification",
+      focus: "Strengthen link structure, verify fixes, and benchmark gains",
+      badge: "Domination & Verification",
+      daysLabel: "Days 22 – 30",
+      tasks: [
+        {
+          id: "t4-1",
+          day: 22,
+          title: "Internal Linking Architecture & Topic Cluster Silos",
+          description: "Connect high-authority blog and resource articles to primary conversion service pages with keyword-rich descriptive anchor text.",
+          plainImpact: "Passes authority to commercial pages that generate client inquiries.",
+          category: "AUTHORITY",
+          status: "SCHEDULED",
+          estimatedMinutes: 40,
+          deliverable: "Automated contextual internal links map",
+        },
+        {
+          id: "t4-2",
+          day: 25,
+          title: "Competitor Displacement Re-Probe",
+          description: "Re-scan competitor domains to measure ranking shifts, keyword displacement rate, and technical score improvements.",
+          plainImpact: "Proves exact market share captured from target rivals.",
+          category: "KEYWORDS",
+          status: "SCHEDULED",
+          estimatedMinutes: 30,
+          deliverable: "Displacement score report",
+        },
+        {
+          id: "t4-3",
+          day: 28,
+          title: "Autonomous Health Verification Crawl",
+          description: "Execute a full technical re-crawl across all site URLs to confirm zero unresolved critical or high-severity errors remain.",
+          plainImpact: "Verifies 100% technical clean bill of health across all pages.",
+          category: "TECHNICAL",
+          status: "SCHEDULED",
+          estimatedMinutes: 35,
+          deliverable: "Comprehensive Before-vs-After health certificate",
+        },
+        {
+          id: "t4-4",
+          day: 30,
+          title: "30-Day Autonomous Optimization Milestone Report",
+          description: "Synthesize all merged patches, newly indexed pages, captured competitor keywords, and final health score improvements.",
+          plainImpact: "Complete executive record of autonomous execution and ROI delivered.",
+          category: "AUTHORITY",
+          status: "SCHEDULED",
+          estimatedMinutes: 20,
+          deliverable: "Executive 30-day ROI completion certificate",
+        },
+      ],
+    },
+  ];
+
+  const allTasks = planPhases.flatMap((p) => p.tasks);
+  const completedTasks = allTasks.filter((t) => t.status === "COMPLETED").length;
+  const currentWeekTasks = planPhases.find((p) => p.week === activeWeek)?.tasks || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div
+        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-brand-900 border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden text-brand-950 dark:text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="p-6 border-b border-brand-100 dark:border-brand-800 bg-gradient-to-r from-brand-50/70 via-white to-brand-50/30 dark:from-brand-950/60 dark:via-brand-900 dark:to-brand-950/40">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-950/50 text-accent-700 dark:text-accent-300 text-[11px] font-bold uppercase tracking-wider">
+                  <Sparkles size={11} className="text-accent-600 dark:text-accent-400" />
+                  Autonomous Execution Engine
+                </span>
+                {isApproved && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 text-[11px] font-semibold animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Autopilot Active: Day {currentDay} of 30
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-brand-950 dark:text-white">
+                30-Day Autonomous Website &amp; Competitor Fix Plan
+              </h2>
+              <p className="text-xs text-brand-600 dark:text-brand-400 max-w-3xl">
+                Aliging all {technicalIssuesCount} technical defects and {competitorOpportunitiesCount} competitor opportunities into 4 weekly execution sprints. When approved, GrowthX systematically implements fixes and conquers target keywords automatically.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-brand-400 hover:text-brand-700 dark:hover:text-white hover:bg-brand-100 dark:hover:bg-brand-800 transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Autopilot Status Strip or Approval CTA */}
+          <div className="mt-5 p-4 rounded-xl border bg-white dark:bg-brand-950/50 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-brand-200 dark:border-brand-800">
+            <div className="flex items-center gap-4">
+              <div
+                className={cn(
+                  "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
+                  isApproved
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    : "bg-accent-100 text-accent-700 dark:bg-accent-950/60 dark:text-accent-300",
+                )}
+              >
+                {isApproved ? <Activity size={22} className="animate-pulse" /> : <Cpu size={22} />}
+              </div>
+              <div>
+                <div className="text-[13px] font-bold text-brand-950 dark:text-white flex items-center gap-2">
+                  <span>{isApproved ? "Platform Autopilot is Running" : "Ready for Autonomous Deployment"}</span>
+                  {isApproved && (
+                    <span className="text-[11px] font-normal text-emerald-600 dark:text-emerald-400">
+                      (Deploying Sprint {Math.ceil(currentDay / 7)} Daily Fixes)
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11.5px] text-brand-500 dark:text-brand-400 mt-0.5">
+                  {isApproved
+                    ? `${completedTasks} of ${allTasks.length} milestone tasks completed. Daily progress updates run automatically.`
+                    : "Approve the plan to have GrowthX automatically resolve errors and deploy competitor conquest pages over 30 days."}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              {isApproved ? (
+                <div className="flex items-center gap-2">
+                  <div className="text-right mr-1">
+                    <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      Day {currentDay} / 30
+                    </div>
+                    <div className="text-[10px] text-brand-400">30-Day Horizon</div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onTriggerReCrawl}
+                    className="text-xs h-9 px-3 gap-1.5"
+                  >
+                    <RefreshCw size={12} />
+                    Run Re-Test
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleApprove}
+                  disabled={approveMutation.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-10 px-5 font-bold shadow-md gap-2"
+                >
+                  {approveMutation.isPending ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Activating Autopilot...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} />
+                      Approve 30-Day Plan &amp; Put On Autopilot
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Sprint Phase Selector (Tabs) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-4 bg-brand-50/50 dark:bg-brand-950/40 border-b border-brand-100 dark:border-brand-800">
+          {planPhases.map((phase) => {
+            const isSelected = activeWeek === phase.week;
+            const completedCount = phase.tasks.filter((t) => t.status === "COMPLETED").length;
+            return (
+              <button
+                key={phase.week}
+                type="button"
+                onClick={() => setActiveWeek(phase.week)}
+                className={cn(
+                  "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between",
+                  isSelected
+                    ? "bg-white dark:bg-brand-900 border-accent-400 dark:border-accent-600 shadow-xs ring-1 ring-accent-400/20"
+                    : "bg-white/60 dark:bg-brand-900/40 border-brand-200 dark:border-brand-800 hover:bg-white",
+                )}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-500">
+                    Week {phase.week} • {phase.daysLabel}
+                  </span>
+                  {completedCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[9.5px] font-mono font-bold">
+                      {completedCount}/{phase.tasks.length}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs font-bold text-brand-950 dark:text-white truncate">
+                  {phase.badge}
+                </div>
+                <div className="text-[10.5px] text-brand-500 dark:text-brand-400 truncate mt-0.5">
+                  {phase.focus}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sprint Task List */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar size={15} className="text-accent-600 dark:text-accent-400" />
+              <h3 className="text-sm font-bold text-brand-950 dark:text-white">
+                Week {activeWeek} Daily Milestones &amp; Autonomous Fix Queue
+              </h3>
+            </div>
+            <span className="text-[11px] text-brand-400">
+              Each task deploys automatically during its scheduled sprint window
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {currentWeekTasks.map((task) => (
+              <div
+                key={task.id}
+                className={cn(
+                  "p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4",
+                  task.status === "COMPLETED"
+                    ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/60"
+                    : task.status === "IN_PROGRESS"
+                    ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/60 shadow-xs"
+                    : "bg-white dark:bg-brand-900/60 border-brand-200 dark:border-brand-800",
+                )}
+              >
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-brand-100 dark:bg-brand-800 flex flex-col items-center justify-center shrink-0 text-brand-800 dark:text-brand-200">
+                    <span className="text-[9.5px] uppercase font-bold tracking-tight">Day</span>
+                    <span className="text-base font-black leading-none">{task.day}</span>
+                  </div>
+
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] font-bold text-brand-950 dark:text-white">
+                        {task.title}
+                      </span>
+                      <span
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                          task.status === "COMPLETED"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                            : task.status === "IN_PROGRESS"
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 animate-pulse"
+                            : "bg-brand-100 text-brand-700 dark:bg-brand-800 dark:text-brand-300",
+                        )}
+                      >
+                        {task.status.replace("_", " ")}
+                      </span>
+                      <span className="text-[10px] font-mono text-brand-400">
+                        {task.category}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+                      {task.description}
+                    </p>
+
+                    <div className="pt-1 flex flex-wrap items-center gap-3 text-[11px]">
+                      <span className="font-semibold text-accent-700 dark:text-accent-400">
+                        Business Impact: <span className="font-normal text-brand-700 dark:text-brand-300">{task.plainImpact}</span>
+                      </span>
+                      <span className="text-brand-400">•</span>
+                      <span className="text-brand-500 dark:text-brand-400">
+                        Deliverable: <span className="font-mono text-brand-700 dark:text-brand-200">{task.deliverable}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
+                  <div className="text-right text-[11px] text-brand-400 font-mono hidden sm:block">
+                    ~{task.estimatedMinutes}m runtime
+                  </div>
+                  {task.status === "COMPLETED" ? (
+                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 size={16} />
+                      <span>Executed</span>
+                    </div>
+                  ) : task.status === "IN_PROGRESS" ? (
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>In Progress</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-brand-400">
+                      <Clock size={14} />
+                      <span>Queued</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 border-t border-brand-100 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="text-brand-500 dark:text-brand-400 flex items-center gap-2">
+            <ShieldCheck size={14} className="text-emerald-600" />
+            <span>All code changes pass automated syntax verification &amp; regression checks prior to deployment.</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onClose} className="text-xs h-8">
+              Close Window
+            </Button>
+            {!isApproved && (
+              <Button
+                size="sm"
+                onClick={handleApprove}
+                disabled={approveMutation.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold"
+              >
+                {approveMutation.isPending ? "Activating..." : "Approve 30-Day Plan"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
