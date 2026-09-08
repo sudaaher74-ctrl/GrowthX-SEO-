@@ -129,8 +129,11 @@ export class AutomationService {
     const steps: RunStep[] = [];
     let workingDir = '';
 
+    // Hoisted so the catch can strip it out of a git error.
+    let token = '';
+
     try {
-      const token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+      token = this.security.decryptCredentials(repo.accessTokenEncrypted);
       const issues = await this.selectIssues(projectId, issueIds);
 
       if (issues.length === 0) {
@@ -228,9 +231,10 @@ export class AutomationService {
         filesChanged: changed,
       });
     } catch (error: any) {
-      this.logger.error(`Fix run failed for project ${projectId}: ${error.message}`);
-      steps.push(this.step('error', error.message, false));
-      return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, { error: error.message });
+      const reason = this.describeRunFailure(error, token);
+      this.logger.error(`Fix run failed for project ${projectId}: ${reason}`);
+      steps.push(this.step('error', reason, false));
+      return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, { error: reason });
     } finally {
       await this.cleanup(workingDir);
     }
@@ -247,6 +251,9 @@ export class AutomationService {
     const steps: RunStep[] = [];
     let workingDir = '';
 
+    // Hoisted so the catch can strip it out of a git error.
+    let token = '';
+
     try {
       const pieces = await this.prisma.contentPiece.findMany({
         where: {
@@ -262,7 +269,7 @@ export class AutomationService {
         });
       }
 
-      const token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+      token = this.security.decryptCredentials(repo.accessTokenEncrypted);
       workingDir = await this.git.cloneRepository(
         `https://github.com/${repo.owner}/${repo.name}.git`,
         token,
@@ -329,9 +336,10 @@ export class AutomationService {
         filesChanged: changed,
       });
     } catch (error: any) {
-      this.logger.error(`Content run failed for project ${projectId}: ${error.message}`);
-      steps.push(this.step('error', error.message, false));
-      return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, { error: error.message });
+      const reason = this.describeRunFailure(error, token);
+      this.logger.error(`Content run failed for project ${projectId}: ${reason}`);
+      steps.push(this.step('error', reason, false));
+      return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, { error: reason });
     } finally {
       await this.cleanup(workingDir);
     }
@@ -496,6 +504,42 @@ export class AutomationService {
     }
 
     return null;
+  }
+
+  /**
+   * Turns a run failure into something safe to store and useful to read.
+   *
+   * The clone URL carries the customer's access token, and git quotes the
+   * remote back on failure — "could not read Password for
+   * 'https://<token>@github.com'" — so the raw message would put a live
+   * credential in the run record, in the logs and on the dashboard. Redact
+   * first, then translate the failures an operator can act on.
+   */
+  private describeRunFailure(error: any, token?: string): string {
+    let message = String(error?.message ?? error ?? 'Unknown error');
+
+    if (token && token.length >= 8) {
+      message = message.split(token).join('[REDACTED]');
+    }
+    // Any other credential embedded in a URL, and bearer-shaped tokens.
+    message = message
+      .replace(/\/\/[^/@\s]+@/g, '//[REDACTED]@')
+      .replace(/\b(gh[pousr]|github_pat)_[A-Za-z0-9_]{8,}/g, '[REDACTED]');
+
+    if (/spawn git ENOENT/i.test(message)) {
+      return 'git is not available on the server, so the repository could not be cloned. This is a deployment problem, not a problem with your repository.';
+    }
+    if (/could not read (Password|Username)|Authentication failed|invalid username or password/i.test(message)) {
+      return 'GitHub rejected the access token. Check that it has not expired and still grants Contents and Pull requests read and write access.';
+    }
+    if (/Repository not found|remote: Not Found|fatal: repository .* not found/i.test(message)) {
+      return 'GitHub could not find that repository. Check the owner and repository name, and that the token can see it.';
+    }
+    if (/\b403\b|Resource not accessible|permission denied/i.test(message)) {
+      return 'GitHub refused the request. The token is missing Contents or Pull requests write access for this repository.';
+    }
+
+    return message;
   }
 
   /** Resolves the first candidate that exists, without escaping the clone. */

@@ -1,7 +1,12 @@
 # Base stage for dependencies and Playwright browser binaries
 FROM node:20-bookworm-slim AS base
 WORKDIR /app
+# git is not in node:20-bookworm-slim, and the autonomous engineer shells out to
+# it through simple-git to clone a customer's repository, branch, commit and
+# push. Without it every fix run died on `spawn git ENOENT` before it reached
+# the first file. ca-certificates is what lets that clone speak HTTPS.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libgtk-3-0 libxshmfence1 libglu1 \
     && rm -rf /var/lib/apt/lists/*
 

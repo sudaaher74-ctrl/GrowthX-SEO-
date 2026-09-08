@@ -393,4 +393,42 @@ describe('AutomationService', () => {
       await expect(resolve('https://site.com/contact')).resolves.toBeNull();
     });
   });
+
+  describe('describeRunFailure', () => {
+    const TOKEN = 'github_pat_11EXAMPLE_canary_abcdefghijklmnop';
+    const describe_ = (error: any, token = TOKEN) =>
+      (service as any).describeRunFailure(error, token);
+
+    it('never returns the access token, which git quotes back on failure', () => {
+      // The clone URL embeds the credential, so a failed clone would otherwise
+      // write it into the run record, the logs and the dashboard.
+      const out = describe_(
+        new Error(
+          `fatal: could not read Password for 'https://${TOKEN}@github.com': terminal prompts disabled`,
+        ),
+      );
+      expect(out).not.toContain(TOKEN);
+      expect(out).toMatch(/rejected the access token/i);
+    });
+
+    it('redacts a credential embedded in a URL even when it is not the stored token', () => {
+      const out = describe_(new Error("fatal: unable to access 'https://ghp_someoneelse123456@github.com/x/y.git'"), '');
+      expect(out).not.toContain('ghp_someoneelse123456');
+    });
+
+    it('explains a missing git binary as a deployment problem', () => {
+      expect(describe_(new Error('spawn git ENOENT'))).toMatch(/git is not available on the server/i);
+    });
+
+    it('distinguishes a missing repository from a permissions failure', () => {
+      expect(describe_(new Error('remote: Repository not found'))).toMatch(/could not find that repository/i);
+      expect(describe_(new Error('Resource not accessible by personal access token'))).toMatch(
+        /missing Contents or Pull requests write access/i,
+      );
+    });
+
+    it('passes an unrecognised failure through unchanged', () => {
+      expect(describe_(new Error('disk quota exceeded'))).toBe('disk quota exceeded');
+    });
+  });
 });
