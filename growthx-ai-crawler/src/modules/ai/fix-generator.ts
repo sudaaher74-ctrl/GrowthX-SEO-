@@ -99,6 +99,67 @@ export function planFix(issueType: string, page: PageContext, recommendation?: s
   const brandSuffix = hostOf(page.url);
   const subject = page.h1?.[0] || humanizeSlug(page.url);
 
+  // The schema validator reports one issue per missing/invalid property, as
+  // `SCHEMA_<schemaType>_<PROPERTY>` (e.g. SCHEMA_PRODUCT_OFFERS,
+  // SCHEMA_ORGANIZATION_NAME). Route those to the same JSON-LD fix as the
+  // whole-schema checks below, rather than falling through to the
+  // META_TITLE default below and patching the wrong thing.
+  if (issueType.startsWith('SCHEMA_PRODUCT_')) {
+    return {
+      fixType: 'PRODUCT_SCHEMA',
+      originalValue: null,
+      prompt: `${GROUNDING}\n\n${describe(page)}\n\nThe crawler reported: ${recommendation ?? issueType}. Produce schema.org Product JSON-LD. Include price and availability ONLY if the page states them; otherwise omit the offers block entirely. Never guess a price.`,
+      schema: JSONLD_SCHEMA,
+      heuristic: () => {
+        const jsonLd = { '@context': 'https://schema.org/', '@type': 'Product', name: subject, url: page.url };
+        return { proposedValue: 'Product JSON-LD', codeSnippet: jsonLdScript(jsonLd) };
+      },
+    };
+  }
+  if (issueType.startsWith('SCHEMA_ORGANIZATION_') || issueType.startsWith('SCHEMA_LOCAL_BUSINESS_')) {
+    return {
+      fixType: 'ORGANIZATION_SCHEMA',
+      originalValue: null,
+      prompt: `${GROUNDING}\n\n${describe(page)}\n\nThe crawler reported: ${recommendation ?? issueType}. Produce schema.org Organization JSON-LD for the site owner using only details evidenced by the page.`,
+      schema: JSONLD_SCHEMA,
+      heuristic: () => {
+        const jsonLd = { '@context': 'https://schema.org', '@type': 'Organization', name: brandSuffix, url: `https://${brandSuffix}` };
+        return { proposedValue: 'Organization JSON-LD', codeSnippet: jsonLdScript(jsonLd) };
+      },
+    };
+  }
+  if (issueType.startsWith('SCHEMA_FAQ_')) {
+    return {
+      fixType: 'FAQ_SCHEMA',
+      originalValue: null,
+      prompt: `${GROUNDING}\n\n${describe(page)}\n\nThe crawler reported: ${recommendation ?? issueType}. Produce schema.org FAQPage JSON-LD using only questions this page actually answers, drawn from its headings. If the page has no question-style content, return an empty mainEntity array rather than inventing questions.`,
+      schema: JSONLD_SCHEMA,
+      heuristic: () => {
+        const questions = (page.h2 ?? []).filter((h) => h.trim().endsWith('?')).slice(0, 5);
+        const jsonLd = {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: questions.map((q) => ({
+            '@type': 'Question',
+            name: q,
+            acceptedAnswer: { '@type': 'Answer', text: '' },
+          })),
+        };
+        return { proposedValue: 'FAQPage JSON-LD', codeSnippet: jsonLdScript(jsonLd) };
+      },
+    };
+  }
+  if (issueType.startsWith('SCHEMA_BREADCRUMB_')) {
+    const jsonLd = breadcrumbFor(page.url);
+    return {
+      fixType: 'BREADCRUMB_SCHEMA',
+      originalValue: null,
+      prompt: '',
+      schema: {},
+      heuristic: () => ({ proposedValue: 'BreadcrumbList JSON-LD', codeSnippet: jsonLdScript(jsonLd) }),
+    };
+  }
+
   switch (issueType) {
     case 'MISSING_TITLE':
     case 'SHORT_TITLE':
