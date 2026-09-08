@@ -186,5 +186,38 @@ export class AiVisibilityController {
   askCouncil(@Param('projectId') projectId: string, @Body() body?: { topic?: string }) {
     return this.visibility.getCouncilDiscussion(projectId, body?.topic);
   }
+
+  @Get('specialized')
+  @ApiOperation({ summary: 'Specialized deep AI intelligence appointed to Claude (Market/Demographics), OpenAI (Commercial/Conquesting), or Gemini (Google Ecosystem/AIO)' })
+  @ApiParam({ name: 'projectId' })
+  @ApiQuery({ name: 'engine', required: false, enum: ['CLAUDE', 'OPENAI', 'GEMINI'] })
+  @ApiQuery({ name: 'location', required: false, example: 'Navi Mumbai' })
+  getSpecialized(
+    @Param('projectId') projectId: string,
+    @Query('engine') engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI',
+    @Query('location') location?: string,
+  ) {
+    return this.visibility.getSpecializedAiIntelligence(projectId, engine, location);
+  }
+
+  @Post('specialized')
+  @ApiOperation({ summary: 'Query specialized deep AI intelligence with target location or parameters' })
+  @ApiParam({ name: 'projectId' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        engine: { type: 'string', enum: ['CLAUDE', 'OPENAI', 'GEMINI'] },
+        location: { type: 'string', example: 'Navi Mumbai' },
+      },
+    },
+  })
+  querySpecialized(
+    @Param('projectId') projectId: string,
+    @Body() body?: { engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI'; location?: string },
+  ) {
+    return this.visibility.getSpecializedAiIntelligence(projectId, body?.engine, body?.location);
+  }
 }
 

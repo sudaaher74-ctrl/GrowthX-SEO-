@@ -376,6 +376,81 @@ export interface CouncilDiscussionReport {
   executiveSummary: string;
 }
 
+export interface ClaudeSectorDemographic {
+  sector: string;
+  subArea: string;
+  affluenceLevel: "High" | "Upper-Middle" | "Moderate" | "Emerging";
+  avgHouseholdIncome: string;
+  populationProfile: string;
+  recommendedProductTier: string;
+  conversionChannel: string;
+  demandIndex: number;
+}
+
+export interface ClaudeMarketIntelligence {
+  engine: "claude";
+  targetRegion: string;
+  businessName: string;
+  domain: string;
+  sectorBreakdown: ClaudeSectorDemographic[];
+  macroCatalysts: {
+    title: string;
+    description: string;
+    impactOnBusiness: string;
+    source: string;
+  }[];
+  demographicInsight: string;
+  strategicTakeaways: string[];
+}
+
+export interface OpenAiCommercialIntelligence {
+  engine: "openai";
+  businessName: string;
+  domain: string;
+  highIntentQueries: {
+    prompt: string;
+    intentType: "Commercial Investigation" | "High Purchase Intent" | "Alternative Seeking";
+    searchVolumeEstimate: string;
+    citationDifficulty: "Low" | "Medium" | "High";
+    winningSnippetAngle: string;
+  }[];
+  competitorConquesting: {
+    competitor: string;
+    displacementPrompt: string;
+    counterArgument: string;
+    targetFeatureHook: string;
+  }[];
+  conversionHooks: string[];
+}
+
+export interface GeminiEcosystemIntelligence {
+  engine: "gemini";
+  businessName: string;
+  domain: string;
+  aiOverviewsTriggers: {
+    query: string;
+    aioProbability: number;
+    requiredSchema: string;
+    snippetExtractionStrategy: string;
+  }[];
+  knowledgeGraphEntity: {
+    entityConfidenceScore: number;
+    schemaCompletenessPct: number;
+    recommendedSameAsLinks: string[];
+    missingAttributes: string[];
+  };
+  localPackDominance: {
+    pillar: string;
+    status: "OPTIMIZED" | "ACTION_REQUIRED" | "CRITICAL_GAP";
+    recommendation: string;
+  }[];
+}
+
+export type SpecializedAiIntelligence =
+  | ClaudeMarketIntelligence
+  | OpenAiCommercialIntelligence
+  | GeminiEcosystemIntelligence;
+
 export interface TrackedPromptRow {
   id: string;
   text: string;
@@ -2149,6 +2224,25 @@ export const api = {
     ),
   askCouncil: (projectId: string, topic: string) =>
     post<CouncilDiscussionReport>(`/api/projects/${projectId}/ai-visibility/council`, { topic }),
+  getSpecializedAi: (
+    projectId: string,
+    engine: "claude" | "openai" | "gemini" = "claude",
+    location?: string,
+  ) =>
+    get<SpecializedAiIntelligence>(
+      `/api/projects/${projectId}/ai-visibility/specialized?engine=${engine}${
+        location ? `&location=${encodeURIComponent(location)}` : ""
+      }`,
+    ),
+  querySpecializedAi: (
+    projectId: string,
+    engine: "claude" | "openai" | "gemini",
+    location?: string,
+  ) =>
+    post<SpecializedAiIntelligence>(`/api/projects/${projectId}/ai-visibility/specialized`, {
+      engine,
+      location,
+    }),
   /**
    * Returns the stored CompetitorDomain row, not the enriched shape
    * `listCompetitors` builds — the scores and crawl state on that one are

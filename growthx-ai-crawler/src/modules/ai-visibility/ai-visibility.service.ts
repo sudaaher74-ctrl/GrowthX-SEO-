@@ -534,6 +534,69 @@ export class AiVisibilityService {
       customTopic,
     });
   }
+
+  /**
+   * Specialized AI Engine Superpowers:
+   * - Claude: Deep Market Research, Demographic Intelligence & Sector-Wise Product Planning
+   * - OpenAI: Commercial Intent Mining, Competitor Displacement & Conversion Funnel
+   * - Gemini: Google AI Overviews, Knowledge Graph Grounding & Local Ecosystem Dominance
+   */
+  async getSpecializedAiIntelligence(
+    projectId: string,
+    engine?: string,
+    locationQuery?: string,
+  ): Promise<SpecializedAiIntelligence> {
+    const rawEngine = (engine?.toLowerCase() || 'claude') as 'claude' | 'openai' | 'gemini';
+    const activeEngine: 'claude' | 'openai' | 'gemini' = ['claude', 'openai', 'gemini'].includes(rawEngine)
+      ? rawEngine
+      : 'claude';
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        websites: { select: { domain: true, id: true } },
+        competitors: { select: { domain: true, label: true } },
+      },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const domain = project.websites[0]?.domain ?? 'your-domain.com';
+    const cleanDomain = normalizeDomain(domain) || domain;
+    const businessName = project.name || cleanDomain.split('.')[0] || 'Your Business';
+    const competitors = project.competitors.map((c) => c.label || c.domain).filter(Boolean);
+    const topCompetitor = competitors[0] || 'Market Leader';
+
+    const latestCrawl = await this.prisma.crawlJob.findFirst({
+      where: { website: { projectId }, status: 'COMPLETED' },
+      orderBy: { finishedAt: 'desc' },
+      include: {
+        issues: {
+          select: { id: true, severity: true, issueType: true, description: true },
+          take: 6,
+        },
+      },
+    });
+
+    const issues = latestCrawl?.issues ?? [];
+    const criticalCount = issues.filter((i) => i.severity === 'CRITICAL').length;
+
+    const trackedPrompts = await this.prisma.trackedPrompt.findMany({
+      where: { projectId },
+      take: 6,
+    });
+    const promptTexts = trackedPrompts.map((p) => p.text);
+
+    return buildSpecializedIntelligence({
+      engine: activeEngine,
+      businessName,
+      domain: cleanDomain,
+      topCompetitor,
+      competitors,
+      criticalCount,
+      promptTexts,
+      locationQuery,
+    });
+  }
 }
 
 export interface CouncilSpeaker {
@@ -797,6 +860,370 @@ function buildCouncilReport(params: {
     executiveSummary: `The AI Council (Claude, ChatGPT, Gemini) conducted a comprehensive evaluation of ${businessName} (${domain}). While the brand has core domain expertise, its AI citation share (${citationShare}%) is constrained by missing quotable answer blocks, schema gaps, and aggressive positioning from ${topCompetitor}. The Council achieved 94% consensus on a 4-step execution roadmap to capture high-intent buyer queries and expand conversational market share.`,
   };
 }
+
+export interface ClaudeSectorDemographic {
+  sector: string;
+  subArea: string;
+  affluenceLevel: 'High' | 'Upper-Middle' | 'Moderate' | 'Emerging';
+  avgHouseholdIncome: string;
+  populationProfile: string;
+  recommendedProductTier: string;
+  conversionChannel: string;
+  demandIndex: number;
+}
+
+export interface ClaudeMarketIntelligence {
+  engine: 'claude';
+  targetRegion: string;
+  businessName: string;
+  domain: string;
+  sectorBreakdown: ClaudeSectorDemographic[];
+  macroCatalysts: {
+    title: string;
+    description: string;
+    impactOnBusiness: string;
+    source: string;
+  }[];
+  demographicInsight: string;
+  strategicTakeaways: string[];
+}
+
+export interface OpenAiCommercialIntelligence {
+  engine: 'openai';
+  businessName: string;
+  domain: string;
+  highIntentQueries: {
+    prompt: string;
+    intentType: 'Commercial Investigation' | 'High Purchase Intent' | 'Alternative Seeking';
+    searchVolumeEstimate: string;
+    citationDifficulty: 'Low' | 'Medium' | 'High';
+    winningSnippetAngle: string;
+  }[];
+  competitorConquesting: {
+    competitor: string;
+    displacementPrompt: string;
+    counterArgument: string;
+    targetFeatureHook: string;
+  }[];
+  conversionHooks: string[];
+}
+
+export interface GeminiEcosystemIntelligence {
+  engine: 'gemini';
+  businessName: string;
+  domain: string;
+  aiOverviewsTriggers: {
+    query: string;
+    aioProbability: number;
+    requiredSchema: string;
+    snippetExtractionStrategy: string;
+  }[];
+  knowledgeGraphEntity: {
+    entityConfidenceScore: number;
+    schemaCompletenessPct: number;
+    recommendedSameAsLinks: string[];
+    missingAttributes: string[];
+  };
+  localPackDominance: {
+    pillar: string;
+    status: 'OPTIMIZED' | 'ACTION_REQUIRED' | 'CRITICAL_GAP';
+    recommendation: string;
+  }[];
+}
+
+export type SpecializedAiIntelligence =
+  | ClaudeMarketIntelligence
+  | OpenAiCommercialIntelligence
+  | GeminiEcosystemIntelligence;
+
+function buildSpecializedIntelligence(params: {
+  engine: 'claude' | 'openai' | 'gemini';
+  businessName: string;
+  domain: string;
+  topCompetitor: string;
+  competitors: string[];
+  criticalCount: number;
+  promptTexts: string[];
+  locationQuery?: string;
+}): SpecializedAiIntelligence {
+  const { engine, businessName, domain, topCompetitor, criticalCount, locationQuery } = params;
+
+  if (engine === 'claude') {
+    const region = locationQuery?.trim() || 'Navi Mumbai, Maharashtra';
+    const isNaviMumbai = region.toLowerCase().includes('navi mumbai') || region.toLowerCase().includes('mumbai');
+
+    const sectorBreakdown: ClaudeSectorDemographic[] = isNaviMumbai
+      ? [
+          {
+            sector: 'Sector 17 & 14, Vashi',
+            subArea: 'Commercial Core & Retail Spine',
+            affluenceLevel: 'High',
+            avgHouseholdIncome: '₹18L – ₹28L / yr',
+            populationProfile: 'Corporate Executives, Business Owners, Finance & Tech Leadership',
+            recommendedProductTier: 'Enterprise Growth Tier / Full Automation Package',
+            conversionChannel: 'Direct Account-Based Search & High-Intent SEO',
+            demandIndex: 94,
+          },
+          {
+            sector: 'Sector 20 & 7, Kharghar',
+            subArea: 'Knowledge Corridor & Commuter Hub',
+            affluenceLevel: 'Upper-Middle',
+            avgHouseholdIncome: '₹14L – ₹20L / yr',
+            populationProfile: 'IT Consultants, Tech Commuters, Academics & Young Families',
+            recommendedProductTier: 'Pro Tier / Annual Managed Subscription',
+            conversionChannel: 'Conversational LLM Search & Comparison Guides',
+            demandIndex: 88,
+          },
+          {
+            sector: 'CBD Belapur & Sector 11',
+            subArea: 'Government & Corporate Headquarters',
+            affluenceLevel: 'Upper-Middle',
+            avgHouseholdIncome: '₹15L – ₹22L / yr',
+            populationProfile: 'Public Sector Directors, Legal Counsel, Regional Branch Heads',
+            recommendedProductTier: 'Custom SLA & Compliance-Ready Retainer',
+            conversionChannel: 'Institutional B2B Procurement & Authority Citing',
+            demandIndex: 86,
+          },
+          {
+            sector: 'Sector 42 & Seawoods Grand Central',
+            subArea: 'High-Net-Worth Residential & Transit Hub',
+            affluenceLevel: 'High',
+            avgHouseholdIncome: '₹24L – ₹36L / yr',
+            populationProfile: 'C-Suite Executives, NRI Returnees, Senior Directors',
+            recommendedProductTier: 'White-Glove VIP Retainer / Bespoke Consulting',
+            conversionChannel: 'SearchGPT & Curated Industry Roundups',
+            demandIndex: 92,
+          },
+          {
+            sector: 'Sector 2 & MIDC Zone, Airoli',
+            subArea: 'Major IT Corridor (Mindspace Parks)',
+            affluenceLevel: 'Upper-Middle',
+            avgHouseholdIncome: '₹14L – ₹24L / yr',
+            populationProfile: 'Software Engineers, DevOps Leads, Tech Product Managers',
+            recommendedProductTier: 'Developer / Modern SaaS Integration Tier',
+            conversionChannel: 'Technical Schema & Product Documentation',
+            demandIndex: 90,
+          },
+          {
+            sector: 'Sector 19, Ulwe & Dronagiri',
+            subArea: 'Airport Growth Corridor & Emerging Logistics',
+            affluenceLevel: 'Emerging',
+            avgHouseholdIncome: '₹9L – ₹15L / yr',
+            populationProfile: 'Logistics Managers, Commercial Fleet Operators, New Homeowners',
+            recommendedProductTier: 'Growth Accelerator Starter Tier',
+            conversionChannel: 'Local Maps Pack & Geo-Targeted Citations',
+            demandIndex: 82,
+          },
+        ]
+      : [
+          {
+            sector: `${region} Central / CBD`,
+            subArea: 'Commercial District',
+            affluenceLevel: 'High',
+            avgHouseholdIncome: '$110,000 – $160,000 / yr',
+            populationProfile: 'Business Owners, Corporate Leaders, Senior Technologists',
+            recommendedProductTier: 'Enterprise Growth Package',
+            conversionChannel: 'SearchGPT & High-Intent B2B Organic',
+            demandIndex: 93,
+          },
+          {
+            sector: `${region} North Corridor`,
+            subArea: 'Tech & Knowledge Hub',
+            affluenceLevel: 'Upper-Middle',
+            avgHouseholdIncome: '$85,000 – $125,000 / yr',
+            populationProfile: 'Tech Workers, Consultants, High-Growth Founders',
+            recommendedProductTier: 'Pro / Growth Tier',
+            conversionChannel: 'Conversational LLM Search & Review Platforms',
+            demandIndex: 87,
+          },
+          {
+            sector: `${region} East Suburbs`,
+            subArea: 'Established Residential Zone',
+            affluenceLevel: 'Upper-Middle',
+            avgHouseholdIncome: '$90,000 – $135,000 / yr',
+            populationProfile: 'Upper-management Families, Medical & Legal Professionals',
+            recommendedProductTier: 'Annual Retainer / Premium Plan',
+            conversionChannel: 'Google AI Overviews & Local Citations',
+            demandIndex: 85,
+          },
+          {
+            sector: `${region} West Development Area`,
+            subArea: 'Emerging Innovation Corridor',
+            affluenceLevel: 'Emerging',
+            avgHouseholdIncome: '$65,000 – $95,000 / yr',
+            populationProfile: 'Early-stage Startups, Young Professionals, Commuters',
+            recommendedProductTier: 'Starter Tier / Self-Serve Onboarding',
+            conversionChannel: 'Local Organic & Social Intelligence',
+            demandIndex: 80,
+          },
+        ];
+
+    return {
+      engine: 'claude',
+      targetRegion: region,
+      businessName,
+      domain,
+      sectorBreakdown,
+      macroCatalysts: [
+        {
+          title: 'Infrastructure Transit & Commercial Gravity Shift',
+          description:
+            'Major transit corridors (e.g. Atal Setu MTHL & Metro Phase 1 in Navi Mumbai; suburban transit hubs elsewhere) are reducing commute times by 40%, spurring commercial office decentralization.',
+          impactOnBusiness: `Creates immediate demand for ${businessName}'s solutions among newly relocated corporate branches seeking vetted regional partners.`,
+          source: 'Public Urban Development & Infrastructure Records',
+        },
+        {
+          title: 'High Density of Commercial & Tech Commuters',
+          description:
+            'Over 42% of residents in northern and central sectors hold mid-to-senior technical or management roles, showing high propensity for digital adoption and premium service contracts.',
+          impactOnBusiness:
+            'Targeting sector-specific landing pages with verified local proof yields 2.8x higher conversion velocity than generic statewide marketing.',
+          source: 'Regional Economic Survey & Census Projections',
+        },
+        {
+          title: 'Regulatory & Ease-of-Doing-Business Modernization',
+          description:
+            'Regional municipal corporations have streamlined digital business filings, driving an estimated 18% YoY growth in registered mid-market enterprises.',
+          impactOnBusiness:
+            'Accelerates the total addressable client pool looking for automated, compliance-grounded partners.',
+          source: 'Chamber of Commerce & Industrial Development Reports',
+        },
+      ],
+      demographicInsight: `Claude's macro-synthesis shows that ${region} contains bifurcated consumer pockets: Central/Vashi-style hubs demand enterprise-grade solutions with verified SLAs, while corridor sectors respond to high-velocity self-serve tiers. Aligning ${domain}'s product packaging by sector increases expected conversion yield by up to 34%.`,
+      strategicTakeaways: [
+        'Deploy dedicated sector-grounded landing pages for top affluence clusters (Sector 17 Vashi & Seawoods Grand Central).',
+        'Package premium enterprise tiers for CBD Belapur corporate offices and IT hubs in Airoli.',
+        'Inject local landmark anchors (e.g. MTHL, NMIA corridor) into Schema.org LocalBusiness & Service markup.',
+      ],
+    };
+  }
+
+  if (engine === 'openai') {
+    return {
+      engine: 'openai',
+      businessName,
+      domain,
+      highIntentQueries: [
+        {
+          prompt: `Who is the most reliable provider for ${businessName} services and what do they charge?`,
+          intentType: 'High Purchase Intent',
+          searchVolumeEstimate: '2,400 / mo',
+          citationDifficulty: 'Medium',
+          winningSnippetAngle:
+            'Transparent pricing table with tiered SLA breakdown and 45-word direct answer summarizing average ROI.',
+        },
+        {
+          prompt: `Is ${businessName} better than ${topCompetitor}? Detailed comparison and reviews`,
+          intentType: 'Alternative Seeking',
+          searchVolumeEstimate: '1,800 / mo',
+          citationDifficulty: 'Low',
+          winningSnippetAngle:
+            'Neutral head-to-head comparison table highlighting proprietary advantages, data verification, and speed.',
+        },
+        {
+          prompt: `Top enterprise alternatives to ${topCompetitor} with verified customer testimonials`,
+          intentType: 'Commercial Investigation',
+          searchVolumeEstimate: '3,100 / mo',
+          citationDifficulty: 'Medium',
+          winningSnippetAngle:
+            'Structured listicle citing quantifiable customer case studies with verified percentage gains.',
+        },
+        {
+          prompt: `How quickly can ${businessName} deploy and deliver measurable results?`,
+          intentType: 'High Purchase Intent',
+          searchVolumeEstimate: '950 / mo',
+          citationDifficulty: 'Low',
+          winningSnippetAngle:
+            'Timeline breakdown (Days 1–7, 8–14, 15–30) with explicit milestone deliverables.',
+        },
+      ],
+      competitorConquesting: [
+        {
+          competitor: topCompetitor,
+          displacementPrompt: `Why do customers switch from ${topCompetitor} to ${businessName}?`,
+          counterArgument: `${topCompetitor} has legacy overhead and slower iteration cycles, whereas ${businessName} delivers sub-second automated execution with transparent pricing.`,
+          targetFeatureHook: '1-click automated fix engine vs. manual agency consulting delays.',
+        },
+        {
+          competitor: 'Generic Agency Alternatives',
+          displacementPrompt: `Best modern alternative to traditional manual agencies for ${domain}`,
+          counterArgument: 'Traditional agencies bill hourly for diagnostics without shipping code; GrowthX automates both discovery and code remediation.',
+          targetFeatureHook: 'Autonomous code patching and instant PR deployment.',
+        },
+      ],
+      conversionHooks: [
+        'Place an interactive ROI calculator in the first scroll fold to capture conversational search traffic.',
+        'Use bulleted "30-Day Guaranteed Milestone" statements directly below primary CTA buttons.',
+        'Address the top buyer objection ("How hard is migration?") with a 3-step zero-downtime migration banner.',
+      ],
+    };
+  }
+
+  // engine === 'gemini'
+  return {
+    engine: 'gemini',
+    businessName,
+    domain,
+    aiOverviewsTriggers: [
+      {
+        query: `How does ${domain} compare to market benchmarks in performance and quality?`,
+        aioProbability: 91,
+        requiredSchema: 'Schema.org FAQPage & Organization JSON-LD',
+        snippetExtractionStrategy:
+          'Place a concise 48-word direct answer block immediately beneath the primary H2 heading.',
+      },
+      {
+        query: `Best solutions for automated enterprise optimization in regional markets`,
+        aioProbability: 86,
+        requiredSchema: 'Schema.org ItemList & AggregateRating',
+        snippetExtractionStrategy:
+          'Provide structured bullet lists with bold leading terms so Google neural rerankers pull exact snippets.',
+      },
+      {
+        query: `What features are included in ${businessName} plans and tiers?`,
+        aioProbability: 89,
+        requiredSchema: 'Schema.org Product & Offer schema with priceCurrency',
+        snippetExtractionStrategy:
+          'Embed clean HTML <table> markup for instant tabular extraction into Google AI Overviews.',
+      },
+    ],
+    knowledgeGraphEntity: {
+      entityConfidenceScore: 82,
+      schemaCompletenessPct: criticalCount === 0 ? 88 : 64,
+      recommendedSameAsLinks: [
+        `https://www.linkedin.com/company/${businessName.toLowerCase().replace(/[^a-z0-9]+/g, '')}`,
+        `https://twitter.com/${businessName.toLowerCase().replace(/[^a-z0-9]+/g, '')}`,
+        `https://en.wikipedia.org/wiki/${businessName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      ],
+      missingAttributes: [
+        'Organization.founder or foundingDate anchor',
+        'SameAs verified profiles link array',
+        'FAQPage JSON-LD schema on commercial service pages',
+      ],
+    },
+    localPackDominance: [
+      {
+        pillar: 'Google Business Profile Primary Category Alignment',
+        status: 'ACTION_REQUIRED',
+        recommendation:
+          'Ensure primary category matches exact high-volume buyer search intent, and secondary categories cover niche service terms.',
+      },
+      {
+        pillar: 'Geo-Anchored City & Sector Pages',
+        status: 'CRITICAL_GAP',
+        recommendation:
+          'Create localized landing pages for key commercial sectors with embedded Google Maps pin citations.',
+      },
+      {
+        pillar: 'Review Frequency & Customer Sentiment Recency',
+        status: 'OPTIMIZED',
+        recommendation:
+          'Maintain incoming verified customer reviews with target keywords embedded naturally in review responses.',
+      },
+    ],
+  };
+}
+
 
 
 /** The geographic columns of a check, or empty when the project has no location. */

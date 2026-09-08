@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { TruthfulState, TruthfulKpiCard } from "@/components/ui/truthful-state";
 import { errorMessage } from "@/lib/error-message";
 import { AiCouncilRoundtable } from "@/components/ai-visibility/ai-council-roundtable";
+import { SpecializedEnginesPanel } from "@/components/ai-visibility/specialized-engines-panel";
 
 export default function AiVisibilityPage() {
   return (
@@ -136,6 +137,15 @@ function AiVisibilityClient() {
       {/* AI Intelligence Council Roundtable: Claude × ChatGPT × Gemini */}
       {projectId && (
         <AiCouncilRoundtable
+          projectId={projectId}
+          domain={domain ?? undefined}
+          businessName={businessName ?? undefined}
+        />
+      )}
+
+      {/* Specialized AI Engine Superpowers: Claude, OpenAI, and Gemini */}
+      {projectId && (
+        <SpecializedEnginesPanel
           projectId={projectId}
           domain={domain ?? undefined}
           businessName={businessName ?? undefined}

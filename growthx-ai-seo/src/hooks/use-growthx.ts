@@ -396,6 +396,31 @@ export function useAskCouncil(projectId: string | null) {
   });
 }
 
+export function useSpecializedAi(
+  projectId: string | null,
+  engine: "claude" | "openai" | "gemini" = "claude",
+  location?: string,
+) {
+  return useQuery({
+    queryKey: ["specialized-ai", projectId, engine, location],
+    queryFn: () => api.getSpecializedAi(projectId!, engine, location),
+    enabled: Boolean(projectId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
+export function useQuerySpecializedAi(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ engine, location }: { engine: "claude" | "openai" | "gemini"; location?: string }) =>
+      api.querySpecializedAi(projectId!, engine, location),
+    onSuccess: (data, variables) => {
+      qc.setQueryData(["specialized-ai", projectId, variables.engine, variables.location], data);
+    },
+  });
+}
+
 export function useAddCompetitor(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
