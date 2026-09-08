@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, MinusCircle, Plus, RefreshCw, Sparkles, XCircle 
 import { ActionButton, Mono, PageHeader, Panel, StatusNote, Table, Td, Th, Tr, Tabs } from "@/components/ui/console";
 import {
   useWorkspace,
+  usePortfolio,
   useVisibility,
   useTrackedPrompts,
   useRunSweep,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TruthfulState, TruthfulKpiCard } from "@/components/ui/truthful-state";
 import { errorMessage } from "@/lib/error-message";
+import { AiCouncilRoundtable } from "@/components/ai-visibility/ai-council-roundtable";
 
 export default function AiVisibilityPage() {
   return (
@@ -23,7 +25,12 @@ export default function AiVisibilityPage() {
 }
 
 function AiVisibilityClient() {
-  const { projectId } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const domain = client?.domain;
+  const businessName = client?.name;
+
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
@@ -124,6 +131,15 @@ function AiVisibilityClient() {
             </Button>
           </div>
         </form>
+      )}
+
+      {/* AI Intelligence Council Roundtable: Claude × ChatGPT × Gemini */}
+      {projectId && (
+        <AiCouncilRoundtable
+          projectId={projectId}
+          domain={domain ?? undefined}
+          businessName={businessName ?? undefined}
+        />
       )}
 
       {/* KPI Cards */}

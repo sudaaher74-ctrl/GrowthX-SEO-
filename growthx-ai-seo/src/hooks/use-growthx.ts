@@ -376,6 +376,26 @@ export function useAddPrompts(projectId: string | null) {
   });
 }
 
+export function useAiCouncil(projectId: string | null, topic?: string) {
+  return useQuery({
+    queryKey: ["ai-council", projectId, topic],
+    queryFn: () => api.getCouncilDiscussion(projectId!, topic),
+    enabled: Boolean(projectId),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
+export function useAskCouncil(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (topic: string) => api.askCouncil(projectId!, topic),
+    onSuccess: (data) => {
+      qc.setQueryData(["ai-council", projectId, data.topic], data);
+    },
+  });
+}
+
 export function useAddCompetitor(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({

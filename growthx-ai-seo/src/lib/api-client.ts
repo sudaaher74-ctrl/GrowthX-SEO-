@@ -332,6 +332,50 @@ export interface VisibilityReport {
   measurableAssistants: string[];
 }
 
+export interface CouncilSpeaker {
+  id: "claude" | "chatgpt" | "gemini";
+  name: string;
+  provider: string;
+  avatarTone: "amber" | "emerald" | "blue";
+  roleTitle: string;
+  corePhilosophy: string;
+}
+
+export interface CouncilDialogueTurn {
+  id: string;
+  speaker: "claude" | "chatgpt" | "gemini";
+  speakerName: string;
+  phase: "initial_assessment" | "honest_debate" | "collaborative_plan";
+  message: string;
+  targetedInsight?: string;
+  referencedMetric?: string;
+}
+
+export interface CouncilActionPillar {
+  step: number;
+  title: string;
+  leadSpeaker: "claude" | "chatgpt" | "gemini";
+  leadSpeakerName: string;
+  objective: string;
+  whyItMatters: string;
+  impactScore: number;
+  timeframe: string;
+  actionHref: string;
+}
+
+export interface CouncilDiscussionReport {
+  projectId: string;
+  businessName: string;
+  domain: string;
+  generatedAt: string;
+  topic?: string;
+  consensusScorePct: number;
+  participants: CouncilSpeaker[];
+  dialogue: CouncilDialogueTurn[];
+  collaborativePlan: CouncilActionPillar[];
+  executiveSummary: string;
+}
+
 export interface TrackedPromptRow {
   id: string;
   text: string;
@@ -2099,6 +2143,12 @@ export const api = {
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
+  getCouncilDiscussion: (projectId: string, topic?: string) =>
+    get<CouncilDiscussionReport>(
+      `/api/projects/${projectId}/ai-visibility/council${topic ? `?topic=${encodeURIComponent(topic)}` : ""}`,
+    ),
+  askCouncil: (projectId: string, topic: string) =>
+    post<CouncilDiscussionReport>(`/api/projects/${projectId}/ai-visibility/council`, { topic }),
   /**
    * Returns the stored CompetitorDomain row, not the enriched shape
    * `listCompetitors` builds — the scores and crawl state on that one are

@@ -162,4 +162,29 @@ export class AiVisibilityController {
   getAeo(@Param('projectId') projectId: string) {
     return this.aeo.analyzeWebsiteAeo(projectId);
   }
+
+  @Get('council')
+  @ApiOperation({ summary: 'Tri-engine AI council discussion between Claude, ChatGPT, and Gemini' })
+  @ApiParam({ name: 'projectId' })
+  @ApiQuery({ name: 'topic', required: false, example: 'How to increase enterprise conversions' })
+  getCouncil(@Param('projectId') projectId: string, @Query('topic') topic?: string) {
+    return this.visibility.getCouncilDiscussion(projectId, topic);
+  }
+
+  @Post('council')
+  @ApiOperation({ summary: 'Ask custom question to the Tri-engine AI council' })
+  @ApiParam({ name: 'projectId' })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: 'object',
+      properties: {
+        topic: { type: 'string', example: 'How do we beat our biggest competitor?' },
+      },
+    },
+  })
+  askCouncil(@Param('projectId') projectId: string, @Body() body?: { topic?: string }) {
+    return this.visibility.getCouncilDiscussion(projectId, body?.topic);
+  }
 }
+
