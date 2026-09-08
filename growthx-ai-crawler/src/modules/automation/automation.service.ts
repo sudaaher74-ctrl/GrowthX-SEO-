@@ -192,7 +192,13 @@ export class AutomationService {
           continue;
         }
 
-        const target = await this.resolveTargetFile(workingDir, issue.affectedUrl, repo.framework);
+        // An orphan page is fixed by linking to it from elsewhere, not by
+        // editing the page itself — so INTERNAL_LINKING patches a different
+        // file (the homepage) than every other fix type.
+        const isInternalLinking = patch.fixType === 'INTERNAL_LINKING';
+        const target = isInternalLinking
+          ? await this.resolveInternalLinkSource(workingDir, issue.affectedUrl, repo.framework)
+          : await this.resolveTargetFile(workingDir, issue.affectedUrl, repo.framework);
         if (!target) {
           skipped.push(`${issue.issueType} (${issue.affectedUrl}): no matching file in the repo`);
           continue;
@@ -205,7 +211,9 @@ export class AutomationService {
           ? this.extractJsonLd(patch.codeSnippet) ?? patch.proposedValue
           : patch.proposedValue;
 
-        const outcome = await this.patcher.applyFix(target, patch.fixType, patchValue);
+        const outcome = await this.patcher.applyFix(target, patch.fixType, patchValue, {
+          href: isInternalLinking ? issue.affectedUrl : undefined,
+        });
         if (outcome.applied) {
           changed.push(path.relative(workingDir, target));
           if (issue.affectedUrl) {
@@ -542,6 +550,34 @@ export class AutomationService {
     }
 
     return null;
+  }
+
+  /**
+   * Finds the file to add an internal link *from*, for an orphan page.
+   *
+   * The homepage is the one page on any site guaranteed to already be
+   * crawled, so it is the safe, unambiguous place to add the link — picking
+   * some other "related" page would mean guessing, and a wrong guess here
+   * means a link inserted into an unrelated customer page.
+   */
+  private async resolveInternalLinkSource(
+    repoDir: string,
+    affectedUrl: string,
+    framework: string,
+  ): Promise<string | null> {
+    let origin: string;
+    try {
+      origin = new URL(affectedUrl).origin;
+    } catch {
+      return null;
+    }
+
+    const homepageUrl = `${origin}/`;
+    const normalizedAffected = affectedUrl.endsWith('/') ? affectedUrl : `${affectedUrl}/`;
+    // The homepage cannot fix its own orphan status by linking to itself.
+    if (normalizedAffected === homepageUrl) return null;
+
+    return this.resolveTargetFile(repoDir, homepageUrl, framework);
   }
 
   /**

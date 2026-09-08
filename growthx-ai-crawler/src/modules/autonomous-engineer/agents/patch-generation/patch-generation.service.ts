@@ -277,6 +277,37 @@ Respond strictly with a JSON object.
     return { applied: true };
   }
 
+  /**
+   * Adds a plain `<a>` link to an orphan page from a source page (usually the
+   * homepage) that crawlers already reach. Prefers the `<footer>` if there is
+   * one, so the link reads as site-wide navigation rather than stray markup.
+   *
+   * A page that already links to `href` is left alone rather than duplicated.
+   */
+  async insertInternalLink(filePath: string, anchorText: string, href?: string): Promise<PatchOutcome> {
+    if (!href) {
+      return { applied: false, reason: 'Missing the URL to link to.' };
+    }
+
+    const { $ } = await this.loadHtml(filePath);
+    if ($('body').length === 0) $('html').append('<body></body>');
+
+    if ($(`a[href="${href}"]`).length > 0) {
+      return { applied: true };
+    }
+
+    const anchor = `<a href="${escapeAttr(href)}">${escapeText(anchorText)}</a>`;
+    const footer = $('footer').first();
+    if (footer.length > 0) {
+      footer.append(anchor);
+    } else {
+      $('body').append(anchor);
+    }
+
+    await this.saveHtml(filePath, $);
+    return { applied: true };
+  }
+
   // ------------------------------------------------------------ Next.js JSON-LD
 
   /** The page component function a Next.js JSON-LD patch is injected into. */
@@ -295,6 +326,66 @@ Respond strictly with a JSON object.
     if (expr && (Node.isArrowFunction(expr) || Node.isFunctionExpression(expr))) return expr;
 
     return undefined;
+  }
+
+  /**
+   * The JSX root of a component body's last `return`, if it has one. The
+   * last return is used rather than the first because an early return in a
+   * component is usually a loading/error state, not the real page markup.
+   */
+  private getComponentJsxRoot(body: import('ts-morph').Block) {
+    const returnStatement = [...body.getStatements()].reverse().find((s): s is ReturnStatement => Node.isReturnStatement(s));
+    const expr = returnStatement?.getExpression();
+    const jsxRoot = expr && Node.isParenthesizedExpression(expr) ? expr.getExpression() : expr;
+    if (jsxRoot && (Node.isJsxFragment(jsxRoot) || Node.isJsxElement(jsxRoot) || Node.isJsxSelfClosingElement(jsxRoot))) {
+      return jsxRoot;
+    }
+    return undefined;
+  }
+
+  /** Inserts `snippet` as the first child of a JSX root, wrapping in a Fragment if it is a single element. */
+  private prependJsxChild(jsxRoot: NonNullable<ReturnType<PatchGenerationService['getComponentJsxRoot']>>, snippet: string): void {
+    if (Node.isJsxFragment(jsxRoot)) {
+      const originalText = jsxRoot.getText();
+      const insertPos = originalText.indexOf('>') + 1;
+      jsxRoot.replaceWithText(`${originalText.slice(0, insertPos)}\n  ${snippet}${originalText.slice(insertPos)}`);
+    } else {
+      jsxRoot.replaceWithText(`<>\n  ${snippet}\n  ${jsxRoot.getText()}\n</>`);
+    }
+  }
+
+  /**
+   * Adds a plain `<a>` link to a Next.js page component's JSX, from a source
+   * page (usually the homepage) that crawlers already reach — the fix for an
+   * orphan page. A page that already links to `href` is left alone.
+   */
+  async injectNextJsInternalLink(filePath: string, anchorText: string, href?: string): Promise<PatchOutcome> {
+    if (!href) {
+      return { applied: false, reason: 'Missing the URL to link to.' };
+    }
+
+    const project = new Project();
+    const sourceFile = project.addSourceFileAtPath(filePath);
+
+    const component = this.findNextJsPageComponent(sourceFile);
+    const body = component?.getBody();
+    if (!component || !body || !Node.isBlock(body)) {
+      return { applied: false, reason: 'No page component with a JSX return was found to patch.' };
+    }
+
+    const jsxRoot = this.getComponentJsxRoot(body);
+    if (!jsxRoot) {
+      return { applied: false, reason: 'Page component return has no JSX to patch.' };
+    }
+
+    if (jsxRoot.getText().includes(`href="${href}"`)) {
+      return { applied: true };
+    }
+
+    this.prependJsxChild(jsxRoot, `<a href="${href}">${escapeText(anchorText)}</a>`);
+
+    await sourceFile.save();
+    return { applied: true };
   }
 
   /**
@@ -325,16 +416,14 @@ Respond strictly with a JSON object.
     }
 
     const statements = body.getStatements();
-    const returnIndex = [...statements].reverse().findIndex((s) => Node.isReturnStatement(s));
-    const returnStatement = returnIndex === -1 ? undefined : (statements[statements.length - 1 - returnIndex] as ReturnStatement);
-    if (!returnStatement) {
+    const returnIndexFromEnd = [...statements].reverse().findIndex((s) => Node.isReturnStatement(s));
+    if (returnIndexFromEnd === -1) {
       return { applied: false, reason: 'Page component has no JSX return to patch.' };
     }
-    const returnStatementIndex = statements.length - 1 - returnIndex;
+    const returnStatementIndex = statements.length - 1 - returnIndexFromEnd;
 
-    const expr = returnStatement.getExpression();
-    const jsxRoot = expr && Node.isParenthesizedExpression(expr) ? expr.getExpression() : expr;
-    if (!jsxRoot || !(Node.isJsxFragment(jsxRoot) || Node.isJsxElement(jsxRoot) || Node.isJsxSelfClosingElement(jsxRoot))) {
+    const jsxRoot = this.getComponentJsxRoot(body);
+    if (!jsxRoot) {
       return { applied: false, reason: 'Page component return has no JSX to patch.' };
     }
 
@@ -353,22 +442,11 @@ Respond strictly with a JSON object.
     }
 
     if (!alreadyInjected) {
-      const freshReturn = body.getStatements().find((s): s is ReturnStatement => Node.isReturnStatement(s));
-      const freshExpr = freshReturn?.getExpression();
-      const freshJsxRoot = freshExpr && Node.isParenthesizedExpression(freshExpr) ? freshExpr.getExpression() : freshExpr;
-      if (!freshJsxRoot || !(Node.isJsxFragment(freshJsxRoot) || Node.isJsxElement(freshJsxRoot) || Node.isJsxSelfClosingElement(freshJsxRoot))) {
+      const freshJsxRoot = this.getComponentJsxRoot(body);
+      if (!freshJsxRoot) {
         return { applied: false, reason: 'Page component return has no JSX to patch.' };
       }
-
-      const scriptTag = `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(${varName}) }} />`;
-      if (Node.isJsxFragment(freshJsxRoot)) {
-        // Insert as the first child, right after the opening `<>`.
-        const originalText = freshJsxRoot.getText();
-        const insertPos = originalText.indexOf('>') + 1;
-        freshJsxRoot.replaceWithText(`${originalText.slice(0, insertPos)}\n  ${scriptTag}${originalText.slice(insertPos)}`);
-      } else {
-        freshJsxRoot.replaceWithText(`<>\n  ${scriptTag}\n  ${freshJsxRoot.getText()}\n</>`);
-      }
+      this.prependJsxChild(freshJsxRoot, `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(${varName}) }} />`);
     }
 
     await sourceFile.save();
@@ -383,13 +461,16 @@ Respond strictly with a JSON object.
     filePath: string,
     fixType: string,
     value: string,
-    options: { target?: PatchTarget; imageSrc?: string } = {},
+    options: { target?: PatchTarget; imageSrc?: string; href?: string } = {},
   ): Promise<PatchOutcome> {
     const target = options.target ?? this.detectTarget(filePath);
 
     if (target === 'nextjs-metadata') {
       if (JSON_LD_FIX_TYPES.has(fixType)) {
         return this.injectNextJsJsonLd(filePath, value);
+      }
+      if (fixType === 'INTERNAL_LINKING') {
+        return this.injectNextJsInternalLink(filePath, value, options.href);
       }
       const property = NEXT_METADATA_PROPERTY[fixType];
       if (!property) {
@@ -413,6 +494,8 @@ Respond strictly with a JSON object.
       case 'ORGANIZATION_SCHEMA':
       case 'BREADCRUMB_SCHEMA':
         return this.injectJsonLd(filePath, value);
+      case 'INTERNAL_LINKING':
+        return this.insertInternalLink(filePath, value, options.href);
       default:
         return { applied: false, reason: `${fixType} has no automated HTML patcher.` };
     }

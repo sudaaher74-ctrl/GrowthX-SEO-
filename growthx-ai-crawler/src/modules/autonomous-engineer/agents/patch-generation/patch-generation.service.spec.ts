@@ -288,10 +288,111 @@ describe('PatchGenerationService', () => {
 
     it('explains why an unknown fix type was skipped', async () => {
       const file = await write('a.html', PAGE);
-      const result = await service.applyFix(file, 'INTERNAL_LINKING', 'x');
+      const result = await service.applyFix(file, 'MADE_UP_FIX_TYPE', 'x');
 
       expect(result.applied).toBe(false);
       expect(result.reason).toMatch(/no automated HTML patcher/);
+    });
+
+    it('routes an internal-linking fix on HTML to the anchor inserter', async () => {
+      const file = await write('a.html', PAGE);
+      const result = await service.applyFix(file, 'INTERNAL_LINKING', 'About us', { href: 'https://acme.com/about' });
+
+      expect(result.applied).toBe(true);
+      expect(await read(file)).toContain('<a href="https://acme.com/about">About us</a>');
+    });
+
+    it('routes an internal-linking fix on a Next.js page to the JSX inserter', async () => {
+      const file = await write('page.tsx', `export default function Home() {\n  return <main>Home</main>;\n}\n`);
+      const result = await service.applyFix(file, 'INTERNAL_LINKING', 'About us', { href: 'https://acme.com/about' });
+
+      expect(result.applied).toBe(true);
+      expect(await read(file)).toContain('<a href="https://acme.com/about">About us</a>');
+    });
+  });
+
+  describe('JSON-LD injection on a Next.js page', () => {
+    it('inserts a <script> and a matching const into the page component', async () => {
+      const file = await write('page.tsx', `export default function Page() {\n  return <main>Hi</main>;\n}\n`);
+      const result = await service.injectNextJsJsonLd(file, {
+        '@context': 'https://schema.org/',
+        '@type': 'Product',
+        name: 'Widget',
+      });
+
+      expect(result.applied).toBe(true);
+      const source = await read(file);
+      expect(source).toContain('const jsonLdProduct =');
+      expect(source).toContain('application/ld+json');
+      expect(source).toContain('JSON.stringify(jsonLdProduct)');
+    });
+
+    it('updates the existing declaration instead of duplicating on a second run', async () => {
+      const file = await write('page.tsx', `export default function Page() {\n  return <main>Hi</main>;\n}\n`);
+      const jsonLd = { '@context': 'https://schema.org/', '@type': 'Product', name: 'Widget' };
+
+      await service.injectNextJsJsonLd(file, jsonLd);
+      await service.injectNextJsJsonLd(file, { ...jsonLd, name: 'Widget v2' });
+
+      const source = await read(file);
+      expect(source.match(/application\/ld\+json/g)).toHaveLength(1);
+      expect(source).toContain('Widget v2');
+    });
+
+    it('refuses malformed JSON-LD', async () => {
+      const file = await write('page.tsx', `export default function Page() {\n  return <main>Hi</main>;\n}\n`);
+      const result = await service.injectNextJsJsonLd(file, '{not json');
+      expect(result).toEqual({ applied: false, reason: 'Refused to inject malformed JSON-LD.' });
+    });
+  });
+
+  describe('internal link injection', () => {
+    it('appends the link to the footer when one exists', async () => {
+      const file = await write('a.html', '<html><body><footer>© Acme</footer></body></html>');
+      await service.insertInternalLink(file, 'About us', 'https://acme.com/about');
+
+      const html = await read(file);
+      expect(html).toContain('<footer>© Acme<a href="https://acme.com/about">About us</a></footer>');
+    });
+
+    it('falls back to the body when there is no footer', async () => {
+      const file = await write('a.html', '<html><body><main>Home</main></body></html>');
+      await service.insertInternalLink(file, 'About us', 'https://acme.com/about');
+      expect(await read(file)).toContain('<a href="https://acme.com/about">About us</a>');
+    });
+
+    it('does not duplicate a link that already exists', async () => {
+      const file = await write(
+        'a.html',
+        '<html><body><a href="https://acme.com/about">Already linked</a></body></html>',
+      );
+      await service.insertInternalLink(file, 'About us', 'https://acme.com/about');
+      expect((await read(file)).match(/href="https:\/\/acme\.com\/about"/g)).toHaveLength(1);
+    });
+
+    it('requires a link target', async () => {
+      const file = await write('a.html', PAGE);
+      const result = await service.insertInternalLink(file, 'About us');
+      expect(result).toEqual({ applied: false, reason: 'Missing the URL to link to.' });
+    });
+
+    it('inserts a plain <a> into a Next.js page component', async () => {
+      const file = await write('page.tsx', `export default function Home() {\n  return <main>Home</main>;\n}\n`);
+      const result = await service.injectNextJsInternalLink(file, 'About us', 'https://acme.com/about');
+
+      expect(result.applied).toBe(true);
+      const source = await read(file);
+      expect(source).toContain('<a href="https://acme.com/about">About us</a>');
+      expect(source).toContain('<>');
+    });
+
+    it('does not duplicate the link on a second Next.js run', async () => {
+      const file = await write('page.tsx', `export default function Home() {\n  return <main>Home</main>;\n}\n`);
+      await service.injectNextJsInternalLink(file, 'About us', 'https://acme.com/about');
+      await service.injectNextJsInternalLink(file, 'About us', 'https://acme.com/about');
+
+      const source = await read(file);
+      expect(source.match(/href="https:\/\/acme\.com\/about"/g)).toHaveLength(1);
     });
   });
 });
