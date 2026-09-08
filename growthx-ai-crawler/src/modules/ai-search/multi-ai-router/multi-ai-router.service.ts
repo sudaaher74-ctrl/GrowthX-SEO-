@@ -17,8 +17,14 @@ import {
 } from '../../ai-engine/utils/sarvam-request.util';
 import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { AiUsageService } from './ai-usage.service';
+import {
+  MammouthCapability,
+  MAMMOUTH_MODELS,
+  resolveMammouthModelForCapability,
+} from './mammouth-models.config';
 
 export enum AiProvider {
+  MAMMOUTH = 'MAMMOUTH',
   SARVAM = 'SARVAM',
   GEMINI = 'GEMINI',
   OPENAI = 'OPENAI',
@@ -162,9 +168,9 @@ const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
 
 /** Which vendor each routing profile prefers, best first. */
 const TASK_PREFERENCE: Readonly<Record<RoutingProfile, readonly AiProvider[]>> = {
-  [RoutingProfile.REASONING]: [AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [RoutingProfile.CODE_GEN]: [AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [RoutingProfile.FAST]: [AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
+  [RoutingProfile.REASONING]: [AiProvider.MAMMOUTH, AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [RoutingProfile.CODE_GEN]: [AiProvider.MAMMOUTH, AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
+  [RoutingProfile.FAST]: [AiProvider.MAMMOUTH, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
 };
 
 /** The routing profile a task uses. Unknown values reason rather than guess cheap. */
@@ -188,12 +194,17 @@ export class MultiAiRouterService {
   private readonly sarvamModel: string;
   private readonly sarvamKey?: string;
   private readonly sarvamReasoningEffort: SarvamReasoningEffort;
+  private readonly mammouthModel: string;
+  private readonly mammouthBaseUrl: string;
+  private readonly mammouthTemperature: number;
+  private readonly mammouthMaxTokens: number;
 
   private anthropic?: Anthropic;
   private openai?: OpenAI;
   private gemini?: GoogleGenAI;
   private groq?: Groq;
   private openrouter?: OpenAI;
+  private mammouth?: OpenAI;
 
   /**
    * Anthropic's server-side refusal fallback re-serves a declined request on
@@ -220,6 +231,10 @@ export class MultiAiRouterService {
     this.openrouterModel = this.config.get<string>('OPENROUTER_MODEL') || 'openai/gpt-4o-mini';
     this.openrouterTemperature = Number(this.config.get<string>('OPENROUTER_TEMPERATURE') ?? '0.2');
     this.openrouterMaxTokens = Number(this.config.get<string>('OPENROUTER_MAX_TOKENS') ?? '2000');
+    this.mammouthModel = this.config.get<string>('MAMMOUTH_DEFAULT_MODEL') || 'mammouth-recommended';
+    this.mammouthBaseUrl = this.config.get<string>('MAMMOUTH_BASE_URL') || 'https://api.mammouth.ai/v1';
+    this.mammouthTemperature = Number(this.config.get<string>('MAMMOUTH_TEMPERATURE') ?? '0.2');
+    this.mammouthMaxTokens = Number(this.config.get<string>('MAMMOUTH_MAX_TOKENS') ?? '4000');
     const sarvam = resolveSarvamModel(this.config);
     this.sarvamModel = sarvam.model;
     if (sarvam.warning) this.logger.warn(sarvam.warning);
@@ -251,6 +266,15 @@ export class MultiAiRouterService {
       });
     }
 
+    const rawMammouthKey = this.config.get<string>('MAMMOUTH_API_KEY');
+    const mammouthKey = rawMammouthKey ? rawMammouthKey.trim().replace(/\.+$/, '') : undefined;
+    if (this.isRealKey(mammouthKey)) {
+      this.mammouth = new OpenAI({
+        apiKey: mammouthKey,
+        baseURL: this.mammouthBaseUrl,
+      });
+    }
+
     this.logger.log(`AI providers configured: ${this.configuredProviders().join(', ') || 'none'}`);
   }
 
@@ -263,6 +287,7 @@ export class MultiAiRouterService {
 
   configuredProviders(): AiProvider[] {
     const configured: AiProvider[] = [];
+    if (this.mammouth) configured.push(AiProvider.MAMMOUTH);
     if (this.isRealKey(this.sarvamKey)) configured.push(AiProvider.SARVAM);
     if (this.gemini) configured.push(AiProvider.GEMINI);
     if (this.openai) configured.push(AiProvider.OPENAI);
@@ -287,6 +312,7 @@ export class MultiAiRouterService {
   /** The model each configured provider would use. Names only — never key material. */
   configuredModels(): Record<string, string> {
     const models: Record<string, string> = {
+      [AiProvider.MAMMOUTH]: this.mammouthModel,
       [AiProvider.ANTHROPIC]: this.anthropicModel,
       [AiProvider.GEMINI]: this.geminiModel,
       [AiProvider.OPENAI]: this.openaiModel,
@@ -440,6 +466,8 @@ export class MultiAiRouterService {
   /** Vendors the org's plan permits, intersected with what has credentials. */
   private invoke(provider: AiProvider, request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
     switch (provider) {
+      case AiProvider.MAMMOUTH:
+        return this.callMammouth(request, task, modelOverride);
       case AiProvider.SARVAM:
         return this.callSarvam(request);
       case AiProvider.ANTHROPIC:
@@ -773,10 +801,101 @@ export class MultiAiRouterService {
     });
   }
 
+  // ------------------------------------------------------------------ Mammouth
+  /**
+   * Calls Mammouth AI's OpenAI-compatible API (https://api.mammouth.ai/v1).
+   * Automatically resolves the model based on task capability requirements
+   * unless explicitly overridden. Enforces JSON output and tracks tokens/cost.
+   */
+  private async callMammouth(request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
+    if (!this.mammouth) {
+      throw new ServiceUnavailableException('MAMMOUTH_API_KEY is not configured.');
+    }
+
+    const capability = this.taskToCapability(task);
+    const chosenModel = modelOverride || resolveMammouthModelForCapability(capability, {
+      userSelectedModel: this.mammouthModel,
+    });
+
+    const messages: any[] = [];
+    let system = request.systemInstruction;
+    if (request.jsonSchema) {
+      const schemaInstruction = `You MUST return strictly valid JSON matching this schema:\n${JSON.stringify(request.jsonSchema)}`;
+      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
+    }
+
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: request.prompt });
+
+    try {
+      const response = await this.mammouth.chat.completions.create({
+        model: chosenModel,
+        messages,
+        temperature: this.mammouthTemperature,
+        max_tokens: request.maxTokens ?? this.mammouthMaxTokens,
+        ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
+      } as any);
+
+      const content = response.choices?.[0]?.message?.content ?? '';
+
+      return {
+        provider: AiProvider.MAMMOUTH,
+        model: response.model ?? chosenModel,
+        text: content,
+        usage: this.usage(
+          response.usage?.prompt_tokens ?? 0,
+          response.usage?.completion_tokens ?? 0,
+          this.envRate('MAMMOUTH'),
+        ),
+        refused: false,
+      };
+    } catch (error: any) {
+      const status = error?.status || error?.statusCode;
+      const message = String(error?.message || error || 'Unknown Mammouth error');
+
+      if (status === 401 || /unauthorized|api key|invalid proxy server token/i.test(message)) {
+        throw new ServiceUnavailableException('Mammouth AI authentication failed: invalid API key.');
+      }
+      if (status === 429 || /rate limit|quota|credits|budget|exceededbudget/i.test(message)) {
+        throw new ServiceUnavailableException('Mammouth AI rate limit or quota exceeded. Please check credits.');
+      }
+      if (/timeout|abort|econnrefused/i.test(message)) {
+        throw new ServiceUnavailableException('Mammouth AI request timed out.');
+      }
+
+      throw new ServiceUnavailableException(`Mammouth AI error: ${message}`);
+    }
+  }
+
+  private taskToCapability(task: AiTask): MammouthCapability {
+    switch (task) {
+      case AiTask.SEO_RESEARCH:
+      case AiTask.SEO_ANALYSIS:
+      case AiTask.SEO_OPPORTUNITY_GENERATION:
+        return MammouthCapability.SEO_ANALYSIS;
+      case AiTask.COMPETITOR_ANALYSIS:
+        return MammouthCapability.COMPETITOR_ANALYSIS;
+      case AiTask.AI_VISIBILITY_ANALYSIS:
+        return MammouthCapability.AEV_ANALYSIS;
+      case AiTask.CODE_GENERATION:
+      case AiTask.CODE_REVIEW:
+      case AiTask.FIX_VALIDATION:
+        return MammouthCapability.TECHNICAL_SEO_REASONING;
+      case AiTask.CONTENT_STRUCTURE_ANALYSIS:
+      case AiTask.ENTITY_ANALYSIS:
+        return MammouthCapability.CONTENT_ANALYSIS;
+      case AiTask.FAST:
+        return MammouthCapability.KEYWORD_ANALYSIS;
+      case AiTask.REASONING:
+      default:
+        return MammouthCapability.LONG_FORM_REASONING;
+    }
+  }
+
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM' | 'MAMMOUTH'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;

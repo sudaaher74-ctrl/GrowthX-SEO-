@@ -3,15 +3,17 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { User, Shield, Bell, Key, Globe, Users, Palette, Loader2, Trash2, LogOut } from "lucide-react";
+import { User, Shield, Bell, Key, Globe, Users, Palette, Loader2, Trash2, LogOut, Cpu } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAddMember, useMembers, useRemoveMember, useUpdateMemberRole, useWorkspace, useProfile } from "@/hooks/use-growthx";
 import { api, ApiError, type Role } from "@/lib/api-client";
+import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
 
 const tabs = [
   { id: "workspace", label: "Workspace", icon: Globe },
+  { id: "ai", label: "AI Configuration", icon: Cpu },
   { id: "profile", label: "Profile", icon: User },
   { id: "team", label: "Team", icon: Users },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -70,10 +72,12 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {activeTab === "ai" && <AiConfigurationTab />}
+          {activeTab === "api" && <AiConfigurationTab />}
           {activeTab === "team" && <TeamTab orgId={orgId} />}
           {activeTab === "profile" && <ProfileTab />}
 
-          {activeTab !== "workspace" && activeTab !== "team" && activeTab !== "profile" && (
+          {activeTab !== "workspace" && activeTab !== "ai" && activeTab !== "api" && activeTab !== "team" && activeTab !== "profile" && (
             <div className="card p-6 flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3">⚙️</div>
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{tabs.find(t => t.id === activeTab)?.label} isn&apos;t built yet</h3>

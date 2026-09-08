@@ -2,6 +2,8 @@ import { Global, Module } from '@nestjs/common';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { UnifiedAiService } from './unified-ai.service';
 import { UnifiedAiController } from './unified-ai.controller';
+import { MammouthSeoService } from './mammouth-seo.service';
+import { MammouthSeoController } from './mammouth-seo.controller';
 
 /**
  * The intelligence tasks (market research, competitor teardown, SEO analysis).
@@ -16,8 +18,8 @@ import { UnifiedAiController } from './unified-ai.controller';
 @Global()
 @Module({
   imports: [AiSearchModule],
-  controllers: [UnifiedAiController],
-  providers: [UnifiedAiService],
-  exports: [UnifiedAiService],
+  controllers: [UnifiedAiController, MammouthSeoController],
+  providers: [UnifiedAiService, MammouthSeoService],
+  exports: [UnifiedAiService, MammouthSeoService],
 })
 export class AiEngineModule {}

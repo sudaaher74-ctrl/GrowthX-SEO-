@@ -1960,7 +1960,52 @@ export interface IngestVideoPayload {
   rawOcrText?: string;
 }
 
+export interface MammouthModelInfo {
+  id: string;
+  displayName: string;
+  description: string;
+  capabilities: string[];
+  maxOutputTokens: number;
+}
+
+export interface MammouthConfig {
+  provider: string;
+  isConfigured: boolean;
+  connected: boolean;
+  maskedKey: string;
+  defaultModel: string;
+  availableModels: MammouthModelInfo[];
+  features: {
+    websiteAudit: boolean;
+    competitorIntelligence: boolean;
+    keywordStrategy: boolean;
+    aevAnalysis: boolean;
+    seoRecommendations: boolean;
+  };
+}
+
+export interface MammouthTestResult {
+  connected: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  maskedKey: string;
+  message: string;
+}
+
 export const api = {
+  // Mammouth AI Orchestration
+  mammouth: {
+    getConfig: () => get<MammouthConfig>('/api/ai/mammouth/config'),
+    updateConfig: (data: Partial<MammouthConfig>) => post<{ success: boolean; config: MammouthConfig }>('/api/ai/mammouth/config', data),
+    testConnection: () => post<MammouthTestResult>('/api/ai/mammouth/test-connection', {}),
+    websiteAudit: (data: any) => post<any>('/api/ai/mammouth/website-audit', data),
+    competitorIntelligence: (data: any) => post<any>('/api/ai/mammouth/competitor-intelligence', data),
+    keywordStrategy: (data: any) => post<any>('/api/ai/mammouth/keyword-strategy', data),
+    contentAnalysis: (data: any) => post<any>('/api/ai/mammouth/content-analysis', data),
+    aevAnalysis: (data: any) => post<any>('/api/ai/mammouth/aev-analysis', data),
+  },
+
   // SEO Tools
   generateSchema: async (projectId: string, url: string, type: string) => 
     post<GeneratedSchemaResult>(`/api/projects/${projectId}/seo-tools/schema/generate`, { url, type }),

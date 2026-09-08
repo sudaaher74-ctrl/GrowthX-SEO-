@@ -12,6 +12,7 @@ import {
   type Creator,
 } from "@/lib/api-client";
 import { useWorkspace, useCreators, useAddCreator, useDeleteCreator } from "@/hooks/use-growthx";
+import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
 
 function InstagramIcon({ size = 14, className }: { size?: number; className?: string }) {
   return (
@@ -755,6 +756,7 @@ export default function AdminPage() {
                 </tbody>
               </Table>
             </Panel>
+            <AiConfigurationTab />
           </div>
         )}
 
