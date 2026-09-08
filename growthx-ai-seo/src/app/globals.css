@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Tailwind v4 changed the default border colour from a grey to `currentColor`,
    so a bare `border` draws a near-black hairline. Every border in this app is
    meant to be the hairline token; state that once rather than in every class. */

@@ -325,67 +325,67 @@ export function Autonomous30DayPlanModal({
   const currentWeekTasks = planPhases.find((p) => p.week === activeWeek)?.tasks || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-brand-900 border border-brand-200 dark:border-brand-800 shadow-2xl overflow-hidden text-brand-950 dark:text-white"
+        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white border border-line shadow-2xl overflow-hidden text-brand-950"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="p-6 border-b border-brand-100 dark:border-brand-800 bg-gradient-to-r from-brand-50/70 via-white to-brand-50/30 dark:from-brand-950/60 dark:via-brand-900 dark:to-brand-950/40">
+        <div className="p-6 border-b border-line bg-white">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-100 dark:bg-accent-950/50 text-accent-700 dark:text-accent-300 text-[11px] font-bold uppercase tracking-wider">
-                  <Sparkles size={11} className="text-accent-600 dark:text-accent-400" />
+                <Pill tone="info">
+                  <Sparkles size={11} className="mr-1 inline text-accent-600" />
                   Autonomous Execution Engine
-                </span>
+                </Pill>
                 {isApproved && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 text-[11px] font-semibold animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <Pill tone="good">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success-600 animate-pulse mr-1 inline-block" />
                     Autopilot Active: Day {currentDay} of 30
-                  </span>
+                  </Pill>
                 )}
               </div>
-              <h2 className="text-xl font-black tracking-tight text-brand-950 dark:text-white">
+              <h2 className="text-xl font-bold tracking-tight text-brand-950 mt-1.5">
                 30-Day Autonomous Website &amp; Competitor Fix Plan
               </h2>
-              <p className="text-xs text-brand-600 dark:text-brand-400 max-w-3xl">
-                Aliging all {technicalIssuesCount} technical defects and {competitorOpportunitiesCount} competitor opportunities into 4 weekly execution sprints. When approved, GrowthX systematically implements fixes and conquers target keywords automatically.
+              <p className="text-[12px] text-brand-500 max-w-3xl leading-relaxed">
+                Aligning all {technicalIssuesCount} technical defects and {competitorOpportunitiesCount} competitor opportunities into 4 weekly execution sprints. When approved, GrowthX systematically implements fixes and conquers target keywords automatically.
               </p>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-brand-400 hover:text-brand-700 dark:hover:text-white hover:bg-brand-100 dark:hover:bg-brand-800 transition"
+              className="p-1.5 rounded-lg text-brand-400 hover:text-brand-700 hover:bg-brand-100 transition cursor-pointer"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Autopilot Status Strip or Approval CTA */}
-          <div className="mt-5 p-4 rounded-xl border bg-white dark:bg-brand-950/50 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-brand-200 dark:border-brand-800">
-            <div className="flex items-center gap-4">
+          <div className="mt-5 p-4 rounded-xl border border-line bg-surface-2 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
               <div
                 className={cn(
-                  "w-11 h-11 rounded-xl flex items-center justify-center shrink-0",
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                   isApproved
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                    : "bg-accent-100 text-accent-700 dark:bg-accent-950/60 dark:text-accent-300",
+                    ? "bg-success-50 text-success-700"
+                    : "bg-accent-50 text-accent-700",
                 )}
               >
-                {isApproved ? <Activity size={22} className="animate-pulse" /> : <Cpu size={22} />}
+                {isApproved ? <Activity size={20} className="animate-pulse" /> : <Cpu size={20} />}
               </div>
               <div>
-                <div className="text-[13px] font-bold text-brand-950 dark:text-white flex items-center gap-2">
+                <div className="text-[13px] font-bold text-brand-950 flex items-center gap-2">
                   <span>{isApproved ? "Platform Autopilot is Running" : "Ready for Autonomous Deployment"}</span>
                   {isApproved && (
-                    <span className="text-[11px] font-normal text-emerald-600 dark:text-emerald-400">
+                    <span className="text-[11px] font-normal text-success-600">
                       (Deploying Sprint {Math.ceil(currentDay / 7)} Daily Fixes)
                     </span>
                   )}
                 </div>
-                <div className="text-[11.5px] text-brand-500 dark:text-brand-400 mt-0.5">
+                <div className="text-[11.5px] text-brand-500 mt-0.5">
                   {isApproved
                     ? `${completedTasks} of ${allTasks.length} milestone tasks completed. Daily progress updates run automatically.`
                     : "Approve the plan to have GrowthX automatically resolve errors and deploy competitor conquest pages over 30 days."}
@@ -395,48 +395,48 @@ export function Autonomous30DayPlanModal({
 
             <div className="flex items-center gap-2.5 shrink-0">
               {isApproved ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <div className="text-right mr-1">
-                    <div className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    <div className="text-[11px] font-mono font-bold text-success-700">
                       Day {currentDay} / 30
                     </div>
                     <div className="text-[10px] text-brand-400">30-Day Horizon</div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <ActionButton
+                    variant="secondary"
                     onClick={onTriggerReCrawl}
-                    className="text-xs h-9 px-3 gap-1.5"
+                    className="h-9 px-3 text-xs gap-1.5 cursor-pointer"
                   >
                     <RefreshCw size={12} />
-                    Run Re-Test
-                  </Button>
+                    <span>Run Re-Test</span>
+                  </ActionButton>
                 </div>
               ) : (
-                <Button
+                <ActionButton
+                  variant="primary"
                   onClick={handleApprove}
                   disabled={approveMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-10 px-5 font-bold shadow-md gap-2"
+                  className="h-10 px-5 text-xs font-bold shadow-sm cursor-pointer"
                 >
                   {approveMutation.isPending ? (
                     <>
                       <Loader2 size={14} className="animate-spin" />
-                      Activating Autopilot...
+                      <span>Activating Autopilot...</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 size={15} />
-                      Approve 30-Day Plan &amp; Put On Autopilot
+                      <CheckCircle2 size={15} className="text-success-400" />
+                      <span>Approve 30-Day Plan &amp; Put On Autopilot</span>
                     </>
                   )}
-                </Button>
+                </ActionButton>
               )}
             </div>
           </div>
         </div>
 
         {/* Sprint Phase Selector (Tabs) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-4 bg-brand-50/50 dark:bg-brand-950/40 border-b border-brand-100 dark:border-brand-800">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 bg-brand-50/50 border-b border-line">
           {planPhases.map((phase) => {
             const isSelected = activeWeek === phase.week;
             const completedCount = phase.tasks.filter((t) => t.status === "COMPLETED").length;
@@ -446,10 +446,10 @@ export function Autonomous30DayPlanModal({
                 type="button"
                 onClick={() => setActiveWeek(phase.week)}
                 className={cn(
-                  "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between",
+                  "p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between cursor-pointer",
                   isSelected
-                    ? "bg-white dark:bg-brand-900 border-accent-400 dark:border-accent-600 shadow-xs ring-1 ring-accent-400/20"
-                    : "bg-white/60 dark:bg-brand-900/40 border-brand-200 dark:border-brand-800 hover:bg-white",
+                    ? "bg-white border-brand-950 text-brand-950 shadow-xs ring-1 ring-brand-950/10"
+                    : "bg-white/80 border-line hover:bg-white text-brand-600",
                 )}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -457,15 +457,15 @@ export function Autonomous30DayPlanModal({
                     Week {phase.week} • {phase.daysLabel}
                   </span>
                   {completedCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[9.5px] font-mono font-bold">
+                    <Pill tone="good">
                       {completedCount}/{phase.tasks.length}
-                    </span>
+                    </Pill>
                   )}
                 </div>
-                <div className="text-xs font-bold text-brand-950 dark:text-white truncate">
+                <div className="text-xs font-bold text-brand-950 truncate">
                   {phase.badge}
                 </div>
-                <div className="text-[10.5px] text-brand-500 dark:text-brand-400 truncate mt-0.5">
+                <div className="text-[10.5px] text-brand-500 truncate mt-0.5">
                   {phase.focus}
                 </div>
               </button>
@@ -474,11 +474,11 @@ export function Autonomous30DayPlanModal({
         </div>
 
         {/* Sprint Task List */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-3.5">
+        <div className="p-6 overflow-y-auto flex-1 space-y-3.5 bg-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar size={15} className="text-accent-600 dark:text-accent-400" />
-              <h3 className="text-sm font-bold text-brand-950 dark:text-white">
+              <Calendar size={15} className="text-accent-600" />
+              <h3 className="text-[13.5px] font-bold text-brand-950">
                 Week {activeWeek} Daily Milestones &amp; Autonomous Fix Queue
               </h3>
             </div>
@@ -494,51 +494,50 @@ export function Autonomous30DayPlanModal({
                 className={cn(
                   "p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4",
                   task.status === "COMPLETED"
-                    ? "bg-emerald-50/30 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/60"
+                    ? "bg-success-50/30 border-success-200/60"
                     : task.status === "IN_PROGRESS"
-                    ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/60 shadow-xs"
-                    : "bg-white dark:bg-brand-900/60 border-brand-200 dark:border-brand-800",
+                    ? "bg-warning-50/30 border-warning-200/60 shadow-xs"
+                    : "bg-white border-line",
                 )}
               >
                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <div className="w-12 h-12 rounded-xl bg-brand-100 dark:bg-brand-800 flex flex-col items-center justify-center shrink-0 text-brand-800 dark:text-brand-200">
-                    <span className="text-[9.5px] uppercase font-bold tracking-tight">Day</span>
-                    <span className="text-base font-black leading-none">{task.day}</span>
+                  <div className="w-11 h-11 rounded-xl bg-brand-100 flex flex-col items-center justify-center shrink-0 text-brand-800">
+                    <span className="text-[9px] uppercase font-bold tracking-tight text-brand-400">Day</span>
+                    <span className="text-[15px] font-mono font-bold leading-none">{task.day}</span>
                   </div>
 
                   <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-bold text-brand-950 dark:text-white">
+                      <span className="text-[13px] font-bold text-brand-950">
                         {task.title}
                       </span>
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                      <Pill
+                        tone={
                           task.status === "COMPLETED"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                            ? "good"
                             : task.status === "IN_PROGRESS"
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 animate-pulse"
-                            : "bg-brand-100 text-brand-700 dark:bg-brand-800 dark:text-brand-300",
-                        )}
+                            ? "warn"
+                            : "default"
+                        }
                       >
                         {task.status.replace("_", " ")}
-                      </span>
-                      <span className="text-[10px] font-mono text-brand-400">
+                      </Pill>
+                      <span className="text-[10.5px] font-mono text-brand-400">
                         {task.category}
                       </span>
                     </div>
 
-                    <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
+                    <p className="text-[12px] text-brand-600 leading-relaxed">
                       {task.description}
                     </p>
 
                     <div className="pt-1 flex flex-wrap items-center gap-3 text-[11px]">
-                      <span className="font-semibold text-accent-700 dark:text-accent-400">
-                        Business Impact: <span className="font-normal text-brand-700 dark:text-brand-300">{task.plainImpact}</span>
+                      <span className="font-semibold text-brand-900">
+                        Business Impact: <span className="font-normal text-brand-600">{task.plainImpact}</span>
                       </span>
-                      <span className="text-brand-400">•</span>
-                      <span className="text-brand-500 dark:text-brand-400">
-                        Deliverable: <span className="font-mono text-brand-700 dark:text-brand-200">{task.deliverable}</span>
+                      <span className="text-brand-300">•</span>
+                      <span className="text-brand-500">
+                        Deliverable: <span className="font-mono text-brand-700">{task.deliverable}</span>
                       </span>
                     </div>
                   </div>
@@ -549,18 +548,18 @@ export function Autonomous30DayPlanModal({
                     ~{task.estimatedMinutes}m runtime
                   </div>
                   {task.status === "COMPLETED" ? (
-                    <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 size={16} />
+                    <div className="flex items-center gap-1 text-xs font-bold text-success-700">
+                      <CheckCircle2 size={15} className="text-success-600" />
                       <span>Executed</span>
                     </div>
                   ) : task.status === "IN_PROGRESS" ? (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                      <Loader2 size={14} className="animate-spin" />
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-warning-700">
+                      <Loader2 size={13} className="animate-spin text-warning-600" />
                       <span>In Progress</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1 text-xs text-brand-400">
-                      <Clock size={14} />
+                      <Clock size={13} />
                       <span>Queued</span>
                     </div>
                   )}
@@ -571,25 +570,25 @@ export function Autonomous30DayPlanModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-brand-100 dark:border-brand-800 bg-brand-50/50 dark:bg-brand-950/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="text-brand-500 dark:text-brand-400 flex items-center gap-2">
-            <ShieldCheck size={14} className="text-emerald-600" />
+        <div className="p-4 border-t border-line bg-surface-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px]">
+          <div className="text-brand-500 flex items-center gap-2">
+            <ShieldCheck size={15} className="text-success-600" />
             <span>All code changes pass automated syntax verification &amp; regression checks prior to deployment.</span>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onClose} className="text-xs h-8">
+            <ActionButton variant="secondary" onClick={onClose} className="h-8 px-3 text-xs cursor-pointer">
               Close Window
-            </Button>
+            </ActionButton>
             {!isApproved && (
-              <Button
-                size="sm"
+              <ActionButton
+                variant="primary"
                 onClick={handleApprove}
                 disabled={approveMutation.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 font-bold"
+                className="h-8 px-4 text-xs font-bold shadow-sm cursor-pointer"
               >
                 {approveMutation.isPending ? "Activating..." : "Approve 30-Day Plan"}
-              </Button>
+              </ActionButton>
             )}
           </div>
         </div>

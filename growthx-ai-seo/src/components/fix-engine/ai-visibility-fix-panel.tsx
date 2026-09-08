@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ActionButton, Pill } from "@/components/ui/console";
 import type { CrawlIssue, TrackedCompetitor } from "@/lib/api-client";
 import {
   useAutonomousPlanStatus,
@@ -253,98 +254,99 @@ export function AiVisibilityFixPanel({
     : 42;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. TOP EXECUTIVE BANNER: Non-Technical AI Fix Command Center
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl border border-purple-300 dark:border-purple-800 bg-gradient-to-r from-purple-700 via-indigo-800 to-brand-950 text-white p-6 shadow-md">
+      <div className="relative overflow-hidden rounded-xl border border-brand-900 bg-brand-950 text-white p-5 sm:p-6 shadow-sm">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-1.5 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-white text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[11px] font-bold uppercase tracking-wider">
               <Sparkles size={12} className="text-amber-300" />
               AEO &amp; GEO Recommendation Engine
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
               AI Visibility Fix Engine (ChatGPT, Claude &amp; Gemini)
             </h2>
-            <p className="text-xs sm:text-[13px] text-purple-100 leading-relaxed">
+            <p className="text-[13px] text-brand-300 leading-relaxed">
               When prospective customers ask conversational queries in ChatGPT, Claude, or Google AI Overviews, AI engines recommend businesses with clear quotable facts, structured entity data, and verified answers. Below are your website's plain-English AI gaps and 1-click fixes.
             </p>
           </div>
 
           <div className="shrink-0">
             {isPlanApproved ? (
-              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-xl p-3 border border-white/20">
-                <div className="w-10 h-10 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                  <Activity size={20} className="animate-pulse text-emerald-300" />
+              <div className="flex items-center gap-3 bg-white/10 rounded-xl p-3 border border-white/15">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Activity size={18} className="animate-pulse" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <div className="text-[12px] font-bold text-white flex items-center gap-1.5">
                     <span>Autopilot Active</span>
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   </div>
-                  <div className="text-[11px] text-emerald-200">Day {currentPlanDay} of 30: AI Fixes Queued</div>
+                  <div className="text-[11px] text-brand-300">Day {currentPlanDay} of 30: AI Fixes Queued</div>
                 </div>
-                <Button
-                  size="sm"
+                <button
+                  type="button"
                   onClick={onOpen30DayPlan}
-                  className="ml-2 bg-white text-brand-950 hover:bg-white/90 text-xs font-bold h-8"
+                  className="ml-2 rounded-lg bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-xs cursor-pointer"
                 >
                   View Plan
-                </Button>
+                </button>
               </div>
             ) : (
-              <Button
+              <button
+                type="button"
                 onClick={onOpen30DayPlan}
-                className="bg-white hover:bg-white/95 text-brand-950 text-xs sm:text-sm font-black h-11 px-6 shadow-lg gap-2 shrink-0 group transition-all transform hover:-translate-y-0.5"
+                className="flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[13px] font-bold text-brand-950 hover:bg-brand-100 transition shadow-sm group cursor-pointer"
               >
-                <Zap size={16} className="text-amber-500 fill-amber-500" />
+                <Zap size={15} className="text-amber-500 fill-amber-500" />
                 <span>Fix All AI Tasks (Open 30-Day Plan)</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-              </Button>
+                <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
             )}
           </div>
         </div>
 
         {/* Quick Summary Metrics Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/15">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-amber-300">
-              <Bot size={16} />
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-amber-300">
+              <Bot size={15} />
             </div>
             <div>
-              <div className="text-lg font-black leading-none">{citationRate}%</div>
-              <div className="text-[11px] text-purple-100 mt-0.5">AI Citation Share</div>
+              <div className="font-mono text-[18px] font-bold text-white leading-none">{citationRate}%</div>
+              <div className="text-[11px] text-brand-400 mt-1">AI Citation Share</div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-emerald-300">
-              <Quote size={16} />
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-emerald-300">
+              <Quote size={15} />
             </div>
             <div>
-              <div className="text-lg font-black leading-none">{aiGaps.length} Key Gaps</div>
-              <div className="text-[11px] text-purple-100 mt-0.5">Quotable blocks &amp; schema missing</div>
+              <div className="font-mono text-[18px] font-bold text-white leading-none">{aiGaps.length} Key Gaps</div>
+              <div className="text-[11px] text-brand-400 mt-1">Quotable blocks &amp; schema missing</div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-blue-300">
-              <Swords size={16} />
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300">
+              <Swords size={15} />
             </div>
             <div>
-              <div className="text-lg font-black leading-none">{competitorAiQueries.length} Queries</div>
-              <div className="text-[11px] text-purple-100 mt-0.5">Where rivals capture AI leads</div>
+              <div className="font-mono text-[18px] font-bold text-white leading-none">{competitorAiQueries.length} Queries</div>
+              <div className="text-[11px] text-brand-400 mt-1">Where rivals capture AI leads</div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-indigo-300">
-              <Cpu size={16} />
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-indigo-300">
+              <Cpu size={15} />
             </div>
             <div>
-              <div className="text-lg font-black leading-none">3 AI Wings</div>
-              <div className="text-[11px] text-purple-100 mt-0.5">ChatGPT, Claude, Gemini targeted</div>
+              <div className="font-mono text-[18px] font-bold text-white leading-none">3 AI Wings</div>
+              <div className="text-[11px] text-brand-400 mt-1">ChatGPT, Claude, Gemini targeted</div>
             </div>
           </div>
         </div>
@@ -353,81 +355,72 @@ export function AiVisibilityFixPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. SECTION 1: AI Search Optimization (AEO) Gaps on Your Website
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-brand-950 dark:text-white flex items-center gap-2">
-              <Sparkles size={18} className="text-purple-600 dark:text-purple-400" />
+            <h3 className="text-[15px] font-bold text-brand-950 flex items-center gap-2">
+              <Sparkles size={16} className="text-purple-600" />
               <span>1. AI Engine Optimization (AEO) Gaps on Your Website</span>
             </h3>
-            <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">
+            <p className="text-[12px] text-brand-500 mt-0.5">
               These missing elements prevent AI answer engines from quoting your brand when answering customer questions.
             </p>
           </div>
-          <span className="text-xs text-brand-500 font-medium">
+          <Pill tone="info">
             {aiGaps.length} Actionable Fixes
-          </span>
+          </Pill>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {aiGaps.map((gap) => {
             const Icon = gap.icon;
             return (
               <div
                 key={gap.id}
-                className="p-5 rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950/40 shadow-2xs hover:shadow-xs transition-all space-y-3 flex flex-col justify-between"
+                className="p-4 rounded-xl border bg-white shadow-2xs hover:border-brand-300 transition-colors space-y-3 flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                        gap.severity === "Critical"
-                          ? "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300"
-                          : gap.severity === "High"
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                          : "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
-                      )}
-                    >
+                    <Pill tone={gap.severity === "Critical" ? "bad" : gap.severity === "High" ? "warn" : "info"}>
                       {gap.severity} Priority
-                    </span>
-                    <span className="text-[11px] font-mono text-brand-400">
+                    </Pill>
+                    <span className="text-[10.5px] font-mono text-brand-400">
                       {gap.category}
                     </span>
                   </div>
 
-                  <h4 className="text-sm font-bold text-brand-950 dark:text-white flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <h4 className="text-[13.5px] font-bold text-brand-950 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-accent-50 text-accent-700 flex items-center justify-center shrink-0">
                       <Icon size={15} />
                     </div>
                     <span>{gap.title}</span>
                   </h4>
 
-                  <p className="text-xs text-brand-600 dark:text-brand-300 mt-2 leading-relaxed">
+                  <p className="text-[12px] text-brand-600 mt-2 leading-relaxed">
                     {gap.plainExplanation}
                   </p>
 
-                  <div className="mt-2.5 p-2.5 rounded-xl bg-purple-500/5 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-900/30 text-[11.5px] text-purple-950 dark:text-purple-300">
-                    <strong className="text-purple-900 dark:text-purple-200">Why it hurts: </strong>
+                  <div className="mt-2.5 p-2.5 rounded-lg border border-warning-200/60 bg-warning-50/50 text-[11.5px] text-warning-900 leading-relaxed">
+                    <strong className="font-semibold text-warning-950">Why it hurts: </strong>
                     {gap.businessHarm}
                   </div>
 
-                  <div className="mt-2 text-[11.5px] text-emerald-700 dark:text-emerald-400 font-medium">
+                  <div className="mt-2 text-[11.5px] text-success-700 font-medium">
                     ✓ <strong>How we fix it: </strong>{gap.howWeFixIt}
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-brand-100 dark:border-brand-800/80 flex items-center justify-between">
+                <div className="pt-2.5 border-t border-line flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => onOpenAutoFixModal(gap.syntheticIssue as CrawlIssue)}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 group cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-accent-700 hover:text-accent-800 group cursor-pointer"
                   >
                     <Sparkles size={13} className="text-amber-500 fill-amber-500" />
                     <span>1-Click Code Patch</span>
                     <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
                   </button>
-                  <span className="px-2.5 py-1 rounded-lg bg-brand-100 dark:bg-brand-800 text-[10.5px] font-semibold text-brand-800 dark:text-brand-200">
+                  <span className="rounded-md bg-brand-100 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-brand-700">
                     {gap.weekLabel}
                   </span>
                 </div>
@@ -440,68 +433,60 @@ export function AiVisibilityFixPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. SECTION 2: Conversational Questions Where Competitors Capture AI Leads
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-brand-950 dark:text-white flex items-center gap-2">
-              <Swords size={18} className="text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-[15px] font-bold text-brand-950 flex items-center gap-2">
+              <Swords size={16} className="text-success-600" />
               <span>2. Questions Where Competitors Win AI Recommendations (Conquesting)</span>
             </h3>
-            <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">
-              Buyers ask these exact conversational queries in ChatGPT and Claude. Your competitor <strong className="text-brand-950 dark:text-white font-semibold">{topCompetitorName}</strong> is winning the citation; we can capture it.
+            <p className="text-[12px] text-brand-500 mt-0.5">
+              Buyers ask these exact conversational queries in ChatGPT and Claude. Your competitor <strong className="font-semibold text-brand-950">{topCompetitorName}</strong> is winning the citation; we can capture it.
             </p>
           </div>
-          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+          <Pill tone="good">
             {competitorAiQueries.length} High-Value Queries
-          </span>
+          </Pill>
         </div>
 
-        <div className="rounded-2xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950/40 overflow-hidden shadow-2xs">
-          <div className="divide-y divide-brand-100 dark:divide-brand-800/80">
+        <div className="overflow-hidden rounded-xl border bg-white shadow-2xs">
+          <div className="divide-y divide-line">
             {competitorAiQueries.map((item, idx) => (
               <div
                 key={idx}
-                className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-brand-50/40 dark:hover:bg-brand-900/30 transition-colors"
+                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-brand-50/50 transition-colors bg-white"
               >
-                <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-bold text-brand-950 dark:text-white">
+                    <span className="text-[13.5px] font-bold text-brand-950">
                       "{item.query}"
                     </span>
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded-full text-[10.5px] font-bold",
-                        item.isCompetitorWinning
-                          ? "bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
-                          : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-                      )}
-                    >
+                    <Pill tone={item.isCompetitorWinning ? "warn" : "good"}>
                       {item.status}
-                    </span>
+                    </Pill>
                   </div>
 
-                  <p className="text-xs text-brand-600 dark:text-brand-400">
-                    <strong className="text-brand-800 dark:text-brand-200">Why AI picked them: </strong>
+                  <p className="text-[12px] text-brand-600 leading-relaxed">
+                    <strong className="font-semibold text-brand-900">Why AI picked them: </strong>
                     {item.whyAiRecommends}
                   </p>
 
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  <p className="text-[12px] text-success-700 font-medium">
                     <strong>GrowthX Conquest Blueprint: </strong>
                     {item.fixPlan}
                   </p>
                 </div>
 
                 <div className="shrink-0 flex items-center gap-2 self-start md:self-center">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <ActionButton
+                    variant="secondary"
                     onClick={() => onOpenAutoFixModal(item.syntheticIssue as CrawlIssue)}
-                    className="text-xs font-bold h-8 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 gap-1.5 cursor-pointer"
+                    className="h-8 text-[11.5px] cursor-pointer"
                   >
                     <Sparkles size={12} className="text-amber-500 fill-amber-500" />
                     <span>Generate Answer Block</span>
-                  </Button>
-                  <span className="px-2.5 py-1 rounded-lg bg-brand-100 dark:bg-brand-800 text-[10.5px] font-semibold text-brand-800 dark:text-brand-200">
+                  </ActionButton>
+                  <span className="rounded-md bg-brand-100 px-2.5 py-1 font-mono text-[10.5px] font-semibold text-brand-700">
                     Week 2 Task
                   </span>
                 </div>
@@ -514,74 +499,80 @@ export function AiVisibilityFixPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           4. SECTION 3: Tri-Engine Optimization Superpowers (Claude, ChatGPT, Gemini)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div>
-          <h3 className="text-base font-bold text-brand-950 dark:text-white flex items-center gap-2">
-            <Cpu size={18} className="text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-[15px] font-bold text-brand-950 flex items-center gap-2">
+            <Cpu size={16} className="text-accent-600" />
             <span>3. How Claude, ChatGPT &amp; Gemini Evaluate Your Website</span>
           </h3>
-          <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">
+          <p className="text-[12px] text-brand-500 mt-0.5">
             Each AI model has specific requirements to cite and recommend your brand. GrowthX addresses all three.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/20 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">
-                Claude (Anthropic)
-              </span>
-              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                Market Research &amp; Logic
-              </span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div className="rounded-xl border bg-white p-4 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-brand-300 transition-colors">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Pill tone="warn">
+                  Claude (Anthropic)
+                </Pill>
+                <span className="text-[11px] font-semibold text-warning-700">
+                  Market Research &amp; Logic
+                </span>
+              </div>
+              <h4 className="text-[14px] font-bold text-brand-950">
+                Demographic &amp; Analytical Proof
+              </h4>
+              <p className="mt-1 text-[12px] text-brand-600 leading-relaxed">
+                Claude evaluates websites for rigorous data, sector-level details, and verified operational credentials before recommending them in deep research tasks.
+              </p>
             </div>
-            <h4 className="text-sm font-bold text-brand-950 dark:text-white">
-              Demographic &amp; Analytical Proof
-            </h4>
-            <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-              Claude evaluates websites for rigorous data, sector-level details, and verified operational credentials before recommending them in deep research tasks.
-            </p>
-            <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-[11px] text-amber-900 dark:text-amber-300 font-medium">
+            <div className="mt-2 pt-2.5 border-t border-line text-[11px] text-success-700 font-medium bg-success-50/50 -mx-4 -mb-4 px-4 py-2 rounded-b-xl">
               ✓ Automated in Week 2: B2B Spec Tables &amp; Sector Case Studies.
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200">
-                ChatGPT (OpenAI)
-              </span>
-              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                Conversational Search
-              </span>
+          <div className="rounded-xl border bg-white p-4 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-brand-300 transition-colors">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Pill tone="good">
+                  ChatGPT (OpenAI)
+                </Pill>
+                <span className="text-[11px] font-semibold text-success-700">
+                  Conversational Search
+                </span>
+              </div>
+              <h4 className="text-[14px] font-bold text-brand-950">
+                Concise Direct Answers &amp; Pricing
+              </h4>
+              <p className="mt-1 text-[12px] text-brand-600 leading-relaxed">
+                OpenAI models search for direct 45-word answers, structured pricing comparisons, and clear customer proof points to synthesize recommendations.
+              </p>
             </div>
-            <h4 className="text-sm font-bold text-brand-950 dark:text-white">
-              Concise Direct Answers &amp; Pricing
-            </h4>
-            <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-              OpenAI models search for direct 45-word answers, structured pricing comparisons, and clear customer proof points to synthesize recommendations.
-            </p>
-            <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/60 text-[11px] text-emerald-900 dark:text-emerald-300 font-medium">
+            <div className="mt-2 pt-2.5 border-t border-line text-[11px] text-success-700 font-medium bg-success-50/50 -mx-4 -mb-4 px-4 py-2 rounded-b-xl">
               ✓ Automated in Week 2: 45-Word Answer Blocks &amp; Comparison Matrix.
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/30 dark:bg-blue-950/20 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-blue-100 text-blue-900 dark:bg-blue-900/50 dark:text-blue-200">
-                Gemini (Google)
-              </span>
-              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400">
-                Knowledge Graph &amp; AIO
-              </span>
+          <div className="rounded-xl border bg-white p-4 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-brand-300 transition-colors">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Pill tone="info">
+                  Gemini (Google)
+                </Pill>
+                <span className="text-[11px] font-semibold text-accent-700">
+                  Knowledge Graph &amp; AIO
+                </span>
+              </div>
+              <h4 className="text-[14px] font-bold text-brand-950">
+                Google Knowledge Graph Grounding
+              </h4>
+              <p className="mt-1 text-[12px] text-brand-600 leading-relaxed">
+                Gemini powers Google AI Overviews. It relies on verified Organization Schema, Google Business Profile data, and fast mobile speed.
+              </p>
             </div>
-            <h4 className="text-sm font-bold text-brand-950 dark:text-white">
-              Google Knowledge Graph Grounding
-            </h4>
-            <p className="text-xs text-brand-600 dark:text-brand-400 leading-relaxed">
-              Gemini powers Google AI Overviews. It relies on verified Organization Schema, Google Business Profile data, and fast mobile speed.
-            </p>
-            <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/60 text-[11px] text-blue-900 dark:text-blue-300 font-medium">
+            <div className="mt-2 pt-2.5 border-t border-line text-[11px] text-success-700 font-medium bg-success-50/50 -mx-4 -mb-4 px-4 py-2 rounded-b-xl">
               ✓ Automated in Week 3: Organization Schema &amp; Mobile Web Vitals.
             </div>
           </div>
@@ -591,28 +582,29 @@ export function AiVisibilityFixPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           5. BOTTOM ACTION BANNER: Fix All AI Tasks (Open 30-Day Plan)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="p-6 rounded-2xl border border-brand-200 dark:border-brand-800 bg-gradient-to-r from-purple-50 via-white to-purple-50 dark:from-purple-950/60 dark:via-brand-900/60 dark:to-purple-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-sm">
+      <div className="rounded-xl border bg-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-            <CheckCircle2 size={15} />
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-success-700">
+            <CheckCircle2 size={14} className="text-success-600" />
             <span>Integrated 30-Day Autopilot Execution</span>
           </div>
-          <h3 className="text-lg font-black text-brand-950 dark:text-white">
+          <h3 className="text-[15px] font-bold text-brand-950">
             Align All AI Visibility Fixes Into the 30-Day Plan
           </h3>
-          <p className="text-xs text-brand-600 dark:text-brand-400 max-w-2xl">
+          <p className="text-[12px] text-brand-500 max-w-2xl leading-relaxed">
             When you approve the plan, GrowthX puts your site on autopilot: establishing Schema entity grounding, deploying quotable answer blocks, capturing competitor queries, and monitoring citations across ChatGPT, Claude, and Gemini.
           </p>
         </div>
 
         <div className="shrink-0">
-          <Button
+          <ActionButton
+            variant="primary"
             onClick={onOpen30DayPlan}
-            className="bg-brand-950 text-white dark:bg-white dark:text-brand-950 hover:bg-brand-800 text-xs sm:text-sm font-bold h-11 px-6 shadow-md gap-2 cursor-pointer"
+            className="h-10 px-4 text-[12.5px] shadow-sm cursor-pointer"
           >
-            <Zap size={15} className="text-amber-400 fill-amber-400" />
+            <Zap size={14} className="text-amber-400 fill-amber-400" />
             <span>{isPlanApproved ? "View Active 30-Day Plan" : "Fix All AI Tasks (Open 30-Day Plan)"}</span>
-          </Button>
+          </ActionButton>
         </div>
       </div>
     </div>
