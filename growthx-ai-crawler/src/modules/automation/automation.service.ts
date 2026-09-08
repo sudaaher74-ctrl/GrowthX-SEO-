@@ -27,6 +27,9 @@ interface RunStep {
 /** How many fixes one run will attempt, so a PR stays reviewable. */
 const MAX_FIXES_PER_RUN = 25;
 
+/** Fix types whose proposedValue is a display label, not the value to apply. */
+const JSON_LD_FIX_TYPES = new Set(['FAQ_SCHEMA', 'PRODUCT_SCHEMA', 'ORGANIZATION_SCHEMA', 'BREADCRUMB_SCHEMA']);
+
 /** Page file extensions the resolver will match, most specific first. */
 const PAGE_EXTENSIONS = ['tsx', 'jsx', 'ts', 'js', 'mdx'] as const;
 
@@ -195,7 +198,14 @@ export class AutomationService {
           continue;
         }
 
-        const outcome = await this.patcher.applyFix(target, patch.fixType, patch.proposedValue);
+        // JSON-LD fix types carry only a human label ("Product JSON-LD") in
+        // proposedValue for display; the real object lives inside the
+        // <script> tag in codeSnippet. The patcher needs the real object.
+        const patchValue = JSON_LD_FIX_TYPES.has(patch.fixType)
+          ? this.extractJsonLd(patch.codeSnippet) ?? patch.proposedValue
+          : patch.proposedValue;
+
+        const outcome = await this.patcher.applyFix(target, patch.fixType, patchValue);
         if (outcome.applied) {
           changed.push(path.relative(workingDir, target));
           if (issue.affectedUrl) {
@@ -446,7 +456,7 @@ export class AutomationService {
     }
   }
 
-  private parsePatch(raw?: string | null): { fixType: string; proposedValue: string } | null {
+  private parsePatch(raw?: string | null): { fixType: string; proposedValue: string; codeSnippet?: string } | null {
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw);
@@ -454,6 +464,13 @@ export class AutomationService {
     } catch {
       return null;
     }
+  }
+
+  /** Pulls the raw JSON-LD object out of a `<script type="application/ld+json">` code snippet. */
+  private extractJsonLd(codeSnippet?: string): string | null {
+    if (!codeSnippet) return null;
+    const match = codeSnippet.match(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/i);
+    return match ? match[1].trim() : null;
   }
 
   /**

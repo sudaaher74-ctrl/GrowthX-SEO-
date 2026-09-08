@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Project, SyntaxKind, ObjectLiteralExpression } from 'ts-morph';
+import { Project, SyntaxKind, ObjectLiteralExpression, Node, ReturnStatement } from 'ts-morph';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -277,6 +277,104 @@ Respond strictly with a JSON object.
     return { applied: true };
   }
 
+  // ------------------------------------------------------------ Next.js JSON-LD
+
+  /** The page component function a Next.js JSON-LD patch is injected into. */
+  private findNextJsPageComponent(sourceFile: import('ts-morph').SourceFile) {
+    const defaultFn = sourceFile.getFunctions().find((f) => f.isDefaultExport());
+    if (defaultFn) return defaultFn;
+
+    // `const Page = () => {...}; export default Page;`
+    const exportAssignment = sourceFile.getExportAssignments()[0];
+    const expr = exportAssignment?.getExpression();
+    if (expr && Node.isIdentifier(expr)) {
+      const varDecl = sourceFile.getVariableDeclaration(expr.getText());
+      const init = varDecl?.getInitializer();
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) return init;
+    }
+    if (expr && (Node.isArrowFunction(expr) || Node.isFunctionExpression(expr))) return expr;
+
+    return undefined;
+  }
+
+  /**
+   * Injects a JSON-LD `<script>` into a Next.js page component's returned
+   * JSX, since there is no `metadata` export equivalent for structured data.
+   *
+   * Re-running with the same `@type` updates the existing `const jsonLd*`
+   * declaration in place instead of duplicating the script tag.
+   */
+  async injectNextJsJsonLd(filePath: string, jsonLd: string | object): Promise<PatchOutcome> {
+    let parsed: any;
+    try {
+      parsed = typeof jsonLd === 'string' ? JSON.parse(jsonLd) : jsonLd;
+    } catch {
+      return { applied: false, reason: 'Refused to inject malformed JSON-LD.' };
+    }
+    if (!parsed || typeof parsed !== 'object' || !parsed['@type']) {
+      return { applied: false, reason: 'JSON-LD is missing an @type and would not validate.' };
+    }
+
+    const project = new Project();
+    const sourceFile = project.addSourceFileAtPath(filePath);
+
+    const component = this.findNextJsPageComponent(sourceFile);
+    const body = component?.getBody();
+    if (!component || !body || !Node.isBlock(body)) {
+      return { applied: false, reason: 'No page component with a JSX return was found to patch.' };
+    }
+
+    const statements = body.getStatements();
+    const returnIndex = [...statements].reverse().findIndex((s) => Node.isReturnStatement(s));
+    const returnStatement = returnIndex === -1 ? undefined : (statements[statements.length - 1 - returnIndex] as ReturnStatement);
+    if (!returnStatement) {
+      return { applied: false, reason: 'Page component has no JSX return to patch.' };
+    }
+    const returnStatementIndex = statements.length - 1 - returnIndex;
+
+    const expr = returnStatement.getExpression();
+    const jsxRoot = expr && Node.isParenthesizedExpression(expr) ? expr.getExpression() : expr;
+    if (!jsxRoot || !(Node.isJsxFragment(jsxRoot) || Node.isJsxElement(jsxRoot) || Node.isJsxSelfClosingElement(jsxRoot))) {
+      return { applied: false, reason: 'Page component return has no JSX to patch.' };
+    }
+
+    const varName = jsonLdVarName(String(parsed['@type']));
+    const jsonLiteral = JSON.stringify(parsed, null, 2);
+    const alreadyInjected = jsxRoot.getText().includes(varName) && jsxRoot.getText().includes('application/ld+json');
+
+    // Insert/update the const declaration first — this can invalidate ts-morph's
+    // wrapper for sibling nodes in the block (including the JSX we just found),
+    // so the JSX is re-located fresh afterward rather than reusing `jsxRoot`.
+    const existingDecl = body.getVariableDeclaration(varName);
+    if (existingDecl) {
+      existingDecl.setInitializer(jsonLiteral);
+    } else {
+      body.insertStatements(returnStatementIndex, `const ${varName} = ${jsonLiteral};`);
+    }
+
+    if (!alreadyInjected) {
+      const freshReturn = body.getStatements().find((s): s is ReturnStatement => Node.isReturnStatement(s));
+      const freshExpr = freshReturn?.getExpression();
+      const freshJsxRoot = freshExpr && Node.isParenthesizedExpression(freshExpr) ? freshExpr.getExpression() : freshExpr;
+      if (!freshJsxRoot || !(Node.isJsxFragment(freshJsxRoot) || Node.isJsxElement(freshJsxRoot) || Node.isJsxSelfClosingElement(freshJsxRoot))) {
+        return { applied: false, reason: 'Page component return has no JSX to patch.' };
+      }
+
+      const scriptTag = `<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(${varName}) }} />`;
+      if (Node.isJsxFragment(freshJsxRoot)) {
+        // Insert as the first child, right after the opening `<>`.
+        const originalText = freshJsxRoot.getText();
+        const insertPos = originalText.indexOf('>') + 1;
+        freshJsxRoot.replaceWithText(`${originalText.slice(0, insertPos)}\n  ${scriptTag}${originalText.slice(insertPos)}`);
+      } else {
+        freshJsxRoot.replaceWithText(`<>\n  ${scriptTag}\n  ${freshJsxRoot.getText()}\n</>`);
+      }
+    }
+
+    await sourceFile.save();
+    return { applied: true };
+  }
+
   /**
    * Applies a patch by fix type, dispatching to the right file strategy.
    * This is what the orchestrator calls.
@@ -290,6 +388,9 @@ Respond strictly with a JSON object.
     const target = options.target ?? this.detectTarget(filePath);
 
     if (target === 'nextjs-metadata') {
+      if (JSON_LD_FIX_TYPES.has(fixType)) {
+        return this.injectNextJsJsonLd(filePath, value);
+      }
       const property = NEXT_METADATA_PROPERTY[fixType];
       if (!property) {
         return { applied: false, reason: `${fixType} cannot be expressed as Next.js metadata.` };
@@ -324,6 +425,15 @@ const NEXT_METADATA_PROPERTY: Readonly<Record<string, string>> = {
   META_DESCRIPTION: 'description',
   CANONICAL_URL: 'alternates.canonical',
 };
+
+/** Fix types that inject a JSON-LD `<script>` rather than editing metadata/HTML tags. */
+const JSON_LD_FIX_TYPES = new Set(['FAQ_SCHEMA', 'PRODUCT_SCHEMA', 'ORGANIZATION_SCHEMA', 'BREADCRUMB_SCHEMA']);
+
+/** "Product" -> "jsonLdProduct", "FAQPage" -> "jsonLdFAQPage" */
+function jsonLdVarName(schemaType: string): string {
+  const clean = schemaType.replace(/[^A-Za-z0-9]/g, '') || 'Schema';
+  return `jsonLd${clean.charAt(0).toUpperCase()}${clean.slice(1)}`;
+}
 
 function escapeAttr(value: string): string {
   return value.replace(/"/g, '&quot;');
