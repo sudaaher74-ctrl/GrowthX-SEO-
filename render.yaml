@@ -79,6 +79,22 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      # Mammouth AI (OpenAI-compatible gateway). Preference #1 in every router
+      # task chain, so with a real key here it serves reasoning, SEO analysis
+      # and fast tasks ahead of Sarvam and the rest. Unset, the router falls
+      # through to the next configured provider and the Settings -> AI
+      # Configuration tab reports "not configured" rather than degrading
+      # silently. Without the rate pair every Mammouth call records tokens at
+      # unknown cost, so the AI spend ledger reports zero and an
+      # organization's monthly AI budget can never fire. See .env.example.
+      - key: MAMMOUTH_API_KEY
+        sync: false
+      - key: MAMMOUTH_DEFAULT_MODEL
+        value: mammouth-recommended
+      - key: MAMMOUTH_RATE_INPUT_PER_MTOK
+        sync: false
+      - key: MAMMOUTH_RATE_OUTPUT_PER_MTOK
+        sync: false
       # Optional AI providers — the multi-AI router degrades gracefully when unset.
       - key: ANTHROPIC_API_KEY
         sync: false
