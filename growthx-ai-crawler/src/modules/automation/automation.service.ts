@@ -27,6 +27,18 @@ interface RunStep {
 /** How many fixes one run will attempt, so a PR stays reviewable. */
 const MAX_FIXES_PER_RUN = 25;
 
+/** Page file extensions the resolver will match, most specific first. */
+const PAGE_EXTENSIONS = ['tsx', 'jsx', 'ts', 'js', 'mdx'] as const;
+
+/** `page.tsx` and friends, the App Router's route entry point. */
+const PAGE_FILE = new RegExp(`^page\\.(${PAGE_EXTENSIONS.join('|')})$`);
+
+/** Never treated as an application workspace. */
+const IGNORED_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', 'public', 'static']);
+
+/** Bounds the App Router walk on a pathological tree. */
+const MAX_ROUTE_DEPTH = 12;
+
 @Injectable()
 export class AutomationService {
   private readonly logger = new Logger(AutomationService.name);
@@ -436,20 +448,64 @@ export class AutomationService {
     const slug = segments[segments.length - 1] ?? 'index';
     const routePath = segments.join('/');
 
-    const candidates =
-      framework === 'static-html'
-        ? [`${routePath || 'index'}.html`, path.join(routePath, 'index.html'), `${slug}.html`]
-        : [
-            path.join('src/app', routePath, 'page.tsx'),
-            path.join('app', routePath, 'page.tsx'),
-            path.join('src/pages', `${routePath || 'index'}.tsx`),
-            path.join('pages', `${routePath || 'index'}.tsx`),
-            `${routePath || 'index'}.html`,
-            path.join(routePath, 'index.html'),
-          ];
+    // A client's site is often one workspace inside a monorepo, so the app is
+    // not necessarily at the clone root.
+    const appRoots = await this.candidateAppRoots(repoDir);
 
+    const htmlCandidates = [
+      `${routePath || 'index'}.html`,
+      path.join(routePath, 'index.html'),
+      `${slug}.html`,
+    ];
+
+    if (framework === 'static-html') {
+      for (const appRoot of appRoots) {
+        const found = await this.firstExisting(repoDir, path.join(repoDir, appRoot), htmlCandidates);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    // Two passes, ordered by how well the match is evidenced rather than by
+    // directory order: a real route in the last workspace still beats a bare
+    // index.html in the first. Without this, a monorepo's `admin/index.html`
+    // shadowed the Next.js page that actually serves `/`.
+    for (const appRoot of appRoots) {
+      const base = path.join(repoDir, appRoot);
+
+      // App Router needs a walk rather than a join: route groups `(marketing)`
+      // and parallel routes `@modal` sit in the path on disk but not in the
+      // URL, so `/` can live at `src/app/(public)/page.jsx`.
+      for (const appDir of ['src/app', 'app']) {
+        const resolved = await this.findAppRouterPage(repoDir, path.join(base, appDir), segments);
+        if (resolved) return resolved;
+      }
+
+      const pagesRouter: string[] = [];
+      for (const ext of PAGE_EXTENSIONS) {
+        pagesRouter.push(path.join('src/pages', `${routePath || 'index'}.${ext}`));
+        pagesRouter.push(path.join('pages', `${routePath || 'index'}.${ext}`));
+      }
+      const found = await this.firstExisting(repoDir, base, pagesRouter);
+      if (found) return found;
+    }
+
+    for (const appRoot of appRoots) {
+      const found = await this.firstExisting(repoDir, path.join(repoDir, appRoot), htmlCandidates);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  /** Resolves the first candidate that exists, without escaping the clone. */
+  private async firstExisting(
+    repoDir: string,
+    base: string,
+    candidates: string[],
+  ): Promise<string | null> {
     for (const candidate of candidates) {
-      const absolute = path.join(repoDir, candidate);
+      const absolute = path.join(base, candidate);
       // Never escape the clone directory, whatever the URL contained.
       if (!absolute.startsWith(repoDir)) continue;
       try {
@@ -459,6 +515,108 @@ export class AutomationService {
         // try the next candidate
       }
     }
+    return null;
+  }
+
+  /**
+   * The clone root, plus any first-level workspace that holds a web app.
+   * Ordered so the root always wins a tie.
+   */
+  private async candidateAppRoots(repoDir: string): Promise<string[]> {
+    const roots = [''];
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(repoDir, { withFileTypes: true });
+    } catch {
+      return roots;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('.') || IGNORED_DIRS.has(entry.name)) continue;
+      for (const marker of ['src/app', 'app', 'src/pages', 'pages', 'index.html']) {
+        try {
+          await fs.access(path.join(repoDir, entry.name, marker));
+          roots.push(entry.name);
+          break;
+        } catch {
+          // keep looking
+        }
+      }
+    }
+    return roots;
+  }
+
+  /**
+   * Walks an App Router tree for the page serving `segments`, ignoring route
+   * groups and parallel-route folders. An exact route wins; a dynamic segment
+   * (`[slug]`) is only accepted when nothing matches literally.
+   */
+  private async findAppRouterPage(
+    repoDir: string,
+    appDir: string,
+    segments: string[],
+  ): Promise<string | null> {
+    if (!appDir.startsWith(repoDir)) return null;
+    try {
+      const stat = await fs.stat(appDir);
+      if (!stat.isDirectory()) return null;
+    } catch {
+      return null;
+    }
+
+    const exact = await this.walkRoute(appDir, segments, false);
+    return exact ?? (await this.walkRoute(appDir, segments, true));
+  }
+
+  private async walkRoute(
+    dir: string,
+    remaining: string[],
+    allowDynamic: boolean,
+    depth = 0,
+  ): Promise<string | null> {
+    if (depth > MAX_ROUTE_DEPTH) return null;
+
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    if (remaining.length === 0) {
+      for (const entry of entries) {
+        if (entry.isFile() && PAGE_FILE.test(entry.name)) return path.join(dir, entry.name);
+      }
+    }
+
+    const passthrough = entries.filter(
+      (e) => e.isDirectory() && (/^\(.+\)$/.test(e.name) || e.name.startsWith('@')),
+    );
+    for (const entry of passthrough) {
+      const found = await this.walkRoute(path.join(dir, entry.name), remaining, allowDynamic, depth + 1);
+      if (found) return found;
+    }
+
+    if (remaining.length === 0) return null;
+    const [head, ...tail] = remaining;
+
+    const literal = entries.find((e) => e.isDirectory() && e.name === head);
+    if (literal) {
+      const found = await this.walkRoute(path.join(dir, head), tail, allowDynamic, depth + 1);
+      if (found) return found;
+    }
+
+    if (allowDynamic) {
+      const dynamic = entries.filter((e) => e.isDirectory() && /^\[.+\]$/.test(e.name));
+      for (const entry of dynamic) {
+        // A catch-all consumes the rest of the path.
+        const rest = /^\[\.\.\./.test(entry.name) ? [] : tail;
+        const found = await this.walkRoute(path.join(dir, entry.name), rest, allowDynamic, depth + 1);
+        if (found) return found;
+      }
+    }
+
     return null;
   }
 

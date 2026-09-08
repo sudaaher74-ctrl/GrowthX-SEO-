@@ -304,4 +304,93 @@ describe('AutomationService', () => {
       expect(impact.recordIntervention).not.toHaveBeenCalled();
     });
   });
+
+  describe('resolveTargetFile', () => {
+    const os = require('os');
+    const realFs = require('fs');
+    const nodePath = require('path');
+    let repo: string;
+
+    /** Creates an empty file, making its parent directories on the way. */
+    function touch(relative: string) {
+      const absolute = nodePath.join(repo, relative);
+      realFs.mkdirSync(nodePath.dirname(absolute), { recursive: true });
+      realFs.writeFileSync(absolute, '');
+    }
+
+    const resolve = (url: string, framework = 'nextjs') =>
+      (service as any).resolveTargetFile(repo, url, framework);
+
+    beforeEach(() => {
+      repo = realFs.mkdtempSync(nodePath.join(os.tmpdir(), 'growthx-resolve-'));
+    });
+
+    afterEach(() => {
+      realFs.rmSync(repo, { recursive: true, force: true });
+    });
+
+    it('finds an App Router page inside a monorepo workspace', async () => {
+      touch('frontend/src/app/contact/page.jsx');
+      await expect(resolve('https://site.com/contact')).resolves.toBe(
+        nodePath.join(repo, 'frontend/src/app/contact/page.jsx'),
+      );
+    });
+
+    it('sees through route groups, which are on disk but not in the URL', async () => {
+      touch('frontend/src/app/(public)/page.jsx');
+      touch('frontend/src/app/(public)/about/page.jsx');
+      await expect(resolve('https://site.com/')).resolves.toBe(
+        nodePath.join(repo, 'frontend/src/app/(public)/page.jsx'),
+      );
+      await expect(resolve('https://site.com/about')).resolves.toBe(
+        nodePath.join(repo, 'frontend/src/app/(public)/about/page.jsx'),
+      );
+    });
+
+    it('prefers a real route over a bare index.html in an earlier workspace', async () => {
+      // readdir yields `admin` before `frontend`; the Next.js page must still win.
+      touch('admin/index.html');
+      touch('frontend/src/app/(public)/page.jsx');
+      await expect(resolve('https://site.com/')).resolves.toBe(
+        nodePath.join(repo, 'frontend/src/app/(public)/page.jsx'),
+      );
+    });
+
+    it('falls back to a dynamic segment only when no literal route matches', async () => {
+      touch('src/app/products/page.jsx');
+      touch('src/app/products/[slug]/page.jsx');
+      await expect(resolve('https://site.com/products')).resolves.toBe(
+        nodePath.join(repo, 'src/app/products/page.jsx'),
+      );
+      await expect(resolve('https://site.com/products/ghee-500ml')).resolves.toBe(
+        nodePath.join(repo, 'src/app/products/[slug]/page.jsx'),
+      );
+    });
+
+    it('still resolves the Pages Router and plain HTML', async () => {
+      touch('src/pages/pricing.tsx');
+      touch('help.html');
+      await expect(resolve('https://site.com/pricing')).resolves.toBe(
+        nodePath.join(repo, 'src/pages/pricing.tsx'),
+      );
+      await expect(resolve('https://site.com/help')).resolves.toBe(nodePath.join(repo, 'help.html'));
+    });
+
+    it('returns null rather than guessing when nothing matches', async () => {
+      touch('frontend-react/src/pages/Cart.jsx');
+      // A react-router SPA maps URLs to components in a router file, not by
+      // filename, so /cart must not be guessed onto Cart.jsx.
+      await expect(resolve('https://site.com/cart')).resolves.toBeNull();
+    });
+
+    it('never escapes the clone directory', async () => {
+      touch('src/app/page.jsx');
+      await expect(resolve('https://site.com/../../etc/passwd')).resolves.toBeNull();
+    });
+
+    it('ignores node_modules when looking for workspaces', async () => {
+      touch('node_modules/some-pkg/src/app/contact/page.jsx');
+      await expect(resolve('https://site.com/contact')).resolves.toBeNull();
+    });
+  });
 });
