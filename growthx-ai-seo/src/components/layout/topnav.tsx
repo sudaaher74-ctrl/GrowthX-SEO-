@@ -17,22 +17,24 @@ import {
 } from "@/hooks/use-growthx";
 import { CommandPalette } from "@/components/ui/command-palette";
 
-/** Breadcrumb scope + title for each route, matching E-Commerce & Google Business Profile IA. */
+/** Breadcrumb scope + title for each route, matching workspace architecture. */
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/clients": { scope: "Portfolio", title: "Projects" },
-  "/dashboard": { scope: "E-Commerce", title: "Dashboard" },
-  "/website": { scope: "E-Commerce", title: "Website Audit" },
-  "/technical-seo": { scope: "E-Commerce", title: "Website Audit" },
-  "/competitor-intelligence": { scope: "E-Commerce", title: "Competitor Intelligence" },
-  "/competitors": { scope: "E-Commerce", title: "Competitor Intelligence" },
-  "/social-media": { scope: "E-Commerce", title: "Social Media" },
-  "/local": { scope: "Google Business Profile", title: "Local SEO" },
-  "/monitoring": { scope: "Google Business Profile", title: "Monitoring" },
-  "/market-research": { scope: "Google Business Profile", title: "Market Research" },
+  "/dashboard": { scope: "Workspace", title: "Dashboard" },
+  "/website": { scope: "Workspace", title: "Website Audit" },
+  "/technical-seo": { scope: "Workspace", title: "Website Audit" },
+  "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/competitors": { scope: "Workspace", title: "Competitor Intelligence" },
+  "/ai-visibility": { scope: "Workspace", title: "AI Visibility" },
+  "/fix-engine": { scope: "Workspace", title: "Fix Engine" },
+  "/engineer": { scope: "Workspace", title: "Fix Engine" },
+  "/social-media": { scope: "Workspace", title: "Social Media" },
+  "/local": { scope: "Workspace", title: "Local SEO" },
+  "/monitoring": { scope: "Workspace", title: "Monitoring" },
+  "/market-research": { scope: "Workspace", title: "Market Research" },
   "/search-performance": { scope: "Workspace", title: "Search Performance" },
   "/search/search-console": { scope: "Workspace", title: "Search Performance" },
   "/analytics": { scope: "Workspace", title: "Search Performance" },
-  "/ai-visibility": { scope: "Workspace", title: "AI Visibility" },
   "/search": { scope: "Workspace", title: "AI Visibility" },
   "/geo-tracking": { scope: "Workspace", title: "AI Visibility" },
   "/content-opportunities": { scope: "Workspace", title: "Content & Opportunities" },

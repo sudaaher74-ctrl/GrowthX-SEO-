@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Bell, ChevronsUpDown, Crosshair, Gauge, Globe, Grid3x3, LayoutGrid, LightbulbIcon, LogOut, MapPin, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Telescope, TrendingUp, Wrench } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -12,8 +12,8 @@ import { useEntitlements, usePortfolio, useWorkspace, useProfile } from "@/hooks
 /**
  * Agency console sidebar.
  *
- * Two scopes, exactly as the design specifies: AGENCY-level work at the top,
- * then a client switcher and everything scoped to the selected client.
+ * Scoped to the selected client with 5 core tabs:
+ * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine
  */
 
 interface NavItem {
@@ -54,17 +54,13 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
-  // GrowthX is an SEO platform. Every group below answers one step of the
-  // measure -> diagnose -> fix -> ship -> measure loop; anything that does not
-  // is not in the primary navigation.
-  //
-  // Content Studio and Social Media were removed here deliberately. Their
-  // routes (/content-ai, /content, /social-media, /content-intelligence,
-  // /marketing) still resolve so existing links and bookmarks do not 404, but
-  // they are no longer part of the product's navigation and are not being
-  // developed further.
-  const seoNav: NavItem[] = [
-    { label: "Dashboard", href: "/dashboard", icon: Activity },
+  // Core 5 Navigation Tabs requested by user
+  const mainNav: NavItem[] = [
+    {
+      label: "Dashboard",
+      href: "/dashboard",
+      icon: Activity,
+    },
     {
       label: "Website Audit",
       href: "/website",
@@ -79,39 +75,20 @@ export function Sidebar({
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
     },
-    { label: "AI Visibility", href: "/ai-visibility", icon: Sparkles },
     {
-      label: "SEO Opportunities",
-      href: "/opportunities",
-      icon: LightbulbIcon,
-      aliases: ["/content-opportunities"],
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Sparkles,
+      aliases: ["/geo-tracking", "/search"],
     },
-    { label: "Fix Engine", href: "/engineer", icon: Wrench, aliases: ["/action-engine"] },
-    { label: "Market Research", href: "/market-research", icon: Telescope },
-  ];
-
-  const localNav: NavItem[] = [
-    { label: "Local SEO", href: "/local", icon: MapPin },
-    { label: "Geo Grid", href: "/geo-tracking", icon: Grid3x3 },
-  ];
-
-  const measurementNav: NavItem[] = [
-    { label: "Rankings", href: "/keywords", icon: TrendingUp },
     {
-      label: "Traffic & Performance",
-      href: "/search-performance",
-      icon: Gauge,
-      aliases: ["/analytics", "/search"],
+      label: "Fix Engine",
+      href: "/fix-engine",
+      icon: Wrench,
+      aliases: ["/engineer", "/action-engine"],
     },
   ];
 
-  const automationNav: NavItem[] = [
-    { label: "Fixes", href: "/action-queue", icon: Wrench },
-    { label: "Alerts", href: "/monitoring", icon: Bell },
-  ];
-
-
-  const crawlQuota = entitlements.data?.quotas.find((q) => q.metric === "CRAWL_PAGES");
   return (
     <>
       {mobileOpen && (
@@ -153,7 +130,7 @@ export function Sidebar({
             <SectionLabel>Workspace</SectionLabel>
 
             {/* Client switcher */}
-            <div className="relative px-1">
+            <div className="relative px-1 mb-3">
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
                 disabled={projects.length === 0}
@@ -201,21 +178,12 @@ export function Sidebar({
               )}
             </div>
 
-            {[
-              { label: "SEO", items: seoNav },
-              { label: "Local SEO", items: localNav },
-              { label: "Measurement", items: measurementNav },
-              { label: "Automation", items: automationNav },
-            ].map((group, index) => (
-              <div key={group.label} className={index === 0 ? "mt-3" : "mt-4"}>
-                <SectionLabel>{group.label}</SectionLabel>
-                <div className="space-y-0.5 mt-1">
-                  {group.items.map((item) => (
-                    <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
-                  ))}
-                </div>
-              </div>
-            ))}
+            {/* Main Tabs */}
+            <div className="space-y-0.5 mt-2">
+              {mainNav.map((item) => (
+                <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
+              ))}
+            </div>
 
             <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
               <NavLink 
@@ -231,7 +199,6 @@ export function Sidebar({
             </div>
           </div>
         </nav>
-
 
         {/* User */}
         {(() => {
@@ -347,8 +314,6 @@ function NavLink({
       <div
         className={cn(
           "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
-          /* The active row used brand-100, which is also the hover colour, so
-             hovering any row made it look selected. */
           active
             ? "bg-brand-950 font-semibold text-white"
             : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
@@ -357,8 +322,6 @@ function NavLink({
         <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
         <span className="flex-1 truncate">{item.label}</span>
         {item.tag && (
-          /* A count that matters is a badge, not loose mono text at the row's
-             edge — a red "3" floating there read as decoration. */
           <span
             className={cn(
               "shrink-0 rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",

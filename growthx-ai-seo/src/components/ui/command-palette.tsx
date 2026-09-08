@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, Globe, BarChart3, Search as SearchIcon, Zap, FileText, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Share2 } from "lucide-react";
+import { Search, Sparkles, Globe, BarChart3, Search as SearchIcon, Zap, FileText, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Share2, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
@@ -40,20 +40,19 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open, onOpenChange]);
 
   const items: CommandItem[] = useMemo(() => [
-    // E-Commerce
+    // Core Navigation
     { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview & executive KPIs" },
     { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Technical crawler, issue deduplication & site health" },
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, competitor crawl diff & market gaps" },
+    { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in ChatGPT, Claude & Gemini" },
+    { id: "nav-fix-engine", title: "Fix Engine", category: "Navigation", icon: Wrench, href: "/fix-engine", subtitle: "Automated code fixes, crawl remediation & repository intelligence" },
     { id: "nav-social", title: "Social Media", category: "Navigation", icon: Share2, href: "/social-media", subtitle: "Viral hooks, cross-platform cadence & social intelligence" },
 
-    // Google Business Profile
+    // Extended Workspace & Tools
     { id: "nav-local", title: "Local SEO", category: "Navigation", icon: MapPin, href: "/local", subtitle: "Google Business Profile, reviews & citations" },
     { id: "nav-monitoring", title: "Monitoring", category: "Navigation", icon: Globe, href: "/monitoring", subtitle: "Uptime, SSL, and daily crawl watchers" },
     { id: "nav-research", title: "Market Research", category: "Navigation", icon: Eye, href: "/market-research", subtitle: "Cited answers about this client's market" },
-
-    // Workspace & Tools
     { id: "nav-search-perf", title: "Search Performance", category: "Navigation", icon: SearchIcon, href: "/search-performance", subtitle: "Google Search Console & GA4 traffic" },
-    { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in ChatGPT, Claude & Gemini" },
     { id: "nav-content", title: "Content & Opportunities", category: "Navigation", icon: FileText, href: "/content-opportunities", subtitle: "SEO opportunities, keyword gaps & drafting studio" },
     { id: "nav-reports", title: "Reports", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "Executive summaries & white-label exports" },
     { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
