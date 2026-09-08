@@ -41,8 +41,7 @@ import {
   useAnalyzeIssue,
   useAutoFixIssue,
   useApproveFix,
-  useStartCrawl,
-} from "@/hooks/use-growthx";
+  useStartCrawl, useRepository } from "@/hooks/use-growthx";
 import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue, type TrackedCompetitor } from "@/lib/api-client";
 import { WebsiteTechnicalFixPanel } from "@/components/fix-engine/website-technical-fix-panel";
@@ -66,6 +65,7 @@ export default function FixEnginePage() {
 
 function FixEngineClient() {
   const { orgId, projectId } = useWorkspace();
+  const repo = useRepository(projectId);
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const activeDomain = client?.domain ?? null;
@@ -314,7 +314,12 @@ function FixEngineClient() {
 
       {/* 1-Click AI Auto-Fix Modal */}
       {autoFixTarget && (
-        <AutoFixModal issue={autoFixTarget} onClose={() => setAutoFixTarget(null)} />
+        <AutoFixModal
+          issue={autoFixTarget}
+          projectId={projectId}
+          repoConnected={Boolean(repo.data)}
+          onClose={() => setAutoFixTarget(null)}
+        />
       )}
     </div>
   );

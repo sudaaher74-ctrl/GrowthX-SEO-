@@ -670,6 +670,25 @@ export function useRunContent(projectId: string | null) {
   });
 }
 
+/**
+ * Applies fixes to the connected repository and opens a pull request.
+ *
+ * The run clones, patches, installs and builds before it pushes, so this is
+ * minutes rather than milliseconds. It resolves with the finished run — the
+ * pull request URL when one was opened, or the step log saying where it
+ * stopped.
+ */
+export function useRunFixes(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (issueIds?: string[]) => api.runFixes(projectId!, issueIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
+      qc.invalidateQueries({ queryKey: ["crawl-issues", projectId] });
+    },
+  });
+}
+
 export function useAutomationRuns(projectId: string | null) {
   return useQuery({
     queryKey: ["automation-runs", projectId],

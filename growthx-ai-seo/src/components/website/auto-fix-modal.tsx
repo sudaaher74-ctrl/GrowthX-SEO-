@@ -1,21 +1,46 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, CheckCircle2, Copy, ExternalLink, Sparkles, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  GitPullRequest,
+  Loader2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { ActionButton, Pill } from "@/components/ui/console";
-import type { CrawlIssue } from "@/lib/api-client";
+import { useRunFixes } from "@/hooks/use-growthx";
+import type { AutomationRun, CrawlIssue } from "@/lib/api-client";
 
 interface AutoFixModalProps {
   issue: CrawlIssue | null;
+  /** Required to open a pull request; without it only the snippet is offered. */
+  projectId?: string | null;
+  /** True once a GitHub repository is connected for this project. */
+  repoConnected?: boolean;
   onClose: () => void;
 }
 
 type Platform = "nextjs" | "shopify" | "html";
 
-export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
+export function AutoFixModal({
+  issue,
+  projectId,
+  repoConnected = false,
+  onClose,
+}: AutoFixModalProps) {
   const [platform, setPlatform] = useState<Platform>("nextjs");
   const [copied, setCopied] = useState(false);
-  const [resolved, setResolved] = useState(false);
+  // The finished run, once one has been attempted. Nothing here is set
+  // optimistically: an earlier version flipped a local flag and told the user
+  // the fix was "marked for verification" without contacting the server at all.
+  const [run, setRun] = useState<AutomationRun | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const runFixes = useRunFixes(projectId ?? null);
 
   // `issue` is null whenever the modal has nothing to show. That check cannot
   // come before the hooks below: React matches hooks up by call order, so a
@@ -134,6 +159,91 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
     setTimeout(() => setCopied(false), 2200);
   };
 
+  // Only offered when a run could actually happen. A button that cannot reach
+  // the repository should not be presented as one that can.
+  const canOpenPr = Boolean(projectId) && repoConnected && !run;
+
+  async function handleOpenPullRequest() {
+    if (!issue) return;
+    setRunError(null);
+    try {
+      setRun(await runFixes.mutateAsync([issue.id]));
+    } catch (error: any) {
+      setRunError(
+        error?.message ?? "The fix run could not be started. Please try again.",
+      );
+    }
+  }
+
+  /**
+   * Reports what the run actually did. A run that finishes without a pull
+   * request is not a success: the build may have failed, or no file in the
+   * repository matched the affected URL, and both leave the site unchanged.
+   */
+  const statusLine = (() => {
+    if (runError) {
+      return (
+        <span className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="truncate">{runError}</span>
+        </span>
+      );
+    }
+
+    if (runFixes.isPending) {
+      return (
+        <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
+          <Loader2 size={13} className="animate-spin shrink-0" />
+          <span>Cloning, patching and building — this takes a few minutes.</span>
+        </span>
+      );
+    }
+
+    if (run?.pullRequestUrl) {
+      return (
+        <a
+          href={run.pullRequestUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:underline"
+        >
+          <CheckCircle2 size={13} className="shrink-0" />
+          <span>Pull request opened — review and merge</span>
+          <ExternalLink size={11} className="shrink-0" />
+        </a>
+      );
+    }
+
+    if (run) {
+      const lastFailure = [...(run.steps ?? [])].reverse().find((step) => !step.ok);
+      return (
+        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span className="truncate">
+            {run.error ??
+              lastFailure?.detail ??
+              "The run finished without opening a pull request. Nothing was changed."}
+          </span>
+        </span>
+      );
+    }
+
+    if (!projectId || !repoConnected) {
+      return (
+        <span className="text-xs text-[var(--text-muted)]">
+          Connect a GitHub repository in Integrations to open fixes as a pull
+          request. Until then, copy the snippet and deploy it yourself.
+        </span>
+      );
+    }
+
+    return (
+      <span className="text-xs text-[var(--text-muted)]">
+        Opens a pull request against your connected repository for review.
+      </span>
+    );
+  })();
+
   if (!issue || !fixData) return null;
 
   return (
@@ -249,20 +359,9 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-brand-200 dark:border-brand-800 px-5 py-3.5 bg-brand-50/50 dark:bg-brand-900/30 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {resolved ? (
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 size={13} />
-                <span>Marked for verification on next crawl</span>
-              </span>
-            ) : (
-              <span className="text-xs text-[var(--text-muted)]">
-                Deploy code snippet to your codebase, then re-crawl to verify.
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="border-t border-brand-200 dark:border-brand-800 px-5 py-3.5 bg-brand-50/50 dark:bg-brand-900/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 min-w-0">{statusLine}</div>
+          <div className="flex items-center gap-2 shrink-0">
             <ActionButton
               variant="secondary"
               onClick={handleCopy}
@@ -270,16 +369,22 @@ export function AutoFixModal({ issue, onClose }: AutoFixModalProps) {
             >
               {copied ? "Copied!" : "Copy Snippet"}
             </ActionButton>
-            <ActionButton
-              variant="primary"
-              onClick={() => {
-                setResolved(true);
-                setTimeout(onClose, 1200);
-              }}
-              icon={<CheckCircle2 size={12} />}
-            >
-              {resolved ? "Done" : "Apply & Resolve"}
-            </ActionButton>
+            {canOpenPr && (
+              <ActionButton
+                variant="primary"
+                onClick={handleOpenPullRequest}
+                disabled={runFixes.isPending}
+                icon={
+                  runFixes.isPending ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <GitPullRequest size={12} />
+                  )
+                }
+              >
+                {runFixes.isPending ? "Opening pull request..." : "Apply & Open PR"}
+              </ActionButton>
+            )}
           </div>
         </div>
       </div>

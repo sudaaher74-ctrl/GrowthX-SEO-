@@ -27,8 +27,7 @@ import {
   useCrawlPages,
   useLatestCrawl,
   usePortfolio,
-  useWorkspace,
-} from "@/hooks/use-growthx";
+  useWorkspace, useRepository } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 
 type TabId = "overview" | "technical-seo" | "performance" | "pages" | "geo-readiness";
@@ -61,6 +60,7 @@ function WebsiteClient() {
   const queryDomain = searchParams.get("domain");
 
   const { orgId, projectId } = useWorkspace();
+  const repo = useRepository(projectId);
   const portfolio = usePortfolio(orgId);
 
   const clients = portfolio.data?.clients ?? [];
@@ -1125,6 +1125,8 @@ function WebsiteClient() {
       {selectedFixIssue && (
         <AutoFixModal
           issue={selectedFixIssue}
+          projectId={projectId}
+          repoConnected={Boolean(repo.data)}
           onClose={() => setSelectedFixIssue(null)}
         />
       )}
