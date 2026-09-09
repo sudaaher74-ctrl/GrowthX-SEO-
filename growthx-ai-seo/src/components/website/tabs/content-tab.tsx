@@ -74,7 +74,7 @@ export function ContentTab({ pages, issues, onOptimizePage }: ContentTabProps) {
       {/* Top 4 Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* 1. Word Depth Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
             <FileText size={14} className="text-blue-600" />
             <span>Word Depth Distribution</span>
@@ -84,8 +84,8 @@ export function ContentTab({ pages, issues, onOptimizePage }: ContentTabProps) {
               data={wordDepthDonut}
               centerValue={pages.length}
               centerLabel="Pages"
-              size={130}
-              thickness={18}
+              size={100}
+              thickness={15}
             />
           </div>
         </div>

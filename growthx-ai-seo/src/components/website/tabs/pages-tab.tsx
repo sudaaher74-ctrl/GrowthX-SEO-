@@ -356,7 +356,7 @@ export function PagesTab({
         </div>
 
         {/* 3. Page Type Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
               Page Type Distribution
@@ -366,15 +366,15 @@ export function PagesTab({
                 data={pageTypeCounts}
                 centerValue={pages.length}
                 centerLabel="Pages"
-                size={130}
-                thickness={18}
+                size={100}
+                thickness={15}
               />
             </div>
           </div>
         </div>
 
         {/* 4. Status Code Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
               Status Code Distribution
@@ -384,8 +384,8 @@ export function PagesTab({
                 data={statusCodeCounts}
                 centerValue={pages.length}
                 centerLabel="Pages"
-                size={130}
-                thickness={18}
+                size={100}
+                thickness={15}
               />
             </div>
           </div>
@@ -398,7 +398,7 @@ export function PagesTab({
       <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
         {/* Filter Toolbar */}
         <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
             {/* Search Input */}
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -469,9 +469,7 @@ export function PagesTab({
               <option value="INDEXABLE">Indexable</option>
               <option value="NON_INDEXABLE">Non-indexable</option>
             </select>
-          </div>
 
-          <div className="flex items-center gap-2">
             {/* Columns Dropdown Toggle */}
             <div className="relative">
               <button
@@ -485,7 +483,7 @@ export function PagesTab({
               </button>
 
               {showColumnsMenu && (
-                <div className="absolute right-0 top-9 w-44 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800 z-20 space-y-1 text-xs">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-9 w-44 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800 z-20 space-y-1 text-xs">
                   {Object.entries(visibleColumns).map(([col, isVisible]) => (
                     <label key={col} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
                       <input

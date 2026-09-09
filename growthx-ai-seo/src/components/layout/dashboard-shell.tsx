@@ -74,7 +74,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             collapsed ? "md:ml-0" : "md:ml-[232px]",
           )}
         >
-          <div className="mx-auto max-w-[1600px] p-5 md:p-6">{children}</div>
+          <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">{children}</div>
         </main>
       </div>
       <AivaPanel />

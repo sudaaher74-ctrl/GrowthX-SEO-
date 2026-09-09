@@ -25,8 +25,8 @@ export function DonutChart({
   data,
   centerValue,
   centerLabel,
-  size = 140,
-  thickness = 20,
+  size = 110,
+  thickness = 16,
   className,
   showLegend = true,
   legendPosition = "right",
@@ -65,12 +65,12 @@ export function DonutChart({
 
   if (total === 0) {
     return (
-      <div className={cn("flex flex-col items-center justify-center p-4 text-center", className)}>
+      <div className={cn("flex flex-col items-center justify-center p-3 text-center w-full", className)}>
         <div
-          className="relative flex items-center justify-center rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800"
+          className="relative flex items-center justify-center rounded-full border-3 border-dashed border-slate-200 dark:border-slate-800"
           style={{ width: size, height: size }}
         >
-          <span className="text-xs text-slate-400 font-medium">{emptyText}</span>
+          <span className="text-[11px] text-slate-400 font-medium px-2">{emptyText}</span>
         </div>
       </div>
     );
@@ -79,13 +79,13 @@ export function DonutChart({
   return (
     <div
       className={cn(
-        "flex items-center gap-5",
-        legendPosition === "bottom" ? "flex-col" : "flex-row",
+        "flex items-center gap-3 w-full min-w-0",
+        legendPosition === "bottom" ? "flex-col" : "flex-row justify-between",
         className
       )}
     >
       {/* Donut graphic */}
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <div className="relative shrink-0 flex items-center justify-center" style={{ width: size, height: size }}>
         <svg
           width={size}
           height={size}
@@ -113,7 +113,7 @@ export function DonutChart({
                 r={radius}
                 fill="none"
                 stroke={slice.color}
-                strokeWidth={isHovered ? thickness + 3 : thickness}
+                strokeWidth={isHovered ? thickness + 2 : thickness}
                 strokeDasharray={slice.strokeDasharray}
                 strokeDashoffset={slice.strokeDashoffset}
                 strokeLinecap="round"
@@ -126,12 +126,17 @@ export function DonutChart({
         </svg>
 
         {/* Center label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-          <span className="text-xl font-bold text-slate-900 dark:text-white leading-none">
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-1">
+          <span
+            className={cn(
+              "font-bold text-slate-900 dark:text-white leading-none tracking-tight",
+              size >= 120 ? "text-xl" : size >= 95 ? "text-lg" : "text-sm"
+            )}
+          >
             {centerValue !== undefined ? centerValue : total}
           </span>
           {centerLabel && (
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5 truncate max-w-[80%]">
               {centerLabel}
             </span>
           )}
@@ -140,7 +145,14 @@ export function DonutChart({
 
       {/* Legend */}
       {showLegend && (
-        <div className="flex flex-col gap-1.5 min-w-[140px] flex-1">
+        <div
+          className={cn(
+            "min-w-0 flex-1",
+            legendPosition === "bottom"
+              ? "grid grid-cols-2 gap-x-2 gap-y-1 w-full mt-2"
+              : "flex flex-col gap-1 w-full"
+          )}
+        >
           {data.map((item, i) => {
             const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
             const isHovered = hoveredIndex === i;
@@ -148,22 +160,22 @@ export function DonutChart({
               <div
                 key={item.label}
                 className={cn(
-                  "flex items-center justify-between text-xs py-0.5 px-1 rounded transition-colors cursor-pointer",
+                  "flex items-center justify-between text-xs py-0.5 px-1 rounded transition-colors cursor-pointer min-w-0 gap-1",
                   isHovered ? "bg-slate-100 dark:bg-slate-800 font-semibold" : "text-slate-600 dark:text-slate-300"
                 )}
                 onMouseEnter={() => setHoveredIndex(i)}
                 onMouseLeave={() => setHoveredIndex(null)}
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    className="h-2 w-2 rounded-full shrink-0"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="truncate">{item.label}</span>
+                  <span className="truncate text-[11px]">{item.label}</span>
                 </div>
-                <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0 ml-2">
+                <div className="flex items-center gap-1 font-mono text-[11px] shrink-0 ml-1">
                   <span className="font-semibold text-slate-900 dark:text-white">{item.value}</span>
-                  <span className="text-slate-400">({pct}%)</span>
+                  <span className="text-slate-400 text-[10px]">({pct}%)</span>
                 </div>
               </div>
             );

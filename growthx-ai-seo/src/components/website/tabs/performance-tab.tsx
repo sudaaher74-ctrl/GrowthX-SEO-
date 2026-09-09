@@ -434,7 +434,7 @@ export function PerformanceTab({
         </div>
 
         {/* 2. Page Load Time Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
               Page Load Time Distribution
@@ -444,8 +444,8 @@ export function PerformanceTab({
                 data={loadDistribution}
                 centerValue={pages.length}
                 centerLabel="Pages"
-                size={140}
-                thickness={20}
+                size={100}
+                thickness={15}
               />
             </div>
           </div>
@@ -556,7 +556,7 @@ export function PerformanceTab({
 
         {/* Filters */}
         <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -586,17 +586,17 @@ export function PerformanceTab({
               <option value="mobile">Mobile</option>
               <option value="desktop">Desktop</option>
             </select>
-          </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          >
-            <option value="slowest">Sort by: Slowest</option>
-            <option value="lcp">Sort by: Worst LCP</option>
-            <option value="cls">Sort by: Worst CLS</option>
-          </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <option value="slowest">Sort by: Slowest</option>
+              <option value="lcp">Sort by: Worst LCP</option>
+              <option value="cls">Sort by: Worst CLS</option>
+            </select>
+          </div>
         </div>
 
         {/* Table */}

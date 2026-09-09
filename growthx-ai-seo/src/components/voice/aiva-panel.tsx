@@ -41,7 +41,7 @@ export function AivaPanel() {
       </AnimatePresence>
 
       {/* Floating Action Button (FAB) */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-50">
         <AnimatePresence>
           {!isOpen && (
             <motion.div
@@ -52,12 +52,12 @@ export function AivaPanel() {
             >
               <button
                 onClick={toggleOpen}
-                className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                className="group relative flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
                 aria-label="Open Nexa Voice Assistant"
               >
                 <div className="absolute inset-0 -m-1 rounded-full aiva-border-segment opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="relative flex h-full w-full items-center justify-center rounded-full bg-white">
-                  <AivaOrb state="idle" className="scale-75" />
+                  <AivaOrb state="idle" className="scale-65" />
                 </div>
               </button>
             </motion.div>

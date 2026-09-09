@@ -606,7 +606,7 @@ export function TechnicalSeoTab({
       {/* ======================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* 1. Issue Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Issue Distribution</h3>
             <div className="flex items-center justify-center py-1">
@@ -614,8 +614,8 @@ export function TechnicalSeoTab({
                 data={donutData}
                 centerValue={issues.length}
                 centerLabel="Issues"
-                size={130}
-                thickness={18}
+                size={100}
+                thickness={15}
               />
             </div>
           </div>
@@ -757,7 +757,7 @@ export function TechnicalSeoTab({
       {/* ======================================================== */}
       <div
         id="technical-issues-table"
-        className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden"
+        className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden scroll-mt-16"
       >
         {/* Table Header & Subtitle */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800">
@@ -769,7 +769,7 @@ export function TechnicalSeoTab({
 
         {/* Filter Toolbar */}
         <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
             {/* Search Input */}
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -833,10 +833,8 @@ export function TechnicalSeoTab({
                 ))}
               </select>
             )}
-          </div>
 
-          {/* Sort By */}
-          <div className="flex items-center gap-2">
+            {/* Sort By Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
