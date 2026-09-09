@@ -600,10 +600,14 @@ export function PerformanceTab({
                 {slowestPages.slice(0, 15).map((page) => {
                   const lcp = page.performance?.lcpMs
                     ? (page.performance.lcpMs / 1000).toFixed(1) + "s"
-                    : `${((page.responseTimeMs * 1.5) / 1000).toFixed(1)}s`;
-                  const inp = page.performance?.inpMs ? `${page.performance.inpMs}ms` : "240ms";
-                  const cls = page.performance?.clsScore ? page.performance.clsScore.toFixed(2) : "0.14";
-                  const loadTime = `${((page.responseTimeMs || 800) / 1000).toFixed(1)}s`;
+                    : page.responseTimeMs
+                    ? `${((page.responseTimeMs * 1.5) / 1000).toFixed(1)}s`
+                    : "—";
+                  const inp = page.performance?.inpMs ? `${page.performance.inpMs}ms` : "—";
+                  const cls = page.performance?.clsScore ? page.performance.clsScore.toFixed(2) : "—";
+                  const loadTime = page.responseTimeMs
+                    ? `${(page.responseTimeMs / 1000).toFixed(1)}s`
+                    : "—";
                   const estSize = `${((page.wordCount * 120 + 400000) / (1024 * 1024)).toFixed(1)} MB`;
 
                   const isSlow = page.responseTimeMs >= 3000;
