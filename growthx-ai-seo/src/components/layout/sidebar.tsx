@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, MapPin } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -12,8 +12,8 @@ import { useEntitlements, usePortfolio, useWorkspace, useProfile } from "@/hooks
 /**
  * Agency console sidebar.
  *
- * Scoped to the selected client with 5 core tabs:
- * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine
+ * Scoped to the selected client with core workspace tabs:
+ * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine, Google Business Profile, Local SEO
  */
 
 interface NavItem {
@@ -23,7 +23,8 @@ interface NavItem {
   aliases?: string[];
   /** Small right-aligned counter or metric. */
   tag?: string;
-  tagTone?: "default" | "danger";
+  tagTone?: "default" | "danger" | "success";
+  children?: { label: string; href: string; id: string }[];
 }
 
 export function Sidebar({
@@ -54,7 +55,7 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
-  // Core 5 Navigation Tabs requested by user
+  // Core Navigation Tabs
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
@@ -86,6 +87,32 @@ export function Sidebar({
       href: "/fix-engine",
       icon: Wrench,
       aliases: ["/engineer", "/action-engine"],
+    },
+    {
+      label: "Google Business Profile",
+      href: "/google-business-profile",
+      icon: Store,
+      tag: "New",
+      tagTone: "success",
+      children: [
+        { label: "Overview", href: "/google-business-profile?tab=overview", id: "overview" },
+        { label: "Profile Audit", href: "/google-business-profile?tab=audit", id: "audit" },
+        { label: "Business Information", href: "/google-business-profile?tab=info", id: "info" },
+        { label: "Categories", href: "/google-business-profile?tab=categories", id: "categories" },
+        { label: "Services", href: "/google-business-profile?tab=services", id: "services" },
+        { label: "Reviews", href: "/google-business-profile?tab=reviews", id: "reviews" },
+        { label: "Photos", href: "/google-business-profile?tab=photos", id: "photos" },
+        { label: "Local Rankings", href: "/google-business-profile?tab=rankings", id: "rankings" },
+        { label: "Competitors", href: "/google-business-profile?tab=competitors", id: "competitors" },
+        { label: "Posts / Updates", href: "/google-business-profile?tab=posts", id: "posts" },
+        { label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", id: "ai-recommendations" },
+        { label: "Action Plan", href: "/google-business-profile?tab=action-plan", id: "action-plan" },
+      ],
+    },
+    {
+      label: "Local SEO",
+      href: "/local",
+      icon: MapPin,
     },
   ];
 
@@ -309,34 +336,61 @@ function NavLink({
     pathname === item.href ||
     pathname.startsWith(`${item.href}/`) ||
     (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
+
+  const isGbpActive = item.href === "/google-business-profile" && (active || pathname.startsWith("/google-business-profile"));
+
   return (
-    <Link href={item.href} onClick={onNavigate}>
-      <div
-        className={cn(
-          "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
-          active
-            ? "bg-brand-950 font-semibold text-white"
-            : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
-        )}
-      >
-        <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
-        <span className="flex-1 truncate">{item.label}</span>
-        {item.tag && (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-[5px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
-              item.tagTone === "danger"
-                ? "bg-error-50 text-error-700"
-                : active
-                  ? "bg-white/15 text-white"
-                  : "bg-brand-200 text-brand-600",
-            )}
-          >
-            {item.tag}
-          </span>
-        )}
-      </div>
-    </Link>
+    <div className="space-y-0.5">
+      <Link href={item.href} onClick={onNavigate}>
+        <div
+          className={cn(
+            "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
+            active
+              ? "bg-brand-950 font-semibold text-white"
+              : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+          )}
+        >
+          <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
+          <span className="flex-1 truncate">{item.label}</span>
+          {item.tag && (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-[6px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
+                item.tagTone === "danger"
+                  ? "bg-error-50 text-error-700"
+                  : item.tagTone === "success"
+                    ? active
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : active
+                      ? "bg-white/15 text-white"
+                      : "bg-brand-200 text-brand-600",
+              )}
+            >
+              {item.tag}
+            </span>
+          )}
+        </div>
+      </Link>
+
+      {/* Sub-items for Google Business Profile */}
+      {isGbpActive && item.children && (
+        <div className="ml-5 pl-2 border-l border-brand-200 space-y-0.5 py-1">
+          {item.children.map((sub) => {
+            return (
+              <Link
+                key={sub.id}
+                href={sub.href}
+                onClick={onNavigate}
+                className="block py-1 px-2 text-[11.5px] text-brand-600 hover:text-brand-950 rounded hover:bg-brand-100/60 transition truncate font-medium"
+              >
+                {sub.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -29,6 +29,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/fix-engine": { scope: "Workspace", title: "Fix Engine" },
   "/engineer": { scope: "Workspace", title: "Fix Engine" },
   "/social-media": { scope: "Workspace", title: "Social Media" },
+  "/google-business-profile": { scope: "Workspace", title: "Google Business Profile" },
   "/local": { scope: "Workspace", title: "Local SEO" },
   "/monitoring": { scope: "Workspace", title: "Monitoring" },
   "/market-research": { scope: "Workspace", title: "Market Research" },

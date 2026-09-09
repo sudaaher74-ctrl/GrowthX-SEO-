@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, Globe, BarChart3, Search as SearchIcon, Zap, FileText, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Share2, Wrench } from "lucide-react";
+import { Search, Sparkles, Globe, BarChart3, Search as SearchIcon, Zap, FileText, MapPin, Target, Eye, GitBranch, FileSpreadsheet, Settings, RefreshCw, Plus, CornerDownLeft, Share2, Wrench, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
@@ -49,6 +49,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-social", title: "Social Media", category: "Navigation", icon: Share2, href: "/social-media", subtitle: "Viral hooks, cross-platform cadence & social intelligence" },
 
     // Extended Workspace & Tools
+    { id: "nav-gbp", title: "Google Business Profile", category: "Navigation", icon: Store, href: "/google-business-profile", subtitle: "Audit, photos, reviews, categories, services & Maps 3-Pack" },
     { id: "nav-local", title: "Local SEO", category: "Navigation", icon: MapPin, href: "/local", subtitle: "Google Business Profile, reviews & citations" },
     { id: "nav-monitoring", title: "Monitoring", category: "Navigation", icon: Globe, href: "/monitoring", subtitle: "Uptime, SSL, and daily crawl watchers" },
     { id: "nav-research", title: "Market Research", category: "Navigation", icon: Eye, href: "/market-research", subtitle: "Cited answers about this client's market" },
