@@ -146,6 +146,29 @@ services:
         sync: false
       - key: GOOGLE_CALLBACK_URL
         value: https://growthx-crawler-api.onrender.com/auth/google/callback
+      # Where Google returns the customer after they authorize a data
+      # connector — Search Console, Analytics, Business Profile. Distinct from
+      # GOOGLE_CALLBACK_URL above, which is sign-in: one callback serves every
+      # connector and the state says which. This exact string must also be
+      # registered as an authorized redirect URI on the OAuth client, or Google
+      # rejects the consent request with redirect_uri_mismatch before the
+      # customer sees anything.
+      - key: GOOGLE_REDIRECT_URI
+        value: https://growthx-crawler-api.onrender.com/api/integrations/google/callback
+      # The browser origin the callback sends the customer back to once the
+      # connection is stored. Unset, the redirect resolves to a bare path and
+      # the customer lands nowhere after consenting.
+      - key: APP_BASE_URL
+        sync: false
+      # Encrypts stored OAuth access and refresh tokens (AES-256-GCM). Separate
+      # from ENCRYPTION_KEY, and required: without it every attempt to connect a
+      # Google service refuses outright rather than storing a plaintext token.
+      # 32 bytes, base64 or hex — `openssl rand -base64 32`.
+      #
+      # Rotating it orphans every token already stored: existing connections
+      # cannot be decrypted and each customer has to reauthorize.
+      - key: INTEGRATION_TOKEN_KEY
+        sync: false
       - key: GOOGLE_PLACES_API_KEY
         sync: false
       - key: FRONTEND_URL
