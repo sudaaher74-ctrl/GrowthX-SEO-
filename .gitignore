@@ -52,3 +52,6 @@ dump.rdb
 
 # Neon CLI workspace link (org/project/branch ids)
 .neon
+
+# Transient agent worktrees — full repo checkouts, reclaimed when the agent ends
+.claude/worktrees/
