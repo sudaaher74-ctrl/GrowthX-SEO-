@@ -1063,6 +1063,250 @@ export interface LocalReview {
   updatedAt: string;
 }
 
+// ── Google Business Profile (the real, synced connector)
+//
+// Every read below carries two envelopes, and the tabs are built around them.
+// They exist because four very different situations all produce zero rows —
+// not connected, connected but never synced, synced and this merchant really
+// has none, and synced but Google refuses this Cloud project that source — and
+// a screen that cannot tell them apart will pick one and be wrong.
+
+/** Where the whole connection stands, as every Business Profile read reports it. */
+export type GbpConnectionState =
+  | "NOT_CONNECTED"
+  | "NEEDS_SELECTION"
+  | "NEEDS_REAUTH"
+  | "ERROR"
+  | "NEVER_SYNCED"
+  | "SYNCED";
+
+/** What happened last time one particular source was read. */
+export type GbpSourceState = "OK" | "UNAVAILABLE" | "NEVER_ATTEMPTED";
+
+export interface GbpConnection {
+  state: GbpConnectionState;
+  status: string;
+  /** Safe to show: never a token, never a raw Google payload. */
+  statusMessage: string | null;
+  selectedResourceId: string | null;
+  selectedResourceName: string | null;
+  lastSyncedAt: string | null;
+  /** Business Profile sits behind a Google application review, granted per Cloud project. */
+  requiresGoogleApproval: boolean;
+  /** False when the deployment itself is missing Google credentials — an operator problem. */
+  configured: boolean;
+}
+
+export interface GbpSource {
+  /** profile | performance | reviews | media | posts */
+  name: string;
+  state: GbpSourceState;
+  message: string | null;
+  /** 403 means "not approved for this Cloud project" rather than "broken". */
+  httpStatus: number | null;
+  lastSuccessAt: string | null;
+  /** Null when the source never succeeded — distinct from 0, which means it looked and found none. */
+  lastCount: number | null;
+}
+
+/** The two envelopes every Business Profile read carries. */
+export interface GbpEnvelope {
+  connection: GbpConnection;
+  source: GbpSource;
+}
+
+export interface GoogleIntegrationProvider {
+  id: string;
+  label: string;
+  requiresGoogleApproval: boolean;
+  selectionLabel: string;
+  status: string;
+  statusMessage: string | null;
+  selectedResourceId: string | null;
+  selectedResourceName: string | null;
+  googleAccountEmail: string | null;
+  lastSyncedAt: string | null;
+  nextSyncAt: string | null;
+}
+
+export interface GoogleIntegrationStatus {
+  configuration: { configured: boolean; missing: string[] };
+  providers: GoogleIntegrationProvider[];
+}
+
+export interface GbpLocationOption {
+  /** Google's resource name, e.g. "locations/123". Passed straight back as `resourceId`. */
+  id: string;
+  accountId: string;
+  title: string | null;
+  address: string | null;
+  primaryCategory: string | null;
+  /** Google's own hasVoiceOfMerchant. Null means Google did not say. */
+  verified: boolean | null;
+}
+
+export interface GbpLocationList {
+  locations: GbpLocationOption[];
+  /** Why an empty picker is empty: no Business Profile at all, or one with no location in it. */
+  diagnostics: { accountsReturnedByGoogle: number; googleAccountHasAnyLocation: boolean };
+}
+
+export interface GbpSyncResult {
+  syncedAt: string;
+  counts: {
+    reviews: number;
+    photos: number;
+    posts: number;
+    services: number;
+    metricDays: number;
+  };
+  status: "SUCCEEDED" | "PARTIAL" | "FAILED" | string;
+  /** Sources Google would not give up, by name. */
+  failedSources: string[];
+}
+
+export interface GbpProfile {
+  locationName: string;
+  businessName: string | null;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  description: string | null;
+  primaryCategory: string | null;
+  additionalCategories: { categoryId?: string | null; displayName?: string | null }[];
+  hours: unknown;
+  serviceArea: unknown;
+  openStatus: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  placeId: string | null;
+  mapsUri: string | null;
+  newReviewUri: string | null;
+  /** Null means Google did not say — render that as unknown, not as unverified. */
+  verified: boolean | null;
+  hasPendingEdits: boolean | null;
+  syncedAt: string | null;
+}
+
+/**
+ * Not a score. Every entry is a field Google can return, marked present when
+ * Google actually returned a value for it. There is no weighting and no target,
+ * so it is rendered as "5 of 9 fields present" and never as a percentage.
+ */
+export interface GbpCompleteness {
+  present: number;
+  total: number;
+  fields: { field: string; present: boolean }[];
+}
+
+export interface GbpOverview extends GbpEnvelope {
+  profile: GbpProfile | null;
+  completeness: GbpCompleteness | null;
+}
+
+/** A metric Google never reported is null, never 0. */
+export interface GbpMetricTotals {
+  desktopMapsImpressions: number | null;
+  desktopSearchImpressions: number | null;
+  mobileMapsImpressions: number | null;
+  mobileSearchImpressions: number | null;
+  conversations: number | null;
+  directionRequests: number | null;
+  callClicks: number | null;
+  websiteClicks: number | null;
+  bookings: number | null;
+  /** The four impression series summed; null unless at least one was reported. */
+  impressions: number | null;
+}
+
+export interface GbpMetrics extends GbpEnvelope {
+  range: { from: string; to: string; days: number };
+  /** Null — not zeroes — when no synced day falls in the window. */
+  totals: GbpMetricTotals | null;
+  daily: (GbpMetricTotals & { date: string })[];
+  /** How many days in the window Google actually reported. */
+  coveredDays: number;
+}
+
+export interface GbpReview {
+  id: string;
+  googleReviewId: string | null;
+  authorName: string;
+  authorPhotoUrl: string | null;
+  /** Null when Google would not state a star rating for this review. */
+  rating: number | null;
+  text: string | null;
+  createTime: string | null;
+  updateTime: string | null;
+  googleReply: string | null;
+  googleReplyUpdatedAt: string | null;
+  aiDraftedReply: string | null;
+  replyStatus: string;
+}
+
+export interface GbpReviews extends GbpEnvelope {
+  reviews: GbpReview[];
+  /** Averaged only over the reviews Google gave a rating for; null when none were. */
+  summary: { total: number; rated: number; averageRating: number | null };
+}
+
+export interface GbpPhoto {
+  id: string;
+  mediaName: string | null;
+  format: string | null;
+  category: string | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+  description: string | null;
+  width: number | null;
+  height: number | null;
+  viewCount: number | null;
+  attribution: unknown;
+  createTime: string | null;
+}
+
+export interface GbpPhotos extends GbpEnvelope {
+  photos: GbpPhoto[];
+}
+
+export interface GbpPost {
+  id: string;
+  postName: string | null;
+  summary: string | null;
+  state: string | null;
+  topicType: string | null;
+  searchUrl: string | null;
+  callToAction: { type: string | null; url: string | null } | null;
+  event: { title: string | null; start: string | null; end: string | null } | null;
+  mediaUrls: string[];
+  createTime: string | null;
+  updateTime: string | null;
+}
+
+export interface GbpPosts extends GbpEnvelope {
+  posts: GbpPost[];
+}
+
+export interface GbpService {
+  id: string;
+  kind: string | null;
+  displayName: string | null;
+  description: string | null;
+  serviceTypeId: string | null;
+  categoryId: string | null;
+  /** Null unless the merchant set one. Reported exactly as Google holds it. */
+  price: { currency: string | null; units: string | null; nanos: number | null } | null;
+}
+
+export interface GbpServices extends GbpEnvelope {
+  services: GbpService[];
+}
+
+export interface GbpCategories extends GbpEnvelope {
+  primary: { categoryId: string | null; displayName: string | null } | null;
+  additional: { categoryId: string | null; displayName: string | null }[];
+}
+
 export interface OutreachContact {
   id: string;
   campaignId: string;
@@ -2072,6 +2316,57 @@ export const api = {
   syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
   draftReviewReply: (projectId: string, reviewId: string, tone?: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, { tone }),
   publishReviewReply: (projectId: string, reviewId: string, replyText: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/publish`, { replyText }),
+
+  // ── Google Business Profile: OAuth lifecycle
+  // Generic across every Google connector; the Business Profile one is `business_profile`.
+  getGoogleIntegrations: (projectId: string) =>
+    get<GoogleIntegrationStatus>(`/api/projects/${projectId}/integrations/google`),
+  /**
+   * Returns the URL to send the browser to. Not a redirect, because the caller
+   * is an authenticated fetch rather than a navigation.
+   */
+  authorizeGoogleProvider: (projectId: string, provider: string, returnTo?: string) =>
+    post<{ authorizationUrl: string }>(
+      `/api/projects/${projectId}/integrations/google/${provider}/authorize${
+        returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""
+      }`,
+      {},
+    ),
+  /** Commits the location the customer picked. `resourceId` is Google's resource name. */
+  selectGoogleResource: (projectId: string, provider: string, resourceId: string, resourceName: string) =>
+    post<{ id: string; status: string; selectedResourceId: string | null; selectedResourceName: string | null }>(
+      `/api/projects/${projectId}/integrations/google/${provider}/select?resourceId=${encodeURIComponent(
+        resourceId,
+      )}&resourceName=${encodeURIComponent(resourceName)}`,
+      {},
+    ),
+  disconnectGoogleProvider: (projectId: string, provider: string) =>
+    del<{ disconnected: boolean; revoked: boolean }>(
+      `/api/projects/${projectId}/integrations/google/${provider}`,
+    ),
+
+  // ── Google Business Profile: synced data
+  getGbpLocations: (projectId: string) =>
+    get<GbpLocationList>(`/api/projects/${projectId}/business-profile/locations`),
+  syncBusinessProfile: (projectId: string, days?: number) =>
+    post<GbpSyncResult>(
+      `/api/projects/${projectId}/business-profile/sync${days ? `?days=${days}` : ""}`,
+      {},
+    ),
+  getGbpOverview: (projectId: string) =>
+    get<GbpOverview>(`/api/projects/${projectId}/business-profile/overview`),
+  getGbpMetrics: (projectId: string, days = 28) =>
+    get<GbpMetrics>(`/api/projects/${projectId}/business-profile/metrics?days=${days}`),
+  getGbpReviews: (projectId: string) =>
+    get<GbpReviews>(`/api/projects/${projectId}/business-profile/reviews`),
+  getGbpPhotos: (projectId: string) =>
+    get<GbpPhotos>(`/api/projects/${projectId}/business-profile/photos`),
+  getGbpPosts: (projectId: string) =>
+    get<GbpPosts>(`/api/projects/${projectId}/business-profile/posts`),
+  getGbpServices: (projectId: string) =>
+    get<GbpServices>(`/api/projects/${projectId}/business-profile/services`),
+  getGbpCategories: (projectId: string) =>
+    get<GbpCategories>(`/api/projects/${projectId}/business-profile/categories`),
 
 
   // ── Market research

@@ -21,13 +21,17 @@ import {
 } from "lucide-react";
 import { GoogleGLogo, GbpStoreIcon } from "./gbp-icons";
 import { ConnectGbpModal } from "./connect-gbp-modal";
+import { ConnectWithGoogleButton } from "./connect-with-google-button";
+import type { GbpConnection } from "@/lib/api-client";
 
 interface ConnectGbpScreenProps {
   projectId: string | null;
+  /** The live connection envelope, so the Google option can be honest about its state. */
+  connection?: GbpConnection | null;
   onConnected?: () => void;
 }
 
-export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenProps) {
+export function ConnectGbpScreen({ projectId, connection, onConnected }: ConnectGbpScreenProps) {
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
 
@@ -186,11 +190,34 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
               Select the Google account that manages your business profile.
             </p>
 
+            {/* Sign in with Google — the real OAuth connection, which is the
+                only route that syncs profile, reviews, photos, posts and
+                performance data back from Google. */}
+            <div className="mt-6">
+              <ConnectWithGoogleButton
+                projectId={projectId}
+                connection={connection}
+                label="Sign in with Google"
+              />
+              <p className="mt-2.5 text-[11px] text-brand-400 text-center leading-relaxed">
+                Google will ask you to approve access, then bring you back here to choose which of your
+                business locations this project tracks.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-brand-100 dark:bg-brand-800" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                Or track a listing without signing in
+              </span>
+              <div className="h-px flex-1 bg-brand-100 dark:bg-brand-800" />
+            </div>
+
             {/* Search & connect via Google Places */}
             <button
               type="button"
               onClick={handleConnectWithGoogle}
-              className="w-full mt-6 py-4 px-6 rounded-xl border border-brand-200 dark:border-brand-700 bg-white dark:bg-brand-850 hover:bg-brand-50/70 dark:hover:bg-brand-800 hover:border-brand-300 transition-all flex items-center justify-center gap-3 group shadow-2xs"
+              className="w-full mt-4 py-3.5 px-6 rounded-xl border border-brand-200 dark:border-brand-700 bg-white dark:bg-brand-850 hover:bg-brand-50/70 dark:hover:bg-brand-800 hover:border-brand-300 transition-all flex items-center justify-center gap-3 group shadow-2xs"
             >
               <GoogleGLogo size={20} />
               <span className="text-sm font-bold text-brand-900 dark:text-white">
@@ -202,7 +229,8 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
               />
             </button>
             <p className="mt-3 text-[11px] text-brand-400 text-center">
-              Search for your verified listing by name, or enter its details manually.
+              Search for your verified listing by name, or enter its details manually. This records the
+              listing for local-SEO tracking; it does not sync profile data from Google.
             </p>
           </div>
 

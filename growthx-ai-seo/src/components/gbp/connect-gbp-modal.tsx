@@ -3,13 +3,17 @@
 import { useState } from "react";
 import { Search, Loader2, MapPin, Star, Check, AlertCircle, X } from "lucide-react";
 import { GoogleGLogo } from "./gbp-icons";
+import { ConnectWithGoogleButton } from "./connect-with-google-button";
 import { useSearchLocalBusiness, useConnectLocalBusiness } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
+import type { GbpConnection } from "@/lib/api-client";
 
 interface ConnectGbpModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string | null;
+  /** The live connection envelope, so the Google option can be honest about its state. */
+  connection?: GbpConnection | null;
   onConnected?: () => void;
   defaultMode?: "search" | "manual";
 }
@@ -18,6 +22,7 @@ export function ConnectGbpModal({
   open,
   onOpenChange,
   projectId,
+  connection,
   onConnected,
   defaultMode = "search",
 }: ConnectGbpModalProps) {
@@ -129,6 +134,27 @@ export function ConnectGbpModal({
         </div>
 
         <div className="p-6 space-y-5">
+          {/* The real Google connection. Kept above the two manual routes
+              because it is the only one that syncs data back from Google. */}
+          <div>
+            <ConnectWithGoogleButton
+              projectId={projectId}
+              connection={connection}
+              label="Sign in with Google"
+            />
+            <p className="mt-2.5 text-[11px] text-brand-400 text-center leading-relaxed">
+              Approve access on Google, then pick which location this project tracks.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-brand-100" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400">
+              Or track a listing without signing in
+            </span>
+            <div className="h-px flex-1 bg-brand-100" />
+          </div>
+
           {/* Mode Switcher: 2 tabs */}
           <div className="flex rounded-lg bg-brand-100 p-1">
             <button

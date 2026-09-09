@@ -241,6 +241,185 @@ export function usePublishReviewReply(projectId: string | null) {
   });
 }
 
+// ── Google Business Profile (the real Google connector)
+//
+// Every read here serves from the backend's synced tables and carries the
+// connection and source envelopes, so the hooks deliberately do not unwrap the
+// payload: a tab needs to know *why* a list is empty as much as it needs the
+// list. `retry: false` throughout — a 403 from Google means the Cloud project
+// is not approved yet, and retrying it three times only makes the wait longer.
+
+/** The provider id the OAuth endpoints use for Business Profile. */
+export const GBP_PROVIDER = "business_profile";
+
+/** Everything on the Business Profile screen that a sync or a reconnect changes. */
+const GBP_QUERY_KEYS = [
+  "google-integrations",
+  "gbp-overview",
+  "gbp-metrics",
+  "gbp-reviews",
+  "gbp-photos",
+  "gbp-posts",
+  "gbp-services",
+  "gbp-categories",
+  "gbp-locations",
+] as const;
+
+function invalidateGbp(qc: ReturnType<typeof useQueryClient>, projectId: string | null) {
+  for (const key of GBP_QUERY_KEYS) qc.invalidateQueries({ queryKey: [key, projectId] });
+}
+
+export function useGoogleIntegrations(projectId: string | null) {
+  return useQuery({
+    queryKey: ["google-integrations", projectId],
+    queryFn: () => api.getGoogleIntegrations(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpOverview(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-overview", projectId],
+    queryFn: () => api.getGbpOverview(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpMetrics(projectId: string | null, days = 28) {
+  return useQuery({
+    queryKey: ["gbp-metrics", projectId, days],
+    queryFn: () => api.getGbpMetrics(projectId!, days),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpReviews(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-reviews", projectId],
+    queryFn: () => api.getGbpReviews(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpPhotos(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-photos", projectId],
+    queryFn: () => api.getGbpPhotos(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpPosts(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-posts", projectId],
+    queryFn: () => api.getGbpPosts(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpServices(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-services", projectId],
+    queryFn: () => api.getGbpServices(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGbpCategories(projectId: string | null) {
+  return useQuery({
+    queryKey: ["gbp-categories", projectId],
+    queryFn: () => api.getGbpCategories(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/**
+ * The picker's list. Unlike every other Business Profile read this one calls
+ * Google live, so it is only fetched when a picker is actually on screen.
+ */
+export function useGbpLocations(projectId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["gbp-locations", projectId],
+    queryFn: () => api.getGbpLocations(projectId!),
+    enabled: Boolean(projectId) && enabled,
+    retry: false,
+  });
+}
+
+/** Starts the real Google consent flow. The caller navigates to the URL returned. */
+export function useAuthorizeGoogleProvider(projectId: string | null) {
+  return useMutation({
+    mutationFn: ({ provider, returnTo }: { provider: string; returnTo?: string }) =>
+      api.authorizeGoogleProvider(projectId!, provider, returnTo),
+  });
+}
+
+export function useSelectGoogleResource(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      provider,
+      resourceId,
+      resourceName,
+    }: {
+      provider: string;
+      resourceId: string;
+      resourceName: string;
+    }) => api.selectGoogleResource(projectId!, provider, resourceId, resourceName),
+    onSuccess: () => invalidateGbp(qc, projectId),
+  });
+}
+
+export function useSyncBusinessProfile(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (days?: number) => api.syncBusinessProfile(projectId!, days),
+    onSuccess: () => invalidateGbp(qc, projectId),
+  });
+}
+
+export function useDisconnectGoogleProvider(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: string) => api.disconnectGoogleProvider(projectId!, provider),
+    onSuccess: () => invalidateGbp(qc, projectId),
+  });
+}
+
+/** Publishes a reply against a synced Google review, then refreshes the reviews tab. */
+export function usePublishGbpReviewReply(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reviewId, replyText }: { reviewId: string; replyText: string }) =>
+      api.publishReviewReply(projectId!, reviewId, replyText),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gbp-reviews", projectId] });
+      qc.invalidateQueries({ queryKey: ["local-reviews", projectId] });
+    },
+  });
+}
+
+/** Drafts a reply for a synced Google review, then refreshes the reviews tab. */
+export function useDraftGbpReviewReply(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reviewId, tone }: { reviewId: string; tone?: string }) =>
+      api.draftReviewReply(projectId!, reviewId, tone),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gbp-reviews", projectId] });
+      qc.invalidateQueries({ queryKey: ["local-reviews", projectId] });
+    },
+  });
+}
+
 export function useAnalyzeGbp(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
