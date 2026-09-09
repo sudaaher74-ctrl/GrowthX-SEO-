@@ -507,7 +507,7 @@ function WebsiteAuditClient() {
               <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
                 <span className="text-slate-400 uppercase text-[10px] font-bold">Crawl Status</span>
                 <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
-                  {crawl.data?.status || "COMPLETED"}
+                  {crawl.data?.status || "—"}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
@@ -525,7 +525,9 @@ function WebsiteAuditClient() {
               <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
                 <span className="text-slate-400 uppercase text-[10px] font-bold">Coverage</span>
                 <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
-                  {qualityDiagnostics?.crawlCoveragePercent ?? 100}%
+                  {qualityDiagnostics?.crawlCoveragePercent != null
+                    ? `${qualityDiagnostics.crawlCoveragePercent}%`
+                    : "—"}
                 </p>
               </div>
             </div>

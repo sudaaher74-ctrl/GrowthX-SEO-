@@ -590,7 +590,6 @@ export function PerformanceTab({
                   <th className="p-3">LCP</th>
                   <th className="p-3">INP</th>
                   <th className="p-3">CLS</th>
-                  <th className="p-3">PAGE SIZE</th>
                   <th className="p-3">LOAD TIME</th>
                   <th className="p-3">STATUS</th>
                   <th className="p-3 pr-4 text-right">ACTION</th>
@@ -598,13 +597,14 @@ export function PerformanceTab({
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {slowestPages.slice(0, 15).map((page) => {
-                  const lcp = page.performance?.lcpMs
-                    ? (page.performance.lcpMs / 1000).toFixed(1) + "s"
-                    : `${((page.responseTimeMs * 1.5) / 1000).toFixed(1)}s`;
-                  const inp = page.performance?.inpMs ? `${page.performance.inpMs}ms` : "240ms";
-                  const cls = page.performance?.clsScore ? page.performance.clsScore.toFixed(2) : "0.14";
-                  const loadTime = `${((page.responseTimeMs || 800) / 1000).toFixed(1)}s`;
-                  const estSize = `${((page.wordCount * 120 + 400000) / (1024 * 1024)).toFixed(1)} MB`;
+                  const lcp = page.performance?.lcpMs != null
+                    ? `${(page.performance.lcpMs / 1000).toFixed(1)}s`
+                    : "—";
+                  const inp = page.performance?.inpMs != null ? `${page.performance.inpMs}ms` : "—";
+                  const cls = page.performance?.clsScore != null
+                    ? page.performance.clsScore.toFixed(2)
+                    : "—";
+                  const loadTime = `${(page.responseTimeMs / 1000).toFixed(1)}s`;
 
                   const isSlow = page.responseTimeMs >= 3000;
                   const isNeedsWork = page.responseTimeMs >= 1500 && page.responseTimeMs < 3000;
@@ -637,9 +637,6 @@ export function PerformanceTab({
                       </td>
                       <td className="p-3 font-mono font-semibold text-rose-600 dark:text-rose-400">
                         {cls}
-                      </td>
-                      <td className="p-3 font-mono text-slate-700 dark:text-slate-300">
-                        {estSize}
                       </td>
                       <td className="p-3 font-mono font-semibold text-slate-900 dark:text-white">
                         {loadTime}
