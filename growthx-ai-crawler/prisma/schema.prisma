@@ -21,26 +21,26 @@ datasource db {
 }
 
 model Website {
-  id                String         @id @default(uuid())
-  domain            String         @unique
+  id                String             @id @default(uuid())
+  domain            String             @unique
   url               String
-  isVerified        Boolean        @default(false)
+  isVerified        Boolean            @default(false)
   verifiedAt        DateTime?
   verificationToken String?
   webhookSecret     String?
   authCredentials   String?
-  rateLimitDelayMs  Int            @default(500)
-  maxConcurrency    Int            @default(5)
-  maxDepth          Int            @default(10)
+  rateLimitDelayMs  Int                @default(500)
+  maxConcurrency    Int                @default(5)
+  maxDepth          Int                @default(10)
   /// Monthly by default: gentle enough not to swamp a small instance, while
   /// keeping every verified site on some schedule rather than silently
   /// dropping recurring crawls. Set OFF to opt a site out entirely.
-  crawlFrequency    CrawlFrequency @default(MONTHLY)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  crawlFrequency    CrawlFrequency     @default(MONTHLY)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   projectId         String?
   crawlJobs         CrawlJob[]
-  project           Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// Competitors, across any project, whose domain this is.
   ///
   /// A competitor's site is stored with projectId left null. That is what
@@ -56,13 +56,13 @@ model Website {
 }
 
 model CrawlJob {
-  id             String          @id @default(uuid())
-  websiteId      String
-  status         JobStatus       @default(PENDING)
-  pagesCrawled   Int             @default(0)
-  issuesFound    Int             @default(0)
-  concurrency    Int             @default(5)
-  depthLimit     Int             @default(10)
+  id                  String           @id @default(uuid())
+  websiteId           String
+  status              JobStatus        @default(PENDING)
+  pagesCrawled        Int              @default(0)
+  issuesFound         Int              @default(0)
+  concurrency         Int              @default(5)
+  depthLimit          Int              @default(10)
   /// Hard ceiling on pages fetched by this job. Null means no ceiling, which
   /// is the right answer for a customer's own site and the wrong one for a
   /// competitor's: that is a third party who never asked to be crawled, and
@@ -72,17 +72,17 @@ model CrawlJob {
   finishedAt          DateTime?
   errorMessage        String?
   healthScore         Int?
-  uniqueIssuesCount   Int             @default(0)
-  resolvedIssuesCount Int             @default(0)
+  uniqueIssuesCount   Int              @default(0)
+  resolvedIssuesCount Int              @default(0)
   qualityDiagnostics  Json?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  website        Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  internalGraphs InternalGraph[]
-  issues         Issue[]
-  pages          Page[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  website             Website          @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  internalGraphs      InternalGraph[]
+  issues              Issue[]
+  pages               Page[]
   /// Social profiles this crawl found published on the site.
-  socialLinks    SiteSocialLink[]
+  socialLinks         SiteSocialLink[]
 
   @@index([websiteId, status])
   @@index([createdAt])
@@ -286,19 +286,19 @@ model User {
 }
 
 model Organization {
-  id           String               @id @default(uuid())
-  name         String
-  slug         String               @unique
+  id                 String               @id @default(uuid())
+  name               String
+  slug               String               @unique
   /// Monthly ceiling on AI provider spend, in USD. Null means no ceiling.
   /// Enforced by AiUsageService against calls whose cost is actually known —
   /// spend on models with no published rate cannot be counted, and the service
   /// reports how many such calls it had to ignore rather than guessing.
   aiMonthlyBudgetUsd Float?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  auditLogs    AuditLog[]
-  members      OrganizationMember[]
-  projects     Project[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  auditLogs          AuditLog[]
+  members            OrganizationMember[]
+  projects           Project[]
 }
 
 model OrganizationMember {
@@ -315,17 +315,17 @@ model OrganizationMember {
 }
 
 model Project {
-  id                   String                 @id @default(uuid())
-  name                 String
-  organizationId       String
+  id                        String                     @id @default(uuid())
+  name                      String
+  organizationId            String
   /// Agency-facing retainer label, e.g. "Scale" / "Growth" / "Starter".
   /// Free text so an agency can use its own tier names.
-  tier                 String?
+  tier                      String?
   /// Monthly retainer in the currency's minor unit (paise / cents). Null when
   /// the agency has not recorded one — the portfolio then shows "—" and the
   /// figure is excluded from MRR rather than being guessed at.
-  retainerMonthlyMinor Int?
-  retainerCurrency     String                 @default("INR")
+  retainerMonthlyMinor      Int?
+  retainerCurrency          String                     @default("INR")
   /// When automatic competitor identification last ran to completion for this
   /// project.
   ///
@@ -333,47 +333,45 @@ model Project {
   /// customer who reviewed the five we found and deleted four made a decision;
   /// a recurring crawl that re-identified competitors would silently undo it,
   /// and "the list is empty" would be indistinguishable from "we never looked".
-  competitorsIdentifiedAt DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  ClientPortalConfig   ClientPortalConfig?
-  competitors          CompetitorDomain[]
-  contentPieces        ContentPiece[]
-  CustomReport         CustomReport[]
-  IntegrationConfig    IntegrationConfig?
-  locations            LocalLocation[]
-  MarketIntelligence   MarketIntelligence?
-  MonitoringConfig     MonitoringConfig?
-  OutreachCampaign     OutreachCampaign[]
-  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  repository           SiteRepository?
-  strategies           StrategyReport[]
-  prompts              TrackedPrompt[]
-  websites             Website[]
-  LocalReview          LocalReview[]
-  AgentRun             AgentRun[]
-  Evidence             Evidence[]
-  Recommendation       Recommendation[]
-  MarketResearchThread MarketResearchThread[]
-  MarketOpportunity    MarketOpportunity[]
-  MarketAction         MarketAction[]
-  MarketWatch          MarketWatch[]
-  WeeklyDelta          WeeklyDelta[]
+  competitorsIdentifiedAt   DateTime?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  ClientPortalConfig        ClientPortalConfig?
+  competitors               CompetitorDomain[]
+  contentPieces             ContentPiece[]
+  CustomReport              CustomReport[]
+  IntegrationConfig         IntegrationConfig?
+  locations                 LocalLocation[]
+  MarketIntelligence        MarketIntelligence?
+  MonitoringConfig          MonitoringConfig?
+  OutreachCampaign          OutreachCampaign[]
+  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  repository                SiteRepository?
+  strategies                StrategyReport[]
+  prompts                   TrackedPrompt[]
+  websites                  Website[]
+  LocalReview               LocalReview[]
+  AgentRun                  AgentRun[]
+  Evidence                  Evidence[]
+  Recommendation            Recommendation[]
+  MarketResearchThread      MarketResearchThread[]
+  MarketOpportunity         MarketOpportunity[]
+  MarketAction              MarketAction[]
+  MarketWatch               MarketWatch[]
+  WeeklyDelta               WeeklyDelta[]
   ContentIntelligenceConfig ContentIntelligenceConfig?
-  businessProfile      ProjectBusinessProfile?
-  competitorFindings   CompetitorFinding[]
-  strategyRuns         StrategyRun[]
-  ContentStrategy      ContentStrategy[]
-  integrations         Integration[]
-  socialPosts          SocialPost[]
-  gbpFixProposals      GbpFixProposal[]
-  competitorChangeAlerts CompetitorChangeAlert[]
+  businessProfile           ProjectBusinessProfile?
+  competitorFindings        CompetitorFinding[]
+  strategyRuns              StrategyRun[]
+  ContentStrategy           ContentStrategy[]
+  integrations              Integration[]
+  socialPosts               SocialPost[]
+  gbpFixProposals           GbpFixProposal[]
+  competitorChangeAlerts    CompetitorChangeAlert[]
+  growthOpportunities       GrowthOpportunity[]
 
   @@index([organizationId])
-  growthOpportunities GrowthOpportunity[]
 }
-
-
 
 /// One row per (organization, metric, billing period). Incremented after work
 /// succeeds, so a failed crawl or a failed LLM call never burns the customer's
@@ -568,26 +566,26 @@ model OutreachContact {
 /// competitor does not have one" — the difference matters when deciding whether
 /// to re-run discovery.
 model CompetitorDomain {
-  id             String              @id @default(uuid())
-  projectId      String
-  domain         String
-  label          String?
+  id               String              @id @default(uuid())
+  projectId        String
+  domain           String
+  label            String?
   /// Business name as published on their own site, when discovered.
-  name           String?
-  industry       String?
-  description    String?
-  phone          String?
+  name             String?
+  industry         String?
+  description      String?
+  phone            String?
   /// The name this competitor trades under on Google Maps, which is often not
   /// the name on their website and is what a Places lookup must match.
-  mapsName       String?
+  mapsName         String?
   /// Channel URL or @handle. Resolved to a channel id at sync time.
-  youtubeUrl     String?
+  youtubeUrl       String?
   /// Professional (Business/Creator) account handle. Personal accounts cannot
   /// be read by any compliant API, so one stored here may still be unreadable.
-  instagramHandle String?
+  instagramHandle  String?
   /// City or service area this competitor actually operates in, which is what
   /// makes a local comparison meaningful.
-  city           String?
+  city             String?
   /// The Google listing this competitor was matched to, and what it said.
   ///
   /// Stored on the competitor rather than in LocalLocation because that model
@@ -603,24 +601,24 @@ model CompetitorDomain {
   localCheckedAt   DateTime?
   /// 0-100, how reliably the discovered identity is believed to be this
   /// competitor. Null until discovery has run. Never assume a match without it.
-  confidenceScore Int?
+  confidenceScore  Int?
   /// PENDING | ANALYZING | ANALYZED | FAILED
-  status         String              @default("PENDING")
-  lastAnalyzedAt DateTime?
-  nextAnalysisAt DateTime?
+  status           String              @default("PENDING")
+  lastAnalyzedAt   DateTime?
+  nextAnalysisAt   DateTime?
   /// The crawled site behind this domain, once it has been crawled at least
   /// once. Shared: two projects tracking the same competitor point at one
   /// Website rather than crawling that third party twice.
   ///
   /// SetNull rather than Cascade — deleting a crawled site must not delete
   /// the competitor the customer added.
-  websiteId      String?
-  website        Website?            @relation(fields: [websiteId], references: [id], onDelete: SetNull)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @default(now()) @updatedAt
-  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  socialAccounts CompetitorAccount[]
-  findings       CompetitorFinding[]
+  websiteId        String?
+  website          Website?            @relation(fields: [websiteId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @default(now()) @updatedAt
+  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  socialAccounts   CompetitorAccount[]
+  findings         CompetitorFinding[]
 
   @@unique([projectId, domain])
   @@index([projectId])
@@ -661,22 +659,22 @@ model SiteSocialLink {
 }
 
 model SocialPost {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   projectId      String
-  platform       String    /// INSTAGRAM | FACEBOOK | YOUTUBE
-  postId         String    /// The ID of the post on the platform
-  isCompetitor   Boolean   @default(false)
-  authorHandle   String    /// The handle that posted this
+  platform       String /// INSTAGRAM | FACEBOOK | YOUTUBE
+  postId         String /// The ID of the post on the platform
+  isCompetitor   Boolean  @default(false)
+  authorHandle   String /// The handle that posted this
   content        String?
   url            String?
   publishedAt    DateTime
-  likes          Int       @default(0)
-  comments       Int       @default(0)
-  shares         Int       @default(0)
-  views          Int       @default(0)
+  likes          Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  views          Int      @default(0)
   engagementRate Float?
-  fetchedAt      DateTime  @default(now())
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fetchedAt      DateTime @default(now())
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   /// Scoped to the project, which is what a post belongs to here.
   ///
@@ -757,7 +755,7 @@ model LocalLocation {
 model GbpFixProposal {
   id            String   @id @default(uuid())
   projectId     String
-  field         String   // e.g. "description", "services", "attributes"
+  field         String // e.g. "description", "services", "attributes"
   currentValue  String?
   proposedValue String
   rationale     String
@@ -782,23 +780,45 @@ model CustomReport {
 }
 
 model LocalReview {
-  id              String         @id @default(uuid())
-  projectId       String
-  authorName      String
-  authorPhotoUrl  String?
-  rating          Int
-  text            String?
-  time            String
-  relativeTime    String
-  aiDraftedReply  String?
-  replyStatus     String         @default("PENDING") // PENDING, PUBLISHED
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String  @id @default(uuid())
+  projectId      String
+  authorName     String
+  authorPhotoUrl String?
+  rating         Int
+  text           String?
+  time           String
+  relativeTime   String
+  aiDraftedReply String?
+  replyStatus    String  @default("PENDING") // PENDING, PUBLISHED
 
+  /// Google's own id for this review, when it came from a Business Profile
+  /// sync. Without it a second sync re-inserted every review, and a review the
+  /// merchant later edited became two contradictory rows. Null for reviews
+  /// from any other source, and Postgres treats NULLs as distinct, so the
+  /// unique constraint below does not collapse them.
+  googleReviewId       String?
+  /// The Business Profile location the review is attached to, so a project
+  /// with several locations does not blend them.
+  locationName         String?
+  /// The reply as it currently stands *on Google* — which is not the same as
+  /// aiDraftedReply, a draft that may never have been sent, nor replyStatus,
+  /// which is this product's own workflow. A reply the merchant wrote in the
+  /// Google UI shows up here and nowhere else.
+  googleReplyText      String?
+  googleReplyUpdatedAt DateTime?
+  /// When Google last saw this review change.
+  googleUpdateTime     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// One row per Google review per project: this is what makes a re-sync an
+  /// update rather than a duplicate.
+  @@unique([projectId, googleReviewId])
   @@index([projectId, replyStatus])
+  @@index([projectId, locationName])
 }
-
 
 model ClientPortalConfig {
   id           String   @id @default(uuid())
@@ -933,7 +953,6 @@ enum Role {
   MEMBER
   VIEWER
 }
-
 
 /// Mirrors the Razorpay subscription lifecycle so we never have to parse
 /// free-form strings when deciding whether an organization may use the product.
@@ -1554,31 +1573,31 @@ model WeeklyDelta {
 
 /// Per-project configuration for the Content Intelligence module.
 model ContentIntelligenceConfig {
-  id             String   @id @default(uuid())
-  organizationId String
-  projectId      String   @unique
+  id               String   @id @default(uuid())
+  organizationId   String
+  projectId        String   @unique
   /// Industry skill applied: JEWELLERY | REAL_ESTATE | RESTAURANT | FASHION | ECOMMERCE | SAAS | GENERIC
-  industrySkill  String   @default("GENERIC")
+  industrySkill    String   @default("GENERIC")
   /// Automation level: MANUAL | SEMI_AUTO | AUTO
-  automationLevel String  @default("MANUAL")
+  automationLevel  String   @default("MANUAL")
   /// Posting frequency preference: DAILY | 3X_WEEK | WEEKLY
-  postingFrequency String? 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  postingFrequency String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, projectId])
 }
 
 /// Social account handles for one competitor on one platform.
 model CompetitorAccount {
-  id                 String            @id @default(uuid())
+  id                 String              @id @default(uuid())
   organizationId     String
   projectId          String
   competitorId       String
-  competitor         CompetitorDomain  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
-  platform           String            /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
-  handle             String            /// @handle or channel id
+  competitor         CompetitorDomain    @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform           String /// INSTAGRAM | FACEBOOK | YOUTUBE | TIKTOK | TWITTER | LINKEDIN
+  handle             String /// @handle or channel id
   profileUrl         String?
   displayName        String?
   followerCount      Int?
@@ -1586,13 +1605,13 @@ model CompetitorAccount {
   businessName       String?
   location           String?
   industry           String?
-  discoverySource    String?           /// WEBSITE_CRAWL | MANUAL | SEARCH
-  verificationStatus String?           /// VERIFIED | UNVERIFIED | SUGGESTED
-  matchConfidence    Int?              /// 0-100 match confidence
-  isActive           Boolean           @default(true)
+  discoverySource    String? /// WEBSITE_CRAWL | MANUAL | SEARCH
+  verificationStatus String? /// VERIFIED | UNVERIFIED | SUGGESTED
+  matchConfidence    Int? /// 0-100 match confidence
+  isActive           Boolean             @default(true)
   lastSyncedAt       DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   content            CompetitorContent[]
 
   @@unique([projectId, platform, handle])
@@ -1602,40 +1621,40 @@ model CompetitorAccount {
 
 /// Normalized content item from any competitor on any platform.
 model CompetitorContent {
-  id                  String                  @id @default(uuid())
+  id                  String                 @id @default(uuid())
   organizationId      String
   projectId           String
   accountId           String
-  platform            String                  /// INSTAGRAM | FACEBOOK | YOUTUBE
-  contentType         String?                 /// POST | REEL | VIDEO | STORY | CAROUSEL | SHORT
+  platform            String /// INSTAGRAM | FACEBOOK | YOUTUBE
+  contentType         String? /// POST | REEL | VIDEO | STORY | CAROUSEL | SHORT
   publishedAt         DateTime?
   caption             String?
   title               String?
   description         String?
-  hashtags            String[]                @default([])
+  hashtags            String[]               @default([])
   mediaUrl            String?
   thumbnailUrl        String?
   contentUrl          String?
-  duration            Int?                    /// Video duration in seconds
-  transcript          String?                 /// Full speech transcript
-  transcriptSegments  Json?                   /// [{ start, end, text, type }]
-  ocrText             String?                 /// Extracted on-screen video frame text
-  scenes              Json?                   /// [{ start, end, description, visualFormat, objects }]
-  hookAnalysis        Json?                   /// { hook, hookType, durationSeconds, strength }
-  structureAnalysis   Json?                   /// { hookDuration, intro, problem, solution, ctaPlacement, conclusion }
-  whyItWorks          String?                 /// Strategic teardown of why this content succeeds
-  dataSourceType      String?                 /// PUBLIC_DATA | AUTHORIZED_DATA | ESTIMATED_DATA | AI_INFERENCE
-  confidenceLevel     String?                 /// HIGH | MEDIUM | LOW
+  duration            Int? /// Video duration in seconds
+  transcript          String? /// Full speech transcript
+  transcriptSegments  Json? /// [{ start, end, text, type }]
+  ocrText             String? /// Extracted on-screen video frame text
+  scenes              Json? /// [{ start, end, description, visualFormat, objects }]
+  hookAnalysis        Json? /// { hook, hookType, durationSeconds, strength }
+  structureAnalysis   Json? /// { hookDuration, intro, problem, solution, ctaPlacement, conclusion }
+  whyItWorks          String? /// Strategic teardown of why this content succeeds
+  dataSourceType      String? /// PUBLIC_DATA | AUTHORIZED_DATA | ESTIMATED_DATA | AI_INFERENCE
+  confidenceLevel     String? /// HIGH | MEDIUM | LOW
   likesCount          Int?
   commentsCount       Int?
   sharesCount         Int?
   viewsCount          Int?
   savesCount          Int?
-  engagementAvailable Boolean                 @default(false)
+  engagementAvailable Boolean                @default(false)
   /// AI-detected topics, format, style, objects (stored separately in classification)
   rawMetadata         Json?
-  createdAt           DateTime                @default(now())
-  account             CompetitorAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt           DateTime               @default(now())
+  account             CompetitorAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   classification      ContentClassification?
   patternLinks        PatternContentLink[]
 
@@ -1645,41 +1664,41 @@ model CompetitorContent {
 
 /// AI-generated classification for one piece of competitor content.
 model ContentClassification {
-  id                  String           @id @default(uuid())
-  contentId           String           @unique
+  id                String            @id @default(uuid())
+  contentId         String            @unique
   /// Content category / pillar: EDUCATIONAL | PROMOTIONAL | PRODUCT | LIFESTYLE | BEHIND_SCENES | TESTIMONIAL | etc.
-  contentCategory     String?
-  contentPillar       String?
-  topic               String?
-  subtopic            String?
-  format              String?
+  contentCategory   String?
+  contentPillar     String?
+  topic             String?
+  subtopic          String?
+  format            String?
   /// Visual format: STATIC | CAROUSEL | REEL | SHORT_VIDEO | LONG_VIDEO | STORY
-  visualFormat        String?
+  visualFormat      String?
   /// Detected topics as array
-  detectedTopics      String[]         @default([])
+  detectedTopics    String[]          @default([])
   /// Visual objects detected: PRODUCT | MODEL | CELEBRITY | FLOWERS | WEDDING | OUTDOOR | etc.
-  detectedObjects     String[]         @default([])
+  detectedObjects   String[]          @default([])
   /// Detected storytelling style
-  storytellingStyle   String?
+  storytellingStyle String?
   /// Detected hook type: QUESTION | PROBLEM | CURIOSITY | STATISTIC | MISTAKE | WARNING | BEFORE_AFTER | STRONG_CLAIM | STORY | LIST | COMPARISON | DIRECT_STATEMENT
-  hookType            String?
+  hookType          String?
   /// Detected CTA type: BOOK_CONSULTATION | VISIT_WEBSITE | CALL | DM | COMMENT | SUBSCRIBE | FOLLOW | BUY | LEARN_MORE | DOWNLOAD | NONE
-  ctaType             String?
-  ctaText             String?
-  audience            String?
-  searchIntent        String?
-  marketingIntent     String?
-  funnelStage         String?          /// AWARENESS | CONSIDERATION | CONVERSION | RETENTION
-  tone                String?
-  language            String?          @default("en")
-  visualStyle         String?
-  contentObjective    String?
-  confidence          Int?             @default(90)
+  ctaType           String?
+  ctaText           String?
+  audience          String?
+  searchIntent      String?
+  marketingIntent   String?
+  funnelStage       String? /// AWARENESS | CONSIDERATION | CONVERSION | RETENTION
+  tone              String?
+  language          String?           @default("en")
+  visualStyle       String?
+  contentObjective  String?
+  confidence        Int?              @default(90)
   /// Overall creative style score 0-10
-  creativityScore     Float?
-  classifiedByModel   String?
-  classifiedAt        DateTime         @default(now())
-  content             CompetitorContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  creativityScore   Float?
+  classifiedByModel String?
+  classifiedAt      DateTime          @default(now())
+  content           CompetitorContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
 }
 
 /// A creative pattern detected across multiple competitors' content.
@@ -1715,10 +1734,10 @@ model CreativePattern {
 
 /// Junction: which content items exemplify a pattern.
 model PatternContentLink {
-  id        String           @id @default(uuid())
+  id        String            @id @default(uuid())
   patternId String
   contentId String
-  pattern   CreativePattern  @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  pattern   CreativePattern   @relation(fields: [patternId], references: [id], onDelete: Cascade)
   content   CompetitorContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
   @@unique([patternId, contentId])
@@ -1726,7 +1745,7 @@ model PatternContentLink {
 
 /// A content gap identified between customer content and competitor patterns.
 model ContentGap {
-  id                      String           @id @default(uuid())
+  id                      String                @id @default(uuid())
   organizationId          String
   projectId               String
   patternId               String?
@@ -1734,23 +1753,23 @@ model ContentGap {
   gapType                 String
   title                   String
   description             String
-  competitionLevel        String           @default("MEDIUM")   /// LOW | MEDIUM | HIGH
-  opportunityScore        Int              @default(50)
-  businessRelevanceScore  Int?             @default(85)
-  searchOpportunityScore  Int?             @default(80)
-  competitorEvidenceScore Int?             @default(85)
-  contentGapScore         Int?             @default(90)
-  confidenceScore         Int?             @default(88)
-  effortLevel             String?          @default("MEDIUM")  /// LOW | MEDIUM | HIGH
-  relatedKeywords         String[]         @default([])
-  platforms               String[]         @default([])
-  suggestedFormats        String[]         @default([])
+  competitionLevel        String                @default("MEDIUM") /// LOW | MEDIUM | HIGH
+  opportunityScore        Int                   @default(50)
+  businessRelevanceScore  Int?                  @default(85)
+  searchOpportunityScore  Int?                  @default(80)
+  competitorEvidenceScore Int?                  @default(85)
+  contentGapScore         Int?                  @default(90)
+  confidenceScore         Int?                  @default(88)
+  effortLevel             String?               @default("MEDIUM") /// LOW | MEDIUM | HIGH
+  relatedKeywords         String[]              @default([])
+  platforms               String[]              @default([])
+  suggestedFormats        String[]              @default([])
   /// Recommended action
   recommendedAction       String?
-  status                  String           @default("OPEN")     /// OPEN | ACTIONED | DISMISSED
-  createdAt               DateTime         @default(now())
-  updatedAt               DateTime         @updatedAt
-  pattern                 CreativePattern? @relation("GapPattern", fields: [patternId], references: [id], onDelete: SetNull)
+  status                  String                @default("OPEN") /// OPEN | ACTIONED | DISMISSED
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  pattern                 CreativePattern?      @relation("GapPattern", fields: [patternId], references: [id], onDelete: SetNull)
   CalendarItem            ContentCalendarItem[]
 
   @@index([organizationId, projectId, gapType])
@@ -1764,7 +1783,7 @@ model CompetitorChangeAlert {
   projectId      String
   competitorId   String?
   accountHandle  String?
-  alertType      String   /// VELOCITY_SURGE | NEW_PILLAR | NEW_CAMPAIGN | FORMAT_SHIFT | WINNING_CONTENT
+  alertType      String /// VELOCITY_SURGE | NEW_PILLAR | NEW_CAMPAIGN | FORMAT_SHIFT | WINNING_CONTENT
   severity       String   @default("INFO") /// INFO | WARNING | CRITICAL
   title          String
   description    String
@@ -1779,58 +1798,58 @@ model CompetitorChangeAlert {
 
 /// AI-generated content strategy for a project.
 model ContentStrategy {
-  id                   String   @id @default(uuid())
-  organizationId       String
-  projectId            String
-  title                String   @default("Content Strategy")
+  id                String     @id @default(uuid())
+  organizationId    String
+  projectId         String
+  title             String     @default("Content Strategy")
   /// Strategy document as structured JSON
-  content              Json
+  content           Json
   /// Dynamic content pillars (array of {pillar, pct, rationale})
-  contentPillars       Json?
+  contentPillars    Json?
   /// Posting frequency per platform
-  platformFrequency    Json?
+  platformFrequency Json?
   /// Campaign recommendations
-  campaignIdeas        Json?
+  campaignIdeas     Json?
   /// Creator strategy
-  creatorStrategy      String?
-  generatedByModel     String?
-  industrySkill        String?
-  status               String   @default("DRAFT")   /// DRAFT | APPROVED | ARCHIVED
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  campaigns            Campaign[]
+  creatorStrategy   String?
+  generatedByModel  String?
+  industrySkill     String?
+  status            String     @default("DRAFT") /// DRAFT | APPROVED | ARCHIVED
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  project           Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  campaigns         Campaign[]
 
   @@index([organizationId, projectId, createdAt])
 }
 
 /// A content calendar item (one planned or published piece of social content).
 model ContentCalendarItem {
-  id                String   @id @default(uuid())
-  organizationId    String
-  projectId         String
-  campaignId        String?
-  gapId             String?
-  platform          String                  /// INSTAGRAM | FACEBOOK | YOUTUBE | WHATSAPP | WEBSITE
-  contentType       String                  /// POST | REEL | CAROUSEL | VIDEO | BLOG | STORY
-  contentPillar     String?                 /// PRODUCT | EDUCATIONAL | LIFESTYLE | CREATOR | PROMOTIONAL
-  title             String
-  caption           String?
-  hook              String?
-  cta               String?
-  hashtags          String[]  @default([])
-  visualBrief       String?
-  scheduledFor      DateTime?
-  publishedAt       DateTime?
-  status            String    @default("DRAFT") /// DRAFT | REVIEW | APPROVED | SCHEDULED | PUBLISHED | FAILED
-  approvalMode      String    @default("APPROVAL")  /// AUTO | APPROVAL | CONTROLLED
-  generatedByModel  String?
-  creatorId         String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  gap               ContentGap? @relation(fields: [gapId], references: [id], onDelete: SetNull)
-  campaign          Campaign?   @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  metrics           SocialMetric[]
+  id               String         @id @default(uuid())
+  organizationId   String
+  projectId        String
+  campaignId       String?
+  gapId            String?
+  platform         String /// INSTAGRAM | FACEBOOK | YOUTUBE | WHATSAPP | WEBSITE
+  contentType      String /// POST | REEL | CAROUSEL | VIDEO | BLOG | STORY
+  contentPillar    String? /// PRODUCT | EDUCATIONAL | LIFESTYLE | CREATOR | PROMOTIONAL
+  title            String
+  caption          String?
+  hook             String?
+  cta              String?
+  hashtags         String[]       @default([])
+  visualBrief      String?
+  scheduledFor     DateTime?
+  publishedAt      DateTime?
+  status           String         @default("DRAFT") /// DRAFT | REVIEW | APPROVED | SCHEDULED | PUBLISHED | FAILED
+  approvalMode     String         @default("APPROVAL") /// AUTO | APPROVAL | CONTROLLED
+  generatedByModel String?
+  creatorId        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  gap              ContentGap?    @relation(fields: [gapId], references: [id], onDelete: SetNull)
+  campaign         Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  metrics          SocialMetric[]
 
   @@index([organizationId, projectId, scheduledFor])
   @@index([projectId, status])
@@ -1839,56 +1858,56 @@ model ContentCalendarItem {
 
 /// A campaign workspace grouping strategy → content → creators → publishing.
 model Campaign {
-  id                String    @id @default(uuid())
-  organizationId    String
-  projectId         String
-  strategyId        String?
-  name              String
-  objective         String?
-  productFocus      String?
-  targetAudience    String?
-  budget            Float?
-  startDate         DateTime?
-  endDate           DateTime?
-  platforms         String[]  @default([])
-  status            String    @default("PLANNING")  /// PLANNING | ACTIVE | PAUSED | COMPLETED | CANCELLED
-  approvalMode      String    @default("APPROVAL")
+  id             String                @id @default(uuid())
+  organizationId String
+  projectId      String
+  strategyId     String?
+  name           String
+  objective      String?
+  productFocus   String?
+  targetAudience String?
+  budget         Float?
+  startDate      DateTime?
+  endDate        DateTime?
+  platforms      String[]              @default([])
+  status         String                @default("PLANNING") /// PLANNING | ACTIVE | PAUSED | COMPLETED | CANCELLED
+  approvalMode   String                @default("APPROVAL")
   /// AI-generated campaign brief as JSON
-  brief             Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  strategy          ContentStrategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
-  calendarItems     ContentCalendarItem[]
-  creatorMatches    CreatorMatch[]
+  brief          Json?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  strategy       ContentStrategy?      @relation(fields: [strategyId], references: [id], onDelete: SetNull)
+  calendarItems  ContentCalendarItem[]
+  creatorMatches CreatorMatch[]
 
   @@index([organizationId, projectId, status])
 }
 
 /// A creator or model in the CRM.
 model Creator {
-  id                String          @id @default(uuid())
-  organizationId    String
+  id             String            @id @default(uuid())
+  organizationId String
   /// Creators are org-level (can be matched to multiple projects)
-  name              String
-  handle            String?
-  platform          String?         /// INSTAGRAM | YOUTUBE | TIKTOK | etc.
-  profileUrl        String?
-  email             String?
-  phone             String?
-  location          String?
-  category          String?         /// MODEL | INFLUENCER | CELEBRITY | UGC_CREATOR | PHOTOGRAPHER
-  industry          String?
-  followerCount     Int?
-  engagementRate    Float?
-  averageBudget     Float?
-  currency          String          @default("INR")
-  notes             String?
-  tags              String[]        @default([])
-  status            String          @default("ACTIVE")  /// ACTIVE | INACTIVE | BLACKLISTED
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  matches           CreatorMatch[]
-  outreach          CreatorOutreach[]
+  name           String
+  handle         String?
+  platform       String? /// INSTAGRAM | YOUTUBE | TIKTOK | etc.
+  profileUrl     String?
+  email          String?
+  phone          String?
+  location       String?
+  category       String? /// MODEL | INFLUENCER | CELEBRITY | UGC_CREATOR | PHOTOGRAPHER
+  industry       String?
+  followerCount  Int?
+  engagementRate Float?
+  averageBudget  Float?
+  currency       String            @default("INR")
+  notes          String?
+  tags           String[]          @default([])
+  status         String            @default("ACTIVE") /// ACTIVE | INACTIVE | BLACKLISTED
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  matches        CreatorMatch[]
+  outreach       CreatorOutreach[]
 
   @@index([organizationId])
   @@index([organizationId, category])
@@ -1896,19 +1915,19 @@ model Creator {
 
 /// AI-scored match between a creator and a campaign.
 model CreatorMatch {
-  id                String   @id @default(uuid())
-  organizationId    String
-  projectId         String
-  campaignId        String
-  creatorId         String
-  matchScore        Int      /// 0-100
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  campaignId     String
+  creatorId      String
+  matchScore     Int /// 0-100
   /// Why this score was given (JSON breakdown: brand fit, industry fit, etc.)
-  scoreBreakdown    Json?
+  scoreBreakdown Json?
   /// Whether customer shortlisted / selected
-  status            String   @default("SUGGESTED")  /// SUGGESTED | SHORTLISTED | SELECTED | REJECTED
-  createdAt         DateTime @default(now())
-  campaign          Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  creator           Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  status         String   @default("SUGGESTED") /// SUGGESTED | SHORTLISTED | SELECTED | REJECTED
+  createdAt      DateTime @default(now())
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, creatorId])
   @@index([organizationId, projectId])
@@ -1916,27 +1935,27 @@ model CreatorMatch {
 
 /// Creator outreach pipeline record.
 model CreatorOutreach {
-  id                 String    @id @default(uuid())
-  organizationId     String
-  projectId          String
-  creatorId          String
-  campaignId         String?
-  subject            String?
-  messageBody        String?
-  channel            String    @default("EMAIL")   /// EMAIL | INSTAGRAM_DM | WHATSAPP | MANUAL
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String
+  creatorId      String
+  campaignId     String?
+  subject        String?
+  messageBody    String?
+  channel        String    @default("EMAIL") /// EMAIL | INSTAGRAM_DM | WHATSAPP | MANUAL
   /// DISCOVERED | SHORTLISTED | CONTACTED | INTERESTED | NEGOTIATING | CONFIRMED | CAMPAIGN_ACTIVE | COMPLETED | PERFORMANCE_REVIEWED
-  pipelineStage      String    @default("DISCOVERED")
-  contactedAt        DateTime?
-  responseAt         DateTime?
-  responseText       String?
-  agreedBudget       Float?
-  contractStatus     String?   /// PENDING | SIGNED | DECLINED
-  notes              String?
-  approvedToSend     Boolean   @default(false)
-  sentAt             DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  creator            Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  pipelineStage  String    @default("DISCOVERED")
+  contactedAt    DateTime?
+  responseAt     DateTime?
+  responseText   String?
+  agreedBudget   Float?
+  contractStatus String? /// PENDING | SIGNED | DECLINED
+  notes          String?
+  approvedToSend Boolean   @default(false)
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  creator        Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, projectId, pipelineStage])
   @@index([creatorId])
@@ -1944,31 +1963,31 @@ model CreatorOutreach {
 
 /// Customer's own connected social account for publishing.
 model SocialAccount {
-  id                 String    @id @default(uuid())
-  organizationId     String
-  projectId          String
-  platform           String                 /// INSTAGRAM | FACEBOOK | YOUTUBE
-  accountId          String?                /// Platform's own account/page id
-  accountName        String?
-  handle             String?
-  accessToken        String?                /// Encrypted
-  refreshToken       String?                /// Encrypted
-  tokenExpiresAt     DateTime?
-  scopes             String[]  @default([])
-  status             String    @default("DISCONNECTED")  /// CONNECTED | DISCONNECTED | EXPIRED | ERROR
+  id              String    @id @default(uuid())
+  organizationId  String
+  projectId       String
+  platform        String /// INSTAGRAM | FACEBOOK | YOUTUBE
+  accountId       String? /// Platform's own account/page id
+  accountName     String?
+  handle          String?
+  accessToken     String? /// Encrypted
+  refreshToken    String? /// Encrypted
+  tokenExpiresAt  DateTime?
+  scopes          String[]  @default([])
+  status          String    @default("DISCONNECTED") /// CONNECTED | DISCONNECTED | EXPIRED | ERROR
   /// The profile page, when the account was found rather than connected.
-  profileUrl         String?
+  profileUrl      String?
   /// WEBSITE_CRAWL | MANUAL | OAUTH — how this account came to be known.
   ///
   /// A discovered account is a lead for the operator to connect, not a
   /// connection: DISCONNECTED with a handle and this set means "we found this
   /// published on your site", which is a different claim from "you connected
   /// it", and nothing may treat the two alike.
-  discoverySource    String?
-  discoveredAt       DateTime?
-  lastPublishedAt    DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  discoverySource String?
+  discoveredAt    DateTime?
+  lastPublishedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([projectId, platform])
   @@index([organizationId, projectId])
@@ -2001,16 +2020,23 @@ model SocialMetric {
   @@index([calendarItemId])
 }
 
-
 /// One customer's connection to one external data source.
 ///
 /// Tokens are stored encrypted (see token-crypto.ts) — a refresh token is a
 /// long-lived key to a customer's Google data, and these columns were
 /// previously plaintext.
 model Integration {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   projectId    String
-  provider     String   // search_console | analytics | business_profile | google_business
+  /// search_console | analytics | business_profile
+  ///
+  /// `google_business` used to be a fourth value, written by a parallel
+  /// connector that stored the raw access token in `accessToken` rather than
+  /// the ciphertext this column is documented to hold. That connector is gone
+  /// and its rows are deleted by the migration that removed it: a plaintext
+  /// OAuth token left in a table nothing reads is still a plaintext OAuth
+  /// token.
+  provider     String
   /// AES-256-GCM ciphertext, never the raw token.
   accessToken  String
   refreshToken String?
@@ -2022,7 +2048,7 @@ model Integration {
   /// Scopes Google actually granted, which can be narrower than those asked
   /// for: a customer may untick one on the consent screen, and the connector
   /// has to find out before a call fails rather than after.
-  grantedScopes String[] @default([])
+  grantedScopes      String[] @default([])
 
   /// What the customer picked after authorizing — a GSC property, a GA4
   /// property, a GBP location. Null until they choose, which is a real state:
@@ -2037,7 +2063,7 @@ model Integration {
   /// failed" is not visible from the row's other columns and is exactly what
   /// the customer needs told: one broken integration must show as broken
   /// without making the rest of the dashboard look broken too.
-  status       String   @default("NEEDS_SELECTION")
+  status        String  @default("NEEDS_SELECTION")
   /// Why, when status is ERROR or NEEDS_REAUTH. Shown to the customer, so it
   /// must never carry a token or a raw API payload.
   statusMessage String?
@@ -2045,10 +2071,10 @@ model Integration {
   lastSyncedAt DateTime?
   nextSyncAt   DateTime?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  auditEvents  IntegrationAuditEvent[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditEvents IntegrationAuditEvent[]
 
   @@unique([projectId, provider])
   @@index([projectId])
@@ -2062,7 +2088,7 @@ model Integration {
 /// separate from the Integration row because that row is overwritten on every
 /// token refresh and an audit trail that can be overwritten is not one.
 model IntegrationAuditEvent {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   integrationId String
   projectId     String
   /// CONNECTED | RESOURCE_SELECTED | REFRESHED | REAUTH_REQUIRED | SYNC_FAILED | DISCONNECTED
@@ -2073,13 +2099,12 @@ model IntegrationAuditEvent {
   /// Never a token, never a raw response — this is readable by anyone with
   /// access to the project.
   detail        String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime    @default(now())
   integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
   @@index([integrationId, createdAt])
 }
-
 
 /// One row of Google Search Console performance data.
 ///
@@ -2106,11 +2131,11 @@ model GscDailyMetric {
   date       DateTime @db.Date
 
   /// TOTAL | QUERY | PAGE | QUERY_PAGE | COUNTRY | DEVICE
-  grain      String
-  query      String?
-  page       String?
-  country    String?
-  device     String?
+  grain   String
+  query   String?
+  page    String?
+  country String?
+  device  String?
 
   clicks      Int
   impressions Int
@@ -2140,25 +2165,25 @@ model GscDailyMetric {
 /// and a failure history that gets overwritten is not one. This is what the
 /// Data Health page reads.
 model DataSyncJob {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   projectId String
   /// search_console | analytics | business_profile
   provider  String
 
   /// RUNNING | SUCCEEDED | PARTIAL | FAILED
-  status    String   @default("RUNNING")
+  status     String    @default("RUNNING")
   /// The window actually requested, so a gap in coverage is visible rather
   /// than being inferred from what happens to be in the fact table.
   rangeStart DateTime? @db.Date
   rangeEnd   DateTime? @db.Date
 
-  rowsWritten Int      @default(0)
+  rowsWritten  Int     @default(0)
   /// PARTIAL exists because a sync that got three of four dimensions is worth
   /// keeping and worth flagging; recording it as SUCCEEDED hides a gap and as
   /// FAILED throws away real data.
   errorMessage String?
 
-  startedAt  DateTime @default(now())
+  startedAt  DateTime  @default(now())
   finishedAt DateTime?
 
   @@index([projectId, provider, startedAt])
@@ -2190,12 +2215,12 @@ model GrowthOpportunity {
   /// SEO | CONTENT | LOCAL | TECHNICAL | MARKETING | BUSINESS | COMPETITOR
   category String
 
-  title            String
-  summary          String
+  title             String
+  summary           String
   /// What this claim rests on: [{ label, value, source }]. Every row carries
   /// its evidence because a recommendation nobody can check is a guess with
   /// better formatting.
-  evidence         Json
+  evidence          Json
   recommendedAction String
 
   /// HIGH | MEDIUM | LOW. Deliberately a band, not a currency figure —
@@ -2256,14 +2281,14 @@ model Ga4DailyMetric {
   country     String?
   device      String?
 
-  users       Int
-  sessions    Int
+  users          Int
+  sessions       Int
   /// 0-1 as GA4 reports it.
   engagementRate Float
   /// Null when the property has no key events configured — not zero.
-  conversions Int?
+  conversions    Int?
   /// Null unless ecommerce or a revenue-bearing event is set up.
-  revenue     Float?
+  revenue        Float?
 
   createdAt DateTime @default(now())
 
@@ -2427,22 +2452,22 @@ model CompetitorFinding {
 /// what changed between one week and the next, and so an action carried over
 /// from a previous run is distinguishable from a new one.
 model StrategyRun {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   projectId      String
   /// PENDING | RUNNING | COMPLETED | FAILED
-  status         String   @default("PENDING")
+  status         String    @default("PENDING")
   /// The goal the plan was written against, copied in so a later change to the
   /// profile does not silently reinterpret an old plan.
   businessGoal   String?
   /// How many findings the plan was built from. A plan from three findings and
   /// a plan from forty deserve different trust, and the number says so.
-  findingsUsed   Int      @default(0)
+  findingsUsed   Int       @default(0)
   /// Which surfaces had no data at all, so the plan can admit its blind spots
   /// instead of quietly omitting them.
   coverageGaps   String[]
   error          String?
-  startedAt      DateTime @default(now())
+  startedAt      DateTime  @default(now())
   finishedAt     DateTime?
 
   project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -2453,33 +2478,33 @@ model StrategyRun {
 
 /// One thing to do, why, and what it was based on.
 model StrategyAction {
-  id             String         @id @default(uuid())
-  organizationId String
-  projectId      String
-  runId          String
-  category       FindingCategory
-  title          String
+  id               String          @id @default(uuid())
+  organizationId   String
+  projectId        String
+  runId            String
+  category         FindingCategory
+  title            String
   /// What to do, step by step. Stored as steps rather than prose so the UI can
   /// render a checklist and a person can stop halfway.
-  steps          String[]
+  steps            String[]
   /// Why this is worth doing, in plain language.
-  rationale      String
-  expectedImpact String
+  rationale        String
+  expectedImpact   String
   /// Rough hours. Deliberately coarse — a false precision here would be read
   /// as a commitment.
-  effortHours    Int
-  priority       ActionPriority
-  owner          ActionOwner
+  effortHours      Int
+  priority         ActionPriority
+  owner            ActionOwner
   /// 0-100. Computed, never authored: see OpportunityScoringService.
   opportunityScore Int
   /// The score in words, so nobody has to trust a number they cannot unpack.
   scoreExplanation String
-  status         ActionStatus   @default(NOT_STARTED)
-  dueDate        DateTime?
+  status           ActionStatus    @default(NOT_STARTED)
+  dueDate          DateTime?
   /// Set the first time status became DONE, for completion reporting.
-  completedAt    DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   run      StrategyRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
   /// The evidence this action rests on. An action with none should not exist.
@@ -2499,17 +2524,17 @@ model StrategyAction {
 /// relations. This is a billing ledger — deleting a project should not erase
 /// the record of what that project spent.
 model AiUsageRecord {
-  id             String @id @default(uuid())
-  organizationId String?
-  projectId      String?
+  id               String   @id @default(uuid())
+  organizationId   String?
+  projectId        String?
   /// The semantic task the caller asked for — the router's `AiTask`, e.g.
   /// "CODE_GENERATION". Text rather than a Prisma enum so the router can name a
   /// new task without a migration; the router owns that vocabulary.
-  taskType       String
-  provider       String
-  model          String
-  inputTokens    Int    @default(0)
-  outputTokens   Int    @default(0)
+  taskType         String
+  provider         String
+  model            String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
   /// Null when no published rate is known for the model. Never a guessed
   /// number — the same rule the rest of the product applies to metrics applies
   /// to cost, because a wrong margin is worse than an absent one.
@@ -2551,16 +2576,16 @@ model GeoGridRun {
   /// Mean rank across the points where the business was actually found. Null
   /// when it was found nowhere — averaging in a placeholder for "absent" would
   /// invent a number, and a missing business is not a rank-21 business.
-  averageRank   Float?
+  averageRank Float?
   /// Points where the business appeared at all, and where it placed well.
-  foundCount    Int
-  top3Count     Int
-  top10Count    Int
+  foundCount  Int
+  top3Count   Int
+  top10Count  Int
   /// Total coordinates scanned, i.e. gridSize squared.
-  pointCount    Int
+  pointCount  Int
 
-  ranAt     DateTime @default(now())
-  points    GeoGridPoint[]
+  ranAt  DateTime       @default(now())
+  points GeoGridPoint[]
 
   @@index([projectId, keyword, ranAt])
   @@index([locationId, ranAt])
@@ -2568,15 +2593,15 @@ model GeoGridRun {
 
 /// One coordinate of a geo-grid scan.
 model GeoGridPoint {
-  id         String @id @default(uuid())
-  runId      String
-  row        Int
-  col        Int
-  lat        Float
-  lng        Float
-  distanceKm Float
+  id          String @id @default(uuid())
+  runId       String
+  row         Int
+  col         Int
+  lat         Float
+  lng         Float
+  distanceKm  Float
   /// "Center", "North", "South-East", and so on.
-  direction  String
+  direction   String
   /// Where the business placed at this coordinate. Null means it did not appear
   /// in the result set at all — deliberately distinct from a numeric last place.
   rank        Int?
@@ -2595,7 +2620,7 @@ model GeoGridPoint {
 /// coordinate. Rows rather than a JSON blob so "who dominates the north-east,
 /// and since when" is a query instead of a re-parse.
 model GeoGridCompetitor {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   pointId     String
   rank        Int
   name        String
@@ -2611,7 +2636,6 @@ model GeoGridCompetitor {
   @@index([pointId, rank])
   @@index([name])
 }
-
 
 /// The kind of structural change a fix made.
 ///
@@ -2660,11 +2684,11 @@ enum InterventionArm {
 /// side of the change. Page is already a per-crawl snapshot with a contentHash,
 /// headings, metadata and schemas, so it is reused rather than duplicated.
 model FixIntervention {
-  id        String @id @default(uuid())
-  projectId String
+  id          String          @id @default(uuid())
+  projectId   String
   /// The page the change was made to, as a URL: stable across re-crawls in a
   /// way that a Page id (which is per crawl job) is not.
-  url       String
+  url         String
   changeClass ChangeClass
   arm         InterventionArm @default(TREAT)
 
@@ -2703,7 +2727,7 @@ model FixIntervention {
 /// compare with, which is the honest answer — the alternative is reporting a
 /// before-and-after difference as though it were an effect.
 model InterventionOutcome {
-  id             String      @id @default(uuid())
+  id             String       @id @default(uuid())
   interventionId String
   /// Null means "across every engine", which is a different measurement from
   /// any single engine's and is stored as its own row.
@@ -2733,4 +2757,260 @@ model InterventionOutcome {
   /// looks the row up and updates it instead.
   @@index([interventionId, windowDays])
   @@index([interventionId])
+}
+
+// ─────────────────────────────────────────── Google Business Profile
+
+/// The synced detail of one Google Business Profile location.
+///
+/// A companion to LocalLocation rather than more columns on it, deliberately.
+/// LocalLocation is the *Places* view of a business: keyed by place id, always
+/// carrying a rating and a review count, and it is what the geo grid centres a
+/// scan on. This is the *Business Profile* view: keyed by the Google resource
+/// name (`locations/123`), owned by a GBP account, and almost every field is
+/// legitimately absent because the merchant never filled it in. Folding the two
+/// together would make "no description" and "we did not read a description"
+/// the same empty string, and the completeness breakdown on the overview tab is
+/// built precisely on telling those apart. They are also different grants: a
+/// project can hold a Places listing with no GBP connection, and vice versa.
+///
+/// `fieldsReturned` records which fields Google actually sent for this
+/// location, so completeness is a count of observed facts rather than a score
+/// someone chose.
+model GbpLocationProfile {
+  id           String  @id @default(uuid())
+  projectId    String
+  /// Google's resource name, e.g. `locations/12345678901234567890`. This is
+  /// the `selectedResourceId` on the Integration row.
+  locationName String
+  /// The GBP account that owns this location, e.g. `accounts/1234`. Needed to
+  /// address reviews, media and posts, which are only reachable on the legacy
+  /// v4 endpoints under `accounts/{account}/locations/{location}`.
+  accountName  String?
+
+  title          String?
+  storeCode      String?
+  /// The postal address exactly as Google returned it, plus a flattened form
+  /// for display. Kept whole because a GBP address is not always postal —
+  /// a service-area business has none at all.
+  address        Json?
+  addressSummary String?
+
+  primaryPhone     String?
+  additionalPhones String[] @default([])
+  websiteUri       String?
+  description      String?
+
+  primaryCategoryId    String?
+  primaryCategoryName  String?
+  /// [{ categoryId, displayName }] in the order Google returned them.
+  additionalCategories Json?
+
+  regularHours Json?
+  specialHours Json?
+  moreHours    Json?
+  serviceArea  Json?
+  labels       String[] @default([])
+
+  latitude  Float?
+  longitude Float?
+
+  /// openInfo.status — OPEN | CLOSED_PERMANENTLY | CLOSED_TEMPORARILY.
+  openStatus  String?
+  openingDate String?
+
+  placeId      String?
+  mapsUri      String?
+  newReviewUri String?
+
+  /// metadata.hasVoiceOfMerchant. Google's own answer to "is this profile
+  /// verified and in good standing". Null when Google did not return metadata,
+  /// which is not the same as false.
+  hasVoiceOfMerchant Boolean?
+  hasPendingEdits    Boolean?
+
+  /// Which of the fields above Google actually populated on the last sync. The
+  /// overview's completeness breakdown is computed from this, so an empty
+  /// profile reports "0 of 9 present" rather than a number with no source.
+  fieldsReturned String[] @default([])
+
+  /// The location resource as returned, for the GBP analyzer to audit. Never
+  /// shown to a customer as a metric.
+  raw Json?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One profile row per location per project, so a re-sync updates in place.
+  @@unique([projectId, locationName])
+  @@index([projectId])
+}
+
+/// A photo or video on a Business Profile.
+///
+/// Media lives only on the legacy v4 API, so an empty table here can mean "the
+/// merchant has no photos" or "this Cloud project is not allowed to read
+/// media". GbpSourceStatus is what tells those apart; nothing infers it from
+/// the row count.
+model GbpMedia {
+  id           String @id @default(uuid())
+  projectId    String
+  locationName String
+  /// v4 resource name, e.g. `accounts/1/locations/2/media/3`.
+  mediaName    String
+
+  /// PHOTO | VIDEO
+  mediaFormat  String?
+  /// COVER | PROFILE | LOGO | EXTERIOR | INTERIOR | PRODUCT | AT_WORK | ...
+  category     String?
+  googleUrl    String?
+  thumbnailUrl String?
+  sourceUrl    String?
+  description  String?
+  widthPx      Int?
+  heightPx     Int?
+  /// insights.viewCount, when Google reports one. Null means not reported, not
+  /// zero views.
+  viewCount    Int?
+  /// Who uploaded it. A customer photo is not the merchant's to manage, which
+  /// the tab has to be able to say.
+  attribution  String?
+  createTime   DateTime?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, mediaName])
+  @@index([projectId, locationName])
+}
+
+/// A Google post (What's New, Event, Offer). Also v4-only.
+model GbpLocalPost {
+  id           String @id @default(uuid())
+  projectId    String
+  locationName String
+  /// v4 resource name, e.g. `accounts/1/locations/2/localPosts/3`.
+  postName     String
+
+  summary          String?
+  languageCode     String?
+  /// LIVE | REJECTED | PROCESSING
+  state            String?
+  /// STANDARD | EVENT | OFFER | ALERT
+  topicType        String?
+  searchUrl        String?
+  callToActionType String?
+  callToActionUrl  String?
+  eventTitle       String?
+  eventStart       String?
+  eventEnd         String?
+  mediaUrls        String[]  @default([])
+  createTime       DateTime?
+  updateTime       DateTime?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, postName])
+  @@index([projectId, locationName])
+}
+
+/// One service the merchant lists on their profile.
+///
+/// GBP has two shapes: a structured item keyed by a Google service type id, and
+/// a free-form item the merchant named themselves. Neither carries a resource
+/// name, so `serviceKey` is derived from whichever identifies it — that is what
+/// makes a re-sync an update rather than a second copy of every service.
+model GbpServiceItem {
+  id           String @id @default(uuid())
+  projectId    String
+  locationName String
+  serviceKey   String
+
+  /// STRUCTURED | FREE_FORM
+  kind          String
+  displayName   String?
+  description   String?
+  serviceTypeId String?
+  categoryId    String?
+  priceCurrency String?
+  /// Whole units and nanos as Google's Money type reports them, kept apart
+  /// rather than combined into a float so no rounding is introduced into a
+  /// price the merchant set.
+  priceUnits    String?
+  priceNanos    Int?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, locationName, serviceKey])
+  @@index([projectId, locationName])
+}
+
+/// One day of one Business Profile performance metric.
+///
+/// Long rather than wide — one row per location per day per metric — because
+/// Google returns each metric as its own time series and adds new ones over
+/// time. A date-range query is then a grouped sum, and a metric Google stops
+/// reporting leaves a gap rather than a column of zeroes.
+///
+/// Google omits a datapoint's value when it is zero (documented on its
+/// `DatedValue` type), so an omitted value is stored as 0. A day Google did not
+/// return at all is stored as no row, which is why the metrics endpoint reports
+/// the dates actually covered rather than assuming the window is full.
+model GbpDailyMetric {
+  id           String   @id @default(uuid())
+  projectId    String
+  locationName String
+  date         DateTime @db.Date
+  /// BUSINESS_IMPRESSIONS_DESKTOP_MAPS | BUSINESS_IMPRESSIONS_DESKTOP_SEARCH |
+  /// BUSINESS_IMPRESSIONS_MOBILE_MAPS | BUSINESS_IMPRESSIONS_MOBILE_SEARCH |
+  /// BUSINESS_CONVERSATIONS | BUSINESS_DIRECTION_REQUESTS | CALL_CLICKS |
+  /// WEBSITE_CLICKS | BUSINESS_BOOKINGS
+  metric       String
+  value        Int
+
+  createdAt DateTime @default(now())
+
+  /// One value per location, day and metric. The sync deliberately re-reads
+  /// recent days, and this is what makes that an update instead of a duplicate.
+  @@unique([locationName, date, metric])
+  @@index([projectId, date])
+  @@index([projectId, metric, date])
+}
+
+/// Whether a Business Profile data source could be read, and why not.
+///
+/// Reviews, photos and posts are only available on Google's legacy v4 API,
+/// which many Cloud projects are not approved for. Without this row an empty
+/// photos tab would claim the merchant has no photos when the truth is that
+/// nobody was allowed to look. One row per source per location, overwritten on
+/// every attempt.
+model GbpSourceStatus {
+  id           String @id @default(uuid())
+  projectId    String
+  locationName String
+  /// profile | performance | reviews | media | posts
+  source       String
+
+  /// OK | UNAVAILABLE
+  state      String
+  /// Why it is unavailable, in words a customer can act on. Never a raw
+  /// payload and never a token.
+  message    String?
+  /// The HTTP status Google answered with, when there was one. 403 is the one
+  /// that means "not approved for this Cloud project" rather than "broken".
+  httpStatus Int?
+  /// How many records the last successful read returned. Null when it has
+  /// never succeeded — distinct from 0, which means it looked and found none.
+  lastCount  Int?
+
+  lastAttemptAt DateTime  @default(now())
+  lastSuccessAt DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, locationName, source])
+  @@index([projectId])
 }

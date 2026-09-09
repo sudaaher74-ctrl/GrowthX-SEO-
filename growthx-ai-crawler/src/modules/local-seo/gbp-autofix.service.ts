@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { GbpService } from '../integrations/gbp.service';
+import { BusinessProfileService } from '../integrations/google/business-profile.service';
 
 @Injectable()
 export class GbpAutofixService {
@@ -8,7 +8,7 @@ export class GbpAutofixService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly gbpService: GbpService,
+    private readonly gbp: BusinessProfileService,
   ) {}
 
   /**
@@ -35,7 +35,7 @@ export class GbpAutofixService {
       });
 
       // Fetch the location name from Google (needed for the patch request)
-      const location = await this.gbpService.getLocation(projectId);
+      const location = await this.gbp.fetchLocation(projectId);
 
       // Build the update payload based on the field
       const updateMask = proposal.field;
@@ -54,8 +54,13 @@ export class GbpAutofixService {
         };
       }
 
-      // Push to Google
-      await this.gbpService.patchLocation(projectId, location.name, updateMask, data);
+      // Push to Google. The location must still exist and still be named, or
+      // there is nothing to patch — better to fail here than to send a request
+      // addressed to nothing and record the proposal as pushed.
+      if (!location.name) {
+        throw new Error('Google did not return a resource name for the selected Business Profile location.');
+      }
+      await this.gbp.patchLocation(projectId, location.name, updateMask, data);
 
       // Mark as pushed
       await this.prisma.gbpFixProposal.update({

@@ -17,11 +17,26 @@ describe('GoogleSyncScheduler', () => {
       sync: syncImpl ?? jest.fn().mockResolvedValue({ status: 'SUCCEEDED', rowsWritten: 10 }),
     };
     const analytics = { sync: jest.fn().mockResolvedValue({ status: 'SUCCEEDED', rowsWritten: 7 }) };
+    // Business Profile counts records per source rather than rows in one
+    // table — it has five sources that succeed and fail independently.
+    const businessProfile = {
+      sync: jest.fn().mockResolvedValue({
+        status: 'PARTIAL',
+        counts: { reviews: 3, photos: 0, posts: 0, services: 2, metricDays: 90 },
+        failedSources: ['media', 'posts'],
+      }),
+    };
     return {
       prisma,
       searchConsole,
       analytics,
-      scheduler: new GoogleSyncScheduler(prisma as any, searchConsole as any, analytics as any),
+      businessProfile,
+      scheduler: new GoogleSyncScheduler(
+        prisma as any,
+        searchConsole as any,
+        analytics as any,
+        businessProfile as any,
+      ),
     };
   };
 
@@ -93,14 +108,28 @@ describe('GoogleSyncScheduler', () => {
   it('routes each connection to the connector that owns it', async () => {
     // One loop over both providers, so a customer with Analytics but no
     // Search Console is still synced.
-    const { searchConsole, analytics, scheduler } = build([
+    const { searchConsole, analytics, businessProfile, scheduler } = build([
       { projectId: 'a', provider: 'search_console' },
       { projectId: 'b', provider: 'analytics' },
+      { projectId: 'c', provider: 'business_profile' },
     ]);
 
     await scheduler.syncConnectedSources();
 
     expect(searchConsole.sync).toHaveBeenCalledWith('a');
     expect(analytics.sync).toHaveBeenCalledWith('b');
+    expect(businessProfile.sync).toHaveBeenCalledWith('c');
+  });
+
+  it('does not treat a partly refused Business Profile sync as a failure', async () => {
+    // v4 refusing reviews, photos and posts is the ordinary case on a Cloud
+    // project without legacy access. Letting that throw would abort the run
+    // and leave nextSyncAt unset, so the page could never say when data
+    // refreshes next.
+    const { prisma, scheduler } = build([{ projectId: 'a', provider: 'business_profile' }]);
+
+    await scheduler.syncConnectedSources();
+
+    expect(prisma.integration.update).toHaveBeenCalledTimes(1);
   });
 });

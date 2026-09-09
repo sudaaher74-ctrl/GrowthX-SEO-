@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { BusinessProfileService } from '../integrations/google/business-profile.service';
 
 @Injectable()
 export class ReviewsService {
@@ -9,12 +10,13 @@ export class ReviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
+    private readonly gbp: BusinessProfileService,
   ) {}
 
   /**
    * Pulls reviews from the connected Google Business Profile.
    *
-   * There is no such connection yet, and this used to paper over that by
+   * This used to have no connection to pull from, and papered over that by
    * writing invented reviews into LocalReview — named authors, written
    * testimonials, plausible timestamps. Once stored they were indistinguishable
    * from real ones: they counted toward review totals, fed the review-theme
@@ -22,19 +24,39 @@ export class ReviewsService {
    * do not exist. A reply sent to a fabricated review is a reply the operator
    * would have had no way to know was fictional.
    *
-   * Refusing is the only correct behaviour while the integration is missing.
-   * Reviews already stored are left alone: this cannot know which are real.
+   * There is a connection now, and it does the pulling. What is unchanged is
+   * the behaviour when there is not one: refuse and say so. Reviews already
+   * stored are left alone either way, because nothing here can tell which of
+   * them are real.
    */
   async syncReviews(projectId: string) {
     const existingCount = await this.prisma.localReview.count({ where: { projectId } });
 
-    throw new ServiceUnavailableException(
-      'Review sync is unavailable: no Google Business Profile connection is configured for this project. ' +
-        'Connect a Google Business Profile to import reviews. ' +
-        (existingCount > 0
-          ? `${existingCount} review(s) already stored are unaffected.`
-          : 'No reviews can be imported until then.'),
-    );
+    const integration = await this.prisma.integration.findUnique({
+      where: { projectId_provider: { projectId, provider: 'business_profile' } },
+      select: { selectedResourceId: true, status: true },
+    });
+
+    if (!integration || integration.status === 'DISCONNECTED' || !integration.selectedResourceId) {
+      throw new ServiceUnavailableException(
+        'Review sync is unavailable: no Google Business Profile connection is configured for this project. ' +
+          'Connect a Google Business Profile to import reviews. ' +
+          (existingCount > 0
+            ? `${existingCount} review(s) already stored are unaffected.`
+            : 'No reviews can be imported until then.'),
+      );
+    }
+
+    // The connector owns the pull, the idempotency and the "Google refused
+    // this source" state. Reviews are one of the three that only exist on the
+    // legacy v4 API, so a refusal here is common and is reported rather than
+    // returned as an empty list.
+    const result = await this.gbp.sync(projectId);
+    return {
+      syncedAt: result.syncedAt,
+      reviews: result.counts.reviews,
+      refusedSources: result.failedSources,
+    };
   }
 
   async getReviews(projectId: string) {
@@ -103,12 +125,26 @@ export class ReviewsService {
       throw new NotFoundException('Review not found.');
     }
 
-    // In a real app, this would hit the Google My Business API to post the reply.
-    // For now, we just mark it as published.
+    // This used to mark the review PUBLISHED and send nothing, with a comment
+    // saying a real app would call Google. The customer's review sat on Google
+    // unanswered while the product reported it handled, and there was no way
+    // to tell from the outside. The reply is sent first now, and the row is
+    // only marked published once Google has accepted it.
+    if (!review.googleReviewId) {
+      throw new ServiceUnavailableException(
+        'This review did not come from a Google Business Profile sync, so there is nowhere to publish a reply to. ' +
+          'Only reviews imported from Google can be replied to.',
+      );
+    }
+
+    const published = await this.gbp.replyToReview(projectId, review.googleReviewId, replyText);
+
     return this.prisma.localReview.update({
       where: { id: reviewId },
       data: {
         aiDraftedReply: replyText,
+        googleReplyText: published.comment,
+        googleReplyUpdatedAt: published.updateTime,
         replyStatus: 'PUBLISHED',
       },
     });

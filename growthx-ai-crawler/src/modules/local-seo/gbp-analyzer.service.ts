@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { GbpService } from '../integrations/gbp.service';
+import { BusinessProfileService } from '../integrations/google/business-profile.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
 const GBP_ANALYSIS_SCHEMA = {
@@ -38,7 +38,7 @@ export class GbpAnalyzerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly gbpService: GbpService,
+    private readonly gbp: BusinessProfileService,
     private readonly router: MultiAiRouterService,
   ) {}
 
@@ -47,7 +47,7 @@ export class GbpAnalyzerService {
       this.logger.log(`Starting GBP analysis for project ${projectId}`);
       
       // 1. Fetch live GBP data
-      const locationData = await this.gbpService.getLocation(projectId);
+      const locationData = await this.gbp.fetchLocation(projectId);
 
       // 2. Fetch project context
       const project = await this.prisma.project.findUnique({

@@ -271,6 +271,61 @@ export class GoogleOAuthService {
     await this.record(integration.id, projectId, 'REAUTH_REQUIRED', reason);
   }
 
+  /**
+   * Marks a connection as broken for a reason reconnecting will not fix.
+   *
+   * The case this exists for is Business Profile: Google gates those APIs
+   * behind an application review granted per Cloud project, so a perfectly
+   * valid grant still answers 403 until that review lands. Routing it through
+   * markNeedsReauth would tell the customer to reconnect, which does nothing
+   * and can be repeated forever; routing it through a thrown error would leave
+   * the dashboard looking merely empty. ERROR with the actual reason is the
+   * only state that says what is true.
+   *
+   * The message is written verbatim to `statusMessage`, so callers must pass
+   * something a customer can act on and never a raw payload.
+   */
+  async markError(projectId: string, providerId: GoogleProviderId, message: string) {
+    const integration = await this.prisma.integration.findUnique({
+      where: { projectId_provider: { projectId, provider: providerId } },
+      select: { id: true, status: true },
+    });
+    if (!integration) return;
+    // A connection the customer has already been told to reconnect stays that
+    // way: a 403 arriving afterwards is a consequence, not a new diagnosis.
+    if (integration.status === 'NEEDS_REAUTH') return;
+
+    await this.prisma.integration.update({
+      where: { id: integration.id },
+      data: { status: 'ERROR', statusMessage: message },
+    });
+    await this.record(integration.id, projectId, 'SYNC_FAILED', message);
+  }
+
+  /**
+   * Clears an ERROR once the source can be read again.
+   *
+   * Without this, a project whose Google approval finally came through would
+   * keep telling its owner that access is still pending. Only ERROR is
+   * cleared — NEEDS_REAUTH and NEEDS_SELECTION are states a person resolves,
+   * and a successful read does not resolve either. The promotion to CONNECTED
+   * is conditional on a selected resource for the same reason the refresh
+   * handler is: CONNECTED with nothing selected is the dead end where the
+   * picker stops rendering.
+   */
+  async clearError(projectId: string, providerId: GoogleProviderId) {
+    const integration = await this.prisma.integration.findUnique({
+      where: { projectId_provider: { projectId, provider: providerId } },
+      select: { id: true, status: true, selectedResourceId: true },
+    });
+    if (!integration || integration.status !== 'ERROR' || !integration.selectedResourceId) return;
+
+    await this.prisma.integration.update({
+      where: { id: integration.id },
+      data: { status: 'CONNECTED', statusMessage: null },
+    });
+  }
+
   /** Records which property, or location, the customer chose. */
   async selectResource(projectId: string, providerId: GoogleProviderId, resource: { id: string; name: string }) {
     const integration = await this.prisma.integration.findUnique({

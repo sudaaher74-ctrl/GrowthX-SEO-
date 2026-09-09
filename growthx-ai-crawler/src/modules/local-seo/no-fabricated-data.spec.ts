@@ -32,17 +32,27 @@ describe('local SEO — no fabricated data', () => {
 
   describe('review sync', () => {
     function reviewsService(existingCount: number) {
-      const prisma = { localReview: { count: jest.fn().mockResolvedValue(existingCount) } };
-      return { service: new ReviewsService(prisma as any, {} as any), prisma };
+      const prisma = {
+        localReview: { count: jest.fn().mockResolvedValue(existingCount) },
+        // No Business Profile connection on this project, which is the state
+        // the fabricator used to paper over.
+        integration: { findUnique: jest.fn().mockResolvedValue(null) },
+      };
+      // The connector is passed but must never be reached without a
+      // connection: a sync attempted against nothing is how invented reviews
+      // got written in the first place.
+      const gbp = { sync: jest.fn() };
+      return { service: new ReviewsService(prisma as any, {} as any, gbp as any), prisma, gbp };
     }
 
     it('refuses rather than writing invented reviews into the database', async () => {
-      const { service } = reviewsService(0);
+      const { service, gbp } = reviewsService(0);
 
       // These were stored with authors, testimonial text and timestamps, and
       // then counted, analysed for themes, and replied to by the AI drafter.
       await expect(service.syncReviews('p1')).rejects.toBeInstanceOf(ServiceUnavailableException);
       await expect(service.syncReviews('p1')).rejects.toThrow(/Google Business Profile/);
+      expect(gbp.sync).not.toHaveBeenCalled();
     });
 
     it('leaves reviews already stored alone, since it cannot tell which are real', async () => {

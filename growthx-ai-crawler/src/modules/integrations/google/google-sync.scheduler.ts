@@ -3,10 +3,11 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service';
 import { SearchConsoleService } from './search-console.service';
 import { AnalyticsService } from './analytics.service';
+import { BusinessProfileService } from './business-profile.service';
 
 /**
- * Keeps connected Google sources — Search Console and Analytics — up to
- * date, off the request path.
+ * Keeps connected Google sources — Search Console, Analytics and Business
+ * Profile — up to date, off the request path.
  *
  * A sync paginates through months of rows and can take minutes; doing it
  * inside a page request would time out and would re-fetch the same data for
@@ -33,6 +34,7 @@ export class GoogleSyncScheduler {
     private readonly prisma: PrismaService,
     private readonly searchConsole: SearchConsoleService,
     private readonly analytics: AnalyticsService,
+    private readonly businessProfile: BusinessProfileService,
   ) {}
 
   /**
@@ -50,10 +52,16 @@ export class GoogleSyncScheduler {
     try {
       const connections = await this.prisma.integration.findMany({
         where: {
-          provider: { in: ['search_console', 'analytics'] },
+          provider: { in: ['search_console', 'analytics', 'business_profile'] },
           // Only connections that can actually be read. NEEDS_REAUTH and
           // NEEDS_SELECTION are states a person has to resolve; retrying them
           // on a timer burns quota and buries the real failures in the log.
+          //
+          // ERROR is excluded for the same reason, which for Business Profile
+          // means a connection parked on "pending Google's approval" is not
+          // re-tried nightly. That is deliberate — the wait is measured in
+          // weeks — and pressing Sync on the page retries immediately and
+          // clears the state the moment Google answers.
           status: 'CONNECTED',
           selectedResourceId: { not: null },
         },
@@ -68,15 +76,20 @@ export class GoogleSyncScheduler {
       // exhaust it and fail all of them instead of some.
       for (const { projectId, provider } of connections) {
         try {
-          const result =
+          // Business Profile counts records per source rather than rows in one
+          // table, so its result is summarised rather than assumed to carry a
+          // rowsWritten.
+          const summary =
             provider === 'analytics'
-              ? await this.analytics.sync(projectId)
-              : await this.searchConsole.sync(projectId);
+              ? describe(await this.analytics.sync(projectId))
+              : provider === 'business_profile'
+                ? describeBusinessProfile(await this.businessProfile.sync(projectId))
+                : describe(await this.searchConsole.sync(projectId));
           await this.prisma.integration.update({
             where: { projectId_provider: { projectId, provider } },
             data: { nextSyncAt: nextRun() },
           });
-          this.logger.log(`[${provider} ${projectId}] ${result.status}, ${result.rowsWritten} rows.`);
+          this.logger.log(`[${provider} ${projectId}] ${summary}`);
         } catch (error: any) {
           // One customer's failure, or one provider's, must not stop the rest.
           // The connector has already recorded why against that project, and
@@ -88,6 +101,30 @@ export class GoogleSyncScheduler {
       this.running = false;
     }
   }
+}
+
+function describe(result: { status: string; rowsWritten: number }): string {
+  return `${result.status}, ${result.rowsWritten} rows.`;
+}
+
+/**
+ * Which sources answered, not just how many rows landed.
+ *
+ * A Business Profile sync that read the profile and the performance numbers
+ * but was refused reviews, photos and posts is the ordinary case on a Cloud
+ * project without v4 access, and the log has to name that rather than report a
+ * suspiciously small success.
+ */
+function describeBusinessProfile(result: {
+  status: string;
+  counts: Record<string, number>;
+  failedSources: string[];
+}): string {
+  const counts = Object.entries(result.counts)
+    .map(([name, value]) => `${name}=${value}`)
+    .join(' ');
+  const refused = result.failedSources.length ? ` refused: ${result.failedSources.join(', ')}.` : '';
+  return `${result.status}, ${counts}.${refused}`;
 }
 
 /** Tomorrow at the scheduled hour, for showing the customer when data refreshes. */

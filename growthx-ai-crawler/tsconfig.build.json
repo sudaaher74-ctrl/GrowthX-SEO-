@@ -1,4 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "prisma"]
+  // `*.testing.ts` files are doubles shared between spec files — test code that
+  // is not itself a suite. Excluded here for the same reason spec files are:
+  // nothing that only exists to be tested against belongs in the deployed build.
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "**/*.testing.ts", "prisma"]
 }
