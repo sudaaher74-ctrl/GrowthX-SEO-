@@ -5,18 +5,15 @@ import {
   Sparkles,
   ExternalLink,
   ArrowRight,
-  CheckCircle2,
   AlertCircle,
   Building2,
   Tag,
   FileText,
   Briefcase,
   Image as ImageIcon,
-  Sliders,
   Star,
   Megaphone,
   Phone,
-  Clock,
   MapPin,
   Share2,
   Navigation,
@@ -49,90 +46,44 @@ export function ProfileAuditTab({
   const rating = localSeo?.rating && localSeo.rating > 0 ? localSeo.rating.toFixed(1) : "—";
   const reviewCount = localSeo?.reviewCount != null ? localSeo.reviewCount : "—";
 
-  const auditScore = localSeo ? 78 : null;
+  const pendingProposals = proposals.filter((p) => p.status === "PENDING");
 
-  const auditCategories = [
-    {
-      id: "info",
-      icon: Building2,
-      name: "Business Information",
-      subtitle: "Name, address, phone, hours, website",
-      score: localSeo ? 90 : null,
-      status: "Good",
-      statusTone: "good",
-      tab: "overview" as GbpTabKey,
-    },
-    {
-      id: "categories",
-      icon: Tag,
-      name: "Categories",
-      subtitle: "Primary & secondary categories",
-      score: localSeo ? 70 : null,
-      status: "Needs Attention",
-      statusTone: "warning",
-      tab: "categories" as GbpTabKey,
-    },
-    {
-      id: "description",
-      icon: FileText,
-      name: "Business Description",
-      subtitle: "Description, keywords, local relevance",
-      score: localSeo ? 60 : null,
-      status: "Needs Attention",
-      statusTone: "warning",
-      tab: "action-plan" as GbpTabKey,
-    },
-    {
-      id: "services",
-      icon: Briefcase,
-      name: "Services",
-      subtitle: "Services list and descriptions",
-      score: localSeo ? 80 : null,
-      status: "Good",
-      statusTone: "good",
-      tab: "services" as GbpTabKey,
-    },
-    {
-      id: "photos",
-      icon: ImageIcon,
-      name: "Photos & Media",
-      subtitle: "Photos, videos, virtual tour",
-      score: localSeo ? 65 : null,
-      status: "Needs Attention",
-      statusTone: "warning",
-      tab: "photos" as GbpTabKey,
-    },
-    {
-      id: "attributes",
-      icon: Sliders,
-      name: "Attributes",
-      subtitle: "Highlights, amenities, features",
-      score: localSeo ? 50 : null,
-      status: "Missing",
-      statusTone: "danger",
-      tab: "action-plan" as GbpTabKey,
-    },
-    {
-      id: "reviews",
-      icon: Star,
-      name: "Reviews",
-      subtitle: "Review volume, rating, response rate",
-      score: localSeo ? 85 : null,
-      status: "Good",
-      statusTone: "good",
-      tab: "reviews" as GbpTabKey,
-    },
-    {
-      id: "posts",
-      icon: Megaphone,
-      name: "Posts & Updates",
-      subtitle: "Latest posts, offers, events",
-      score: localSeo ? 70 : null,
-      status: "Needs Attention",
-      statusTone: "warning",
-      tab: "posts" as GbpTabKey,
-    },
+  // Profile completeness, derived only from fields we actually have.
+  const checklist = [
+    { label: "Business name", completed: Boolean(localSeo?.businessName) },
+    { label: "Address", completed: Boolean(localSeo?.address) },
+    { label: "Rating & reviews", completed: Boolean(localSeo && localSeo.reviewCount > 0) },
+    { label: "Citations", completed: Boolean(localSeo && localSeo.citationsCount > 0) },
   ];
+  const completedCount = checklist.filter((c) => c.completed).length;
+  const completionPercentage = localSeo ? Math.round((completedCount / checklist.length) * 100) : null;
+
+  // "Score" here is a straight read of how many AI-identified issues remain open,
+  // not an invented number — it only exists once an AI audit has actually run.
+  const auditScore =
+    proposals.length > 0
+      ? Math.max(0, 100 - pendingProposals.length * 10)
+      : null;
+
+  // Group open AI proposals by the GBP field they touch, so the audit reads as
+  // categories rather than a flat list. Categories with no open proposal show
+  // as "No issues found" once an audit has actually run.
+  const CATEGORY_DEFS: { id: string; icon: typeof Building2; name: string; subtitle: string; tab: GbpTabKey; match: (field: string) => boolean }[] = [
+    { id: "info", icon: Building2, name: "Business Information", subtitle: "Name, address, phone, hours, website", tab: "overview", match: (f) => /profile\.|hours|phone|website|attributes/i.test(f) },
+    { id: "categories", icon: Tag, name: "Categories", subtitle: "Primary & secondary categories", tab: "categories", match: (f) => /categor/i.test(f) },
+    { id: "description", icon: FileText, name: "Business Description", subtitle: "Description, keywords, local relevance", tab: "overview", match: (f) => /description/i.test(f) },
+    { id: "services", icon: Briefcase, name: "Services", subtitle: "Services list and descriptions", tab: "services", match: (f) => /service/i.test(f) },
+    { id: "photos", icon: ImageIcon, name: "Photos & Media", subtitle: "Photos, videos, virtual tour", tab: "photos", match: (f) => /photo|media/i.test(f) },
+    { id: "reviews", icon: Star, name: "Reviews", subtitle: "Review volume, rating, response rate", tab: "reviews", match: (f) => /review/i.test(f) },
+    { id: "posts", icon: Megaphone, name: "Posts & Updates", subtitle: "Latest posts, offers, events", tab: "posts", match: (f) => /post/i.test(f) },
+  ];
+
+  const auditCategories = CATEGORY_DEFS.map((def) => {
+    const openCount = pendingProposals.filter((p) => def.match(p.field)).length;
+    const status = proposals.length === 0 ? null : openCount > 0 ? "Needs Attention" : "No Issues Found";
+    const statusTone = openCount > 0 ? "warning" : "good";
+    return { ...def, openCount, status, statusTone };
+  });
 
   return (
     <div className="space-y-6">
@@ -144,13 +95,20 @@ export function ProfileAuditTab({
             <h3 className="text-xs font-bold uppercase tracking-wider text-brand-500">
               Profile Optimization Score
             </h3>
-            {localSeo ? (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                Good
+            {auditScore != null ? (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                  pendingProposals.length === 0
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                )}
+              >
+                {pendingProposals.length === 0 ? "Good" : "Needs Attention"}
               </span>
             ) : (
               <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-600">
-                Not Connected
+                {localSeo ? "Not Analyzed" : "Not Connected"}
               </span>
             )}
           </div>
@@ -158,10 +116,14 @@ export function ProfileAuditTab({
           <div className="flex items-center gap-4 my-auto">
             <CircularScoreGauge score={auditScore} size={88} strokeWidth={8} />
             <div className="text-xs text-brand-600 leading-snug">
-              {localSeo ? (
+              {proposals.length > 0 ? (
                 <p>
-                  Your profile is well optimized. Fix the remaining 8 issues to reach 90+ and get more local visibility.
+                  {pendingProposals.length > 0
+                    ? `${pendingProposals.length} open AI-identified issue${pendingProposals.length === 1 ? "" : "s"} to fix.`
+                    : "No open AI-identified issues right now."}
                 </p>
+              ) : localSeo ? (
+                <p>Run an AI audit to get an optimization score for your profile.</p>
               ) : (
                 <p>Connect your profile to run an in-depth listing optimization audit.</p>
               )}
@@ -188,7 +150,7 @@ export function ProfileAuditTab({
                 Profile Completeness
               </h3>
               <span className="font-mono text-sm font-bold text-brand-950">
-                {localSeo ? "85%" : "—"}
+                {completionPercentage != null ? `${completionPercentage}%` : "—"}
               </span>
             </div>
 
@@ -196,24 +158,18 @@ export function ProfileAuditTab({
             <div className="mt-4 w-full bg-brand-100 rounded-full h-2.5 overflow-hidden">
               <div
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                style={{ width: localSeo ? "85%" : "0%" }}
+                style={{ width: `${completionPercentage ?? 0}%` }}
               />
             </div>
 
             {/* Completeness Legend */}
             <div className="mt-5 space-y-2 text-xs font-medium text-brand-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span>Completed {localSeo ? 12 : 0}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span>Needs Attention {localSeo ? 4 : 0}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <span>Missing {localSeo ? 3 : 0}</span>
-              </div>
+              {checklist.map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <span className={cn("w-2.5 h-2.5 rounded-full", item.completed ? "bg-emerald-500" : "bg-rose-400")} />
+                  <span>{item.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -352,21 +308,25 @@ export function ProfileAuditTab({
                   </div>
 
                   <div className="flex items-center gap-2.5 shrink-0">
-                    <span className="font-mono text-xs font-bold text-brand-950">
-                      {cat.score != null ? `${cat.score}/100` : "—"}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                        cat.statusTone === "good"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : cat.statusTone === "warning"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                      )}
-                    >
-                      {cat.status}
-                    </span>
+                    {cat.openCount > 0 && (
+                      <span className="font-mono text-xs font-bold text-brand-950">{cat.openCount} open</span>
+                    )}
+                    {cat.status != null ? (
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                          cat.statusTone === "good"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        )}
+                      >
+                        {cat.status}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-100 text-brand-500">
+                        Not analyzed
+                      </span>
+                    )}
                     <ArrowRight size={12} className="text-brand-400" />
                   </div>
                 </div>
@@ -393,64 +353,27 @@ export function ProfileAuditTab({
           </div>
 
           <div className="mt-3 space-y-2.5">
-            {[
-              {
-                priority: "High",
-                title: "Add business attributes",
-                subtitle: "Add amenities like 'Home delivery', 'In-store shopping' and more.",
-                tab: "action-plan" as GbpTabKey,
-              },
-              {
-                priority: "High",
-                title: "Improve business description",
-                subtitle: "Add more details, local keywords and services.",
-                tab: "action-plan" as GbpTabKey,
-              },
-              {
-                priority: "Medium",
-                title: "Add more photos",
-                subtitle: "You have 12 photos. Top competitors have 50+.",
-                tab: "photos" as GbpTabKey,
-              },
-              {
-                priority: "Medium",
-                title: "Add secondary categories",
-                subtitle: "Add 2-3 relevant secondary categories.",
-                tab: "categories" as GbpTabKey,
-              },
-              {
-                priority: "Low",
-                title: "Post regular updates",
-                subtitle: "Your last post was 45 days ago.",
-                tab: "posts" as GbpTabKey,
-              },
-            ].map((issue) => (
-              <div
-                key={issue.title}
-                onClick={() => onSelectTab(issue.tab)}
-                className="p-3 rounded-xl border border-brand-100 hover:bg-brand-50/70 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="min-w-0 pr-2">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold px-1.5 py-0.2 rounded border",
-                        issue.priority === "High"
-                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                          : issue.priority === "Medium"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      )}
-                    >
-                      {issue.priority}
-                    </span>
-                    <p className="text-xs font-bold text-brand-950 truncate">{issue.title}</p>
+            {pendingProposals.length > 0 ? (
+              pendingProposals.slice(0, 5).map((issue) => (
+                <div
+                  key={issue.id}
+                  onClick={() => onSelectTab("ai-recommendations")}
+                  className="p-3 rounded-xl border border-brand-100 hover:bg-brand-50/70 cursor-pointer transition flex items-center justify-between"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs font-bold text-brand-950 truncate">{issue.field}</p>
+                    <p className="text-[11px] text-brand-500 line-clamp-2">{issue.rationale}</p>
                   </div>
-                  <p className="text-[11px] text-brand-500 line-clamp-2">{issue.subtitle}</p>
+                  <ArrowRight size={13} className="text-brand-400 shrink-0" />
                 </div>
-                <ArrowRight size={13} className="text-brand-400 shrink-0" />
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-xs text-brand-400 py-4 text-center">
+                {proposals.length > 0
+                  ? "No open issues from your last AI audit."
+                  : "Run an AI audit to surface issues here."}
+              </p>
+            )}
           </div>
         </div>
 
@@ -531,17 +454,9 @@ export function ProfileAuditTab({
 
               {/* Listing Details */}
               <div className="pt-2 border-t space-y-2 text-xs text-brand-700" style={{ borderColor: "var(--border-color)" }}>
-                <div className="flex items-center gap-2">
-                  <Clock size={12} className="text-emerald-600 shrink-0" />
-                  <span>Open · Closes 10:00 PM</span>
-                </div>
                 <div className="flex items-start gap-2">
                   <MapPin size={12} className="text-brand-400 shrink-0 mt-0.5" />
                   <span className="truncate">{address}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone size={12} className="text-brand-400 shrink-0" />
-                  <span>+1 (555) 019-2831</span>
                 </div>
               </div>
             </div>

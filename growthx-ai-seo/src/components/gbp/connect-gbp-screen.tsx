@@ -16,16 +16,11 @@ import {
   Users,
   Settings2,
   HelpCircle,
-  ArrowRight,
   ChevronDown,
   X,
-  Loader2,
-  ExternalLink,
 } from "lucide-react";
 import { GoogleGLogo, GbpStoreIcon } from "./gbp-icons";
 import { ConnectGbpModal } from "./connect-gbp-modal";
-import { useConnectLocalBusiness } from "@/hooks/use-growthx";
-import { errorMessage } from "@/lib/error-message";
 
 interface ConnectGbpScreenProps {
   projectId: string | null;
@@ -33,38 +28,11 @@ interface ConnectGbpScreenProps {
 }
 
 export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenProps) {
-  const [profileId, setProfileId] = useState("");
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [manualError, setManualError] = useState<string | null>(null);
-
-  const connectMutation = useConnectLocalBusiness(projectId);
 
   const handleConnectWithGoogle = () => {
     setConnectModalOpen(true);
-  };
-
-  const handleManualConnect = (e: React.FormEvent) => {
-    e.preventDefault();
-    setManualError(null);
-    const businessName = profileId.trim() || "Aiva enterprises";
-
-    connectMutation.mutate(
-      {
-        businessName,
-        address: "Google Maps Verified Storefront",
-        rating: 5.0,
-        reviewCount: 24,
-      },
-      {
-        onSuccess: () => {
-          onConnected?.();
-        },
-        onError: (err) => {
-          setManualError(errorMessage(err));
-        },
-      }
-    );
   };
 
   return (
@@ -218,7 +186,7 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
               Select the Google account that manages your business profile.
             </p>
 
-            {/* Big Google Connect Button */}
+            {/* Search & connect via Google Places */}
             <button
               type="button"
               onClick={handleConnectWithGoogle}
@@ -226,60 +194,16 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
             >
               <GoogleGLogo size={20} />
               <span className="text-sm font-bold text-brand-900 dark:text-white">
-                Connect with Google
+                Find your Google Business Profile
               </span>
               <ChevronRight
                 size={17}
                 className="text-blue-600 dark:text-blue-400 ml-1 group-hover:translate-x-0.5 transition-transform"
               />
             </button>
-
-            {/* OR Divider */}
-            <div className="relative my-6 flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-brand-200 dark:border-brand-800" />
-              </div>
-              <span className="relative bg-white dark:bg-brand-900 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
-                OR
-              </span>
-            </div>
-
-            {/* Manual Business Profile ID Form */}
-            <form onSubmit={handleManualConnect} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-brand-900 dark:text-brand-200 mb-2">
-                  Enter your Business Profile ID
-                </label>
-                <input
-                  type="text"
-                  value={profileId}
-                  onChange={(e) => setProfileId(e.target.value)}
-                  placeholder="Paste your Google Business Profile ID (e.g. 1234567890123456789)"
-                  className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-brand-200 dark:border-brand-700 bg-white dark:bg-brand-900 text-brand-950 dark:text-white placeholder:text-brand-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition shadow-2xs"
-                />
-              </div>
-
-              {manualError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                  {manualError}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={connectMutation.isPending}
-                className="w-full py-3 px-4 rounded-xl bg-blue-50 hover:bg-blue-100/90 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 font-semibold text-xs tracking-wide transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {connectMutation.isPending ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <>
-                    <span>Connect Manually</span>
-                    <ArrowRight size={13} />
-                  </>
-                )}
-              </button>
-            </form>
+            <p className="mt-3 text-[11px] text-brand-400 text-center">
+              Search for your verified listing by name, or enter its details manually.
+            </p>
           </div>
 
           {/* Privacy / Encryption Footer Note */}
@@ -460,7 +384,7 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
         onOpenChange={setConnectModalOpen}
         projectId={projectId}
         onConnected={onConnected}
-        defaultMode="oauth"
+        defaultMode="search"
       />
 
       {/* Need Help Modal */}

@@ -196,6 +196,15 @@ export function useRunGeoGridScan(projectId: string | null) {
   });
 }
 
+export function useGeoGridHistory(projectId: string | null, keyword?: string) {
+  return useQuery({
+    queryKey: ["geo-grid-history", projectId, keyword],
+    queryFn: () => api.getGeoGridHistory(projectId!, keyword),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
 export function useLocalReviews(projectId: string | null) {
   return useQuery({
     queryKey: ["local-reviews", projectId],

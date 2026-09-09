@@ -133,7 +133,7 @@ function GoogleBusinessProfileContent() {
         onChange={handleTabChange}
         reviewCount={reviews.length || (localSeo?.reviewCount ?? 0)}
         proposalsCount={proposals.filter((p) => p.status === "PENDING").length}
-        issuesCount={localSeo ? 8 : 0}
+        issuesCount={proposals.filter((p) => p.status === "PENDING").length}
       />
 
       {/* Tab Panels */}
@@ -185,7 +185,7 @@ function GoogleBusinessProfileContent() {
         )}
 
         {activeTab === "competitors" && (
-          <CompetitorsTab localSeo={localSeo} projectId={projectId} />
+          <CompetitorsTab localSeo={localSeo} projectId={projectId} onSelectTab={handleTabChange} />
         )}
 
         {activeTab === "posts" && (
@@ -197,7 +197,7 @@ function GoogleBusinessProfileContent() {
         )}
 
         {activeTab === "action-plan" && (
-          <ActionPlanTab localSeo={localSeo} />
+          <ActionPlanTab localSeo={localSeo} projectId={projectId} />
         )}
       </div>
 
