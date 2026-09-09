@@ -60,7 +60,7 @@ export function ProfileAuditTab({
       score: localSeo ? 90 : null,
       status: "Good",
       statusTone: "good",
-      tab: "info" as GbpTabKey,
+      tab: "overview" as GbpTabKey,
     },
     {
       id: "categories",
@@ -80,7 +80,7 @@ export function ProfileAuditTab({
       score: localSeo ? 60 : null,
       status: "Needs Attention",
       statusTone: "warning",
-      tab: "info" as GbpTabKey,
+      tab: "action-plan" as GbpTabKey,
     },
     {
       id: "services",
@@ -110,7 +110,7 @@ export function ProfileAuditTab({
       score: localSeo ? 50 : null,
       status: "Missing",
       statusTone: "danger",
-      tab: "info" as GbpTabKey,
+      tab: "action-plan" as GbpTabKey,
     },
     {
       id: "reviews",
@@ -220,7 +220,7 @@ export function ProfileAuditTab({
           <div className="mt-4 pt-3 border-t border-brand-100">
             <button
               type="button"
-              onClick={() => onSelectTab("info")}
+              onClick={() => onSelectTab("action-plan")}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
             >
               <span>Complete Missing Fields</span>
@@ -257,7 +257,7 @@ export function ProfileAuditTab({
 
               <button
                 type="button"
-                onClick={() => onSelectTab("info")}
+                onClick={() => onSelectTab("action-plan")}
                 className="flex w-full items-center justify-between p-2 rounded-lg hover:bg-brand-50 border border-transparent hover:border-brand-200 text-xs font-semibold text-brand-800 transition"
               >
                 <div className="flex items-center gap-2">
@@ -323,7 +323,7 @@ export function ProfileAuditTab({
             <h3 className="text-sm font-bold text-brand-950">Audit Categories</h3>
             <button
               type="button"
-              onClick={() => onSelectTab("info")}
+              onClick={() => onSelectTab("action-plan")}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
             >
               <span>View All</span>
@@ -398,13 +398,13 @@ export function ProfileAuditTab({
                 priority: "High",
                 title: "Add business attributes",
                 subtitle: "Add amenities like 'Home delivery', 'In-store shopping' and more.",
-                tab: "info" as GbpTabKey,
+                tab: "action-plan" as GbpTabKey,
               },
               {
                 priority: "High",
                 title: "Improve business description",
                 subtitle: "Add more details, local keywords and services.",
-                tab: "info" as GbpTabKey,
+                tab: "action-plan" as GbpTabKey,
               },
               {
                 priority: "Medium",

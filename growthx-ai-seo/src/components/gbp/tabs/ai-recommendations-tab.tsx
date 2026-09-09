@@ -169,7 +169,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
       metricGain: "+15% views",
       aiAgreement: "2/3",
       supportedModels: ["openai", "gemini"],
-      actionTab: "business-info",
+      actionTab: "action-plan",
       isQuickWin: true,
     },
   ];

@@ -16,7 +16,6 @@ import { ConnectGbpModal } from "@/components/gbp/connect-gbp-modal";
 
 import { OverviewTab } from "@/components/gbp/tabs/overview-tab";
 import { ProfileAuditTab } from "@/components/gbp/tabs/profile-audit-tab";
-import { BusinessInfoTab } from "@/components/gbp/tabs/business-info-tab";
 import { CategoriesTab } from "@/components/gbp/tabs/categories-tab";
 import { ServicesTab } from "@/components/gbp/tabs/services-tab";
 import { ReviewsTab } from "@/components/gbp/tabs/reviews-tab";
@@ -35,7 +34,8 @@ function GoogleBusinessProfileContent() {
   const { projectId } = useWorkspace();
 
   const tabParam = searchParams.get("tab") as GbpTabKey | null;
-  const activeTab: GbpTabKey = tabParam || "overview";
+  const activeTab: GbpTabKey =
+    tabParam && GBP_TABS.some((t) => t.id === tabParam) ? tabParam : "overview";
   const [connectModalOpen, setConnectModalOpen] = useState(false);
 
   const handleTabChange = (newTab: GbpTabKey) => {
@@ -112,10 +112,6 @@ function GoogleBusinessProfileContent() {
               });
             }}
           />
-        )}
-
-        {activeTab === "info" && (
-          <BusinessInfoTab localSeo={localSeo} projectId={projectId} />
         )}
 
         {activeTab === "categories" && (

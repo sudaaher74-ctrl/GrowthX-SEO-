@@ -335,7 +335,7 @@ export function OverviewTab({
           <div className="mt-5 pt-3 border-t border-brand-100">
             <button
               type="button"
-              onClick={() => onSelectTab("info")}
+              onClick={() => onSelectTab("action-plan")}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
             >
               <span>Improve Profile</span>
@@ -684,7 +684,7 @@ export function OverviewTab({
                   priority: "Medium",
                   title: "Optimize business description",
                   subtitle: "Add local keywords and key services",
-                  tab: "info" as GbpTabKey,
+                  tab: "action-plan" as GbpTabKey,
                 },
               ].map((opp) => (
                 <div

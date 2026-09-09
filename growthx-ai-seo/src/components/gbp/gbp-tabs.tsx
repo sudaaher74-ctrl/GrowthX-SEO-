@@ -4,7 +4,6 @@ import React from "react";
 import {
   LayoutDashboard,
   ClipboardCheck,
-  Building2,
   Tag,
   Briefcase,
   Star,
@@ -20,7 +19,6 @@ import { cn } from "@/lib/utils";
 export type GbpTabKey =
   | "overview"
   | "audit"
-  | "info"
   | "categories"
   | "services"
   | "reviews"
@@ -41,7 +39,6 @@ export interface GbpTabItem {
 export const GBP_TABS: GbpTabItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "audit", label: "Profile Audit", icon: ClipboardCheck },
-  { id: "info", label: "Business Information", icon: Building2 },
   { id: "categories", label: "Categories", icon: Tag },
   { id: "services", label: "Services", icon: Briefcase },
   { id: "reviews", label: "Reviews", icon: Star },

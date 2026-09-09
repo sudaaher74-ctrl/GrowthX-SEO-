@@ -97,7 +97,6 @@ export function Sidebar({
       children: [
         { label: "Overview", href: "/google-business-profile?tab=overview", id: "overview" },
         { label: "Profile Audit", href: "/google-business-profile?tab=audit", id: "audit" },
-        { label: "Business Information", href: "/google-business-profile?tab=info", id: "info" },
         { label: "Categories", href: "/google-business-profile?tab=categories", id: "categories" },
         { label: "Services", href: "/google-business-profile?tab=services", id: "services" },
         { label: "Reviews", href: "/google-business-profile?tab=reviews", id: "reviews" },
