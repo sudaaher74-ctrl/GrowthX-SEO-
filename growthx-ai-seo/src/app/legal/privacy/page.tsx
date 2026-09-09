@@ -1,0 +1,167 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "What GrowthX AI SEO collects, how connected Google data is used and stored, who it is shared with, and how to revoke access or delete it.",
+};
+
+/**
+ * The date the text below last changed. Update it whenever the wording does —
+ * a policy whose effective date predates the practice it describes is worse
+ * than none, and it is the first thing an OAuth reviewer checks.
+ */
+const LAST_UPDATED = "9 September 2026";
+
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="mt-10 scroll-mt-24">
+      <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">{children}</div>
+    </section>
+  );
+}
+
+export default function PrivacyPolicyPage() {
+  return (
+    <article>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Privacy Policy</h1>
+      <p className="mt-2 text-sm text-slate-500">Last updated {LAST_UPDATED}</p>
+
+      <p className="mt-6 text-sm leading-relaxed text-slate-600">
+        GrowthX AI SEO (&ldquo;GrowthX&rdquo;, &ldquo;we&rdquo;) is a search-engine-optimisation
+        workspace. Customers connect the websites and marketing accounts they own or manage, and we
+        analyse that data to report on technical health, search visibility and local presence, and
+        to recommend changes. This policy explains what we hold, why, who else sees it, and how to
+        get it removed.
+      </p>
+
+      <Section id="account" title="Information you give us">
+        <p>
+          When you register we store your name, email address and a hashed password. We use these to
+          authenticate you, to scope your data to your organisation, and to contact you about the
+          service.
+        </p>
+      </Section>
+
+      <Section id="crawl" title="Websites you ask us to analyse">
+        <p>
+          When you add a site, we fetch its pages the way a search engine would and store what we
+          retrieve: URLs, page titles, meta descriptions, headings, body text, response codes,
+          response times and detected technical issues. We only crawl domains a customer has entered
+          into the product.
+        </p>
+      </Section>
+
+      <Section id="google" title="Google account data">
+        <p>
+          Connecting a Google service is optional and always initiated by you. Each connector
+          requests the narrowest scope that lets it read what the product displays:
+        </p>
+        <ul className="ml-5 list-disc space-y-1">
+          <li>
+            <strong>Google Search Console</strong> — <code>webmasters.readonly</code>. Read-only. We
+            read your property list and search performance data.
+          </li>
+          <li>
+            <strong>Google Analytics 4</strong> — <code>analytics.readonly</code>. Read-only. We read
+            your property list and traffic reports.
+          </li>
+          <li>
+            <strong>Google Business Profile</strong> — <code>business.manage</code>. Google publishes
+            no read-only scope for Business Profile, so this scope also permits writing. We use it to
+            read your business information, categories, services, hours, reviews, photos, posts and
+            performance metrics. We only write back to your profile when you explicitly approve a
+            specific proposed change; we never modify a profile automatically.
+          </li>
+        </ul>
+        <p>
+          We store the resulting data so the dashboard can display it without re-querying Google on
+          every page view, and we refresh it on a schedule while the connection is active.
+        </p>
+        <p>
+          GrowthX&apos;s use of information received from Google APIs adheres to the{" "}
+          <a
+            className="font-medium text-slate-900 underline underline-offset-2"
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Google API Services User Data Policy
+          </a>
+          , including the Limited Use requirements.
+        </p>
+      </Section>
+
+      <Section id="tokens" title="How connection credentials are protected">
+        <p>
+          OAuth access and refresh tokens are encrypted with AES-256-GCM before they are written to
+          our database, using a key held only in the server environment. Tokens are never displayed
+          in the product, never written to logs, and never sent to any third party other than Google
+          itself when refreshing a session.
+        </p>
+      </Section>
+
+      <Section id="ai" title="Automated analysis and AI providers">
+        <p>
+          Recommendations in the product are generated by large language models. To produce them we
+          send the relevant business content — for example a business profile&apos;s description,
+          categories and services, or a page&apos;s text — to one of the model providers we use:
+          Sarvam, Mammouth, Google Gemini, OpenAI, Anthropic or Groq. Which provider handles a given
+          request depends on availability and the task.
+        </p>
+        <p>
+          We do not send your OAuth tokens, passwords or account credentials to these providers, and
+          we do not permit them to use your content to train generalised AI models. If you would
+          rather your Google data were never processed this way, do not connect a Google account —
+          the crawl-based features work without one.
+        </p>
+      </Section>
+
+      <Section id="sharing" title="Who else sees your data">
+        <p>
+          We do not sell your data or share it for advertising. Beyond the AI providers described
+          above, your data is processed by the infrastructure we run on — our application hosting,
+          managed Postgres database and Redis queue — and by the APIs you have chosen to connect. We
+          disclose data if legally compelled to.
+        </p>
+      </Section>
+
+      <Section id="retention" title="Retention, revoking access and deletion">
+        <p>
+          Disconnecting a Google service from the integrations screen revokes our access with Google
+          and deletes the stored tokens for that connection. You can also revoke access directly at{" "}
+          <a
+            className="font-medium text-slate-900 underline underline-offset-2"
+            href="https://myaccount.google.com/permissions"
+            target="_blank"
+            rel="noreferrer"
+          >
+            your Google account permissions page
+          </a>
+          .
+        </p>
+        <p>
+          Data we previously synced remains until you delete the associated project or ask us to
+          remove it. Deleting a project removes its crawl data, synced Google data and generated
+          recommendations. To delete your account and everything under it, contact us and we will
+          action it.
+        </p>
+      </Section>
+
+      <Section id="changes" title="Changes to this policy">
+        <p>
+          If we change how we handle your data we will update this page and the date at the top. If a
+          change materially affects data already collected, we will contact account holders directly.
+        </p>
+      </Section>
+
+      <Section id="contact" title="Contact">
+        <p>
+          Questions about this policy, or a request to access or delete your data, can be sent to the
+          address on our website. We aim to respond within 30 days.
+        </p>
+      </Section>
+    </article>
+  );
+}
