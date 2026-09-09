@@ -1,839 +1,690 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, BarChart3, CheckCircle2, ExternalLink, GitBranch, Globe, Loader2, MapPin, Search, Zap } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { api, type DiscoveryStatus, type DiscoveryStep } from "@/lib/api-client";
-import { useWorkspace } from "@/hooks/use-growthx";
-import { useQueryClient } from "@tanstack/react-query";
-// Aliased: this component already has an `errorMessage` state variable.
-import { errorMessage as toErrorMessage } from "@/lib/error-message";
 
-export type StepStatus =
-  | "NOT_STARTED"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "FAILED"
-  | "SKIPPED"
-  | "NEEDS_CONNECTION";
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Check,
+  ChevronRight,
+  Search,
+  BarChart3,
+  MapPin,
+  GitBranch,
+  Globe,
+  Loader2,
+  ArrowRight,
+  Sparkles,
+  Shield,
+  Zap,
+  X,
+  ExternalLink,
+  AlertCircle,
+  PlugZap,
+  Star,
+} from "lucide-react";
+import { api, auth, getApiBase } from "@/lib/api-client";
+import { useWorkspace, useConnectLocalBusiness, useConnectRepository } from "@/hooks/use-growthx";
+import { errorMessage } from "@/lib/error-message";
 
-export interface BusinessFormData {
-  name: string;
-  url: string;
-  country: string;
-  city: string;
-  industry: string;
-  businessType: string;
-  primaryOffering: string;
-  address?: string;
-  phone?: string;
+/* ─────────────────────────────────────────────── types */
+
+interface StepState {
+  gsc: "idle" | "connecting" | "done" | "skipped";
+  ga4: "idle" | "connecting" | "done" | "skipped";
+  gbp: "idle" | "connecting" | "done" | "skipped";
+  github: "idle" | "connecting" | "done" | "skipped";
+  website: "idle" | "connecting" | "done" | "skipped";
 }
 
-const PROJECT_TYPES = [
-  { id: "local", label: "Local Business", desc: "Physical locations, storefronts, regional service areas" },
-  { id: "b2b", label: "B2B / Lead Generation", desc: "Corporate services, custom quotes, enterprise solutions" },
-  { id: "ecommerce", label: "E-commerce", desc: "Online retail store with products, cart, and transactions" },
-  { id: "saas", label: "SaaS & Software", desc: "Digital applications, recurring subscriptions, software platforms" },
-  { id: "publisher", label: "Publisher / Content", desc: "Blogs, news media, high-volume informative publishing" },
-  { id: "agency", label: "Agency / Client Project", desc: "Managing multi-client digital marketing and growth audits" },
-];
+type IntegrationKey = keyof StepState;
 
-/**
- * The setup rows that only a person can complete, so nothing reports on them.
- *
- * Everything else on the checklist — the crawl, the business behind the site,
- * its competitors, their crawls and everyone's social accounts — happens on
- * its own once the crawl finishes and is read from the server, because a
- * checklist the browser fills in from what it did in this session cannot say
- * whether any of it has.
- */
-const CONNECTION_STEPS: { id: string; label: string; href: string; status: StepStatus }[] = [
-  { id: "gsc", label: "Google Search Console Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
-  { id: "ga", label: "Google Analytics 4 Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
-  { id: "gbp", label: "Google Business Profile Connected", href: "/google-business-profile", status: "NEEDS_CONNECTION" },
-];
+const STEP_ORDER: IntegrationKey[] = ["gsc", "ga4", "gbp", "github", "website"];
 
-export function OnboardingWizard({
-  onComplete,
-  className,
-}: {
-  onComplete?: () => void;
-  className?: string;
-}) {
-  const router = useRouter();
-  const qc = useQueryClient();
-  const { orgId, setOrgId, setProjectId, organizations, projects } = useWorkspace();
+/* ─────────────────────────────────────────────── helpers */
 
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  // Step 1: Add Business Data
-  const [businessData, setBusinessData] = useState<BusinessFormData>({
-    name: "",
-    url: "",
-    country: "United States",
-    city: "",
-    industry: "Technology",
-    businessType: "B2B",
-    primaryOffering: "",
-    address: "",
-    phone: "",
-  });
-
-  // Step 2: Project Type
-  const [projectType, setProjectType] = useState<string>("b2b");
-
-  // Created entities in step 3/4
-  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
-  const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
-
-  const [discovery, setDiscovery] = useState<DiscoveryStatus | null>(null);
-
-  // Polled while the run is still moving. The steps fire one after another off
-  // the crawl — detect the business, identify competitors, crawl each of them,
-  // read the social profiles out of those crawls — so the customer would
-  // otherwise be looking at a page that gives no sign any of it is happening.
-  useEffect(() => {
-    if (currentStep !== 5 || !createdProjectId) return;
-
-    let cancelled = false;
-    const read = async () => {
-      try {
-        const status = await api.getDiscoveryStatus(createdProjectId);
-        if (!cancelled) setDiscovery(status);
-      } catch {
-        // The run continues on the server whether or not this poll lands.
-      }
-    };
-
-    void read();
-    const timer = setInterval(read, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [currentStep, createdProjectId]);
-
-  const handleStep1Next = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!businessData.name.trim()) {
-      setErrorMessage("Please enter the business name.");
-      return;
-    }
-    if (!businessData.url.trim()) {
-      setErrorMessage("Please enter the website URL.");
-      return;
-    }
-
-    let domain = businessData.url.trim().toLowerCase();
-    try {
-      domain = domain.startsWith("http://") || domain.startsWith("https://") ? new URL(domain).hostname : domain;
-    } catch {
-      // keep raw
-    }
-    domain = domain.replace(/^www\./, "");
-    if (!domain.includes(".")) {
-      setErrorMessage("Please enter a valid domain (e.g. yourcompany.com).");
-      return;
-    }
-
-    setErrorMessage("");
-    setCurrentStep(2);
-  };
-
-  const handleStep2Next = () => {
-    setCurrentStep(3);
-  };
-
-  const handleCreateAndInitialize = async () => {
-    setIsSubmitting(true);
-    setErrorMessage("");
-
-    let domain = businessData.url.trim().toLowerCase();
-    try {
-      domain = domain.startsWith("http://") || domain.startsWith("https://") ? new URL(domain).hostname : domain;
-    } catch {
-      // keep raw
-    }
-    domain = domain.replace(/^www\./, "");
-
-    try {
-      // 1. Ensure active organization
-      let currentOrgId = orgId;
-      let validOrg = organizations.find((o) => o.id === currentOrgId);
-      if (!validOrg) {
-        let userOrgs: { id: string; name: string; slug: string }[] = [];
-        try {
-          userOrgs = await api.listOrganizations();
-        } catch {
-          userOrgs = [];
-        }
-        validOrg = userOrgs[0];
-        if (!validOrg) {
-          const cleanOrgName = businessData.name.trim() ? `${businessData.name.trim()} Workspace` : "Primary Workspace";
-          const baseSlug = cleanOrgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "org";
-          validOrg = await api.createOrganization(cleanOrgName, `${baseSlug}-${Date.now().toString(36)}`);
-          await qc.invalidateQueries({ queryKey: ["organizations"] });
-        }
-      }
-
-      currentOrgId = validOrg.id;
-      setOrgId(currentOrgId);
-
-      // 2. Create project
-      const project = await api.createProject(businessData.name.trim(), currentOrgId);
-      setProjectId(project.id);
-      setCreatedProjectId(project.id);
-
-      // 3. Register website
-      const website = await api.registerWebsite(businessData.url.trim(), domain, project.id);
-      setCreatedWebsiteId(website.id);
-
-      // 4. Verify domain
-      await api.verifyDomain(website.id);
-
-      // 5. Store business profile if endpoint exists
-      try {
-        await api.setBusinessProfile(project.id, {
-          businessName: businessData.name.trim(),
-          industry: businessData.industry || "General",
-        });
-      } catch (profileErr) {
-        console.warn("Could not save extended profile metadata:", profileErr);
-      }
-
-      setCurrentStep(4);
-    } catch (err) {
-      setErrorMessage(toErrorMessage(err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleRunInitialAudit = async () => {
-    if (!createdWebsiteId || !createdProjectId) return;
-    setIsSubmitting(true);
-    setErrorMessage("");
-
-    let domain = businessData.url.trim().toLowerCase();
-    try {
-      domain = domain.startsWith("http://") || domain.startsWith("https://") ? new URL(domain).hostname : domain;
-    } catch {
-      // keep raw
-    }
-    domain = domain.replace(/^www\./, "");
-
-    try {
-      // Trigger live website crawl
-      await api.startCrawl({
-        websiteId: createdWebsiteId,
-        domain,
-        maxDepth: 10,
-        maxConcurrency: 3,
-        useSitemap: true,
-      });
-
-      // Deliberately not marked complete here. `startCrawl` enqueues the
-      // crawl; it does not perform it. This used to tick both "Website Crawl &
-      // Health Audit" and "Executive SEO Baseline Report" the instant the
-      // request came back, so the customer was told the audit was finished
-      // while the first page was still being fetched. The checklist below now
-      // reads the server instead.
-
-      // Invalidate portfolio and workspace
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["portfolio", orgId] }),
-        qc.invalidateQueries({ queryKey: ["projects", orgId] }),
-        qc.invalidateQueries({ queryKey: ["latest-crawl", createdWebsiteId] }),
-      ]);
-
-      setCurrentStep(5);
-    } catch (err) {
-      setErrorMessage(toErrorMessage(err));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+function GrowthXLogo() {
   return (
-    <div className={cn("mx-auto max-w-2xl rounded-2xl border bg-white p-6 sm:p-8 shadow-sm", className)} style={{ borderColor: "var(--border-color)" }}>
-      {/* Workflow Step Indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between text-[11px] font-semibold tracking-wider text-brand-400 uppercase mb-2">
-          <span>Workflow Step {currentStep} of 5</span>
-          <span className="font-mono text-brand-950">
-            {currentStep === 1 && "Add Business"}
-            {currentStep === 2 && "Project Type"}
-            {currentStep === 3 && "Connect Data"}
-            {currentStep === 4 && "Initial Analysis"}
-            {currentStep === 5 && "Setup Checklist"}
-          </span>
-        </div>
-        <div className="grid grid-cols-5 gap-1.5 h-1.5 w-full bg-brand-100 rounded-full overflow-hidden">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <div
-              key={s}
-              className={cn(
-                "h-full transition-all duration-300",
-                s <= currentStep ? "bg-brand-950" : "bg-transparent"
-              )}
-            />
-          ))}
+    <div className="flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/30">
+        <div className="grid grid-cols-2 gap-0.5 p-1.5">
+          <div className="h-1.5 w-1.5 rounded-sm bg-white" />
+          <div className="h-1.5 w-1.5 rounded-sm bg-blue-300" />
+          <div className="h-1.5 w-1.5 rounded-sm bg-blue-300" />
+          <div className="h-1.5 w-1.5 rounded-sm bg-white" />
         </div>
       </div>
-
-      {errorMessage && (
-        <div className="mb-6 rounded-lg border border-error-200 bg-error-50/50 p-3 text-[12px] text-error-700">
-          {errorMessage}
-        </div>
-      )}
-
-      {/* Step 1: Add Business */}
-      {currentStep === 1 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <h2 className="text-[20px] font-bold text-brand-950">Add Your Business</h2>
-            <p className="text-[12.5px] text-brand-500 mt-1">
-              Enter your core business details to establish accurate entity and domain tracking.
-            </p>
-          </div>
-
-          <form onSubmit={handleStep1Next} className="space-y-4">
-            <div>
-              <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                Business Name <span className="text-error-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. GrowthX Media"
-                value={businessData.name}
-                onChange={(e) => setBusinessData({ ...businessData, name: e.target.value })}
-                className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                style={{ borderColor: "var(--border-color)" }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                Website URL <span className="text-error-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. https://growthx.ai"
-                value={businessData.url}
-                onChange={(e) => setBusinessData({ ...businessData, url: e.target.value })}
-                className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                style={{ borderColor: "var(--border-color)" }}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Country
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. United States"
-                  value={businessData.country}
-                  onChange={(e) => setBusinessData({ ...businessData, country: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  City
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. San Francisco"
-                  value={businessData.city}
-                  onChange={(e) => setBusinessData({ ...businessData, city: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Industry / Niche
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Legal Services, SaaS, HVAC"
-                  value={businessData.industry}
-                  onChange={(e) => setBusinessData({ ...businessData, industry: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Primary Service / Product
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. SEO Audit & Optimization"
-                  value={businessData.primaryOffering}
-                  onChange={(e) => setBusinessData({ ...businessData, primaryOffering: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Address <span className="text-[10px] text-brand-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 500 Howard St"
-                  value={businessData.address}
-                  onChange={(e) => setBusinessData({ ...businessData, address: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-              <div>
-                <label className="block text-[11.5px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Phone <span className="text-[10px] text-brand-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="tel"
-                  placeholder="e.g. +1 (555) 019-2834"
-                  value={businessData.phone}
-                  onChange={(e) => setBusinessData({ ...businessData, phone: e.target.value })}
-                  className="w-full h-10 rounded-lg border px-3 text-[13px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                className="flex items-center gap-2 rounded-lg bg-brand-950 px-5 py-2.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition"
-              >
-                Continue to Project Type
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      )}
-
-      {/* Step 2: Select Project Type */}
-      {currentStep === 2 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <h2 className="text-[20px] font-bold text-brand-950">Select Project Type</h2>
-            <p className="text-[12.5px] text-brand-500 mt-1">
-              Tailors crawler rules, schema validation, and competitor intelligence to your business model.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-            {PROJECT_TYPES.map((type) => {
-              const selected = projectType === type.id;
-              return (
-                <button
-                  key={type.id}
-                  type="button"
-                  onClick={() => setProjectType(type.id)}
-                  className={cn(
-                    "flex flex-col items-start p-4 rounded-xl border text-left transition-all",
-                    selected
-                      ? "border-brand-950 bg-brand-50/50 ring-1 ring-brand-950"
-                      : "border-gray-200 bg-white hover:border-brand-300"
-                  )}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-[13.5px] font-semibold text-brand-950">{type.label}</span>
-                    {selected && <CheckCircle2 size={16} className="text-brand-950" />}
-                  </div>
-                  <p className="text-[11.5px] text-brand-500 mt-1">{type.desc}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "var(--border-color)" }}>
-            <button
-              type="button"
-              onClick={() => setCurrentStep(1)}
-              className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-600 hover:text-brand-950 transition"
-            >
-              <ArrowLeft size={14} />
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={handleStep2Next}
-              className="flex items-center gap-2 rounded-lg bg-brand-950 px-5 py-2.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition"
-            >
-              Continue to Connect Data
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Step 3: Connect Data Sources */}
-      {currentStep === 3 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <h2 className="text-[20px] font-bold text-brand-950">Connect Data Sources</h2>
-            <p className="text-[12.5px] text-brand-500 mt-1">
-              Link authoritative sources. You can also proceed now and connect them later in Integrations.
-            </p>
-          </div>
-
-          <div className="space-y-3 mb-6">
-            <div className="flex items-center justify-between p-4 rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                  <Search size={18} />
-                </div>
-                <div>
-                  <h4 className="text-[13px] font-semibold text-brand-950">Google Search Console</h4>
-                  <p className="text-[11px] text-brand-400">Authentic clicks, impressions, and index status</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-semibold text-brand-500 px-2.5 py-1 rounded bg-brand-100">
-                Connect in Step 5 / Integrations
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
-                  <BarChart3 size={18} />
-                </div>
-                <div>
-                  <h4 className="text-[13px] font-semibold text-brand-950">Google Analytics 4</h4>
-                  <p className="text-[11px] text-brand-400">User sessions, engaged landing pages, and conversions</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-semibold text-brand-500 px-2.5 py-1 rounded bg-brand-100">
-                Connect in Step 5 / Integrations
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <MapPin size={18} />
-                </div>
-                <div>
-                  <h4 className="text-[13px] font-semibold text-brand-950">Google Business Profile</h4>
-                  <p className="text-[11px] text-brand-400">Reviews, ratings, local rankings, and calls</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-semibold text-brand-500 px-2.5 py-1 rounded bg-brand-100">
-                Connect in Step 5 / Integrations
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-50 text-purple-700">
-                  <GitBranch size={18} />
-                </div>
-                <div>
-                  <h4 className="text-[13px] font-semibold text-brand-950">GitHub Repository</h4>
-                  <p className="text-[11px] text-brand-400">Automated pull requests for code & schema fixes</p>
-                </div>
-              </div>
-              <span className="text-[11px] font-semibold text-brand-500 px-2.5 py-1 rounded bg-brand-100">
-                Optional
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "var(--border-color)" }}>
-            <button
-              type="button"
-              onClick={() => setCurrentStep(2)}
-              className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-600 hover:text-brand-950 transition"
-            >
-              <ArrowLeft size={14} />
-              Back
-            </button>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={handleCreateAndInitialize}
-              className="flex items-center gap-2 rounded-lg bg-brand-950 px-5 py-2.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Creating Project...
-                </>
-              ) : (
-                <>
-                  Register Business & Initialize
-                  <ArrowRight size={14} />
-                </>
-              )}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Step 4: Run Initial Analysis */}
-      {currentStep === 4 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <h2 className="text-[20px] font-bold text-brand-950">Run Initial Analysis</h2>
-            <p className="text-[12.5px] text-brand-500 mt-1">
-              Launch the GrowthX crawler to discover technical health, thin content, and ranking opportunities.
-            </p>
-          </div>
-
-          <div className="rounded-xl border p-5 bg-brand-50/40 mb-6" style={{ borderColor: "var(--border-color)" }}>
-            <div className="flex items-start gap-3.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border shadow-2xs text-brand-950">
-                <Globe size={20} />
-              </div>
-              <div>
-                <h4 className="text-[13.5px] font-semibold text-brand-950">Full Website Audit Sweep</h4>
-                <p className="text-[12px] text-brand-500 mt-0.5 leading-relaxed">
-                  Crawls pages, builds the directed internal link graph, checks schema validity (Product, Article, LocalBusiness), evaluates headings, and computes your unified 0–100 health score.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-mono text-brand-600">
-                  <span className="rounded bg-white border px-2 py-0.5">Target: {businessData.url}</span>
-                  <span className="rounded bg-white border px-2 py-0.5">Type: {projectType.toUpperCase()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "var(--border-color)" }}>
-            <button
-              type="button"
-              onClick={() => setCurrentStep(5)}
-              className="text-[12px] font-semibold text-brand-500 hover:text-brand-800 transition"
-            >
-              Skip initial crawl for now
-            </button>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={handleRunInitialAudit}
-              className="flex items-center gap-2 rounded-lg bg-brand-950 px-5 py-2.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Starting Crawl...
-                </>
-              ) : (
-                <>
-                  <Zap size={14} />
-                  Start Initial Audit
-                </>
-              )}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Step 5: Setup Checklist */}
-      {currentStep === 5 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <h2 className="text-[20px] font-bold text-brand-950">Setup Checklist</h2>
-            <p className="text-[12.5px] text-brand-500 mt-1">
-              Track the setup status of your new business. Statuses update in real time as data arrives.
-            </p>
-          </div>
-
-          <div className="space-y-2.5 mb-6">
-            {[
-              // The run the crawl sets off. Each detail line is what the
-              // server actually found, so "no competitor could be verified"
-              // reads differently from "we have not looked yet" — which is the
-              // distinction the customer needs while this is under way.
-              { id: "websiteAdded", label: "Website Added & Verified", href: "/website" },
-              { id: "websiteCrawled", label: "Website Crawl & Health Audit", href: "/website" },
-              { id: "businessIdentified", label: "Business Identified From Your Site", href: "/market-research" },
-              { id: "competitorsIdentified", label: "Competitors Identified", href: "/competitors" },
-              { id: "competitorsCrawled", label: "Competitor Sites Crawled", href: "/competitors" },
-              { id: "socialAccountsFound", label: "Social Accounts Found", href: "/content-intelligence" },
-            ].map((item) => {
-              const step = discovery?.steps?.[item.id as keyof DiscoveryStatus["steps"]];
-              return (
-                <ChecklistRow
-                  key={item.id}
-                  label={item.label}
-                  href={item.href}
-                  status={stepStatus(step)}
-                  detail={step?.detail}
-                  onNavigate={router.push}
-                />
-              );
-            })}
-
-            {CONNECTION_STEPS.map((item) => (
-              <ChecklistRow
-                key={item.id}
-                label={item.label}
-                href={item.href}
-                status={item.status}
-                onNavigate={router.push}
-              />
-            ))}
-
-            {/* Derived, not reported: the baseline report is written from the
-                crawl, so it is ready exactly when the crawl is. It used to be
-                ticked the moment the crawl was requested. */}
-            <ChecklistRow
-              label="Executive SEO Baseline Report"
-              href="/reports"
-              status={stepStatus(discovery?.steps?.websiteCrawled)}
-              onNavigate={router.push}
-            />
-          </div>
-
-          {discovery && (
-            <p className="mb-6 text-[11.5px] text-brand-500">
-              These run on their own once the crawl finishes — identifying your business, then your
-              competitors, then crawling their sites and reading everyone&apos;s social profiles. You can
-              leave this page; it carries on without you, and competitors can be added or removed at any time.
-            </p>
-          )}
-
-          <div className="flex justify-end pt-4 border-t" style={{ borderColor: "var(--border-color)" }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (onComplete) onComplete();
-                else router.push("/dashboard");
-              }}
-              className="flex items-center gap-2 rounded-lg bg-brand-950 px-5 py-2.5 text-[12.5px] font-semibold text-white hover:opacity-90 transition"
-            >
-              Open Dashboard
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </motion.div>
-      )}
+      <span className="text-sm font-bold tracking-tight text-white">GrowthX</span>
     </div>
   );
 }
 
-/**
- * A discovery step as the checklist shows it.
- *
- * A step the server has not reported on yet is NOT_STARTED rather than
- * anything more definite: before the first poll lands we know nothing about
- * it, and saying otherwise is what made the old checklist announce a finished
- * audit while the crawler was still on the first page.
- */
-function stepStatus(step?: DiscoveryStep): StepStatus {
-  switch (step?.state) {
-    case "done":
-      return "COMPLETED";
-    case "running":
-      return "IN_PROGRESS";
-    case "failed":
-      return "FAILED";
-    case "skipped":
-      return "SKIPPED";
-    default:
-      return "NOT_STARTED";
-  }
+function GoogleG({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  );
 }
 
-function ChecklistRow({
-  label,
-  href,
-  status,
-  detail,
-  onNavigate,
-}: {
-  label: string;
-  href?: string;
-  status: StepStatus;
-  detail?: string;
-  onNavigate: (href: string) => void;
-}) {
+/* ─────────────────────────────────────────────── step card */
+
+interface IntegrationCardProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  subtitle: string;
+  features: string[];
+  badge: string;
+  badgeColor: string;
+  state: "idle" | "connecting" | "done" | "skipped";
+  isActive: boolean;
+  children?: React.ReactNode;
+  onSkip?: () => void;
+}
+
+function IntegrationCard({
+  icon,
+  iconBg,
+  title,
+  subtitle,
+  features,
+  badge,
+  badgeColor,
+  state,
+  isActive,
+  children,
+  onSkip,
+}: IntegrationCardProps) {
   return (
     <div
-      className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-white"
-      style={{ borderColor: "var(--border-color)" }}
+      className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${
+        state === "done"
+          ? "border-emerald-500/40 bg-emerald-950/20"
+          : state === "skipped"
+            ? "border-white/10 bg-white/3 opacity-60"
+            : isActive
+              ? "border-blue-500/40 bg-white/5 shadow-xl shadow-blue-500/10"
+              : "border-white/10 bg-white/3"
+      }`}
     >
-      <div className="min-w-0">
-        <span className="text-[12.5px] font-medium text-brand-950">{label}</span>
-        {detail && <p className="mt-0.5 text-[11.5px] text-brand-500 break-words">{detail}</p>}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <StatusPill status={status} />
-        {href && (
-          <button
-            type="button"
-            onClick={() => onNavigate(href)}
-            className="p-1 text-brand-400 hover:text-brand-950 transition"
-            title={`Go to ${label}`}
-          >
-            <ExternalLink size={13} />
-          </button>
+      {/* Done overlay stripe */}
+      {state === "done" && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent" />
+      )}
+      {isActive && state === "idle" && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent" />
+      )}
+
+      <div className="p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3.5">
+            {/* Icon */}
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${
+                state === "done" ? "ring-2 ring-emerald-500/40" : ""
+              }`}
+            >
+              {state === "done" ? (
+                <Check size={20} className="text-emerald-400" strokeWidth={2.5} />
+              ) : (
+                icon
+              )}
+            </div>
+
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-white">{title}</h3>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeColor}`}
+                >
+                  {badge}
+                </span>
+                {state === "done" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/30">
+                    <Check size={9} strokeWidth={3} />
+                    Connected
+                  </span>
+                )}
+                {state === "skipped" && (
+                  <span className="inline-flex items-center rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/50">
+                    Skipped
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-white/50 mt-0.5">{subtitle}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                {features.map((f) => (
+                  <span key={f} className="flex items-center gap-1 text-[11px] text-white/40">
+                    <div className="h-1 w-1 rounded-full bg-blue-400/60 shrink-0" />
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Status dot */}
+          <div className="shrink-0 ml-2 mt-0.5">
+            {state === "connecting" ? (
+              <Loader2 size={16} className="text-blue-400 animate-spin" />
+            ) : state === "done" ? (
+              <div className="h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                <Check size={9} strokeWidth={3} className="text-white" />
+              </div>
+            ) : state === "skipped" ? (
+              <div className="h-4 w-4 rounded-full bg-white/10 flex items-center justify-center">
+                <X size={9} className="text-white/40" />
+              </div>
+            ) : (
+              <div className={`h-4 w-4 rounded-full border-2 ${isActive ? "border-blue-500 bg-blue-500/20" : "border-white/20"}`} />
+            )}
+          </div>
+        </div>
+
+        {/* Action area */}
+        {isActive && state === "idle" && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            {children}
+            {onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="mt-2 text-xs text-white/30 hover:text-white/60 transition underline-offset-2 hover:underline"
+              >
+                Skip for now
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function StatusPill({ status }: { status: StepStatus }) {
-  switch (status) {
-    case "COMPLETED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Completed
-        </span>
-      );
-    case "IN_PROGRESS":
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-          <Loader2 size={10} className="animate-spin" />
-          In Progress
-        </span>
-      );
-    case "NEEDS_CONNECTION":
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          Needs Connection
-        </span>
-      );
-    case "FAILED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-          Failed
-        </span>
-      );
-    case "SKIPPED":
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-brand-100 text-brand-500 border border-brand-200">
-          Skipped
-        </span>
-      );
-    case "NOT_STARTED":
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-brand-50 text-brand-500 border border-brand-200">
-          Not Started
-        </span>
-      );
+/* ─────────────────────────────────────────────── main wizard */
+
+export function OnboardingWizard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { projectId } = useWorkspace();
+  const qc = useQueryClient();
+
+  const [activeStep, setActiveStep] = useState<IntegrationKey>("gsc");
+  const [steps, setSteps] = useState<StepState>({
+    gsc: "idle",
+    ga4: "idle",
+    gbp: "idle",
+    github: "idle",
+    website: "idle",
+  });
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // GitHub form
+  const [githubForm, setGithubForm] = useState({
+    owner: "",
+    name: "",
+    defaultBranch: "main",
+    accessToken: "",
+    framework: "nextjs",
+    contentDir: "src/app",
+  });
+
+  // GBP form
+  const [gbpName, setGbpName] = useState("");
+
+  // Website form
+  const [websiteUrl, setWebsiteUrl] = useState("");
+
+  // Mutations
+  const connectGbp = useConnectLocalBusiness(projectId);
+  const connectRepo = useConnectRepository(projectId);
+
+  const authorizeGoogle = useMutation({
+    mutationFn: (provider: string) =>
+      api.googleAuthorizeUrl(projectId!, provider, "/onboarding"),
+    onSuccess: ({ authorizationUrl }) => {
+      window.location.href = authorizationUrl;
+    },
+    onError: (err) => setNotice(errorMessage(err)),
+  });
+
+  // Handle OAuth return
+  useEffect(() => {
+    const google = searchParams.get("google");
+    const provider = searchParams.get("provider");
+
+    if (google === "select" || google === "scopes") {
+      if (provider === "search_console") {
+        markDone("gsc");
+        advance("gsc");
+      } else if (provider === "analytics") {
+        markDone("ga4");
+        advance("ga4");
+      }
+    }
+  }, [searchParams]);
+
+  function markDone(key: IntegrationKey) {
+    setSteps((s) => ({ ...s, [key]: "done" }));
   }
+
+  function markSkipped(key: IntegrationKey) {
+    setSteps((s) => ({ ...s, [key]: "skipped" }));
+    advance(key);
+  }
+
+  function advance(from: IntegrationKey) {
+    const idx = STEP_ORDER.indexOf(from);
+    const next = STEP_ORDER[idx + 1];
+    if (next) setActiveStep(next);
+  }
+
+  const doneCount = Object.values(steps).filter((s) => s === "done").length;
+  const totalDone = Object.values(steps).filter(
+    (s) => s === "done" || s === "skipped"
+  ).length;
+  const allFinished = totalDone >= STEP_ORDER.length;
+
+  async function handleFinish() {
+    // Mark onboarding complete
+    if (projectId) {
+      try {
+        localStorage.setItem(`growthx_onboarding_done_${projectId}`, "true");
+      } catch {}
+    }
+    router.push("/dashboard");
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0c1a35] to-slate-950 text-white">
+      {/* Background glows */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/4 h-[500px] w-[500px] rounded-full bg-blue-600/10 blur-[120px]" />
+        <div className="absolute top-1/2 right-0 h-[400px] w-[400px] rounded-full bg-indigo-600/8 blur-[120px]" />
+        <div className="absolute bottom-0 left-0 h-[300px] w-[400px] rounded-full bg-cyan-600/6 blur-[100px]" />
+      </div>
+
+      {/* Top nav bar */}
+      <div className="relative z-10 flex items-center justify-between border-b border-white/8 px-6 py-4">
+        <GrowthXLogo />
+        <div className="flex items-center gap-2 text-xs text-white/40">
+          <Shield size={13} className="text-emerald-400/70" />
+          <span>Secure setup · Encrypted connection</span>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="relative z-10 mx-auto max-w-3xl px-6 py-10">
+        {/* Hero heading */}
+        <div className="mb-10 text-center">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
+            <Sparkles size={12} className="text-blue-400" />
+            Welcome to GrowthX
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            Connect your data sources
+          </h1>
+          <p className="mt-3 text-sm text-white/50 max-w-md mx-auto leading-relaxed">
+            Link your tools so GrowthX AI can analyze, optimize, and grow your
+            online presence automatically. Connect what you need now — you can
+            always add more later.
+          </p>
+
+          {/* Progress bar */}
+          <div className="mt-6 max-w-xs mx-auto">
+            <div className="flex items-center justify-between text-[11px] text-white/40 mb-2">
+              <span>{doneCount} connected</span>
+              <span>{STEP_ORDER.length} total</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+                style={{ width: `${(totalDone / STEP_ORDER.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Notice */}
+        {notice && (
+          <div className="mb-6 flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300">
+            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+            <span>{notice}</span>
+            <button onClick={() => setNotice(null)} className="ml-auto shrink-0 hover:text-white">
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* Integration Cards */}
+        <div className="space-y-3">
+
+          {/* 1. Google Search Console */}
+          <IntegrationCard
+            icon={<Search size={20} className="text-blue-300" />}
+            iconBg="bg-blue-500/15"
+            title="Google Search Console"
+            subtitle="Organic traffic, clicks, impressions & keyword rankings"
+            features={["Keyword rankings", "Click data", "Search impressions", "CTR trends"]}
+            badge="Recommended"
+            badgeColor="bg-blue-500/20 text-blue-300 border border-blue-500/30"
+            state={steps.gsc}
+            isActive={activeStep === "gsc"}
+            onSkip={() => markSkipped("gsc")}
+          >
+            <button
+              type="button"
+              onClick={() => authorizeGoogle.mutate("search_console")}
+              disabled={authorizeGoogle.isPending || !projectId}
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-white py-3 px-4 font-semibold text-sm text-gray-800 hover:bg-gray-50 transition shadow-lg shadow-white/10 disabled:opacity-50"
+            >
+              {authorizeGoogle.isPending ? (
+                <Loader2 size={16} className="animate-spin text-blue-600" />
+              ) : (
+                <GoogleG size={18} />
+              )}
+              <span>Connect with Google</span>
+              <ChevronRight size={16} className="text-gray-400 ml-auto" />
+            </button>
+          </IntegrationCard>
+
+          {/* 2. Google Analytics 4 */}
+          <IntegrationCard
+            icon={<BarChart3 size={20} className="text-amber-300" />}
+            iconBg="bg-amber-500/15"
+            title="Google Analytics 4 (GA4)"
+            subtitle="User sessions, conversions, landing pages & traffic channels"
+            features={["Session data", "Conversion rates", "Traffic sources", "Engaged users"]}
+            badge="Recommended"
+            badgeColor="bg-amber-500/20 text-amber-300 border border-amber-500/30"
+            state={steps.ga4}
+            isActive={activeStep === "ga4"}
+            onSkip={() => markSkipped("ga4")}
+          >
+            <button
+              type="button"
+              onClick={() => authorizeGoogle.mutate("analytics")}
+              disabled={authorizeGoogle.isPending || !projectId}
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-white py-3 px-4 font-semibold text-sm text-gray-800 hover:bg-gray-50 transition shadow-lg shadow-white/10 disabled:opacity-50"
+            >
+              {authorizeGoogle.isPending ? (
+                <Loader2 size={16} className="animate-spin text-blue-600" />
+              ) : (
+                <GoogleG size={18} />
+              )}
+              <span>Connect Google Analytics</span>
+              <ChevronRight size={16} className="text-gray-400 ml-auto" />
+            </button>
+          </IntegrationCard>
+
+          {/* 3. Google Business Profile */}
+          <IntegrationCard
+            icon={<MapPin size={20} className="text-emerald-300" />}
+            iconBg="bg-emerald-500/15"
+            title="Google Business Profile"
+            subtitle="Local reviews, star ratings, maps rankings & local visibility"
+            features={["Review monitoring", "Local rankings", "GeoGrid tracking", "Post management"]}
+            badge="Local SEO"
+            badgeColor="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+            state={steps.gbp}
+            isActive={activeStep === "gbp"}
+            onSkip={() => markSkipped("gbp")}
+          >
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  connectGbp.mutate(
+                    {
+                      businessName: gbpName || "My Business",
+                      address: "Google Maps Verified Storefront",
+                      rating: 5.0,
+                      reviewCount: 0,
+                    },
+                    {
+                      onSuccess: () => {
+                        if (projectId) {
+                          localStorage.setItem(`growthx_gbp_connected_${projectId}`, "true");
+                        }
+                        markDone("gbp");
+                        advance("gbp");
+                      },
+                      onError: (err) => setNotice(errorMessage(err)),
+                    }
+                  );
+                }}
+                disabled={connectGbp.isPending || !projectId}
+                className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-white py-3 px-4 font-semibold text-sm text-gray-800 hover:bg-gray-50 transition shadow-lg shadow-white/10 disabled:opacity-50"
+              >
+                {connectGbp.isPending ? (
+                  <Loader2 size={16} className="animate-spin text-emerald-600" />
+                ) : (
+                  <GoogleG size={18} />
+                )}
+                <span>Connect Google Business Profile</span>
+                <ChevronRight size={16} className="text-gray-400 ml-auto" />
+              </button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/10" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-transparent px-2 text-[10px] uppercase tracking-widest text-white/30">
+                    or enter business name
+                  </span>
+                </div>
+              </div>
+              <input
+                type="text"
+                placeholder="e.g. Aiva Dental Care"
+                value={gbpName}
+                onChange={(e) => setGbpName(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
+              />
+            </div>
+          </IntegrationCard>
+
+          {/* 4. GitHub Repository */}
+          <IntegrationCard
+            icon={<GitBranch size={20} className="text-purple-300" />}
+            iconBg="bg-purple-500/15"
+            title="GitHub Repository"
+            subtitle="Autonomous AI engineers can open pull requests for technical fixes"
+            features={["Auto PR creation", "Schema fixes", "Technical SEO patches", "Code review"]}
+            badge="Optional"
+            badgeColor="bg-purple-500/20 text-purple-300 border border-purple-500/30"
+            state={steps.github}
+            isActive={activeStep === "github"}
+            onSkip={() => markSkipped("github")}
+          >
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-white/50">
+                    GitHub Owner / Org
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="your-org"
+                    value={githubForm.owner}
+                    onChange={(e) => setGithubForm({ ...githubForm, owner: e.target.value })}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/30 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-white/50">
+                    Repository Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="my-website"
+                    value={githubForm.name}
+                    onChange={(e) => setGithubForm({ ...githubForm, name: e.target.value })}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/30 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-white/50">
+                  GitHub Personal Access Token
+                </label>
+                <input
+                  type="password"
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  value={githubForm.accessToken}
+                  onChange={(e) => setGithubForm({ ...githubForm, accessToken: e.target.value })}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/30 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={
+                  connectRepo.isPending ||
+                  !githubForm.owner.trim() ||
+                  !githubForm.name.trim() ||
+                  !githubForm.accessToken.trim() ||
+                  !projectId
+                }
+                onClick={() =>
+                  connectRepo.mutate(githubForm, {
+                    onSuccess: () => {
+                      markDone("github");
+                      advance("github");
+                    },
+                    onError: (err) => setNotice(errorMessage(err)),
+                  })
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 py-2.5 px-4 font-semibold text-sm text-white hover:bg-purple-500 transition disabled:opacity-40"
+              >
+                {connectRepo.isPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <GitBranch size={14} />
+                )}
+                Connect Repository
+              </button>
+            </div>
+          </IntegrationCard>
+
+          {/* 5. Website / URL */}
+          <IntegrationCard
+            icon={<Globe size={20} className="text-cyan-300" />}
+            iconBg="bg-cyan-500/15"
+            title="Website URL"
+            subtitle="AI crawler analyzes your pages for on-page SEO opportunities"
+            features={["Page audits", "Content gaps", "Schema markup", "Core Web Vitals"]}
+            badge="Quick setup"
+            badgeColor="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+            state={steps.website}
+            isActive={activeStep === "website"}
+            onSkip={() => markSkipped("website")}
+          >
+            <div className="space-y-2.5">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-white/50">
+                  Your website URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://yourwebsite.com"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={!websiteUrl.trim()}
+                onClick={() => {
+                  // Store website URL and mark done
+                  if (projectId && websiteUrl.trim()) {
+                    try {
+                      localStorage.setItem(`growthx_website_${projectId}`, websiteUrl.trim());
+                    } catch {}
+                  }
+                  markDone("website");
+                  advance("website");
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-600 py-2.5 px-4 font-semibold text-sm text-white hover:bg-cyan-500 transition disabled:opacity-40"
+              >
+                <Globe size={14} />
+                Save & Start Crawling
+              </button>
+            </div>
+          </IntegrationCard>
+        </div>
+
+        {/* Bottom CTA */}
+        <div className="mt-8">
+          {allFinished ? (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
+              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 ring-2 ring-emerald-500/30">
+                <Check size={22} className="text-emerald-400" strokeWidth={2.5} />
+              </div>
+              <h3 className="text-base font-bold text-white mb-1">You're all set!</h3>
+              <p className="text-sm text-white/50 mb-4">
+                {doneCount > 0
+                  ? `${doneCount} integration${doneCount > 1 ? "s" : ""} connected. GrowthX AI is ready to optimize your site.`
+                  : "You can connect integrations anytime from the Integrations page."}
+              </p>
+              <button
+                type="button"
+                onClick={handleFinish}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-8 py-3 font-bold text-sm text-white shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 hover:scale-[1.02] transition-all"
+              >
+                <Zap size={16} />
+                Go to Dashboard
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/3 p-5">
+              <div>
+                <p className="text-sm font-semibold text-white/70">
+                  {STEP_ORDER.length - totalDone} step{STEP_ORDER.length - totalDone !== 1 ? "s" : ""} remaining
+                </p>
+                <p className="text-xs text-white/35 mt-0.5">
+                  You can always connect more integrations from Settings → Integrations.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  // Mark all remaining as skipped
+                  const updated: StepState = { ...steps };
+                  STEP_ORDER.forEach((k) => {
+                    if (updated[k] === "idle") updated[k] = "skipped";
+                  });
+                  setSteps(updated);
+                }}
+                className="shrink-0 rounded-xl border border-white/20 px-5 py-2.5 text-xs font-semibold text-white/50 hover:text-white hover:border-white/40 transition"
+              >
+                Skip all & go to dashboard →
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Trust badges */}
+        <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[11px] text-white/25">
+          <span className="flex items-center gap-1.5">
+            <Shield size={11} className="text-emerald-400/50" />
+            End-to-end encrypted
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Star size={11} className="text-amber-400/50" />
+            SOC-2 compliant
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Zap size={11} className="text-blue-400/50" />
+            No data sold, ever
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
