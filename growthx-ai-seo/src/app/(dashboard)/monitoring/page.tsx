@@ -85,9 +85,9 @@ export default function MonitoringPage() {
         subtitle="Real-time 3-Pack rank tracking, reputation radar, listing tampering alerts, and site health."
         actions={
           <div className="flex items-center gap-2">
-            <Link href="/local">
+            <Link href="/google-business-profile">
               <ActionButton variant="secondary" icon={<MapPin size={12} />}>
-                Local SEO Suite
+                Google Business Suite
               </ActionButton>
             </Link>
             <ActionButton
@@ -200,7 +200,7 @@ export default function MonitoringPage() {
               title="Google Maps 3-Pack Movement Stream"
               subtitle="Live local rank shifts, 3-Pack defense status, and rival movements across your trade area."
               actions={
-                <Link href="/local">
+                <Link href="/google-business-profile?tab=rankings">
                   <ActionButton variant="secondary" icon={<ArrowUpRight size={12} />}>
                     Open GeoGrid Scanner
                   </ActionButton>
@@ -300,7 +300,7 @@ export default function MonitoringPage() {
                     </p>
                   </div>
                 </div>
-                <Link href="/local">
+                <Link href="/google-business-profile?tab=reviews">
                   <ActionButton variant="primary" icon={<MessageSquare size={12} />}>
                     Generate AI De-escalation Reply
                   </ActionButton>
@@ -312,7 +312,7 @@ export default function MonitoringPage() {
               title="Real-Time Review Stream"
               subtitle="Incoming customer feedback with automated sentiment scoring and response readiness."
               actions={
-                <Link href="/local">
+                <Link href="/google-business-profile?tab=reviews">
                   <ActionButton variant="secondary" icon={<ArrowUpRight size={12} />}>
                     Reply Autopilot with Brand Voice
                   </ActionButton>
@@ -361,7 +361,7 @@ export default function MonitoringPage() {
                           </Pill>
                         </Td>
                         <Td>
-                          <Link href="/local">
+                          <Link href="/google-business-profile?tab=reviews">
                             <button
                               type="button"
                               className="text-xs font-semibold text-accent-600 hover:underline flex items-center gap-1"
@@ -502,9 +502,9 @@ export default function MonitoringPage() {
               title="Directory Sync & Citation Drift Monitor"
               subtitle="Continuous audit preventing duplicate or corrupted business listings from diluting your local authority."
               actions={
-                <Link href="/local">
+                <Link href="/google-business-profile?tab=audit">
                   <ActionButton variant="secondary" icon={<ArrowUpRight size={12} />}>
-                    View Citation Audit in Local SEO
+                    View Audit in Google Business Profile
                   </ActionButton>
                 </Link>
               }

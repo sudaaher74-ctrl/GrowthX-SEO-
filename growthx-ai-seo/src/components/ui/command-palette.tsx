@@ -50,7 +50,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
     // Extended Workspace & Tools
     { id: "nav-gbp", title: "Google Business Profile", category: "Navigation", icon: Store, href: "/google-business-profile", subtitle: "Audit, photos, reviews, categories, services & Maps 3-Pack" },
-    { id: "nav-local", title: "Local SEO", category: "Navigation", icon: MapPin, href: "/local", subtitle: "Google Business Profile, reviews & citations" },
     { id: "nav-monitoring", title: "Monitoring", category: "Navigation", icon: Globe, href: "/monitoring", subtitle: "Uptime, SSL, and daily crawl watchers" },
     { id: "nav-research", title: "Market Research", category: "Navigation", icon: Eye, href: "/market-research", subtitle: "Cited answers about this client's market" },
     { id: "nav-search-perf", title: "Search Performance", category: "Navigation", icon: SearchIcon, href: "/search-performance", subtitle: "Google Search Console & GA4 traffic" },
@@ -70,7 +69,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // is a route in this app — the palette was written before it was mounted,
     // so nobody ever clicked them into a 404.
     { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/search/search-console"); }, subtitle: "Fetch the latest search queries" },
-    { id: "act-local", title: "Create Local City Page", category: "Quick Actions", icon: MapPin, action: () => { router.push("/local"); }, subtitle: "Generate a landing page for a target city" },
+    { id: "act-local", title: "Analyze Local Presence", category: "Quick Actions", icon: MapPin, action: () => { router.push("/google-business-profile"); }, subtitle: "Google Business Profile rankings & audit" },
   ], [router]);
 
   const filteredItems = useMemo(() => {

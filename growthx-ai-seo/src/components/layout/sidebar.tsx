@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, MapPin } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -13,7 +13,7 @@ import { useEntitlements, usePortfolio, useWorkspace, useProfile } from "@/hooks
  * Agency console sidebar.
  *
  * Scoped to the selected client with core workspace tabs:
- * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine, Google Business Profile, Local SEO
+ * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine, Google Business Profile
  */
 
 interface NavItem {
@@ -107,11 +107,6 @@ export function Sidebar({
         { label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", id: "ai-recommendations" },
         { label: "Action Plan", href: "/google-business-profile?tab=action-plan", id: "action-plan" },
       ],
-    },
-    {
-      label: "Local SEO",
-      href: "/local",
-      icon: MapPin,
     },
   ];
 

@@ -51,7 +51,7 @@ const PROJECT_TYPES = [
 const CONNECTION_STEPS: { id: string; label: string; href: string; status: StepStatus }[] = [
   { id: "gsc", label: "Google Search Console Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
   { id: "ga", label: "Google Analytics 4 Connected", href: "/integrations", status: "NEEDS_CONNECTION" },
-  { id: "gbp", label: "Google Business Profile Connected", href: "/local", status: "NEEDS_CONNECTION" },
+  { id: "gbp", label: "Google Business Profile Connected", href: "/google-business-profile", status: "NEEDS_CONNECTION" },
 ];
 
 export function OnboardingWizard({

@@ -163,7 +163,7 @@ export default function UnifiedDashboardPage() {
             <ChecklistBadge label="Crawl Audit" completed={hasCrawl} href="/website" />
             <ChecklistBadge label="Search Console" completed={hasGsc} href="/integrations" />
             <ChecklistBadge label="Analytics (GA4)" completed={hasGa} href="/integrations" />
-            <ChecklistBadge label="Google Business" completed={hasGbp} href="/local" />
+            <ChecklistBadge label="Google Business" completed={hasGbp} href="/google-business-profile" />
             <ChecklistBadge label="Competitors" completed={hasCompetitors} href="/competitor-intelligence" />
           </div>
         </div>
@@ -247,7 +247,7 @@ export default function UnifiedDashboardPage() {
           state={localSeo.data ? "MEASURED" : "NOT_CONNECTED"}
           source="Google Places & GBP"
           lastUpdated={localSeo.data?.updatedAt ? relativeTime(localSeo.data.updatedAt) : undefined}
-          actionHref="/local"
+          actionHref="/google-business-profile"
           actionLabel="Connect Google Business Profile →"
         />
       </div>

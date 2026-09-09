@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "framer-motion"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/local",
+        destination: "/google-business-profile",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

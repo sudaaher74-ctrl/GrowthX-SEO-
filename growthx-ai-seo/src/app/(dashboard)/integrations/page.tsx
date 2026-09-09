@@ -320,10 +320,10 @@ function IntegrationsClient() {
 
             <div className="flex items-center gap-2 shrink-0">
               <Link
-                href="/local"
+                href="/google-business-profile"
                 className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition"
               >
-                Manage in Local SEO
+                Manage in Google Business Profile
                 <ExternalLink size={12} />
               </Link>
             </div>
