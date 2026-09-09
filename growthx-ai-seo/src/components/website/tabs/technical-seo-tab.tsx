@@ -351,9 +351,31 @@ export function TechnicalSeoTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* 1. Technical Health Score */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-            <Shield size={14} className="text-blue-600" />
-            <span>Technical Health</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Shield size={14} className="text-blue-600" />
+              <span>Technical Health</span>
+            </div>
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                healthScore == null
+                  ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800"
+                  : healthScore >= 80
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50"
+                  : healthScore >= 50
+                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50"
+                  : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50"
+              )}
+            >
+              {healthScore == null
+                ? "Not Crawled"
+                : healthScore >= 80
+                ? "Good Health"
+                : healthScore >= 50
+                ? "Needs Work"
+                : "Critical Issues"}
+            </span>
           </div>
           <GaugeScore
             score={healthScore}
@@ -364,7 +386,7 @@ export function TechnicalSeoTab({
                 : healthScore >= 80
                 ? "Good Health"
                 : healthScore >= 50
-                ? "Needs Improvement"
+                ? "Needs Work"
                 : "Critical Issues"
             }
             statusTone={
@@ -376,12 +398,13 @@ export function TechnicalSeoTab({
                 ? "warn"
                 : "bad"
             }
+            showBadge={false}
             description={
               healthScore == null
-                ? "Run a scan to analyze website health"
+                ? "Scan to analyze health"
                 : severityCounts.CRITICAL > 0
-                ? `Your website has ${severityCounts.CRITICAL} critical technical issues that may affect rankings.`
-                : "Technical health is within normal baseline parameters."
+                ? `${severityCounts.CRITICAL} critical issues found`
+                : "Baseline parameters normal"
             }
             buttonText="View Recommendations"
             onButtonClick={() => {
