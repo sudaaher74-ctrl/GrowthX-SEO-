@@ -14,6 +14,8 @@ interface GaugeScoreProps {
   buttonText?: string;
   onButtonClick?: () => void;
   className?: string;
+  size?: number;
+  showBadge?: boolean;
 }
 
 export function GaugeScore({
@@ -26,6 +28,8 @@ export function GaugeScore({
   buttonText = "View Recommendations",
   onButtonClick,
   className,
+  size = 88,
+  showBadge = true,
 }: GaugeScoreProps) {
   const effectiveScore = score != null ? Math.min(Math.max(score, 0), maxScore) : null;
   const pct = effectiveScore != null ? (effectiveScore / maxScore) * 100 : 0;
@@ -56,92 +60,97 @@ export function GaugeScore({
   }[tone];
 
   // SVG Gauge calculations
-  const size = 110;
-  const strokeWidth = 10;
+  const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  // Let's make an open circular arc (260 degrees) or full circle
-  const arcLength = circumference * 0.75; // 270 degrees
+  // Open circular arc (270 degrees)
+  const arcLength = circumference * 0.75;
   const strokeDashoffset = arcLength * (1 - pct / 100);
 
   return (
-    <div className={cn("flex flex-col sm:flex-row items-center sm:items-start gap-4", className)}>
-      {/* Semi-circular / arc gauge */}
-      <div className="relative shrink-0 flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          className="transform rotate-135"
-        >
-          {/* Track */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="currentColor"
-            className="text-slate-100 dark:text-slate-800"
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${arcLength} ${circumference}`}
-            strokeLinecap="round"
-          />
-          {/* Value Arc */}
-          {effectiveScore != null && (
+    <div className={cn("flex flex-col items-center justify-between flex-1 w-full min-w-0", className)}>
+      <div className="flex flex-col items-center w-full min-w-0">
+        {/* Semi-circular / arc gauge */}
+        <div className="relative shrink-0 flex items-center justify-center my-1" style={{ width: size, height: size }}>
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            className="transform rotate-135"
+          >
+            {/* Track */}
             <circle
               cx={size / 2}
               cy={size / 2}
               r={radius}
               fill="none"
-              stroke={strokeColor}
+              stroke="currentColor"
+              className="text-slate-100 dark:text-slate-800"
               strokeWidth={strokeWidth}
               strokeDasharray={`${arcLength} ${circumference}`}
-              strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
             />
-          )}
-        </svg>
+            {/* Value Arc */}
+            {effectiveScore != null && (
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${arcLength} ${circumference}`}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                className="transition-all duration-700 ease-out"
+              />
+            )}
+          </svg>
 
-        {/* Center Score */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {effectiveScore != null ? effectiveScore : "—"}
-          </span>
-          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-            / {maxScore}
-          </span>
+          {/* Center Score */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              {effectiveScore != null ? effectiveScore : "—"}
+            </span>
+            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+              / {maxScore}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Content Right */}
-      <div className="flex-1 flex flex-col items-center sm:items-start text-center sm:text-left min-w-0">
-        {statusText && (
+        {/* Status Badge (if enabled) */}
+        {showBadge && statusText && (
           <span
             className={cn(
-              "inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold mb-1.5",
+              "inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-semibold my-1",
               badgeColors[tone]
             )}
           >
             {statusText}
           </span>
         )}
+
+        {/* Short description */}
         {description && (
-          <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed mb-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 text-center mt-1 w-full px-1">
             {description}
           </p>
         )}
-        {onButtonClick && (
+      </div>
+
+      {/* Action Link / Button */}
+      {onButtonClick && (
+        <div className="w-full mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
           <button
             type="button"
             onClick={onButtonClick}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 inline-flex items-center gap-1 transition-colors"
           >
             <span>{buttonText}</span>
-            <ArrowRight size={13} />
+            <ArrowRight size={12} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
