@@ -13,6 +13,7 @@ import {
 import { GbpHeader } from "@/components/gbp/gbp-header";
 import { GbpTabs, type GbpTabKey, GBP_TABS } from "@/components/gbp/gbp-tabs";
 import { ConnectGbpModal } from "@/components/gbp/connect-gbp-modal";
+import { ConnectGbpScreen } from "@/components/gbp/connect-gbp-screen";
 
 import { OverviewTab } from "@/components/gbp/tabs/overview-tab";
 import { ProfileAuditTab } from "@/components/gbp/tabs/profile-audit-tab";
@@ -64,6 +65,17 @@ function GoogleBusinessProfileContent() {
           message="Fetching verified Google Maps storefront and local ranking records..."
         />
       </div>
+    );
+  }
+
+  const isConnected = Boolean(localSeo?.businessName);
+
+  if (!isConnected) {
+    return (
+      <ConnectGbpScreen
+        projectId={projectId}
+        onConnected={handleRefresh}
+      />
     );
   }
 

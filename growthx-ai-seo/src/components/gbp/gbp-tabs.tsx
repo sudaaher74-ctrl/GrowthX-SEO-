@@ -39,13 +39,13 @@ export interface GbpTabItem {
 export const GBP_TABS: GbpTabItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "audit", label: "Profile Audit", icon: ClipboardCheck },
-  { id: "categories", label: "Categories", icon: Tag },
-  { id: "services", label: "Services", icon: Briefcase },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "photos", label: "Photos", icon: ImageIcon },
+  { id: "services", label: "Services", icon: Briefcase },
+  { id: "categories", label: "Categories", icon: Tag },
   { id: "rankings", label: "Local Rankings", icon: BarChart3 },
   { id: "competitors", label: "Competitors", icon: Users },
-  { id: "posts", label: "Posts / Updates", icon: Megaphone },
+  { id: "posts", label: "Posts", icon: Megaphone },
   { id: "ai-recommendations", label: "AI Recommendations", icon: Sparkles },
   { id: "action-plan", label: "Action Plan", icon: ListTodo },
 ];
