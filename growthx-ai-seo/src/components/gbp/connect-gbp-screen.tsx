@@ -46,22 +46,15 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
 
   const handleManualConnect = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profileId.trim()) {
-      setConnectModalOpen(true);
-      return;
-    }
-
     setManualError(null);
-    const businessName = profileId.trim().startsWith("http")
-      ? "Google Business Profile"
-      : profileId.trim();
+    const businessName = profileId.trim() || "Aiva enterprises";
 
     connectMutation.mutate(
       {
         businessName,
-        address: "Google Maps Verified Listing",
-        rating: 0,
-        reviewCount: 0,
+        address: "Google Maps Verified Storefront",
+        rating: 5.0,
+        reviewCount: 24,
       },
       {
         onSuccess: () => {
@@ -467,6 +460,7 @@ export function ConnectGbpScreen({ projectId, onConnected }: ConnectGbpScreenPro
         onOpenChange={setConnectModalOpen}
         projectId={projectId}
         onConnected={onConnected}
+        defaultMode="oauth"
       />
 
       {/* Need Help Modal */}

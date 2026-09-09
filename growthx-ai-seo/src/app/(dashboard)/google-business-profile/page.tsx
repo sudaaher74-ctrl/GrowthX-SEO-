@@ -57,24 +57,61 @@ function GoogleBusinessProfileContent() {
 
   const currentTabMeta = GBP_TABS.find((t) => t.id === activeTab);
 
-  if (seoLoading) {
+  // Google Business Profile connection tracking:
+  // Requires explicit connection via the GBP onboarding flow for this project.
+  // Defaults to false so every user starts directly on the
+  // "Connect your Google Business Profile" screen (Photo 2).
+  const [gbpConnected, setGbpConnected] = useState<boolean>(false);
+  const [isClientReady, setIsClientReady] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      const stored = localStorage.getItem(`growthx_gbp_connected_${projectId}`);
+      setGbpConnected(stored === "true");
+    } catch {
+      setGbpConnected(false);
+    } finally {
+      setIsClientReady(true);
+    }
+  }, [projectId]);
+
+  const handleConnected = () => {
+    if (projectId) {
+      try {
+        localStorage.setItem(`growthx_gbp_connected_${projectId}`, "true");
+      } catch {}
+    }
+    setGbpConnected(true);
+    handleRefresh();
+  };
+
+  const handleDisconnect = () => {
+    if (projectId) {
+      try {
+        localStorage.removeItem(`growthx_gbp_connected_${projectId}`);
+      } catch {}
+    }
+    setGbpConnected(false);
+  };
+
+  if (seoLoading || !isClientReady) {
     return (
       <div className="p-8">
         <LoadingState
           title="Loading Google Business Profile..."
-          message="Fetching verified Google Maps storefront and local ranking records..."
+          message="Checking verified Google Maps storefront status..."
         />
       </div>
     );
   }
 
-  const isConnected = Boolean(localSeo?.businessName);
-
-  if (!isConnected) {
+  // Guard: Without adding their Google Business Profile, they cannot open next tab
+  if (!gbpConnected) {
     return (
       <ConnectGbpScreen
         projectId={projectId}
-        onConnected={handleRefresh}
+        onConnected={handleConnected}
       />
     );
   }
@@ -87,6 +124,7 @@ function GoogleBusinessProfileContent() {
         projectId={projectId}
         activeTabTitle={currentTabMeta?.label}
         onRefresh={handleRefresh}
+        onDisconnect={handleDisconnect}
       />
 
       {/* 12-Tab Switcher */}

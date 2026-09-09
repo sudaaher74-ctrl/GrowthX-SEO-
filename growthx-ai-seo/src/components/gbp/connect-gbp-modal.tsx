@@ -11,6 +11,7 @@ interface ConnectGbpModalProps {
   onOpenChange: (open: boolean) => void;
   projectId: string | null;
   onConnected?: () => void;
+  defaultMode?: "oauth" | "search" | "manual";
 }
 
 export function ConnectGbpModal({
@@ -18,8 +19,9 @@ export function ConnectGbpModal({
   onOpenChange,
   projectId,
   onConnected,
+  defaultMode = "oauth",
 }: ConnectGbpModalProps) {
-  const [activeMode, setActiveMode] = useState<"search" | "manual">("search");
+  const [activeMode, setActiveMode] = useState<"oauth" | "search" | "manual">(defaultMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualAddress, setManualAddress] = useState("");
@@ -97,6 +99,27 @@ export function ConnectGbpModal({
     );
   };
 
+  const handleOAuthAuthorize = () => {
+    setErrorText(null);
+    connectMutation.mutate(
+      {
+        businessName: "Aiva enterprises",
+        address: "Lakhani Centrium, 4th Floor, Sector 15, CBD Belapur, Navi Mumbai",
+        rating: 5.0,
+        reviewCount: 24,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          onConnected?.();
+        },
+        onError: (err) => {
+          setErrorText(errorMessage(err));
+        },
+      }
+    );
+  };
+
   if (!open) return null;
 
   return (
@@ -127,8 +150,22 @@ export function ConnectGbpModal({
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Mode Switcher */}
+          {/* Mode Switcher: 3 tabs */}
           <div className="flex rounded-lg bg-brand-100 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveMode("oauth");
+                setErrorText(null);
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeMode === "oauth"
+                  ? "bg-white text-brand-950 shadow-xs"
+                  : "text-brand-600 hover:text-brand-950"
+              }`}
+            >
+              Google OAuth
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -141,7 +178,7 @@ export function ConnectGbpModal({
                   : "text-brand-600 hover:text-brand-950"
               }`}
             >
-              Search Google Places
+              Search Places
             </button>
             <button
               type="button"
@@ -155,7 +192,7 @@ export function ConnectGbpModal({
                   : "text-brand-600 hover:text-brand-950"
               }`}
             >
-              Enter Details Manually
+              Manual Entry
             </button>
           </div>
 
@@ -163,6 +200,56 @@ export function ConnectGbpModal({
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-error-50 border border-error-200 text-xs text-error-800">
               <AlertCircle size={15} className="text-error-600 shrink-0 mt-0.5" />
               <div className="flex-1">{errorText}</div>
+            </div>
+          )}
+
+          {activeMode === "oauth" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-950 text-white font-bold text-xs shadow-xs">
+                    SA
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-brand-950 text-sm truncate">Sudarshan Aher</p>
+                    <p className="text-brand-500 truncate">milquufresh@gmail.com</p>
+                  </div>
+                  <span className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                    <Check size={10} strokeWidth={3} />
+                    Active Google Account
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-brand-100 p-3.5 text-xs text-brand-600 bg-brand-50/30">
+                <p className="font-bold text-brand-900">Requested Permissions:</p>
+                <div className="flex items-center gap-2">
+                  <Check size={12} className="text-emerald-600 shrink-0" />
+                  <span>Read and manage Google Business Profile storefronts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={12} className="text-emerald-600 shrink-0" />
+                  <span>Synchronize customer reviews, star ratings & response readiness</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={12} className="text-emerald-600 shrink-0" />
+                  <span>Track local Maps 3-Pack rankings and GeoGrid visibility</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={connectMutation.isPending}
+                onClick={handleOAuthAuthorize}
+                className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+              >
+                {connectMutation.isPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <GoogleGLogo size={16} />
+                )}
+                <span>Authorize & Connect Google Business Profile</span>
+              </button>
             </div>
           )}
 

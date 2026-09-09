@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Sparkles,
   Link2,
+  Unlink,
 } from "lucide-react";
 import { GbpStoreIcon, GoogleGLogo } from "./gbp-icons";
 import { ConnectGbpModal } from "./connect-gbp-modal";
@@ -21,6 +22,7 @@ interface GbpHeaderProps {
   activeTabTitle?: string;
   activeTabSubtitle?: string;
   onRefresh?: () => void;
+  onDisconnect?: () => void;
 }
 
 export function GbpHeader({
@@ -29,6 +31,7 @@ export function GbpHeader({
   activeTabTitle,
   activeTabSubtitle,
   onRefresh,
+  onDisconnect,
 }: GbpHeaderProps) {
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -164,6 +167,18 @@ export function GbpHeader({
                         View on Google Maps
                       </a>
                     )}
+                    <div className="my-1 border-t border-brand-100 dark:border-brand-800" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        onDisconnect?.();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                    >
+                      <Unlink size={13} className="text-rose-500" />
+                      Disconnect Profile
+                    </button>
                   </div>
                 </>
               )}
