@@ -3,6 +3,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { CreateArticleModal } from "@/components/content/create-article-modal";
+import { ArticlePreviewModal } from "@/components/content/article-preview-modal";
+import { useContentPieces, useRepository, useRunContent } from "@/hooks/use-growthx";
 import {
   Sparkles,
   ExternalLink,
@@ -23,9 +25,12 @@ import {
   MapPin,
   Compass,
   SlidersHorizontal,
+  BookOpen,
+  GitBranch,
+  Loader2,
 } from "lucide-react";
 import { LoadingState, NoDataState } from "@/components/ui/truthful-state";
-import { api, CoverageOpportunity, type TrackedCompetitor } from "@/lib/api-client";
+import { api, CoverageOpportunity, type TrackedCompetitor, type ContentPiece } from "@/lib/api-client";
 import { WebsiteComparisonPanel } from "./website-comparison";
 
 /**
@@ -217,7 +222,15 @@ export function CompetitorOpportunitiesPanel({
   const [showMacroComparison, setShowMacroComparison] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [draftOpportunity, setDraftOpportunity] = useState<EnrichedOpportunity | null>(null);
+  const [previewPiece, setPreviewPiece] = useState<ContentPiece | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Content pipeline data for matching opportunities with drafted pieces & PRs
+  const pieces = useContentPieces(projectId);
+  const repo = useRepository(projectId);
+  const runContent = useRunContent(projectId);
+  const allPieces = pieces.data ?? [];
+  const draftedPieces = allPieces.filter((p) => p.status === "DRAFTED");
 
   // 1. Fetch site comparison data (macro counts across Service, Blog, Location, FAQ, Schema, etc.)
   const websiteCmpQuery = useQuery({
@@ -547,6 +560,29 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
         </div>
       )}
 
+      {/* Pull Request Opened Confirmation Banner */}
+      {runContent.data && (
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <GitBranch size={16} className="text-emerald-600 shrink-0" />
+            <span>
+              Pull request opened on GitHub with {runContent.data.filesChanged.length} page(s)!
+            </span>
+          </div>
+          {runContent.data.pullRequestUrl && (
+            <a
+              href={runContent.data.pullRequestUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-bold text-emerald-800 underline underline-offset-2 hover:text-emerald-950"
+            >
+              <span>View Pull Request &amp; Code Changes</span>
+              <ExternalLink size={12} />
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Success Notification Banner */}
       {toastMessage && (
         <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-medium shadow-2xs animate-in fade-in duration-200">
@@ -583,10 +619,15 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
         <div className="space-y-4">
           <div className="flex items-center justify-between text-[12px] text-brand-600 px-1 font-medium">
             <span>
-              Showing <strong>{filteredOpportunities.length}</strong> prioritized content & page opportunities
+              Showing <strong>{filteredOpportunities.length}</strong> prioritized content &amp; page opportunities
+              {draftedPieces.length > 0 && (
+                <span className="ml-2 text-emerald-700 font-semibold">
+                  ({draftedPieces.length} drafted &amp; ready to ship)
+                </span>
+              )}
             </span>
             <span className="text-[11px] text-brand-400">
-              Derived from verified URL & title word overlaps on crawled domains
+              Derived from verified URL &amp; title word overlaps on crawled domains
             </span>
           </div>
 
@@ -765,15 +806,60 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setDraftOpportunity(opp)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-brand-800 transition shadow-2xs cursor-pointer"
-                          >
-                            <Sparkles size={12} />
-                            Draft with Content AI
-                            <ArrowRight size={11} />
-                          </button>
+                          {(() => {
+                            const matchedPiece = allPieces.find(
+                              (p) =>
+                                p.title?.trim().toLowerCase() === opp.topicTitle.trim().toLowerCase() ||
+                                p.targetQuery?.trim().toLowerCase() === opp.recommendedH1.trim().toLowerCase() ||
+                                p.title?.trim().toLowerCase() === opp.recommendedH1.trim().toLowerCase() ||
+                                (opp.targetUrl && p.slug && opp.targetUrl.toLowerCase().includes(p.slug.toLowerCase()))
+                            );
+
+                            if (matchedPiece) {
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewPiece(matchedPiece)}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-emerald-800 transition shadow-2xs cursor-pointer"
+                                  >
+                                    <BookOpen size={12} />
+                                    Preview &amp; Read Article
+                                  </button>
+                                  {repo.data && matchedPiece.status === "DRAFTED" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => runContent.mutate([matchedPiece.id])}
+                                      disabled={runContent.isPending}
+                                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-brand-700 hover:bg-brand-50 transition shadow-2xs cursor-pointer"
+                                    >
+                                      {runContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <GitBranch size={11} />}
+                                      Ship to PR
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setDraftOpportunity(opp)}
+                                    className="text-[11px] text-brand-500 hover:text-brand-800 underline underline-offset-2 ml-1 cursor-pointer"
+                                  >
+                                    Re-draft
+                                  </button>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setDraftOpportunity(opp)}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-brand-800 transition shadow-2xs cursor-pointer"
+                              >
+                                <Sparkles size={12} />
+                                Draft with Content AI
+                                <ArrowRight size={11} />
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -800,11 +886,24 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
               : `Target URL: ${draftOpportunity.targetUrl}`
           }
           onClose={() => setDraftOpportunity(null)}
-          onSuccess={() => {
-            const topic = draftOpportunity.topicTitle;
+          onSuccess={(draftedPiece) => {
             setDraftOpportunity(null);
-            setToastMessage(`Draft generated successfully for "${topic}"! You can find it in your Content pieces.`);
-            setTimeout(() => setToastMessage(null), 6000);
+            setPreviewPiece(draftedPiece);
+            setToastMessage(`Draft generated successfully for "${draftedPiece.title}"! Showing article preview...`);
+            setTimeout(() => setToastMessage(null), 8000);
+          }}
+        />
+      )}
+
+      {/* Article Reader & Evidence Preview Modal */}
+      {previewPiece && (
+        <ArticlePreviewModal
+          piece={previewPiece}
+          repoConnected={Boolean(repo.data)}
+          onClose={() => setPreviewPiece(null)}
+          onShip={(pieceId) => {
+            runContent.mutate([pieceId]);
+            setPreviewPiece(null);
           }}
         />
       )}

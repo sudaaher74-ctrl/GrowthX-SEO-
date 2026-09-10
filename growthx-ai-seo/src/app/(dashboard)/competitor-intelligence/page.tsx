@@ -10,10 +10,14 @@ import { AutoCompetitorsPanel } from "@/components/market-research/auto-competit
 import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
 import { CompetitorImprovementPlanPanel } from "@/components/competitor/competitor-improvement-plan-panel";
 import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
-import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";const TABS = [
+import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
+import { ContentStudioPanel } from "@/components/content/content-studio-panel";
+
+const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
+  { id: "drafted-content", label: "Drafted Articles & Content AI" },
   { id: "keywords", label: "Competitor Keywords" },
   { id: "ai-citations", label: "AI Search Matrix (GEO)" },
   { id: "improvement-plan", label: "30-Day Improvement Plan" },
@@ -1547,6 +1551,11 @@ function CompetitorIntelligenceClient() {
       {/* Tab 3: Competitor Content & Website Opportunities */}
       {(activeTab === "opportunities" || activeTab === "website") && (
         <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
+      )}
+
+      {/* Tab: Drafted Content & Evidence Studio */}
+      {activeTab === "drafted-content" && (
+        <ContentStudioPanel projectId={projectId!} />
       )}
 
       {/* Tab 4: Competitor Keywords & Placement Blueprints */}

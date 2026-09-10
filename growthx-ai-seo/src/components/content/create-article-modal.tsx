@@ -6,6 +6,8 @@ import { ActionButton } from "@/components/ui/console";
 import { useCreateContentPiece, useDraftContent } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
 
+import type { ContentPiece } from "@/lib/api-client";
+
 interface CreateArticleModalProps {
   projectId: string;
   initialTitle?: string;
@@ -13,7 +15,7 @@ interface CreateArticleModalProps {
   initialFormat?: string;
   initialRationale?: string;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (piece: ContentPiece) => void;
 }
 
 const FORMAT_OPTIONS = [
@@ -58,11 +60,12 @@ export function CreateArticleModal({
         rationale: rationale.trim() || undefined,
       });
 
+      let draftedPiece: ContentPiece = created;
       if (autoDraft && created?.id) {
-        await draftMutation.mutateAsync(created.id);
+        draftedPiece = await draftMutation.mutateAsync(created.id);
       }
 
-      onSuccess?.();
+      onSuccess?.(draftedPiece);
       onClose();
     } catch (err) {
       setError(errorMessage(err));
