@@ -8,19 +8,13 @@ import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
 import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
-import { CompetitorImprovementPlanPanel } from "@/components/competitor/competitor-improvement-plan-panel";
-import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
 import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
-import { ContentStudioPanel } from "@/components/content/content-studio-panel";
 
 const TABS = [
   { id: "identify", label: "Find Competitors" },
   { id: "benchmarks", label: "Comparison Benchmarks" },
   { id: "opportunities", label: "Competitor Opportunities" },
-  { id: "drafted-content", label: "Drafted Articles & Content AI" },
   { id: "keywords", label: "Competitor Keywords" },
-  { id: "ai-citations", label: "AI Search Matrix (GEO)" },
-  { id: "improvement-plan", label: "30-Day Improvement Plan" },
 ];
 
 /**
@@ -107,7 +101,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
   );
 }
 
-const DEFAULT_TAB = "benchmarks";
+const DEFAULT_TAB = "identify";
 
 export default function CompetitorIntelligencePage() {
   return (
@@ -1561,32 +1555,9 @@ function CompetitorIntelligenceClient() {
         <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
       )}
 
-      {/* Tab: Drafted Content & Evidence Studio */}
-      {activeTab === "drafted-content" && (
-        <ContentStudioPanel projectId={projectId!} />
-      )}
-
       {/* Tab 4: Competitor Keywords & Placement Blueprints */}
       {activeTab === "keywords" && (
         <CompetitorKeywordsPanel
-          projectId={projectId!}
-          customerDomain={clientRow?.domain || "our site"}
-          competitors={competitorsList}
-        />
-      )}
-
-      {/* Tab 5: AI Search Recommendation & Citation Matrix (GEO) */}
-      {activeTab === "ai-citations" && (
-        <AiCitationMatrixPanel
-          projectId={projectId!}
-          customerDomain={clientRow?.domain || "our site"}
-          competitors={competitorsList}
-        />
-      )}
-
-      {/* Tab 6: 30-Day Competitor SEO Domination Plan */}
-      {activeTab === "improvement-plan" && (
-        <CompetitorImprovementPlanPanel
           projectId={projectId!}
           customerDomain={clientRow?.domain || "our site"}
           competitors={competitorsList}
