@@ -161,11 +161,13 @@ export function AutoFixModal({
 
   // Only offered when a run could actually happen. A button that cannot reach
   // the repository should not be presented as one that can.
-  const canOpenPr = Boolean(projectId) && repoConnected && !run;
+  const canOpenPr =
+    Boolean(projectId) && repoConnected && (!run || !run.pullRequestUrl);
 
   async function handleOpenPullRequest() {
     if (!issue) return;
     setRunError(null);
+    setRun(null);
     try {
       setRun(await runFixes.mutateAsync([issue.id]));
     } catch (error: any) {
@@ -216,14 +218,17 @@ export function AutoFixModal({
 
     if (run) {
       const lastFailure = [...(run.steps ?? [])].reverse().find((step) => !step.ok);
+      const errorMessage =
+        run.error ??
+        lastFailure?.detail ??
+        "The run finished without opening a pull request. Nothing was changed.";
       return (
-        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+        <span
+          className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5"
+          title={errorMessage}
+        >
           <AlertTriangle size={13} className="shrink-0" />
-          <span className="truncate">
-            {run.error ??
-              lastFailure?.detail ??
-              "The run finished without opening a pull request. Nothing was changed."}
-          </span>
+          <span className="truncate">{errorMessage}</span>
         </span>
       );
     }
@@ -382,7 +387,11 @@ export function AutoFixModal({
                   )
                 }
               >
-                {runFixes.isPending ? "Opening pull request..." : "Apply & Open PR"}
+                {runFixes.isPending
+                  ? "Opening pull request..."
+                  : run && !run.pullRequestUrl
+                    ? "Retry & Open PR"
+                    : "Apply & Open PR"}
               </ActionButton>
             )}
           </div>

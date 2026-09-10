@@ -274,7 +274,7 @@ export class AutomationService {
 
       // A build that fails is never pushed — a broken site is worse than an
       // unfixed one.
-      const validated = await this.validation.validateRepository(workingDir, context.packageManager);
+      const validated = await this.validation.validateRepository(workingDir, context.packageManager, changed);
       steps.push(this.step('validate', validated.success ? 'build passed' : 'build failed', validated.success));
 
       if (!validated.success) {
@@ -383,7 +383,7 @@ export class AutomationService {
       }
       steps.push(this.step('write', `${changed.length} page(s)`, true));
 
-      const validated = await this.validation.validateRepository(workingDir, context.packageManager);
+      const validated = await this.validation.validateRepository(workingDir, context.packageManager, changed);
       steps.push(this.step('validate', validated.success ? 'build passed' : 'build failed', validated.success));
 
       if (!validated.success) {
@@ -664,6 +664,8 @@ export class AutomationService {
       if (!absolute.startsWith(repoDir)) continue;
       try {
         await fs.access(absolute);
+        const dirEntries = await fs.readdir(path.dirname(absolute));
+        if (!dirEntries.includes(path.basename(absolute))) continue;
         return absolute;
       } catch {
         // try the next candidate
