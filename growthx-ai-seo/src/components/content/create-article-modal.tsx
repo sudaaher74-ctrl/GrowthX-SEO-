@@ -8,6 +8,10 @@ import { errorMessage } from "@/lib/error-message";
 
 interface CreateArticleModalProps {
   projectId: string;
+  initialTitle?: string;
+  initialTargetQuery?: string;
+  initialFormat?: string;
+  initialRationale?: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
@@ -19,14 +23,22 @@ const FORMAT_OPTIONS = [
   { id: "SERVICE_PAGE", label: "Commercial Service Landing Page", desc: "Conversion-optimized with structured proof points & FAQs" },
 ];
 
-export function CreateArticleModal({ projectId, onClose, onSuccess }: CreateArticleModalProps) {
+export function CreateArticleModal({
+  projectId,
+  initialTitle = "",
+  initialTargetQuery = "",
+  initialFormat = "Long-form GEO Pillar",
+  initialRationale = "",
+  onClose,
+  onSuccess,
+}: CreateArticleModalProps) {
   const createMutation = useCreateContentPiece(projectId);
   const draftMutation = useDraftContent(projectId);
 
-  const [title, setTitle] = useState("");
-  const [targetQuery, setTargetQuery] = useState("");
-  const [format, setFormat] = useState("Long-form GEO Pillar");
-  const [rationale, setRationale] = useState("");
+  const [title, setTitle] = useState(initialTitle);
+  const [targetQuery, setTargetQuery] = useState(initialTargetQuery);
+  const [format, setFormat] = useState(initialFormat);
+  const [rationale, setRationale] = useState(initialRationale);
   const [autoDraft, setAutoDraft] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

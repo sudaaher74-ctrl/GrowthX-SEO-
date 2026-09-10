@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { CreateArticleModal } from "@/components/content/create-article-modal";
 import {
   Sparkles,
   ExternalLink,
@@ -88,17 +88,17 @@ const PAGE_KIND: Record<
   },
   BLOG: {
     label: "Articles & Guides",
-    singular: "Educational Guide",
+    singular: "Article / Guide",
     icon: FileText,
     color: "bg-purple-50 text-purple-700 border-purple-200",
-    description: "In-depth content addressing customer questions, problem-solving, and industry best practices.",
+    description: "In-depth informational guides, whitepapers, or authoritative knowledge articles.",
     whyFavor:
-      "Builds topical authority across the customer journey. Generative engines (ChatGPT, Gemini, Google AI Overviews) heavily favor deep educational guides when answering buyer research queries.",
+      "Positions the domain as the definitive subject-matter authority, generating high-authority backlinks and appearing in conversational AI queries and search summaries.",
     recommendedElements: [
-      "Comprehensive 1,200+ Word Breakdown",
-      "Step-by-Step Problem Solving Guide",
-      "Expert Author Credentials",
-      "Interactive or Visual Comparison",
+      "Table of Contents / Quick Jump",
+      "Executive Summary Callout",
+      "Actionable Step-by-Step Sections",
+      "Article Schema (JSON-LD)",
     ],
     schemaType: "Article",
   },
@@ -150,6 +150,17 @@ const PAGE_KIND: Record<
     ],
     schemaType: "Article",
   },
+};
+
+const FORMAT_BY_PAGE_TYPE: Record<string, string> = {
+  SERVICE: "Commercial Service Landing Page",
+  PRODUCT: "Long-form GEO Pillar",
+  GUIDE: "How-To Authority Guide",
+  BLOG: "How-To Authority Guide",
+  COMPARISON: "Comparison & Review Matrix",
+  FAQ: "How-To Authority Guide",
+  LOCATION: "Commercial Service Landing Page",
+  CASE_STUDY: "Comparison & Review Matrix",
 };
 
 /** Helper to clean URL slugs into clean title words */
@@ -205,6 +216,8 @@ export function CompetitorOpportunitiesPanel({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showMacroComparison, setShowMacroComparison] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [draftOpportunity, setDraftOpportunity] = useState<EnrichedOpportunity | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // 1. Fetch site comparison data (macro counts across Service, Blog, Location, FAQ, Schema, etc.)
   const websiteCmpQuery = useQuery({
@@ -534,6 +547,23 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
         </div>
       )}
 
+      {/* Success Notification Banner */}
+      {toastMessage && (
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-700 hover:text-emerald-950 text-xs font-semibold px-2 py-0.5 rounded hover:bg-emerald-100 transition cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* ── Tier 3: Deep Explanation Opportunity Cards ─────────────────── */}
       {isAnyLoading && allOpportunities.length === 0 ? (
         <LoadingState title="Analyzing crawled competitor pages & mapping content opportunities..." />
@@ -735,14 +765,15 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={`/content-ai?topic=${encodeURIComponent(opp.topicTitle)}&type=${opp.pageType.toLowerCase()}&targetUrl=${encodeURIComponent(opp.targetUrl)}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-brand-800 transition shadow-2xs"
+                          <button
+                            type="button"
+                            onClick={() => setDraftOpportunity(opp)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-brand-800 transition shadow-2xs cursor-pointer"
                           >
                             <Sparkles size={12} />
                             Draft with Content AI
                             <ArrowRight size={11} />
-                          </Link>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -752,6 +783,30 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
             })}
           </div>
         </div>
+      )}
+
+      {/* In-Place Content Drafting Modal */}
+      {draftOpportunity && (
+        <CreateArticleModal
+          projectId={projectId}
+          initialTitle={draftOpportunity.topicTitle || draftOpportunity.recommendedH1}
+          initialTargetQuery={draftOpportunity.recommendedH1 || draftOpportunity.topicTitle}
+          initialFormat={
+            FORMAT_BY_PAGE_TYPE[draftOpportunity.pageType] || "Long-form GEO Pillar"
+          }
+          initialRationale={
+            draftOpportunity.whyGoogleAndAiFavor
+              ? `${draftOpportunity.whyGoogleAndAiFavor} (Target URL: ${draftOpportunity.targetUrl})`
+              : `Target URL: ${draftOpportunity.targetUrl}`
+          }
+          onClose={() => setDraftOpportunity(null)}
+          onSuccess={() => {
+            const topic = draftOpportunity.topicTitle;
+            setDraftOpportunity(null);
+            setToastMessage(`Draft generated successfully for "${topic}"! You can find it in your Content pieces.`);
+            setTimeout(() => setToastMessage(null), 6000);
+          }}
+        />
       )}
     </div>
   );
