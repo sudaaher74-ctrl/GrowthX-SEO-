@@ -247,18 +247,26 @@ function CompetitorIntelligenceClient() {
     return TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : DEFAULT_TAB;
   });
 
+  // Track the current active tab in a ref to avoid URL sync feedback loops overriding user clicks
+  const lastTabRef = useRef(activeTab);
+
+  // Synchronize state ONLY when the URL parameter changes externally (e.g. browser back/forward or external deep link)
   useEffect(() => {
-    if (requestedTab && TABS.some((tab) => tab.id === requestedTab) && requestedTab !== activeTab) {
+    if (requestedTab && TABS.some((tab) => tab.id === requestedTab) && requestedTab !== lastTabRef.current) {
+      lastTabRef.current = requestedTab;
       setActiveTabState(requestedTab);
     }
-  }, [requestedTab, activeTab]);
+  }, [requestedTab]);
 
   const setActiveTab = (id: string) => {
+    lastTabRef.current = id;
     setActiveTabState(id);
     try {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       params.set("tab", id);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      const targetUrl = `${pathname}?${params.toString()}`;
+      window.history.replaceState(null, "", targetUrl);
+      router.replace(targetUrl, { scroll: false });
     } catch {
       // ignore
     }

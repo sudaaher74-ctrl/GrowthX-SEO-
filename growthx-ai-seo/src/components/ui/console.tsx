@@ -200,10 +200,11 @@ export function Tabs<T extends string>({
           <button
             key={tab.id}
             role="tab"
+            type="button"
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors",
+              "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors cursor-pointer",
               isActive
                 ? "border-brand-950 bg-brand-950 text-white"
                 : "border-line bg-white text-brand-600 hover:bg-brand-50 hover:text-brand-950",
