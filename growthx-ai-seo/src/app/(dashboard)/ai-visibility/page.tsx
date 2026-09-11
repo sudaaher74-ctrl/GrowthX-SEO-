@@ -34,11 +34,11 @@ import { errorMessage } from "@/lib/error-message";
 import { AiPipelineBanner } from "@/components/ai-visibility/ai-pipeline-banner";
 import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibility-overview-tab";
 import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
+import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
 import {
   AiInsightsTabContent,
   CitationsTabContent,
   ContentGapsTabContent,
-  RecommendationsTabContent,
 } from "@/components/ai-visibility/ai-visibility-other-tabs";
 
 export default function AiVisibilityPage() {
@@ -151,6 +151,8 @@ function AiVisibilityClient() {
             <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
               {activeTab === "competitors"
                 ? "See how your brand compares against competitors across ChatGPT, Claude and Gemini, and find opportunities to increase your AI visibility."
+                : activeTab === "recommendations"
+                ? "Actionable recommendations to improve your brand's visibility in ChatGPT, Claude and Gemini."
                 : "See how AI models perceive your brand, track citations, and get actionable insights to improve your presence in ChatGPT, Claude and Gemini."}
             </p>
           </div>
@@ -158,7 +160,7 @@ function AiVisibilityClient() {
 
         {/* Action buttons on the right */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {activeTab === "competitors" ? (
+          {activeTab === "competitors" || activeTab === "recommendations" ? (
             <>
               {/* Domain dropdown button */}
               <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
@@ -244,7 +246,13 @@ function AiVisibilityClient() {
 
       {/* ── TOP PIPELINE STATUS BANNER ── */}
       <AiPipelineBanner
-        mode={activeTab === "competitors" ? "competitors" : "overview"}
+        mode={
+          activeTab === "competitors"
+            ? "competitors"
+            : activeTab === "recommendations"
+            ? "recommendations"
+            : "overview"
+        }
         domain={domain}
         crawledPages={pagesCrawled}
         competitorsCount={competitorsList.length > 0 ? competitorsList.length : 5}
@@ -336,7 +344,7 @@ function AiVisibilityClient() {
       )}
 
       {activeTab === "recommendations" && (
-        <RecommendationsTabContent domain={domain} />
+        <AiVisibilityRecommendationsTab domain={domain} />
       )}
 
       {/* ── MODAL: ADD BRAND QUERY ── */}
