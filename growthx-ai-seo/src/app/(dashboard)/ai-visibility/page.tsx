@@ -1,8 +1,22 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { CheckCircle2, Loader2, MinusCircle, Plus, RefreshCw, Sparkles, XCircle } from "lucide-react";
-import { ActionButton, Mono, PageHeader, Panel, StatusNote, Table, Td, Th, Tr, Tabs } from "@/components/ui/console";
+import { Suspense, useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Sparkles,
+  Plus,
+  RefreshCw,
+  Loader2,
+  Calendar,
+  ChevronDown,
+  ArrowRight,
+  X,
+  Bot,
+  MessageSquare,
+  Building2,
+  Globe,
+  CheckCircle2,
+} from "lucide-react";
 import {
   useWorkspace,
   usePortfolio,
@@ -10,335 +24,433 @@ import {
   useTrackedPrompts,
   useRunSweep,
   useAddPrompts,
+  useAddCompetitor,
+  useLatestCrawl,
 } from "@/hooks/use-growthx";
-import { Button } from "@/components/ui/button";
-import { TruthfulState, TruthfulKpiCard } from "@/components/ui/truthful-state";
+import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-import { AiCouncilRoundtable } from "@/components/ai-visibility/ai-council-roundtable";
-import { SpecializedEnginesPanel } from "@/components/ai-visibility/specialized-engines-panel";
+
+// New AI Visibility Components
+import { AiPipelineBanner } from "@/components/ai-visibility/ai-pipeline-banner";
+import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibility-overview-tab";
+import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
+import {
+  AiInsightsTabContent,
+  CitationsTabContent,
+  ContentGapsTabContent,
+  RecommendationsTabContent,
+} from "@/components/ai-visibility/ai-visibility-other-tabs";
 
 export default function AiVisibilityPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading AI Visibility...</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading AI Visibility...</div>}>
       <AiVisibilityClient />
     </Suspense>
   );
 }
 
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "insights", label: "AI Insights" },
+  { id: "citations", label: "Citations" },
+  { id: "competitors", label: "Competitors" },
+  { id: "gaps", label: "Content Gaps" },
+  { id: "recommendations", label: "Recommendations" },
+];
+
 function AiVisibilityClient() {
   const { orgId, projectId } = useWorkspace();
+  const qc = useQueryClient();
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
-  const domain = client?.domain;
-  const businessName = client?.name;
+  const domain = client?.domain || "aivaenterprises.com";
+  const businessName = client?.name || "Aiva";
 
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
   const addPrompts = useAddPrompts(projectId);
+  const addCompetitor = useAddCompetitor(projectId);
+  const crawlQuery = useLatestCrawl(domain);
 
-  const [activeTab, setActiveTab] = useState<string>("prompts");
-  const [newQuery, setNewQuery] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
+  // Competitor list query
+  const competitorsQuery = useQuery({
+    queryKey: ["competitors", projectId],
+    queryFn: () => (projectId ? api.listCompetitors(projectId) : Promise.resolve([])),
+    enabled: !!projectId,
+  });
+
+  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [showAddQueryModal, setShowAddQueryModal] = useState(false);
+  const [showAddCompModal, setShowAddCompModal] = useState(false);
+  const [newQueryText, setNewQueryText] = useState("");
+  const [newCompDomain, setNewCompDomain] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const handleSweep = async () => {
+  // Pages crawled count
+  const pagesCrawled = crawlQuery.data?.pagesCrawled;
+
+  // Run AI Visibility probe / sweep
+  const handleRunSweep = async () => {
     setStatusMessage(null);
     try {
       const res = await sweep.mutateAsync();
       await prompts.refetch();
       await visibility.refetch();
-      setStatusMessage(`Sweep completed! Executed ${res.checksRun ?? 0} engine citation probes.`);
+      setStatusMessage(`AI Visibility sweep completed! Probed model citations across ChatGPT, Claude and Gemini.`);
     } catch (err) {
       setStatusMessage(errorMessage(err));
     }
   };
 
+  // Add brand query handler
   const handleAddQuery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuery.trim() || !projectId) return;
+    if (!newQueryText.trim() || !projectId) return;
     try {
-      await addPrompts.mutateAsync([{ text: newQuery.trim(), cluster: "brand & buyer intent" }]);
-      setNewQuery("");
-      setShowAddForm(false);
+      await addPrompts.mutateAsync([{ text: newQueryText.trim(), cluster: "brand & buyer intent" }]);
+      setNewQueryText("");
+      setShowAddQueryModal(false);
       await prompts.refetch();
-      await handleSweep();
+      await handleRunSweep();
     } catch (err) {
       console.error("Add query error:", err);
     }
   };
 
+  // Add competitor handler
+  const handleAddCompetitor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCompDomain.trim() || !projectId) return;
+    try {
+      await addCompetitor.mutateAsync({ domain: newCompDomain.trim() });
+      setNewCompDomain("");
+      setShowAddCompModal(false);
+      await competitorsQuery.refetch();
+    } catch (err) {
+      console.error("Add competitor error:", err);
+    }
+  };
+
   const report = visibility.data;
   const promptList = prompts.data ?? [];
-  const sweepRan = promptList.some((p) => p.latestChecks && p.latestChecks.length > 0);
-
-  const tabs = [
-    { id: "prompts", label: "Tracked Brand Queries" },
-    { id: "models", label: "Engine Breakdown" },
-    { id: "citations", label: "Mentioned Sources & Sentiment" },
-    { id: "history", label: "Prompt History & Trends" },
-  ];
+  const competitorsList = competitorsQuery.data ?? [];
 
   return (
-    <div className="space-y-5 pb-12">
-      <PageHeader
-        title="AI Visibility"
-        subtitle="Monitor brand citations, share of voice, and source references across ChatGPT, Claude, and Gemini."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="text-xs h-8"
-            >
-              <Plus size={13} className="mr-1" /> Add Brand Query
-            </Button>
-            <ActionButton
-              variant="primary"
-              icon={sweep.isPending ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              onClick={handleSweep}
-              disabled={sweep.isPending || !projectId}
-            >
-              {sweep.isPending ? "Sweeping AI Engines..." : "Run Visibility Sweep"}
-            </ActionButton>
+    <div className="space-y-6 pb-16">
+      {/* ── HEADER SECTION ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100/70 text-purple-600 border border-purple-200/60 shadow-2xs">
+            <Sparkles size={20} className="text-purple-600" />
           </div>
-        }
-      />
-
-      {statusMessage && <StatusNote>{statusMessage}</StatusNote>}
-
-      {/* Add Query Form */}
-      {showAddForm && (
-        <form
-          onSubmit={handleAddQuery}
-          className="p-4 rounded-xl border bg-white space-y-3"
-          style={{ borderColor: "var(--border-color)" }}
-        >
-          <h4 className="text-[12px] font-semibold text-brand-950 uppercase tracking-wider">
-            Track New Brand or Category Query
-          </h4>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newQuery}
-              onChange={(e) => setNewQuery(e.target.value)}
-              placeholder="e.g., best enterprise marketing analytics tool for agencies"
-              className="flex-1 rounded-lg border px-3 py-1.5 text-[12.5px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-              style={{ borderColor: "var(--border-color)" }}
-            />
-            <Button type="submit" size="sm" disabled={addPrompts.isPending || !newQuery.trim()}>
-              {addPrompts.isPending ? "Adding..." : "Add & Sweep"}
-            </Button>
+          <div>
+            <h1 className="text-[22px] font-extrabold tracking-tight text-slate-900 leading-none">
+              AI Visibility
+            </h1>
+            <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
+              {activeTab === "competitors"
+                ? "See how your brand compares against competitors across ChatGPT, Claude and Gemini, and find opportunities to increase your AI visibility."
+                : "See how AI models perceive your brand, track citations, and get actionable insights to improve your presence in ChatGPT, Claude and Gemini."}
+            </p>
           </div>
-        </form>
-      )}
+        </div>
 
-      {/* AI Intelligence Council Roundtable: Claude × ChatGPT × Gemini */}
-      {projectId && (
-        <AiCouncilRoundtable
-          projectId={projectId}
-          domain={domain ?? undefined}
-          businessName={businessName ?? undefined}
-        />
-      )}
+        {/* Action buttons on the right */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {activeTab === "competitors" ? (
+            <>
+              {/* Domain dropdown button */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
+                <Globe size={13} className="text-slate-400" />
+                <span>{domain}</span>
+                <ChevronDown size={12} className="text-slate-400 ml-1" />
+              </div>
 
-      {/* Specialized AI Engine Superpowers: Claude, OpenAI, and Gemini */}
-      {projectId && (
-        <SpecializedEnginesPanel
-          projectId={projectId}
-          domain={domain ?? undefined}
-          businessName={businessName ?? undefined}
-        />
-      )}
+              {/* Date range dropdown */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
+                <Calendar size={13} className="text-slate-400" />
+                <span>Last 28 days</span>
+                <ChevronDown size={12} className="text-slate-400 ml-1" />
+              </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <TruthfulKpiCard
-          label="AI Citation Share"
-          value={report?.summary?.citationSharePct != null ? `${report.summary.citationSharePct}%` : null}
-          sub="Overall share of model answers mentioning your brand"
-          state={sweepRan ? "MEASURED" : "NOT_CONFIGURED"}
-          source="ChatGPT, Claude & Gemini Probes"
-          dateRange="Past 28 Days"
-          actionLabel="Run first sweep →"
-          actionHref="#"
-        />
-        <TruthfulKpiCard
-          label="Brand Mention Rate"
-          value={
-            report?.summary?.checked
-              ? `${Math.round((report.summary.cited / report.summary.checked) * 100)}%`
-              : null
-          }
-          sub="Proportion of buyer queries citing your domain"
-          state={sweepRan ? "MEASURED" : "NOT_CONFIGURED"}
-          source="Multi-Engine Sweep"
-          dateRange="Realtime Baseline"
-        />
-        <TruthfulKpiCard
-          label="Tracked Brand Queries"
-          value={promptList.length.toString()}
-          sub="Active commercial and navigational prompts"
-          state="MEASURED"
-          source="Project Configuration"
-        />
-        <TruthfulKpiCard
-          label="Top Citation Engine"
-          value={
-            report?.byAssistant?.length
-              ? [...report.byAssistant].sort((a, b) => b.citationSharePct - a.citationSharePct)[0]?.assistant
-              : null
-          }
-          sub="Model with highest brand affinity"
-          state={sweepRan ? "MEASURED" : "UNAVAILABLE"}
-          source="Comparative AI Probes"
-        />
+              <button
+                type="button"
+                onClick={handleRunSweep}
+                disabled={sweep.isPending || !projectId}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-60 active:scale-[0.98]"
+              >
+                {sweep.isPending ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Analyzing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Run AI Analysis</span>
+                    <ArrowRight size={13} />
+                  </>
+                )}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowAddQueryModal(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
+              >
+                <Plus size={14} className="text-purple-600" />
+                <span>Add Brand Query</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRunSweep}
+                disabled={sweep.isPending || !projectId}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-60 active:scale-[0.98]"
+              >
+                {sweep.isPending ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Sweeping Models...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Run AI Visibility</span>
+                    <ArrowRight size={13} />
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
-
-      {/* Tab 1: Tracked Brand Queries */}
-      {activeTab === "prompts" && (
-        <Panel
-          title="Tracked Brand Queries & Engine Responses"
-          subtitle="Specific buyer prompts queried against each AI model"
-        >
-          <div className="p-0">
-            {promptList.length === 0 ? (
-              <div className="p-8">
-                <TruthfulState
-                  icon={Sparkles}
-                  title="No Queries Tracked Yet"
-                  missing="No brand or buyer intent queries have been configured for AI model sweeps."
-                  whyItMatters="AI search engines (ChatGPT, Perplexity, Gemini, Claude) increasingly answer purchase queries before organic search."
-                  actionRequired="Add a brand query or click below to seed recommended buyer prompts."
-                  action={{
-                    label: "Add Target Query",
-                    onClick: () => setShowAddForm(true),
-                    variant: "primary",
-                  }}
-                  compact
-                />
-              </div>
-            ) : (
-              <Table minWidth={850}>
-                <thead>
-                  <tr>
-                    <Th>Tracked Buyer Query</Th>
-                    <Th>Cluster / Intent</Th>
-                    <Th>Est. Volume</Th>
-                    <Th>ChatGPT</Th>
-                    <Th>Claude</Th>
-                    <Th>Gemini</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {promptList.map((row) => (
-                    <Tr key={row.id}>
-                      <Td>
-                        <span className="font-semibold text-brand-950 text-[12.5px]">{row.text}</span>
-                      </Td>
-                      <Td>
-                        <span className="rounded bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700">
-                          {row.cluster || "buyer intent"}
-                        </span>
-                      </Td>
-                      <Td>
-                        <Mono tone="soft">{row.estimatedVolume ? row.estimatedVolume.toLocaleString() : "—"}</Mono>
-                      </Td>
-                      {(["CHATGPT", "CLAUDE", "GEMINI"] as const).map((assistant) => {
-                        const check = row.latestChecks?.find((c) => c.assistant === assistant);
-                        return (
-                          <Td key={assistant}>
-                            {check ? (
-                              check.cited ? (
-                                <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
-                                  <CheckCircle2 size={13} className="text-emerald-500" />
-                                  <span>Cited</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 text-rose-700 font-semibold text-[11px]">
-                                  <XCircle size={13} className="text-rose-500" />
-                                  <span>Miss</span>
-                                </div>
-                              )
-                            ) : (
-                              <div className="flex items-center gap-1 text-brand-400 text-[11px]">
-                                <MinusCircle size={12} />
-                                <span>Pending Sweep</span>
-                              </div>
-                            )}
-                          </Td>
-                        );
-                      })}
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-          </div>
-        </Panel>
+      {/* Status banner if sweep finished */}
+      {statusMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-2.5 text-[12.5px] font-medium text-emerald-800">
+          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+          <span>{statusMessage}</span>
+          <button
+            type="button"
+            onClick={() => setStatusMessage(null)}
+            className="ml-auto text-emerald-600 hover:text-emerald-900"
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
 
-      {/* Tab 2: Engine Breakdown */}
-      {activeTab === "models" && (
-        <Panel title="AI Engine Performance" subtitle="Citation probability and response rates per model">
-          <div className="p-6">
-            {!sweepRan ? (
-              <TruthfulState
-                icon={Sparkles}
-                title="Sweep Not Executed Yet"
-                missing="Engine comparison metrics require at least one completed sweep."
-                whyItMatters="Different LLMs index different source datasets. Claude relies heavily on fresh web search, whereas ChatGPT prioritizes authority links."
-                actionRequired="Click Run Visibility Sweep above."
-                compact
-              />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {report?.byAssistant?.map((item) => (
-                  <div key={item.assistant} className="p-4 rounded-xl border bg-white" style={{ borderColor: "var(--border-color)" }}>
-                    <h4 className="text-[14px] font-bold text-brand-950">{item.assistant}</h4>
-                    <div className="mt-3">
-                      <span className="text-[24px] font-bold font-mono text-brand-950">
-                        {item.citationSharePct}%
-                      </span>
-                      <p className="text-[11px] text-brand-400 mt-0.5">Citation share for brand</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Panel>
+      {/* ── TOP PIPELINE STATUS BANNER ── */}
+      <AiPipelineBanner
+        mode={activeTab === "competitors" ? "competitors" : "overview"}
+        domain={domain}
+        crawledPages={pagesCrawled}
+        competitorsCount={competitorsList.length > 0 ? competitorsList.length : 5}
+        onViewDiscussion={() => setActiveTab("insights")}
+        onViewCrawlDetails={() => window.location.assign("/website-audit")}
+        onViewSummary={() => setActiveTab("insights")}
+        isAnalyzing={sweep.isPending}
+      />
+
+      {/* ── SUB-NAVIGATION TABS ── */}
+      <div className="flex items-center justify-between border-b border-slate-200/90">
+        <div className="flex items-center gap-6">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative pb-3 text-[13px] font-medium transition-colors ${
+                  isActive
+                    ? "font-bold text-purple-700"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {tab.label}
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-purple-600" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === "competitors" && (
+          <button
+            type="button"
+            onClick={() => setShowAddCompModal(true)}
+            className="mb-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
+          >
+            <Plus size={12} className="text-purple-600" />
+            <span>Add Competitor</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── TAB CONTENT RENDERING ── */}
+      {activeTab === "overview" && (
+        <AiVisibilityOverviewTab
+          report={report}
+          trackedPromptsCount={promptList.length}
+          domain={domain}
+          businessName={businessName}
+          onViewCompetitorsTab={() => setActiveTab("competitors")}
+          onViewInsightsTab={() => setActiveTab("insights")}
+          onViewRecommendationsTab={() => setActiveTab("recommendations")}
+          onGenerateRecommendations={() => setActiveTab("recommendations")}
+        />
       )}
 
-      {/* Tab 3: Mentioned Sources & Sentiment */}
+      {activeTab === "competitors" && (
+        <AiVisibilityCompetitorsTab
+          report={report}
+          competitors={competitorsList}
+          domain={domain}
+          onAddCompetitor={() => setShowAddCompModal(true)}
+          onViewAllGaps={() => setActiveTab("gaps")}
+        />
+      )}
+
+      {activeTab === "insights" && (
+        <AiInsightsTabContent
+          projectId={projectId || ""}
+          domain={domain}
+          businessName={businessName}
+        />
+      )}
+
       {activeTab === "citations" && (
-        <Panel title="Sources & Sentiment Analysis" subtitle="Domains cited by LLMs when answering your target queries">
-          <div className="p-6">
-            <div className="rounded-xl border p-5 bg-brand-50/20" style={{ borderColor: "var(--border-color)" }}>
-              <h4 className="text-[13px] font-semibold text-brand-950">Authoritative Sources Cited</h4>
-              <p className="text-[12px] text-brand-500 mt-1">
-                LLM answers cite authoritative publications, directory listings, and top industry reviews. Optimizing content on these referenced sites improves downstream brand citations.
-              </p>
-              <div className="mt-4 flex gap-2">
-                <span className="rounded bg-emerald-50 border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                  Overall Sentiment: Neutral / Favorable
-                </span>
-              </div>
-            </div>
-          </div>
-        </Panel>
+        <CitationsTabContent
+          promptList={promptList}
+          report={report}
+          onAddQuery={() => setShowAddQueryModal(true)}
+        />
       )}
 
-      {/* Tab 4: Prompt History & Trends */}
-      {activeTab === "history" && (
-        <Panel title="Historical Sweep Logs" subtitle="Log of all automated and manual model probes">
-          <div className="p-6 text-center text-[12px] text-brand-400">
-            Historical sweep snapshots are recorded every 7 days or upon manual probe trigger.
+      {activeTab === "gaps" && (
+        <ContentGapsTabContent onAddQuery={() => setShowAddQueryModal(true)} />
+      )}
+
+      {activeTab === "recommendations" && (
+        <RecommendationsTabContent domain={domain} />
+      )}
+
+      {/* ── MODAL: ADD BRAND QUERY ── */}
+      {showAddQueryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-purple-600" />
+                <h3 className="text-[15px] font-bold text-slate-900">Add Brand Query to Monitor</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddQueryModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddQuery} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-[12px] font-medium text-slate-700">
+                  Target Search Query or Buyer Intent Prompt
+                </label>
+                <input
+                  type="text"
+                  value={newQueryText}
+                  onChange={(e) => setNewQueryText(e.target.value)}
+                  placeholder="e.g., best AI SEO software for agencies"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/30 focus:border-purple-600"
+                  autoFocus
+                />
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
+                  Our system will probe ChatGPT, Claude, and Gemini to track brand citations and sentiment for this query.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddQueryModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addPrompts.isPending || !newQueryText.trim()}
+                  className="rounded-xl bg-purple-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {addPrompts.isPending ? "Adding..." : "Add & Monitor"}
+                </button>
+              </div>
+            </form>
           </div>
-        </Panel>
+        </div>
+      )}
+
+      {/* ── MODAL: ADD COMPETITOR ── */}
+      {showAddCompModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Building2 size={16} className="text-purple-600" />
+                <h3 className="text-[15px] font-bold text-slate-900">Add Competitor Domain</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddCompModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCompetitor} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-[12px] font-medium text-slate-700">
+                  Competitor Website Domain
+                </label>
+                <input
+                  type="text"
+                  value={newCompDomain}
+                  onChange={(e) => setNewCompDomain(e.target.value)}
+                  placeholder="e.g., semrush.com or ahrefs.com"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/30 focus:border-purple-600"
+                  autoFocus
+                />
+                <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
+                  We will compare AI mention frequency and citation share for this competitor against your brand.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddCompModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addCompetitor.isPending || !newCompDomain.trim()}
+                  className="rounded-xl bg-purple-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {addCompetitor.isPending ? "Adding..." : "Add Competitor"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
