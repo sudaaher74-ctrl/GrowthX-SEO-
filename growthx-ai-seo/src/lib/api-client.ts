@@ -1852,6 +1852,89 @@ export interface LinkSculptingPatch {
   rationale: string;
 }
 
+// ── Content Velocity Engine interfaces ──────────────────────────────────────
+
+export interface TopicClusterNode {
+  url: string;
+  title: string;
+  h1: string;
+  pageType: string;
+  wordCount: number;
+  role: 'PILLAR' | 'CLUSTER' | 'ORPHAN';
+}
+
+export interface TopicCluster {
+  id: string;
+  topic: string;
+  pillar: TopicClusterNode | null;
+  clusterPages: TopicClusterNode[];
+  orphanPages: TopicClusterNode[];
+  depthScore: number;
+  contentGaps: string[];
+}
+
+export interface TopicClusterAnalysis {
+  scoreboard: {
+    totalPages: number;
+    clusteredPages: number;
+    orphanPages: number;
+    pillarCount: number;
+    avgClusterDepth: number;
+  };
+  clusters: TopicCluster[];
+}
+
+export interface CannibalizationGroup {
+  keyword: string;
+  pages: {
+    url: string;
+    title: string;
+    wordCount: number;
+    pageType: string;
+    similarityScore: number;
+  }[];
+  recommendation: 'MERGE' | 'REDIRECT' | 'DIFFERENTIATE' | 'CANONICALIZE';
+  primaryUrl: string;
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  fix: string;
+}
+
+export interface CannibalizationReport {
+  scoreboard: {
+    totalGroups: number;
+    highImpactGroups: number;
+    affectedPages: number;
+    estimatedEquityLoss: string;
+  };
+  groups: CannibalizationGroup[];
+}
+
+export interface ContentCalendarItem {
+  id: string;
+  week: number;
+  phase: '30-day' | '60-day' | '90-day';
+  contentType: 'PILLAR' | 'CLUSTER_SPOKE' | 'FAQ' | 'CASE_STUDY' | 'LANDING_PAGE';
+  topic: string;
+  targetCluster: string;
+  suggestedTitle: string;
+  suggestedSlug: string;
+  targetWordCount: number;
+  priorityScore: number;
+  priorityReason: string;
+  estimatedImpact: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface ContentVelocityCalendar {
+  scoreboard: {
+    thirtyDayItems: number;
+    sixtyDayItems: number;
+    ninetyDayItems: number;
+    totalItems: number;
+    estimatedMonthlyTrafficLift: string;
+  };
+  calendar: ContentCalendarItem[];
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2465,6 +2548,12 @@ export const api = {
     get<InternalLinkingMeshResponse>(`/api/projects/${projectId}/seo-tools/internal-links/mesh`),
   generateLinkSculptingPatch: async (projectId: string, body: GenerateLinkPatchBody) =>
     post<LinkSculptingPatch>(`/api/projects/${projectId}/seo-tools/internal-links/sculpt`, body),
+  getTopicClusters: async (projectId: string) =>
+    get<TopicClusterAnalysis>(`/api/projects/${projectId}/seo-tools/content-velocity/clusters`),
+  detectCannibalization: async (projectId: string) =>
+    get<CannibalizationReport>(`/api/projects/${projectId}/seo-tools/content-velocity/cannibalization`),
+  getContentVelocityCalendar: async (projectId: string) =>
+    get<ContentVelocityCalendar>(`/api/projects/${projectId}/seo-tools/content-velocity/calendar`),
   getSeoGapMatrix: async (projectId: string) =>
     get<SeoGapMatrix>(`/api/projects/${projectId}/seo-tools/competitor-matrix`),
   generateSeoGapInsights: async (projectId: string) =>

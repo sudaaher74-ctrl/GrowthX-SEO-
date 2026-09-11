@@ -5,6 +5,7 @@ import { MetaOptimizerService } from './meta-optimizer.service';
 import { ImageOptimizerService } from './image-optimizer.service';
 import { InternalLinkingService } from './internal-linking.service';
 import { SeoCompetitorsService } from './seo-competitors.service';
+import { ContentVelocityService } from './content-velocity.service';
 import { CrawlerModule } from '../crawler/crawler.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { DatabaseModule } from '../../database/database.module';
@@ -21,6 +22,7 @@ import { MarketResearchModule } from '../market-research/market-research.module'
     ImageOptimizerService,
     InternalLinkingService,
     SeoCompetitorsService,
+    ContentVelocityService,
   ],
   exports: [
     SchemaGeneratorService,
@@ -28,6 +30,7 @@ import { MarketResearchModule } from '../market-research/market-research.module'
     ImageOptimizerService,
     InternalLinkingService,
     SeoCompetitorsService,
+    ContentVelocityService,
   ],
 })
 export class SeoToolsModule {}

@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -133,6 +133,13 @@ export function Sidebar({
         { label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", id: "ai-recommendations" },
         { label: "Action Plan", href: "/google-business-profile?tab=action-plan", id: "action-plan" },
       ],
+    },
+    {
+      label: "Content Velocity",
+      href: "/content-velocity",
+      icon: Zap,
+      tag: "New",
+      tagTone: "success",
     },
     {
       label: "Reports",

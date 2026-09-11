@@ -929,6 +929,36 @@ export function useGenerateLinkSculptingPatch(projectId?: string | null) {
   });
 }
 
+export function useTopicClusters(projectId?: string | null) {
+  return useQuery({
+    queryKey: ["topic-clusters", projectId],
+    queryFn: () => api.getTopicClusters(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCannibalizationReport(projectId?: string | null) {
+  return useQuery({
+    queryKey: ["cannibalization-report", projectId],
+    queryFn: () => api.detectCannibalization(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useContentVelocityCalendar(projectId?: string | null) {
+  return useQuery({
+    queryKey: ["content-velocity-calendar", projectId],
+    queryFn: () => api.getContentVelocityCalendar(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useActionEngineStrategy(projectId: string | null) {
   return useQuery({
     queryKey: ["action-engine-strategy", projectId],

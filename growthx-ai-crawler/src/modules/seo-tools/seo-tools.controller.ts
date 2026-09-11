@@ -5,6 +5,7 @@ import { MetaOptimizerService } from './meta-optimizer.service';
 import { ImageOptimizerService } from './image-optimizer.service';
 import { InternalLinkingService } from './internal-linking.service';
 import { SeoCompetitorsService } from './seo-competitors.service';
+import { ContentVelocityService } from './content-velocity.service';
 
 @Controller('api/projects/:projectId/seo-tools')
 @UseGuards(JwtAuthGuard)
@@ -15,6 +16,7 @@ export class SeoToolsController {
     private readonly imageOptimizer: ImageOptimizerService,
     private readonly internalLinking: InternalLinkingService,
     private readonly seoCompetitors: SeoCompetitorsService,
+    private readonly contentVelocity: ContentVelocityService,
   ) {}
 
   @Post('schema/generate')
@@ -79,8 +81,25 @@ export class SeoToolsController {
     return this.seoCompetitors.getSeoGapMatrix(projectId);
   }
 
-  @Post('seo-insights')
+  @Get('seo-insights')
   async generateSeoInsights(@Param('projectId') projectId: string, @Request() req: any) {
     return this.seoCompetitors.generateSeoGapInsights(projectId, req.user.organizationId);
+  }
+
+  // ── Content Velocity Engine ─────────────────────────────────────────────
+
+  @Get('content-velocity/clusters')
+  async getTopicClusters(@Param('projectId') projectId: string) {
+    return this.contentVelocity.getTopicClusters(projectId);
+  }
+
+  @Get('content-velocity/cannibalization')
+  async detectCannibalization(@Param('projectId') projectId: string) {
+    return this.contentVelocity.detectCannibalization(projectId);
+  }
+
+  @Get('content-velocity/calendar')
+  async getContentVelocityCalendar(@Param('projectId') projectId: string) {
+    return this.contentVelocity.getContentVelocityCalendar(projectId);
   }
 }
