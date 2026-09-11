@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Users,
   Cpu,
@@ -31,7 +31,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api, type TrackedCompetitor, type CrawlIssue } from "@/lib/api-client";
-import { useLatestCrawl, useCrawlIssues, useVisibility, useTrackedPrompts } from "@/hooks/use-growthx";
+import { useLatestCrawl, useCrawlPages, useCrawlIssues, useVisibility, useTrackedPrompts } from "@/hooks/use-growthx";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. COMPETITORS DISCOVERY TAB
@@ -51,13 +51,110 @@ export function CompetitorsDiscoveryTab({
   onAddToFixPlan,
   onAddCompetitor,
 }: CompetitorsDiscoveryTabProps) {
+  const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<"all" | "active" | "crawling">("all");
+  const [trackingDomain, setTrackingDomain] = useState<string | null>(null);
+  const [manualDomain, setManualDomain] = useState("");
+  const [manualError, setManualError] = useState("");
+
+  const latestCrawl = useLatestCrawl(customerDomain || null);
+  const crawlPages = useCrawlPages(latestCrawl.data?.id ?? null);
 
   const filtered = competitors.filter((c) => {
     if (filterType === "active") return c.status === "ACTIVE" && c.crawlStatus === "DONE";
     if (filterType === "crawling") return c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED";
     return true;
   });
+
+  // Extract candidate external competitor domains from site crawl pages
+  const discoveredCandidates = useMemo(() => {
+    const pages = crawlPages.data?.data || [];
+    const trackedDomains = new Set(
+      competitors.map((c) => c.domain.toLowerCase().replace(/^www\./, "").replace(/^https?:\/\//, ""))
+    );
+    const myCleanDomain = (customerDomain || "").toLowerCase().replace(/^www\./, "").replace(/^https?:\/\//, "");
+
+    const ignored = new Set([
+      myCleanDomain,
+      "",
+      "localhost",
+      "google.com", "googleapis.com", "gstatic.com", "google-analytics.com", "googletagmanager.com",
+      "youtube.com", "youtu.be", "twitter.com", "x.com", "facebook.com", "instagram.com",
+      "linkedin.com", "github.com", "gitlab.com", "apple.com", "microsoft.com", "amazon.com",
+      "vercel.com", "vercel.app", "netlify.app", "cloudflare.com", "render.com",
+      "schema.org", "w3.org", "wordpress.org", "gravatar.com", "sentry.io", "stripe.com",
+      "intercom.io", "hubspot.com", "segment.io", "hotjar.com", "cookiebot.com", "onetrust.com",
+      "datadog.com", "cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com", "wikipedia.org"
+    ]);
+
+    const domainMap: Record<string, { count: number; sampleUrl: string; reason: string }> = {};
+
+    for (const page of pages) {
+      // 1. Check canonical URL for external domains
+      if (page.canonicalUrl) {
+        try {
+          const parsed = new URL(page.canonicalUrl);
+          const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+          if (host && host !== myCleanDomain && !ignored.has(host) && !host.endsWith("." + myCleanDomain) && !trackedDomains.has(host)) {
+            if (!domainMap[host]) {
+              domainMap[host] = { count: 0, sampleUrl: page.url, reason: "Referenced in cross-domain canonical attribute" };
+            }
+            domainMap[host].count += 1;
+          }
+        } catch {}
+      }
+
+      // 2. Check title / headings for "vs" or "alternative" competitor patterns
+      const text = `${page.title || ""} ${page.h1?.join(" ") || ""} ${page.h2?.join(" ") || ""}`;
+      const vsMatches = text.match(/(?:vs|versus|alternative(?:s)? to)\s+([a-zA-Z0-9-]+(?:\.[a-zA-Z]{2,})?)/gi);
+      if (vsMatches) {
+        for (const match of vsMatches) {
+          const raw = match.replace(/^(?:vs|versus|alternative(?:s)? to)\s+/i, "").trim().toLowerCase();
+          const clean = raw.includes(".") ? raw.replace(/^www\./, "") : `${raw}.com`;
+          if (clean && clean !== myCleanDomain && !ignored.has(clean) && !clean.endsWith("." + myCleanDomain) && !trackedDomains.has(clean)) {
+            if (!domainMap[clean]) {
+              domainMap[clean] = { count: 0, sampleUrl: page.url, reason: `Mentioned in comparison heading: "${match}"` };
+            }
+            domainMap[clean].count += 2;
+          }
+        }
+      }
+    }
+
+    return Object.entries(domainMap)
+      .map(([domain, item]) => ({
+        domain,
+        occurrences: item.count,
+        sampleUrl: item.sampleUrl,
+        reason: item.reason,
+      }))
+      .sort((a, b) => b.occurrences - a.occurrences);
+  }, [crawlPages.data?.data, competitors, customerDomain]);
+
+  const handleTrackDomain = async (domainToTrack: string, label?: string) => {
+    if (!domainToTrack.trim() || !projectId) return;
+    const cleanDomain = domainToTrack.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    setTrackingDomain(cleanDomain);
+    setManualError("");
+    try {
+      const res = await api.addCompetitor(projectId, cleanDomain, label);
+      if (res?.id) {
+        try {
+          await api.crawlCompetitorSite(projectId, res.id);
+        } catch {
+          // background crawl triggered
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["competitors", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["visibility", projectId] });
+      setManualDomain("");
+    } catch (err: any) {
+      setManualError(err.message || "Failed to add competitor domain");
+    } finally {
+      setTrackingDomain(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -219,6 +316,129 @@ export function CompetitorsDiscoveryTab({
           })}
         </div>
       )}
+
+      {/* ── AUTOMATED COMPETITOR DISCOVERY FROM CRAWL & SERP ── */}
+      <div className="rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">
+                  Automated Competitor Discovery
+                </h2>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                  {discoveredCandidates.length > 0 ? `${discoveredCandidates.length} Detected from Crawl` : "Continuous Engine"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                GrowthX continuously analyzes your crawled pages ({crawlPages.data?.data?.length ?? 0} pages crawled), outbound citations, and comparison headings to discover candidate rivals.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Crawl Discovery Active</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Candidate Cards or Empty State with Quick Track */}
+        {discoveredCandidates.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {discoveredCandidates.map((candidate) => {
+              const isTracking = trackingDomain === candidate.domain;
+              return (
+                <div
+                  key={candidate.domain}
+                  className="rounded-xl border border-purple-100 bg-white p-4 shadow-2xs hover:border-purple-300 transition-all flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                          {candidate.domain[0].toUpperCase()}
+                        </div>
+                        <span className="font-bold text-slate-900 text-sm">{candidate.domain}</span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                        {candidate.occurrences} signal{candidate.occurrences > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 line-clamp-2">
+                      {candidate.reason}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTrackDomain(candidate.domain, "Auto-discovered competitor")}
+                    disabled={Boolean(trackingDomain)}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs"
+                  >
+                    {isTracking ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Tracking &amp; Crawling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>1-Click Track &amp; Crawl</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-center space-y-2">
+            <p className="text-xs text-slate-600">
+              No rival domains referenced in current crawl markup of <strong className="text-slate-800">{customerDomain || "your site"}</strong>. You can manually enter any industry rival to initiate an immediate automated crawl.
+            </p>
+          </div>
+        )}
+
+        {/* Quick Add Form */}
+        <div className="pt-2 border-t border-purple-100/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={manualDomain}
+              onChange={(e) => setManualDomain(e.target.value)}
+              placeholder="e.g. competitor-domain.com"
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 font-medium"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && manualDomain.trim()) {
+                  handleTrackDomain(manualDomain);
+                }
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleTrackDomain(manualDomain)}
+            disabled={!manualDomain.trim() || Boolean(trackingDomain)}
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+          >
+            {trackingDomain === manualDomain.trim() ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            <span>Track &amp; Crawl Competitor</span>
+          </button>
+        </div>
+        {manualError && (
+          <p className="text-[11px] text-red-500 font-medium">{manualError}</p>
+        )}
+      </div>
     </div>
   );
 }

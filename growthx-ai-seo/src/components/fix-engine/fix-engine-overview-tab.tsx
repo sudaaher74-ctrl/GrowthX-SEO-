@@ -17,10 +17,14 @@ import {
   Clock,
   Eye,
   Check,
+  ArrowRight,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import type { CrawlIssue, VisibilityReport } from "@/lib/api-client";
+import type { CrawlIssue, VisibilityReport, StrategyPlan } from "@/lib/api-client";
+import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 export interface FixEngineOverviewTabProps {
   issues?: CrawlIssue[];
@@ -36,6 +40,10 @@ export interface FixEngineOverviewTabProps {
     };
   } | null;
   visibilityReport?: VisibilityReport | null;
+  stagedItems?: StagedFixItem[];
+  strategyPlan?: StrategyPlan | null;
+  onGenerateStrategy?: () => void;
+  isGeneratingStrategy?: boolean;
   onViewCategoryFixes?: (cat: string) => void;
   onOpenTimelineModal?: () => void;
   isApproved?: boolean;
@@ -45,6 +53,10 @@ export function FixEngineOverviewTab({
   issues = [],
   latestCrawl,
   visibilityReport,
+  stagedItems = [],
+  strategyPlan,
+  onGenerateStrategy,
+  isGeneratingStrategy = false,
   onViewCategoryFixes,
   onOpenTimelineModal,
   isApproved = false,
@@ -168,6 +180,84 @@ export function FixEngineOverviewTab({
 
   return (
     <div className="space-y-6">
+      {/* Staged Competitor & AI Gaps */}
+      {stagedItems.length > 0 && (
+        <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
+              <h3 className="text-sm font-bold text-purple-950">
+                Staged Competitor &amp; AI Visibility Gaps ({stagedItems.length})
+              </h3>
+            </div>
+            <span className="text-[11px] text-purple-700 font-medium">
+              Staged into current 30-day autonomous remediation queue
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {stagedItems.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-xl border border-purple-100 bg-white p-3 shadow-2xs space-y-1 text-xs"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-bold text-slate-900 truncate max-w-[200px]">{item.title}</span>
+                  <span className="text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 px-1.5 py-0.5">
+                    {item.priority}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug truncate">{item.impact}</p>
+                <div className="pt-1 flex items-center justify-between text-[10.5px] text-slate-400">
+                  <span>{item.category}</span>
+                  <button
+                    type="button"
+                    onClick={() => stagingEngine.remove(item.projectId, item.id)}
+                    className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                    title="Remove from staging"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Strategy Plan Generation Banner if empty */}
+      {strategyPlan && strategyPlan.actions && strategyPlan.actions.length === 0 && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-blue-600" />
+              <h4 className="text-sm font-bold text-blue-950">Evidence-Backed 30-Day Plan Needs Generation</h4>
+            </div>
+            <p className="text-xs text-blue-800 max-w-2xl leading-relaxed">
+              Synthesize crawl findings and competitor evidence into a scored 30-day plan with deterministic steps and deliverables.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onGenerateStrategy}
+            disabled={isGeneratingStrategy}
+            className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs disabled:opacity-60 cursor-pointer"
+          >
+            {isGeneratingStrategy ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                <span>Generating Strategy...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={13} />
+                <span>Generate Strategy Plan</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* ── ROW 1: Fixes by Category + 30-Day Timeline (Col 8) & Your Impact (Col 4) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Section: 2 Columns inside (Fixes by Category + 30-Day Timeline) */}

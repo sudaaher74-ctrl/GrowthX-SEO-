@@ -31,8 +31,11 @@ import { ActionButton, Pill } from "@/components/ui/console";
 import {
   useAutonomousPlanStatus,
   useApproveAutonomousPlan,
+  useActionEngineStrategy,
+  useActionEngineGenerate,
+  useStagedFixItems,
 } from "@/hooks/use-growthx";
-import type { CrawlIssue } from "@/lib/api-client";
+import type { CrawlIssue, StrategyActionRow } from "@/lib/api-client";
 
 interface Autonomous30DayPlanModalProps {
   projectId: string;
@@ -93,230 +96,125 @@ export function Autonomous30DayPlanModal({
     }
   };
 
-  // 30-Day Plan Alignment structured into 4 Sprints
+  const strategyQuery = useActionEngineStrategy(projectId);
+  const generateMutation = useActionEngineGenerate(projectId);
+  const stagedItems = useStagedFixItems(projectId);
+
+  const rawActions = strategyQuery.data?.actions ?? [];
+
+  // Dynamically map real backend actions & staged items into 4 Sprints
+  const sprint1Actions = rawActions.filter((a) => a.priority === "CRITICAL");
+  const sprint2Actions = rawActions.filter((a) => a.priority === "HIGH");
+  const sprint3Actions = rawActions.filter((a) => a.priority === "MEDIUM");
+  const sprint4Actions = rawActions.filter((a) => a.priority === "LOW");
+
+  const stagedS1 = stagedItems.filter((i) => i.priority === "CRITICAL");
+  const stagedS2 = stagedItems.filter((i) => i.priority === "HIGH");
+  const stagedS3 = stagedItems.filter((i) => i.priority === "MEDIUM");
+  const stagedS4 = stagedItems.filter((i) => i.priority === "LOW");
+
+  const mapToTaskItem = (
+    action: StrategyActionRow,
+    day: number
+  ): PlanTaskItem => {
+    const isDone = action.status === "DONE";
+    const status: "COMPLETED" | "IN_PROGRESS" | "SCHEDULED" = isDone
+      ? "COMPLETED"
+      : isApproved
+      ? "IN_PROGRESS"
+      : "SCHEDULED";
+    const cat = (action.category || "").toUpperCase();
+    const category: "TECHNICAL" | "KEYWORDS" | "PAGES" | "SCHEMA" | "AUTHORITY" =
+      cat.includes("SCHEMA")
+        ? "SCHEMA"
+        : cat.includes("CONTENT") || cat.includes("KEYWORD")
+        ? "KEYWORDS"
+        : cat.includes("PAGE")
+        ? "PAGES"
+        : cat.includes("AUTHOR")
+        ? "AUTHORITY"
+        : "TECHNICAL";
+
+    return {
+      id: action.id,
+      day,
+      title: action.title,
+      description: action.rationale || action.scoreExplanation || "Derived deterministically from crawl findings.",
+      plainImpact: action.expectedImpact || `${action.opportunityScore}/100 opportunity score`,
+      category,
+      status,
+      estimatedMinutes: Math.max(15, (action.effortHours || 1) * 20),
+      deliverable: action.steps?.[0] || "Targeted remediation patch",
+    };
+  };
+
+  const mapStagedToTaskItem = (
+    item: (typeof stagedItems)[number],
+    day: number
+  ): PlanTaskItem => {
+    return {
+      id: item.id,
+      day,
+      title: item.title,
+      description: item.evidence || "Staged directly from Competitor Intelligence / AI Visibility analysis.",
+      plainImpact: item.impact || "High-priority displacement target",
+      category: item.source.includes("KEYWORD") ? "KEYWORDS" : "PAGES",
+      status: isApproved ? "IN_PROGRESS" : "SCHEDULED",
+      estimatedMinutes: Math.max(20, (item.effortHours || 1) * 30),
+      deliverable: item.deliverable || "Optimized landing asset",
+    };
+  };
+
+  const buildSprintTasks = (
+    actions: StrategyActionRow[],
+    staged: typeof stagedItems,
+    startDay: number
+  ): PlanTaskItem[] => {
+    const res: PlanTaskItem[] = [];
+    let currentDay = startDay;
+    actions.forEach((a) => {
+      res.push(mapToTaskItem(a, currentDay));
+      currentDay = Math.min(startDay + 6, currentDay + 1);
+    });
+    staged.forEach((s) => {
+      res.push(mapStagedToTaskItem(s, currentDay));
+      currentDay = Math.min(startDay + 6, currentDay + 1);
+    });
+    return res;
+  };
+
   const planPhases: PlanWeekPhase[] = [
     {
       week: 1,
-      title: "Sprint 1: Critical Foundation & Crawl Blockers",
-      focus: "Eliminate indexing barriers, 404 errors & metadata confusion",
+      title: "Sprint 1: Critical Foundation & Blockers",
+      focus: "Critical crawl blockers, indexing barriers & top opportunities",
       badge: "Foundation Phase",
       daysLabel: "Days 1 – 7",
-      tasks: [
-        {
-          id: "t1-1",
-          day: 1,
-          title: "Robots & Canonical Directives Alignment",
-          description: "Inspect robots.txt, sitemap XML, and canonical tags to ensure Google can crawl all revenue-driving pages without redirect loops.",
-          plainImpact: "Unlocks indexing for hidden pages and stops duplicate content penalties.",
-          category: "TECHNICAL",
-          status: isApproved ? "COMPLETED" : "SCHEDULED",
-          estimatedMinutes: 25,
-          deliverable: "Automated robots.txt & canonical header patch",
-        },
-        {
-          id: "t1-2",
-          day: 2,
-          title: "Missing Main Page Headings (H1) Automated Generation",
-          description: "Scan every page lacking a primary H1 headline and generate keyword-rich, customer-friendly titles tailored to target search intent.",
-          plainImpact: "Tells search engines and buyers the exact topic of your page.",
-          category: "TECHNICAL",
-          status: isApproved ? "COMPLETED" : "SCHEDULED",
-          estimatedMinutes: 30,
-          deliverable: "Batch H1 replacement PR for Next.js/HTML",
-        },
-        {
-          id: "t1-3",
-          day: 3,
-          title: "404 Dead-End Broken Links Remediation",
-          description: "Map all 404 error URLs discovered by the crawler and implement automatic 301 redirects to the most relevant live page.",
-          plainImpact: "Stops customers from bouncing off broken pages and preserves SEO equity.",
-          category: "TECHNICAL",
-          status: isApproved ? "IN_PROGRESS" : "SCHEDULED",
-          estimatedMinutes: 40,
-          deliverable: "Next.js redirects config & server redirect map",
-        },
-        {
-          id: "t1-4",
-          day: 5,
-          title: "Missing Meta Descriptions & Click-Through Optimization",
-          description: "Write compelling 155-character meta descriptions for top landing pages to dramatically boost click rates in Google search results.",
-          plainImpact: "Attracts up to 28% more organic clicks from existing search impressions.",
-          category: "TECHNICAL",
-          status: "SCHEDULED",
-          estimatedMinutes: 35,
-          deliverable: "Production meta tag patch across catalog pages",
-        },
-        {
-          id: "t1-5",
-          day: 7,
-          title: "Crawl Budget & Sitemap Ping Automation",
-          description: "Generate an updated, clean XML sitemap excluding non-indexable utility URLs and submit to Google Search Console.",
-          plainImpact: "Ensures Google re-indexes fixed pages within 48 hours.",
-          category: "TECHNICAL",
-          status: "SCHEDULED",
-          estimatedMinutes: 20,
-          deliverable: "Auto-synced sitemap.xml endpoint",
-        },
-      ],
+      tasks: buildSprintTasks(sprint1Actions, stagedS1, 1),
     },
     {
       week: 2,
-      title: "Sprint 2: Competitor Keyword Conquesting & Content Gaps",
-      focus: "Capture high-value search queries rivals currently dominate",
-      badge: "Market Capture",
+      title: "Sprint 2: High-Impact Remediation",
+      focus: "High-priority metadata, schema validation & competitor content",
+      badge: "Remediation Phase",
       daysLabel: "Days 8 – 14",
-      tasks: [
-        {
-          id: "t2-1",
-          day: 8,
-          title: "High-Commercial Intent Competitor Keyword Mapping",
-          description: "Analyze keywords where competitors receive organic leads and map exact target URL paths, H1s, and subheadings to beat them.",
-          plainImpact: "Positions your brand directly in front of buyers searching for competitor alternatives.",
-          category: "KEYWORDS",
-          status: "SCHEDULED",
-          estimatedMinutes: 45,
-          deliverable: "Target keyword placement blueprints",
-        },
-        {
-          id: "t2-2",
-          day: 10,
-          title: "Missing Dedicated Service/Product Page Generation",
-          description: "Create dedicated landing pages for specialized offerings that competitors have and your site previously bundled into generic pages.",
-          plainImpact: "Allows Google to rank specific service pages instead of just your homepage.",
-          category: "PAGES",
-          status: "SCHEDULED",
-          estimatedMinutes: 60,
-          deliverable: "Drop-in Next.js page components with verified structure",
-        },
-        {
-          id: "t2-3",
-          day: 12,
-          title: "Competitor Comparison & Alternative Guide Deployment",
-          description: "Deploy an objective 'Why Customers Choose Us' comparison table answering top buyer evaluation queries with verified proof points.",
-          plainImpact: "Converts buyers who are actively comparing options in Google and ChatGPT.",
-          category: "PAGES",
-          status: "SCHEDULED",
-          estimatedMinutes: 50,
-          deliverable: "Comparison matrix component with schema markup",
-        },
-        {
-          id: "t2-4",
-          day: 14,
-          title: "Search Intent Alignment & Heading Hierarchy Upgrade",
-          description: "Structure H2 and H3 subheadings with natural user search queries to win featured snippets in Google SERPs.",
-          plainImpact: "Wins position zero answer boxes in standard search.",
-          category: "KEYWORDS",
-          status: "SCHEDULED",
-          estimatedMinutes: 35,
-          deliverable: "Semantic heading overhaul across core pages",
-        },
-      ],
+      tasks: buildSprintTasks(sprint2Actions, stagedS2, 8),
     },
     {
       week: 3,
-      title: "Sprint 3: Performance, Mobile Speed & Schema Grounding",
-      focus: "Achieve fast mobile loading and rich search visual badges",
-      badge: "Speed & Trust",
+      title: "Sprint 3: Keyword & Authority Expansion",
+      focus: "Topic cluster gaps, mobile CWV signals & displacement",
+      badge: "Expansion Phase",
       daysLabel: "Days 15 – 21",
-      tasks: [
-        {
-          id: "t3-1",
-          day: 15,
-          title: "Automated Hero Image & Asset Compression",
-          description: "Compress oversized hero banners into next-gen WebP/AVIF formats with explicit width/height dimensions to eliminate layout shifts.",
-          plainImpact: "Speeds up mobile load time by 1.8 seconds and lowers bounce rates.",
-          category: "TECHNICAL",
-          status: "SCHEDULED",
-          estimatedMinutes: 40,
-          deliverable: "Optimized media assets & next/image implementation",
-        },
-        {
-          id: "t3-2",
-          day: 17,
-          title: "Organization & LocalBusiness JSON-LD Schema Deployment",
-          description: "Inject verified Schema.org Organization structured data including official logos, founding date, verified sameAs links, and address.",
-          plainImpact: "Establishes brand identity in the Google Knowledge Graph.",
-          category: "SCHEMA",
-          status: "SCHEDULED",
-          estimatedMinutes: 30,
-          deliverable: "JSON-LD schema script injection",
-        },
-        {
-          id: "t3-3",
-          day: 19,
-          title: "Product, Pricing & FAQ Rich Snippet Schema",
-          description: "Embed structured FAQPage and Product/Service schemas so star ratings, pricing ranges, and FAQs show directly in Google search cards.",
-          plainImpact: "Makes your search results 2x larger than standard text links.",
-          category: "SCHEMA",
-          status: "SCHEDULED",
-          estimatedMinutes: 45,
-          deliverable: "Validated Schema.org structured data blocks",
-        },
-        {
-          id: "t3-4",
-          day: 21,
-          title: "Core Web Vitals LCP & CLS Code Optimization",
-          description: "Defer non-critical third-party scripts and optimize critical CSS rendering path to hit Google 'Good' green thresholds.",
-          plainImpact: "Qualifies site for Google mobile ranking preference algorithm.",
-          category: "TECHNICAL",
-          status: "SCHEDULED",
-          estimatedMinutes: 50,
-          deliverable: "Performance patch with Lighthouse verification",
-        },
-      ],
+      tasks: buildSprintTasks(sprint3Actions, stagedS3, 15),
     },
     {
       week: 4,
-      title: "Sprint 4: Authority Scaling & Autonomous Verification",
-      focus: "Strengthen link structure, verify fixes, and benchmark gains",
+      title: "Sprint 4: Verification & Autonomous Milestone",
+      focus: "Re-crawling, validation proofs & executive ROI certificate",
       badge: "Domination & Verification",
       daysLabel: "Days 22 – 30",
-      tasks: [
-        {
-          id: "t4-1",
-          day: 22,
-          title: "Internal Linking Architecture & Topic Cluster Silos",
-          description: "Connect high-authority blog and resource articles to primary conversion service pages with keyword-rich descriptive anchor text.",
-          plainImpact: "Passes authority to commercial pages that generate client inquiries.",
-          category: "AUTHORITY",
-          status: "SCHEDULED",
-          estimatedMinutes: 40,
-          deliverable: "Automated contextual internal links map",
-        },
-        {
-          id: "t4-2",
-          day: 25,
-          title: "Competitor Displacement Re-Probe",
-          description: "Re-scan competitor domains to measure ranking shifts, keyword displacement rate, and technical score improvements.",
-          plainImpact: "Proves exact market share captured from target rivals.",
-          category: "KEYWORDS",
-          status: "SCHEDULED",
-          estimatedMinutes: 30,
-          deliverable: "Displacement score report",
-        },
-        {
-          id: "t4-3",
-          day: 28,
-          title: "Autonomous Health Verification Crawl",
-          description: "Execute a full technical re-crawl across all site URLs to confirm zero unresolved critical or high-severity errors remain.",
-          plainImpact: "Verifies 100% technical clean bill of health across all pages.",
-          category: "TECHNICAL",
-          status: "SCHEDULED",
-          estimatedMinutes: 35,
-          deliverable: "Comprehensive Before-vs-After health certificate",
-        },
-        {
-          id: "t4-4",
-          day: 30,
-          title: "30-Day Autonomous Optimization Milestone Report",
-          description: "Synthesize all merged patches, newly indexed pages, captured competitor keywords, and final health score improvements.",
-          plainImpact: "Complete executive record of autonomous execution and ROI delivered.",
-          category: "AUTHORITY",
-          status: "SCHEDULED",
-          estimatedMinutes: 20,
-          deliverable: "Executive 30-day ROI completion certificate",
-        },
-      ],
+      tasks: buildSprintTasks(sprint4Actions, stagedS4, 22),
     },
   ];
 
@@ -488,7 +386,42 @@ export function Autonomous30DayPlanModal({
           </div>
 
           <div className="space-y-2.5">
-            {currentWeekTasks.map((task) => (
+            {allTasks.length === 0 ? (
+              <div className="py-12 text-center text-brand-500 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mx-auto">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-brand-950">No Strategy Actions in Queue Yet</p>
+                  <p className="text-xs text-brand-500 max-w-md mx-auto mt-1">
+                    Aiva automatically derives an evidence-backed 30-day autonomous fix plan from your site crawl and competitor findings.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-50 transition shadow-xs cursor-pointer"
+                >
+                  {generateMutation.isPending ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Generating Plan from Crawl Data...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>Generate 30-Day Plan from Crawl Data</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : currentWeekTasks.length === 0 ? (
+              <div className="py-10 text-center text-xs text-brand-400">
+                All tasks for Week {activeWeek} have been completed or scheduled in adjacent sprints.
+              </div>
+            ) : (
+              currentWeekTasks.map((task) => (
               <div
                 key={task.id}
                 className={cn(
@@ -565,7 +498,7 @@ export function Autonomous30DayPlanModal({
                   )}
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
 

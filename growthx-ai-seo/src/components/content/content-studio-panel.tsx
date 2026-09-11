@@ -37,6 +37,33 @@ export function ContentStudioPanel({ projectId }: { projectId: string }) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [previewPiece, setPreviewPiece] = useState<ContentPiece | null>(null);
   const [form, setForm] = useState({ owner: "", name: "", accessToken: "", defaultBranch: "main" });
+  const [draftingPieceId, setDraftingPieceId] = useState<string | null>(null);
+  const [draftStep, setDraftStep] = useState<number>(1);
+
+  const draftSteps = [
+    "Analyzing Search Intent & SERP Headers",
+    "Formulating 45-Word GEO Direct Answer Block",
+    "Drafting Authoritative Comparison Copy",
+    "Structuring JSON-LD Schema (TechArticle / FAQPage)",
+  ];
+
+  const handleDraftPiece = async (pieceId: string) => {
+    setDraftingPieceId(pieceId);
+    setDraftStep(1);
+    const timer = setInterval(() => {
+      setDraftStep((s) => (s < 4 ? s + 1 : s));
+    }, 4500);
+
+    try {
+      await draftContent.mutateAsync(pieceId);
+    } catch (err) {
+      console.error("Failed to draft piece:", err);
+    } finally {
+      clearInterval(timer);
+      setDraftingPieceId(null);
+      setDraftStep(1);
+    }
+  };
 
   const latestStrategy = strategies.data?.[0];
   const allPieces = pieces.data ?? [];
@@ -195,6 +222,26 @@ export function ContentStudioPanel({ projectId }: { projectId: string }) {
             )
           }
         >
+          {draftingPieceId && (
+            <div className="p-4 border-b border-brand-100 bg-brand-50/50 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-brand-950 flex items-center gap-2">
+                  <Loader2 size={13} className="animate-spin text-accent-600" />
+                  Generating Rank-Ready Content (Step {draftStep} of 4)
+                </span>
+                <span className="text-brand-500 font-medium">
+                  {draftSteps[draftStep - 1]}
+                </span>
+              </div>
+              <div className="w-full bg-brand-200 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-accent-600 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${(draftStep / 4) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           <Table minWidth={720}>
             <thead>
               <tr>
@@ -236,22 +283,22 @@ export function ContentStudioPanel({ projectId }: { projectId: string }) {
                             Preview &amp; Read
                           </ActionButton>
                           <ActionButton
-                            icon={draftContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
-                            onClick={() => draftContent.mutate(piece.id)}
-                            disabled={draftContent.isPending}
+                            icon={draftingPieceId === piece.id ? <Loader2 size={11} className="animate-spin" /> : <PenLine size={11} />}
+                            onClick={() => handleDraftPiece(piece.id)}
+                            disabled={draftingPieceId !== null}
                           >
-                            Re-draft
+                            {draftingPieceId === piece.id ? `Step ${draftStep}/4` : "Re-draft"}
                           </ActionButton>
                         </>
                       )}
                       {piece.status === "PLANNED" && (
                         <ActionButton
                           variant="primary"
-                          icon={draftContent.isPending ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                          onClick={() => draftContent.mutate(piece.id)}
-                          disabled={draftContent.isPending}
+                          icon={draftingPieceId === piece.id ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                          onClick={() => handleDraftPiece(piece.id)}
+                          disabled={draftingPieceId !== null}
                         >
-                          Draft Article
+                          {draftingPieceId === piece.id ? `Step ${draftStep}/4` : "Draft Article"}
                         </ActionButton>
                       )}
                       {(piece.status === "COMMITTED" || piece.status === "PUBLISHED") && (

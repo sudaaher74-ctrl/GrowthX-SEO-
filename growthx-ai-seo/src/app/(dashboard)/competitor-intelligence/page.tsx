@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
+import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { CompetitorOverviewTab } from "@/components/competitor/competitor-overview-tab";
 import { CompetitorKeywordGapsTab } from "@/components/competitor/competitor-keyword-gaps-tab";
 import { CompetitorContentGapsTab } from "@/components/competitor/competitor-content-gaps-tab";
@@ -160,6 +161,7 @@ function CompetitorIntelligenceClient() {
   const qc = useQueryClient();
   const portfolio = usePortfolio(orgId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const customerDomain = clientRow?.domain || "";
   const localSeo = useLocalSeo(projectId);
   const visibility = useVisibility(projectId, 28);
 
@@ -208,6 +210,32 @@ function CompetitorIntelligenceClient() {
 
   const handleAddToFixPlan = (count: number, label?: string) => {
     const resolvedLabel = label || `${count} Items`;
+    if (projectId) {
+      const itemsToStage = Array.from({ length: Math.max(1, count) }).map((_, idx) => ({
+        title: count === 1 ? resolvedLabel : `${resolvedLabel} #${idx + 1}`,
+        category:
+          activeTab === "keywords"
+            ? "Content & Keyword Gaps"
+            : activeTab === "content"
+              ? "Content Strategy"
+              : activeTab === "technical"
+                ? "Technical SEO"
+                : "Competitor Intelligence",
+        source: (activeTab === "keywords"
+          ? "COMPETITOR_KEYWORD"
+          : activeTab === "content"
+            ? "COMPETITOR_CONTENT"
+            : activeTab === "ai-visibility"
+              ? "AI_VISIBILITY"
+              : "COMPETITOR_CONTENT") as StagedSourceType,
+        priority: (idx === 0 ? "CRITICAL" : idx < 3 ? "HIGH" : "MEDIUM") as "CRITICAL" | "HIGH" | "MEDIUM",
+        impact: "Target competitor search volume and bridge coverage gap",
+        effortHours: 3,
+        deliverable: "Targeted landing page brief & schema patch",
+        evidence: `Discovered during competitor intelligence analysis for ${customerDomain || "target domain"}`,
+      }));
+      stagingEngine.stageBatch(projectId, itemsToStage);
+    }
     setFixPlanToast({ count, label: resolvedLabel });
     // Clear toast automatically after 8 seconds
     setTimeout(() => {
@@ -291,7 +319,6 @@ function CompetitorIntelligenceClient() {
   };
 
   const currentTabObj = TABS.find((t) => t.id === activeTab) ?? TABS[0];
-  const customerDomain = clientRow?.domain || "aivaenterprises.com";
 
   return (
     <div className="space-y-6 pb-12">

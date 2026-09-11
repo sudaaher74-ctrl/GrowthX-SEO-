@@ -29,6 +29,9 @@ import {
   useApproveAutonomousPlan,
   useStartCrawl,
   useVisibility,
+  useActionEngineStrategy,
+  useActionEngineGenerate,
+  useStagedFixItems,
 } from "@/hooks/use-growthx";
 import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue } from "@/lib/api-client";
@@ -121,6 +124,10 @@ function FixEngineClient() {
     enabled: !!projectId,
   });
 
+  const strategyQuery = useActionEngineStrategy(projectId);
+  const generateMutation = useActionEngineGenerate(projectId);
+  const stagedItems = useStagedFixItems(projectId);
+
   const [planSubTab, setPlanSubTab] = useState<"overview" | "fixes" | "timeline" | "impact" | "settings">("overview");
   const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
   const [autoFixTarget, setAutoFixTarget] = useState<CrawlIssue | null>(null);
@@ -130,11 +137,11 @@ function FixEngineClient() {
   const isApproved = Boolean(planQuery.data?.isApproved || localApproved);
 
   const rawIssues = (issues.data?.data || []) as CrawlIssue[];
-  const totalFixes = rawIssues.length;
+  const totalFixes = rawIssues.length + stagedItems.length;
   const completedFixes = planQuery.data?.completedActionsCount ?? rawIssues.filter((i) => i.status === "resolved" || i.status === "completed").length;
 
   const competitorsList = competitorsQuery.data ?? [];
-  const competitorOpportunitiesCount = competitorsList.length;
+  const competitorOpportunitiesCount = competitorsList.length + stagedItems.length;
 
   const handleApprovePlan = async () => {
     setStatusMessage(null);
@@ -310,7 +317,12 @@ function FixEngineClient() {
               issues={rawIssues}
               latestCrawl={latestCrawl.data}
               visibilityReport={visibilityQuery.data}
+              stagedItems={stagedItems}
+              strategyPlan={strategyQuery.data}
+              onGenerateStrategy={() => generateMutation.mutate()}
+              isGeneratingStrategy={generateMutation.isPending}
               onViewCategoryFixes={() => setPlanSubTab("fixes")}
+              onOpenTimelineModal={() => setShowPlanModal(true)}
               isApproved={isApproved}
             />
           )}

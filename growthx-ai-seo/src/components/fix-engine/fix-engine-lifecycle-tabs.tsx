@@ -30,6 +30,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import type { CrawlIssue, AutonomousPlanStatus } from "@/lib/api-client";
+import { FixEvidenceDiffModal, type FixEvidenceDiffModalProps } from "@/components/fix-engine/fix-evidence-diff-modal";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. FIX ENGINE IMPLEMENTATION VIEW (Section 22)
@@ -54,6 +55,7 @@ export function FixEngineImplementationView({
   onViewVerification,
 }: FixEngineImplementationViewProps) {
   const [isPaused, setIsPaused] = useState(false);
+  const [diffModal, setDiffModal] = useState<{ title: string; targetUrl: string; deliverable: string } | null>(null);
 
   const totalActions = planStatus?.actionsCount || issues.length;
   const resolvedIssues = issues.filter(
@@ -276,9 +278,25 @@ export function FixEngineImplementationView({
                       <span className="text-[10px] font-mono text-slate-400">· {item.time}</span>
                     </div>
                     <p className="text-slate-600 leading-relaxed text-[11.5px]">{item.detail}</p>
-                    <span className="inline-block font-mono text-[10.5px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
-                      Target: {item.target}
-                    </span>
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="inline-block font-mono text-[10.5px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
+                        Target: {item.target}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDiffModal({
+                            title: item.action,
+                            targetUrl: item.target,
+                            deliverable: item.detail,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                      >
+                        <FileCode size={11} />
+                        <span>View Diff &amp; Proof →</span>
+                      </button>
+                    </div>
                   </div>
 
                   <span
@@ -351,6 +369,16 @@ export function FixEngineImplementationView({
           </button>
         </div>
       </div>
+
+      {diffModal && (
+        <FixEvidenceDiffModal
+          isOpen={true}
+          onClose={() => setDiffModal(null)}
+          issueTitle={diffModal.title}
+          targetUrl={diffModal.targetUrl}
+          deliverable={diffModal.deliverable}
+        />
+      )}
     </div>
   );
 }
@@ -372,6 +400,7 @@ export function FixEngineVerificationView({
   onReVerifyAll,
 }: FixEngineVerificationViewProps) {
   const [filterStatus, setFilterStatus] = useState<"all" | "Verified" | "Implemented" | "Needs Review">("all");
+  const [diffModal, setDiffModal] = useState<{ title: string; targetUrl: string; deliverable: string; category?: string } | null>(null);
 
   const verificationItems = issues.map((issue) => {
     const isResolved = issue.status === "resolved" || issue.status === "completed";
@@ -502,6 +531,7 @@ export function FixEngineVerificationView({
                   <th className="p-3.5 font-bold">After Fix</th>
                   <th className="p-3.5 font-bold">Status</th>
                   <th className="p-3.5 font-bold">Evidence</th>
+                  <th className="p-3.5 font-bold text-right">Proof</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -530,6 +560,23 @@ export function FixEngineVerificationView({
                       </span>
                     </td>
                     <td className="p-3.5 text-slate-500 text-[11px] max-w-xs">{item.evidence}</td>
+                    <td className="p-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDiffModal({
+                            title: item.fixTitle,
+                            category: item.category,
+                            targetUrl: item.affectedUrl,
+                            deliverable: item.evidence,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                      >
+                        <FileCode size={11} />
+                        <span>Diff &amp; Proof</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -537,6 +584,17 @@ export function FixEngineVerificationView({
           </div>
         )}
       </div>
+
+      {diffModal && (
+        <FixEvidenceDiffModal
+          isOpen={true}
+          onClose={() => setDiffModal(null)}
+          issueTitle={diffModal.title}
+          category={diffModal.category}
+          targetUrl={diffModal.targetUrl}
+          deliverable={diffModal.deliverable}
+        />
+      )}
     </div>
   );
 }

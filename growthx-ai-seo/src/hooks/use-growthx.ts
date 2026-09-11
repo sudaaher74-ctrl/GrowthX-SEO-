@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody } from "@/lib/api-client";
+import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
 const projectListeners = new Set<() => void>();
@@ -639,6 +640,44 @@ export function useApproveAutonomousPlan(projectId: string | null) {
   });
 }
 
+export function useActionEngineStrategy(projectId: string | null) {
+  return useQuery({
+    queryKey: ["action-engine-strategy", projectId],
+    queryFn: () => api.actionEngineStrategy(projectId!),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useActionEngineFindings(projectId: string | null, category?: string) {
+  return useQuery({
+    queryKey: ["action-engine-findings", projectId, category],
+    queryFn: () => api.actionEngineFindings(projectId!, category),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useActionEngineGenerate(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.actionEngineGenerate(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
+      qc.invalidateQueries({ queryKey: ["action-engine-findings", projectId] });
+      qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
+    },
+  });
+}
+
+export function useStagedFixItems(projectId: string | null): StagedFixItem[] {
+  return useSyncExternalStore(
+    (onStoreChange) => stagingEngine.subscribe(projectId, onStoreChange),
+    () => stagingEngine.getStaged(projectId),
+    () => []
+  );
+}
+
 export function useAddCompetitor(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -646,6 +685,8 @@ export function useAddCompetitor(projectId: string | null) {
       api.addCompetitor(projectId!, domain, label),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["visibility", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
     },
   });
 }

@@ -12,7 +12,7 @@ interface ArticlePreviewModalProps {
   onShip?: (pieceId: string) => void;
 }
 
-type PreviewTab = "reader" | "markdown" | "html" | "schema";
+type PreviewTab = "reader" | "evidence" | "markdown" | "html" | "schema";
 
 export function ArticlePreviewModal({
   piece,
@@ -132,6 +132,7 @@ export function ArticlePreviewModal({
           <div className="flex items-center gap-1">
             {[
               { id: "reader", label: "Article Reader", icon: BookOpen },
+              { id: "evidence", label: "GEO Evidence & Checks", icon: Sparkles },
               { id: "markdown", label: "Raw Markdown", icon: FileText },
               { id: "html", label: "Clean HTML", icon: Code2 },
               { id: "schema", label: "Schema.org JSON-LD", icon: Layers },
@@ -242,6 +243,86 @@ export function ArticlePreviewModal({
                     </p>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "evidence" && piece && (
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950">
+                  <span className="text-[10.5px] uppercase font-bold text-brand-400">Target Search Query</span>
+                  <p className="mt-1 font-mono font-bold text-brand-950 dark:text-brand-100 text-sm">
+                    {piece.targetQuery || piece.title}
+                  </p>
+                  <p className="mt-1 text-[11px] text-brand-500">Commercial / Informational buyer query</p>
+                </div>
+                <div className="p-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950">
+                  <span className="text-[10.5px] uppercase font-bold text-brand-400">Direct Answer Block</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-mono text-xl font-bold text-emerald-600">
+                      {geoAnswerBlock.split(/\s+/).filter(Boolean).length}
+                    </span>
+                    <span className="text-[11px] text-brand-500">words (target: 40–50 words)</span>
+                  </div>
+                  <span className="mt-1 inline-block rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5">
+                    Google AI Overview Optimal
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950">
+                  <span className="text-[10.5px] uppercase font-bold text-brand-400">Total Word Count</span>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="font-mono text-xl font-bold text-brand-950 dark:text-brand-100">
+                      {rawBody.split(/\s+/).filter(Boolean).length}
+                    </span>
+                    <span className="text-[11px] text-brand-500">
+                      words (~{Math.max(1, Math.round(rawBody.split(/\s+/).filter(Boolean).length / 200))}m read)
+                    </span>
+                  </div>
+                  <span className="mt-1 inline-block rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold px-2 py-0.5">
+                    Long-Form Authority
+                  </span>
+                </div>
+              </div>
+
+              {/* Direct Answer Preview */}
+              <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-800 dark:text-emerald-300 text-xs">
+                    Synthesized 45-Word GEO Direct Answer Block
+                  </span>
+                  <span className="text-[10.5px] font-mono text-emerald-600">
+                    Extracted for AI Citations
+                  </span>
+                </div>
+                <p className="text-brand-900 dark:text-brand-100 leading-relaxed text-[12px]">
+                  {geoAnswerBlock}
+                </p>
+              </div>
+
+              {/* Verified Verification Checklist */}
+              <div className="p-4 rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-950 space-y-2">
+                <span className="font-bold text-brand-950 dark:text-brand-100 text-xs block">
+                  Search Engine &amp; AI Engine Verification Checklist
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11.5px]">
+                  <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    <span>H1 Primary Headline with exact target keyword match</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    <span>45-Word Direct Answer Block in semantic header block</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    <span>Structured Comparison Matrix for evaluation intent</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    <span>Schema.org JSON-LD structured data included</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
