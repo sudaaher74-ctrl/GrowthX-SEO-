@@ -1,21 +1,64 @@
 "use client";
 
 import { Suspense, useState, useMemo, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, Plus, RefreshCw, Globe, ExternalLink, ShieldAlert, CheckCircle2, Building2, Clock, Award, Star, Swords, Zap, Check, Activity, Layers, Loader2, Radar, Trash2 } from "lucide-react";
-import { ActionButton, PageHeader, Panel, Table, Th, Tr, Td, Tabs, StatusNote } from "@/components/ui/console";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+  Sparkles,
+  Plus,
+  RefreshCw,
+  Globe,
+  ExternalLink,
+  ShieldAlert,
+  CheckCircle2,
+  Building2,
+  Clock,
+  Award,
+  Star,
+  Swords,
+  Zap,
+  Check,
+  Activity,
+  Layers,
+  Loader2,
+  Radar,
+  Trash2,
+  ArrowRight,
+  X,
+  SlidersHorizontal,
+  Home,
+} from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { AutoCompetitorsPanel } from "@/components/market-research/auto-competitors-panel";import { CompetitorOpportunitiesPanel } from "@/components/competitor/competitor-opportunities-panel";
-import { CompetitorKeywordsPanel } from "@/components/competitor/competitor-keywords-panel";
-import { SplitCrawlInspector } from "@/components/competitor/split-crawl-inspector";
+import { CompetitorOverviewTab } from "@/components/competitor/competitor-overview-tab";
+import { CompetitorKeywordGapsTab } from "@/components/competitor/competitor-keyword-gaps-tab";
+import { CompetitorContentGapsTab } from "@/components/competitor/competitor-content-gaps-tab";
+import {
+  CompetitorsDiscoveryTab,
+  CompetitorTechnicalGapsTab,
+  CompetitorAiVisibilityTab,
+  CompetitorOpportunitiesTab,
+  CompetitorReportsTab,
+} from "@/components/competitor/competitor-deep-dive-tabs";
 
 const TABS = [
-  { id: "identify", label: "Find Competitors" },
-  { id: "benchmarks", label: "Comparison Benchmarks" },
-  { id: "opportunities", label: "Competitor Opportunities" },
-  { id: "keywords", label: "Competitor Keywords" },
+  { id: "overview", label: "Overview" },
+  { id: "competitors", label: "Competitors" },
+  { id: "keywords", label: "Keyword Gaps" },
+  { id: "content", label: "Content Gaps" },
+  { id: "technical", label: "Technical Gaps" },
+  { id: "ai-visibility", label: "AI Visibility" },
+  { id: "opportunities", label: "Opportunities" },
+  { id: "reports", label: "Reports" },
 ];
+
+// Map legacy tab keys if navigated from old links
+const LEGACY_TAB_MAP: Record<string, string> = {
+  identify: "competitors",
+  benchmarks: "overview",
+  website: "opportunities",
+};
 
 /**
  * Live crawl progress strip shown below the page header while one or more
@@ -27,50 +70,50 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
     (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
   );
   const done = competitors.filter(
-    (c) => c.crawlStatus === "DONE" || (c.status === "ACTIVE" && c.pagesCrawled != null && c.pagesCrawled > 0),
+    (c) => c.crawlStatus === "DONE" || (c.status === "ACTIVE" && c.pagesCrawled !== undefined && c.pagesCrawled !== null && c.pagesCrawled > 0),
   );
 
   if (crawling.length === 0) return null;
 
   return (
     <div
-      className="rounded-xl border bg-gradient-to-r from-brand-50 to-white p-4 shadow-2xs"
-      style={{ borderColor: "var(--border-color)" }}
+      className="rounded-2xl border bg-gradient-to-r from-purple-50/80 via-white to-purple-50/50 p-4 shadow-xs"
+      style={{ borderColor: "var(--border-color, #e2e8f0)" }}
     >
       <div className="flex items-center gap-2 mb-3">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-500 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent-600" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-500 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-600" />
         </span>
-        <Radar size={13} className="text-accent-600" />
-        <span className="text-[12px] font-semibold text-brand-950">
-          Crawling {crawling.length} competitor{crawling.length > 1 ? "s" : ""} — auditing pages, tech health &amp; schema
+        <Radar size={14} className="text-purple-600" />
+        <span className="text-[12px] font-bold text-slate-900">
+          Auditing {crawling.length} competitor{crawling.length > 1 ? "s" : ""} — inspecting pages, tech health, keywords &amp; schema
         </span>
-        <Loader2 size={12} className="animate-spin text-brand-400 ml-auto" />
+        <Loader2 size={13} className="animate-spin text-purple-600 ml-auto" />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {crawling.map((c) => (
           <div
             key={c.id}
-            className="flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2"
-            style={{ borderColor: "var(--border-color)" }}
+            className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2 shadow-2xs"
+            style={{ borderColor: "var(--border-color, #e2e8f0)" }}
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[10px] font-bold text-brand-600">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-[10px] font-bold text-purple-700">
               {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11.5px] font-medium text-brand-950 truncate">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-brand-400">
+              <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-slate-500">
                 {c.crawlStatus === "QUEUED" || c.status === "PENDING"
-                  ? "Queued — starting soon…"
-                  : c.pagesCrawled != null && c.pagesCrawled > 0
-                  ? `${c.pagesCrawled.toLocaleString()} pages indexed so far`
-                  : "Scanning site structure…"}
+                  ? "Queued — starting crawler..."
+                  : c.pagesCrawled !== undefined && c.pagesCrawled !== null && c.pagesCrawled > 0
+                  ? `${c.pagesCrawled.toLocaleString()} pages indexed`
+                  : "Scanning site hierarchy & backlinks..."}
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin text-accent-500" />
+              <Loader2 size={11} className="animate-spin text-purple-600" />
             </div>
           </div>
         ))}
@@ -78,135 +121,37 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
         {done.map((c) => (
           <div
             key={c.id}
-            className="flex items-center gap-2.5 rounded-lg border bg-emerald-50/60 px-3 py-2"
-            style={{ borderColor: "var(--color-success-200, #a7f3d0)" }}
+            className="flex items-center gap-2.5 rounded-xl border bg-emerald-50/60 px-3 py-2 border-emerald-200 shadow-2xs"
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-success-100 text-success-600">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
               <CheckCircle2 size={14} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11.5px] font-medium text-brand-950 truncate">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-success-600">
-                {c.pagesCrawled != null ? `${c.pagesCrawled.toLocaleString()} pages — crawl complete` : "Crawl complete"}
+              <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-emerald-700">
+                {c.pagesCrawled !== undefined && c.pagesCrawled !== null
+                  ? `${c.pagesCrawled.toLocaleString()} pages — crawl complete`
+                  : "Crawl complete"}
               </p>
             </div>
           </div>
         ))}
       </div>
 
-      <p className="mt-2.5 text-[10.5px] text-brand-400">
-        This page refreshes automatically every 4 seconds. Results appear once crawls finish.
+      <p className="mt-2.5 text-[10.5px] text-slate-400">
+        Automatic background sync runs continuously. Results appear in your gap analysis once site scans complete.
       </p>
     </div>
   );
 }
 
-const DEFAULT_TAB = "identify";
+const DEFAULT_TAB = "overview";
 
 export default function CompetitorIntelligencePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading Competitor Intelligence...</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading Competitor Intelligence...</div>}>
       <CompetitorIntelligenceClient />
     </Suspense>
-  );
-}
-
-/** Visual monogram or logo avatar for entities */
-function EntityAvatar({ name, isYou = false }: { name: string; isYou?: boolean }) {
-  if (isYou) {
-    return (
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-950 text-white font-bold text-[11px] shadow-2xs">
-        YOU
-      </div>
-    );
-  }
-  const initials = name
-    .split(" ")
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "C";
-
-  const colors = [
-    "bg-indigo-50 text-indigo-700 border-indigo-200",
-    "bg-amber-50 text-amber-700 border-amber-200",
-    "bg-teal-50 text-teal-700 border-teal-200",
-    "bg-rose-50 text-rose-700 border-rose-200",
-    "bg-purple-50 text-purple-700 border-purple-200",
-  ];
-  const charCode = (name.charCodeAt(0) || 0) + (name.charCodeAt(1) || 0);
-  const colorClass = colors[charCode % colors.length];
-
-  return (
-    <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border font-bold text-[11px] shadow-2xs ${colorClass}`}
-    >
-      {initials}
-    </div>
-  );
-}
-
-/** Star rating display with count */
-function StarRatingDisplay({ rating, reviews }: { rating?: number | null; reviews?: number | null }) {
-  if (!rating || rating <= 0) {
-    return (
-      <div className="flex flex-col items-end">
-        <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 font-mono text-[10.5px] text-brand-400 border border-brand-100">
-          <Clock size={10} /> Public data pending
-        </span>
-      </div>
-    );
-  }
-  const fullStars = Math.floor(rating);
-  return (
-    <div className="flex flex-col items-end">
-      <div className="flex items-center gap-1">
-        <div className="flex text-amber-400">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              size={11.5}
-              className={i < fullStars ? "fill-amber-400 text-amber-400" : "text-brand-200"}
-            />
-          ))}
-        </div>
-        <span className="font-bold text-brand-950 text-[12px]">{rating.toFixed(1)}</span>
-      </div>
-      {reviews != null && reviews > 0 && (
-        <span className="text-[10.5px] text-brand-400 font-mono">
-          {reviews.toLocaleString()} reviews
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** Health score bar with numerical label */
-function HealthScoreBar({ score }: { score?: number | null }) {
-  if (score == null) {
-    return (
-      <div className="flex flex-col items-end">
-        <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 font-mono text-[10.5px] text-brand-400 border border-brand-100">
-          <Globe size={10} /> Public only
-        </span>
-      </div>
-    );
-  }
-  const tone = score >= 70 ? "text-emerald-700 bg-emerald-500" : score >= 40 ? "text-amber-700 bg-amber-500" : "text-rose-700 bg-rose-500";
-  return (
-    <div className="flex flex-col items-end gap-1 min-w-[80px]">
-      <span className="font-mono font-bold text-[12px] text-brand-950">
-        {score}
-        <span className="text-[10px] text-brand-400 font-normal">/100</span>
-      </span>
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-brand-100">
-        <div
-          className={`h-full rounded-full ${tone.split(" ")[1]}`}
-          style={{ width: `${Math.min(100, Math.max(5, score))}%` }}
-        />
-      </div>
-    </div>
   );
 }
 
@@ -218,39 +163,28 @@ function CompetitorIntelligenceClient() {
   const localSeo = useLocalSeo(projectId);
   const visibility = useVisibility(projectId, 28);
 
-  /**
-   * Which tab is open lives in the URL, not in component state.
-   *
-   * `?tab=` was written by links elsewhere in the app and read by nobody, so
-   * every deep link landed on whichever tab happened to be the default. With
-   * the URL as the single source of truth a tab is shareable and survives a
-   * reload, and there is no second copy in state to push back into the address
-   * bar on every change. Switching tabs uses replace rather than push, so it
-   * deliberately leaves no history entry — back returns to the page you came
-   * from, not through five tabs one press at a time.
-   *
-   * An unrecognised value falls back to the default instead of matching no
-   * branch and rendering an empty page under a full set of tabs.
-   */
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  const requestedTab = searchParams.get("tab");
-  const [activeTab, setActiveTabState] = useState<string>(() => {
-    return TABS.some((tab) => tab.id === requestedTab) ? requestedTab! : DEFAULT_TAB;
-  });
+  const rawTab = searchParams.get("tab") || DEFAULT_TAB;
+  const resolvedTab = LEGACY_TAB_MAP[rawTab] || rawTab;
+  const initialTab = TABS.some((t) => t.id === resolvedTab) ? resolvedTab : DEFAULT_TAB;
 
-  // Track the current active tab in a ref to avoid URL sync feedback loops overriding user clicks
+  const [activeTab, setActiveTabState] = useState<string>(initialTab);
   const lastTabRef = useRef(activeTab);
 
-  // Synchronize state ONLY when the URL parameter changes externally (e.g. browser back/forward or external deep link)
+  // Sync state when URL changes externally
   useEffect(() => {
-    if (requestedTab && TABS.some((tab) => tab.id === requestedTab) && requestedTab !== lastTabRef.current) {
-      lastTabRef.current = requestedTab;
-      setActiveTabState(requestedTab);
+    const raw = searchParams.get("tab");
+    if (raw) {
+      const mapped = LEGACY_TAB_MAP[raw] || raw;
+      if (TABS.some((t) => t.id === mapped) && mapped !== lastTabRef.current) {
+        lastTabRef.current = mapped;
+        setActiveTabState(mapped);
+      }
     }
-  }, [requestedTab]);
+  }, [searchParams]);
 
   const setActiveTab = (id: string) => {
     lastTabRef.current = id;
@@ -265,33 +199,42 @@ function CompetitorIntelligenceClient() {
       // ignore
     }
   };
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addMode, setAddMode] = useState<"website" | "local" | "manual">("website");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
-  const [compareMode, setCompareMode] = useState<"all" | "spotlight">("all");
 
-  // Add form fields
-  const [competitorName, setCompetitorName] = useState("");
+  // Fix Plan Toast state
+  const [fixPlanToast, setFixPlanToast] = useState<{
+    count: number;
+    label: string;
+  } | null>(null);
+
+  const handleAddToFixPlan = (count: number, label?: string) => {
+    const resolvedLabel = label || `${count} Items`;
+    setFixPlanToast({ count, label: resolvedLabel });
+    // Clear toast automatically after 8 seconds
+    setTimeout(() => {
+      setFixPlanToast(null);
+    }, 8000);
+  };
+
+  // Add Competitor modal
+  const [showAddModal, setShowAddModal] = useState(false);
   const [competitorDomain, setCompetitorDomain] = useState("");
-  const [competitorPlaceQuery, setCompetitorPlaceQuery] = useState("");
-  const [competitorAddress, setCompetitorAddress] = useState("");
+  const [competitorName, setCompetitorName] = useState("");
   const [formError, setFormError] = useState("");
 
   const competitorsQuery = useQuery({
     queryKey: ["competitors", projectId],
     queryFn: () => api.listCompetitors(projectId!),
     enabled: !!projectId,
-    // Auto-poll every 4 s while any competitor is in-progress so the strip
-    // updates without the user doing anything.
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
       const activelyCrawling = list.some(
         (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
       );
-      return activelyCrawling ? 4_000 : false;
+      return activelyCrawling ? 4000 : false;
     },
   });
+
+  const competitorsList = competitorsQuery.data ?? [];
 
   const addCompetitorMutation = useMutation({
     mutationFn: (data: { domain: string; name?: string }) =>
@@ -300,7 +243,6 @@ function CompetitorIntelligenceClient() {
       setShowAddModal(false);
       setCompetitorDomain("");
       setCompetitorName("");
-      setStatusMessage("Competitor added! Automatic crawl initiated — auditing technical SEO, pages, and schema...");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
       if (newComp?.id) {
         crawlCompetitorMutation.mutate(newComp.id);
@@ -314,11 +256,7 @@ function CompetitorIntelligenceClient() {
   const crawlCompetitorMutation = useMutation({
     mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
     onSuccess: () => {
-      setStatusMessage("Public crawler finished! Inspected rival site structure, tech health, and schema.");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-    },
-    onError: (err: Error) => {
-      setStatusMessage(err.message || "Public crawl queue request received.");
     },
   });
 
@@ -327,19 +265,10 @@ function CompetitorIntelligenceClient() {
   const removeCompetitorMutation = useMutation({
     mutationFn: (competitorId: string) => api.removeCompetitor(projectId!, competitorId),
     onSuccess: () => {
-      const deletedName = competitorToDelete?.name;
-      setStatusMessage(
-        deletedName
-          ? `Removed "${deletedName}" from competitor tracking.`
-          : "Competitor removed successfully.",
-      );
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      qc.invalidateQueries({ queryKey: ["tracked-competitors", projectId] });
-      qc.invalidateQueries({ queryKey: ["visibility", projectId] });
       setCompetitorToDelete(null);
     },
-    onError: (err: Error) => {
-      setStatusMessage(err.message || "Failed to delete competitor.");
+    onError: () => {
       setCompetitorToDelete(null);
     },
   });
@@ -347,333 +276,236 @@ function CompetitorIntelligenceClient() {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
-    if (addMode === "website") {
-      let domain = competitorDomain.trim().toLowerCase();
-      try {
-        domain = domain.startsWith("http") ? new URL(domain).hostname : domain;
-      } catch {
-        // raw
-      }
-      domain = domain.replace(/^www\./, "");
-      if (!domain.includes(".")) {
-        setFormError("Please enter a valid website domain.");
-        return;
-      }
-      addCompetitorMutation.mutate({ domain, name: competitorName.trim() });
-    } else {
-      // Local or manual
-      const domain = competitorDomain.trim() || `${competitorName.toLowerCase().replace(/\s+/g, "")}.com`;
-      addCompetitorMutation.mutate({ domain, name: competitorName.trim() });
-    }
-  };
-
-  const competitorsList = competitorsQuery.data ?? [];
-
-  const [isCrawlingAll, setIsCrawlingAll] = useState(false);
-  const handleCrawlAllCompetitors = async () => {
-    if (!projectId || !competitorsList.length) return;
-    setIsCrawlingAll(true);
-    setStatusMessage("Crawling all competitor websites... Auditing tech SEO health, page hierarchy, and schema.");
+    let domain = competitorDomain.trim().toLowerCase();
     try {
-      await Promise.all(
-        competitorsList.map((c) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
-      );
-      await qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      setStatusMessage("All competitor site audits completed and refreshed!");
+      domain = domain.startsWith("http") ? new URL(domain).hostname : domain;
     } catch {
-      setStatusMessage("Competitor crawl queue updated.");
-    } finally {
-      setIsCrawlingAll(false);
+      // raw
     }
+    domain = domain.replace(/^www\./, "");
+    if (!domain.includes(".")) {
+      setFormError("Please enter a valid website domain.");
+      return;
+    }
+    addCompetitorMutation.mutate({ domain, name: competitorName.trim() });
   };
 
-  // Automatically trigger crawls for uncrawled competitors on page load
-  const hasTriggeredInitialCrawl = useRef(false);
-  useEffect(() => {
-    if (!projectId || !competitorsList.length || hasTriggeredInitialCrawl.current) return;
-    const uncrawled = competitorsList.filter((c) => (c.healthScore == null || c.status === "PENDING") && !crawlCompetitorMutation.isPending
-    );
-    if (uncrawled.length > 0) {
-      hasTriggeredInitialCrawl.current = true;
-      Promise.all(
-        uncrawled.map((c) => api.crawlCompetitorSite(projectId, c.id).catch(() => {}))
-      ).then(() => {
-        qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      });
-    }
-  }, [projectId, competitorsList.length]);
-
-  // Cohort statistics calculation for Tier 1 Executive KPIs
-  const cohortStats = useMemo(() => {
-    const customerHealth = clientRow?.health ?? 5;
-    const customerShare = clientRow?.aiCitationSharePct ?? (visibility.data?.summary?.citationSharePct ?? 0);
-    const customerReviews = localSeo.data?.reviewCount ?? 0;
-    const customerRating = localSeo.data?.rating ?? 0;
-
-    const compHealthScores = competitorsList
-      .map((c) => c.healthScore)
-      .filter((s): s is number => typeof s === "number" && s > 0);
-    const avgCompHealth = compHealthScores.length
-      ? Math.round(compHealthScores.reduce((a, b) => a + b, 0) / compHealthScores.length)
-      : null;
-
-    const compShares = competitorsList
-      .map((c) => {
-        const sov = visibility.data?.shareOfVoice?.find((s) => s.domain === c.domain);
-        return c.aiCitationSharePct ?? sov?.sharePct;
-      })
-      .filter((s): s is number => typeof s === "number" && s >= 0);
-    const avgCompShare = compShares.length
-      ? Math.round(compShares.reduce((a, b) => a + b, 0) / compShares.length)
-      : null;
-
-    const maxCompReviews = Math.max(
-      0,
-      ...competitorsList.map((c) => c.reviewCount || 0)
-    );
-
-    const totalTracked = competitorsList.length + 1;
-
-    const allHealths = [
-      { isYou: true, score: customerHealth },
-      ...competitorsList.map((c) => ({ isYou: false, score: c.healthScore || 0 })),
-    ].sort((a, b) => b.score - a.score);
-    const healthRank = allHealths.findIndex((x) => x.isYou) + 1;
-
-    return {
-      customerHealth,
-      customerShare,
-      customerReviews,
-      customerRating,
-      avgCompHealth,
-      avgCompShare,
-      maxCompReviews,
-      totalTracked,
-      healthRank,
-    };
-  }, [clientRow, localSeo.data, competitorsList, visibility.data]);
-
-  // Selected competitor for Head-to-Head spotlight
-  const selectedCompetitor = useMemo(() => {
-    if (!competitorsList.length) return null;
-    if (selectedCompetitorId) {
-      const found = competitorsList.find((c) => c.id === selectedCompetitorId);
-      if (found) return found;
-    }
-    return competitorsList[0];
-  }, [competitorsList, selectedCompetitorId]);
-
-  // Simultaneous multi-competitor comparison data and rankings
-  const allEntitiesRanked = useMemo(() => {
-    const customerHealth = clientRow?.health ?? 5;
-    const customerShare = clientRow?.aiCitationSharePct ?? (visibility.data?.summary?.citationSharePct ?? 0);
-    const customerReviews = localSeo.data?.reviewCount ?? 0;
-    const customerRating = localSeo.data?.rating ?? 0;
-
-    const list = [
-      {
-        id: "you",
-        isYou: true,
-        name: clientRow?.name || "Your Business",
-        domain: clientRow?.domain || "aivaenterprises.com",
-        health: customerHealth,
-        share: customerShare,
-        rating: customerRating,
-        reviews: customerReviews,
-      },
-      ...competitorsList.map((c) => {
-        const sov = visibility.data?.shareOfVoice?.find((s) => s.domain === c.domain);
-        return {
-          id: c.id,
-          isYou: false,
-          name: c.label || c.domain,
-          domain: c.domain,
-          health: typeof c.healthScore === "number" ? c.healthScore : null,
-          share: typeof c.aiCitationSharePct === "number" ? c.aiCitationSharePct : (sov?.sharePct ?? null),
-          rating: typeof c.rating === "number" ? c.rating : null,
-          reviews: typeof c.reviewCount === "number" ? c.reviewCount : null,
-        };
-      }),
-    ];
-
-    // Compute health rankings
-    const sortedByHealth = [...list].sort((a, b) => (b.health ?? -1) - (a.health ?? -1));
-    const healthRankMap = new Map<string, number>();
-    sortedByHealth.forEach((item, idx) => healthRankMap.set(item.id, idx + 1));
-
-    // Determine category champions
-    const techLeader = sortedByHealth[0];
-    const citationLeader = [...list].sort((a, b) => (b.share ?? -1) - (a.share ?? -1))[0];
-    const reviewLeader = [...list].sort((a, b) => (b.reviews ?? -1) - (a.reviews ?? -1))[0];
-
-    return {
-      list: list.map((item) => ({
-        ...item,
-        rank: healthRankMap.get(item.id) || 1,
-      })),
-      techLeader,
-      citationLeader,
-      reviewLeader,
-    };
-  }, [clientRow, localSeo.data, competitorsList, visibility.data]);
+  const currentTabObj = TABS.find((t) => t.id === activeTab) ?? TABS[0];
+  const customerDomain = clientRow?.domain || "aivaenterprises.com";
 
   return (
-    <div className="space-y-5 pb-12">
-      <PageHeader
-        title="Competitor Intelligence"
-        subtitle="Benchmark your technical SEO, AI citation share, and public local visibility against rivals."
-        actions={
-          <div className="flex items-center gap-2">
-            <ActionButton
-              variant="secondary"
-              icon={<RefreshCw size={12} className={isCrawlingAll ? "animate-spin" : ""} />}
-              onClick={handleCrawlAllCompetitors}
-              disabled={isCrawlingAll || competitorsList.length === 0}
-            >
-              {isCrawlingAll ? "Crawling All..." : "Crawl All Competitors"}
-            </ActionButton>
-            <ActionButton
-              variant="primary"
-              icon={<Plus size={12} />}
-              onClick={() => setShowAddModal(true)}
-            >
-              Add Competitor
-            </ActionButton>
-          </div>
-        }
-      />
+    <div className="space-y-6 pb-12">
+      {/* ── BREADCRUMB & SUB-NAVIGATION BAR ── */}
+      <div className="space-y-4">
+        {/* Breadcrumb row */}
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <Link href="/dashboard" className="flex items-center gap-1 hover:text-slate-800 transition">
+            <Home className="h-3.5 w-3.5" />
+            <span>Dashboard</span>
+          </Link>
+          <span>/</span>
+          <Link href="/competitor-intelligence" className="hover:text-slate-800 transition">
+            Competitor Intelligence
+          </Link>
+          <span>/</span>
+          <span className="text-purple-700 font-bold">{currentTabObj.label}</span>
+        </div>
 
-      {statusMessage && (
-        <StatusNote tone="good">
-          <div className="flex items-center justify-between">
-            <span>{statusMessage}</span>
-            <button
-              onClick={() => setStatusMessage(null)}
-              className="text-success-800 hover:text-success-950 font-bold ml-2 text-[11px]"
-            >
-              Dismiss
-            </button>
-          </div>
-        </StatusNote>
-      )}
-
-      {/* Live Crawl Status Strip */}
-      <CrawlStatusStrip competitors={competitorsList} />
-
-      {/* Public Data Privacy Disclaimer */}
-      <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/50 px-3.5 py-2 text-[11.5px] text-brand-600">
-        <ShieldAlert size={14} className="shrink-0 text-brand-500" />
-        <span>
-          <strong>Privacy Notice:</strong> Competitor data is gathered exclusively from publicly available search engine results, public Google Maps profiles, and open website crawls. GrowthX never accesses or displays private competitor metrics.
-        </span>
+        {/* Global Horizontal Sub-navigation Pill Strip */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200/80">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  isActive
+                    ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                    : "text-slate-600 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Add Competitor Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl" style={{ borderColor: "var(--border-color)" }}>
-            <h3 className="text-[16px] font-bold text-brand-950">Add Competitor</h3>
-            <p className="text-[12px] text-brand-500 mt-1">
-              Track a rival business to monitor domain gaps, keyword overlaps, and local citations.
-            </p>
+      {/* ── FIX PLAN INTEGRATION TOAST NOTIFICATION ── */}
+      {fixPlanToast && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-950 text-white shadow-xl shadow-purple-950/20 animate-in fade-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-2xs">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Added to 30-Day Fix Plan</span>
+                <span className="bg-purple-800 text-purple-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                  Fix Engine Ready
+                </span>
+              </div>
+              <p className="text-[11px] text-purple-200 mt-0.5">
+                Staged <strong>{fixPlanToast.count} items ({fixPlanToast.label})</strong>. Fix Engine will consolidate Website Audit, Competitors, and AI Visibility findings into your single-approval 30-day plan.
+              </p>
+            </div>
+          </div>
 
-            <div className="flex rounded-lg border p-1 my-4 bg-brand-50/50" style={{ borderColor: "var(--border-color)" }}>
+          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+            <Link
+              href="/fix-engine"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-purple-950 font-bold text-xs hover:bg-purple-50 transition shadow-2xs"
+            >
+              <span>View in Fix Engine</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setFixPlanToast(null)}
+              className="p-1 text-purple-300 hover:text-white rounded-lg transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
+      <CrawlStatusStrip competitors={competitorsList} />
+
+      {/* ── TAB 1: OVERVIEW (Screenshot 1) ── */}
+      {activeTab === "overview" && (
+        <CompetitorOverviewTab
+          domain={customerDomain}
+          competitors={competitorsList}
+          onAddCompetitor={() => setShowAddModal(true)}
+          onGenerateInsights={() => handleAddToFixPlan(18, "AI Opportunity Pack")}
+          onViewAllKeywordGaps={() => setActiveTab("keywords")}
+          onViewAllContentGaps={() => setActiveTab("content")}
+          onGenerateReport={() => setActiveTab("reports")}
+        />
+      )}
+
+      {/* ── TAB 2: COMPETITORS DIRECTORY ── */}
+      {activeTab === "competitors" && (
+        <CompetitorsDiscoveryTab
+          onAddCompetitor={() => setShowAddModal(true)}
+          onAddToFixPlan={handleAddToFixPlan}
+        />
+      )}
+
+      {/* ── TAB 3: KEYWORD GAPS (Screenshot 2) ── */}
+      {activeTab === "keywords" && (
+        <CompetitorKeywordGapsTab
+          onAddToFixPlan={handleAddToFixPlan}
+          onExport={() => handleAddToFixPlan(50, "Exported Keywords")}
+        />
+      )}
+
+      {/* ── TAB 4: CONTENT GAPS (Screenshot 3) ── */}
+      {activeTab === "content" && (
+        <CompetitorContentGapsTab
+          onAddToFixPlan={handleAddToFixPlan}
+          onExport={() => handleAddToFixPlan(24, "Exported Content Gaps")}
+        />
+      )}
+
+      {/* ── TAB 5: TECHNICAL GAPS ── */}
+      {activeTab === "technical" && (
+        <CompetitorTechnicalGapsTab onAddToFixPlan={handleAddToFixPlan} />
+      )}
+
+      {/* ── TAB 6: AI VISIBILITY ── */}
+      {activeTab === "ai-visibility" && (
+        <CompetitorAiVisibilityTab onAddToFixPlan={handleAddToFixPlan} />
+      )}
+
+      {/* ── TAB 7: OPPORTUNITIES (AI ENGINE) ── */}
+      {activeTab === "opportunities" && (
+        <CompetitorOpportunitiesTab onAddToFixPlan={handleAddToFixPlan} />
+      )}
+
+      {/* ── TAB 8: REPORTS ── */}
+      {activeTab === "reports" && (
+        <CompetitorReportsTab
+          domain={customerDomain}
+          onGenerateReport={() => handleAddToFixPlan(1, "Executive Strategy Report")}
+        />
+      )}
+
+      {/* ── ADD COMPETITOR MODAL ── */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700">
+                  <Plus className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Add Tracked Competitor</h3>
+                  <p className="text-[11px] text-slate-500">Initiate automated crawl and cross-signal gap audit</p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setAddMode("website")}
-                className={`flex-1 rounded-md py-1 text-[11.5px] font-semibold transition ${
-                  addMode === "website" ? "bg-white text-brand-950 shadow-2xs" : "text-brand-500"
-                }`}
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
-                Website URL
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddMode("local")}
-                className={`flex-1 rounded-md py-1 text-[11.5px] font-semibold transition ${
-                  addMode === "local" ? "bg-white text-brand-950 shadow-2xs" : "text-brand-500"
-                }`}
-              >
-                Google Maps Place
-              </button>
-              <button
-                type="button"
-                onClick={() => setAddMode("manual")}
-                className={`flex-1 rounded-md py-1 text-[11.5px] font-semibold transition ${
-                  addMode === "manual" ? "bg-white text-brand-950 shadow-2xs" : "text-brand-500"
-                }`}
-              >
-                Manual Entry
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {formError && (
-              <div className="mb-3 rounded border border-error-200 bg-error-50 p-2 text-[11.5px] text-error-700">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleAddSubmit} className="space-y-3">
+            <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Competitor Business Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Acme SEO Solutions"
-                  value={competitorName}
-                  onChange={(e) => setCompetitorName(e.target.value)}
-                  className="w-full h-9 rounded-lg border px-3 text-[12.5px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                  Website URL / Domain <span className="text-error-500">*</span>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Competitor Domain *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. acme-seo.com"
+                  placeholder="e.g. competitor.com"
                   value={competitorDomain}
                   onChange={(e) => setCompetitorDomain(e.target.value)}
-                  className="w-full h-9 rounded-lg border px-3 text-[12.5px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                  style={{ borderColor: "var(--border-color)" }}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
 
-              {addMode === "local" && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-brand-700 uppercase tracking-wider mb-1">
-                    City / Address
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. San Francisco, CA"
-                    value={competitorAddress}
-                    onChange={(e) => setCompetitorAddress(e.target.value)}
-                    className="w-full h-9 rounded-lg border px-3 text-[12.5px] text-brand-950 placeholder:text-brand-300 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                    style={{ borderColor: "var(--border-color)" }}
-                  />
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Brand / Company Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Acme Corp"
+                  value={competitorName}
+                  onChange={(e) => setCompetitorName(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                />
+              </div>
+
+              {formError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {formError}
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-4">
+              <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="rounded-lg border px-3.5 py-1.5 text-[12px] font-semibold text-brand-600 hover:bg-brand-50"
-                  style={{ borderColor: "var(--border-color)" }}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addCompetitorMutation.isPending}
-                  className="rounded-lg bg-brand-950 px-4 py-1.5 text-[12px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 disabled:opacity-60"
                 >
-                  {addCompetitorMutation.isPending ? "Adding..." : "Add Competitor"}
+                  {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
                 </button>
               </div>
             </form>
@@ -681,34 +513,19 @@ function CompetitorIntelligenceClient() {
         </div>
       )}
 
-      {/* Delete Competitor Confirmation Modal */}
+      {/* ── DELETE COMPETITOR CONFIRMATION ── */}
       {competitorToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div
-            className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600 border border-rose-100">
-                <Trash2 size={18} />
-              </div>
-              <div>
-                <h3 className="text-[15px] font-bold text-brand-950">Delete Tracked Competitor</h3>
-                <p className="text-[11.5px] text-brand-500">Stop monitoring this rival</p>
-              </div>
-            </div>
-
-            <p className="text-[12.5px] text-brand-700 leading-relaxed">
-              Are you sure you want to stop tracking <strong className="text-brand-950 font-semibold">{competitorToDelete.name}</strong>?
-              This will remove them from your benchmark cohort, crawl comparisons, and opportunity gaps.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Remove Competitor?</h3>
+            <p className="text-xs text-slate-600">
+              Are you sure you want to stop tracking <strong>{competitorToDelete.name}</strong>? Crawled keyword and content gap history will be archived.
             </p>
-
-            <div className="mt-6 flex items-center justify-end gap-2.5">
+            <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setCompetitorToDelete(null)}
-                disabled={removeCompetitorMutation.isPending}
-                className="rounded-lg border border-brand-200 bg-white px-3.5 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -716,852 +533,13 @@ function CompetitorIntelligenceClient() {
                 type="button"
                 onClick={() => removeCompetitorMutation.mutate(competitorToDelete.id)}
                 disabled={removeCompetitorMutation.isPending}
-                className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-rose-700 disabled:opacity-50 transition shadow-2xs"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-60"
               >
-                {removeCompetitorMutation.isPending ? (
-                  <>
-                    <RefreshCw size={12} className="animate-spin" />
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={12} />
-                    <span>Delete Competitor</span>
-                  </>
-                )}
+                {removeCompetitorMutation.isPending ? "Removing..." : "Remove"}
               </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Tabs */}
-      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
-
-      {/* Tab 1: Automatic identification.
-          This panel existed and worked but nothing rendered it after the page
-          consolidation, so the scan was unreachable from the product while its
-          code and API were entirely intact. */}
-      {activeTab === "identify" && (
-        <AutoCompetitorsPanel
-          projectId={projectId!}
-          orgId={orgId}
-          onAddedSuccess={() => {
-            qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-          }}
-        />
-      )}
-
-      {/* Tab 2: Comparison Benchmarks */}
-      {activeTab === "benchmarks" && (
-        <div className="space-y-5">
-          {/* TIER 1: Executive KPI Benchmark Strip */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {/* 1. Market Standing */}
-            <div className="rounded-xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center justify-between">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">Market Standing</p>
-                <Award size={15} className="text-amber-500" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-[24px] font-bold text-brand-950">
-                  #{cohortStats.healthRank}
-                </span>
-                <span className="text-[12px] font-medium text-brand-500">
-                  of {cohortStats.totalTracked} tracked
-                </span>
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500 flex items-center gap-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Active competitive cohort
-              </p>
-            </div>
-
-            {/* 2. AI Citation Share */}
-            <div className="rounded-xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center justify-between">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">AI Citation Share</p>
-                <Sparkles size={15} className="text-brand-700" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-[24px] font-bold text-brand-950">
-                  {cohortStats.customerShare}%
-                </span>
-                <span className="text-[11.5px] text-brand-400 font-mono">
-                  vs {cohortStats.avgCompShare != null ? `${cohortStats.avgCompShare}% avg` : "—"}
-                </span>
-              </div>
-              <div className="mt-2.5">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
-                  <div
-                    className="h-full rounded-full bg-brand-950"
-                    style={{ width: `${Math.min(100, Math.max(0, cohortStats.customerShare))}%` }}
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                Presence across LLM response citations
-              </p>
-            </div>
-
-            {/* 3. Tech SEO Health */}
-            <div className="rounded-xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center justify-between">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">Tech SEO Health</p>
-                <Activity size={15} className="text-emerald-600" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-[24px] font-bold text-brand-950">
-                  {cohortStats.customerHealth}
-                </span>
-                <span className="font-mono text-[12px] text-brand-400">/100</span>
-                {cohortStats.avgCompHealth != null && (
-                  <span className={`text-[11.5px] font-semibold font-mono ${cohortStats.customerHealth >= cohortStats.avgCompHealth ? "text-emerald-600" : "text-amber-600"}`}>
-                    {cohortStats.customerHealth >= cohortStats.avgCompHealth ? `+${cohortStats.customerHealth - cohortStats.avgCompHealth}` : `${cohortStats.customerHealth - cohortStats.avgCompHealth}`} vs avg
-                  </span>
-                )}
-              </div>
-              <div className="mt-2.5">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
-                  <div
-                    className="h-full rounded-full bg-emerald-500"
-                    style={{ width: `${Math.min(100, Math.max(5, cohortStats.customerHealth))}%` }}
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                Crawl health, speed & schema coverage
-              </p>
-            </div>
-
-            {/* 4. Public Reputation Gap */}
-            <div className="rounded-xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex items-center justify-between">
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">Public Reputation</p>
-                <Star size={15} className="text-amber-400 fill-amber-400" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-mono text-[24px] font-bold text-brand-950">
-                  {cohortStats.customerRating > 0 ? `${cohortStats.customerRating.toFixed(1)} ★` : "Pending"}
-                </span>
-                <span className="text-[11.5px] text-brand-400 font-mono">
-                  {cohortStats.customerReviews.toLocaleString()} reviews
-                </span>
-              </div>
-              <p className="mt-2 text-[11px] text-brand-500">
-                {cohortStats.maxCompReviews > cohortStats.customerReviews
-                  ? `-${(cohortStats.maxCompReviews - cohortStats.customerReviews).toLocaleString()} reviews vs leader`
-                  : "Leading review volume in cohort"}
-              </p>
-            </div>
-          </div>
-
-          {/* TIER 2: Compare All Simultaneously or 1-on-1 Spotlight */}
-          {selectedCompetitor && (
-            <div className="rounded-2xl border bg-white p-5 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-brand-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Swords size={16} className="text-brand-900" />
-                    <h3 className="text-[14px] font-bold text-brand-950">
-                      {compareMode === "all" ? "Multi-Competitor Landscape Comparison" : "Head-to-Head 1-on-1 Spotlight"}
-                    </h3>
-                    <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
-                      {compareMode === "all" ? `All ${cohortStats.totalTracked} Entities Parallel` : "Interactive Matchup"}
-                    </span>
-                  </div>
-                  <p className="text-[11.5px] text-brand-500 mt-0.5">
-                    {compareMode === "all"
-                      ? "Simultaneous side-by-side benchmark of your domain against every tracked rival in parallel"
-                      : "Side-by-side technical, AI authority, and reputation benchmark against your chosen rival"}
-                  </p>
-                </div>
-
-                {/* View Mode Switcher */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex rounded-lg border p-0.5 bg-brand-50" style={{ borderColor: "var(--border-color)" }}>
-                    <button
-                      type="button"
-                      onClick={() => setCompareMode("all")}
-                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                        compareMode === "all"
-                          ? "bg-white text-brand-950 shadow-2xs"
-                          : "text-brand-500 hover:text-brand-950"
-                      }`}
-                    >
-                      <Layers size={12} />
-                      Compare All ({cohortStats.totalTracked})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCompareMode("spotlight")}
-                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${
-                        compareMode === "spotlight"
-                          ? "bg-white text-brand-950 shadow-2xs"
-                          : "text-brand-500 hover:text-brand-950"
-                      }`}
-                    >
-                      <Swords size={12} />
-                      1-on-1 Spotlight
-                    </button>
-                  </div>
-
-                  {compareMode === "spotlight" && (
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-[11px] font-medium text-brand-500 whitespace-nowrap">Rival:</label>
-                      <select
-                        value={selectedCompetitor.id}
-                        onChange={(e) => setSelectedCompetitorId(e.target.value)}
-                        aria-label="Select rival for head-to-head comparison"
-                        className="h-8 rounded-lg border bg-white px-2.5 text-[12px] font-semibold text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
-                        style={{ borderColor: "var(--border-color)" }}
-                      >
-                        {competitorsList.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label || c.domain}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* MODE A: Compare All Competitors Simultaneously */}
-              {compareMode === "all" && (
-                <div className="space-y-4 pt-4">
-                  {/* Category Champions Quick Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pb-1">
-                    <div className="flex items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/40 px-3.5 py-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                        <Award size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">Tech SEO Champion</div>
-                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
-                          {allEntitiesRanked.techLeader?.name} ({allEntitiesRanked.techLeader?.health != null ? `${allEntitiesRanked.techLeader.health}/100` : "—"})
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 rounded-xl border border-brand-200 bg-brand-50/50 px-3.5 py-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-                        <Sparkles size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">AI Citations Leader</div>
-                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
-                          {allEntitiesRanked.citationLeader?.name} ({allEntitiesRanked.citationLeader?.share != null ? `${allEntitiesRanked.citationLeader.share}%` : "—"})
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 rounded-xl border border-brand-200 bg-brand-50/50 px-3.5 py-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                        <Star size={15} className="fill-amber-500 text-amber-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">Review Volume Leader</div>
-                        <div className="text-[12.5px] font-bold text-brand-950 truncate">
-                          {allEntitiesRanked.reviewLeader?.name} ({allEntitiesRanked.reviewLeader?.reviews ? allEntitiesRanked.reviewLeader.reviews.toLocaleString() : "0"})
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Multi-Card Parallel Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                    {allEntitiesRanked.list.map((entity) => {
-                      const isYou = entity.isYou;
-                      const isSelected = selectedCompetitor?.id === entity.id;
-                      const healthDelta = entity.health != null && cohortStats.customerHealth != null
-                        ? entity.health - cohortStats.customerHealth
-                        : null;
-
-                      return (
-                        <div
-                          key={entity.id}
-                          className={`rounded-xl border p-4 flex flex-col justify-between transition ${
-                            isYou
-                              ? "border-brand-950 bg-brand-50/40 ring-1 ring-brand-950/20 shadow-xs"
-                              : isSelected
-                              ? "border-brand-400 bg-white shadow-xs"
-                              : "border-brand-200 bg-white hover:border-brand-300 shadow-2xs"
-                          }`}
-                        >
-                          <div className="space-y-3.5">
-                            {/* Card Header */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <EntityAvatar name={entity.name} isYou={isYou} />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-bold text-[13px] text-brand-950 truncate">
-                                      {entity.name}
-                                    </span>
-                                    {isYou && (
-                                      <span className="rounded bg-brand-950 px-1.5 py-0.2 text-[8.5px] font-bold uppercase text-white shrink-0">
-                                        You
-                                      </span>
-                                    )}
-                                  </div>
-                                  <a
-                                    href={`https://${entity.domain}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-0.5 font-mono text-[10.5px] text-brand-400 hover:text-brand-700 truncate"
-                                  >
-                                    {entity.domain}
-                                    <ExternalLink size={9} className="shrink-0" />
-                                  </a>
-                                </div>
-                              </div>
-
-                              {/* Rank badge + Delete button */}
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span
-                                  className={`flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold font-mono ${
-                                    entity.rank === 1
-                                      ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                      : entity.rank === 2
-                                      ? "bg-slate-100 text-slate-700 border border-slate-200"
-                                      : "bg-brand-100 text-brand-600"
-                                  }`}
-                                >
-                                  #{entity.rank}
-                                </span>
-                                {!isYou && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCompetitorToDelete({ id: entity.id, name: entity.name });
-                                    }}
-                                    className="flex h-6 w-6 items-center justify-center rounded-md text-brand-400 hover:bg-rose-50 hover:text-rose-600 transition"
-                                    title={`Delete ${entity.name}`}
-                                    aria-label={`Delete ${entity.name}`}
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Metric 1: Tech SEO Health */}
-                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5 space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase text-brand-400">Tech SEO Health</span>
-                                {entity.health != null ? (
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-mono font-bold text-[13px] text-brand-950">
-                                      {entity.health}
-                                      <span className="text-[10px] text-brand-400 font-normal">/100</span>
-                                    </span>
-                                    {!isYou && healthDelta != null && healthDelta !== 0 && (
-                                      <span
-                                        className={`text-[9.5px] font-mono font-semibold px-1 rounded ${
-                                          healthDelta > 0
-                                            ? "bg-amber-100 text-amber-700"
-                                            : "bg-emerald-100 text-emerald-700"
-                                        }`}
-                                      >
-                                        {healthDelta > 0 ? `+${healthDelta}` : `${healthDelta}`} vs You
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      crawlCompetitorMutation.mutate(entity.id);
-                                    }}
-                                    disabled={crawlCompetitorMutation.isPending}
-                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-700 bg-brand-100 hover:bg-brand-200 px-2 py-0.5 rounded transition"
-                                    title="Initiate public website crawl now"
-                                  >
-                                    <RefreshCw size={9} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
-                                    <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Start Crawl"}</span>
-                                  </button>
-                                )}
-                              </div>
-                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
-                                <div
-                                  className={`h-full rounded-full ${
-                                    (entity.health ?? 0) >= 70 ? "bg-emerald-500" : (entity.health ?? 0) >= 40 ? "bg-amber-500" : "bg-rose-500"
-                                  }`}
-                                  style={{ width: `${Math.min(100, Math.max(5, entity.health ?? 5))}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Metric 2: AI Citation Share */}
-                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5 space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase text-brand-400">AI Citation Share</span>
-                                <span className="font-mono font-bold text-[13px] text-brand-950">
-                                  {entity.share != null ? `${entity.share}%` : "—"}
-                                </span>
-                              </div>
-                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
-                                <div
-                                  className="h-full rounded-full bg-brand-950"
-                                  style={{ width: `${Math.min(100, Math.max(0, entity.share ?? 0))}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Metric 3: Google Reputation */}
-                            <div className="rounded-lg border border-brand-100 bg-brand-50/30 p-2.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-semibold uppercase text-brand-400">Reputation</span>
-                                {entity.rating != null && entity.rating > 0 ? (
-                                  <div className="flex items-center gap-1">
-                                    <Star size={11} className="fill-amber-400 text-amber-400" />
-                                    <span className="font-bold text-[12px] text-brand-950">{entity.rating.toFixed(1)}</span>
-                                    <span className="font-mono text-[10px] text-brand-400">
-                                      ({entity.reviews ? entity.reviews.toLocaleString() : 0})
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span className="text-[10.5px] font-mono text-brand-400">Pending GMB</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Advantage / Posture Tag */}
-                            <div>
-                              {isYou ? (
-                                <span className="block text-center rounded-md bg-brand-100 border border-brand-200 px-2 py-1 text-[10.5px] font-semibold text-brand-800">
-                                  ⭐ Baseline Workspace Site
-                                </span>
-                              ) : (
-                                <span
-                                  className={`block text-center rounded-md px-2 py-1 text-[10.5px] font-semibold ${
-                                    entity.rank === 1
-                                      ? "bg-amber-50 border border-amber-200 text-amber-800"
-                                      : (entity.health ?? 0) >= cohortStats.customerHealth
-                                      ? "bg-rose-50 border border-rose-200 text-rose-700"
-                                      : "bg-emerald-50 border border-emerald-200 text-emerald-700"
-                                  }`}
-                                >
-                                  {entity.rank === 1
-                                    ? "Market Health Leader"
-                                    : (entity.health ?? 0) >= cohortStats.customerHealth
-                                    ? "Rival Technical Lead"
-                                    : "You Outperform on SEO"}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Card Actions */}
-                          <div className="pt-3 mt-3 border-t border-brand-100 flex items-center justify-between gap-1">
-                            {isYou ? (
-                              <span className="text-[10.5px] font-medium text-brand-400 italic">Primary Workspace</span>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setSelectedCompetitorId(entity.id);
-                                    setCompareMode("spotlight");
-                                  }}
-                                  className="text-[11px] font-semibold text-brand-700 hover:text-brand-950 transition flex items-center gap-1"
-                                >
-                                  1-on-1 Spotlight →
-                                </button>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => crawlCompetitorMutation.mutate(entity.id)}
-                                    disabled={crawlCompetitorMutation.isPending}
-                                    title="Crawl public website"
-                                    className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-brand-500 hover:text-brand-950 hover:bg-brand-100 transition"
-                                  >
-                                    <RefreshCw size={10} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
-                                    <span>{crawlCompetitorMutation.isPending ? "Crawling..." : "Crawl"}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCompetitorToDelete({ id: entity.id, name: entity.name });
-                                    }}
-                                    className="inline-flex items-center gap-1 text-[10.5px] font-medium rounded px-1.5 py-0.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition"
-                                    title={`Delete ${entity.name}`}
-                                  >
-                                    <Trash2 size={10} />
-                                    <span>Delete</span>
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* MODE B: 1-on-1 Head-to-Head Spotlight */}
-              {compareMode === "spotlight" && (
-                <div className="grid grid-cols-1 md:grid-cols-11 gap-4 pt-5 items-center">
-                  {/* Left: You */}
-                  <div className="md:col-span-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-[13px] text-brand-950">{clientRow?.name || "Your Business"}</span>
-                            <span className="rounded bg-brand-950 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">You</span>
-                          </div>
-                          <p className="font-mono text-[11px] text-brand-500">{clientRow?.domain || "aivaenterprises.com"}</p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        Active Project
-                      </span>
-                    </div>
-
-                    {/* Metrics Row */}
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-200/60 text-center">
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerHealth}/100</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-950">{cohortStats.customerShare}%</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-950">
-                          {cohortStats.customerReviews ? cohortStats.customerReviews.toLocaleString() : "0"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Center: VS & Advantages */}
-                  <div className="md:col-span-3 flex flex-col items-center justify-center text-center px-2 py-1 space-y-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-950 text-white font-black text-[12px] shadow-xs ring-4 ring-brand-100">
-                      VS
-                    </div>
-
-                    <div className="space-y-1 w-full max-w-[210px]">
-                      {cohortStats.customerHealth >= (selectedCompetitor.healthScore || 0) ? (
-                        <span className="flex items-center justify-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1 text-[10.5px] font-semibold text-emerald-700">
-                          <Check size={12} /> Tech Health Advantage
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10.5px] font-semibold text-amber-700">
-                          <Zap size={12} /> Rival Health Lead
-                        </span>
-                      )}
-
-                      <span className="flex items-center justify-center gap-1 rounded-md bg-brand-50 border border-brand-200 px-2 py-1 text-[10.5px] font-semibold text-brand-700">
-                        <Sparkles size={11} /> AI Citation Opportunity
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => crawlCompetitorMutation.mutate(selectedCompetitor.id)}
-                      disabled={crawlCompetitorMutation.isPending}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-950 underline underline-offset-2 transition"
-                    >
-                      {crawlCompetitorMutation.isPending ? (
-                        <>
-                          <RefreshCw size={11} className="animate-spin" /> Crawling Rival...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw size={11} /> Refresh Public Signals
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Right: Selected Competitor */}
-                  <div className="md:col-span-4 rounded-xl border border-brand-200 bg-white p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <EntityAvatar name={selectedCompetitor.label || selectedCompetitor.domain} />
-                        <div>
-                          <span className="font-bold text-[13px] text-brand-950">
-                            {selectedCompetitor.label || selectedCompetitor.domain}
-                          </span>
-                          <p className="font-mono text-[11px] text-brand-500">{selectedCompetitor.domain}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-semibold text-brand-600 bg-brand-100 px-2 py-0.5 rounded-full">
-                          Tracked Rival
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCompetitorToDelete({
-                              id: selectedCompetitor.id,
-                              name: selectedCompetitor.label || selectedCompetitor.domain,
-                            })
-                          }
-                          className="flex h-6 w-6 items-center justify-center rounded-md text-brand-400 hover:bg-rose-50 hover:text-rose-600 transition"
-                          title={`Delete ${selectedCompetitor.label || selectedCompetitor.domain}`}
-                          aria-label={`Delete ${selectedCompetitor.label || selectedCompetitor.domain}`}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Metrics Row */}
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-brand-100 text-center">
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Tech Health</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {selectedCompetitor.healthScore != null ? `${selectedCompetitor.healthScore}/100` : "Ready"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">AI Citation</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {selectedCompetitor.aiCitationSharePct != null ? `${selectedCompetitor.aiCitationSharePct}%` : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold text-brand-400 uppercase">Reviews</div>
-                        <div className="font-mono font-bold text-[15px] text-brand-700">
-                          {selectedCompetitor.reviewCount != null ? selectedCompetitor.reviewCount.toLocaleString() : "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TIER 3: High-Fidelity Comparison Benchmarks Table (Only in 'Compare All' mode) */}
-              {compareMode === "all" && (
-                <Panel
-                  title="Customer vs Competitor Benchmarks"
-                  subtitle="Side-by-side comparison of authoritative search presence, reputation, and technical posture"
-                  actions={
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-medium text-brand-400">
-                        {competitorsList.length + 1} entities monitored
-                      </span>
-                    </div>
-                  }
-                >
-                  <div className="p-0">
-                    <Table minWidth={900}>
-                      <thead>
-                        <tr>
-                          <Th>Entity</Th>
-                          <Th>Domain</Th>
-                          <Th align="right">Google Reputation</Th>
-                          <Th align="right">AI Citation Share</Th>
-                          <Th align="right">Tech Health</Th>
-                          <Th align="right">Action</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Your Business (Customer) */}
-                        <Tr className="bg-brand-50/50 font-medium border-l-2 border-l-brand-950">
-                          <Td>
-                            <div className="flex items-center gap-2.5">
-                              <EntityAvatar name={clientRow?.name || "Your Business"} isYou />
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="rounded bg-brand-950 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-                                    You
-                                  </span>
-                                  <span className="font-bold text-brand-950">{clientRow?.name || "Your Business"}</span>
-                                </div>
-                                <span className="text-[11px] text-brand-400">Primary Workspace Site</span>
-                              </div>
-                            </div>
-                          </Td>
-                          <Td>
-                            <a
-                              href={clientRow?.domain ? `https://${clientRow.domain}` : "#"}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group inline-flex items-center gap-1 font-mono text-[12px] text-brand-700 hover:text-brand-950 hover:underline"
-                            >
-                              <span>{clientRow?.domain || "—"}</span>
-                              <ExternalLink size={10} className="shrink-0 text-brand-400 group-hover:text-brand-600" />
-                            </a>
-                          </Td>
-                          <Td align="right">
-                            <StarRatingDisplay
-                              rating={cohortStats.customerRating}
-                              reviews={cohortStats.customerReviews}
-                            />
-                          </Td>
-                          <Td align="right">
-                            <div className="flex flex-col items-end gap-1 min-w-[70px]">
-                              <span className="font-mono text-[12px] font-bold text-brand-950">
-                                {cohortStats.customerShare != null ? `${cohortStats.customerShare}%` : "—"}
-                              </span>
-                              <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
-                                <div
-                                  className="h-full rounded-full bg-brand-950"
-                                  style={{ width: `${Math.min(100, Math.max(0, cohortStats.customerShare || 0))}%` }}
-                                />
-                              </div>
-                            </div>
-                          </Td>
-                          <Td align="right">
-                            <HealthScoreBar score={cohortStats.customerHealth} />
-                          </Td>
-                          <Td align="right">
-                            <span className="inline-flex items-center rounded-md bg-brand-100 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
-                              Current Site
-                            </span>
-                          </Td>
-                        </Tr>
-
-                        {/* Tracked Competitors */}
-                        {competitorsList.length === 0 ? (
-                          <Tr>
-                            <Td colSpan={6} className="py-8 text-center">
-                              <div className="flex flex-col items-center justify-center space-y-2">
-                                <Building2 size={24} className="text-brand-300" />
-                                <p className="text-[12px] font-medium text-brand-600">No tracked rivals found yet.</p>
-                                <p className="text-[11px] text-brand-400">
-                                  Add rival domains to unlock head-to-head benchmarking and competitive gap detection.
-                                </p>
-                              </div>
-                            </Td>
-                          </Tr>
-                        ) : (
-                          competitorsList.map((comp) => {
-                            const isSelected = selectedCompetitor?.id === comp.id;
-                            return (
-                              <Tr
-                                key={comp.id}
-                                className={`transition hover:bg-brand-50/30 ${
-                                  isSelected ? "bg-brand-50/60 font-medium" : ""
-                                }`}
-                              >
-                                <Td>
-                                  <div className="flex items-center gap-2.5">
-                                    <EntityAvatar name={comp.label || comp.domain} />
-                                    <div>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-semibold text-brand-950">
-                                          {comp.label || comp.domain}
-                                        </span>
-                                      </div>
-                                      <span className="rounded bg-brand-100/60 px-1 py-0.2 text-[9.5px] font-medium uppercase tracking-wider text-brand-500">
-                                        Tracked competitor
-                                      </span>
-                                    </div>
-                                  </div>
-                                </Td>
-                                <Td>
-                                  <a
-                                    href={`https://${comp.domain}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="group inline-flex items-center gap-1 font-mono text-[12px] text-brand-600 hover:text-brand-950 hover:underline"
-                                  >
-                                    <span>{comp.domain}</span>
-                                    <ExternalLink size={10} className="shrink-0 text-brand-400 group-hover:text-brand-600" />
-                                  </a>
-                                </Td>
-                                <Td align="right">
-                                  <StarRatingDisplay
-                                    rating={comp.rating}
-                                    reviews={comp.reviewCount}
-                                  />
-                                </Td>
-                                <Td align="right">
-                                  {comp.aiCitationSharePct != null ? (
-                                    <div className="flex flex-col items-end gap-1 min-w-[70px]">
-                                      <span className="font-mono text-[12px] text-brand-700">
-                                        {comp.aiCitationSharePct}%
-                                      </span>
-                                      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-brand-100">
-                                        <div
-                                          className="h-full rounded-full bg-brand-400"
-                                          style={{ width: `${Math.min(100, Math.max(0, comp.aiCitationSharePct))}%` }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="font-mono text-[11.5px] text-brand-400">—</span>
-                                  )}
-                                </Td>
-                                <Td align="right">
-                                  <HealthScoreBar score={comp.healthScore} />
-                                </Td>
-                                <Td align="right">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    <button
-                                      onClick={() => {
-                                        setSelectedCompetitorId(comp.id);
-                                        setCompareMode("spotlight");
-                                        window.scrollTo({ top: 120, behavior: "smooth" });
-                                      }}
-                                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition shadow-2xs"
-                                    >
-                                      Compare 1-on-1
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setCompetitorToDelete({
-                                          id: comp.id,
-                                          name: comp.label || comp.domain,
-                                        })
-                                      }
-                                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200 bg-white text-brand-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition shadow-2xs"
-                                      title={`Delete ${comp.label || comp.domain}`}
-                                      aria-label={`Delete ${comp.label || comp.domain}`}
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                </Td>
-                              </Tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </Table>
-                  </div>
-                </Panel>
-              )}
-            </div>
-          )}
-
-          {/* Downside Split Version: Page-to-Page Crawl Telemetry & Comparison */}
-          {selectedCompetitor && (
-            <SplitCrawlInspector
-              projectId={projectId!}
-              customerDomain={clientRow?.domain || "our site"}
-              competitor={selectedCompetitor}
-              allCompetitors={competitorsList}
-              onSelectCompetitor={(id) => setSelectedCompetitorId(id)}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Tab 3: Competitor Content & Website Opportunities */}
-      {(activeTab === "opportunities" || activeTab === "website") && (
-        <CompetitorOpportunitiesPanel projectId={projectId!} competitors={competitorsList} />
-      )}
-
-      {/* Tab 4: Competitor Keywords & Placement Blueprints */}
-      {activeTab === "keywords" && (
-        <CompetitorKeywordsPanel
-          projectId={projectId!}
-          customerDomain={clientRow?.domain || "our site"}
-          competitors={competitorsList}
-        />
       )}
     </div>
   );

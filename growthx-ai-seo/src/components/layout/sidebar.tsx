@@ -75,6 +75,16 @@ export function Sidebar({
       href: "/competitor-intelligence",
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
+      children: [
+        { label: "Overview", href: "/competitor-intelligence?tab=overview", id: "overview" },
+        { label: "Competitors", href: "/competitor-intelligence?tab=competitors", id: "competitors" },
+        { label: "Keyword Gaps", href: "/competitor-intelligence?tab=keywords", id: "keywords" },
+        { label: "Content Gaps", href: "/competitor-intelligence?tab=content", id: "content" },
+        { label: "Technical Gaps", href: "/competitor-intelligence?tab=technical", id: "technical" },
+        { label: "AI Visibility", href: "/competitor-intelligence?tab=ai-visibility", id: "ai-visibility" },
+        { label: "Opportunities", href: "/competitor-intelligence?tab=opportunities", id: "opportunities" },
+        { label: "Reports", href: "/competitor-intelligence?tab=reports", id: "reports" },
+      ],
     },
     {
       label: "AI Visibility",
@@ -333,6 +343,8 @@ function NavLink({
     (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
 
   const isGbpActive = item.href === "/google-business-profile" && (active || pathname.startsWith("/google-business-profile"));
+  const isCompetitorActive = item.href === "/competitor-intelligence" && (active || pathname.startsWith("/competitor-intelligence"));
+  const showChildren = (isGbpActive || isCompetitorActive) && Boolean(item.children);
 
   return (
     <div className="space-y-0.5">
@@ -368,16 +380,25 @@ function NavLink({
         </div>
       </Link>
 
-      {/* Sub-items for Google Business Profile */}
-      {isGbpActive && item.children && (
+      {/* Sub-items for navigation children */}
+      {showChildren && (
         <div className="ml-5 pl-2 border-l border-brand-200 space-y-0.5 py-1">
-          {item.children.map((sub) => {
+          {item.children?.map((sub) => {
+            const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+            const isSubActive = sub.href.includes("?")
+              ? currentSearch.includes(sub.href.split("?")[1])
+              : pathname === sub.href;
             return (
               <Link
                 key={sub.id}
                 href={sub.href}
                 onClick={onNavigate}
-                className="block py-1 px-2 text-[11.5px] text-brand-600 hover:text-brand-950 rounded hover:bg-brand-100/60 transition truncate font-medium"
+                className={cn(
+                  "block py-1 px-2 text-[11.5px] rounded transition truncate",
+                  isSubActive
+                    ? "bg-purple-50 text-purple-700 font-bold"
+                    : "text-brand-600 hover:text-brand-950 font-medium hover:bg-brand-100/60"
+                )}
               >
                 {sub.label}
               </Link>
