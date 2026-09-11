@@ -1789,6 +1789,69 @@ export interface GenerateBlueprintBody {
   weaknessType?: string;
 }
 
+export interface LinkMeshScoreboard {
+  totalUrls: number;
+  totalInternalLinks: number;
+  orphanPagesCount: number;
+  starvedPagesCount: number;
+  pillarHubsCount: number;
+  averagePageRank: number;
+}
+
+export interface LinkMeshNode {
+  id: string;
+  url: string;
+  title: string;
+  pageType: string;
+  inboundCount: number;
+  outboundCount: number;
+  pageRankScore: number;
+  equityTier: "PILLAR_HUB" | "HEALTHY" | "STARVED" | "ORPHAN";
+  isOrphan: boolean;
+}
+
+export interface LinkSculptingOpportunity {
+  id: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  sourcePageRank: number;
+  targetUrl: string;
+  targetTitle: string;
+  targetPageRank: number;
+  targetIsOrphan: boolean;
+  recommendedAnchorText: string;
+  sentenceContext: string;
+  equityTransferEstimate: number;
+  rationale: string;
+  codeDiff: {
+    before: string;
+    after: string;
+  };
+}
+
+export interface InternalLinkingMeshResponse {
+  domain: string;
+  scoreboard: LinkMeshScoreboard;
+  nodes: LinkMeshNode[];
+  orphans: LinkMeshNode[];
+  sculptingOpportunities: LinkSculptingOpportunity[];
+}
+
+export interface GenerateLinkPatchBody {
+  sourceUrl: string;
+  targetUrl: string;
+  recommendedAnchorText?: string;
+}
+
+export interface LinkSculptingPatch {
+  id: string;
+  sourceUrl: string;
+  targetUrl: string;
+  recommendedAnchorText: string;
+  deliverableHtml: string;
+  rationale: string;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2398,6 +2461,10 @@ export const api = {
     post<ImageSeoResult>(`/api/projects/${projectId}/seo-tools/images/analyze`, { url }),
   suggestInternalLinks: async (projectId: string, url: string) => 
     post<InternalLinkSuggestions>(`/api/projects/${projectId}/seo-tools/internal-links/suggest`, { url }),
+  getInternalLinkingMesh: async (projectId: string) =>
+    get<InternalLinkingMeshResponse>(`/api/projects/${projectId}/seo-tools/internal-links/mesh`),
+  generateLinkSculptingPatch: async (projectId: string, body: GenerateLinkPatchBody) =>
+    post<LinkSculptingPatch>(`/api/projects/${projectId}/seo-tools/internal-links/sculpt`, body),
   getSeoGapMatrix: async (projectId: string) =>
     get<SeoGapMatrix>(`/api/projects/${projectId}/seo-tools/competitor-matrix`),
   generateSeoGapInsights: async (projectId: string) =>

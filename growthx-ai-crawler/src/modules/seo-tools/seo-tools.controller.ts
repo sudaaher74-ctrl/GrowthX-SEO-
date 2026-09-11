@@ -53,6 +53,27 @@ export class SeoToolsController {
     return this.internalLinking.suggestInternalLinks(body.url, projectId, req.organizationId);
   }
 
+  @Get('internal-links/mesh')
+  async getInternalLinkingMesh(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.internalLinking.getInternalLinkingMesh(projectId, req.organizationId || req.user?.organizationId);
+  }
+
+  @Post('internal-links/sculpt')
+  async generateLinkSculptingPatch(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { sourceUrl: string; targetUrl: string; recommendedAnchorText?: string },
+  ) {
+    return this.internalLinking.generateLinkSculptingPatch(
+      projectId,
+      req.organizationId || req.user?.organizationId,
+      body,
+    );
+  }
+
   @Get('competitor-matrix')
   async getCompetitorMatrix(@Param('projectId') projectId: string) {
     return this.seoCompetitors.getSeoGapMatrix(projectId);

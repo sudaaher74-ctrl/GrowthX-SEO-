@@ -16,6 +16,9 @@ import {
   type InterceptAnalysisResponse,
   type InterceptBlueprint,
   type GenerateBlueprintBody,
+  type InternalLinkingMeshResponse,
+  type GenerateLinkPatchBody,
+  type LinkSculptingPatch,
 } from "@/lib/api-client";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
@@ -887,6 +890,41 @@ export function useGenerateCounterAttackBlueprint(projectId?: string | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["competitor-intercepts", projectId] });
+    },
+  });
+}
+
+export function useInternalLinkingMesh(projectId?: string | null) {
+  return useQuery<InternalLinkingMeshResponse>({
+    queryKey: ["internal-linking-mesh", projectId],
+    queryFn: () => (projectId ? api.getInternalLinkingMesh(projectId) : Promise.resolve({
+      domain: "aivaenterprises.com",
+      scoreboard: {
+        totalUrls: 0,
+        totalInternalLinks: 0,
+        orphanPagesCount: 0,
+        starvedPagesCount: 0,
+        pillarHubsCount: 0,
+        averagePageRank: 0,
+      },
+      nodes: [],
+      orphans: [],
+      sculptingOpportunities: [],
+    })),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useGenerateLinkSculptingPatch(projectId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation<LinkSculptingPatch, Error, GenerateLinkPatchBody>({
+    mutationFn: (body) => {
+      if (!projectId) throw new Error("projectId required to generate link sculpting patch");
+      return api.generateLinkSculptingPatch(projectId, body);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["internal-linking-mesh", projectId] });
     },
   });
 }
