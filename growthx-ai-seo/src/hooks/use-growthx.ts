@@ -1,7 +1,22 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody, type SprintExecutionResult, type VerificationCertificate, type GeoSimulationResult, type SimulateGeoBody } from "@/lib/api-client";
+import {
+  api,
+  ApiError,
+  auth,
+  askResearchStream,
+  type ResearchProgressEvent,
+  type Role,
+  type AddCreatorBody,
+  type SprintExecutionResult,
+  type VerificationCertificate,
+  type GeoSimulationResult,
+  type SimulateGeoBody,
+  type InterceptAnalysisResponse,
+  type InterceptBlueprint,
+  type GenerateBlueprintBody,
+} from "@/lib/api-client";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
@@ -839,6 +854,39 @@ export function useSimulateGeo(projectId?: string | null) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["visibility-report"] });
       qc.invalidateQueries({ queryKey: ["tracked-prompts"] });
+    },
+  });
+}
+
+export function useCompetitorIntercepts(projectId?: string | null, competitorId?: string) {
+  return useQuery<InterceptAnalysisResponse>({
+    queryKey: ["competitor-intercepts", projectId, competitorId],
+    queryFn: () => (projectId ? api.getCompetitorIntercepts(projectId, competitorId) : Promise.resolve({
+      scoreboard: {
+        totalPoachable: 0,
+        primeTargetsCount: 0,
+        estimatedTrafficOpportunity: 0,
+        averageVulnerabilityScore: 0,
+        topDefectArea: "None",
+      },
+      opportunities: [],
+    })),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useGenerateCounterAttackBlueprint(projectId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation<InterceptBlueprint, Error, GenerateBlueprintBody>({
+    mutationFn: (body) => {
+      if (!projectId) {
+        throw new Error("projectId required to generate blueprint");
+      }
+      return api.generateCounterAttackBlueprint(projectId, body);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["competitor-intercepts", projectId] });
     },
   });
 }

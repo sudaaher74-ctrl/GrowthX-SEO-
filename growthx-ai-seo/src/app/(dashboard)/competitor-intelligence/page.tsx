@@ -35,6 +35,7 @@ import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { CompetitorOverviewTab } from "@/components/competitor/competitor-overview-tab";
 import { CompetitorKeywordGapsTab } from "@/components/competitor/competitor-keyword-gaps-tab";
 import { CompetitorContentGapsTab } from "@/components/competitor/competitor-content-gaps-tab";
+import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
 import {
   CompetitorsDiscoveryTab,
   CompetitorTechnicalGapsTab,
@@ -45,6 +46,7 @@ import {
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "intercept", label: "Poaching & Intercept" },
   { id: "competitors", label: "Competitors" },
   { id: "keywords", label: "Keyword Gaps" },
   { id: "content", label: "Content Gaps" },
@@ -416,7 +418,17 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {/* ── TAB 2: COMPETITORS DIRECTORY ── */}
+      {/* ── TAB 2: POACHING & INTERCEPT ── */}
+      {activeTab === "intercept" && (
+        <CompetitorInterceptEngine
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
+          onAddToFixPlan={handleAddToFixPlan}
+        />
+      )}
+
+      {/* ── TAB 3: COMPETITORS DIRECTORY ── */}
       {activeTab === "competitors" && (
         <CompetitorsDiscoveryTab
           projectId={projectId || ""}

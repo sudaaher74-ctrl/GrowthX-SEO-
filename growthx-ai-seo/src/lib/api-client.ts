@@ -1731,6 +1731,64 @@ export interface SimulateGeoBody {
   location?: string;
 }
 
+export interface InterceptDefect {
+  type: "NO_SCHEMA" | "SLOW_CWV" | "THIN_CONTENT" | "WEAK_TITLE" | "NO_DIRECT_ANSWER";
+  label: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM";
+  description: string;
+  points: number;
+}
+
+export interface InterceptBlueprint {
+  id: string;
+  keyword: string;
+  targetH1: string;
+  targetSlug: string;
+  targetWordCount: number;
+  estimatedTimeToDisplaceDays: number;
+  attackThesis: string;
+  semanticHeadings: Array<{ level: "H2" | "H3"; title: string; intentSummary: string }>;
+  jsonLdSchema: string;
+  keyDifferentiators: string[];
+  deliverableCode: string;
+}
+
+export interface InterceptOpportunity {
+  id: string;
+  keyword: string;
+  intent: "COMMERCIAL" | "INFORMATIONAL" | "TRANSACTIONAL";
+  searchVolume: number;
+  competitorDomain: string;
+  competitorName: string;
+  competitorUrl: string;
+  competitorRank: number;
+  customerRank: number | null;
+  vulnerabilityScore: number;
+  vulnerabilityTier: "PRIME_TARGET" | "MODERATE" | "DEFENDED";
+  defects: InterceptDefect[];
+  blueprint: InterceptBlueprint;
+}
+
+export interface InterceptScoreboard {
+  totalPoachable: number;
+  primeTargetsCount: number;
+  estimatedTrafficOpportunity: number;
+  averageVulnerabilityScore: number;
+  topDefectArea: string;
+}
+
+export interface InterceptAnalysisResponse {
+  scoreboard: InterceptScoreboard;
+  opportunities: InterceptOpportunity[];
+}
+
+export interface GenerateBlueprintBody {
+  keyword: string;
+  competitorDomain: string;
+  competitorUrl?: string;
+  weaknessType?: string;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2867,6 +2925,14 @@ export const api = {
 
   simulateGeo: (projectId: string, body: SimulateGeoBody) =>
     post<GeoSimulationResult>(`/api/projects/${projectId}/ai-visibility/simulate`, body),
+
+  getCompetitorIntercepts: (projectId: string, competitorId?: string) =>
+    get<InterceptAnalysisResponse>(
+      `/api/projects/${projectId}/action-engine/intercepts${competitorId ? `?competitorId=${encodeURIComponent(competitorId)}` : ""}`,
+    ),
+
+  generateCounterAttackBlueprint: (projectId: string, body: GenerateBlueprintBody) =>
+    post<InterceptBlueprint>(`/api/projects/${projectId}/action-engine/intercepts/generate-blueprint`, body),
 
   gscProperties: (projectId: string) =>
     get<{

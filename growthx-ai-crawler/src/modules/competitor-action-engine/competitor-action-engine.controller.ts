@@ -8,10 +8,27 @@ import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
 import { WebsiteComparisonService } from './website-comparison.service';
 import { CompetitorSeoReportService } from './competitor-seo-report.service';
+import { CompetitorInterceptService } from './competitor-intercept.service';
 
 export class UpdateActionDto {
   @IsEnum(ActionStatus)
   status: ActionStatus;
+}
+
+export class GenerateBlueprintDto {
+  @IsString()
+  keyword: string;
+
+  @IsString()
+  competitorDomain: string;
+
+  @IsString()
+  @IsOptional()
+  competitorUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  weaknessType?: string;
 }
 
 export class CompetitorDto {
@@ -93,6 +110,7 @@ export class CompetitorActionEngineController {
     private readonly setup: CompetitorSetupService,
     private readonly comparison: WebsiteComparisonService,
     private readonly seoReport: CompetitorSeoReportService,
+    private readonly interceptService: CompetitorInterceptService,
   ) {}
 
   @Get('website-comparison')
@@ -265,5 +283,23 @@ export class CompetitorActionEngineController {
       body.sprintWeek ?? 1,
       body.actionIds,
     );
+  }
+
+  @Get('intercepts')
+  @ApiOperation({ summary: 'List competitor intercept and keyword poaching opportunities' })
+  getIntercepts(
+    @Param('projectId') projectId: string,
+    @Query('competitorId') competitorId?: string,
+  ) {
+    return this.interceptService.getInterceptOpportunities(projectId, { competitorId });
+  }
+
+  @Post('intercepts/generate-blueprint')
+  @ApiOperation({ summary: 'Generate a targeted counter-attack content blueprint for any keyword' })
+  generateBlueprint(
+    @Param('projectId') projectId: string,
+    @Body() body: GenerateBlueprintDto,
+  ) {
+    return this.interceptService.generateBlueprint(projectId, body);
   }
 }

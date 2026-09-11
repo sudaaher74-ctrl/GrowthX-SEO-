@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search,
@@ -24,6 +25,7 @@ import {
   Info,
   Loader2,
   Globe,
+  Swords,
 } from "lucide-react";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
@@ -847,13 +849,23 @@ export function CompetitorKeywordGapsTab({
                         </span>
                       </td>
                       <td className="p-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => onAddToFixPlan?.(1, `Target Keyword: ${item.keyword}`)}
-                          className="px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-[11px] font-bold transition-colors"
-                        >
-                          Stage
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Link
+                            href={`/competitor-intelligence?tab=intercept`}
+                            className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 text-[11px] font-bold transition-colors inline-flex items-center gap-1 shadow-2xs"
+                            title="Poach keyword via Counter-Attack Blueprint"
+                          >
+                            <Swords size={11} />
+                            <span>Poach</span>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => onAddToFixPlan?.(1, `Target Keyword: ${item.keyword}`)}
+                            className="px-2 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-semibold transition-colors"
+                          >
+                            Stage
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
