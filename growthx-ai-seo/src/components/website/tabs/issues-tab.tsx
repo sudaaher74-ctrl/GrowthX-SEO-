@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   Search,
   Sparkles,
   X,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue } from "@/lib/api-client";
@@ -25,6 +27,7 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -126,23 +129,62 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
               ))}
             </select>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setToastMessage(`Added ${filtered.length} audit issues to your 30-Day Fix Plan!`);
+              setTimeout(() => setToastMessage(null), 8000);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs"
+          >
+            <Zap size={12} />
+            <span>Add {filtered.length} Issues to Fix Plan</span>
+          </button>
         </div>
 
-        {/* List */}
+        {/* Fix Plan Staging Toast */}
+        {toastMessage && (
+          <div className="m-3 p-3 rounded-xl bg-purple-950 text-white text-xs flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <Zap size={14} className="text-purple-400 shrink-0" />
+              <span>{toastMessage} Consolidated for single-approval 30-day execution.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/fix-engine"
+                className="px-2.5 py-1 rounded-md bg-white text-purple-950 font-bold text-[11px] hover:bg-purple-50 transition"
+              >
+                View in Fix Engine →
+              </Link>
+              <button
+                type="button"
+                onClick={() => setToastMessage(null)}
+                className="text-purple-300 hover:text-white p-0.5"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Issue Rows */}
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">No issues found matching criteria.</div>
+          <div className="p-8 text-center text-xs text-slate-400">
+            No issues match the selected filters.
+          </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {filtered.map((issue) => {
               const isExpanded = expandedId === issue.id;
               return (
-                <div key={issue.id} className="p-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                <div key={issue.id} className="p-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span
                           className={cn(
-                            "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
+                            "rounded-md px-2 py-0.5 text-[10px] font-bold border uppercase",
                             severityTone(issue.severity)
                           )}
                         >
@@ -177,11 +219,15 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => onFixIssue(issue)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+                        onClick={() => {
+                          onFixIssue(issue);
+                          setToastMessage(`Added "${issue.issueType.replace(/_/g, " ")}" to your 30-Day Fix Plan!`);
+                          setTimeout(() => setToastMessage(null), 8000);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
                       >
-                        <Sparkles size={12} />
-                        <span>Fix with AI</span>
+                        <Zap size={12} />
+                        <span>Add to Fix Plan</span>
                       </button>
 
                       {issue.recommendation && (

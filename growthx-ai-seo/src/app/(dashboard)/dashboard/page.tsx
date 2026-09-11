@@ -105,14 +105,14 @@ export default function UnifiedDashboardPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Link href="/projects">
-              <ActionButton variant="secondary" icon={<Plus size={12} />}>
-                Add Business
+            <Link href="/fix-engine">
+              <ActionButton variant="primary" icon={<Zap size={12} className="fill-white" />}>
+                View Current Fix Plan
               </ActionButton>
             </Link>
             <ActionButton
-              variant="primary"
-              icon={startCrawlMutation.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
+              variant="secondary"
+              icon={startCrawlMutation.isPending ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               disabled={startCrawlMutation.isPending || !client?.domain}
               onClick={() => {
                 if (client?.domain) {

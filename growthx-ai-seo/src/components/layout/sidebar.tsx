@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -55,7 +55,7 @@ export function Sidebar({
     { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
   ];
 
-  // Core Navigation Tabs
+  // Core Navigation Tabs strictly following Master Product Specification Section 26
   const mainNav: NavItem[] = [
     {
       label: "Dashboard",
@@ -71,6 +71,20 @@ export function Sidebar({
       tagTone: "danger",
     },
     {
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Sparkles,
+      aliases: ["/geo-tracking", "/search"],
+      children: [
+        { label: "Overview", href: "/ai-visibility?tab=overview", id: "overview" },
+        { label: "AI Insights", href: "/ai-visibility?tab=insights", id: "insights" },
+        { label: "Citations", href: "/ai-visibility?tab=citations", id: "citations" },
+        { label: "Competitors", href: "/ai-visibility?tab=competitors", id: "competitors" },
+        { label: "Content Gaps", href: "/ai-visibility?tab=gaps", id: "gaps" },
+        { label: "Recommendations", href: "/ai-visibility?tab=recommendations", id: "recommendations" },
+      ],
+    },
+    {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
@@ -81,30 +95,31 @@ export function Sidebar({
         { label: "Keyword Gaps", href: "/competitor-intelligence?tab=keywords", id: "keywords" },
         { label: "Content Gaps", href: "/competitor-intelligence?tab=content", id: "content" },
         { label: "Technical Gaps", href: "/competitor-intelligence?tab=technical", id: "technical" },
+        { label: "Authority Gaps", href: "/competitor-intelligence?tab=technical", id: "authority" },
         { label: "AI Visibility", href: "/competitor-intelligence?tab=ai-visibility", id: "ai-visibility" },
         { label: "Opportunities", href: "/competitor-intelligence?tab=opportunities", id: "opportunities" },
-        { label: "Reports", href: "/competitor-intelligence?tab=reports", id: "reports" },
       ],
-    },
-    {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Sparkles,
-      aliases: ["/geo-tracking", "/search"],
     },
     {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
-      tag: "Beta",
+      tag: "Auto",
+      tagTone: "success",
       aliases: ["/engineer", "/action-engine"],
+      children: [
+        { label: "Current Plan", href: "/fix-engine?tab=overview", id: "overview" },
+        { label: "Implementation", href: "/fix-engine?tab=implementation", id: "implementation" },
+        { label: "Verification", href: "/fix-engine?tab=verification", id: "verification" },
+        { label: "History & Cycles", href: "/fix-engine?tab=history", id: "history" },
+      ],
     },
     {
       label: "Google Business Profile",
       href: "/google-business-profile",
       icon: Store,
-      tag: "New",
-      tagTone: "success",
+      tag: "Local",
+      tagTone: "default",
       children: [
         { label: "Overview", href: "/google-business-profile?tab=overview", id: "overview" },
         { label: "Profile Audit", href: "/google-business-profile?tab=audit", id: "audit" },
@@ -118,6 +133,11 @@ export function Sidebar({
         { label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", id: "ai-recommendations" },
         { label: "Action Plan", href: "/google-business-profile?tab=action-plan", id: "action-plan" },
       ],
+    },
+    {
+      label: "Reports",
+      href: "/reports",
+      icon: FileBarChart,
     },
   ];
 
@@ -342,9 +362,7 @@ function NavLink({
     pathname.startsWith(`${item.href}/`) ||
     (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
 
-  const isGbpActive = item.href === "/google-business-profile" && (active || pathname.startsWith("/google-business-profile"));
-  const isCompetitorActive = item.href === "/competitor-intelligence" && (active || pathname.startsWith("/competitor-intelligence"));
-  const showChildren = (isGbpActive || isCompetitorActive) && Boolean(item.children);
+  const showChildren = (active || pathname.startsWith(item.href)) && Boolean(item.children);
 
   return (
     <div className="space-y-0.5">

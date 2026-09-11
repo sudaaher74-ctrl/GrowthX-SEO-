@@ -276,11 +276,19 @@ function WebsiteAuditClient() {
                 type="button"
                 onClick={handleReCrawl}
                 disabled={crawling || !client?.domain}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 disabled:opacity-50 transition-colors dark:bg-blue-600 dark:hover:bg-blue-700"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 disabled:opacity-50 transition-colors dark:bg-slate-800 dark:hover:bg-slate-700"
               >
                 <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
                 <span>{crawling ? "Crawling…" : activeTab === "performance" ? "Re-run Audit" : "Re-crawl Website"}</span>
               </button>
+
+              <Link
+                href="/fix-engine"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-purple-700 transition-colors"
+              >
+                <Zap size={13} />
+                <span>View in Fix Plan →</span>
+              </Link>
             </div>
           </div>
         </div>

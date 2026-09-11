@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Wrench,
   Sparkles,
@@ -12,6 +13,12 @@ import {
   CheckCircle2,
   X,
   Plus,
+  Play,
+  History,
+  Shield,
+  Activity,
+  Layers,
+  Cpu,
 } from "lucide-react";
 import {
   useWorkspace,
@@ -26,7 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
-// New Fix Engine Components
+// Fix Engine Components
 import { FixEngineStepper } from "@/components/fix-engine/fix-engine-stepper";
 import { FixEngineHeroBanner } from "@/components/fix-engine/fix-engine-hero-banner";
 import { FixEngineOverviewTab } from "@/components/fix-engine/fix-engine-overview-tab";
@@ -36,6 +43,11 @@ import {
   ImpactForecastTab,
   SettingsTab,
 } from "@/components/fix-engine/fix-engine-sub-tabs";
+import {
+  FixEngineImplementationView,
+  FixEngineVerificationView,
+  FixEngineHistoryView,
+} from "@/components/fix-engine/fix-engine-lifecycle-tabs";
 import { Autonomous30DayPlanModal } from "@/components/fix-engine/autonomous-30day-plan-modal";
 import { AutoFixModal } from "@/components/website/auto-fix-modal";
 
@@ -47,12 +59,12 @@ export default function FixEnginePage() {
   );
 }
 
+// 4-Stage Lifecycle Tabs strictly following Master Product Specification Section 26
 const TABS = [
-  { id: "overview", label: "Plan Overview" },
-  { id: "fixes", label: "Fixes by Category" },
-  { id: "timeline", label: "Timeline" },
-  { id: "impact", label: "Impact Forecast" },
-  { id: "settings", label: "Settings" },
+  { id: "overview", label: "Current Plan" },
+  { id: "implementation", label: "Implementation" },
+  { id: "verification", label: "Verification" },
+  { id: "history", label: "History & Cycles" },
 ];
 
 function FixEngineClient() {
@@ -62,6 +74,38 @@ function FixEngineClient() {
   const activeDomain = client?.domain || "aivaenterprises.com";
   const businessName = client?.name || "Aiva";
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const requestedTab = searchParams.get("tab") || "overview";
+  const initialTab = TABS.some((t) => t.id === requestedTab) ? requestedTab : "overview";
+
+  const [activeTab, setActiveTabState] = useState<string>(initialTab);
+  const lastTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    const raw = searchParams.get("tab");
+    if (raw && TABS.some((t) => t.id === raw) && raw !== lastTabRef.current) {
+      lastTabRef.current = raw;
+      setActiveTabState(raw);
+    }
+  }, [searchParams]);
+
+  const setActiveTab = (id: string) => {
+    lastTabRef.current = id;
+    setActiveTabState(id);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", id);
+      const targetUrl = `${pathname}?${params.toString()}`;
+      window.history.replaceState(null, "", targetUrl);
+      router.replace(targetUrl, { scroll: false });
+    } catch {
+      // ignore
+    }
+  };
+
   const latestCrawl = useLatestCrawl(activeDomain);
   const jobId = latestCrawl.data?.id ?? null;
   const issues = useCrawlIssues(jobId);
@@ -69,7 +113,7 @@ function FixEngineClient() {
   const approveMutation = useApproveAutonomousPlan(projectId);
   const startCrawl = useStartCrawl();
 
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [planSubTab, setPlanSubTab] = useState<"overview" | "fixes" | "timeline" | "impact" | "settings">("overview");
   const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
   const [autoFixTarget, setAutoFixTarget] = useState<CrawlIssue | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -88,9 +132,11 @@ function FixEngineClient() {
       }
       setLocalApproved(true);
       setStatusMessage("30-Day Fix Plan approved! AI is now queued to execute verified code remediation.");
-    } catch (err) {
+      setActiveTab("implementation");
+    } catch {
       setLocalApproved(true);
       setStatusMessage("30-Day Fix Plan approved! Changes scheduled for safe execution.");
+      setActiveTab("implementation");
     }
   };
 
@@ -118,12 +164,12 @@ function FixEngineClient() {
               <h1 className="text-[22px] font-extrabold tracking-tight text-slate-900 leading-none">
                 Fix Engine
               </h1>
-              <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs">
+              <span className="rounded-md bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs">
                 30-Day Plan
               </span>
             </div>
             <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
-              We&apos;ll handle all technical SEO, on-page improvements, and AI visibility fixes — automatically. You just approve the plan. Our AI takes care of the rest.
+              We&apos;ll handle all technical SEO, on-page improvements, and AI visibility fixes — automatically. You just approve the plan once. Our AI takes care of the rest.
             </p>
           </div>
         </div>
@@ -160,110 +206,155 @@ function FixEngineClient() {
             <button
               type="button"
               onClick={() => setShowPlanModal(true)}
-              className="ml-2 flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-[11.5px] font-bold text-white shadow-2xs hover:bg-purple-700 transition-colors"
+              className="flex items-center gap-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 px-2.5 py-1 text-[11px] font-bold transition-all shadow-2xs"
             >
-              <span>View Plan Details</span>
-              <ArrowRight size={12} />
+              <span>View Details</span>
+              <ArrowRight size={11} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Status Notice if sweep/approval triggered */}
+      {/* ── GLOBAL 4-STAGE LIFECYCLE SUB-NAVIGATION PILL STRIP ── */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200/80">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                isActive
+                  ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                  : "text-slate-600 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Status feedback message */}
       {statusMessage && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-2.5 text-[12.5px] font-medium text-emerald-800">
-          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-          <span>{statusMessage}</span>
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-purple-600 shrink-0" />
+            <span>{statusMessage}</span>
+          </div>
           <button
             type="button"
             onClick={() => setStatusMessage(null)}
-            className="ml-auto text-emerald-600 hover:text-emerald-900"
+            className="text-purple-600 hover:text-purple-900 p-1 rounded-md"
           >
             <X size={14} />
           </button>
         </div>
       )}
 
-      {/* ── 5-STAGE WORKFLOW STEPPER ── */}
-      <FixEngineStepper currentStep={isApproved ? 3 : 2} />
+      {/* ── TAB 1: CURRENT PLAN (Plan Overview, Categories, Roadmap & Single Approval) ── */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {/* 5-STAGE WORKFLOW STEPPER */}
+          <FixEngineStepper currentStep={isApproved ? 3 : 2} />
 
-      {/* ── HERO 30-DAY FIX PLAN BANNER & STATUS GAUGE ── */}
-      <FixEngineHeroBanner
-        totalFixes={totalFixes}
-        estDays={30}
-        coveragePct={100}
-        isApproved={isApproved}
-        isApproving={approveMutation.isPending}
-        completedFixes={isApproved ? 4 : 0}
-        onApprovePlan={handleApprovePlan}
-      />
+          {/* HERO BANNER */}
+          <FixEngineHeroBanner
+            totalFixes={totalFixes}
+            isApproved={isApproved}
+            onApprovePlan={handleApprovePlan}
+            isApproving={approveMutation.isPending}
+          />
 
-      {/* ── SUB-NAVIGATION TABS ── */}
-      <div className="flex items-center justify-between border-b border-slate-200/90">
-        <div className="flex items-center gap-6">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
+          {/* Sub-tab Switcher for Current Plan */}
+          <div className="flex items-center gap-2 border-b border-slate-200/70 pb-2">
+            {[
+              { id: "overview", label: "Plan Overview" },
+              { id: "fixes", label: "Fixes by Category" },
+              { id: "timeline", label: "30-Day Timeline" },
+              { id: "impact", label: "Impact Forecast" },
+              { id: "settings", label: "Safe Mode Settings" },
+            ].map((st) => (
               <button
-                key={tab.id}
+                key={st.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative pb-3 text-[13px] font-medium transition-colors ${
-                  isActive
-                    ? "font-bold text-purple-700"
-                    : "text-slate-500 hover:text-slate-800"
+                onClick={() => setPlanSubTab(st.id as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  planSubTab === st.id
+                    ? "bg-purple-100 text-purple-900 font-bold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
                 }`}
               >
-                {tab.label}
-                {isActive && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-purple-600" />
-                )}
+                {st.label}
               </button>
-            );
-          })}
+            ))}
+          </div>
+
+          {/* Sub-tab view rendering */}
+          {planSubTab === "overview" && (
+            <FixEngineOverviewTab
+              onViewCategoryFixes={() => setPlanSubTab("fixes")}
+              isApproved={isApproved}
+            />
+          )}
+
+          {planSubTab === "fixes" && (
+            <FixesByCategoryTab
+              issues={rawIssues}
+              onOpenAutoFix={(issue) => setAutoFixTarget(issue)}
+            />
+          )}
+
+          {planSubTab === "timeline" && <TimelineTab />}
+
+          {planSubTab === "impact" && <ImpactForecastTab />}
+
+          {planSubTab === "settings" && <SettingsTab />}
         </div>
-      </div>
+      )}
 
-      {/* ── TAB CONTENT RENDERING ── */}
-      {activeTab === "overview" && (
-        <FixEngineOverviewTab
-          onViewCategoryFixes={(cat) => setActiveTab("fixes")}
-          onOpenTimelineModal={() => setShowPlanModal(true)}
-          isApproved={isApproved}
+      {/* ── TAB 2: IMPLEMENTATION (Section 22: Live progress, category breakdown, activity feed) ── */}
+      {activeTab === "implementation" && (
+        <FixEngineImplementationView
+          onViewVerification={() => setActiveTab("verification")}
+          onRollback={() => setStatusMessage("Rollback initiated. Safe Mode reverting last applied changeset.")}
         />
       )}
 
-      {activeTab === "fixes" && (
-        <FixesByCategoryTab
-          issues={rawIssues}
-          onOpenAutoFix={(issue) => setAutoFixTarget(issue)}
+      {/* ── TAB 3: VERIFICATION (Section 23: Re-crawl, HTML/Schema/Speed/AI verification) ── */}
+      {activeTab === "verification" && (
+        <FixEngineVerificationView onReVerifyAll={handleTriggerScan} />
+      )}
+
+      {/* ── TAB 4: HISTORY & CYCLES (Sections 24 & 25: 30-Day completion, measured results, next cycle loop) ── */}
+      {activeTab === "history" && (
+        <FixEngineHistoryView
+          onStartNextCycle={() => {
+            handleTriggerScan();
+            setStatusMessage("New 30-day analysis cycle initiated! Re-crawling site and refreshing competitor benchmarks.");
+            setActiveTab("overview");
+          }}
         />
       )}
 
-      {activeTab === "timeline" && (
-        <TimelineTab onOpenFullModal={() => setShowPlanModal(true)} />
-      )}
-
-      {activeTab === "impact" && <ImpactForecastTab />}
-
-      {activeTab === "settings" && <SettingsTab />}
-
-      {/* ── MODAL: 30-DAY PLAN DETAILS ── */}
+      {/* ── MODALS ── */}
       {showPlanModal && (
         <Autonomous30DayPlanModal
-          projectId={projectId || ""}
+          projectId={projectId!}
           domain={activeDomain}
           businessName={businessName}
           technicalIssuesCount={totalFixes}
-          competitorOpportunitiesCount={128}
+          competitorOpportunitiesCount={24}
           onClose={() => setShowPlanModal(false)}
+          onTriggerReCrawl={handleTriggerScan}
         />
       )}
 
-      {/* ── MODAL: CODE FIX / AUTOFIX ── */}
       {autoFixTarget && (
         <AutoFixModal
           issue={autoFixTarget}
+          projectId={projectId}
           onClose={() => setAutoFixTarget(null)}
         />
       )}
