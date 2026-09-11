@@ -35,6 +35,7 @@ import { AiPipelineBanner } from "@/components/ai-visibility/ai-pipeline-banner"
 import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibility-overview-tab";
 import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
 import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
+import { GeoSimulationSandbox } from "@/components/ai-visibility/geo-simulation-sandbox";
 import {
   AiInsightsTabContent,
   CitationsTabContent,
@@ -51,6 +52,7 @@ export default function AiVisibilityPage() {
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "sandbox", label: "GEO Sandbox & Simulation" },
   { id: "insights", label: "AI Insights" },
   { id: "citations", label: "Citations" },
   { id: "competitors", label: "Competitors" },
@@ -149,7 +151,9 @@ function AiVisibilityClient() {
               AI Visibility
             </h1>
             <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
-              {activeTab === "competitors"
+              {activeTab === "sandbox"
+                ? "Simulate multi-model queries across Perplexity, ChatGPT, Gemini, and Claude in real time. Track brand share of voice and stage autonomous citation displacement patches."
+                : activeTab === "competitors"
                 ? "See how your brand compares against competitors across ChatGPT, Claude and Gemini, and find opportunities to increase your AI visibility."
                 : activeTab === "recommendations"
                 ? "Actionable recommendations to improve your brand's visibility in ChatGPT, Claude and Gemini."
@@ -160,6 +164,17 @@ function AiVisibilityClient() {
 
         {/* Action buttons on the right */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {activeTab !== "sandbox" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("sandbox")}
+              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-2 text-[12px] font-bold text-purple-700 shadow-2xs hover:bg-purple-100 transition-colors"
+            >
+              <Bot size={14} className="text-purple-600" />
+              <span>Launch GEO Sandbox</span>
+            </button>
+          )}
+
           {activeTab === "competitors" || activeTab === "recommendations" ? (
             <>
               {/* Domain dropdown button */}
@@ -310,6 +325,14 @@ function AiVisibilityClient() {
           onViewInsightsTab={() => setActiveTab("insights")}
           onViewRecommendationsTab={() => setActiveTab("recommendations")}
           onGenerateRecommendations={() => setActiveTab("recommendations")}
+        />
+      )}
+
+      {activeTab === "sandbox" && (
+        <GeoSimulationSandbox
+          projectId={projectId}
+          domain={domain}
+          businessName={businessName}
         />
       )}
 

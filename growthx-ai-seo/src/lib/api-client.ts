@@ -1691,6 +1691,46 @@ export interface VerificationCertificate {
   items: VerificationCertificateItem[];
 }
 
+export interface GeoEngineResult {
+  engine: "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE";
+  model: string;
+  cited: boolean;
+  position: number | null;
+  citedUrl: string | null;
+  sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
+  competitorsCited: string[];
+  hallucinationRisk: "LOW" | "MEDIUM" | "HIGH";
+  answerExcerpt: string;
+  latencyMs: number;
+}
+
+export interface GeoDisplacementPatch {
+  id: string;
+  targetTitle: string;
+  targetUrl: string;
+  reasoning: string;
+  displacementContent: string;
+  faqSchema: string;
+  category: string;
+  priority: "CRITICAL" | "HIGH" | "MEDIUM";
+}
+
+export interface GeoSimulationResult {
+  query: string;
+  domain: string;
+  brandName: string;
+  overallCitationRate: number;
+  overallShareOfVoice: number;
+  engines: GeoEngineResult[];
+  displacementPatch: GeoDisplacementPatch;
+}
+
+export interface SimulateGeoBody {
+  query: string;
+  engines?: Array<"PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE">;
+  location?: string;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2824,6 +2864,9 @@ export const api = {
 
   getLatestVerification: (projectId: string) =>
     get<VerificationCertificate | null>(`/api/projects/${projectId}/verification/latest`),
+
+  simulateGeo: (projectId: string, body: SimulateGeoBody) =>
+    post<GeoSimulationResult>(`/api/projects/${projectId}/ai-visibility/simulate`, body),
 
   gscProperties: (projectId: string) =>
     get<{

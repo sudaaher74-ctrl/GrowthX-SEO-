@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AiAssistant, SearchIntent } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AiVisibilityService, SUPPORTED_ASSISTANTS } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
+import { GeoSimulationService } from './geo-simulation.service';
 
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -55,6 +56,7 @@ export class AiVisibilityController {
   constructor(
     private readonly visibility: AiVisibilityService,
     private readonly aeo: AeoAnalysisService,
+    private readonly geoSimulation: GeoSimulationService,
   ) {}
 
   @Get()
@@ -218,6 +220,29 @@ export class AiVisibilityController {
     @Body() body?: { engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI'; location?: string },
   ) {
     return this.visibility.getSpecializedAiIntelligence(projectId, body?.engine, body?.location);
+  }
+
+  @Post('simulate')
+  @ApiOperation({ summary: 'Simulate search query across Perplexity, ChatGPT, Gemini, and Claude with displacement patch' })
+  @ApiParam({ name: 'projectId' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', example: 'best ai seo automation tools for ecommerce' },
+        engines: { type: 'array', items: { type: 'string', enum: ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE'] } },
+        location: { type: 'string', example: 'United States' },
+      },
+      required: ['query'],
+    },
+  })
+  async simulateQuery(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { query: string; engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE'>; location?: string },
+  ) {
+    const orgId = req.organizationId || 'default-org';
+    return this.geoSimulation.simulateQuery(orgId, projectId, body);
   }
 }
 

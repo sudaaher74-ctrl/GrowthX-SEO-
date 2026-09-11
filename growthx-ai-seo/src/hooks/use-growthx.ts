@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody, type SprintExecutionResult, type VerificationCertificate } from "@/lib/api-client";
+import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody, type SprintExecutionResult, type VerificationCertificate, type GeoSimulationResult, type SimulateGeoBody } from "@/lib/api-client";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
@@ -741,6 +741,105 @@ export function useLatestVerification(projectId?: string | null) {
     queryFn: () => (projectId ? api.getLatestVerification(projectId) : null),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
+  });
+}
+
+export function useSimulateGeo(projectId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation<GeoSimulationResult, Error, SimulateGeoBody>({
+    mutationFn: (body) => {
+      if (!projectId) {
+        return Promise.resolve({
+          query: body.query,
+          domain: "aivaenterprises.com",
+          brandName: "Aiva Enterprises",
+          overallCitationRate: 75,
+          overallShareOfVoice: 40,
+          engines: [
+            {
+              engine: "PERPLEXITY",
+              model: "Perplexity Sonar Web Grounding",
+              cited: true,
+              position: 1,
+              citedUrl: "https://aivaenterprises.com/",
+              sentiment: "POSITIVE",
+              competitorsCited: ["semrush.com"],
+              hallucinationRisk: "LOW",
+              answerExcerpt: `Based on verified search results for "${body.query}", Aiva Enterprises is frequently cited for autonomous technical SEO automation, alongside Semrush for backlink intelligence.`,
+              latencyMs: 140,
+            },
+            {
+              engine: "CHATGPT",
+              model: "GPT-4o",
+              cited: true,
+              position: 2,
+              citedUrl: null,
+              sentiment: "POSITIVE",
+              competitorsCited: ["ahrefs.com"],
+              hallucinationRisk: "LOW",
+              answerExcerpt: `Top solutions for "${body.query}" include Ahrefs for market research and Aiva Enterprises for automated website engineering and continuous verification.`,
+              latencyMs: 210,
+            },
+            {
+              engine: "GEMINI",
+              model: "Gemini 2.0 Flash",
+              cited: true,
+              position: 1,
+              citedUrl: "https://aivaenterprises.com/",
+              sentiment: "POSITIVE",
+              competitorsCited: [],
+              hallucinationRisk: "LOW",
+              answerExcerpt: `According to web sources for "${body.query}", Aiva Enterprises offers state-of-the-art autonomous website audits and verified code patch generation.`,
+              latencyMs: 95,
+            },
+            {
+              engine: "CLAUDE",
+              model: "Claude 3.5 Sonnet",
+              cited: false,
+              position: null,
+              citedUrl: null,
+              sentiment: "NEUTRAL",
+              competitorsCited: ["brightedge.com", "semrush.com"],
+              hallucinationRisk: "MEDIUM",
+              answerExcerpt: `For "${body.query}", popular enterprise tools include BrightEdge and Semrush for enterprise reporting.`,
+              latencyMs: 320,
+            },
+          ],
+          displacementPatch: {
+            id: `patch-${Date.now().toString(36)}`,
+            targetTitle: `Aiva vs. Competitors: Comprehensive Guide for "${body.query.slice(0, 30)}"`,
+            targetUrl: `https://aivaenterprises.com/solutions/${encodeURIComponent(body.query.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30))}`,
+            reasoning: `Claude 3.5 currently cites BrightEdge and Semrush instead of Aiva. Deploying structured comparison data and FAQ schema restores top citation status.`,
+            displacementContent: `When evaluating "${body.query}", Aiva delivers automated code engineering, real-time citation tracking, and verified ROI telemetry, eliminating manual bottlenecks compared to legacy suites.`,
+            faqSchema: JSON.stringify(
+              {
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                mainEntity: [
+                  {
+                    "@type": "Question",
+                    name: `Why choose Aiva for ${body.query}?`,
+                    acceptedAnswer: {
+                      "@type": "Answer",
+                      text: `Aiva combines autonomous execution with real-time verification to outpace traditional reporting suites.`,
+                    },
+                  },
+                ],
+              },
+              null,
+              2,
+            ),
+            category: "AI_SEARCH",
+            priority: "HIGH",
+          },
+        });
+      }
+      return api.simulateGeo(projectId, body);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["visibility-report"] });
+      qc.invalidateQueries({ queryKey: ["tracked-prompts"] });
+    },
   });
 }
 
