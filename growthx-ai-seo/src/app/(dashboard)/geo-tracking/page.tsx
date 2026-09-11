@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { MapPin, Sparkles, RefreshCw, Search, Crosshair, Compass, AlertTriangle, Zap, ChevronRight, Star, Plus } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MapPin, Sparkles, RefreshCw, Search, Crosshair, Compass, AlertTriangle, Zap, ChevronRight, Star, Plus, History, TrendingUp, X, CheckCircle, Database } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
-import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep } from "@/hooks/use-growthx";
+import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep, useGeoGridHistory } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
+import { stagingEngine } from "@/lib/staging-engine";
 
 interface GridNode {
   id: string;
@@ -88,6 +89,13 @@ export default function GeoTrackingPage() {
   const [showPromptAdd, setShowPromptAdd] = useState(false);
   const [sweepStatus, setSweepStatus] = useState<string | null>(null);
 
+  // Scan history drawer
+  const [showHistory, setShowHistory] = useState(false);
+  const geoHistory = useGeoGridHistory(projectId, showHistory ? keyword : undefined);
+
+  // Staging confirmations (set keyed by action item index)
+  const [stagedItems, setStagedItems] = useState<Set<number>>(new Set());
+
   // Load connected local business name if available
   const localListing = useQuery({
     queryKey: ["local-seo-listing", projectId],
@@ -157,6 +165,13 @@ export default function GeoTrackingPage() {
           <div className="flex items-center gap-2">
             <ActionButton
               variant="secondary"
+              icon={<History size={12} />}
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              Scan History
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
               icon={<RefreshCw size={12} className={runSweep.isPending ? "animate-spin" : ""} />}
               disabled={runSweep.isPending}
               onClick={async () => {
@@ -174,6 +189,116 @@ export default function GeoTrackingPage() {
           </div>
         }
       />
+
+      {/* ── Scan History Drawer ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="border-b border-brand-100 bg-white px-6 py-5"
+          >
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Database size={15} className="text-brand-500" />
+                  <h3 className="text-[13px] font-semibold text-brand-950">Geo-Grid Scan History</h3>
+                  <span className="text-[11px] text-brand-400">
+                    — AGR trend for &ldquo;{keyword}&rdquo;
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="rounded-lg border border-brand-200 p-1.5 text-brand-500 hover:bg-brand-50 transition"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+
+              {geoHistory.isLoading ? (
+                <div className="py-6 text-center text-[12px] text-brand-400">Loading scan history…</div>
+              ) : !geoHistory.data?.length ? (
+                <div className="py-6 text-center text-[12px] text-brand-400">
+                  No previous scans for this keyword. Run your first geo scan below.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="border-b border-brand-100">
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider pr-4">Date</th>
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider pr-4">Grid</th>
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider pr-4">Radius</th>
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider pr-4">AGR</th>
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider pr-4">Top 3</th>
+                        <th className="text-left pb-2 text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider">Found</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-50">
+                      {geoHistory.data.map((run) => {
+                        const agr = run.averageRank;
+                        const agrColor = agr == null ? "text-slate-400" : agr <= 3 ? "text-emerald-600" : agr <= 9 ? "text-amber-600" : "text-rose-600";
+                        return (
+                          <tr key={run.id} className="hover:bg-brand-50/60 transition">
+                            <td className="py-2.5 pr-4 text-brand-700 font-mono">
+                              {new Date(run.ranAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                            </td>
+                            <td className="py-2.5 pr-4 text-brand-600">{run.gridSize}×{run.gridSize}</td>
+                            <td className="py-2.5 pr-4 text-brand-600">{run.radiusKm} km</td>
+                            <td className={`py-2.5 pr-4 font-bold ${agrColor}`}>
+                              {agr == null ? "—" : `#${agr}`}
+                            </td>
+                            <td className="py-2.5 pr-4">
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+                                {run.top3Count}/{run.pointCount}
+                              </span>
+                            </td>
+                            <td className="py-2.5">
+                              <span className="text-brand-500">{run.foundCount} nodes</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* AGR Trend Sparkline */}
+                  {geoHistory.data.filter((r) => r.averageRank != null).length >= 2 && (
+                    <div className="mt-4 pt-4 border-t border-brand-100">
+                      <p className="text-[10.5px] font-semibold text-brand-500 uppercase tracking-wider mb-3">AGR Trend</p>
+                      <div className="flex items-end gap-1.5 h-14">
+                        {[...geoHistory.data].reverse().filter((r) => r.averageRank != null).slice(0, 12).map((run, i, arr) => {
+                          const agr = run.averageRank as number;
+                          // Lower rank = better. Invert for bar height: rank 1 = full, rank 20+ = tiny
+                          const maxBar = 20;
+                          const heightPct = Math.max(10, Math.round(((maxBar - Math.min(agr, maxBar)) / maxBar) * 100));
+                          const color = agr <= 3 ? "bg-emerald-500" : agr <= 9 ? "bg-amber-400" : "bg-rose-400";
+                          const prev = arr[i - 1];
+                          const trend = prev ? (agr < (prev.averageRank as number) ? "↑" : agr > (prev.averageRank as number) ? "↓" : "→") : null;
+                          return (
+                            <div key={run.id} className="flex flex-col items-center gap-1 flex-1">
+                              <span className="text-[9px] text-brand-400 font-mono">
+                                {trend && <span className={trend === "↑" ? "text-emerald-500" : trend === "↓" ? "text-rose-500" : "text-brand-400"}>{trend}</span>}
+                              </span>
+                              <div
+                                title={`#${agr} — ${new Date(run.ranAt).toLocaleDateString()}`}
+                                className={`w-full rounded-t ${color} transition-all`}
+                                style={{ height: `${heightPct}%` }}
+                              />
+                              <span className="text-[9px] text-brand-400 font-mono">#{agr}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="p-6 max-w-7xl mx-auto space-y-6">
 
@@ -768,9 +893,32 @@ export default function GeoTrackingPage() {
                         <h4 className="text-[13px] font-semibold text-brand-950">{item.action}</h4>
                         <p className="text-[12px] text-brand-500">{item.description}</p>
                       </div>
-                      <button className="px-3 py-1.5 rounded-lg bg-white border border-brand-200 text-[12px] font-medium text-brand-950 hover:bg-brand-100 transition shrink-0 self-start md:self-auto flex items-center gap-1">
-                        <span>Apply Task</span>
-                        <ChevronRight size={12} />
+                      <button
+                        onClick={() => {
+                          if (!projectId || stagedItems.has(idx)) return;
+                          stagingEngine.stage(projectId, {
+                            title: item.action,
+                            category: "Local SEO",
+                            source: "LOCAL_SEO_GEO",
+                            priority: item.impact === "HIGH" ? "HIGH" : "MEDIUM",
+                            impact: `Geo zone: ${item.targetZone}. ${item.description}`,
+                            effortHours: 2,
+                            deliverable: `Implement geo-dominance tactic for ${item.targetZone} zone`,
+                          });
+                          setStagedItems((prev) => new Set([...prev, idx]));
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition shrink-0 self-start md:self-auto flex items-center gap-1.5 ${
+                          stagedItems.has(idx)
+                            ? "bg-emerald-50 border border-emerald-200 text-emerald-700 cursor-default"
+                            : "bg-white border border-brand-200 text-brand-950 hover:bg-brand-100"
+                        }`}
+                        disabled={stagedItems.has(idx)}
+                      >
+                        {stagedItems.has(idx) ? (
+                          <><CheckCircle size={12} className="text-emerald-500" /><span>Staged</span></>
+                        ) : (
+                          <><Zap size={12} className="text-amber-500" /><span>Stage into Fix Engine</span></>
+                        )}
                       </button>
                     </div>
                   ))}

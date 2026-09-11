@@ -2518,6 +2518,8 @@ export const api = {
     get<GeoGridRunSummary[]>(
       `/api/projects/${projectId}/local-seo/geo-grid/history${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`,
     ),
+  getGeoGridRun: (projectId: string, runId: string) =>
+    get<GeoGridScanResult>(`/api/projects/${projectId}/local-seo/geo-grid/run/${runId}`),
   getLocalReviews: (projectId: string) => get<LocalReview[]>(`/api/projects/${projectId}/local-seo/reviews`),
   syncLocalReviews: (projectId: string) => post<{ message: string; count: number }>(`/api/projects/${projectId}/local-seo/reviews/sync`, {}),
   draftReviewReply: (projectId: string, reviewId: string, tone?: string) => post<LocalReview>(`/api/projects/${projectId}/local-seo/reviews/${reviewId}/draft`, { tone }),
