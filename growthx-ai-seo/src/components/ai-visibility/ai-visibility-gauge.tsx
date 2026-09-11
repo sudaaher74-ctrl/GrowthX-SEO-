@@ -13,10 +13,10 @@ export interface AiVisibilityGaugeProps {
 }
 
 export function AiVisibilityGauge({
-  score = 76,
+  score = 0,
   maxScore = 100,
   statusLabel = "Good",
-  subtext = "You're performing well, but there are opportunities to increase your visibility.",
+  subtext = "Tracked LLM prominence index across synthetic evaluation queries.",
   className,
 }: AiVisibilityGaugeProps) {
   // Arc parameters for a 240-degree sweep horseshoe gauge

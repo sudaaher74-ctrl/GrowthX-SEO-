@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -56,14 +56,50 @@ export function CitationsTabContent({
   report?: VisibilityReport | null;
   onAddQuery: () => void;
 }) {
-  const citedSources = [
-    { domain: "wikipedia.org", citations: 68, category: "Encyclopedia / General", trust: "High", models: ["ChatGPT", "Claude", "Gemini"] },
-    { domain: "searchenginejournal.com", citations: 44, category: "Industry Publication", trust: "High", models: ["ChatGPT", "Claude"] },
-    { domain: "g2.com", citations: 39, category: "Software Reviews", trust: "High", models: ["ChatGPT", "Gemini"] },
-    { domain: "capterra.com", citations: 32, category: "Software Reviews", trust: "High", models: ["Claude", "Gemini"] },
-    { domain: "github.com", citations: 27, category: "Technical Docs", trust: "High", models: ["ChatGPT", "Claude"] },
-    { domain: "reddit.com", citations: 24, category: "Community Discussion", trust: "Medium", models: ["ChatGPT", "Gemini"] },
-  ];
+  const citedSources = useMemo(() => {
+    const domainMap = new Map<string, { count: number; models: Set<string> }>();
+
+    promptList.forEach((p) => {
+      p.latestChecks?.forEach((check) => {
+        const assistant = check.assistant || "AI";
+        if (check.citedUrl) {
+          try {
+            const host = new URL(check.citedUrl).hostname.replace(/^www\./, "");
+            if (!domainMap.has(host)) domainMap.set(host, { count: 0, models: new Set() });
+            const item = domainMap.get(host)!;
+            item.count += 1;
+            item.models.add(assistant);
+          } catch {
+            // raw
+          }
+        }
+        check.competitorsCited?.forEach((c) => {
+          const clean = c.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+          if (!domainMap.has(clean)) domainMap.set(clean, { count: 0, models: new Set() });
+          const item = domainMap.get(clean)!;
+          item.count += 1;
+          item.models.add(assistant);
+        });
+      });
+    });
+
+    report?.shareOfVoice?.forEach((s) => {
+      const d = s.domain || s.label;
+      if (d && !domainMap.has(d)) {
+        domainMap.set(d, { count: s.mentions || 1, models: new Set(["AI Engine"]) });
+      }
+    });
+
+    return Array.from(domainMap.entries())
+      .map(([domain, data]) => ({
+        domain,
+        citations: data.count,
+        category: domain.endsWith(".org") || domain.endsWith(".edu") ? "Authority / Knowledge" : "Industry Publication",
+        trust: data.count > 5 ? "High" : "Standard",
+        models: Array.from(data.models),
+      }))
+      .sort((a, b) => b.citations - a.citations);
+  }, [promptList, report?.shareOfVoice]);
 
   return (
     <div className="space-y-6">
@@ -71,18 +107,22 @@ export function CitationsTabContent({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Mentioned Sources</span>
-          <p className="mt-2 text-[26px] font-bold text-slate-900">48 Domains</p>
-          <p className="mt-1 text-[11.5px] text-slate-500">Across 120 tracked high-intent search queries</p>
+          <p className="mt-2 text-[26px] font-bold text-slate-900">{citedSources.length} Domains</p>
+          <p className="mt-1 text-[11.5px] text-slate-500">Across {promptList.length} tracked high-intent search queries</p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Primary Citation Format</span>
-          <p className="mt-2 text-[26px] font-bold text-indigo-600">Review &amp; Listicle</p>
-          <p className="mt-1 text-[11.5px] text-slate-500">62% of citations reference authoritative comparison guides</p>
+          <p className="mt-2 text-[26px] font-bold text-indigo-600">
+            {promptList.length > 0 ? "Direct Answer & Comparison" : "Pending Sweep"}
+          </p>
+          <p className="mt-1 text-[11.5px] text-slate-500">Synthesized by ChatGPT, Claude, and Gemini</p>
         </div>
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Brand Citation Sentiment</span>
-          <p className="mt-2 text-[26px] font-bold text-emerald-600">92% Positive</p>
-          <p className="mt-1 text-[11.5px] text-slate-500">High perceived technical capability &amp; automation speed</p>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Brand Citation Status</span>
+          <p className="mt-2 text-[26px] font-bold text-emerald-600">
+            {report?.summary?.cited && report.summary.cited > 0 ? `${report.summary.cited} Citations` : "Pending Sweep"}
+          </p>
+          <p className="mt-1 text-[11.5px] text-slate-500">Verified citations across multi-model checks</p>
         </div>
       </div>
 
@@ -97,45 +137,51 @@ export function CitationsTabContent({
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-[12px]">
-            <thead>
-              <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
-                <th className="py-2.5 pl-2 font-medium">Source Domain</th>
-                <th className="py-2.5 font-medium">Category</th>
-                <th className="py-2.5 font-medium">Citations</th>
-                <th className="py-2.5 font-medium">Authority Level</th>
-                <th className="py-2.5 pr-2 font-medium">Active In Engines</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/70">
-              {citedSources.map((source) => (
-                <tr key={source.domain} className="hover:bg-slate-50/70">
-                  <td className="py-3 pl-2 font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>{source.domain}</span>
-                    <ExternalLink size={11} className="text-slate-400" />
-                  </td>
-                  <td className="py-3 text-slate-600">{source.category}</td>
-                  <td className="py-3 font-bold text-slate-900">{source.citations}</td>
-                  <td className="py-3">
-                    <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 border border-emerald-200/60">
-                      {source.trust} Trust
-                    </span>
-                  </td>
-                  <td className="py-3 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      {source.models.map((m) => (
-                        <span key={m} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
+        {citedSources.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            No citation sources detected yet. Run an AI visibility sweep to collect live source domains.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
+                  <th className="py-2.5 pl-2 font-medium">Source Domain</th>
+                  <th className="py-2.5 font-medium">Category</th>
+                  <th className="py-2.5 font-medium">Citations</th>
+                  <th className="py-2.5 font-medium">Authority Level</th>
+                  <th className="py-2.5 pr-2 font-medium">Active In Engines</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100/70">
+                {citedSources.map((source) => (
+                  <tr key={source.domain} className="hover:bg-slate-50/70">
+                    <td className="py-3 pl-2 font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>{source.domain}</span>
+                      <ExternalLink size={11} className="text-slate-400" />
+                    </td>
+                    <td className="py-3 text-slate-600">{source.category}</td>
+                    <td className="py-3 font-bold text-slate-900">{source.citations}</td>
+                    <td className="py-3">
+                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 border border-emerald-200/60">
+                        {source.trust} Trust
+                      </span>
+                    </td>
+                    <td className="py-3 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        {source.models.map((m) => (
+                          <span key={m} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Tracked Brand Queries Table */}

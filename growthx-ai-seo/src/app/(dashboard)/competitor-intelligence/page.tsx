@@ -375,13 +375,14 @@ function CompetitorIntelligenceClient() {
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip competitors={competitorsList} />
 
-      {/* ── TAB 1: OVERVIEW (Screenshot 1) ── */}
+      {/* ── TAB 1: OVERVIEW ── */}
       {activeTab === "overview" && (
         <CompetitorOverviewTab
+          projectId={projectId || ""}
           domain={customerDomain}
           competitors={competitorsList}
           onAddCompetitor={() => setShowAddModal(true)}
-          onGenerateInsights={() => handleAddToFixPlan(18, "AI Opportunity Pack")}
+          onGenerateInsights={() => handleAddToFixPlan(10, "Top Opportunities")}
           onViewAllKeywordGaps={() => setActiveTab("keywords")}
           onViewAllContentGaps={() => setActiveTab("content")}
           onGenerateReport={() => setActiveTab("reports")}
@@ -391,46 +392,71 @@ function CompetitorIntelligenceClient() {
       {/* ── TAB 2: COMPETITORS DIRECTORY ── */}
       {activeTab === "competitors" && (
         <CompetitorsDiscoveryTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
           onAddCompetitor={() => setShowAddModal(true)}
           onAddToFixPlan={handleAddToFixPlan}
         />
       )}
 
-      {/* ── TAB 3: KEYWORD GAPS (Screenshot 2) ── */}
+      {/* ── TAB 3: KEYWORD GAPS ── */}
       {activeTab === "keywords" && (
         <CompetitorKeywordGapsTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
           onAddToFixPlan={handleAddToFixPlan}
-          onExport={() => handleAddToFixPlan(50, "Exported Keywords")}
+          onExport={() => handleAddToFixPlan(Math.min(50, competitorsList.length * 10), "Exported Keywords")}
         />
       )}
 
-      {/* ── TAB 4: CONTENT GAPS (Screenshot 3) ── */}
+      {/* ── TAB 4: CONTENT GAPS ── */}
       {activeTab === "content" && (
         <CompetitorContentGapsTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
           onAddToFixPlan={handleAddToFixPlan}
-          onExport={() => handleAddToFixPlan(24, "Exported Content Gaps")}
+          onExport={() => handleAddToFixPlan(Math.min(25, competitorsList.length * 5), "Exported Content Gaps")}
         />
       )}
 
       {/* ── TAB 5: TECHNICAL GAPS ── */}
       {activeTab === "technical" && (
-        <CompetitorTechnicalGapsTab onAddToFixPlan={handleAddToFixPlan} />
+        <CompetitorTechnicalGapsTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
+          onAddToFixPlan={handleAddToFixPlan}
+        />
       )}
 
       {/* ── TAB 6: AI VISIBILITY ── */}
       {activeTab === "ai-visibility" && (
-        <CompetitorAiVisibilityTab onAddToFixPlan={handleAddToFixPlan} />
+        <CompetitorAiVisibilityTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
+          onAddToFixPlan={handleAddToFixPlan}
+        />
       )}
 
       {/* ── TAB 7: OPPORTUNITIES (AI ENGINE) ── */}
       {activeTab === "opportunities" && (
-        <CompetitorOpportunitiesTab onAddToFixPlan={handleAddToFixPlan} />
+        <CompetitorOpportunitiesTab
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
+          onAddToFixPlan={handleAddToFixPlan}
+        />
       )}
 
       {/* ── TAB 8: REPORTS ── */}
       {activeTab === "reports" && (
         <CompetitorReportsTab
           domain={customerDomain}
+          competitors={competitorsList}
           onGenerateReport={() => handleAddToFixPlan(1, "Executive Strategy Report")}
         />
       )}

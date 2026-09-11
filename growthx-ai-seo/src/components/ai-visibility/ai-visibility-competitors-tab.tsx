@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Users,
   Trophy,
@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Settings,
   Layers,
+  Plus,
+  Bot,
 } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
 import type { VisibilityReport, TrackedCompetitor } from "@/lib/api-client";
@@ -32,165 +34,88 @@ export interface AiVisibilityCompetitorsTabProps {
   onViewAllGaps?: () => void;
 }
 
+const BAR_COLORS = [
+  "bg-purple-600",
+  "bg-blue-500",
+  "bg-emerald-500",
+  "bg-amber-400",
+  "bg-rose-400",
+  "bg-indigo-500",
+];
+
 export function AiVisibilityCompetitorsTab({
   report,
   competitors = [],
-  domain = "aivaenterprises.com",
+  domain = "",
   onAddCompetitor,
   onViewAllGaps,
 }: AiVisibilityCompetitorsTabProps) {
   const [chartMode, setChartMode] = useState<"bar" | "trend">("bar");
 
-  // Competitor benchmarking rows
-  const comparisonRows = [
-    {
-      rank: 1,
-      name: "aivaenterprises.com",
-      domain: domain,
-      isYou: true,
-      sharePct: 24,
-      mentions: 342,
-      sentiment: "Positive",
-      trendColor: "#10b981",
-      trendPoints: "M0,18 Q20,10 40,16 T80,8 T120,4",
-    },
-    {
-      rank: 2,
-      name: "semrush.com",
-      domain: "semrush.com",
-      isYou: false,
-      sharePct: 30,
-      mentions: 428,
-      sentiment: "Positive",
-      trendColor: "#3b82f6",
-      trendPoints: "M0,16 Q20,20 40,14 T80,10 T120,6",
-    },
-    {
-      rank: 3,
-      name: "ahrefs.com",
-      domain: "ahrefs.com",
-      isYou: false,
-      sharePct: 21,
-      mentions: 298,
-      sentiment: "Positive",
-      trendColor: "#0284c7",
-      trendPoints: "M0,12 Q20,16 40,12 T80,14 T120,10",
-    },
-    {
-      rank: 4,
-      name: "moz.com",
-      domain: "moz.com",
-      isYou: false,
-      sharePct: 11,
-      mentions: 156,
-      sentiment: "Neutral",
-      trendColor: "#f59e0b",
-      trendPoints: "M0,20 Q20,18 40,22 T80,16 T120,12",
-    },
-    {
-      rank: 5,
-      name: "screamingfrog.co.uk",
-      domain: "screamingfrog.co.uk",
-      isYou: false,
-      sharePct: 7,
-      mentions: 98,
-      sentiment: "Neutral",
-      trendColor: "#f97316",
-      trendPoints: "M0,22 Q20,24 40,18 T80,20 T120,18",
-    },
-  ];
+  // Real Share of Voice from AI Visibility Report
+  const shareOfVoice = useMemo(() => {
+    return report?.shareOfVoice || [];
+  }, [report?.shareOfVoice]);
 
-  // Bar chart items
-  const barChartItems = [
-    { name: "Aiva\n(You)", sharePct: 24, color: "bg-purple-600", heightPct: 60 },
-    { name: "Semrush", sharePct: 30, color: "bg-blue-500", heightPct: 75 },
-    { name: "Ahrefs", sharePct: 21, color: "bg-emerald-500", heightPct: 52.5 },
-    { name: "Moz", sharePct: 11, color: "bg-amber-400", heightPct: 27.5 },
-    { name: "Screaming Frog", sharePct: 7, color: "bg-rose-400", heightPct: 17.5 },
-  ];
+  // Real Competitor Benchmarking Rows
+  const comparisonRows = useMemo(() => {
+    if (shareOfVoice.length === 0) {
+      if (domain) {
+        return [
+          {
+            rank: 1,
+            name: domain,
+            domain: domain,
+            isYou: true,
+            sharePct: report?.summary?.citationSharePct ?? 0,
+            mentions: report?.summary?.cited ?? 0,
+            sentiment: "Positive",
+          },
+        ];
+      }
+      return [];
+    }
 
-  // Gaps where competitors are winning
-  const winningGaps = [
-    { rank: 1, keyword: "technical seo audit tool", topCompetitor: "semrush.com", citations: 42, oppLevel: "High", oppColor: "bg-rose-50 text-rose-700 border-rose-200" },
-    { rank: 2, keyword: "backlink analysis", topCompetitor: "ahrefs.com", citations: 36, oppLevel: "High", oppColor: "bg-rose-50 text-rose-700 border-rose-200" },
-    { rank: 3, keyword: "website crawler", topCompetitor: "screamingfrog.co.uk", citations: 28, oppLevel: "Medium", oppColor: "bg-amber-50 text-amber-700 border-amber-200" },
-    { rank: 4, keyword: "seo reporting platform", topCompetitor: "moz.com", citations: 24, oppLevel: "Medium", oppColor: "bg-amber-50 text-amber-700 border-amber-200" },
-    { rank: 5, keyword: "site migration checklist", topCompetitor: "semrush.com", citations: 19, oppLevel: "Low", oppColor: "bg-blue-50 text-blue-700 border-blue-200" },
-  ];
+    return shareOfVoice.map((item, idx) => ({
+      rank: idx + 1,
+      name: item.label || item.domain || "Competitor",
+      domain: item.domain || item.label || "competitor.com",
+      isYou: item.domain === domain,
+      sharePct: item.sharePct,
+      mentions: item.mentions,
+      sentiment: item.sharePct >= 20 ? "Positive" : "Neutral",
+    }));
+  }, [shareOfVoice, domain, report?.summary]);
 
-  // Competitor strengths items
-  const competitorStrengths = [
-    {
-      name: "Semrush",
-      avatarLetter: "S",
-      avatarBg: "bg-orange-50 text-orange-600 border-orange-200",
-      description: "Strong brand authority, frequently cited for SEO tools and guides.",
-    },
-    {
-      name: "Ahrefs",
-      avatarLetter: "A",
-      avatarBg: "bg-blue-50 text-blue-600 border-blue-200",
-      description: "High mentions in technical SEO and backlink analysis.",
-    },
-    {
-      name: "Moz",
-      avatarLetter: "M",
-      avatarBg: "bg-sky-50 text-sky-600 border-sky-200",
-      description: "Recognized for educational content and beginner guides.",
-    },
-    {
-      name: "Screaming Frog",
-      avatarLetter: "S",
-      avatarBg: "bg-emerald-50 text-emerald-600 border-emerald-200",
-      description: "Often cited for website crawling and technical audits.",
-    },
-  ];
+  // Real Bar Chart Items
+  const barChartItems = useMemo(() => {
+    if (comparisonRows.length === 0) return [];
+    const maxShare = Math.max(1, ...comparisonRows.map((r) => r.sharePct));
 
-  // Your opportunities list
-  const yourOpportunities = [
-    {
-      icon: <Target size={15} className="text-purple-600" />,
-      iconBg: "bg-purple-50",
-      title: "Create content around competitor keywords",
-      desc: "Target 128 high-opportunity topics.",
-    },
-    {
-      icon: <Compass size={15} className="text-blue-600" />,
-      iconBg: "bg-blue-50",
-      title: "Build authority in technical SEO",
-      desc: "Strengthen content depth with data and examples.",
-    },
-    {
-      icon: <MessageSquare size={15} className="text-emerald-600" />,
-      iconBg: "bg-emerald-50",
-      title: "Get cited in comparison queries",
-      desc: "Create vs. competitor pages and use cases.",
-    },
-    {
-      icon: <Code2 size={15} className="text-sky-600" />,
-      iconBg: "bg-sky-50",
-      title: "Improve schema and structured data",
-      desc: "Help AI models better understand your content.",
-    },
-    {
-      icon: <Sparkles size={15} className="text-purple-600" />,
-      iconBg: "bg-purple-50",
-      title: "Showcase unique value proposition",
-      desc: "Highlight what makes your brand different.",
-    },
-  ];
+    return comparisonRows.slice(0, 6).map((r, idx) => ({
+      name: r.isYou ? `${r.domain}\n(You)` : r.domain,
+      sharePct: r.sharePct,
+      color: r.isYou ? "bg-purple-600" : BAR_COLORS[(idx + 1) % BAR_COLORS.length],
+      heightPct: Math.max(10, Math.min(100, Math.round((r.sharePct / maxShare) * 90))),
+    }));
+  }, [comparisonRows]);
+
+  // Derived Real KPIs
+  const yourShare = report?.summary?.citationSharePct ?? 0;
+  const competitorsCitedMore = comparisonRows.filter((r) => !r.isYou && r.sharePct > yourShare).length;
+  const topRival = comparisonRows.find((r) => !r.isYou) || null;
+  const totalChecked = report?.summary?.checked ?? 0;
+  const totalCitations = report?.summary?.cited ?? 0;
 
   return (
     <div className="space-y-6">
-      {/* ── ROW 1: 5 KPI Cards with Sparklines ── */}
+      {/* ── ROW 1: 5 KPI Cards (Real Data) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* KPI 1: AI Citation Share */}
         <AiKpiCard
-          label="AI Citation Share"
-          value="24%"
-          trend="+8%"
-          trendPositive={true}
-          subtext="vs. 12% last month"
+          label="Your Citation Share"
+          value={`${yourShare}%`}
+          subtext="Proportion of total LLM recommendations"
           icon={<Users size={16} />}
           iconBgColor="bg-purple-50 text-purple-600"
           colorScheme="purple"
@@ -198,9 +123,9 @@ export function AiVisibilityCompetitorsTab({
 
         {/* KPI 2: Competitors Cited More */}
         <AiKpiCard
-          label="Competitors Cited More"
-          value="4 / 5"
-          subtext="Competitors are mentioned more often than your brand"
+          label="Rivals Outranking You"
+          value={`${competitorsCitedMore} / ${Math.max(1, comparisonRows.length - 1)}`}
+          subtext="Competitors with higher recommendation share"
           icon={<Trophy size={16} />}
           iconBgColor="bg-rose-50 text-rose-600"
           colorScheme="coral"
@@ -208,367 +133,248 @@ export function AiVisibilityCompetitorsTab({
 
         {/* KPI 3: Top Competitor */}
         <AiKpiCard
-          label="Top Competitor"
-          value="semrush.com"
-          subtext="30% citation share"
+          label="Leading Competitor"
+          value={topRival ? topRival.domain : "None"}
+          subtext={topRival ? `${topRival.sharePct}% citation share` : "Add rivals to benchmark"}
           icon={<Crown size={16} />}
           iconBgColor="bg-amber-50 text-amber-600"
           colorScheme="yellow"
         />
 
-        {/* KPI 4: Content Gap Opportunities */}
+        {/* KPI 4: Total Citations */}
         <AiKpiCard
-          label="Content Gap Opportunities"
-          value="128"
-          trend="+22%"
-          trendPositive={true}
-          subtext="Topics where competitors rank in AI responses but you don't"
+          label="Total Citations"
+          value={totalCitations.toLocaleString()}
+          subtext="Direct brand mentions across tested queries"
           icon={<FileText size={16} />}
           iconBgColor="bg-emerald-50 text-emerald-600"
           colorScheme="emerald"
         />
 
-        {/* KPI 5: Keyword Gap */}
+        {/* KPI 5: Tested Prompts */}
         <AiKpiCard
-          label="Keyword Gap"
-          value="342"
-          trend="+17%"
-          trendPositive={true}
-          subtext="High-value keywords your competitors are cited for"
-          icon={<Search size={16} />}
+          label="Queries Evaluated"
+          value={totalChecked.toString()}
+          subtext="Across ChatGPT, Claude, and Gemini"
+          icon={<Target size={16} />}
           iconBgColor="bg-blue-50 text-blue-600"
           colorScheme="blue"
         />
       </div>
 
-      {/* ── ROW 2: Competitor Comparison Table (60%) + Citation Share Bar Chart (40%) ── */}
+      {/* ── ROW 2: Bar Chart Comparison + Strategic Recommendations ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Competitor Comparison Table */}
-        <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-700">
-                <Settings size={14} />
-              </div>
+        {/* Bar Chart (Col span 7) */}
+        <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-[14.5px] font-bold text-slate-900 leading-none">
-                  Competitor Comparison
-                </h3>
-                <p className="mt-1 text-[11.5px] text-slate-500">
-                  Compare how your brand and competitors appear in AI responses.
+                <h3 className="text-base font-bold text-slate-900">AI Citation Share Comparison</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Comparative share of brand citations across large language models
                 </p>
               </div>
+
+              <div className="flex items-center gap-1.5 p-0.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setChartMode("bar")}
+                  className={`p-1.5 rounded-md ${chartMode === "bar" ? "bg-white text-purple-700 shadow-2xs" : "text-slate-500"}`}
+                >
+                  <BarChart3 size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartMode("trend")}
+                  className={`p-1.5 rounded-md ${chartMode === "trend" ? "bg-white text-purple-700 shadow-2xs" : "text-slate-500"}`}
+                >
+                  <LineChart size={14} />
+                </button>
+              </div>
             </div>
+
+            {/* Bars */}
+            <div className="my-6 min-h-52 flex items-end justify-around gap-4 px-4 pb-2 border-b border-slate-100">
+              {barChartItems.length === 0 ? (
+                <div className="w-full text-center py-12 text-slate-400 text-xs">
+                  No citation data available yet. Run an AI visibility sweep to plot benchmark bars.
+                </div>
+              ) : (
+                barChartItems.map((bar, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-2 flex-1 max-w-[80px]">
+                    <span className="text-xs font-bold text-slate-700">{bar.sharePct}%</span>
+                    <div className="w-full h-36 flex items-end justify-center bg-slate-50 rounded-lg p-1">
+                      <div
+                        className={`w-full ${bar.color} rounded-t-md transition-all duration-500`}
+                        style={{ height: `${bar.heightPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-600 text-center leading-tight whitespace-pre-line truncate max-w-full">
+                      {bar.name}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
+            <span>Data updated with every automated sweep</span>
             <button
               type="button"
               onClick={onAddCompetitor}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="text-purple-700 font-semibold hover:underline flex items-center gap-1"
             >
-              Edit Competitors
+              <Plus size={12} /> Add Rival
             </button>
           </div>
+        </div>
 
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-[12px]">
-              <thead>
-                <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
-                  <th className="py-2.5 pl-2 font-medium">#</th>
-                  <th className="py-2.5 font-medium">Brand / Domain</th>
-                  <th className="py-2.5 font-medium">AI Citation Share</th>
-                  <th className="py-2.5 font-medium">Mentions (28d)</th>
-                  <th className="py-2.5 font-medium">Sentiment</th>
-                  <th className="py-2.5 font-medium">Visibility Trend</th>
-                  <th className="py-2.5 pr-2 font-medium text-right">Actions</th>
+        {/* Strategic Next Steps (Col span 5) */}
+        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">AI Conquesting Actions</h3>
+                  <p className="text-[11px] text-slate-400">Tactics to overtake rival citations</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 text-xs space-y-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Target size={14} className="text-purple-600" />
+                  Target Rival Comparison Intent
+                </span>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Publish authoritative objective comparison pages and JSON-LD FAQ schemas targeting prompts where rivals currently dominate.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 text-xs space-y-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Code2 size={14} className="text-blue-600" />
+                  Deploy Structured AEO Entities
+                </span>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Large language models heavily weight schema markup (Organization, Product, SoftwareApplication) when determining authoritative answers.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 text-xs space-y-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <MessageSquare size={14} className="text-emerald-600" />
+                  Answer Engine Optimization (AEO)
+                </span>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Structure your page headers with direct, concise 50-word answers directly below H2 questions to feed snippet extraction.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onViewAllGaps}
+            className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+          >
+            <span>View All Competitor Gaps</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── ROW 3: Benchmarking Table ── */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">LLM Benchmarking Leaderboard</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Measured share of voice across ChatGPT, Claude, and Gemini
+            </p>
+          </div>
+          <span className="text-xs text-slate-400 font-semibold">
+            {comparisonRows.length} domains analyzed
+          </span>
+        </div>
+
+        {comparisonRows.length === 0 ? (
+          <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
+            <Bot className="h-6 w-6 text-purple-600 mx-auto" />
+            <p className="text-xs font-bold text-slate-800">No Benchmarked Competitors Yet</p>
+            <p className="text-[11px] text-slate-500">
+              Add competitors to compare citations and model recommendation share.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200 uppercase tracking-wider">
+                <tr>
+                  <th className="p-3.5 w-14 font-bold">Rank</th>
+                  <th className="p-3.5 font-bold">Domain / Brand</th>
+                  <th className="p-3.5 font-bold">Recommendation Share</th>
+                  <th className="p-3.5 font-bold">Total Mentions</th>
+                  <th className="p-3.5 font-bold">Perceived Sentiment</th>
+                  <th className="p-3.5 font-bold text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100/70">
+              <tbody className="divide-y divide-slate-100">
                 {comparisonRows.map((row) => (
                   <tr
                     key={row.domain}
-                    className={`hover:bg-slate-50/70 transition-colors ${
-                      row.isYou ? "bg-slate-50/40" : ""
-                    }`}
+                    className={`hover:bg-slate-50/80 transition-colors ${row.isYou ? "bg-purple-50/40" : ""}`}
                   >
-                    <td className="py-3 pl-2 font-bold text-slate-400">{row.rank}</td>
-                    <td className="py-3 font-semibold text-slate-900">
+                    <td className="p-3.5 font-bold text-slate-900">#{row.rank}</td>
+                    <td className="p-3.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-2">
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold ${
-                            row.isYou
-                              ? "bg-slate-900 text-white"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {row.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="truncate max-w-[140px]">{row.domain}</span>
+                        <span>{row.domain}</span>
                         {row.isYou && (
-                          <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-200/50">
-                            You
+                          <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            Your Domain
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 font-bold text-slate-800">{row.sharePct}%</td>
-                    <td className="py-3 font-medium text-slate-600">{row.mentions}</td>
-                    <td className="py-3">
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 w-10">{row.sharePct}%</span>
+                        <div className="h-2 w-24 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${row.isYou ? "bg-purple-600" : "bg-blue-500"} rounded-full`}
+                            style={{ width: `${Math.max(4, row.sharePct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3.5 font-mono text-slate-700">{row.mentions.toLocaleString()}</td>
+                    <td className="p-3.5">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold border ${
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           row.sentiment === "Positive"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
-                            : "bg-amber-50 text-amber-700 border-amber-200/60"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-slate-100 text-slate-600"
                         }`}
                       >
                         {row.sentiment}
                       </span>
                     </td>
-                    <td className="py-3">
-                      {/* Mini sparkline SVG */}
-                      <svg width="60" height="24" className="overflow-visible">
-                        <path
-                          d={row.trendPoints}
-                          fill="none"
-                          stroke={row.trendColor}
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </td>
-                    <td className="py-3 pr-2 text-right text-slate-400 hover:text-slate-600 cursor-pointer">
-                      <MoreVertical size={14} className="inline-block" />
+                    <td className="p-3.5 text-center">
+                      <span className="text-[11px] font-medium text-slate-500">
+                        {row.isYou ? "Primary Site" : "Competitor"}
+                      </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Right: AI Citation Share (Comparison) Bar Chart */}
-        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <BarChart3 size={16} className="text-indigo-600" />
-                <h3 className="text-[14px] font-bold text-slate-900">
-                  AI Citation Share (Comparison)
-                </h3>
-              </div>
-              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50">
-                <button
-                  type="button"
-                  onClick={() => setChartMode("bar")}
-                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
-                    chartMode === "bar"
-                      ? "bg-purple-600 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Bar Chart
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartMode("trend")}
-                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
-                    chartMode === "trend"
-                      ? "bg-purple-600 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Trend
-                </button>
-              </div>
-            </div>
-
-            {/* Vertical Bar Chart Graphic */}
-            <div className="mt-5 relative h-48 flex items-end justify-between pl-8 pr-3 pb-6">
-              {/* Y Axis Grid Lines */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6 text-[10px] text-slate-400">
-                <div className="flex items-center w-full">
-                  <span className="w-6 text-right pr-2">40%</span>
-                  <div className="flex-1 border-b border-dashed border-slate-100" />
-                </div>
-                <div className="flex items-center w-full">
-                  <span className="w-6 text-right pr-2">30%</span>
-                  <div className="flex-1 border-b border-dashed border-slate-100" />
-                </div>
-                <div className="flex items-center w-full">
-                  <span className="w-6 text-right pr-2">20%</span>
-                  <div className="flex-1 border-b border-dashed border-slate-100" />
-                </div>
-                <div className="flex items-center w-full">
-                  <span className="w-6 text-right pr-2">10%</span>
-                  <div className="flex-1 border-b border-dashed border-slate-100" />
-                </div>
-                <div className="flex items-center w-full">
-                  <span className="w-6 text-right pr-2">0%</span>
-                  <div className="flex-1 border-b border-slate-200" />
-                </div>
-              </div>
-
-              {/* Bars */}
-              {barChartItems.map((bar) => (
-                <div key={bar.name} className="relative z-10 flex flex-col items-center gap-1.5 w-14">
-                  <span className="text-[11px] font-bold text-slate-900 leading-none">
-                    {bar.sharePct}%
-                  </span>
-                  <div className="w-8 rounded-t-lg overflow-hidden bg-slate-100 h-36 flex items-end">
-                    <div
-                      className={`w-full rounded-t-md ${bar.color} transition-all duration-700`}
-                      style={{ height: `${(bar.sharePct / 40) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-semibold text-slate-600 text-center whitespace-pre-line leading-tight">
-                    {bar.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className="mt-2 text-center text-[11px] text-slate-400">
-            Share of AI mentions across top 5 industry search prompts
-          </p>
-        </div>
-      </div>
-
-      {/* ── ROW 3: Bottom 3 Columns ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Col 1: Where Competitors Are Winning */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
-                  <Layers size={14} />
-                </div>
-                <div>
-                  <h4 className="text-[13.5px] font-bold text-slate-900 leading-none">
-                    Where Competitors Are Winning
-                  </h4>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Topics &amp; keywords where competitors are cited.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onViewAllGaps}
-                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-0.5"
-              >
-                <span>View All Gaps</span>
-                <ArrowRight size={11} />
-              </button>
-            </div>
-
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-left text-[11.5px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[10.5px] font-medium text-slate-400">
-                    <th className="py-2 pl-1">#</th>
-                    <th className="py-2">Topic / Keyword</th>
-                    <th className="py-2">Top Competitor</th>
-                    <th className="py-2">Citations</th>
-                    <th className="py-2 pr-1 text-right">Opportunity</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {winningGaps.map((item) => (
-                    <tr key={item.keyword} className="hover:bg-slate-50/70">
-                      <td className="py-2.5 pl-1 text-slate-400 font-bold">{item.rank}</td>
-                      <td className="py-2.5 font-medium text-slate-800 max-w-[110px] truncate">
-                        {item.keyword}
-                      </td>
-                      <td className="py-2.5 text-slate-600 truncate max-w-[90px]">
-                        {item.topCompetitor}
-                      </td>
-                      <td className="py-2.5 font-semibold text-slate-900">{item.citations}</td>
-                      <td className="py-2.5 pr-1 text-right">
-                        <span className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-semibold border ${item.oppColor}`}>
-                          {item.oppLevel}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Col 2: Competitor Strengths */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
-                <Sparkles size={14} />
-              </div>
-              <div>
-                <h4 className="text-[13.5px] font-bold text-slate-900 leading-none">
-                  Competitor Strengths
-                </h4>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  What your competitors are doing well in AI responses.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3.5 space-y-3">
-              {competitorStrengths.map((item) => (
-                <div key={item.name} className="flex items-start gap-2.5">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-[11px] font-bold ${item.avatarBg}`}>
-                    {item.avatarLetter}
-                  </div>
-                  <div>
-                    <h5 className="text-[12px] font-bold text-slate-900 leading-tight">
-                      {item.name}
-                    </h5>
-                    <p className="mt-0.5 text-[11px] text-slate-500 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Col 3: Your Opportunities */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-                <ShieldCheck size={14} />
-              </div>
-              <div>
-                <h4 className="text-[13.5px] font-bold text-slate-900 leading-none">
-                  Your Opportunities
-                </h4>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Key areas to improve and gain more AI visibility.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3 space-y-2.5">
-              {yourOpportunities.map((opp, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
-                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${opp.iconBg} mt-0.5`}>
-                    {opp.icon}
-                  </div>
-                  <div>
-                    <h5 className="text-[11.5px] font-bold text-slate-900 leading-tight">
-                      {opp.title}
-                    </h5>
-                    <p className="text-[10.5px] text-slate-500 leading-normal">
-                      {opp.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

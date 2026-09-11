@@ -26,7 +26,7 @@ export interface FixEngineHeroBannerProps {
 }
 
 export function FixEngineHeroBanner({
-  totalFixes = 92,
+  totalFixes = 0,
   estDays = 30,
   coveragePct = 100,
   isApproved = false,

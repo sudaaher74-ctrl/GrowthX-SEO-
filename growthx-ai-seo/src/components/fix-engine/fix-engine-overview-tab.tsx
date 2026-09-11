@@ -20,23 +20,70 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import type { CrawlIssue, VisibilityReport } from "@/lib/api-client";
+
 export interface FixEngineOverviewTabProps {
+  issues?: CrawlIssue[];
+  latestCrawl?: {
+    id?: string;
+    healthScore?: number | null;
+    pagesCrawled?: number;
+    issuesSummary?: {
+      critical?: number;
+      high?: number;
+      medium?: number;
+      low?: number;
+    };
+  } | null;
+  visibilityReport?: VisibilityReport | null;
   onViewCategoryFixes?: (cat: string) => void;
   onOpenTimelineModal?: () => void;
   isApproved?: boolean;
 }
 
 export function FixEngineOverviewTab({
+  issues = [],
+  latestCrawl,
+  visibilityReport,
   onViewCategoryFixes,
   onOpenTimelineModal,
   isApproved = false,
 }: FixEngineOverviewTabProps) {
+  const totalIssues = issues.length;
+  const techCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("tech") || c.includes("crawl") || c.includes("index") || c.includes("canonical") || c.includes("redirect");
+  }).length;
+  const onPageCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("on_page") || c.includes("meta") || c.includes("title") || c.includes("heading") || c.includes("h1");
+  }).length;
+  const perfCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("perf") || c.includes("speed") || c.includes("cwv") || c.includes("lcp");
+  }).length;
+  const schemaCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("schema") || c.includes("structure") || c.includes("json-ld");
+  }).length;
+  const contentCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("content") || c.includes("gap") || c.includes("thin");
+  }).length;
+  const mobileCount = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("mobile") || c.includes("ux") || c.includes("viewport") || c.includes("tap");
+  }).length;
+
+  const matched = techCount + onPageCount + perfCount + schemaCount + contentCount + mobileCount;
+  const otherCount = Math.max(0, totalIssues - matched);
+
   const categories = [
     {
       id: "technical",
       name: "Technical SEO",
-      fixes: 24,
-      pct: 26,
+      fixes: techCount,
+      pct: totalIssues > 0 ? Math.round((techCount / totalIssues) * 100) : 0,
       barColor: "bg-emerald-500",
       icon: <Wrench size={14} className="text-emerald-600" />,
       iconBg: "bg-emerald-50",
@@ -44,8 +91,8 @@ export function FixEngineOverviewTab({
     {
       id: "on-page",
       name: "On-Page SEO",
-      fixes: 22,
-      pct: 24,
+      fixes: onPageCount,
+      pct: totalIssues > 0 ? Math.round((onPageCount / totalIssues) * 100) : 0,
       barColor: "bg-blue-500",
       icon: <FileText size={14} className="text-blue-600" />,
       iconBg: "bg-blue-50",
@@ -53,8 +100,8 @@ export function FixEngineOverviewTab({
     {
       id: "performance",
       name: "Performance & Core Web Vitals",
-      fixes: 16,
-      pct: 17,
+      fixes: perfCount,
+      pct: totalIssues > 0 ? Math.round((perfCount / totalIssues) * 100) : 0,
       barColor: "bg-orange-500",
       icon: <Zap size={14} className="text-orange-600" />,
       iconBg: "bg-orange-50",
@@ -62,8 +109,8 @@ export function FixEngineOverviewTab({
     {
       id: "schema",
       name: "Schema & Structured Data",
-      fixes: 12,
-      pct: 13,
+      fixes: schemaCount,
+      pct: totalIssues > 0 ? Math.round((schemaCount / totalIssues) * 100) : 0,
       barColor: "bg-purple-500",
       icon: <Layers size={14} className="text-purple-600" />,
       iconBg: "bg-purple-50",
@@ -71,8 +118,8 @@ export function FixEngineOverviewTab({
     {
       id: "content",
       name: "Content & Indexation",
-      fixes: 10,
-      pct: 11,
+      fixes: contentCount,
+      pct: totalIssues > 0 ? Math.round((contentCount / totalIssues) * 100) : 0,
       barColor: "bg-rose-500",
       icon: <Edit3 size={14} className="text-rose-600" />,
       iconBg: "bg-rose-50",
@@ -80,8 +127,8 @@ export function FixEngineOverviewTab({
     {
       id: "mobile",
       name: "Mobile & UX",
-      fixes: 8,
-      pct: 9,
+      fixes: mobileCount + otherCount,
+      pct: totalIssues > 0 ? Math.round(((mobileCount + otherCount) / totalIssues) * 100) : 0,
       barColor: "bg-teal-500",
       icon: <Smartphone size={14} className="text-teal-600" />,
       iconBg: "bg-teal-50",
@@ -253,10 +300,20 @@ export function FixEngineOverviewTab({
                   <span className="text-[11px] font-medium">SEO Health Score</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-[16px] font-bold text-slate-900">68 → 86</span>
-                  <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    +26%
-                  </span>
+                  {latestCrawl?.healthScore != null ? (
+                    <>
+                      <span className="text-[16px] font-bold text-slate-900">
+                        {latestCrawl.healthScore} → {Math.min(100, latestCrawl.healthScore + (totalIssues > 0 ? 18 : 0))}
+                      </span>
+                      {totalIssues > 0 && (
+                        <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          +{Math.min(100, latestCrawl.healthScore + 18) - latestCrawl.healthScore}%
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-[13px] font-bold text-slate-600">Pending Crawl</span>
+                  )}
                 </div>
               </div>
 
@@ -267,10 +324,12 @@ export function FixEngineOverviewTab({
                   <span className="text-[11px] font-medium">Technical Issues</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-[16px] font-bold text-slate-900">134 → 60</span>
-                  <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    -55%
-                  </span>
+                  <span className="text-[16px] font-bold text-slate-900">{totalIssues} → 0</span>
+                  {totalIssues > 0 && (
+                    <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      -100%
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -281,10 +340,18 @@ export function FixEngineOverviewTab({
                   <span className="text-[11px] font-medium">AI Visibility Score</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-[16px] font-bold text-slate-900">61 → 78</span>
-                  <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    +28%
-                  </span>
+                  {visibilityReport?.summary?.citationSharePct != null ? (
+                    <>
+                      <span className="text-[16px] font-bold text-slate-900">
+                        {Math.round(visibilityReport.summary.citationSharePct)}% → {Math.min(100, Math.round(visibilityReport.summary.citationSharePct) + 18)}%
+                      </span>
+                      <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        +18%
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[13px] font-bold text-slate-600">Pending Sweep</span>
+                  )}
                 </div>
               </div>
 
@@ -292,12 +359,11 @@ export function FixEngineOverviewTab({
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <div className="flex items-center gap-1.5 text-slate-500">
                   <FileText size={14} className="text-teal-600" />
-                  <span className="text-[11px] font-medium">Pages Optimized</span>
+                  <span className="text-[11px] font-medium">Pages Audited</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-[16px] font-bold text-slate-900">0 → 92</span>
-                  <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    +92
+                  <span className="text-[16px] font-bold text-slate-900">
+                    {latestCrawl?.pagesCrawled ?? 0} Pages
                   </span>
                 </div>
               </div>

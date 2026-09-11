@@ -21,7 +21,7 @@ import {
   Clock,
   Eye,
 } from "lucide-react";
-import type { CrawlIssue } from "@/lib/api-client";
+import type { CrawlIssue, VisibilityReport } from "@/lib/api-client";
 
 // ── 1. Fixes by Category Sub-Tab ────────────────────────────────────────────────
 export function FixesByCategoryTab({
@@ -33,89 +33,18 @@ export function FixesByCategoryTab({
 }) {
   const [selectedCat, setSelectedCat] = useState<string>("all");
 
-  const sampleFixes = [
-    {
-      id: "f-1",
-      category: "Technical SEO",
-      title: "Add canonical tags to paginated blog index pages",
-      severity: "Critical",
-      effort: "Low",
-      impact: "+14% Indexation",
-      url: "/blog?page=2",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-2",
-      category: "Technical SEO",
-      title: "Resolve 404 broken redirect chain on /solutions/legacy",
-      severity: "High",
-      effort: "Low",
-      impact: "+8% Crawl Budget",
-      url: "/solutions/legacy",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-3",
-      category: "On-Page SEO",
-      title: "Optimize missing H1 tag on enterprise pricing landing page",
-      severity: "High",
-      effort: "Low",
-      impact: "+18% CTR",
-      url: "/pricing",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-4",
-      category: "Performance & Core Web Vitals",
-      title: "Defer offscreen hero images and add explicit aspect ratios",
-      severity: "High",
-      effort: "Medium",
-      impact: "-1.2s LCP",
-      url: "/",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-5",
-      category: "Schema & Structured Data",
-      title: "Inject Organization & SoftwareApplication JSON-LD markup",
-      severity: "Critical",
-      effort: "Low",
-      impact: "+24% AI Citations",
-      url: "/",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-6",
-      category: "Content & Indexation",
-      title: "Expand thin content on technical comparison guide",
-      severity: "Medium",
-      effort: "Medium",
-      impact: "+32% Organic Visibility",
-      url: "/compare",
-      status: "Ready to Fix",
-    },
-    {
-      id: "f-7",
-      category: "Mobile & UX",
-      title: "Fix tap target sizing below 48px on mobile nav menu",
-      severity: "Medium",
-      effort: "Low",
-      impact: "Pass Mobile Audit",
-      url: "Global Component",
-      status: "Ready to Fix",
-    },
-  ];
+  const categories = Array.from(new Set(issues.map((i) => i.category).filter(Boolean))) as string[];
 
   const filtered = selectedCat === "all"
-    ? sampleFixes
-    : sampleFixes.filter((f) => f.category.toLowerCase().includes(selectedCat.toLowerCase()));
+    ? issues
+    : issues.filter((f) => (f.category || "").toLowerCase().includes(selectedCat.toLowerCase()));
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
-            <h3 className="text-[14.5px] font-bold text-slate-900">All Scheduled Fixes (92 Total)</h3>
+            <h3 className="text-[14.5px] font-bold text-slate-900">All Scheduled Fixes ({issues.length} Total)</h3>
             <p className="text-[11.5px] text-slate-500">
               Categorized and prioritized actions ready for automatic codebase remediation.
             </p>
@@ -126,74 +55,98 @@ export function FixesByCategoryTab({
               value={selectedCat}
               onChange={(e) => setSelectedCat(e.target.value)}
               aria-label="Filter fixes by category"
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 capitalize"
             >
-              <option value="all">All Categories (92)</option>
-              <option value="technical">Technical SEO (24)</option>
-              <option value="on-page">On-Page SEO (22)</option>
-              <option value="performance">Performance &amp; CWV (16)</option>
-              <option value="schema">Schema (12)</option>
-              <option value="content">Content (10)</option>
-              <option value="mobile">Mobile &amp; UX (8)</option>
+              <option value="all">All Categories ({issues.length})</option>
+              {categories.map((cat) => {
+                const count = issues.filter((i) => (i.category || "").toLowerCase() === cat.toLowerCase()).length;
+                return (
+                  <option key={cat} value={cat}>
+                    {cat} ({count})
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-[12px]">
-            <thead>
-              <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
-                <th className="py-2.5 pl-2 font-medium">Issue / Remediation</th>
-                <th className="py-2.5 font-medium">Category</th>
-                <th className="py-2.5 font-medium">Severity</th>
-                <th className="py-2.5 font-medium">Target URL</th>
-                <th className="py-2.5 font-medium">Est. Impact</th>
-                <th className="py-2.5 pr-2 font-medium text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/70">
-              {filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/70">
-                  <td className="py-3.5 pl-2 font-semibold text-slate-900 max-w-sm">
-                    {item.title}
-                  </td>
-                  <td className="py-3.5">
-                    <span className="rounded-md bg-purple-50 text-purple-700 border border-purple-200/60 px-2 py-0.5 text-[10.5px] font-semibold">
-                      {item.category}
-                    </span>
-                  </td>
-                  <td className="py-3.5">
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-[10.5px] font-semibold border ${
-                        item.severity === "Critical"
-                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      {item.severity}
-                    </span>
-                  </td>
-                  <td className="py-3.5 font-mono text-[11px] text-slate-500">
-                    {item.url}
-                  </td>
-                  <td className="py-3.5 font-bold text-emerald-600">
-                    {item.impact}
-                  </td>
-                  <td className="py-3.5 pr-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onOpenAutoFix?.(item as unknown as CrawlIssue)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-700 hover:bg-purple-100 transition-colors"
-                    >
-                      <Sparkles size={11} />
-                      <span>Review Code Fix</span>
-                    </button>
-                  </td>
+        {issues.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 mb-2">
+              <CheckCircle2 size={20} />
+            </div>
+            <p className="text-xs font-semibold text-slate-800">No issues found or crawl not yet run</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Run a site crawl to identify and schedule codebase fixes.</p>
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
+                  <th className="py-2.5 pl-2 font-medium">Issue / Remediation</th>
+                  <th className="py-2.5 font-medium">Category</th>
+                  <th className="py-2.5 font-medium">Severity</th>
+                  <th className="py-2.5 font-medium">Target URL</th>
+                  <th className="py-2.5 font-medium">Est. Impact</th>
+                  <th className="py-2.5 pr-2 font-medium text-right">Action</th>
                 </tr>
-              ))}
+              </thead>
+              <tbody className="divide-y divide-slate-100/70">
+                {filtered.map((item) => {
+                  const title = item.issueType
+                    ? item.issueType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                    : (item.description || "Issue");
+                  const sev = (item.severity || "MEDIUM").toLowerCase();
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70">
+                      <td className="py-3.5 pl-2 font-semibold text-slate-900 max-w-sm">
+                        {title}
+                      </td>
+                      <td className="py-3.5">
+                        <span className="rounded-md bg-purple-50 text-purple-700 border border-purple-200/60 px-2 py-0.5 text-[10.5px] font-semibold capitalize">
+                          {item.category || "Technical"}
+                        </span>
+                      </td>
+                      <td className="py-3.5">
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10.5px] font-semibold border capitalize ${
+                            sev === "critical"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : sev === "high"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-blue-50 text-blue-700 border-blue-200"
+                          }`}
+                        >
+                          {sev}
+                        </span>
+                      </td>
+                      <td className="py-3.5 font-mono text-[11px] text-slate-500 max-w-xs truncate">
+                        {item.affectedUrl || item.page?.url || "/"}
+                      </td>
+                      <td className="py-3.5 font-bold text-emerald-600">
+                        {sev === "critical"
+                          ? "High Impact"
+                          : sev === "high"
+                          ? "Medium Impact"
+                        : "Optimization"}
+                    </td>
+                    <td className="py-3.5 pr-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onOpenAutoFix?.(item)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-700 hover:bg-purple-100 transition-colors"
+                      >
+                        <Sparkles size={11} />
+                        <span>Review Code Fix</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -310,35 +263,84 @@ export function TimelineTab({
 }
 
 // ── 3. Impact Forecast Sub-Tab ─────────────────────────────────────────────────
-export function ImpactForecastTab() {
+export function ImpactForecastTab({
+  latestCrawl,
+  issues = [],
+  visibilityReport,
+}: {
+  latestCrawl?: {
+    id?: string;
+    healthScore?: number | null;
+    pagesCrawled?: number;
+    issuesSummary?: {
+      critical?: number;
+      high?: number;
+      medium?: number;
+      low?: number;
+    };
+  } | null;
+  issues?: CrawlIssue[];
+  visibilityReport?: VisibilityReport | null;
+}) {
+  const currentHealth = latestCrawl?.healthScore ?? null;
+  const projectedHealth = currentHealth != null ? Math.min(100, currentHealth + (issues.length > 0 ? 18 : 0)) : null;
+
+  const currentVisibility = visibilityReport?.summary?.citationSharePct != null ? Math.round(visibilityReport.summary.citationSharePct) : null;
+  const projectedVisibility = currentVisibility != null ? Math.min(100, currentVisibility + 18) : null;
+
+  const perfIssues = issues.filter((i) => {
+    const c = (i.category || "").toLowerCase();
+    return c.includes("perf") || c.includes("speed") || c.includes("cwv");
+  });
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">SEO Health Score</span>
-          <p className="mt-2 text-[28px] font-bold text-slate-900">68 → 86</p>
-          <span className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-            +26% Health Gain
-          </span>
-          <p className="mt-2 text-[11.5px] text-slate-500">Resolves 74 critical and high severity crawl errors.</p>
+          <p className="mt-2 text-[28px] font-bold text-slate-900">
+            {currentHealth != null ? `${currentHealth} → ${projectedHealth}` : "Pending Crawl"}
+          </p>
+          {currentHealth != null && projectedHealth != null && (
+            <span className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+              +{projectedHealth - currentHealth}% Health Gain
+            </span>
+          )}
+          <p className="mt-2 text-[11.5px] text-slate-500">
+            {issues.length > 0
+              ? `Resolves ${issues.length} detected crawl, indexing, and architecture errors.`
+              : "Run a crawl audit to calculate projected health score gains."}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Core Web Vitals Pass Rate</span>
-          <p className="mt-2 text-[28px] font-bold text-indigo-600">42% → 94%</p>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Performance &amp; Core Web Vitals</span>
+          <p className="mt-2 text-[28px] font-bold text-indigo-600">
+            {perfIssues.length > 0 ? `${perfIssues.length} Fixes` : latestCrawl ? "Pass Baseline" : "Pending Audit"}
+          </p>
           <span className="mt-1 inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">
-            Google CWV Certified
+            {perfIssues.length > 0 ? "Targeting Fast LCP" : "Lab Test Monitored"}
           </span>
-          <p className="mt-2 text-[11.5px] text-slate-500">Accelerates LCP from 3.2s to 1.4s across all pages.</p>
+          <p className="mt-2 text-[11.5px] text-slate-500">
+            {perfIssues.length > 0
+              ? `Automated asset compression and render script deferral for ${perfIssues.length} flagged URLs.`
+              : "Zero critical render-blocking issues detected in latest crawl baseline."}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">AI Citation Share</span>
-          <p className="mt-2 text-[28px] font-bold text-emerald-600">24% → 42%</p>
-          <span className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-            +18pt Citation Share
-          </span>
-          <p className="mt-2 text-[11.5px] text-slate-500">Rich schema and entity blocks boost ChatGPT &amp; Gemini citations.</p>
+          <p className="mt-2 text-[28px] font-bold text-emerald-600">
+            {currentVisibility != null ? `${currentVisibility}% → ${projectedVisibility}%` : "Pending Sweep"}
+          </p>
+          {currentVisibility != null && (
+            <span className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+              +18pt Citation Share
+            </span>
+          )}
+          <p className="mt-2 text-[11.5px] text-slate-500">
+            Rich schema and direct-answer entity blocks boost ChatGPT, Perplexity &amp; Gemini citations.
+          </p>
         </div>
       </div>
     </div>

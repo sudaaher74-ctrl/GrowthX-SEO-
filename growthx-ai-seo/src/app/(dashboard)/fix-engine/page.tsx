@@ -28,6 +28,7 @@ import {
   useAutonomousPlanStatus,
   useApproveAutonomousPlan,
   useStartCrawl,
+  useVisibility,
 } from "@/hooks/use-growthx";
 import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue } from "@/lib/api-client";
@@ -112,6 +113,13 @@ function FixEngineClient() {
   const planQuery = useAutonomousPlanStatus(projectId);
   const approveMutation = useApproveAutonomousPlan(projectId);
   const startCrawl = useStartCrawl();
+  const visibilityQuery = useVisibility(projectId, 28);
+
+  const competitorsQuery = useQuery({
+    queryKey: ["competitors", projectId],
+    queryFn: () => api.listCompetitors(projectId!),
+    enabled: !!projectId,
+  });
 
   const [planSubTab, setPlanSubTab] = useState<"overview" | "fixes" | "timeline" | "impact" | "settings">("overview");
   const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
@@ -122,7 +130,11 @@ function FixEngineClient() {
   const isApproved = Boolean(planQuery.data?.isApproved || localApproved);
 
   const rawIssues = (issues.data?.data || []) as CrawlIssue[];
-  const totalFixes = rawIssues.length > 0 ? rawIssues.length : 92;
+  const totalFixes = rawIssues.length;
+  const completedFixes = planQuery.data?.completedActionsCount ?? rawIssues.filter((i) => i.status === "resolved" || i.status === "completed").length;
+
+  const competitorsList = competitorsQuery.data ?? [];
+  const competitorOpportunitiesCount = competitorsList.length;
 
   const handleApprovePlan = async () => {
     setStatusMessage(null);
@@ -262,6 +274,7 @@ function FixEngineClient() {
           {/* HERO BANNER */}
           <FixEngineHeroBanner
             totalFixes={totalFixes}
+            completedFixes={completedFixes}
             isApproved={isApproved}
             onApprovePlan={handleApprovePlan}
             isApproving={approveMutation.isPending}
@@ -294,6 +307,9 @@ function FixEngineClient() {
           {/* Sub-tab view rendering */}
           {planSubTab === "overview" && (
             <FixEngineOverviewTab
+              issues={rawIssues}
+              latestCrawl={latestCrawl.data}
+              visibilityReport={visibilityQuery.data}
               onViewCategoryFixes={() => setPlanSubTab("fixes")}
               isApproved={isApproved}
             />
@@ -308,7 +324,13 @@ function FixEngineClient() {
 
           {planSubTab === "timeline" && <TimelineTab />}
 
-          {planSubTab === "impact" && <ImpactForecastTab />}
+          {planSubTab === "impact" && (
+            <ImpactForecastTab
+              issues={rawIssues}
+              latestCrawl={latestCrawl.data}
+              visibilityReport={visibilityQuery.data}
+            />
+          )}
 
           {planSubTab === "settings" && <SettingsTab />}
         </div>
@@ -317,6 +339,10 @@ function FixEngineClient() {
       {/* ── TAB 2: IMPLEMENTATION (Section 22: Live progress, category breakdown, activity feed) ── */}
       {activeTab === "implementation" && (
         <FixEngineImplementationView
+          projectId={projectId}
+          customerDomain={activeDomain}
+          issues={rawIssues}
+          planStatus={planQuery.data}
           onViewVerification={() => setActiveTab("verification")}
           onRollback={() => setStatusMessage("Rollback initiated. Safe Mode reverting last applied changeset.")}
         />
@@ -324,12 +350,22 @@ function FixEngineClient() {
 
       {/* ── TAB 3: VERIFICATION (Section 23: Re-crawl, HTML/Schema/Speed/AI verification) ── */}
       {activeTab === "verification" && (
-        <FixEngineVerificationView onReVerifyAll={handleTriggerScan} />
+        <FixEngineVerificationView
+          projectId={projectId}
+          customerDomain={activeDomain}
+          issues={rawIssues}
+          onReVerifyAll={handleTriggerScan}
+        />
       )}
 
       {/* ── TAB 4: HISTORY & CYCLES (Sections 24 & 25: 30-Day completion, measured results, next cycle loop) ── */}
       {activeTab === "history" && (
         <FixEngineHistoryView
+          projectId={projectId}
+          customerDomain={activeDomain}
+          issues={rawIssues}
+          latestCrawl={latestCrawl.data}
+          planStatus={planQuery.data}
           onStartNextCycle={() => {
             handleTriggerScan();
             setStatusMessage("New 30-day analysis cycle initiated! Re-crawling site and refreshing competitor benchmarks.");
@@ -345,7 +381,7 @@ function FixEngineClient() {
           domain={activeDomain}
           businessName={businessName}
           technicalIssuesCount={totalFixes}
-          competitorOpportunitiesCount={24}
+          competitorOpportunitiesCount={competitorOpportunitiesCount}
           onClose={() => setShowPlanModal(false)}
           onTriggerReCrawl={handleTriggerScan}
         />

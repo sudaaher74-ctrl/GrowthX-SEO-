@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Radio,
   Link2,
@@ -33,46 +33,87 @@ export interface AiVisibilityOverviewTabProps {
 
 export function AiVisibilityOverviewTab({
   report,
-  trackedPromptsCount = 120,
-  domain = "aivaenterprises.com",
-  businessName = "Aiva",
+  trackedPromptsCount = 0,
+  domain = "",
+  businessName = "Your Brand",
   onViewCompetitorsTab,
   onViewInsightsTab,
   onViewRecommendationsTab,
   onGenerateRecommendations,
 }: AiVisibilityOverviewTabProps) {
-  // Use real data where present, fall back to the rich realistic presentation from the design mockup
-  const mentionRate = report?.summary?.checked && report.summary.checked > 0
-    ? `${Math.round((report.summary.cited / report.summary.checked) * 100)}%`
-    : "68%";
-  
-  const totalCitations = report?.summary?.cited != null && report.summary.cited > 0
-    ? report.summary.cited
-    : 342;
+  // Real measurements from the AI Visibility engine
+  const mentionRate =
+    report?.summary?.checked && report.summary.checked > 0
+      ? `${Math.round((report.summary.cited / report.summary.checked) * 100)}%`
+      : "0%";
 
-  const shareOfVoice = report?.summary?.citationSharePct != null && report.summary.citationSharePct > 0
-    ? `${report.summary.citationSharePct}%`
-    : "24%";
+  const totalCitations = report?.summary?.cited ?? 0;
 
-  const trackedQueries = trackedPromptsCount > 0 ? trackedPromptsCount : 120;
+  const shareOfVoice =
+    report?.summary?.citationSharePct != null
+      ? `${report.summary.citationSharePct}%`
+      : "0%";
 
-  // Donut chart calculations
+  const trackedQueries = trackedPromptsCount;
+
+  // Derive donut chart segments from real byAssistant data
   const totalCircumference = 2 * Math.PI * 46; // r=46 -> ~289.02
-  const segments = [
-    { label: "ChatGPT", pct: 42, color: "#10b981", strokeDash: `${0.42 * totalCircumference} ${totalCircumference}`, offset: 0 },
-    { label: "Claude", pct: 28, color: "#f97316", strokeDash: `${0.28 * totalCircumference} ${totalCircumference}`, offset: -(0.42 * totalCircumference) },
-    { label: "Gemini", pct: 22, color: "#38bdf8", strokeDash: `${0.22 * totalCircumference} ${totalCircumference}`, offset: -((0.42 + 0.28) * totalCircumference) },
-    { label: "Others", pct: 8, color: "#94a3b8", strokeDash: `${0.08 * totalCircumference} ${totalCircumference}`, offset: -((0.42 + 0.28 + 0.22) * totalCircumference) },
-  ];
+  const byAssistant = report?.byAssistant || [];
 
-  // Competitor list with citation shares
-  const topCompetitors = [
-    { rank: 1, domain: "semrush.com", sharePct: 32, barColor: "bg-indigo-500", isYou: false },
-    { rank: 2, domain: "ahrefs.com", sharePct: 28, barColor: "bg-blue-500", isYou: false },
-    { rank: 3, domain: "moz.com", sharePct: 18, barColor: "bg-sky-500", isYou: false },
-    { rank: 4, domain: domain, sharePct: 24, barColor: "bg-emerald-500", isYou: true },
-    { rank: 5, domain: "screamingfrog.co.uk", sharePct: 12, barColor: "bg-indigo-400", isYou: false },
-  ];
+  const segments = useMemo(() => {
+    if (byAssistant.length === 0) {
+      return [
+        { label: "Pending Sweep", pct: 100, color: "#cbd5e1", strokeDash: `${totalCircumference} ${totalCircumference}`, offset: 0 },
+      ];
+    }
+
+    const totalCitationsAll = byAssistant.reduce((acc, a) => acc + (a.cited || 0), 0) || 1;
+    const colors = ["#10b981", "#f97316", "#38bdf8", "#8b5cf6"];
+    let accumulatedOffset = 0;
+
+    return byAssistant.map((asst, idx) => {
+      const pct = Math.round(((asst.cited || 0) / totalCitationsAll) * 100);
+      const dashLength = (pct / 100) * totalCircumference;
+      const currentOffset = accumulatedOffset;
+      accumulatedOffset -= dashLength;
+
+      return {
+        label: asst.assistant,
+        pct,
+        color: colors[idx % colors.length],
+        strokeDash: `${dashLength} ${totalCircumference}`,
+        offset: currentOffset,
+      };
+    });
+  }, [byAssistant, totalCircumference]);
+
+  // Derive top competitors from real shareOfVoice
+  const topCompetitors = useMemo(() => {
+    const sov = report?.shareOfVoice || [];
+    if (sov.length === 0) {
+      if (domain) {
+        return [
+          {
+            rank: 1,
+            domain: domain,
+            sharePct: report?.summary?.citationSharePct ?? 0,
+            barColor: "bg-emerald-500",
+            isYou: true,
+          },
+        ];
+      }
+      return [];
+    }
+
+    const barColors = ["bg-indigo-500", "bg-blue-500", "bg-sky-500", "bg-purple-500", "bg-emerald-500"];
+    return sov.slice(0, 5).map((item, idx) => ({
+      rank: idx + 1,
+      domain: item.domain || item.label,
+      sharePct: item.sharePct,
+      barColor: item.domain === domain ? "bg-emerald-500" : barColors[idx % barColors.length],
+      isYou: item.domain === domain,
+    }));
+  }, [report?.shareOfVoice, domain, report?.summary?.citationSharePct]);
 
   return (
     <div className="space-y-6">
@@ -82,9 +123,7 @@ export function AiVisibilityOverviewTab({
         <AiKpiCard
           label="AI Mention Rate"
           value={mentionRate}
-          trend="+24%"
-          trendPositive={true}
-          subtext="Your brand is mentioned in AI responses for tracked queries."
+          subtext="Tracked queries where your brand is cited."
           icon={<Radio size={16} />}
           iconBgColor="bg-emerald-50 text-emerald-600"
           colorScheme="emerald"
@@ -94,10 +133,8 @@ export function AiVisibilityOverviewTab({
         {/* Card 2: Total Citations */}
         <AiKpiCard
           label="Total Citations"
-          value={totalCitations}
-          trend="+52%"
-          trendPositive={true}
-          subtext="Total number of citations across ChatGPT, Claude and Gemini."
+          value={totalCitations.toLocaleString()}
+          subtext="Citations across ChatGPT, Claude and Gemini."
           icon={<Link2 size={16} />}
           iconBgColor="bg-blue-50 text-blue-600"
           colorScheme="blue"
@@ -108,383 +145,158 @@ export function AiVisibilityOverviewTab({
         <AiKpiCard
           label="Share of Voice"
           value={shareOfVoice}
-          trend="+8%"
-          trendPositive={true}
-          subtext="Your share vs top 5 competitors in AI responses."
+          subtext="Presence compared to tracked competitors."
           icon={<PieChart size={16} />}
           iconBgColor="bg-purple-50 text-purple-600"
           colorScheme="purple"
-          infoTooltip="Your brand citation volume divided by total citations for you and your key competitors."
+          infoTooltip="Your proportion of total brand recommendations vs. rival domains."
         />
 
         {/* Card 4: Tracked Queries */}
         <AiKpiCard
           label="Tracked Queries"
-          value={trackedQueries}
-          trend="+12%"
-          trendPositive={true}
-          subtext="Brand and industry queries being monitored."
+          value={trackedQueries.toString()}
+          subtext="High-intent conversational buyer prompts."
           icon={<Search size={16} />}
-          iconBgColor="bg-orange-50 text-orange-600"
+          iconBgColor="bg-amber-50 text-amber-600"
           colorScheme="orange"
-          infoTooltip="Active high-intent keywords probed periodically across LLM engines."
+          infoTooltip="Active queries evaluated across AI models for brand citations."
         />
 
-        {/* Card 5: Your AI Visibility Score Gauge */}
+        {/* Card 5: AI Visibility Score Gauge */}
         <AiVisibilityGauge
-          score={76}
-          maxScore={100}
-          statusLabel="Good"
-          subtext="You're performing well, but there are opportunities to increase your visibility."
+          score={report?.summary?.citationSharePct ?? 0}
+          statusLabel={report?.summary?.citationSharePct != null ? (report.summary.citationSharePct > 50 ? "Strong" : "Growing") : "Pending"}
+          subtext="Composite citation & prominence index"
         />
       </div>
 
-      {/* ── ROW 2: Model Perception (50%) + Citation Distribution (25%) + Top Competitors (25%) ── */}
+      {/* ── ROW 2: Model Distribution Donut (40%) + Competitor Share of Voice (60%) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: How AI Models See Your Brand (Col span 6) */}
-        <div className="lg:col-span-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+        {/* Left: AI Model Distribution Donut (Col span 5) */}
+        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
-                <Bot size={14} />
-              </div>
-              <div>
-                <h3 className="text-[14.5px] font-bold text-slate-900 leading-none">
-                  How AI Models See Your Brand
-                </h3>
-                <p className="mt-1 text-[11.5px] text-slate-500">
-                  Insights from each AI model based on your website, content and competitors.
-                </p>
-              </div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">AI Model Distribution</h3>
+              <span className="text-[11px] text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded-md">
+                Live Citations
+              </span>
             </div>
 
-            {/* 3 Model Cards Side-by-Side */}
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* ChatGPT Card */}
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/40 p-3.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-slate-900 border border-emerald-100/60">
-                        <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2m0 5a5 5 0 0 0-5 5c0 2.76 2.24 5 5 5s5-2.24 5-5a5 5 0 0 0-5-5" />
-                        </svg>
-                      </div>
-                      <span className="text-[12px] font-bold text-slate-900">ChatGPT</span>
-                    </div>
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200/50">
-                      Positive
-                    </span>
-                  </div>
-
-                  <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-600 italic">
-                    &ldquo;{businessName} is recognized as a leading AI-powered SEO automation platform, especially for technical SEO and code fixes.&rdquo;
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-200/60">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                    Strengths
-                  </span>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      Technical SEO
-                    </span>
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      Automation
-                    </span>
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      Clean Documentation
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Claude Card */}
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/40 p-3.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#fff7ed] text-[#d97706] border border-amber-200/60">
-                        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </div>
-                      <span className="text-[12px] font-bold text-slate-900">Claude</span>
-                    </div>
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200/50">
-                      Neutral
-                    </span>
-                  </div>
-
-                  <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-600 italic">
-                    &ldquo;{businessName} is seen as a promising platform with strong automation capabilities, though more proof points and case studies would improve credibility.&rdquo;
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-200/60">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                    Improvement Areas
-                  </span>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <span className="rounded-md bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                      More Case Studies
-                    </span>
-                    <span className="rounded-md bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                      Stronger Brand Authority
-                    </span>
-                    <span className="rounded-md bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                      Better Content Depth
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Gemini Card */}
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/40 p-3.5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-sky-600 border border-sky-200/60">
-                        <Sparkles size={14} />
-                      </div>
-                      <span className="text-[12px] font-bold text-slate-900">Gemini</span>
-                    </div>
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200/50">
-                      Positive
-                    </span>
-                  </div>
-
-                  <p className="mt-2.5 text-[11.5px] leading-relaxed text-slate-600 italic">
-                    &ldquo;{businessName} is considered an innovative solution in the SEO/AI space, with good relevance for businesses looking to automate SEO and GEO.&rdquo;
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-200/60">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                    Strengths
-                  </span>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      AI Innovation
-                    </span>
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      Relevant for Businesses
-                    </span>
-                    <span className="rounded-md bg-emerald-50/80 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-                      Growing Presence
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Middle: AI Citation Distribution (Col span 3) */}
-        <div className="lg:col-span-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[14px] font-bold text-slate-900">AI Citation Distribution</span>
-              <Info size={13} className="text-slate-300" />
-            </div>
-          </div>
-
-          {/* Donut graphic and Legend */}
-          <div className="my-auto flex flex-col sm:flex-row items-center justify-center gap-5 pt-3">
-            {/* Donut Chart SVG */}
-            <div className="relative flex h-[126px] w-[126px] shrink-0 items-center justify-center">
-              <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-                {segments.map((seg, idx) => (
+            {/* Donut graphic */}
+            <div className="my-6 flex items-center justify-center relative">
+              <svg className="w-44 h-44 -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="46" fill="transparent" stroke="#f1f5f9" strokeWidth="8" />
+                {segments.map((s, idx) => (
                   <circle
                     key={idx}
-                    cx="60"
-                    cy="60"
+                    cx="50"
+                    cy="50"
                     r="46"
-                    fill="none"
-                    stroke={seg.color}
-                    strokeWidth="15"
-                    strokeDasharray={seg.strokeDash}
-                    strokeDashoffset={seg.offset}
-                    className="transition-all duration-700"
+                    fill="transparent"
+                    stroke={s.color}
+                    strokeWidth="8"
+                    strokeDasharray={s.strokeDash}
+                    strokeDashoffset={s.offset}
+                    strokeLinecap="round"
                   />
                 ))}
               </svg>
-              {/* Center text */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[20px] font-extrabold text-slate-900 leading-none">
-                  {totalCitations}
-                </span>
-                <span className="mt-0.5 text-[10.5px] font-medium text-slate-400">
-                  Citations
-                </span>
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-2xl font-black text-slate-900">{totalCitations}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400">Total Citations</span>
               </div>
             </div>
 
-            {/* Legend list */}
-            <div className="space-y-2 text-[12px]">
+            {/* Model legend breakdown */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
               {segments.map((s) => (
-                <div key={s.label} className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: s.color }}
-                  />
-                  <span className="font-medium text-slate-700 min-w-[55px]">{s.label}</span>
+                <div key={s.label} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    <span className="font-semibold text-slate-700">{s.label}</span>
+                  </div>
                   <span className="font-bold text-slate-900">{s.pct}%</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-2 text-[11px] text-slate-400 text-center">
-            Proportional engine citation distribution
-          </div>
-        </div>
-
-        {/* Right: Top Competitors in AI Responses (Col span 3) */}
-        <div className="lg:col-span-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Users size={15} className="text-purple-600" />
-              <h3 className="text-[14px] font-bold text-slate-900">
-                Top Competitors in AI Responses
-              </h3>
-            </div>
-
-            {/* List */}
-            <div className="mt-3.5 space-y-2.5">
-              {topCompetitors.map((item) => (
-                <div
-                  key={item.domain}
-                  className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors ${
-                    item.isYou
-                      ? "bg-emerald-50/80 border border-emerald-200/70"
-                      : "hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="w-3 text-[11px] font-bold text-slate-400 text-center">
-                    {item.rank}
-                  </span>
-                  <span
-                    className={`flex-1 text-[11.5px] truncate ${
-                      item.isYou ? "font-bold text-emerald-950" : "font-medium text-slate-800"
-                    }`}
-                  >
-                    {item.domain}
-                  </span>
-
-                  {/* Horizontal mini bar */}
-                  <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden shrink-0">
-                    <div
-                      className={`h-full rounded-full ${item.barColor}`}
-                      style={{ width: `${item.sharePct * 2}%` }}
-                    />
-                  </div>
-
-                  <span className="w-8 text-right text-[11.5px] font-bold text-slate-800 shrink-0">
-                    {item.sharePct}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <button
             type="button"
-            onClick={onViewCompetitorsTab}
-            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+            onClick={onViewInsightsTab}
+            className="mt-5 w-full py-2.5 px-4 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition flex items-center justify-center gap-1.5"
           >
-            <span>View Full Comparison</span>
+            <span>View AI Council Analysis</span>
             <ArrowRight size={13} />
           </button>
         </div>
-      </div>
 
-      {/* ── ROW 3: Latest AI Insights (70%) + Ready to Improve Card (30%) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Latest AI Insights */}
-        <div className="lg:col-span-8 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Sparkles size={15} className="text-purple-600" />
-              <h3 className="text-[14.5px] font-bold text-slate-900">Latest AI Insights</h3>
-            </div>
-            <button
-              type="button"
-              onClick={onViewInsightsTab}
-              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <span>View Full Insights</span>
-              <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Insight 1 */}
-            <div className="rounded-xl border border-slate-200/70 bg-slate-50/40 p-4 hover:bg-slate-50 transition-colors">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                <TrendingUp size={16} />
-              </div>
-              <h4 className="mt-3 text-[13px] font-bold text-slate-900 leading-snug">
-                Growing Brand Mentions
-              </h4>
-              <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
-                Mentions increased by 24% in the last 28 days, especially in technical SEO queries.
-              </p>
-            </div>
-
-            {/* Insight 2 */}
-            <div className="rounded-xl border border-slate-200/70 bg-slate-50/40 p-4 hover:bg-slate-50 transition-colors">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
-                <Lightbulb size={16} />
-              </div>
-              <h4 className="mt-3 text-[13px] font-bold text-slate-900 leading-snug">
-                Content Opportunity
-              </h4>
-              <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
-                AI models suggest creating more case studies and industry-specific content.
-              </p>
-            </div>
-
-            {/* Insight 3 */}
-            <div className="rounded-xl border border-slate-200/70 bg-slate-50/40 p-4 hover:bg-slate-50 transition-colors">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 border border-orange-100">
-                <Users size={16} />
-              </div>
-              <h4 className="mt-3 text-[13px] font-bold text-slate-900 leading-snug">
-                Competitor Gap
-              </h4>
-              <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
-                Your competitors have stronger brand authority signals in Gemini responses.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Ready to Improve Your AI Visibility? Banner */}
-        <div className="lg:col-span-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#5b21b6] via-[#6d28d9] to-[#7c3aed] p-5 text-white shadow-sm flex flex-col justify-between">
+        {/* Right: Competitor Share of Voice (Col span 7) */}
+        <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-xs">
-              <Sparkles size={20} />
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">AI Share of Voice Benchmark</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  LLM response mentions comparing your domain vs. tracked rivals
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onViewCompetitorsTab}
+                className="text-xs font-semibold text-purple-700 hover:text-purple-800 flex items-center gap-1"
+              >
+                <span>View All</span>
+                <ArrowRight size={13} />
+              </button>
             </div>
 
-            <h3 className="mt-3.5 text-[16px] font-bold leading-snug">
-              Ready to Improve Your AI Visibility?
-            </h3>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-purple-100/90">
-              Get personalized, AI-powered recommendations to increase your citations and share of voice.
-            </p>
+            {/* Competitor Bars */}
+            <div className="mt-5 space-y-4">
+              {topCompetitors.length === 0 ? (
+                <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
+                  <Bot className="h-6 w-6 text-purple-600 mx-auto" />
+                  <p className="text-xs font-bold text-slate-800">No Share of Voice Measurements Yet</p>
+                  <p className="text-[11px] text-slate-500">
+                    Add competitors and run an AI Visibility sweep to measure brand mentions across LLMs.
+                  </p>
+                </div>
+              ) : (
+                topCompetitors.map((comp) => (
+                  <div key={comp.domain} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className={`flex items-center gap-1.5 ${comp.isYou ? "text-purple-700 font-bold" : "text-slate-700"}`}>
+                        <span>#{comp.rank}</span>
+                        <span className="truncate">{comp.domain}</span>
+                        {comp.isYou && (
+                          <span className="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.2 rounded font-bold">
+                            You
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-bold text-slate-900">{comp.sharePct}%</span>
+                    </div>
+
+                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${comp.barColor} rounded-full transition-all`}
+                        style={{ width: `${Math.max(4, comp.sharePct)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onGenerateRecommendations || onViewRecommendationsTab}
-            className="mt-5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 px-4 text-[12.5px] font-bold text-purple-900 hover:bg-purple-50 transition-all shadow-xs active:scale-[0.99]"
-          >
-            <span>Generate Recommendations</span>
-            <ArrowRight size={14} />
-          </button>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+            <span>Aggregated across ChatGPT, Claude, and Gemini</span>
+            <span className="text-purple-700 font-semibold cursor-pointer" onClick={onViewCompetitorsTab}>
+              Deep Dive →
+            </span>
+          </div>
         </div>
       </div>
     </div>
