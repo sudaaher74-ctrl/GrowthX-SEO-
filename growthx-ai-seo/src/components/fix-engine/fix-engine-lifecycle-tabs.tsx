@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import type { CrawlIssue, AutonomousPlanStatus } from "@/lib/api-client";
 import { FixEvidenceDiffModal, type FixEvidenceDiffModalProps } from "@/components/fix-engine/fix-evidence-diff-modal";
+import { SprintExecutionModal, type SprintTaskToExecute } from "@/components/fix-engine/sprint-execution-modal";
+import { useActionEngineStrategy, useStagedFixItems } from "@/hooks/use-growthx";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. FIX ENGINE IMPLEMENTATION VIEW (Section 22)
@@ -56,6 +58,66 @@ export function FixEngineImplementationView({
 }: FixEngineImplementationViewProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [diffModal, setDiffModal] = useState<{ title: string; targetUrl: string; deliverable: string } | null>(null);
+  const [executionModal, setExecutionModal] = useState<{ sprintWeek: number; tasks: SprintTaskToExecute[] } | null>(null);
+  const [selectedSprintWeek, setSelectedSprintWeek] = useState<number>(1);
+
+  const strategyQuery = useActionEngineStrategy(projectId || null);
+  const stagedItems = useStagedFixItems(projectId || null);
+
+  const currentDay = planStatus?.currentDay || 1;
+  const activeSprintWeek = currentDay <= 7 ? 1 : currentDay <= 14 ? 2 : currentDay <= 21 ? 3 : 4;
+
+  const getSprintTasks = (week: number): SprintTaskToExecute[] => {
+    const priorityTarget = week === 1 ? "CRITICAL" : week === 2 ? "HIGH" : week === 3 ? "MEDIUM" : "LOW";
+    const actions = (strategyQuery.data?.actions || []).filter((a) => a.priority === priorityTarget);
+    const staged = stagedItems.filter((s) => s.priority === priorityTarget);
+
+    const list: SprintTaskToExecute[] = [];
+    actions.forEach((a) => {
+      list.push({
+        id: a.id,
+        title: a.title,
+        category: a.category,
+        deliverable: a.expectedImpact || a.steps?.[0] || "Clean code & schema fix",
+        targetUrl: a.evidence?.[0]?.sourceUrl || `https://${customerDomain || "yourdomain.com"}/`,
+        priority: a.priority as any,
+        isStaged: false,
+      });
+    });
+    staged.forEach((s) => {
+      list.push({
+        id: s.id,
+        title: s.title,
+        category: s.category,
+        deliverable: s.deliverable,
+        targetUrl: `https://${customerDomain || "yourdomain.com"}/`,
+        priority: s.priority,
+        isStaged: true,
+      });
+    });
+
+    if (list.length === 0) {
+      const matchingIssues = issues.filter((i) => {
+        const sev = (i.severity || "MEDIUM").toUpperCase();
+        return sev === priorityTarget;
+      });
+      matchingIssues.slice(0, 6).forEach((issue) => {
+        const title = issue.issueType ? issue.issueType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : (issue.description || "Technical SEO Fix");
+        list.push({
+          id: issue.id,
+          title,
+          category: issue.category || "Technical SEO",
+          deliverable: issue.recommendation || "Validated fix patch",
+          targetUrl: issue.affectedUrl || `https://${customerDomain || "yourdomain.com"}/`,
+          priority: priorityTarget as any,
+          isStaged: false,
+        });
+      });
+    }
+    return list;
+  };
+
+  const currentSprintTasks = getSprintTasks(selectedSprintWeek);
 
   const totalActions = planStatus?.actionsCount || issues.length;
   const resolvedIssues = issues.filter(
@@ -176,8 +238,22 @@ export function FixEngineImplementationView({
 
             <button
               type="button"
+              onClick={() =>
+                setExecutionModal({
+                  sprintWeek: activeSprintWeek,
+                  tasks: getSprintTasks(activeSprintWeek),
+                })
+              }
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-md shadow-purple-950/40 cursor-pointer"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Run Sprint {activeSprintWeek} →</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onViewVerification}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-md shadow-purple-950/40"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur transition border border-white/10 cursor-pointer"
             >
               <span>View Verification →</span>
             </button>
@@ -198,6 +274,93 @@ export function FixEngineImplementationView({
               style={{ width: `${progressPct}%` }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* ── SPRINT EXECUTION CONTROLLER CARD ── */}
+      <div className="rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50/60 via-white to-indigo-50/40 p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="h-11 w-11 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/25">
+              <Cpu className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900">
+                  Sprint {selectedSprintWeek} Autonomous Dispatcher
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                  {currentSprintTasks.length} Action{currentSprintTasks.length === 1 ? "" : "s"} in Queue
+                </span>
+                {selectedSprintWeek === activeSprintWeek && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                    Current Active Sprint
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selectedSprintWeek === 1
+                  ? "Sprint 1 (Days 1–7): Critical technical crawl blockers, indexing barriers & foundational schema."
+                  : selectedSprintWeek === 2
+                  ? "Sprint 2 (Days 8–14): High-priority metadata, competitor content gaps & landing pages."
+                  : selectedSprintWeek === 3
+                  ? "Sprint 3 (Days 15–21): Internal linking equity, mobile Core Web Vitals & topic authority."
+                  : "Sprint 4 (Days 22–30): Authority expansion, AI visibility citations & verified audit report."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            <button
+              type="button"
+              onClick={() =>
+                setExecutionModal({
+                  sprintWeek: selectedSprintWeek,
+                  tasks: currentSprintTasks,
+                })
+              }
+              disabled={currentSprintTasks.length === 0}
+              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Trigger Sprint {selectedSprintWeek} Execution</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Sprint Week Tabs */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-purple-100/70">
+          {[
+            { week: 1, label: "Sprint 1: Critical (Days 1–7)" },
+            { week: 2, label: "Sprint 2: High Impact (Days 8–14)" },
+            { week: 3, label: "Sprint 3: Expansion (Days 15–21)" },
+            { week: 4, label: "Sprint 4: Verification (Days 22–30)" },
+          ].map((tab) => {
+            const isSelected = selectedSprintWeek === tab.week;
+            const count = getSprintTasks(tab.week).length;
+            return (
+              <button
+                key={tab.week}
+                type="button"
+                onClick={() => setSelectedSprintWeek(tab.week)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                  isSelected
+                    ? "bg-purple-600 text-white shadow-2xs"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? "bg-purple-800 text-purple-100" : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -296,6 +459,30 @@ export function FixEngineImplementationView({
                         <FileCode size={11} />
                         <span>View Diff &amp; Proof →</span>
                       </button>
+                      {item.status !== "Verified" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExecutionModal({
+                              sprintWeek: activeSprintWeek,
+                              tasks: [
+                                {
+                                  id: `task-live-${idx}`,
+                                  title: item.action,
+                                  description: item.detail,
+                                  targetUrl: item.target,
+                                  priority: "CRITICAL",
+                                  category: "Technical",
+                                },
+                              ],
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer ml-2"
+                        >
+                          <Play size={11} />
+                          <span>Execute Fix Now →</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -377,6 +564,29 @@ export function FixEngineImplementationView({
           issueTitle={diffModal.title}
           targetUrl={diffModal.targetUrl}
           deliverable={diffModal.deliverable}
+        />
+      )}
+
+      {executionModal && (
+        <SprintExecutionModal
+          isOpen={true}
+          onClose={() => setExecutionModal(null)}
+          projectId={projectId || undefined}
+          customerDomain={customerDomain}
+          sprintWeek={executionModal.sprintWeek}
+          tasks={executionModal.tasks}
+          onViewDiff={(task) => {
+            setExecutionModal(null);
+            setDiffModal({
+              title: task.title,
+              targetUrl: task.targetUrl || customerDomain || "Sitewide",
+              deliverable: task.description || task.deliverable || "Applied code & schema fix",
+            });
+          }}
+          onViewVerification={() => {
+            setExecutionModal(null);
+            onViewVerification?.();
+          }}
         />
       )}
     </div>

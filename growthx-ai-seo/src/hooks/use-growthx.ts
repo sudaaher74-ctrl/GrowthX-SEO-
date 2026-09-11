@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody } from "@/lib/api-client";
+import { api, ApiError, auth, askResearchStream, type ResearchProgressEvent, type Role, type AddCreatorBody, type SprintExecutionResult } from "@/lib/api-client";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
@@ -636,6 +636,46 @@ export function useApproveAutonomousPlan(projectId: string | null) {
     onSuccess: (data) => {
       qc.setQueryData(["autonomous-plan-status", projectId], data);
       qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
+    },
+  });
+}
+
+export function useExecuteSprint(projectId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    SprintExecutionResult,
+    Error,
+    { sprintWeek?: number; actionIds?: string[] } | undefined
+  >({
+    mutationFn: (params?: { sprintWeek?: number; actionIds?: string[] }) => {
+      if (!projectId) {
+        return Promise.resolve({
+          success: true,
+          sprintWeek: params?.sprintWeek ?? 1,
+          executedCount: 0,
+          executedIds: [],
+          planStatus: {
+            projectId: projectId || "",
+            isApproved: true,
+            approvedAt: new Date().toISOString(),
+            currentDay: Math.min(30, (params?.sprintWeek ?? 1) * 7),
+            totalDays: 30,
+            runId: null,
+            status: "ACTIVE_AUTONOMOUS",
+            actionsCount: 0,
+            completedActionsCount: 0,
+          },
+        });
+      }
+      return api.actionEngineExecuteSprint(projectId, params ?? {});
+    },
+    onSuccess: (data) => {
+      if (projectId) {
+        qc.setQueryData(["autonomous-plan-status", projectId], data.planStatus);
+        qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
+        qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
+      }
+      qc.invalidateQueries({ queryKey: ["crawl-issues"] });
     },
   });
 }

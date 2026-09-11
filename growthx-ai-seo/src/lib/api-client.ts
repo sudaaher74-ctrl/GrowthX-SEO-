@@ -1650,6 +1650,14 @@ export interface AutonomousPlanStatus {
   completedActionsCount: number;
 }
 
+export interface SprintExecutionResult {
+  success: boolean;
+  sprintWeek: number;
+  executedCount: number;
+  executedIds: string[];
+  planStatus: AutonomousPlanStatus;
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2765,6 +2773,15 @@ export const api = {
 
   actionEngineApproveAutonomousPlan: (projectId: string) =>
     post<AutonomousPlanStatus>(`/api/projects/${projectId}/action-engine/autonomous-plan/approve`, {}),
+
+  actionEngineExecuteSprint: (
+    projectId: string,
+    body: { sprintWeek?: number; actionIds?: string[] } = {},
+  ) =>
+    post<SprintExecutionResult>(
+      `/api/projects/${projectId}/action-engine/autonomous-plan/execute-sprint`,
+      body,
+    ),
 
   gscProperties: (projectId: string) =>
     get<{

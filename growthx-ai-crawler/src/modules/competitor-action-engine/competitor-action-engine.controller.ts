@@ -251,4 +251,19 @@ export class CompetitorActionEngineController {
       projectId,
     );
   }
+
+  @Post('autonomous-plan/execute-sprint')
+  @ApiOperation({ summary: 'Trigger autonomous execution batch for a sprint week or specific action IDs' })
+  executeSprint(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { sprintWeek?: number; actionIds?: string[] },
+  ) {
+    return this.read.executeSprintBatch(
+      req.user?.organizationId || req.organizationId || 'default-org',
+      projectId,
+      body.sprintWeek ?? 1,
+      body.actionIds,
+    );
+  }
 }

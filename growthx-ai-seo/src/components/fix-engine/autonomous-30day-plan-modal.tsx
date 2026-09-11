@@ -36,6 +36,7 @@ import {
   useStagedFixItems,
 } from "@/hooks/use-growthx";
 import type { CrawlIssue, StrategyActionRow } from "@/lib/api-client";
+import { SprintExecutionModal, type SprintTaskToExecute } from "@/components/fix-engine/sprint-execution-modal";
 
 interface Autonomous30DayPlanModalProps {
   projectId: string;
@@ -82,6 +83,10 @@ export function Autonomous30DayPlanModal({
 
   const [activeWeek, setActiveWeek] = useState<number>(1);
   const [localApproved, setLocalApproved] = useState<boolean>(false);
+  const [executionModal, setExecutionModal] = useState<{
+    sprintWeek: number;
+    tasks: SprintTaskToExecute[];
+  } | null>(null);
 
   const isApproved = Boolean(planQuery.data?.isApproved || localApproved);
   const currentDay = planQuery.data?.currentDay != null ? planQuery.data.currentDay : 1;
@@ -221,6 +226,15 @@ export function Autonomous30DayPlanModal({
   const allTasks = planPhases.flatMap((p) => p.tasks);
   const completedTasks = allTasks.filter((t) => t.status === "COMPLETED").length;
   const currentWeekTasks = planPhases.find((p) => p.week === activeWeek)?.tasks || [];
+
+  const currentSprintExecutableTasks: SprintTaskToExecute[] = currentWeekTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    targetUrl: domain ? (domain.startsWith("http") ? domain : `https://${domain}`) : undefined,
+    priority: activeWeek === 1 ? "CRITICAL" : activeWeek === 2 ? "HIGH" : activeWeek === 3 ? "MEDIUM" : "LOW",
+    category: t.category,
+  }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-950/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -373,16 +387,33 @@ export function Autonomous30DayPlanModal({
 
         {/* Sprint Task List */}
         <div className="p-6 overflow-y-auto flex-1 space-y-3.5 bg-white">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Calendar size={15} className="text-accent-600" />
               <h3 className="text-[13.5px] font-bold text-brand-950">
                 Week {activeWeek} Daily Milestones &amp; Autonomous Fix Queue
               </h3>
             </div>
-            <span className="text-[11px] text-brand-400">
-              Each task deploys automatically during its scheduled sprint window
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-brand-400 hidden sm:inline">
+                Each task deploys automatically during its scheduled sprint window
+              </span>
+              {currentWeekTasks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExecutionModal({
+                      sprintWeek: activeWeek,
+                      tasks: currentSprintExecutableTasks,
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Sparkles size={12} />
+                  <span>Execute Sprint {activeWeek} Now</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2.5">
@@ -491,9 +522,33 @@ export function Autonomous30DayPlanModal({
                       <span>In Progress</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1 text-xs text-brand-400">
-                      <Clock size={13} />
-                      <span>Queued</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs text-brand-400">
+                        <Clock size={13} />
+                        <span>Queued</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExecutionModal({
+                            sprintWeek: activeWeek,
+                            tasks: [
+                              {
+                                id: task.id,
+                                title: task.title,
+                                description: task.description,
+                                targetUrl: domain ? (domain.startsWith("http") ? domain : `https://${domain}`) : undefined,
+                                priority: activeWeek === 1 ? "CRITICAL" : activeWeek === 2 ? "HIGH" : activeWeek === 3 ? "MEDIUM" : "LOW",
+                                category: task.category,
+                              },
+                            ],
+                          })
+                        }
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                      >
+                        <Play size={11} />
+                        <span>Execute Now</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -525,6 +580,22 @@ export function Autonomous30DayPlanModal({
             )}
           </div>
         </div>
+
+        {executionModal && (
+          <SprintExecutionModal
+            isOpen={true}
+            onClose={() => setExecutionModal(null)}
+            projectId={projectId}
+            customerDomain={domain}
+            sprintWeek={executionModal.sprintWeek}
+            tasks={executionModal.tasks}
+            onViewVerification={() => {
+              setExecutionModal(null);
+              onClose();
+              onTriggerReCrawl?.();
+            }}
+          />
+        )}
       </div>
     </div>
   );

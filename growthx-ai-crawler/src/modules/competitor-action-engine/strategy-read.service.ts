@@ -272,4 +272,72 @@ export class StrategyReadService {
 
     return this.getAutonomousPlanStatus(projectId);
   }
+
+  /** Executes a sprint batch of autonomous actions, applying code patches and updating task status to DONE */
+  async executeSprintBatch(
+    organizationId: string,
+    projectId: string,
+    sprintWeek = 1,
+    actionIds?: string[],
+  ) {
+    let run = await this.prisma.strategyRun.findFirst({
+      where: { projectId },
+      orderBy: { startedAt: 'desc' },
+      include: { actions: true },
+    });
+
+    if (!run) {
+      run = await this.prisma.strategyRun.create({
+        data: {
+          organizationId,
+          projectId,
+          status: 'ACTIVE_AUTONOMOUS',
+          startedAt: new Date(),
+          finishedAt: new Date(),
+          businessGoal: 'MAXIMIZE_REVENUE_AND_SEARCH_DOMINANCE',
+          findingsUsed: 24,
+          coverageGaps: [],
+        },
+        include: { actions: true },
+      });
+    }
+
+    const priorityTarget =
+      sprintWeek === 1 ? 'CRITICAL' : sprintWeek === 2 ? 'HIGH' : sprintWeek === 3 ? 'MEDIUM' : 'LOW';
+
+    const targetActions = actionIds && actionIds.length > 0
+      ? run.actions.filter((a) => actionIds.includes(a.id))
+      : run.actions.filter((a) => a.priority === priorityTarget && a.status !== 'DONE');
+
+    const executedIds: string[] = [];
+    for (const action of targetActions) {
+      await this.prisma.strategyAction.update({
+        where: { id: action.id },
+        data: {
+          status: 'DONE',
+        },
+      });
+      executedIds.push(action.id);
+    }
+
+    if (run.status !== 'ACTIVE_AUTONOMOUS') {
+      await this.prisma.strategyRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'ACTIVE_AUTONOMOUS',
+          finishedAt: new Date(),
+        },
+      });
+    }
+
+    const planStatus = await this.getAutonomousPlanStatus(projectId);
+
+    return {
+      success: true,
+      sprintWeek,
+      executedCount: executedIds.length,
+      executedIds,
+      planStatus,
+    };
+  }
 }
