@@ -1658,6 +1658,39 @@ export interface SprintExecutionResult {
   planStatus: AutonomousPlanStatus;
 }
 
+export interface VerificationCertificateItem {
+  id: string;
+  issueId?: string;
+  url: string;
+  issueType: string;
+  beforeMetric: string;
+  afterMetric: string;
+  status: "VERIFIED" | "FAILED" | "PARTIAL";
+  httpStatus: number;
+  responseTimeMs: number;
+  detectedSchemas: string[];
+  hasCanonical: boolean;
+  hasMetaDescription: boolean;
+  title: string | null;
+  proofSummary: string;
+}
+
+export interface VerificationCertificate {
+  certificateId: string;
+  projectId: string;
+  domain: string;
+  verifiedAt: string;
+  verifiedBy: string;
+  auditMethod: string;
+  status: "PASSED" | "PARTIAL" | "FAILED";
+  passedCount: number;
+  failedCount: number;
+  totalTested: number;
+  avgLatencyMs: number;
+  checksum: string;
+  items: VerificationCertificateItem[];
+}
+
 export type ActionStatusValue = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 export type ActionPriorityValue = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type FindingCategoryValue =
@@ -2782,6 +2815,15 @@ export const api = {
       `/api/projects/${projectId}/action-engine/autonomous-plan/execute-sprint`,
       body,
     ),
+
+  runVerification: (
+    projectId: string,
+    body: { issueIds?: string[]; urls?: string[]; sprintWeek?: number } = {},
+  ) =>
+    post<VerificationCertificate>(`/api/projects/${projectId}/verification/run`, body),
+
+  getLatestVerification: (projectId: string) =>
+    get<VerificationCertificate | null>(`/api/projects/${projectId}/verification/latest`),
 
   gscProperties: (projectId: string) =>
     get<{

@@ -378,9 +378,10 @@ export function SprintExecutionModal({
                       onClose();
                       onViewVerification();
                     }}
-                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>View Verification Proofs</span>
+                    <ShieldCheck className="h-4 w-4" />
+                    <span>Launch Re-Crawl Verification Pipeline</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 )}

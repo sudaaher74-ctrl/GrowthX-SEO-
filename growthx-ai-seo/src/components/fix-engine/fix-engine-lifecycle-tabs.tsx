@@ -28,11 +28,15 @@ import {
   Zap,
   Globe,
   SlidersHorizontal,
+  Loader2,
+  Award,
+  ShieldCheck,
 } from "lucide-react";
-import type { CrawlIssue, AutonomousPlanStatus } from "@/lib/api-client";
+import type { CrawlIssue, AutonomousPlanStatus, VerificationCertificate } from "@/lib/api-client";
 import { FixEvidenceDiffModal, type FixEvidenceDiffModalProps } from "@/components/fix-engine/fix-evidence-diff-modal";
 import { SprintExecutionModal, type SprintTaskToExecute } from "@/components/fix-engine/sprint-execution-modal";
-import { useActionEngineStrategy, useStagedFixItems } from "@/hooks/use-growthx";
+import { VerificationCertificateModal } from "@/components/fix-engine/verification-certificate-modal";
+import { useActionEngineStrategy, useStagedFixItems, useRunVerification, useLatestVerification } from "@/hooks/use-growthx";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. FIX ENGINE IMPLEMENTATION VIEW (Section 22)
@@ -611,6 +615,39 @@ export function FixEngineVerificationView({
 }: FixEngineVerificationViewProps) {
   const [filterStatus, setFilterStatus] = useState<"all" | "Verified" | "Implemented" | "Needs Review">("all");
   const [diffModal, setDiffModal] = useState<{ title: string; targetUrl: string; deliverable: string; category?: string } | null>(null);
+  const [certificateModal, setCertificateModal] = useState<VerificationCertificate | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  const runVerificationMutation = useRunVerification(projectId);
+  const latestVerificationQuery = useLatestVerification(projectId);
+
+  const handleRunAll = async () => {
+    try {
+      const cert = await runVerificationMutation.mutateAsync({
+        urls: issues.map((i) => i.affectedUrl).filter(Boolean),
+        issueIds: issues.map((i) => i.id),
+      });
+      setCertificateModal(cert);
+    } catch (err) {
+      console.error("Verification error:", err);
+      onReVerifyAll?.();
+    }
+  };
+
+  const handleVerifySingle = async (issueId: string, url: string) => {
+    setVerifyingId(issueId);
+    try {
+      const cert = await runVerificationMutation.mutateAsync({
+        issueIds: [issueId],
+        urls: [url],
+      });
+      setCertificateModal(cert);
+    } catch (err) {
+      console.error("Verification error for single item:", err);
+    } finally {
+      setVerifyingId(null);
+    }
+  };
 
   const verificationItems = issues.map((issue) => {
     const isResolved = issue.status === "resolved" || issue.status === "completed";
@@ -664,14 +701,37 @@ export function FixEngineVerificationView({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onReVerifyAll}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition shadow-md shadow-purple-500/20"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span>Re-Run All Verifications</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {(latestVerificationQuery.data || certificateModal) && (
+            <button
+              type="button"
+              onClick={() => setCertificateModal(certificateModal || latestVerificationQuery.data || null)}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition cursor-pointer shadow-2xs"
+            >
+              <Award className="h-4 w-4 text-purple-600" />
+              <span>View Official Certificate</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleRunAll}
+            disabled={runVerificationMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 cursor-pointer"
+          >
+            {runVerificationMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Re-Crawling &amp; Verifying...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                <span>Re-Run All Verifications</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Verification Summary KPIs */}
@@ -771,21 +831,36 @@ export function FixEngineVerificationView({
                     </td>
                     <td className="p-3.5 text-slate-500 text-[11px] max-w-xs">{item.evidence}</td>
                     <td className="p-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDiffModal({
-                            title: item.fixTitle,
-                            category: item.category,
-                            targetUrl: item.affectedUrl,
-                            deliverable: item.evidence,
-                          })
-                        }
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                      >
-                        <FileCode size={11} />
-                        <span>Diff &amp; Proof</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleVerifySingle(item.id, item.affectedUrl)}
+                          disabled={verifyingId === item.id || runVerificationMutation.isPending}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                        >
+                          {verifyingId === item.id ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={11} />
+                          )}
+                          <span>Re-Verify</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDiffModal({
+                              title: item.fixTitle,
+                              category: item.category,
+                              targetUrl: item.affectedUrl,
+                              deliverable: item.evidence,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                        >
+                          <FileCode size={11} />
+                          <span>Diff &amp; Proof</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -803,6 +878,14 @@ export function FixEngineVerificationView({
           category={diffModal.category}
           targetUrl={diffModal.targetUrl}
           deliverable={diffModal.deliverable}
+        />
+      )}
+
+      {certificateModal && (
+        <VerificationCertificateModal
+          isOpen={true}
+          onClose={() => setCertificateModal(null)}
+          certificate={certificateModal}
         />
       )}
     </div>

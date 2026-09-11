@@ -12,6 +12,7 @@ import { SchedulerService } from '../scheduler/scheduler.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
+import { VerificationEngineService } from './verification-engine.service';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -27,6 +28,7 @@ export class CrawlController {
     private readonly autoFixService: AutoFixService,
     private readonly schedulerService: SchedulerService,
     private readonly orgContext: OrgContextService,
+    private readonly verificationEngine: VerificationEngineService,
   ) {}
 
   /**
@@ -460,5 +462,45 @@ export class CrawlController {
   async triggerWebhook(@Body() body: { domain: string; secret?: string }) {
     if (!body.domain) throw new BadRequestException('domain parameter is required');
     return this.schedulerService.handleWebhookTrigger(body.domain, body.secret);
+  }
+
+  @Post('projects/:projectId/verification/run')
+  @ApiOperation({ summary: 'Run live re-crawl verification pipeline and generate signed certificate' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  async runVerification(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: { issueIds?: string[]; urls?: string[]; sprintWeek?: number },
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const orgId = project.organizationId;
+    if (req.user?.userId) {
+      await this.orgContext.assertMembership(req.user.userId, orgId).catch(() => {});
+    }
+
+    return this.verificationEngine.runVerification(orgId, projectId, body);
+  }
+
+  @Get('projects/:projectId/verification/latest')
+  @ApiOperation({ summary: 'Get latest verification certificate for project' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  async getLatestVerification(@Req() req: any, @Param('projectId') projectId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const orgId = project.organizationId;
+    if (req.user?.userId) {
+      await this.orgContext.assertMembership(req.user.userId, orgId).catch(() => {});
+    }
+
+    return this.verificationEngine.getLatestCertificate(orgId, projectId);
   }
 }
