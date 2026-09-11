@@ -86,6 +86,7 @@ export function Sidebar({
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
+      tag: "Beta",
       aliases: ["/engineer", "/action-engine"],
     },
     {
