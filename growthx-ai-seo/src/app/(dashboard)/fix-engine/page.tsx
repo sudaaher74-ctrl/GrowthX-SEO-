@@ -194,7 +194,7 @@ function FixEngineClient() {
         </div>
 
         {/* Top Right Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Domain Dropdown */}
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
             <Globe size={13} className="text-slate-400" />
@@ -209,28 +209,16 @@ function FixEngineClient() {
             <ChevronDown size={12} className="text-slate-400 ml-1" />
           </div>
 
-          {/* 30-Day Fix Plan Trigger Card */}
-          <div className="flex items-center gap-3 rounded-xl border border-purple-100/90 bg-white p-1.5 pl-3 shadow-2xs">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600 shrink-0">
-              <Calendar size={16} />
-            </div>
-            <div>
-              <span className="block text-[12px] font-bold text-slate-900 leading-tight">
-                30-Day Fix Plan
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Monthly plan • Auto-execution • Full coverage
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPlanModal(true)}
-              className="flex items-center gap-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 px-2.5 py-1 text-[11px] font-bold transition-all shadow-2xs"
-            >
-              <span>View Details</span>
-              <ArrowRight size={11} />
-            </button>
-          </div>
+          {/* Plan Specs Button */}
+          <button
+            type="button"
+            onClick={() => setShowPlanModal(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 hover:bg-purple-100 text-purple-700 px-3 py-1.5 text-[12px] font-bold transition-all shadow-2xs cursor-pointer"
+          >
+            <Sparkles size={13} className="text-purple-600" />
+            <span>Plan Specs</span>
+            <ArrowRight size={11} />
+          </button>
         </div>
       </div>
 
