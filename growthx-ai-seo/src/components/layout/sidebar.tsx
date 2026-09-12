@@ -89,16 +89,6 @@ export function Sidebar({
       href: "/competitor-intelligence",
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
-      children: [
-        { label: "Overview", href: "/competitor-intelligence?tab=overview", id: "overview" },
-        { label: "Competitors", href: "/competitor-intelligence?tab=competitors", id: "competitors" },
-        { label: "Keyword Gaps", href: "/competitor-intelligence?tab=keywords", id: "keywords" },
-        { label: "Content Gaps", href: "/competitor-intelligence?tab=content", id: "content" },
-        { label: "Technical Gaps", href: "/competitor-intelligence?tab=technical", id: "technical" },
-        { label: "Authority Gaps", href: "/competitor-intelligence?tab=technical", id: "authority" },
-        { label: "AI Visibility", href: "/competitor-intelligence?tab=ai-visibility", id: "ai-visibility" },
-        { label: "Opportunities", href: "/competitor-intelligence?tab=opportunities", id: "opportunities" },
-      ],
     },
     {
       label: "Fix Engine",
