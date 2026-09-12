@@ -19,6 +19,8 @@ import {
   type InternalLinkingMeshResponse,
   type GenerateLinkPatchBody,
   type LinkSculptingPatch,
+  type CrawlJob,
+  type StrategyPlan,
 } from "@/lib/api-client";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
