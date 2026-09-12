@@ -583,7 +583,6 @@ export function Autonomous30DayPlanModal({
 
         {executionModal && (
           <SprintExecutionModal
-            isOpen={true}
             onClose={() => setExecutionModal(null)}
             projectId={projectId}
             customerDomain={domain}

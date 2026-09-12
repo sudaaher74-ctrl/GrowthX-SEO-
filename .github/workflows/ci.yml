@@ -1,0 +1,51 @@
+# Frontend CI — the gate that did not exist when a hook bug reached production.
+#
+# `growthx-ai-seo` is what Vercel deploys, so these are the checks that decide
+# whether a commit is safe to land on `main`. Scoped to the frontend on purpose:
+# the crawler has its own 112 Jest specs, but they need service dependencies
+# this workflow does not stand up yet.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A newer push to the same branch makes the older run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: growthx-ai-seo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+          cache-dependency-path: growthx-ai-seo/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Hook-order breakage is what crashes pages at runtime, and `tsc` cannot
+      # see it. This rule is clean today and must stay clean; the full lint
+      # config still has pre-existing errors, so it cannot gate a merge yet.
+      - name: Hook safety
+        run: npm run lint:hooks
+
+      # Also runs check:data, which fails the build on fabricated customer-facing figures.
+      - name: Build
+        run: npm run build
