@@ -277,27 +277,46 @@ function WorkflowAppPreview() {
         </div>
       </div>
 
-      {/* Floating: AI Visibility Score Card */}
-      <div className="absolute -left-6 bottom-8 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-3.5 w-44">
+      {/* Top Floating Badge: SEO Health Score — completely above the card */}
+      <div className="absolute bottom-[calc(100%+10px)] left-6 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
+        <div className="flex items-center gap-1.5 mb-1 text-slate-500">
+          <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <Sparkles size={11} />
+          </div>
+          <p className="text-[10px] font-bold text-slate-800">SEO Health Score</p>
+        </div>
+        <div className="flex items-end justify-between mt-0.5">
+          <div>
+            <p className="text-xl font-black text-slate-900 leading-none">68</p>
+            <p className="text-[9px] font-bold text-emerald-600 mt-0.5">↑ 22%</p>
+          </div>
+          <svg className="w-10 h-5 text-emerald-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 16 Q 14 6, 26 12 T 48 3" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Bottom Floating Badge: AI Visibility Score — completely below the card */}
+      <div className="absolute top-[calc(100%+10px)] left-6 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-44 animate-float hidden sm:block">
         <div className="flex items-center gap-1.5 mb-1 text-slate-500">
           <div className="w-5 h-5 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
             <Sparkles size={11} />
           </div>
           <p className="text-[10px] font-bold text-slate-800">AI Visibility Score</p>
         </div>
-        <div className="flex items-end justify-between mt-1">
+        <div className="flex items-end justify-between mt-0.5">
           <div>
-            <p className="text-2xl font-black text-slate-900 leading-none">52</p>
-            <p className="text-[10px] font-bold text-emerald-600 mt-1">↑ 28%</p>
+            <p className="text-xl font-black text-slate-900 leading-none">52</p>
+            <p className="text-[9px] font-bold text-emerald-600 mt-0.5">↑ 28%</p>
           </div>
-          <svg className="w-14 h-6 text-violet-600" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-12 h-5 text-violet-600" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 17 Q 14 10, 26 13 T 48 4" />
           </svg>
         </div>
       </div>
 
       {/* Bottom cursive annotation with curved arrow */}
-      <div className="absolute -bottom-10 right-12 z-20 flex flex-col items-center text-violet-600">
+      <div className="absolute -bottom-10 right-8 z-20 flex flex-col items-center text-violet-600">
         <svg
           className="w-6 h-6 text-violet-500 transform rotate-45 -translate-x-3 translate-y-1"
           fill="none"
@@ -320,58 +339,61 @@ function WorkflowAppPreview() {
 
 export function WorkflowSteps() {
   return (
-    <section className="py-10 sm:py-14 bg-white border-b border-slate-100">
+    <section className="py-8 sm:py-12 bg-white border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="max-w-2xl mb-8">
-          <div className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-200/80 text-violet-700 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full mb-2.5">
-            Simple Steps. Big Results.
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 leading-[1.12] tracking-tight">
-            Go from analysis to growth<br />
-            in just a few clicks.
-          </h2>
-          <p className="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed">
-            GrowthX handles the complexity. You get a clear plan and real results.
-          </p>
-        </div>
-
         {/* 2-Column Main Section */}
-        <div className="grid lg:grid-cols-[48%_52%] gap-8 lg:gap-10 items-center mb-12">
-          {/* Left Column: 4 Step Cards with Vertical Dotted Line */}
-          <div className="relative pl-7 space-y-3">
-            {/* Dotted Vertical Connector Line */}
-            <div className="absolute left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-slate-200 pointer-events-none" />
+        <div className="grid lg:grid-cols-[48%_52%] gap-8 lg:gap-12 items-center mb-10">
+          {/* Left Column: Header + 4 Step Cards + Actions */}
+          <div className="space-y-6">
+            {/* Header */}
+            <div>
+              <div className="inline-flex items-center gap-1.5 bg-violet-50 border border-violet-200/80 text-violet-700 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full mb-2.5">
+                Simple Steps. Big Results.
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-slate-900 leading-[1.12] tracking-tight">
+                Go from analysis to growth<br />
+                in just a few clicks.
+              </h2>
+              <p className="mt-2 text-sm sm:text-base text-slate-500 leading-relaxed">
+                GrowthX handles the complexity. You get a clear plan and real results.
+              </p>
+            </div>
 
-            {PIPELINE_STEPS.map((step) => {
-              const StepIcon = step.icon;
-              return (
-                <div key={step.num} className="relative flex items-center">
-                  {/* Number Badge on the Line */}
-                  <div className="absolute -left-7 font-black text-xs text-violet-600 w-5 text-center">
-                    {step.num}
-                  </div>
+            {/* 4 Step Cards with Vertical Dotted Line */}
+            <div className="relative pl-7 space-y-2.5">
+              {/* Dotted Vertical Connector Line */}
+              <div className="absolute left-2.5 top-6 bottom-6 w-0 border-l-2 border-dashed border-slate-200 pointer-events-none" />
 
-                  {/* Step Card */}
-                  <div className="w-full bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-100/90 shadow-sm hover:shadow-md transition-all flex items-center gap-3.5">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${step.iconBg}`}>
-                      <StepIcon size={18} />
+              {PIPELINE_STEPS.map((step) => {
+                const StepIcon = step.icon;
+                return (
+                  <div key={step.num} className="relative flex items-center">
+                    {/* Number Badge on the Line */}
+                    <div className="absolute -left-7 font-black text-xs text-violet-600 w-5 text-center">
+                      {step.num}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
-                        {step.title}
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-slate-500 leading-snug mt-0.5">
-                        {step.description}
-                      </p>
+
+                    {/* Step Card */}
+                    <div className="w-full bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-100/90 shadow-sm hover:shadow-md transition-all flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${step.iconBg}`}>
+                        <StepIcon size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
+                          {step.title}
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-slate-500 leading-snug mt-0.5">
+                          {step.description}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
 
             {/* Action Buttons & Trust row */}
-            <div className="pt-3 space-y-3">
+            <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
                   href="/analyze"
@@ -384,7 +406,7 @@ export function WorkflowSteps() {
                   <div className="flex items-center justify-center w-7 h-7 rounded-full bg-violet-600 text-white shadow-xs">
                     <Play size={10} fill="white" className="ml-0.5" />
                   </div>
-                  <span>Watch a 2-min demo</span>
+                  <span>Watch a 2 min demo</span>
                 </button>
               </div>
 
@@ -400,14 +422,14 @@ export function WorkflowSteps() {
             </div>
           </div>
 
-          {/* Right Column: Complete Dashboard Preview matching Screenshot 2 */}
-          <div className="relative pt-4 pb-8 lg:py-4">
+          {/* Right Column: Vertically Centered Complete Dashboard Preview */}
+          <div className="relative flex items-center justify-center py-6">
             <WorkflowAppPreview />
           </div>
         </div>
 
         {/* Bottom Social Proof Bar matching Screenshot 2 */}
-        <div className="pt-8 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
           {/* Client Logos */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0">
@@ -430,8 +452,8 @@ export function WorkflowSteps() {
               ))}
             </div>
             <div>
-              <span className="text-xs font-black text-slate-900">4.9/5</span>
-              <p className="text-[10px] text-slate-500 font-medium">from 500+ happy customers</p>
+              <p className="text-xs font-bold text-slate-900 leading-tight">4.9/5</p>
+              <p className="text-[10px] text-slate-400 leading-tight">from 500+ happy customers</p>
             </div>
           </div>
         </div>
