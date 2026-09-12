@@ -49,3 +49,21 @@ jobs:
       # Also runs check:data, which fails the build on fabricated customer-facing figures.
       - name: Build
         run: npm run build
+
+      # The checks above all passed on the commit that shipped a blank
+      # "This page couldn't load" screen to customers: that crash only existed
+      # at render time. This step loads every route in a real browser against
+      # the production build, so a page that throws fails the build instead.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Route smoke test
+        run: npm run test:smoke
+
+      - name: Upload smoke traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: growthx-ai-seo/test-results/
+          retention-days: 7
