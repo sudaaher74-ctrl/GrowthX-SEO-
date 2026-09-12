@@ -40,8 +40,42 @@ function getStorageKey(projectId: string): string {
   return `${STORAGE_KEY_PREFIX}${projectId}`;
 }
 
+/**
+ * Referentially stable snapshot cache.
+ *
+ * `useStagedFixItems` reads this store through `useSyncExternalStore`, which
+ * requires `getStaged()` to return the *same* array reference until the store
+ * actually changes. Returning a freshly parsed / freshly allocated array on
+ * every call makes React re-render forever ("Maximum update depth exceeded")
+ * and crashes the Fix Engine page.
+ */
 const memoryStore = new Map<string, StagedFixItem[]>();
 const listeners = new Map<string, Set<() => void>>();
+
+export const EMPTY_STAGED_ITEMS: StagedFixItem[] = [];
+
+function readFromStorage(projectId: string): StagedFixItem[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getStorageKey(projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as StagedFixItem[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeToStorage(projectId: string, items: StagedFixItem[]) {
+  memoryStore.set(projectId, items);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(getStorageKey(projectId), JSON.stringify(items));
+    } catch {
+      // ignore (private mode / quota)
+    }
+  }
+}
 
 function notify(projectId: string) {
   const set = listeners.get(projectId);
@@ -60,18 +94,19 @@ let stagedIdCounter = 0;
 
 export const stagingEngine = {
   getStaged(projectId: string | null | undefined): StagedFixItem[] {
-    if (!projectId) return [];
-    if (typeof window === "undefined") {
-      return memoryStore.get(projectId) || [];
-    }
-    try {
-      const raw = localStorage.getItem(getStorageKey(projectId));
-      if (!raw) return memoryStore.get(projectId) || [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return memoryStore.get(projectId) || [];
-    }
+    if (!projectId) return EMPTY_STAGED_ITEMS;
+
+    const cached = memoryStore.get(projectId);
+    if (cached) return cached;
+
+    // Server render: nothing is persisted, always the same empty reference.
+    if (typeof window === "undefined") return EMPTY_STAGED_ITEMS;
+
+    // First client read: hydrate once from localStorage, then serve the cache
+    // so every later call returns an identical reference.
+    const hydrated = readFromStorage(projectId) ?? EMPTY_STAGED_ITEMS;
+    memoryStore.set(projectId, hydrated);
+    return hydrated;
   },
 
   stage(projectId: string | null | undefined, item: Omit<StagedFixItem, "id" | "projectId" | "stagedAt" | "status">): StagedFixItem {
@@ -90,14 +125,7 @@ export const stagingEngine = {
     const exists = current.find((c) => c.title.toLowerCase() === fullItem.title.toLowerCase());
     const next = exists ? current : [fullItem, ...current];
 
-    memoryStore.set(projectId, next);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(getStorageKey(projectId), JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-    }
+    writeToStorage(projectId, next);
     notify(projectId);
     return fullItem;
   },
@@ -122,15 +150,10 @@ export const stagingEngine = {
       created.push(fullItem);
     }
 
+    if (created.length === 0) return created;
+
     const next = [...created, ...current];
-    memoryStore.set(projectId, next);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(getStorageKey(projectId), JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-    }
+    writeToStorage(projectId, next);
     notify(projectId);
     return created;
   },
@@ -139,20 +162,15 @@ export const stagingEngine = {
     if (!projectId) return;
     const current = this.getStaged(projectId);
     const next = current.filter((c) => c.id !== id);
-    memoryStore.set(projectId, next);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(getStorageKey(projectId), JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-    }
+    if (next.length === current.length) return;
+
+    writeToStorage(projectId, next);
     notify(projectId);
   },
 
   clear(projectId: string | null | undefined) {
     if (!projectId) return;
-    memoryStore.delete(projectId);
+    memoryStore.set(projectId, EMPTY_STAGED_ITEMS);
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(getStorageKey(projectId));
