@@ -1692,7 +1692,7 @@ export interface VerificationCertificate {
 }
 
 export interface GeoEngineResult {
-  engine: "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE";
+  engine: "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM";
   model: string;
   cited: boolean;
   position: number | null;
@@ -1727,7 +1727,7 @@ export interface GeoSimulationResult {
 
 export interface SimulateGeoBody {
   query: string;
-  engines?: Array<"PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE">;
+  engines?: Array<"PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM">;
   location?: string;
 }
 

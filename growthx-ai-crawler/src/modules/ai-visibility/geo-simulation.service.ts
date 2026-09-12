@@ -193,6 +193,7 @@ export class GeoSimulationService {
     location?: string,
   ): Promise<GeoEngineResult> {
     const startTime = Date.now();
+    const configured = this.router.configuredProviders ? this.router.configuredProviders() : [];
     let provider: AiProvider = AiProvider.GEMINI;
     let modelName = 'Gemini 2.0 Flash';
 
@@ -205,15 +206,25 @@ export class GeoSimulationService {
     } else if (engine === 'PERPLEXITY') {
       provider = AiProvider.GROQ;
       modelName = 'Perplexity Sonar Web Grounding';
+    } else if ((engine as string) === 'SARVAM') {
+      provider = AiProvider.SARVAM;
+      modelName = 'Sarvam AI (Indus)';
+    }
+
+    if (configured.length > 0 && !configured.includes(provider) && configured.includes(AiProvider.SARVAM)) {
+      provider = AiProvider.SARVAM;
+      modelName = `${engine} (via Sarvam AI)`;
     }
 
     const brandName = ownBrandNames[0] || ownDomains[0].split('.')[0];
     const locationPrompt = location ? ` Context location: ${location}.` : '';
 
     const systemInstruction =
-      'You are a helpful, neutral AI search assistant answering an organic search query from a business buyer.' +
-      locationPrompt +
-      ' Recommend the best, most reputable software platforms, tools, and services. Name specific brands and websites clearly.';
+      provider === AiProvider.SARVAM && (engine as string) !== 'SARVAM'
+        ? `You are an AI search assistant simulating ${engine} answering an organic search query from a business buyer.${locationPrompt} Recommend the best, most reputable software platforms, tools, and services. Name specific brands and websites clearly.`
+        : 'You are a helpful, neutral AI search assistant answering an organic search query from a business buyer.' +
+          locationPrompt +
+          ' Recommend the best, most reputable software platforms, tools, and services. Name specific brands and websites clearly.';
 
     let rawAnswer = '';
 

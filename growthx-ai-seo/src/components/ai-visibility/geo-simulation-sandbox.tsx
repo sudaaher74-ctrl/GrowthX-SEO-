@@ -39,11 +39,14 @@ const DEFAULT_SUGGESTIONS = [
   "Autonomous website audit and verified code remediation",
 ];
 
+export type EngineId = "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM";
+
 const ENGINES_CONFIG = [
   { id: "PERPLEXITY" as const, name: "Perplexity", model: "Sonar Web Grounding", color: "from-cyan-500 to-teal-600", border: "border-cyan-200" },
-  { id: "CHATGPT" as const, name: "ChatGPT Search", model: "GPT-4o", color: "from-emerald-500 to-green-600", border: "border-emerald-200" },
-  { id: "GEMINI" as const, name: "Google Gemini", model: "Gemini 2.0 Flash", color: "from-blue-500 to-indigo-600", border: "border-blue-200" },
-  { id: "CLAUDE" as const, name: "Claude", model: "Claude 3.5 Sonnet", color: "from-amber-500 to-orange-600", border: "border-amber-200" },
+  { id: "CHATGPT" as const, name: "ChatGPT Search", model: "GPT-4o (or Sarvam)", color: "from-emerald-500 to-green-600", border: "border-emerald-200" },
+  { id: "GEMINI" as const, name: "Google Gemini", model: "Gemini 2.0 (or Sarvam)", color: "from-blue-500 to-indigo-600", border: "border-blue-200" },
+  { id: "CLAUDE" as const, name: "Claude", model: "Claude 3.5 (or Sarvam)", color: "from-amber-500 to-orange-600", border: "border-amber-200" },
+  { id: "SARVAM" as const, name: "Sarvam AI", model: "Sarvam-105b (Indus)", color: "from-purple-500 to-violet-600", border: "border-purple-200" },
 ];
 
 export function GeoSimulationSandbox({
@@ -52,18 +55,19 @@ export function GeoSimulationSandbox({
   businessName = "Your Brand",
 }: GeoSimulationSandboxProps) {
   const [query, setQuery] = useState("Best AI SEO automation tools 2026");
-  const [selectedEngines, setSelectedEngines] = useState<Array<"PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE">>([
+  const [selectedEngines, setSelectedEngines] = useState<EngineId[]>([
     "PERPLEXITY",
     "CHATGPT",
     "GEMINI",
     "CLAUDE",
+    "SARVAM",
   ]);
   const [result, setResult] = useState<GeoSimulationResult | null>(null);
   const [stagedSuccess, setStagedSuccess] = useState(false);
 
   const simulateMutation = useSimulateGeo(projectId);
 
-  const toggleEngine = (engine: "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE") => {
+  const toggleEngine = (engine: EngineId) => {
     if (selectedEngines.includes(engine)) {
       if (selectedEngines.length > 1) {
         setSelectedEngines(selectedEngines.filter((e) => e !== engine));
@@ -265,8 +269,8 @@ export function GeoSimulationSandbox({
             </div>
           </div>
 
-          {/* 4-Column Side-by-Side Comparison */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Side-by-Side Model Comparison Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {result.engines.map((eng) => {
               const cfg = ENGINES_CONFIG.find((c) => c.id === eng.engine) || ENGINES_CONFIG[0];
               return (

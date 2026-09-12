@@ -288,5 +288,30 @@ describe('AiVisibilityService', () => {
       expect(written[0].error).toContain('not configured');
       expect(written[0].cited).toBeUndefined();
     });
+
+    it('routes checks through Sarvam when configured', async () => {
+      (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM]);
+      router.generate.mockResolvedValue({
+        provider: AiProvider.SARVAM,
+        model: 'sarvam-105b',
+        text: 'I recommend northwindoutdoors.com for top outdoor gear.',
+        usage: { inputTokens: 100, outputTokens: 50, estimatedCostUsd: 0.001 },
+        refused: false,
+      });
+
+      const check = await service.runCheck('p1', AiAssistant.CHATGPT, {
+        organizationId: 'org_1',
+        ownDomains: ['northwindoutdoors.com'],
+        ownBrandNames: ['Northwind Outdoors'],
+        competitors: [],
+        competitorLabels: {},
+      } as any);
+
+      expect(router.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: AiProvider.SARVAM }),
+      );
+      expect(check.cited).toBe(true);
+      expect(check.model).toContain('sarvam-105b');
+    });
   });
 });

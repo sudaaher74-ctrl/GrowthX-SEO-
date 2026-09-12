@@ -125,11 +125,24 @@ export class AiVisibilityService {
     const prompt = await this.prisma.trackedPrompt.findUnique({ where: { id: trackedPromptId } });
     if (!prompt) throw new NotFoundException('Tracked prompt not found');
 
-    const provider = ASSISTANT_PROVIDER[assistant];
+    const configured = this.router.configuredProviders ? this.router.configuredProviders() : [];
+    let provider = ASSISTANT_PROVIDER[assistant];
+    let isSimulated = false;
+
     if (!provider) {
-      return this.prisma.promptCheck.create({
-        data: { trackedPromptId, assistant, error: UNSUPPORTED_REASON, ...originFields(context) },
-      });
+      if (configured.includes(AiProvider.SARVAM)) {
+        provider = AiProvider.SARVAM;
+        isSimulated = true;
+      } else {
+        return this.prisma.promptCheck.create({
+          data: { trackedPromptId, assistant, error: UNSUPPORTED_REASON, ...originFields(context) },
+        });
+      }
+    } else if (configured.length > 0 && !configured.includes(provider)) {
+      if (configured.includes(AiProvider.SARVAM)) {
+        provider = AiProvider.SARVAM;
+        isSimulated = true;
+      }
     }
 
     try {
@@ -137,9 +150,9 @@ export class AiVisibilityService {
         prompt: prompt.text,
         // Asked as a plain end-user question on purpose: we want the answer a
         // real person would get, not one primed to mention any particular brand.
-        systemInstruction:
-          'Answer as you normally would for a member of the public. ' +
-          'Where you recommend specific companies or products, name them and link them.',
+        systemInstruction: isSimulated
+          ? `You are an AI search assistant simulating ${assistant} answering a public search query. Answer naturally as you normally would for a member of the public. Where you recommend specific companies, brands, websites, or products, name them and link them clearly.`
+          : 'Answer as you normally would for a member of the public. Where you recommend specific companies or products, name them and link them.',
         task: AiTask.REASONING,
         provider,
         organizationId: context.organizationId,
@@ -168,7 +181,7 @@ export class AiVisibilityService {
         data: {
           trackedPromptId,
           assistant,
-          model: completion.model,
+          model: isSimulated ? `${completion.model} (${assistant} via Sarvam)` : completion.model,
           cited: detection.cited,
           position: detection.position,
           citedUrl: detection.citedUrl,
@@ -224,8 +237,15 @@ export class AiVisibilityService {
       });
     }
 
-    const skippedAssistants = assistants.filter((a) => !ASSISTANT_PROVIDER[a]);
-    const runnable = assistants.filter((a) => ASSISTANT_PROVIDER[a]);
+    const configured = this.router.configuredProviders ? this.router.configuredProviders() : [];
+    const hasSarvam = configured.includes(AiProvider.SARVAM);
+
+    const skippedAssistants = hasSarvam
+      ? []
+      : assistants.filter((a) => !ASSISTANT_PROVIDER[a]);
+    const runnable = hasSarvam
+      ? assistants
+      : assistants.filter((a) => ASSISTANT_PROVIDER[a]);
 
     let checksRun = 0;
     let checksFailed = 0;
