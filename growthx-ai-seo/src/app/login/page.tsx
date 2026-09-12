@@ -229,11 +229,12 @@ function LoginFormInner() {
 }
 
 const PARTNER_LOGOS = [
-  "rainbow",
-  "flare",
-  "nextlane",
-  "lumen",
-  "circlo",
+  "Milquu Fresh",
+  "Aiva Enterprises",
+  "OS Interior",
+  "Dron Archery Academy",
+  "Brand Kettle",
+  "Immunity Group",
 ];
 
 export default function LoginPage() {
@@ -350,7 +351,7 @@ export default function LoginPage() {
           </p>
           <div className="flex flex-wrap items-center gap-5 text-xs font-bold text-slate-400">
             {PARTNER_LOGOS.map((brand) => (
-              <span key={brand} className="capitalize hover:text-slate-600 transition-colors">
+              <span key={brand} className="hover:text-slate-600 transition-colors">
                 {brand}
               </span>
             ))}

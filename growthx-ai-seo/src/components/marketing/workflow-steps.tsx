@@ -435,9 +435,16 @@ export function WorkflowSteps() {
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0">
               Trusted by growing businesses
             </span>
-            <div className="flex flex-wrap items-center gap-6 sm:gap-8 opacity-70">
-              {["stripe", "shopify", "Notion", "slack", "Webflow", "Vercel"].map((brand) => (
-                <span key={brand} className="text-xs sm:text-sm font-extrabold text-slate-700 tracking-tight">
+            <div className="flex flex-wrap items-center gap-5 sm:gap-7">
+              {[
+                "Milquu Fresh",
+                "Aiva Enterprises",
+                "OS Interior",
+                "Dron Archery Academy",
+                "Brand Kettle",
+                "Immunity Group",
+              ].map((brand) => (
+                <span key={brand} className="text-xs sm:text-sm font-extrabold text-slate-700 hover:text-slate-900 tracking-tight transition-colors">
                   {brand}
                 </span>
               ))}
