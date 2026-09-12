@@ -33,8 +33,13 @@ export interface SprintTaskToExecute {
   isStaged?: boolean;
 }
 
+/**
+ * The modal is mount-gated by its callers (`{executionModal && <SprintExecutionModal …>}`)
+ * and starts its execution run on mount, so there is deliberately no `isOpen`
+ * prop: an early `return null` above the hooks below would change the hook
+ * order between renders and crash the Fix Engine.
+ */
 export interface SprintExecutionModalProps {
-  isOpen?: boolean;
   projectId?: string | null;
   customerDomain?: string;
   sprintWeek: number;
@@ -62,7 +67,6 @@ const STAGES = [
 ];
 
 export function SprintExecutionModal({
-  isOpen = true,
   projectId,
   customerDomain,
   sprintWeek,
@@ -71,8 +75,6 @@ export function SprintExecutionModal({
   onViewVerification,
   onViewDiff,
 }: SprintExecutionModalProps) {
-  if (!isOpen) return null;
-
   const executeSprintMutation = useExecuteSprint(projectId);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [currentStage, setCurrentStage] = useState(1);

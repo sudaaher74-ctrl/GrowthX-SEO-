@@ -573,7 +573,6 @@ export function FixEngineImplementationView({
 
       {executionModal && (
         <SprintExecutionModal
-          isOpen={true}
           onClose={() => setExecutionModal(null)}
           projectId={projectId || undefined}
           customerDomain={customerDomain}
