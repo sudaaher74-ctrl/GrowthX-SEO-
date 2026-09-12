@@ -75,14 +75,6 @@ export function Sidebar({
       href: "/ai-visibility",
       icon: Sparkles,
       aliases: ["/geo-tracking", "/search"],
-      children: [
-        { label: "Overview", href: "/ai-visibility?tab=overview", id: "overview" },
-        { label: "AI Insights", href: "/ai-visibility?tab=insights", id: "insights" },
-        { label: "Citations", href: "/ai-visibility?tab=citations", id: "citations" },
-        { label: "Competitors", href: "/ai-visibility?tab=competitors", id: "competitors" },
-        { label: "Content Gaps", href: "/ai-visibility?tab=gaps", id: "gaps" },
-        { label: "Recommendations", href: "/ai-visibility?tab=recommendations", id: "recommendations" },
-      ],
     },
     {
       label: "Competitor Intelligence",
