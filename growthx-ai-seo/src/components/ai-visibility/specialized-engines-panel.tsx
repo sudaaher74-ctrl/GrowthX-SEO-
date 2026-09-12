@@ -558,7 +558,7 @@ function OpenAiWing({ data }: { data?: OpenAiCommercialIntelligence }) {
             </h4>
           </div>
           <p className="text-xs text-brand-600 dark:text-brand-400">
-            OpenAI's RLHF alignment makes it the primary decision assistant for B2B buyers. We map the exact comparison prompts buyers use and give you the quotable counter-arguments to conquer rival citations.
+            OpenAI&apos;s RLHF alignment makes it the primary decision assistant for B2B buyers. We map the exact comparison prompts buyers use and give you the quotable counter-arguments to conquer rival citations.
           </p>
         </div>
         <div className="shrink-0 flex items-center gap-2">
@@ -600,7 +600,7 @@ function OpenAiWing({ data }: { data?: OpenAiCommercialIntelligence }) {
                   className="hover:bg-emerald-500/5 dark:hover:bg-emerald-950/20 transition-colors"
                 >
                   <td className="py-3 px-4 font-mono font-medium text-brand-950 dark:text-white max-w-sm">
-                    "{q.prompt}"
+                    &quot;{q.prompt}&quot;
                   </td>
                   <td className="py-3 px-4 whitespace-nowrap">
                     <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 text-[11px] font-medium">
@@ -659,7 +659,7 @@ function OpenAiWing({ data }: { data?: OpenAiCommercialIntelligence }) {
               </div>
 
               <div className="p-2.5 rounded-lg bg-brand-50 dark:bg-brand-900/50 text-xs font-mono text-brand-800 dark:text-brand-200">
-                <span className="text-brand-400 select-none">Prompt: </span>"{c.displacementPrompt}"
+                <span className="text-brand-400 select-none">Prompt: </span>&quot;{c.displacementPrompt}&quot;
               </div>
 
               <div className="space-y-1">
@@ -731,7 +731,7 @@ function GeminiWing({ data }: { data?: GeminiEcosystemIntelligence }) {
             </h4>
           </div>
           <p className="text-xs text-brand-600 dark:text-brand-400">
-            Gemini directly powers Google Search's AI Overviews. Winning citations here requires strict JSON-LD schema grounding, entity consistency across the web, and authoritative structured snippets.
+            Gemini directly powers Google Search&apos;s AI Overviews. Winning citations here requires strict JSON-LD schema grounding, entity consistency across the web, and authoritative structured snippets.
           </p>
         </div>
         <div className="shrink-0 flex items-center gap-2">
@@ -835,7 +835,7 @@ function GeminiWing({ data }: { data?: GeminiEcosystemIntelligence }) {
                   className="hover:bg-blue-500/5 dark:hover:bg-blue-950/20 transition-colors"
                 >
                   <td className="py-3 px-4 font-mono font-medium text-brand-950 dark:text-white max-w-sm">
-                    "{t.query}"
+                    &quot;{t.query}&quot;
                   </td>
                   <td className="py-3 px-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">

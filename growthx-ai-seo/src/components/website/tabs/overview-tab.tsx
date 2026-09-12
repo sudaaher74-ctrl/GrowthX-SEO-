@@ -19,12 +19,13 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
 import { GaugeScore } from "../gauge-score";
+import type { WebsiteTabId } from "@/components/website/tabs/tab-id";
 
 interface OverviewTabProps {
   crawl: CrawlJob | null;
   issues: CrawlIssue[];
   pages: CrawlPage[];
-  onSwitchTab: (tab: string) => void;
+  onSwitchTab: (tab: WebsiteTabId) => void;
   onFixIssue: (issue: CrawlIssue) => void;
 }
 

@@ -269,7 +269,7 @@ export function AiVisibilityFixPanel({
               AI Visibility Fix Engine (ChatGPT, Claude &amp; Gemini)
             </h2>
             <p className="text-[13px] text-brand-300 leading-relaxed">
-              When prospective customers ask conversational queries in ChatGPT, Claude, or Google AI Overviews, AI engines recommend businesses with clear quotable facts, structured entity data, and verified answers. Below are your website's plain-English AI gaps and 1-click fixes.
+              When prospective customers ask conversational queries in ChatGPT, Claude, or Google AI Overviews, AI engines recommend businesses with clear quotable facts, structured entity data, and verified answers. Below are your website&apos;s plain-English AI gaps and 1-click fixes.
             </p>
           </div>
 
@@ -459,7 +459,7 @@ export function AiVisibilityFixPanel({
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[13.5px] font-bold text-brand-950">
-                      "{item.query}"
+                      &quot;{item.query}&quot;
                     </span>
                     <Pill tone={item.isCompetitorWinning ? "warn" : "good"}>
                       {item.status}

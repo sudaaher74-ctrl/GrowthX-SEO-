@@ -40,11 +40,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # Hook-order breakage is what crashes pages at runtime, and `tsc` cannot
-      # see it. This rule is clean today and must stay clean; the full lint
-      # config still has pre-existing errors, so it cannot gate a merge yet.
-      - name: Hook safety
-        run: npm run lint:hooks
+      # The error-level rules are all clean, so any new one fails the build.
+      # `set-state-in-effect` is pinned to `warn` in eslint.config.mjs with the
+      # reason and the remaining count; everything else gates here.
+      - name: Lint
+        run: npm run lint
 
       # Also runs check:data, which fails the build on fabricated customer-facing figures.
       - name: Build

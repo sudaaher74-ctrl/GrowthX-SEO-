@@ -2513,6 +2513,9 @@ export interface MammouthConfig {
   };
 }
 
+/** Request body for the Mammouth analysis endpoints, which take free-form JSON. */
+export type MammouthAnalysisInput = Record<string, unknown>;
+
 export interface MammouthTestResult {
   connected: boolean;
   provider: string;
@@ -2528,11 +2531,14 @@ export const api = {
     getConfig: () => get<MammouthConfig>('/api/ai/mammouth/config'),
     updateConfig: (data: Partial<MammouthConfig>) => post<{ success: boolean; config: MammouthConfig }>('/api/ai/mammouth/config', data),
     testConnection: () => post<MammouthTestResult>('/api/ai/mammouth/test-connection', {}),
-    websiteAudit: (data: any) => post<any>('/api/ai/mammouth/website-audit', data),
-    competitorIntelligence: (data: any) => post<any>('/api/ai/mammouth/competitor-intelligence', data),
-    keywordStrategy: (data: any) => post<any>('/api/ai/mammouth/keyword-strategy', data),
-    contentAnalysis: (data: any) => post<any>('/api/ai/mammouth/content-analysis', data),
-    aevAnalysis: (data: any) => post<any>('/api/ai/mammouth/aev-analysis', data),
+    // No caller has modelled these payloads yet. `unknown` keeps that honest:
+    // the first consumer has to narrow the response deliberately instead of
+    // inheriting `any` and losing type checking across whatever it touches.
+    websiteAudit: (data: MammouthAnalysisInput) => post<unknown>('/api/ai/mammouth/website-audit', data),
+    competitorIntelligence: (data: MammouthAnalysisInput) => post<unknown>('/api/ai/mammouth/competitor-intelligence', data),
+    keywordStrategy: (data: MammouthAnalysisInput) => post<unknown>('/api/ai/mammouth/keyword-strategy', data),
+    contentAnalysis: (data: MammouthAnalysisInput) => post<unknown>('/api/ai/mammouth/content-analysis', data),
+    aevAnalysis: (data: MammouthAnalysisInput) => post<unknown>('/api/ai/mammouth/aev-analysis', data),
   },
 
   // SEO Tools

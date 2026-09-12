@@ -14,7 +14,7 @@ function DashboardMockup() {
         </div>
         <div>
           <p className="text-[11px] font-bold text-slate-900 leading-tight">Website Audit</p>
-          <p className="text-[10px] text-slate-500 leading-tight">Find what's holding you back</p>
+          <p className="text-[10px] text-slate-500 leading-tight">Find what&apos;s holding you back</p>
         </div>
       </div>
 

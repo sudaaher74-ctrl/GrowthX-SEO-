@@ -28,6 +28,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage, CrawlQualityDiagnostics } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
 import { GaugeScore } from "../gauge-score";
+import type { WebsiteTabId } from "@/components/website/tabs/tab-id";
 
 interface TechnicalSeoTabProps {
   crawl: CrawlJob | null;
@@ -35,7 +36,7 @@ interface TechnicalSeoTabProps {
   pages: CrawlPage[];
   qualityDiagnostics?: CrawlQualityDiagnostics | null;
   historyRuns?: { pagesCrawled: number; issuesFound: number }[];
-  onSwitchTab: (tab: string) => void;
+  onSwitchTab: (tab: WebsiteTabId) => void;
   onFixIssue: (issue: CrawlIssue) => void;
   onOpenLogs?: () => void;
   onOpenRecommendations?: () => void;
@@ -837,7 +838,7 @@ export function TechnicalSeoTab({
             {/* Sort By Dropdown */}
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             >
               <option value="impact">Sort by: Impact</option>

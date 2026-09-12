@@ -183,7 +183,7 @@ export function AiCouncilRoundtable({ projectId, domain, businessName }: AiCounc
             </span>
           </div>
           <p className="mt-1 text-[12.5px] text-brand-600 leading-relaxed max-w-2xl">
-            Watch the world's 3 premier AI reasoning engines debate {businessName ? <strong>{businessName}</strong> : "your business"}&apos;s authority, critique blind spots, and collaboratively engineer a plan to capture more customers.
+            Watch the world&apos;s 3 premier AI reasoning engines debate {businessName ? <strong>{businessName}</strong> : "your business"}&apos;s authority, critique blind spots, and collaboratively engineer a plan to capture more customers.
           </p>
         </div>
 
