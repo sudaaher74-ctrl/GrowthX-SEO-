@@ -1,104 +1,93 @@
 "use client";
 
 import { Globe, Trophy, Sparkles, Wrench, ArrowRight } from "lucide-react";
-import Link from "next/link";
 
-const CORE_PILLARS = [
+const FEATURES = [
   {
     icon: Globe,
-    title: "1. Website Audit",
-    tag: "Technical & On-Page",
-    iconBg: "bg-blue-50 text-blue-600",
-    borderHover: "hover:border-blue-200",
-    description: "Deep crawl of DOM, sitemap, Core Web Vitals, schema markup, and meta tags.",
-    impact: "Uncovers 30+ hidden technical blockers",
-    link: "/website",
+    iconBg: "bg-blue-50",
+    iconColor: "text-blue-600",
+    borderColor: "hover:border-blue-200",
+    accentColor: "text-blue-600",
+    title: "Website Audit",
+    description:
+      "Detect technical, on-page and performance issues automatically. Know exactly what's holding your site back.",
+    cta: "Find what's holding you back →",
   },
   {
     icon: Trophy,
-    title: "2. Competitor Intel",
-    tag: "Market Gaps",
-    iconBg: "bg-amber-50 text-amber-600",
-    borderHover: "hover:border-amber-200",
-    description: "Reverse-engineers rival rankings, content velocity, and target keyword opportunities.",
-    impact: "Identifies top 3 vertical rivals",
-    link: "/competitors",
+    iconBg: "bg-amber-50",
+    iconColor: "text-amber-600",
+    borderColor: "hover:border-amber-200",
+    accentColor: "text-amber-600",
+    title: "Competitor Intelligence",
+    description:
+      "See what your competitors are doing, find gaps and uncover new opportunities before they do.",
+    cta: "Stay ahead of your competition →",
   },
   {
     icon: Sparkles,
-    title: "3. AI Visibility",
-    tag: "GEO & Citations",
-    iconBg: "bg-violet-50 text-violet-600",
-    borderHover: "hover:border-violet-200",
-    description: "Measures brand presence & answer inclusion across ChatGPT, Claude & Perplexity.",
-    impact: "Audits citation share & entity graph",
-    link: "/ai-visibility",
+    iconBg: "bg-violet-50",
+    iconColor: "text-violet-600",
+    borderColor: "hover:border-violet-200",
+    accentColor: "text-violet-600",
+    title: "AI Visibility",
+    description:
+      "Track how ChatGPT, Claude and Gemini perceive your brand and where you can improve your presence.",
+    cta: "Be visible in AI searches →",
   },
   {
     icon: Wrench,
-    title: "4. Fix Engine",
-    tag: "Autonomous Execution",
-    iconBg: "bg-emerald-50 text-emerald-600",
-    borderHover: "hover:border-emerald-200",
-    description: "Synthesizes a prioritized 30-day plan and auto-implements code & content improvements.",
-    impact: "Executes without developer backlog",
-    link: "/fix-engine",
+    iconBg: "bg-emerald-50",
+    iconColor: "text-emerald-600",
+    borderColor: "hover:border-emerald-200",
+    accentColor: "text-emerald-600",
+    title: "Fix Engine",
+    description:
+      "Get a prioritized 30-day plan and automatically implement the approved improvements for you.",
+    cta: "Turn insights into real growth →",
   },
 ];
 
 export function FeatureCards() {
   return (
-    <section className="py-6 sm:py-8 bg-slate-50/50 border-b border-slate-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-5 gap-2">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">
-              The Complete SEO + GEO Lifecycle
-            </span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Four Autonomous Pillars for Search Dominance
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 max-w-sm">
-            From initial crawl to real-time execution, GrowthX replaces disconnected toolkits with a single unified engine.
+    <section className="py-24 bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <p className="text-xs font-bold uppercase tracking-widest text-violet-600 mb-3">
+            How GrowthX Works
+          </p>
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight">
+            Everything you need to grow<br />
+            in the age of AI search
+          </h2>
+          <p className="mt-4 text-lg text-slate-500 leading-relaxed">
+            GrowthX brings together SEO, competitor intelligence and AI visibility — and turns insights into execution.
           </p>
         </div>
 
-        {/* 4 Cards Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {CORE_PILLARS.map((pillar) => {
-            const Icon = pillar.icon;
+        {/* Cards grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {FEATURES.map((feat) => {
+            const Icon = feat.icon;
             return (
               <div
-                key={pillar.title}
-                className={`bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-all ${pillar.borderHover} flex flex-col justify-between`}
+                key={feat.title}
+                className={`group bg-white border border-slate-200 ${feat.borderColor} rounded-2xl p-6 flex flex-col gap-4 hover:shadow-lg transition-all duration-300 cursor-default`}
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${pillar.iconBg}`}>
-                      <Icon size={16} />
-                    </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                      {pillar.tag}
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900 mb-1">{pillar.title}</h3>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                    {pillar.description}
-                  </p>
+                <div className={`w-11 h-11 rounded-xl ${feat.iconBg} flex items-center justify-center`}>
+                  <Icon size={20} className={feat.iconColor} />
                 </div>
-
-                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="font-semibold text-slate-700">{pillar.impact}</span>
-                  <Link
-                    href={pillar.link}
-                    className="text-violet-600 hover:text-violet-700 font-bold inline-flex items-center gap-0.5"
-                  >
-                    <span>View</span>
-                    <ArrowRight size={11} />
-                  </Link>
+                <div className="flex-1">
+                  <h3 className="text-[15px] font-bold text-slate-900 mb-2">{feat.title}</h3>
+                  <p className="text-[13.5px] text-slate-500 leading-relaxed">{feat.description}</p>
                 </div>
+                <button
+                  className={`flex items-center gap-1 text-[12.5px] font-semibold ${feat.accentColor} group-hover:gap-2 transition-all`}
+                >
+                  {feat.cta}
+                </button>
               </div>
             );
           })}

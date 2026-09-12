@@ -1,215 +1,213 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Play,
-  CheckCircle,
-  TrendingUp,
-  Globe,
-  Sparkles,
-  Wrench,
-  Search,
-} from "lucide-react";
+import { ArrowRight, Play, CheckCircle, TrendingUp, Globe, Sparkles, Wrench } from "lucide-react";
 
-function normalizeUrl(value: string) {
-  if (!value.startsWith("http")) return `https://${value}`;
-  return value;
-}
-
-function CompactDashboardMockup() {
+function DashboardMockup() {
   return (
-    <div className="relative w-full max-w-md mx-auto select-none">
-      {/* Floating Badge Top Left */}
-      <div className="absolute -left-3 -top-2 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-md border border-slate-100 px-3 py-1.5 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-          <Globe size={13} className="text-blue-600" />
+    <div className="relative w-full max-w-lg mx-auto lg:mx-0 lg:max-w-none select-none">
+      {/* Floating cards — positioned absolutely around the mockup */}
+      {/* Top-left: Website Audit */}
+      <div className="absolute -left-4 top-8 z-10 bg-white rounded-2xl shadow-lg border border-slate-100 px-3.5 py-2.5 flex items-center gap-2.5 w-52 animate-float-slow">
+        <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+          <Globe size={15} className="text-blue-600" />
         </div>
         <div>
           <p className="text-[11px] font-bold text-slate-900 leading-tight">Website Audit</p>
-          <p className="text-[9px] text-slate-500 leading-tight">Instant crawl &amp; diagnostics</p>
+          <p className="text-[10px] text-slate-500 leading-tight">Find what's holding you back</p>
         </div>
       </div>
 
-      {/* Floating Badge Top Right */}
-      <div className="absolute -right-3 -top-2 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-md border border-slate-100 px-3 py-1.5 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-          <TrendingUp size={13} className="text-amber-600" />
+      {/* Top-right: Competitor Intel */}
+      <div className="absolute -right-2 top-4 z-10 bg-white rounded-2xl shadow-lg border border-slate-100 px-3.5 py-2.5 flex items-center gap-2.5 w-52 animate-float">
+        <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+          <TrendingUp size={15} className="text-amber-600" />
         </div>
         <div>
-          <p className="text-[11px] font-bold text-slate-900 leading-tight">Competitor Intel</p>
-          <p className="text-[9px] text-slate-500 leading-tight">3 direct rivals mapped</p>
+          <p className="text-[11px] font-bold text-slate-900 leading-tight">Competitor Intelligence</p>
+          <p className="text-[10px] text-slate-500 leading-tight">Opportunities competitors cover</p>
         </div>
       </div>
 
-      {/* Main card */}
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden mt-6">
-        {/* Header */}
-        <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/70">
+      {/* Main dashboard card */}
+      <div className="relative mt-12 mx-2 bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
+        {/* Dashboard header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/60">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-900">
-              Growth<span className="text-violet-600">X</span>
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">app.growthx.ai</span>
+            <span className="text-sm font-bold text-slate-900">Growth<span className="text-violet-600">X</span></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-400" />
-            <div className="w-2 h-2 rounded-full bg-amber-400" />
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+            <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+            <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4 space-y-3">
-          {/* KPI row */}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: "SEO Health", val: "68", change: "+12%", col: "text-blue-600" },
-              { label: "AI Visibility", val: "52", change: "+28%", col: "text-violet-600" },
-              { label: "Organic Traffic", val: "12.4K", change: "+22%", col: "text-emerald-600" },
-              { label: "Rank Keywords", val: "1,240", change: "+18%", col: "text-amber-600" },
-            ].map((kpi) => (
-              <div key={kpi.label} className="bg-slate-50 rounded-lg p-2 text-center">
-                <p className="text-[8px] text-slate-500 font-medium truncate">{kpi.label}</p>
-                <p className={`text-sm font-extrabold ${kpi.col} leading-none mt-0.5`}>{kpi.val}</p>
-                <p className="text-[8px] text-emerald-600 font-semibold mt-0.5">{kpi.change}</p>
-              </div>
-            ))}
+        {/* Sidebar + content */}
+        <div className="flex">
+          {/* Mini sidebar */}
+          <div className="w-32 bg-slate-900 min-h-[280px] p-3 shrink-0 hidden sm:block">
+            <div className="space-y-0.5">
+              {[
+                { icon: "🏠", label: "Dashboard", active: true },
+                { icon: "🔍", label: "Website Audit" },
+                { icon: "🎯", label: "Competitor Intel" },
+                { icon: "✨", label: "AI Visibility" },
+                { icon: "⚡", label: "Fix Engine" },
+                { icon: "📊", label: "Reports" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                    item.active
+                      ? "bg-violet-600 text-white"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <span className="text-[11px]">{item.icon}</span>
+                  <span className="truncate">{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Action item preview */}
-          <div className="bg-violet-50/80 rounded-xl p-3 border border-violet-100">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-bold text-violet-950 flex items-center gap-1">
-                <Wrench size={11} className="text-violet-600" />
-                30-Day Fix Engine
-              </span>
-              <span className="text-[9px] font-bold text-violet-700 bg-violet-200/60 px-1.5 py-0.5 rounded">
-                Active Execution
-              </span>
+          {/* Main content */}
+          <div className="flex-1 p-4 space-y-3 min-w-0">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Website Overview</p>
+
+            {/* KPI row */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "SEO Health", value: "68", trend: "+12%", color: "text-blue-600" },
+                { label: "AI Visibility", value: "52", trend: "+28%", color: "text-violet-600" },
+                { label: "Organic Traffic", value: "12.4K", trend: "+22%", color: "text-emerald-600" },
+                { label: "Ranking Keywords", value: "1,240", trend: "+18%", color: "text-amber-600" },
+              ].map((kpi) => (
+                <div key={kpi.label} className="bg-slate-50 rounded-xl p-2.5">
+                  <p className="text-[9px] text-slate-500 font-medium truncate">{kpi.label}</p>
+                  <p className={`text-base font-extrabold ${kpi.color} leading-tight`}>{kpi.value}</p>
+                  <p className="text-[9px] text-emerald-600 font-semibold">{kpi.trend}</p>
+                </div>
+              ))}
             </div>
-            <p className="text-[9px] text-violet-700 mb-1.5">
-              12 of 38 automated fixes completed
-            </p>
-            <div className="w-full bg-violet-200/80 rounded-full h-1.5">
-              <div className="bg-violet-600 h-1.5 rounded-full" style={{ width: "38%" }} />
+
+            {/* 30-day plan */}
+            <div className="bg-violet-50 rounded-xl p-3 border border-violet-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-semibold text-violet-900">30-Day Plan</p>
+                <span className="text-[9px] font-bold text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full">Active</span>
+              </div>
+              <p className="text-[9px] text-violet-700 mb-1.5">12 / 38 actions completed</p>
+              <div className="w-full bg-violet-200 rounded-full h-1.5">
+                <div className="bg-violet-600 h-1.5 rounded-full transition-all" style={{ width: "32%" }} />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Floating Badge Bottom Left */}
-      <div className="absolute -left-3 -bottom-3 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-md border border-slate-100 px-3 py-1.5 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-          <Sparkles size={13} className="text-violet-600" />
+      {/* Bottom-left: AI Visibility */}
+      <div className="absolute -left-2 bottom-10 z-10 bg-white rounded-2xl shadow-lg border border-slate-100 px-3.5 py-2.5 flex items-center gap-2.5 w-52 animate-float-slow">
+        <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+          <Sparkles size={15} className="text-violet-600" />
         </div>
         <div>
           <p className="text-[11px] font-bold text-slate-900 leading-tight">AI Visibility</p>
-          <p className="text-[9px] text-slate-500 leading-tight">ChatGPT &amp; Perplexity share</p>
+          <p className="text-[10px] text-slate-500 leading-tight">How AI platforms see your brand</p>
         </div>
       </div>
 
-      {/* Floating Badge Bottom Right */}
-      <div className="absolute -right-3 -bottom-3 z-10 bg-white/95 backdrop-blur-sm rounded-xl shadow-md border border-slate-100 px-3 py-1.5 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-          <Wrench size={13} className="text-emerald-600" />
+      {/* Bottom-right: Fix Engine */}
+      <div className="absolute -right-2 bottom-6 z-10 bg-white rounded-2xl shadow-lg border border-slate-100 px-3.5 py-2.5 flex items-center gap-2.5 w-52 animate-float">
+        <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+          <Wrench size={15} className="text-emerald-600" />
         </div>
         <div>
           <p className="text-[11px] font-bold text-slate-900 leading-tight">Fix Engine</p>
-          <p className="text-[9px] text-slate-500 leading-tight">Zero-code implementation</p>
+          <p className="text-[10px] text-slate-500 leading-tight">Auto-implement approved fixes</p>
         </div>
+      </div>
+
+      {/* Annotation */}
+      <div className="absolute -bottom-6 right-8 z-20">
+        <p className="font-bold text-violet-500 text-sm" style={{ fontFamily: "cursive", transform: "rotate(-4deg)" }}>
+          From insights to real growth ↗
+        </p>
       </div>
     </div>
   );
 }
 
 export function HeroSection() {
-  const router = useRouter();
-  const [targetUrl, setTargetUrl] = useState("");
-
-  const handleQuickAnalyze = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = targetUrl.trim();
-    if (!clean) {
-      router.push("/analyze");
-      return;
-    }
-    router.push(`/analyze/progress?url=${encodeURIComponent(normalizeUrl(clean))}`);
-  };
-
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 via-white to-violet-50/20 pt-20 pb-8 sm:pb-10 border-b border-slate-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="grid lg:grid-cols-[54%_46%] gap-8 lg:gap-10 items-center">
-          {/* Left Column */}
-          <div className="space-y-4">
-            {/* Pill Tag */}
-            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200/70 text-violet-700 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" />
+    <section className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-slate-50 via-white to-violet-50/30 pt-16">
+      {/* Soft background blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-violet-100/40 blur-3xl" />
+        <div className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full bg-blue-100/30 blur-3xl" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
+        <div className="grid lg:grid-cols-[55%_45%] gap-12 lg:gap-8 items-center">
+          {/* LEFT */}
+          <div className="space-y-8">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200/80 text-violet-700 text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
               AI-Powered SEO &amp; GEO Automation
             </div>
 
             {/* Headline */}
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 leading-[1.12] tracking-tight">
-                Turn Search &amp; AI Visibility into{" "}
-                <span className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent">
-                  Real Business Growth
-                </span>
+              <h1 className="text-5xl sm:text-6xl font-extrabold text-slate-900 leading-[1.08] tracking-tight">
+                Turn Search and<br />
+                AI Visibility into
+              </h1>
+              <h1 className="text-5xl sm:text-6xl font-extrabold leading-[1.08] tracking-tight bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent mt-1">
+                Real Business Growth
               </h1>
             </div>
 
-            {/* Subtitle */}
-            <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-lg">
-              GrowthX crawls your website, uncovers competitor search gaps, audits AI visibility (ChatGPT, Perplexity), and automatically implements a prioritized 30-day fix plan.
+            {/* Sub */}
+            <p className="text-lg text-slate-600 leading-relaxed max-w-xl">
+              GrowthX analyzes your website, competitors, and AI platforms, creates a prioritized 30-day plan, and automatically implements the improvements for you.
             </p>
 
-            {/* Direct Quick URL Analyzer Bar */}
-            <form
-              onSubmit={handleQuickAnalyze}
-              className="flex flex-col sm:flex-row items-stretch gap-2 max-w-lg bg-white p-1.5 rounded-2xl border border-slate-200 shadow-md focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all"
-            >
-              <div className="flex-1 flex items-center gap-2 px-3 py-1.5">
-                <Globe size={16} className="text-slate-400 shrink-0" />
-                <input
-                  type="text"
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  placeholder="Enter your website URL (e.g. acme.com)"
-                  className="w-full text-sm text-slate-900 placeholder:text-slate-400 bg-transparent focus:outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 active:scale-[0.98] shadow-md shadow-violet-200 transition-all cursor-pointer shrink-0"
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                href="/analyze"
+                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 active:scale-[0.98] text-white font-bold text-[15px] px-6 py-3.5 rounded-xl transition-all shadow-md hover:shadow-violet-300 hover:shadow-lg"
               >
-                <span>Analyze Website</span>
-                <ArrowRight size={14} />
+                Analyze Your Website
+                <ArrowRight size={16} />
+              </Link>
+              <button className="flex items-center gap-2.5 text-slate-700 hover:text-slate-900 font-semibold text-[15px] px-4 py-3.5 rounded-xl hover:bg-slate-100 transition-all">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 text-white">
+                  <Play size={12} fill="white" />
+                </div>
+                Watch Demo
               </button>
-            </form>
+            </div>
 
-            {/* Trust Signals */}
-            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
-              {["Free instant scan", "No credit card needed", "Ready in 60 seconds"].map((sig) => (
-                <div key={sig} className="flex items-center gap-1.5">
-                  <CheckCircle size={13} className="text-emerald-500 shrink-0" />
-                  <span>{sig}</span>
+            {/* Trust signals */}
+            <div className="flex flex-wrap items-center gap-5 pt-1">
+              {[
+                "No credit card required",
+                "Free analysis",
+                "Setup in minutes",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-1.5 text-[13px] text-slate-600">
+                  <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+                  <span>{item}</span>
                 </div>
               ))}
-              <Link
-                href="/dashboard"
-                className="text-violet-600 hover:text-violet-700 font-semibold underline underline-offset-2 ml-auto sm:ml-0"
-              >
-                Explore Demo Dashboard →
-              </Link>
             </div>
           </div>
 
-          {/* Right Column: Compact Mockup */}
-          <div className="relative pt-4 pb-4 lg:py-2">
-            <CompactDashboardMockup />
+          {/* RIGHT — Dashboard mockup */}
+          <div className="relative lg:pl-4">
+            <DashboardMockup />
           </div>
         </div>
       </div>
