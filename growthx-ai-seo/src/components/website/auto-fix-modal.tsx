@@ -15,6 +15,7 @@ import {
 import { ActionButton, Pill } from "@/components/ui/console";
 import { useRunFixes } from "@/hooks/use-growthx";
 import type { AutomationRun, CrawlIssue } from "@/lib/api-client";
+import { errorMessage } from "@/lib/error-message";
 
 interface AutoFixModalProps {
   issue: CrawlIssue | null;
@@ -170,10 +171,8 @@ export function AutoFixModal({
     setRun(null);
     try {
       setRun(await runFixes.mutateAsync([issue.id]));
-    } catch (error: any) {
-      setRunError(
-        error?.message ?? "The fix run could not be started. Please try again.",
-      );
+    } catch (error) {
+      setRunError(errorMessage(error));
     }
   }
 

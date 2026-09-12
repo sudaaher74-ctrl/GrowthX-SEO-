@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api, type MammouthConfig, type MammouthModelInfo } from "@/lib/api-client";
+import { errorMessage } from "@/lib/error-message";
 
 export function AiConfigurationTab() {
   const [config, setConfig] = useState<MammouthConfig | null>(null);
@@ -54,16 +55,13 @@ export function AiConfigurationTab() {
       setConfig(data);
       if (data.defaultModel) setSelectedModel(data.defaultModel);
       if (data.features) setFeatures(data.features);
-    } catch (err: any) {
+    } catch (err) {
       // Never synthesise a config here. This block used to hand back
       // isConfigured/connected: true with a hardcoded model list, so an
       // unreachable backend or a missing key still rendered "Connected" —
       // a fabricated status that hid the outage it was reporting on.
       setConfig(null);
-      setLoadError(
-        err?.message ||
-          "Could not reach the AI configuration service. Status unknown.",
-      );
+      setLoadError(errorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -82,10 +80,10 @@ export function AiConfigurationTab() {
       if (config) {
         setConfig({ ...config, connected: res.connected });
       }
-    } catch (err: any) {
+    } catch (err) {
       setTestResult({
         connected: false,
-        message: err?.message || "Connection failed. Check network or server status.",
+        message: errorMessage(err),
       });
     } finally {
       setTesting(false);

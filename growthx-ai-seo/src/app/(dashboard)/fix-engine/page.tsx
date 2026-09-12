@@ -299,7 +299,7 @@ function FixEngineClient() {
               <button
                 key={st.id}
                 type="button"
-                onClick={() => setPlanSubTab(st.id as any)}
+                onClick={() => setPlanSubTab(st.id as typeof planSubTab)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   planSubTab === st.id
                     ? "bg-purple-100 text-purple-900 font-bold"

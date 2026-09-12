@@ -46,14 +46,7 @@ import { GeoTab } from "@/components/website/tabs/geo-tab";
 import { IssuesTab } from "@/components/website/tabs/issues-tab";
 import { OverviewTab } from "@/components/website/tabs/overview-tab";
 
-type TabId =
-  | "overview"
-  | "technical-seo"
-  | "performance"
-  | "pages"
-  | "content"
-  | "geo"
-  | "issues";
+import type { WebsiteTabId as TabId } from "@/components/website/tabs/tab-id";
 
 function WebsiteAuditClient() {
   const searchParams = useSearchParams();
@@ -351,7 +344,7 @@ function WebsiteAuditClient() {
             crawl={crawl.data ?? null}
             issues={allIssues}
             pages={allPages}
-            onSwitchTab={setActiveTab as any}
+            onSwitchTab={setActiveTab}
             onFixIssue={(issue) => setSelectedFixIssue(issue)}
           />
         )}
@@ -363,7 +356,7 @@ function WebsiteAuditClient() {
             pages={allPages}
             qualityDiagnostics={qualityDiagnostics}
             historyRuns={historyRuns}
-            onSwitchTab={setActiveTab as any}
+            onSwitchTab={setActiveTab}
             onFixIssue={(issue) => setSelectedFixIssue(issue)}
             onOpenLogs={() => setShowLogsModal(true)}
             onOpenRecommendations={() => {

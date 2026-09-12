@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { api, type TrackedCompetitor, type CrawlIssue } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages, useCrawlIssues, useVisibility, useTrackedPrompts } from "@/hooks/use-growthx";
+import { errorMessage } from "@/lib/error-message";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. COMPETITORS DISCOVERY TAB
@@ -149,8 +150,8 @@ export function CompetitorsDiscoveryTab({
       queryClient.invalidateQueries({ queryKey: ["competitor-intelligence", projectId] });
       queryClient.invalidateQueries({ queryKey: ["visibility", projectId] });
       setManualDomain("");
-    } catch (err: any) {
-      setManualError(err.message || "Failed to add competitor domain");
+    } catch (err) {
+      setManualError(errorMessage(err));
     } finally {
       setTrackingDomain(null);
     }
@@ -196,7 +197,7 @@ export function CompetitorsDiscoveryTab({
           <button
             key={tab.id}
             type="button"
-            onClick={() => setFilterType(tab.id as any)}
+            onClick={() => setFilterType(tab.id as typeof filterType)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterType === tab.id
                 ? "bg-purple-600 text-white shadow-2xs"

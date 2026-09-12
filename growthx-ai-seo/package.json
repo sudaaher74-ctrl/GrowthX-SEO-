@@ -10,7 +10,6 @@
     "build": "npm run check:data && next build",
     "start": "next start",
     "lint": "npm run check:data && eslint",
-    "lint:hooks": "eslint src --config eslint.hooks.config.mjs --no-config-lookup",
     "typecheck": "tsc --noEmit",
     "check:data": "node scripts/check-no-fabricated-data.mjs"
   },
@@ -58,15 +57,12 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "16.2.12",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@typescript-eslint/parser": "^8.65.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
-    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

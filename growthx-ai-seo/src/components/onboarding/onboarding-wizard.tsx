@@ -625,7 +625,7 @@ export function OnboardingWizard() {
               <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 ring-2 ring-emerald-500/30">
                 <Check size={22} className="text-emerald-400" strokeWidth={2.5} />
               </div>
-              <h3 className="text-base font-bold text-white mb-1">You're all set!</h3>
+              <h3 className="text-base font-bold text-white mb-1">You&apos;re all set!</h3>
               <p className="text-sm text-white/50 mb-4">
                 {doneCount > 0
                   ? `${doneCount} integration${doneCount > 1 ? "s" : ""} connected. GrowthX AI is ready to optimize your site.`

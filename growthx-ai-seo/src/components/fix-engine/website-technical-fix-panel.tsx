@@ -489,7 +489,7 @@ export function WebsiteTechnicalFixPanel({
           <div>
             <h3 className="text-[15px] font-bold text-brand-950 flex items-center gap-2">
               <Target size={16} className="text-success-600" />
-              <span>2. Keywords Competitors Rank For That You Don't</span>
+              <span>2. Keywords Competitors Rank For That You Don&apos;t</span>
             </h3>
             <p className="text-[12px] text-brand-500 mt-0.5">
               Buyers search these exact queries on Google. Your competitor <strong className="font-semibold text-brand-950">{topCompetitorName}</strong> is capturing them; we can target them on your website.
@@ -510,7 +510,7 @@ export function WebsiteTechnicalFixPanel({
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[13.5px] font-bold text-brand-950">
-                      "{item.keyword}"
+                      &quot;{item.keyword}&quot;
                     </span>
                     <Pill tone={item.intent.includes("Purchase") ? "good" : "info"}>
                       {item.intent}

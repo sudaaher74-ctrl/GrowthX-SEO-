@@ -84,7 +84,7 @@ export function FixEngineImplementationView({
         category: a.category,
         deliverable: a.expectedImpact || a.steps?.[0] || "Clean code & schema fix",
         targetUrl: a.evidence?.[0]?.sourceUrl || `https://${customerDomain || "yourdomain.com"}/`,
-        priority: a.priority as any,
+        priority: a.priority,
         isStaged: false,
       });
     });
@@ -113,7 +113,7 @@ export function FixEngineImplementationView({
           category: issue.category || "Technical SEO",
           deliverable: issue.recommendation || "Validated fix patch",
           targetUrl: issue.affectedUrl || `https://${customerDomain || "yourdomain.com"}/`,
-          priority: priorityTarget as any,
+          priority: priorityTarget,
           isStaged: false,
         });
       });

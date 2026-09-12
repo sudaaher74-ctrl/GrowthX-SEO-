@@ -320,7 +320,7 @@ export function CompetitorInterceptEngine({
           {/* Sort By */}
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
             className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-purple-500 focus:outline-none"
           >
             <option value="score-desc">Highest Vulnerability</option>
