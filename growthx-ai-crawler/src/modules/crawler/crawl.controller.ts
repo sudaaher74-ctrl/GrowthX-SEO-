@@ -8,6 +8,7 @@ import { HistoryService } from '../history/history.service';
 import { GraphService } from '../graph/graph.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
+import { FixPreviewService } from '../ai/fix-preview.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -26,6 +27,7 @@ export class CrawlController {
     private readonly graphService: GraphService,
     private readonly aiService: AiService,
     private readonly autoFixService: AutoFixService,
+    private readonly fixPreviewService: FixPreviewService,
     private readonly schedulerService: SchedulerService,
     private readonly orgContext: OrgContextService,
     private readonly verificationEngine: VerificationEngineService,
@@ -445,6 +447,20 @@ export class CrawlController {
   async generateAutoFix(@Req() req: any, @Param('id') id: string) {
     const result = await this.autoFixService.generateFixPatch(id, req.organizationId);
     return result;
+  }
+
+  /**
+   * Everything the fix modal shows: the page's real current state, the patch
+   * written from its own content, the file to edit, and which surface the fix
+   * changes. Separate from `autofix` because it also reads the repository and
+   * the page's stored schemas, which the patch generator has no view of.
+   */
+  @Post('issues/:id/fix-preview')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Real before/after, file location and evidence type for an issue fix' })
+  @ApiParam({ name: 'id', description: 'Issue ID' })
+  async fixPreview(@Req() req: any, @Param('id') id: string) {
+    return this.fixPreviewService.buildPreview(id, req.organizationId);
   }
 
   @Post('issues/:id/approve')

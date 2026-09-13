@@ -9,6 +9,8 @@ import { HistoryService } from '../history/history.service';
 import { GraphService } from '../graph/graph.service';
 import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
+import { FixPreviewService } from '../ai/fix-preview.service';
+import { VerificationEngineService } from './verification-engine.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
 import { OrgContextService } from '../organizations/org-context.service';
 
@@ -50,6 +52,13 @@ describe('CrawlController — crawl history', () => {
         { provide: AutoFixService, useValue: {} },
         { provide: SchedulerService, useValue: {} },
         { provide: OrgContextService, useValue: orgContext },
+        // Both are constructor dependencies of CrawlController that this suite
+        // never exercised. Nest resolves a controller's whole constructor
+        // before any test runs, so a missing one fails every case here with a
+        // DI error rather than an assertion — which is how VerificationEngine
+        // went unnoticed: CI does not run the backend suite.
+        { provide: VerificationEngineService, useValue: {} },
+        { provide: FixPreviewService, useValue: {} },
       ],
     }).compile();
 
