@@ -50,15 +50,15 @@ export function FixEngineHeroBanner({
         {/* Top: Header Info & CTA Action Box */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100 shadow-2xs">
-              <FileText size={22} />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white shadow-2xs">
+              <FileText size={20} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-[16.5px] font-bold text-slate-900 leading-tight">
                   Your 30-Day Fix Plan
                 </h2>
-                <span className="rounded-md bg-purple-50 border border-purple-200/60 px-2 py-0.5 text-[10.5px] font-bold text-purple-700">
+                <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10.5px] font-bold text-slate-800">
                   Autonomous
                 </span>
               </div>
@@ -70,14 +70,16 @@ export function FixEngineHeroBanner({
           </div>
 
           {/* Action Box */}
-          <div className="shrink-0 w-full md:w-auto md:min-w-[240px] rounded-xl border border-purple-100/90 bg-gradient-to-br from-purple-50/80 via-white to-purple-50/50 p-3.5 shadow-2xs">
+          <div className="shrink-0 w-full md:w-auto md:min-w-[240px] rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-2xs">
             <div className="flex items-center justify-between gap-2">
               <h4 className="text-[12.5px] font-bold text-slate-900">
                 {isApproved ? "Plan Activated" : "Ready to start?"}
               </h4>
               <span className={cn(
-                "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                isApproved ? "bg-emerald-100 text-emerald-700" : "bg-purple-100 text-purple-700"
+                "text-[10px] font-bold px-1.5 py-0.5 rounded border",
+                isApproved
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  : "bg-slate-200 text-slate-800 border-slate-300"
               )}>
                 {isApproved ? "Running" : "1-Click Start"}
               </span>
@@ -96,7 +98,7 @@ export function FixEngineHeroBanner({
                 "mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 px-3 text-[12px] font-bold text-white transition-all shadow-xs cursor-pointer",
                 isApproved
                   ? "bg-emerald-600 hover:bg-emerald-700 cursor-default shadow-emerald-600/20"
-                  : "bg-purple-600 hover:bg-purple-700 active:scale-[0.98] shadow-purple-600/25"
+                  : "bg-slate-950 hover:bg-black active:scale-[0.98]"
               )}
             >
               {isApproving ? (
@@ -123,7 +125,7 @@ export function FixEngineHeroBanner({
         <div className="mt-4 pt-3.5 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {/* Stat 1 */}
           <div className="flex items-center gap-2.5 rounded-xl bg-slate-50/90 border border-slate-100 p-2.5 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100/70 text-purple-600 shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200/80 text-slate-800 shrink-0">
               <Sparkles size={14} />
             </div>
             <div className="min-w-0">
@@ -138,7 +140,7 @@ export function FixEngineHeroBanner({
 
           {/* Stat 2 */}
           <div className="flex items-center gap-2.5 rounded-xl bg-slate-50/90 border border-slate-100 p-2.5 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100/70 text-blue-600 shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200/80 text-slate-800 shrink-0">
               <Calendar size={14} />
             </div>
             <div className="min-w-0">
@@ -153,7 +155,7 @@ export function FixEngineHeroBanner({
 
           {/* Stat 3 */}
           <div className="flex items-center gap-2.5 rounded-xl bg-slate-50/90 border border-slate-100 p-2.5 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100/70 text-emerald-600 shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200/80 text-slate-800 shrink-0">
               <Target size={14} />
             </div>
             <div className="min-w-0">
@@ -168,7 +170,7 @@ export function FixEngineHeroBanner({
 
           {/* Stat 4 */}
           <div className="flex items-center gap-2.5 rounded-xl bg-slate-50/90 border border-slate-100 p-2.5 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100/70 text-violet-600 shrink-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200/80 text-slate-800 shrink-0">
               <Bot size={14} />
             </div>
             <div className="min-w-0">
@@ -191,7 +193,7 @@ export function FixEngineHeroBanner({
             "text-[10px] font-bold px-2 py-0.5 rounded-full border",
             isApproved
               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-purple-50 text-purple-700 border-purple-200"
+              : "bg-slate-100 text-slate-800 border-slate-200"
           )}>
             {isApproved ? "Executing" : "Awaiting Approval"}
           </span>
@@ -216,7 +218,7 @@ export function FixEngineHeroBanner({
                 cy="50"
                 r={radius}
                 fill="none"
-                stroke={isApproved ? "#10b981" : "#8b5cf6"}
+                stroke={isApproved ? "#10b981" : "#0f172a"}
                 strokeWidth="10"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -238,28 +240,28 @@ export function FixEngineHeroBanner({
           <div className="space-y-1.5 text-[11.5px]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-teal-500 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-slate-900 shrink-0" />
                 <span className="text-slate-600">Total Fixes</span>
               </div>
               <span className="font-bold text-slate-900">{totalFixes}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-slate-600">Completed</span>
               </div>
               <span className="font-bold text-slate-900">{completedFixes}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-purple-500 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
                 <span className="text-slate-600">Pending</span>
               </div>
               <span className="font-bold text-slate-900">{pendingFixes}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="h-2 w-2 rounded-full bg-slate-300 shrink-0" />
                 <span className="text-slate-600">Scheduled</span>
               </div>
               <span className="font-bold text-slate-900">{totalFixes}</span>

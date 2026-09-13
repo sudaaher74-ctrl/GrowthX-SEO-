@@ -76,9 +76,9 @@ export function FixEngineStepper({
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all",
                     isDone
-                      ? "bg-purple-600 text-white shadow-xs shadow-purple-600/25"
+                      ? "bg-slate-950 text-white shadow-xs"
                       : isActive
-                      ? "border-2 border-purple-600 bg-purple-50 text-purple-700 ring-4 ring-purple-100/60"
+                      ? "border-2 border-slate-950 bg-slate-100 text-slate-950 ring-4 ring-slate-100"
                       : "border border-slate-200 bg-slate-50 text-slate-400"
                   )}
                 >
@@ -101,7 +101,7 @@ export function FixEngineStepper({
                       {item.title}
                     </h4>
                     {isActive && (
-                      <span className="inline-flex items-center h-1.5 w-1.5 rounded-full bg-purple-600 animate-pulse" />
+                      <span className="inline-flex items-center h-1.5 w-1.5 rounded-full bg-slate-950 animate-pulse" />
                     )}
                   </div>
                   <p className="mt-0.5 text-[11px] leading-tight text-slate-400 truncate">

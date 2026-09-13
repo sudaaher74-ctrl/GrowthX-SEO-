@@ -175,15 +175,15 @@ function FixEngineClient() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Title + Subtitle */}
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100/70 text-purple-600 border border-purple-200/60 shadow-2xs">
-            <Wrench size={20} className="text-purple-600" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white shadow-2xs">
+            <Wrench size={18} />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-[22px] font-extrabold tracking-tight text-slate-900 leading-none">
                 Fix Engine
               </h1>
-              <span className="rounded-md bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs">
+              <span className="rounded-md bg-slate-950 px-2 py-0.5 text-[11px] font-bold text-white shadow-2xs">
                 30-Day Plan
               </span>
             </div>
@@ -213,9 +213,9 @@ function FixEngineClient() {
           <button
             type="button"
             onClick={() => setShowPlanModal(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 hover:bg-purple-100 text-purple-700 px-3 py-1.5 text-[12px] font-bold transition-all shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 text-[12px] font-bold transition-all shadow-2xs cursor-pointer"
           >
-            <Sparkles size={13} className="text-purple-600" />
+            <Sparkles size={13} className="text-slate-700" />
             <span>Plan Specs</span>
             <ArrowRight size={11} />
           </button>
@@ -233,7 +233,7 @@ function FixEngineClient() {
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 isActive
-                  ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                  ? "bg-slate-950 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
               }`}
             >
@@ -245,15 +245,15 @@ function FixEngineClient() {
 
       {/* Status feedback message */}
       {statusMessage && (
-        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+        <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-purple-600 shrink-0" />
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
             <span>{statusMessage}</span>
           </div>
           <button
             type="button"
             onClick={() => setStatusMessage(null)}
-            className="text-purple-600 hover:text-purple-900 p-1 rounded-md"
+            className="text-slate-400 hover:text-white p-1 rounded-md"
           >
             <X size={14} />
           </button>
@@ -290,7 +290,7 @@ function FixEngineClient() {
                 onClick={() => setPlanSubTab(st.id as typeof planSubTab)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   planSubTab === st.id
-                    ? "bg-purple-100 text-purple-900 font-bold"
+                    ? "bg-slate-950 text-white font-bold shadow-2xs"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
                 }`}
               >

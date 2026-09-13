@@ -197,7 +197,7 @@ export function SprintExecutionModal({
         {/* Header */}
         <div className="p-5 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+            <div className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-xs">
               <Cpu className="h-5 w-5" />
             </div>
             <div>
@@ -205,7 +205,7 @@ export function SprintExecutionModal({
                 <h2 className="text-base font-bold text-slate-900">
                   Sprint {sprintWeek} Autonomous Execution Engine
                 </h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
                   {isCompleted ? "Completed" : "Autopilot Active"}
                 </span>
               </div>
@@ -242,11 +242,11 @@ export function SprintExecutionModal({
             <span className="text-slate-600">
               Task {Math.min(tasks.length, currentTaskIndex + 1)} of {tasks.length}: <strong className="text-slate-900">{activeTask?.title}</strong>
             </span>
-            <span className="text-purple-700 font-bold">{isCompleted ? 100 : progressPercent}% Complete</span>
+            <span className="text-slate-950 font-bold">{isCompleted ? 100 : progressPercent}% Complete</span>
           </div>
           <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-600 to-emerald-500 rounded-full transition-all duration-300"
+              className="h-full bg-slate-950 rounded-full transition-all duration-300"
               style={{ width: `${isCompleted ? 100 : progressPercent}%` }}
             />
           </div>
@@ -268,7 +268,7 @@ export function SprintExecutionModal({
                     isPast
                       ? "bg-emerald-50/50 border-emerald-200 text-emerald-800"
                       : isCurrent
-                      ? "bg-purple-50 border-purple-300 text-purple-900 shadow-2xs ring-1 ring-purple-400/30"
+                      ? "bg-slate-100 border-slate-950 text-slate-950 shadow-2xs ring-1 ring-slate-200"
                       : "bg-white border-slate-200/80 text-slate-400"
                   }`}
                 >
@@ -277,7 +277,7 @@ export function SprintExecutionModal({
                       isPast
                         ? "bg-emerald-600 text-white"
                         : isCurrent
-                        ? "bg-purple-600 text-white animate-pulse"
+                        ? "bg-slate-950 text-white animate-pulse"
                         : "bg-slate-100 text-slate-500"
                     }`}
                   >
@@ -300,10 +300,10 @@ export function SprintExecutionModal({
           <div className="rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 p-4 shadow-inner font-mono text-xs space-y-2">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-[11px] text-slate-400">
               <div className="flex items-center gap-2">
-                <Terminal className="h-3.5 w-3.5 text-purple-400" />
+                <Terminal className="h-3.5 w-3.5 text-slate-400" />
                 <span>growthx-autonomous-daemon — terminal stream</span>
               </div>
-              <span className="text-[10px] bg-slate-800 text-purple-300 px-2 py-0.5 rounded">
+              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
                 Node.js v20 • Git 2.45
               </span>
             </div>
@@ -317,7 +317,7 @@ export function SprintExecutionModal({
                   <span
                     className={
                       log.type === "command"
-                        ? "text-purple-300 font-bold"
+                        ? "text-white font-bold"
                         : log.type === "success"
                         ? "text-emerald-400 font-semibold"
                         : log.type === "warning"
@@ -339,7 +339,7 @@ export function SprintExecutionModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-900">{activeTask.title}</span>
-                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
+                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
                     {activeTask.category}
                   </span>
                 </div>
@@ -347,7 +347,7 @@ export function SprintExecutionModal({
                   <button
                     type="button"
                     onClick={() => onViewDiff(activeTask)}
-                    className="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-slate-900 hover:text-black flex items-center gap-1 cursor-pointer"
                   >
                     <FileCode className="h-3.5 w-3.5" />
                     <span>View Diff &amp; AST Proof →</span>
@@ -357,7 +357,7 @@ export function SprintExecutionModal({
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
                 <span>Target: <strong className="text-slate-700 font-mono text-[11px]">{activeTask.targetUrl || `https://${targetDomain}/`}</strong></span>
                 <span>Deliverable: <strong className="text-slate-700">{activeTask.deliverable || "Clean code & schema patch"}</strong></span>
-                <span>Branch: <strong className="text-purple-700 font-mono text-[11px]">growthx/sprint-{sprintWeek}-fixes</strong></span>
+                <span>Branch: <strong className="text-slate-900 font-mono text-[11px]">growthx/sprint-{sprintWeek}-fixes</strong></span>
               </div>
             </div>
           )}

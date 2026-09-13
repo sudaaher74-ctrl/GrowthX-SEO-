@@ -123,27 +123,27 @@ export function FixEngineOverviewTab({
       name: "Schema & Structured Data",
       fixes: schemaCount,
       pct: totalIssues > 0 ? Math.round((schemaCount / totalIssues) * 100) : 0,
-      barColor: "bg-purple-500",
-      icon: <Layers size={14} className="text-purple-600" />,
-      iconBg: "bg-purple-50",
+      barColor: "bg-slate-700",
+      icon: <Layers size={14} className="text-slate-800" />,
+      iconBg: "bg-slate-100",
     },
     {
       id: "content",
       name: "Content & Indexation",
       fixes: contentCount,
       pct: totalIssues > 0 ? Math.round((contentCount / totalIssues) * 100) : 0,
-      barColor: "bg-rose-500",
-      icon: <Edit3 size={14} className="text-rose-600" />,
-      iconBg: "bg-rose-50",
+      barColor: "bg-slate-800",
+      icon: <Edit3 size={14} className="text-slate-800" />,
+      iconBg: "bg-slate-100",
     },
     {
       id: "mobile",
       name: "Mobile & UX",
       fixes: mobileCount + otherCount,
       pct: totalIssues > 0 ? Math.round(((mobileCount + otherCount) / totalIssues) * 100) : 0,
-      barColor: "bg-teal-500",
-      icon: <Smartphone size={14} className="text-teal-600" />,
-      iconBg: "bg-teal-50",
+      barColor: "bg-slate-600",
+      icon: <Smartphone size={14} className="text-slate-800" />,
+      iconBg: "bg-slate-100",
     },
   ];
 
@@ -160,14 +160,14 @@ export function FixEngineOverviewTab({
       title: "On-Page & Content Improvements",
       desc: "Meta tags, content, internal links, structured data.",
       active: false,
-      color: "blue",
+      color: "slate",
     },
     {
       days: "Days 16–23",
       title: "Performance & Mobile Optimization",
       desc: "Core Web Vitals, speed, mobile UX fixes.",
       active: false,
-      color: "purple",
+      color: "slate",
     },
     {
       days: "Days 24–30",
@@ -182,15 +182,15 @@ export function FixEngineOverviewTab({
     <div className="space-y-6">
       {/* Staged Competitor & AI Gaps */}
       {stagedItems.length > 0 && (
-        <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-5 shadow-xs space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
-              <h3 className="text-sm font-bold text-purple-950">
+              <span className="flex h-2 w-2 rounded-full bg-slate-950 animate-pulse" />
+              <h3 className="text-sm font-bold text-slate-950">
                 Staged Competitor &amp; AI Visibility Gaps ({stagedItems.length})
               </h3>
             </div>
-            <span className="text-[11px] text-purple-700 font-medium">
+            <span className="text-[11px] text-slate-600 font-medium">
               Staged into current 30-day autonomous remediation queue
             </span>
           </div>
@@ -199,11 +199,11 @@ export function FixEngineOverviewTab({
             {stagedItems.map((item) => (
               <div
                 key={item.id}
-                className="rounded-xl border border-purple-100 bg-white p-3 shadow-2xs space-y-1 text-xs"
+                className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs space-y-1 text-xs"
               >
                 <div className="flex items-center justify-between gap-1">
                   <span className="font-bold text-slate-900 truncate max-w-[200px]">{item.title}</span>
-                  <span className="text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 px-1.5 py-0.5">
+                  <span className="text-[10px] font-bold uppercase rounded bg-slate-100 text-slate-800 border border-slate-200 px-1.5 py-0.5">
                     {item.priority}
                   </span>
                 </div>
@@ -284,7 +284,7 @@ export function FixEngineOverviewTab({
                         <div className={`flex h-5 w-5 items-center justify-center rounded-md ${cat.iconBg}`}>
                           {cat.icon}
                         </div>
-                        <span className="font-semibold text-slate-800 group-hover:text-purple-600 transition-colors">
+                        <span className="font-semibold text-slate-800 group-hover:text-slate-950 transition-colors">
                           {cat.name}
                         </span>
                       </div>
@@ -306,7 +306,7 @@ export function FixEngineOverviewTab({
                           style={{ width: `${cat.pct * 2.5}%` }}
                         />
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-md bg-purple-50/70 border border-purple-100 px-1.5 py-0.5 text-[9.5px] font-semibold text-purple-700">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9.5px] font-semibold text-slate-800">
                         <Sparkles size={10} />
                         Planned
                       </span>
@@ -410,7 +410,7 @@ export function FixEngineOverviewTab({
               {/* Metric 2: Technical Issues */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <div className="flex items-center gap-1.5 text-slate-500">
-                  <Code2 size={14} className="text-blue-600" />
+                  <Code2 size={14} className="text-slate-800" />
                   <span className="text-[11px] font-medium">Technical Issues</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
@@ -426,7 +426,7 @@ export function FixEngineOverviewTab({
               {/* Metric 3: AI Visibility Score */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <div className="flex items-center gap-1.5 text-slate-500">
-                  <Sparkles size={14} className="text-purple-600" />
+                  <Sparkles size={14} className="text-slate-800" />
                   <span className="text-[11px] font-medium">AI Visibility Score</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
@@ -448,7 +448,7 @@ export function FixEngineOverviewTab({
               {/* Metric 4: Pages Optimized */}
               <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
                 <div className="flex items-center gap-1.5 text-slate-500">
-                  <FileText size={14} className="text-teal-600" />
+                  <FileText size={14} className="text-slate-800" />
                   <span className="text-[11px] font-medium">Pages Audited</span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
@@ -461,8 +461,8 @@ export function FixEngineOverviewTab({
           </div>
 
           {/* Safe Mode ON Card */}
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 shadow-2xs">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white">
+          <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-2xs">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-white">
               <ShieldCheck size={18} />
             </div>
             <div>
@@ -479,11 +479,11 @@ export function FixEngineOverviewTab({
       </div>
 
       {/* ── ROW 2: Bottom Value Banner Strip ── */}
-      <div className="rounded-2xl border border-purple-100/90 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-purple-50/70 p-4 shadow-xs">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           {/* Left: Value Proposition */}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-700 shadow-2xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white shadow-2xs">
               <Sparkles size={20} />
             </div>
             <div>
@@ -499,8 +499,8 @@ export function FixEngineOverviewTab({
           {/* Right: 3 Benefit Chips */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Chip 1 */}
-            <div className="flex items-center gap-2 rounded-xl bg-white/90 border border-purple-100/80 px-3 py-2 shadow-2xs">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+            <div className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-2xs">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                 <Wrench size={13} />
               </div>
               <div>
@@ -512,8 +512,8 @@ export function FixEngineOverviewTab({
             </div>
 
             {/* Chip 2 */}
-            <div className="flex items-center gap-2 rounded-xl bg-white/90 border border-purple-100/80 px-3 py-2 shadow-2xs">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+            <div className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-2xs">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                 <Clock size={13} />
               </div>
               <div>
@@ -525,8 +525,8 @@ export function FixEngineOverviewTab({
             </div>
 
             {/* Chip 3 */}
-            <div className="flex items-center gap-2 rounded-xl bg-white/90 border border-purple-100/80 px-3 py-2 shadow-2xs">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+            <div className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-2 shadow-2xs">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                 <FileText size={13} />
               </div>
               <div>

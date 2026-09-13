@@ -359,7 +359,7 @@ export function AiVisibilityFixPanel({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[15px] font-bold text-brand-950 flex items-center gap-2">
-              <Sparkles size={16} className="text-purple-600" />
+              <Sparkles size={16} className="text-slate-900" />
               <span>1. AI Engine Optimization (AEO) Gaps on Your Website</span>
             </h3>
             <p className="text-[12px] text-brand-500 mt-0.5">

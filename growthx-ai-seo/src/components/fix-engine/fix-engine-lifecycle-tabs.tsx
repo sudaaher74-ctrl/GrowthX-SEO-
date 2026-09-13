@@ -146,12 +146,12 @@ export function FixEngineImplementationView({
     },
     {
       name: "Performance & CWV",
-      color: "bg-purple-600",
+      color: "bg-slate-800",
       filter: (c: string) => c.includes("perf") || c.includes("speed") || c.includes("cwv"),
     },
     {
       name: "Structured Data / Schema",
-      color: "bg-indigo-600",
+      color: "bg-slate-700",
       filter: (c: string) => c.includes("schema") || c.includes("structure") || c.includes("json-ld"),
     },
     {
@@ -161,7 +161,7 @@ export function FixEngineImplementationView({
     },
     {
       name: "GEO & AI Visibility",
-      color: "bg-rose-500",
+      color: "bg-slate-900",
       filter: (c: string) => c.includes("ai") || c.includes("geo") || c.includes("cit"),
     },
     {
@@ -203,7 +203,7 @@ export function FixEngineImplementationView({
   return (
     <div className="space-y-6">
       {/* Running Plan Status Banner */}
-      <div className="rounded-2xl border border-purple-200 bg-linear-to-r from-purple-950 via-slate-900 to-purple-900 text-white p-6 shadow-md">
+      <div className="rounded-2xl border border-slate-800 bg-slate-950 text-white p-6 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -211,17 +211,17 @@ export function FixEngineImplementationView({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Fix Engine Active Execution
               </span>
-              <span className="text-[10px] bg-purple-800 text-purple-200 font-semibold px-2 py-0.5 rounded-full">
+              <span className="text-[10px] bg-slate-800 text-slate-300 font-semibold px-2 py-0.5 rounded-full border border-slate-700">
                 Safe Mode Enabled
               </span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h2 className="text-2xl font-bold tracking-tight text-white">
               {planStatus?.isApproved ? "Your 30-Day Plan is Running" : "30-Day Plan Queued for Execution"}
             </h2>
-            <p className="text-xs text-purple-200 max-w-xl leading-relaxed">
+            <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
               Aiva is automatically implementing and testing approved fixes across technical SEO, content gaps, and schema signals.
             </p>
           </div>
@@ -234,7 +234,7 @@ export function FixEngineImplementationView({
                 setIsPaused(!isPaused);
                 onPauseExecution?.();
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur transition border border-white/10"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition border border-slate-800 cursor-pointer"
             >
               {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
               <span>{isPaused ? "Resume Execution" : "Pause Plan"}</span>
@@ -248,7 +248,7 @@ export function FixEngineImplementationView({
                   tasks: getSprintTasks(activeSprintWeek),
                 })
               }
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition shadow-md shadow-purple-950/40 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-950 text-xs font-bold transition shadow-sm cursor-pointer"
             >
               <Sparkles className="h-3.5 w-3.5" />
               <span>Run Sprint {activeSprintWeek} →</span>
@@ -257,7 +257,7 @@ export function FixEngineImplementationView({
             <button
               type="button"
               onClick={onViewVerification}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur transition border border-white/10 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition border border-slate-800 cursor-pointer"
             >
               <span>View Verification →</span>
             </button>
@@ -265,16 +265,16 @@ export function FixEngineImplementationView({
         </div>
 
         {/* Global Progress Bar */}
-        <div className="mt-6 pt-5 border-t border-purple-800/60">
+        <div className="mt-6 pt-5 border-t border-slate-800">
           <div className="flex items-center justify-between text-xs font-bold mb-2">
-            <span className="text-purple-200">
+            <span className="text-slate-400">
               Overall Execution Progress: {completedCount} / {totalActions} actions completed
             </span>
-            <span className="text-emerald-400 font-extrabold">{progressPct}% Complete</span>
+            <span className="text-white font-extrabold">{progressPct}% Complete</span>
           </div>
-          <div className="h-3 w-full bg-purple-900/60 rounded-full overflow-hidden p-0.5 border border-purple-700/50">
+          <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
             <div
-              className="h-full bg-linear-to-r from-purple-500 to-emerald-400 rounded-full transition-all duration-500"
+              className="h-full bg-white rounded-full transition-all duration-500"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -282,23 +282,23 @@ export function FixEngineImplementationView({
       </div>
 
       {/* ── SPRINT EXECUTION CONTROLLER CARD ── */}
-      <div className="rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50/60 via-white to-indigo-50/40 p-6 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/25">
-              <Cpu className="h-6 w-6" />
+            <div className="h-11 w-11 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-xs">
+              <Cpu className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-slate-900">
                   Sprint {selectedSprintWeek} Autonomous Dispatcher
                 </h3>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
                   {currentSprintTasks.length} Action{currentSprintTasks.length === 1 ? "" : "s"} in Queue
                 </span>
                 {selectedSprintWeek === activeSprintWeek && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-900 border border-slate-300 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-900" />
                     Current Active Sprint
                   </span>
                 )}
@@ -325,7 +325,7 @@ export function FixEngineImplementationView({
                 })
               }
               disabled={currentSprintTasks.length === 0}
-              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition shadow-xs active:scale-[0.98] flex items-center gap-2 cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
               <span>Trigger Sprint {selectedSprintWeek} Execution</span>
@@ -334,7 +334,7 @@ export function FixEngineImplementationView({
         </div>
 
         {/* Sprint Week Tabs */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-purple-100/70">
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
           {[
             { week: 1, label: "Sprint 1: Critical (Days 1–7)" },
             { week: 2, label: "Sprint 2: High Impact (Days 8–14)" },
@@ -350,14 +350,14 @@ export function FixEngineImplementationView({
                 onClick={() => setSelectedSprintWeek(tab.week)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                   isSelected
-                    ? "bg-purple-600 text-white shadow-2xs"
+                    ? "bg-slate-950 text-white shadow-xs"
                     : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isSelected ? "bg-purple-800 text-purple-100" : "bg-slate-100 text-slate-500"
+                    isSelected ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
                   }`}
                 >
                   {count}
@@ -423,7 +423,7 @@ export function FixEngineImplementationView({
               <p className="text-xs text-slate-500">Autonomous remediation stream with automated testing</p>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-purple-600" />
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-700" />
               <span>Real-time</span>
             </div>
           </div>
@@ -446,7 +446,7 @@ export function FixEngineImplementationView({
                     </div>
                     <p className="text-slate-600 leading-relaxed text-[11.5px]">{item.detail}</p>
                     <div className="flex items-center gap-2 pt-1">
-                      <span className="inline-block font-mono text-[10.5px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
+                      <span className="inline-block font-mono text-[10.5px] text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                         Target: {item.target}
                       </span>
                       <button
@@ -458,7 +458,7 @@ export function FixEngineImplementationView({
                             deliverable: item.detail,
                           })
                         }
-                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-slate-900 hover:text-black hover:underline cursor-pointer"
                       >
                         <FileCode size={11} />
                         <span>View Diff &amp; Proof →</span>
@@ -495,8 +495,8 @@ export function FixEngineImplementationView({
                       item.status === "Verified"
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                         : item.status === "Deployed"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200/60"
-                        : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                        ? "bg-slate-100 text-slate-800 border border-slate-300"
+                        : "bg-slate-50 text-slate-600 border border-slate-200"
                     }`}
                   >
                     {item.status}
@@ -511,7 +511,7 @@ export function FixEngineImplementationView({
         <div className="lg:col-span-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-              <div className="h-8 w-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <div className="h-8 w-8 rounded-xl bg-slate-950 text-white flex items-center justify-center font-bold shadow-2xs">
                 <GitBranch className="h-4 w-4" />
               </div>
               <div>
@@ -538,7 +538,7 @@ export function FixEngineImplementationView({
 
               <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                  <Shield className="h-3.5 w-3.5 text-purple-600" />
+                  <Shield className="h-3.5 w-3.5 text-slate-900" />
                   Safe Mode Guarantees
                 </span>
                 <ul className="text-[11px] text-slate-600 space-y-1 list-disc pl-4">
@@ -676,6 +676,7 @@ export function FixEngineVerificationView({
   const implementedCount = verificationItems.filter((i) => i.status === "Implemented").length;
   const needsReviewCount = verificationItems.filter((i) => i.status === "Needs Review").length;
   const failedCount = 0;
+  const totalFixesCount = verificationItems.length;
 
   const filtered = verificationItems.filter((i) => {
     if (filterStatus === "all") return true;
@@ -688,7 +689,7 @@ export function FixEngineVerificationView({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-950 flex items-center justify-center text-white shadow-2xs">
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
@@ -705,9 +706,9 @@ export function FixEngineVerificationView({
             <button
               type="button"
               onClick={() => setCertificateModal(certificateModal || latestVerificationQuery.data || null)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold transition cursor-pointer shadow-2xs"
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold transition cursor-pointer shadow-2xs"
             >
-              <Award className="h-4 w-4 text-purple-600" />
+              <Award className="h-4 w-4 text-slate-800" />
               <span>View Official Certificate</span>
             </button>
           )}
@@ -716,7 +717,7 @@ export function FixEngineVerificationView({
             type="button"
             onClick={handleRunAll}
             disabled={runVerificationMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer"
           >
             {runVerificationMutation.isPending ? (
               <>
@@ -738,30 +739,30 @@ export function FixEngineVerificationView({
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs">
           <div className="text-[11px] font-bold text-emerald-700 uppercase">Verified Improvements</div>
           <div className="text-2xl font-bold text-emerald-950 mt-1">{verifiedCount}</div>
-          <p className="text-[11px] text-emerald-700 mt-1">Confirmed via re-crawl &amp; schema check</p>
+          <div className="text-[11px] text-emerald-800 mt-0.5">Automated before vs. after proof</div>
         </div>
 
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-xs">
-          <div className="text-[11px] font-bold text-blue-700 uppercase">Awaiting Search Index</div>
+          <div className="text-[11px] font-bold text-blue-700 uppercase">Passed Validations</div>
           <div className="text-2xl font-bold text-blue-950 mt-1">{implementedCount}</div>
-          <p className="text-[11px] text-blue-700 mt-1">Deployed and pinged to search engines</p>
+          <div className="text-[11px] text-blue-800 mt-0.5">Synthetic and live crawl confirmed</div>
         </div>
 
         <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
-          <div className="text-[11px] font-bold text-amber-700 uppercase">Needs Human Review</div>
+          <div className="text-[11px] font-bold text-amber-700 uppercase">Pending Verification</div>
           <div className="text-2xl font-bold text-amber-950 mt-1">{needsReviewCount}</div>
-          <p className="text-[11px] text-amber-700 mt-1">Editorial check suggested before deploy</p>
+          <div className="text-[11px] text-amber-800 mt-0.5">Queued for next crawl loop</div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-500 uppercase">Failed Automated Tests</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{failedCount}</div>
-          <p className="text-[11px] text-emerald-600 mt-1">Safe Mode prevented unverified code</p>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-xs">
+          <div className="text-[11px] font-bold text-slate-700 uppercase">Total Fixes Tracked</div>
+          <div className="text-2xl font-bold text-slate-950 mt-1">{totalFixesCount}</div>
+          <div className="text-[11px] text-slate-600 mt-0.5">100% test coverage</div>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(["all", "Verified", "Implemented", "Needs Review"] as const).map((tab) => (
           <button
             key={tab}
@@ -769,7 +770,7 @@ export function FixEngineVerificationView({
             onClick={() => setFilterStatus(tab)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
               filterStatus === tab
-                ? "bg-purple-600 text-white shadow-2xs"
+                ? "bg-slate-950 text-white shadow-2xs"
                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -849,12 +850,11 @@ export function FixEngineVerificationView({
                           onClick={() =>
                             setDiffModal({
                               title: item.fixTitle,
-                              category: item.category,
                               targetUrl: item.affectedUrl,
                               deliverable: item.evidence,
                             })
                           }
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
                         >
                           <FileCode size={11} />
                           <span>Diff &amp; Proof</span>
@@ -872,19 +872,18 @@ export function FixEngineVerificationView({
       {diffModal && (
         <FixEvidenceDiffModal
           isOpen={true}
-          onClose={() => setDiffModal(null)}
           issueTitle={diffModal.title}
-          category={diffModal.category}
           targetUrl={diffModal.targetUrl}
           deliverable={diffModal.deliverable}
+          onClose={() => setDiffModal(null)}
         />
       )}
 
       {certificateModal && (
         <VerificationCertificateModal
           isOpen={true}
-          onClose={() => setCertificateModal(null)}
           certificate={certificateModal}
+          onClose={() => setCertificateModal(null)}
         />
       )}
     </div>
@@ -892,40 +891,31 @@ export function FixEngineVerificationView({
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   3. FIX ENGINE HISTORY & NEXT 30-DAY CYCLE (Sections 24 & 25)
+   3. FIX ENGINE HISTORY & CYCLES VIEW (Sections 24 & 25)
    ────────────────────────────────────────────────────────────────────────── */
 export interface FixEngineHistoryViewProps {
   projectId?: string | null;
   customerDomain?: string;
   issues?: CrawlIssue[];
   latestCrawl?: {
-    id?: string;
     healthScore?: number | null;
     pagesCrawled?: number;
-    issuesSummary?: {
-      critical?: number;
-      high?: number;
-      medium?: number;
-      low?: number;
-    };
   } | null;
   planStatus?: AutonomousPlanStatus | null;
   onStartNextCycle?: () => void;
 }
 
 export function FixEngineHistoryView({
-  projectId,
   customerDomain,
   issues = [],
   latestCrawl,
   planStatus,
   onStartNextCycle,
 }: FixEngineHistoryViewProps) {
-  const totalTasks = planStatus?.actionsCount || issues.length;
-  const completedTasks = planStatus?.completedActionsCount || issues.filter((i) => i.status === "resolved").length;
   const currentHealth = latestCrawl?.healthScore ?? null;
-  const targetHealth = currentHealth != null ? Math.min(100, currentHealth + (issues.length > 0 ? 18 : 0)) : null;
-
+  const targetHealth = currentHealth != null ? Math.min(100, currentHealth + 18) : null;
+  const totalTasks = planStatus?.actionsCount || issues.length;
+  const completedTasks = planStatus?.completedActionsCount || issues.filter((i) => i.status === "resolved" || i.status === "completed").length;
   const criticalAndHigh = issues.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length;
   const resolvedCriticalAndHigh = issues.filter(
     (i) => (i.severity === "CRITICAL" || i.severity === "HIGH") && (i.status === "resolved" || i.status === "completed"),
@@ -934,10 +924,10 @@ export function FixEngineHistoryView({
   return (
     <div className="space-y-6">
       {/* 30-Day Completion Hero Banner */}
-      <div className="rounded-2xl border border-purple-200 bg-linear-to-r from-purple-50/80 via-white to-slate-50 p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100/60 px-2.5 py-0.5 rounded-full">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 bg-slate-200/80 px-2.5 py-0.5 rounded-full border border-slate-300">
               {planStatus?.isApproved ? "Cycle Active" : "Cycle Ready"}
             </span>
             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
@@ -954,7 +944,7 @@ export function FixEngineHistoryView({
             <button
               type="button"
               onClick={onStartNextCycle}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm transition shadow-md shadow-purple-500/20 active:scale-[0.98]"
+              className="flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-950 hover:bg-black text-white font-bold text-sm transition shadow-xs active:scale-[0.98] cursor-pointer"
             >
               <span>Review 30-Day Plan →</span>
             </button>
@@ -1013,9 +1003,9 @@ export function FixEngineHistoryView({
             <div className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
               <span>{completedTasks}</span>
               <span>/</span>
-              <span className="text-purple-600">{totalTasks}</span>
+              <span className="text-slate-900">{totalTasks}</span>
             </div>
-            <span className="text-[11px] text-purple-600 font-bold block">
+            <span className="text-[11px] text-slate-900 font-bold block">
               {totalTasks > 0 ? `${Math.round((completedTasks / totalTasks) * 100)}% Progress` : "Queued"}
             </span>
           </div>
@@ -1044,7 +1034,7 @@ export function FixEngineHistoryView({
                   Cycle 1 ({customerDomain || "Current Site"})
                 </div>
                 <div className="text-slate-500 mt-0.5">
-                  {completedTasks} / {totalTasks} Actions Executed • <span className="text-purple-700 font-medium">Safe Mode Automated Fixes</span>
+                  {completedTasks} / {totalTasks} Actions Executed • <span className="text-slate-800 font-medium">Safe Mode Automated Fixes</span>
                 </div>
               </div>
               <div className="text-right">

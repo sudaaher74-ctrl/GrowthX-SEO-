@@ -80,7 +80,7 @@ export function FixEvidenceDiffModal({
         <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-700">
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-900">
                 <Sparkles size={11} />
                 Autonomous Engineer Proof
               </span>
@@ -108,7 +108,7 @@ export function FixEvidenceDiffModal({
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               <div className="flex items-center gap-2">
-                <GitBranch size={16} className="text-purple-600 shrink-0" />
+                <GitBranch size={16} className="text-slate-900 shrink-0" />
                 <div>
                   <span className="text-[10.5px] uppercase font-bold text-slate-400 block">Git Branch</span>
                   <span className="font-mono font-semibold text-slate-800 text-[11.5px]">{gitBranch}</span>

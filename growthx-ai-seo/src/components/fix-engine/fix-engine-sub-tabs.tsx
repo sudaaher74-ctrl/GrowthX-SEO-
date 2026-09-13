@@ -72,7 +72,7 @@ export function FixesByCategoryTab({
 
         {issues.length === 0 ? (
           <div className="py-12 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600 mb-2">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-900 mb-2">
               <CheckCircle2 size={20} />
             </div>
             <p className="text-xs font-semibold text-slate-800">No issues found or crawl not yet run</p>
@@ -103,7 +103,7 @@ export function FixesByCategoryTab({
                         {title}
                       </td>
                       <td className="py-3.5">
-                        <span className="rounded-md bg-purple-50 text-purple-700 border border-purple-200/60 px-2 py-0.5 text-[10.5px] font-semibold capitalize">
+                        <span className="rounded-md bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 text-[10.5px] font-semibold capitalize">
                           {item.category || "Technical"}
                         </span>
                       </td>
@@ -134,7 +134,7 @@ export function FixesByCategoryTab({
                       <button
                         type="button"
                         onClick={() => onOpenAutoFix?.(item)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-bold text-purple-700 hover:bg-purple-100 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-900 hover:bg-slate-100 transition-colors"
                       >
                         <Sparkles size={11} />
                         <span>Review Code Fix</span>
@@ -229,7 +229,7 @@ export function TimelineTab({
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   {sp.sprint}
                 </span>
                 <h4 className="mt-0.5 text-[14px] font-bold text-slate-900">
@@ -250,7 +250,7 @@ export function TimelineTab({
             <ul className="mt-3.5 space-y-2 text-[12px] text-slate-600">
               {sp.fixes.map((f) => (
                 <li key={f} className="flex items-start gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0" />
                   <span>{f}</span>
                 </li>
               ))}
@@ -366,7 +366,7 @@ export function SettingsTab() {
             type="button"
             onClick={() => setSafeMode(!safeMode)}
             className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-              safeMode ? "bg-purple-600" : "bg-slate-200"
+              safeMode ? "bg-slate-950" : "bg-slate-200"
             }`}
           >
             <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${safeMode ? "translate-x-5" : ""}`} />
@@ -382,7 +382,7 @@ export function SettingsTab() {
             type="button"
             onClick={() => setAutoMerge(!autoMerge)}
             className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-              autoMerge ? "bg-purple-600" : "bg-slate-200"
+              autoMerge ? "bg-slate-950" : "bg-slate-200"
             }`}
           >
             <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${autoMerge ? "translate-x-5" : ""}`} />

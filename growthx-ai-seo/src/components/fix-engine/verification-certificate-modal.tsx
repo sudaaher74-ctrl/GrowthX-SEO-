@@ -57,9 +57,9 @@ export function VerificationCertificateModal({
         className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl bg-linear-to-b from-white via-slate-50 to-slate-100 border border-slate-200 shadow-2xl overflow-hidden text-slate-900"
       >
         {/* Certificate Header Banner */}
-        <div className="relative p-6 sm:p-8 bg-linear-to-r from-purple-950 via-slate-900 to-indigo-950 text-white overflow-hidden border-b border-purple-800/40">
+        <div className="relative p-6 sm:p-8 bg-slate-950 text-white overflow-hidden border-b border-slate-800">
           {/* Background Decorative Rings */}
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white/5 blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-1/3 -mb-16 w-48 h-48 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
 
           <div className="flex items-start justify-between gap-4 relative z-10">
@@ -69,8 +69,8 @@ export function VerificationCertificateModal({
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                   Official Remediation Certificate
                 </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-mono text-purple-200 bg-purple-900/60 border border-purple-700/50">
-                  <Lock className="h-3 w-3 text-purple-400" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-mono text-slate-300 bg-white/10 border border-white/20">
+                  <Lock className="h-3 w-3 text-slate-400" />
                   Cryptographically Signed
                 </span>
               </div>
@@ -79,7 +79,7 @@ export function VerificationCertificateModal({
                 <span>Autonomous SEO &amp; Schema Audit Certificate</span>
               </h2>
 
-              <p className="text-xs sm:text-sm text-purple-200/90 max-w-2xl leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-300/90 max-w-2xl leading-relaxed">
                 Issued by Aiva Autonomous Engineering Engine following real-time Googlebot simulation, HTML semantic AST verification, and JSON-LD structured data validation.
               </p>
             </div>
@@ -94,23 +94,23 @@ export function VerificationCertificateModal({
           </div>
 
           {/* Certificate Metadata Ribbon */}
-          <div className="mt-6 pt-5 border-t border-purple-800/60 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="mt-6 pt-5 border-t border-slate-700 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
             <div>
-              <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">Target Domain</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Target Domain</span>
               <span className="font-bold text-white text-sm truncate block mt-0.5">{certificate.domain}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">Certificate ID</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Certificate ID</span>
               <span className="font-mono text-emerald-300 text-xs truncate block mt-0.5">{certificate.certificateId}</span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">Audit Timestamp</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Audit Timestamp</span>
               <span className="text-slate-200 text-xs block mt-0.5 truncate">
                 {new Date(certificate.verifiedAt).toLocaleString()}
               </span>
             </div>
             <div>
-              <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block">Verification Verdict</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Verification Verdict</span>
               <span className="inline-flex items-center gap-1 text-emerald-400 font-extrabold text-xs mt-0.5">
                 <CheckCircle2 size={13} className="text-emerald-400" />
                 {certificate.passedCount} / {certificate.totalTested} Passed ({certificate.status})
@@ -139,13 +139,13 @@ export function VerificationCertificateModal({
             </div>
 
             <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
-              <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <div className="h-10 w-10 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center font-bold">
                 <Zap className="h-5 w-5" />
               </div>
               <div>
                 <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider block">Crawler Response</span>
                 <span className="text-xl font-bold text-slate-900">{certificate.avgLatencyMs} ms</span>
-                <span className="text-[11px] text-purple-600 block mt-0.5">Average TTFB benchmark</span>
+                <span className="text-[11px] text-slate-500 block mt-0.5">Average TTFB benchmark</span>
               </div>
             </div>
 
@@ -211,7 +211,7 @@ export function VerificationCertificateModal({
                             {item.detectedSchemas.slice(0, 2).map((s, sIdx) => (
                               <span
                                 key={sIdx}
-                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-purple-50 text-purple-700 border border-purple-100"
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-800 border border-slate-200"
                               >
                                 {s}
                               </span>
@@ -241,7 +241,7 @@ export function VerificationCertificateModal({
         {/* Modal Footer Actions */}
         <div className="p-5 border-t border-slate-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 text-slate-500">
-            <Award className="h-4 w-4 text-purple-600" />
+            <Award className="h-4 w-4 text-slate-400" />
             <span>Guaranteed by Aiva Autonomous Verification Standard (AVS-1.0)</span>
           </div>
 
@@ -258,7 +258,7 @@ export function VerificationCertificateModal({
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-950 hover:bg-black text-white font-bold transition shadow-md flex items-center gap-1.5 cursor-pointer"
             >
               <Printer size={13} />
               <span>Print / Export Certificate</span>
