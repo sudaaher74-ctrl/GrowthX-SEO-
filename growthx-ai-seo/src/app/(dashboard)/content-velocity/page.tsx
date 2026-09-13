@@ -7,6 +7,7 @@ import {
   BookOpen, GitMerge, RotateCcw, Star
 } from "lucide-react";
 import { PageHeader, ActionButton } from "@/components/ui/console";
+import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import {
   useWorkspace,
   useTopicClusters,
@@ -465,13 +466,16 @@ export default function ContentVelocityPage() {
         title="Content Velocity Engine"
         subtitle="AI-powered topic cluster mapping, keyword cannibalization detection, and a 90-day content production calendar."
         actions={
-          <ActionButton
-            variant="secondary"
-            icon={<TrendingUp size={12} />}
-            onClick={() => window.open("/fix-engine?tab=implementation", "_blank")}
-          >
-            View Fix Engine Queue
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <DesignStudioLink label="Preview in Design Studio" />
+            <ActionButton
+              variant="secondary"
+              icon={<TrendingUp size={12} />}
+              onClick={() => window.open("/fix-engine?tab=implementation", "_blank")}
+            >
+              View Fix Engine Queue
+            </ActionButton>
+          </div>
         }
       />
 

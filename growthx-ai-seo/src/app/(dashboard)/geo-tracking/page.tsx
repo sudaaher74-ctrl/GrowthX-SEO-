@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Sparkles, RefreshCw, Search, Crosshair, Compass, AlertTriangle, Zap, ChevronRight, Star, Plus, History, TrendingUp, X, CheckCircle, Database } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, ActionButton } from "@/components/ui/console";
+import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep, useGeoGridHistory } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -163,6 +164,7 @@ export default function GeoTrackingPage() {
         subtitle="Track your Google Map Pack rankings and monitor AI engine citation share across buyer intent prompts."
         actions={
           <div className="flex items-center gap-2">
+            <DesignStudioLink label="Preview in Design Studio" />
             <ActionButton
               variant="secondary"
               icon={<History size={12} />}

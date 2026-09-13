@@ -1447,3 +1447,67 @@ export function useDeleteCreator(projectId: string | null) {
   });
 }
 
+
+// ─────────────────────────────────────────────────────────── Design Studio
+
+/**
+ * Summary counts, publishing target and last snapshot for the Design Studio
+ * header. Disabled without a project: there is nothing to count until one is
+ * selected, and firing the query anyway would render zeros that mean
+ * "no project" rather than "none found".
+ */
+export function useDesignStudioOverview(projectId: string | null) {
+  return useQuery({
+    queryKey: ["design-studio", "overview", projectId],
+    queryFn: () => api.designStudio.overview(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useDesignSuggestions(
+  projectId: string | null,
+  filter?: { status?: string; contentType?: string },
+) {
+  return useQuery({
+    queryKey: ["design-studio", "suggestions", projectId, filter?.status, filter?.contentType],
+    queryFn: () => api.designStudio.suggestions(projectId!, filter),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useDesignPublishedChanges(projectId: string | null) {
+  return useQuery({
+    queryKey: ["design-studio", "published", projectId],
+    queryFn: () => api.designStudio.published(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useDesignStudioHistory(projectId: string | null) {
+  return useQuery({
+    queryKey: ["design-studio", "history", projectId],
+    queryFn: () => api.designStudio.history(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/**
+ * The stored HTML behind the preview.
+ *
+ * Kept separate from the suggestion list because it is large and changes only
+ * when the snapshot does — refetching it on every suggestion click would pull
+ * a whole page of HTML each time.
+ */
+export function useSnapshotHtml(projectId: string | null, snapshotId: string | null) {
+  return useQuery({
+    queryKey: ["design-studio", "snapshot-html", projectId, snapshotId],
+    queryFn: () => api.designStudio.snapshotHtml(projectId!, snapshotId!),
+    enabled: Boolean(projectId && snapshotId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+}

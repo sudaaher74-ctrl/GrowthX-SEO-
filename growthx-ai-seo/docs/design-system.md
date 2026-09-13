@@ -9,13 +9,41 @@ theme provider and no toggle). Anything you write is rendered on white.
 
 ## The one rule
 
-> Compose a primitive from `src/components/ui/`. Do not build a new panel.
+> Compose a primitive from `src/components/ui/console.tsx`. Do not build a new panel.
 
-Nearly every "our change doesn't match the rest of the site" problem in this
-codebase traces to the same thing: there were **773 hand-rolled**
-`rounded-* border bg-*` panels and only **19** uses of the shared `.card`
-class. Each one picked its own radius, padding, border tint and shadow, so no
-two sections agreed. Reach for `<Card>` and the decision is already made.
+`console.tsx` is the console design system and the first place to look. It is
+already token-based, and **38 files** build on it:
+
+| Need | Primitive |
+| --- | --- |
+| Page title + actions | `PageHeader` |
+| A panel | `Panel` (`padded`, optional `title` / `subtitle` / `actions`) |
+| Page-level tabs | `Tabs` |
+| A stat tile | `Kpi` |
+| A table | `Table` + `Th` / `Tr` / `Td` |
+| A status pill | `Pill`, `StatusNote` |
+| A button in a header | `ActionButton` |
+| "We can't show this" | `NotConnected` |
+
+Nearly every "our change doesn't match the rest of the site" problem traces to
+the same thing: there are **773 hand-rolled** `rounded-* border bg-*` panels
+against 38 files that use `Panel`. Each hand-rolled one picked its own radius,
+padding, border tint and shadow, so no two sections agreed.
+
+### A correction, and the duplication it left
+
+An earlier pass of this document claimed no `Card`, `PageHeader` or table
+primitive existed. That was wrong — `console.tsx` had all three. Acting on it
+added `ui/card.tsx` and `ui/page-header.tsx`, which **duplicate** `Panel` and
+`PageHeader`.
+
+So there are currently two of each. Until that is consolidated:
+
+- **Prefer `console.tsx`.** It is what the other 38 files use.
+- `ui/card.tsx` is only worth reaching for when you need its `inset` or `flush`
+  variant, which `Panel` has no equivalent of.
+- `ui/page-header.tsx` has one caller and should be folded into
+  `console.tsx`'s `PageHeader`. Do not add new callers.
 
 ---
 
@@ -58,41 +86,33 @@ was never loaded by the build, so edits to it did nothing).
 ### A screen
 
 ```tsx
-import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
-import { Target } from "lucide-react";
+import { ActionButton, Kpi, PageHeader, Panel, Tabs } from "@/components/ui/console";
 
 <div className="space-y-4">
   <PageHeader
     title="Content Gap Analysis"
-    description="What competitors cover, what you're missing, and where to differentiate."
-    icon={<Target size={17} />}
-    tone="warning"
-    actions={<button className="...">Re-run</button>}
+    subtitle="What competitors cover, what you're missing, and where to differentiate."
+    actions={<ActionButton variant="secondary">Re-run</ActionButton>}
   />
 
-  <Card>
-    <CardHeader actions={<button className="...">View all</button>}>
-      <CardTitle>Top gaps</CardTitle>
-    </CardHeader>
-    <CardBody>…</CardBody>
-  </Card>
+  <Panel title="Top gaps" actions={<ActionButton>View all</ActionButton>} padded>
+    …
+  </Panel>
 </div>
 ```
-
-Do not set a size on the icon's colour — the tile's `tone` supplies it.
 
 ### A panel
 
 ```tsx
-<Card>…</Card>                          {/* white, border, shadow-xs, p-4 */}
-<Card padding="lg">…</Card>             {/* p-5 */}
-<Card variant="inset">…</Card>          {/* nested inside another Card, p-3 */}
-<Card variant="flush">…</Card>          {/* no padding, clips a table to the edge */}
+<Panel padded>…</Panel>                       {/* white, border, rounded-xl, p-4 */}
+<Panel title="Top gaps" padded>…</Panel>      {/* with a header row */}
+<Panel>…</Panel>                              {/* no padding — for a table */}
 ```
 
-`inset` is for a panel *inside* a panel. Use it instead of a second `default`
-card — stacked shadows are what make a dashboard look muddy.
+`ui/card.tsx` adds two variants `Panel` has no equivalent of: `inset` for a
+panel nested inside another (use it rather than a second raised panel — stacked
+shadows are what make a dashboard look muddy), and `flush` for one that clips
+its contents to the edge. Reach for those only when you need them.
 
 ### A number with a label
 
@@ -102,6 +122,8 @@ Do **not** write a new one. Three already exist, in order of preference:
   provenance to state (measured / estimated / not connected). Prefer this: it
   is the one that cannot silently present an unmeasured number as a fact.
 - `MetricCard` (`ui/metric-card.tsx`) — figure with a delta and a sparkline.
+- `Kpi` (`ui/console.tsx`) — the shared stat tile, with optional delta, meter
+  and sparkline. This is the default for a figure in a row of figures.
 - `Card variant="inset"` with `text-[16px] font-bold text-brand-950` — a bare
   stat inside a larger panel.
 
@@ -130,16 +152,24 @@ named states in `ui/truthful-state.tsx`: `NotConfiguredState`,
 
 ### A table
 
-Wrap in `<Card variant="flush">` and use the `.data-table` class from
-`globals.css` — it already styles `th`, `td`, zebra rows and hover.
+`Table` + `Th` / `Tr` / `Td` from `console.tsx`, inside a `Panel`. `Table`
+handles the horizontal overflow, and `Tr` handles the row rule and hover.
 
 ```tsx
-<Card variant="flush">
-  <div className="scroll-x">
-    <table className="data-table">…</table>
-  </div>
-</Card>
+<Panel>
+  <Table minWidth={980}>
+    <thead>
+      <tr><Th>Page</Th><Th align="right">Actions</Th></tr>
+    </thead>
+    <tbody>
+      <Tr><Td>…</Td><Td align="right">…</Td></Tr>
+    </tbody>
+  </Table>
+</Panel>
 ```
+
+(The `.data-table` class in `globals.css` predates these and styles a raw
+`<table>`. Both exist; prefer the components.)
 
 ### A status chip
 
@@ -150,8 +180,9 @@ pending | default`. Plus `TrendBadge` for a delta and `StatusDot` for a dot.
 
 `globals.css` defines `.text-display`, `.text-h1`, `.text-h2`, `.text-h3`,
 `.text-body`, `.text-small`. Inside the dashboard, section titles are
-`text-sm font-bold text-brand-950` (what `CardTitle` renders) and page titles
-are `text-[15px] font-semibold text-brand-950` (what `PageHeader` renders).
+`text-[13px] font-semibold text-brand-950` (what `Panel`'s title renders) and
+page titles are `text-[26px] font-bold text-brand-950` (what `console.tsx`'s
+`PageHeader` renders).
 
 ---
 
@@ -169,6 +200,8 @@ Worth knowing so you don't copy it:
   more. Removing them, or restoring a real toggle, is an open decision.
 - **~7,000 stock-palette classes** remain in existing files. They are
   baselined, not blessed — see below.
+- **Two `PageHeader`s and two panel components.** See the correction above.
+  `console.tsx` is the one to use; the pair in `ui/` needs consolidating.
 
 ---
 

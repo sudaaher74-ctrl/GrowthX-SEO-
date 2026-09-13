@@ -77,6 +77,7 @@
   "components/content/article-preview-modal.tsx": 33,
   "components/content/content-studio-panel.tsx": 11,
   "components/content/create-article-modal.tsx": 7,
+  "components/design-studio/website-preview.tsx": 3,
   "components/fix-engine/ai-visibility-fix-panel.tsx": 17,
   "components/fix-engine/autonomous-30day-plan-modal.tsx": 5,
   "components/fix-engine/fix-engine-hero-banner.tsx": 75,
