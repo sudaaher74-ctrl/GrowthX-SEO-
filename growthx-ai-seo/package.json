@@ -7,12 +7,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run check:data && next build",
+    "build": "npm run check:data && npm run check:design && next build",
     "start": "next start",
-    "lint": "npm run check:data && eslint",
+    "lint": "npm run check:data && npm run check:design && eslint",
     "typecheck": "tsc --noEmit",
     "test:smoke": "playwright test",
-    "check:data": "node scripts/check-no-fabricated-data.mjs"
+    "check:data": "node scripts/check-no-fabricated-data.mjs",
+    "check:design": "node scripts/check-design-tokens.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
