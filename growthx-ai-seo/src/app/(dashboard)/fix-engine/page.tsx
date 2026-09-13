@@ -35,6 +35,7 @@ import {
 } from "@/hooks/use-growthx";
 import { useQuery } from "@tanstack/react-query";
 import { api, type CrawlIssue } from "@/lib/api-client";
+import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import { errorMessage } from "@/lib/error-message";
 
 // Fix Engine Components
@@ -195,6 +196,7 @@ function FixEngineClient() {
 
         {/* Top Right Action Controls */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <DesignStudioLink label="Review Design" />
           {/* Domain Dropdown */}
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-2xs">
             <Globe size={13} className="text-slate-400" />

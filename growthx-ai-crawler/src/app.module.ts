@@ -46,6 +46,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
 import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
+import { DesignStudioModule } from './modules/design-studio/design-studio.module';
 import { DiscoveryPipelineModule } from './modules/discovery-pipeline/discovery-pipeline.module';
 import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
@@ -119,6 +120,7 @@ import { CompetitorActionEngineModule } from './modules/competitor-action-engine
     MarketResearchModule,
     ContentIntelligenceModule,
     DiscoveryPipelineModule,
+    DesignStudioModule,
     SeoToolsModule,
     VoiceAgentModule,
   ],

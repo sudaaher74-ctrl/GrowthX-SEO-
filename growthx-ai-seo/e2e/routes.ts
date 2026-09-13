@@ -43,6 +43,7 @@ export const DASHBOARD_ROUTES = [
   "/content-intelligence/strategy",
   "/content-opportunities",
   "/content-velocity",
+  "/design-studio",
   "/engineer",
   "/fix-engine",
   "/geo-tracking",

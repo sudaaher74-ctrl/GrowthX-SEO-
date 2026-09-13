@@ -12,9 +12,12 @@ does not.
 
 The two things it will tell you, so you at least know they exist:
 
-1. **Compose a primitive from `src/components/ui/`** — `Card`, `PageHeader`,
-   `QueryState`, `Badge`. Do not hand-roll a `rounded-xl border bg-white`
-   panel; 773 of those already exist and no two of them agree.
+1. **Compose a primitive from `src/components/ui/console.tsx`** — `Panel`,
+   `PageHeader`, `Tabs`, `Table`, `Kpi`, `Pill`, `ActionButton`. 38 files
+   already do. Do not hand-roll a `rounded-xl border bg-white` panel; 773 of
+   those already exist and no two of them agree. (`ui/card.tsx` and
+   `ui/page-header.tsx` duplicate two of these — see the correction in
+   `docs/design-system.md` — so prefer `console.tsx`.)
 2. **Use the token scale, not Tailwind's stock palette.** `text-brand-950`,
    not `text-slate-900`. A bare `border` is already the hairline token. Tokens
    live in the `@theme` block of `src/app/globals.css`, which is the only

@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -107,6 +107,13 @@ export function Sidebar({
       label: "Content Velocity",
       href: "/content-velocity",
       icon: Zap,
+      tag: "New",
+      tagTone: "success",
+    },
+    {
+      label: "Design Studio",
+      href: "/design-studio",
+      icon: Wand2,
       tag: "New",
       tagTone: "success",
     },

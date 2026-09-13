@@ -2525,6 +2525,181 @@ export interface MammouthTestResult {
   message: string;
 }
 
+// ─────────────────────────────────────────────────────── Design Studio types
+//
+// Mirrors the Prisma models in the crawler's design-studio module. Nullable
+// fields are nullable here for the same reason they are there: an unscored
+// suggestion renders "—", never a stand-in number.
+
+export type DesignStudioStatus =
+  | "SUGGESTED"
+  | "PREVIEWED"
+  | "AWAITING_APPROVAL"
+  | "APPROVED"
+  | "PUBLISHED"
+  | "VERIFIED"
+  | "FAILED"
+  | "ROLLED_BACK";
+
+export type PublishMethod = "GITHUB_PR" | "CMS_DRAFT" | "DIRECT" | "DEVELOPER_HANDOFF";
+
+export type DesignRiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export interface DesignStudioOverview {
+  counts: { suggestions: number; safeToPublish: number; needReview: number; published: number };
+  lastSnapshot: { id: string; pageUrl: string; capturedAt: string } | null;
+  connection: { connected: boolean; target: string | null };
+}
+
+export interface ContentSlot {
+  id: string;
+  pageSnapshotId: string;
+  domSelector: string;
+  sectionType: string;
+  currentText: string;
+  maxWords: number | null;
+  maxChars: number | null;
+  maxDesktopLines: number | null;
+  maxMobileLines: number | null;
+  allowedHtml: string[];
+  safeToEdit: boolean;
+  confidence: number;
+}
+
+export interface PageSnapshot {
+  id: string;
+  projectId: string;
+  pageUrl: string;
+  htmlSnapshotUrl: string | null;
+  desktopScreenshotUrl: string | null;
+  mobileScreenshotUrl: string | null;
+  capturedAt: string;
+  slots?: ContentSlot[];
+}
+
+export interface DesignSuggestion {
+  id: string;
+  projectId: string;
+  pageSnapshotId: string;
+  slotId: string | null;
+  title: string;
+  seoIssue: string;
+  recommendedLocation: string;
+  currentWordCount: number;
+  suggestedWordCount: number;
+  contentType: string;
+  heading: string | null;
+  body: string;
+  variant: string | null;
+  targetKeyword: string | null;
+  lockedPhrases: string[];
+  designFitScore: number | null;
+  seoValue: string | null;
+  mobileRisk: DesignRiskLevel | null;
+  status: DesignStudioStatus;
+  createdAt: string;
+  slot?: ContentSlot | null;
+  pageSnapshot?: { pageUrl: string };
+}
+
+export interface DesignFitFactor {
+  id: string;
+  label: string;
+  score: number;
+  weight: number;
+  detail: string;
+}
+
+export interface DesignSafetyCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+  blocking: boolean;
+  message: string;
+}
+
+export interface DesignFitScore {
+  score: number | null;
+  label: "Safe to Publish" | "Needs Review" | "High Design Risk" | "Not scored";
+  factors: DesignFitFactor[];
+  checks: DesignSafetyCheck[];
+  blockingIssues: string[];
+  mobileRisk: DesignRiskLevel | null;
+  ctaMovementLines: number | null;
+}
+
+export interface PreviewResult {
+  id: string;
+  suggestionId: string;
+  designFitScore: number;
+  blockingIssues: string[];
+  createdAt: string;
+}
+
+export interface ApprovalRecord {
+  id: string;
+  suggestionId: string;
+  publishMethod: PublishMethod;
+  notes: string | null;
+  approvedAt: string;
+}
+
+export interface VerificationResult {
+  id: string;
+  publishedChangeId: string;
+  recrawledAt: string | null;
+  contentFound: boolean;
+  seoResult: { crawledAfterChange?: boolean; checkedUrl?: string; note?: string };
+  visualResult: { available?: boolean; reason?: string };
+  status: DesignStudioStatus;
+  createdAt: string;
+}
+
+export interface RollbackRecord {
+  id: string;
+  publishedChangeId: string;
+  reason: string | null;
+  succeeded: boolean;
+  error: string | null;
+  rolledBackAt: string;
+}
+
+export interface PublishedChange {
+  id: string;
+  projectId: string;
+  suggestionId: string;
+  pageUrl: string;
+  method: PublishMethod;
+  status: DesignStudioStatus;
+  pullRequestUrl: string | null;
+  beforeContent: string;
+  afterContent: string;
+  error: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  suggestion?: { title: string; contentType: string; designFitScore: number | null };
+  verifications?: VerificationResult[];
+  rollbacks?: RollbackRecord[];
+}
+
+export interface DesignStudioEvent {
+  kind: string;
+  at: string;
+  label: string;
+  ref: string;
+}
+
+export interface GenerateSuggestionBody {
+  snapshotId: string;
+  slotId?: string;
+  contentType?: string;
+  variant?: string;
+  targetKeyword?: string;
+  lockedPhrases?: string[];
+  seoIssue?: string;
+  recommendedLocation?: string;
+}
+
 export const api = {
   // Mammouth AI Orchestration
   mammouth: {
@@ -3463,6 +3638,47 @@ export const api = {
     request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/stage`, {
       method: 'PATCH', body: JSON.stringify({ stage }),
     }),
+
+  // ─────────────────────────────────────────────────────── Design Studio
+  //
+  // Reviewing an AI content change against the customer's real page before it
+  // ships. Every figure these return is a stored row: the screen renders "—"
+  // where a value is null rather than substituting one.
+  designStudio: {
+    overview: (projectId: string) =>
+      get<DesignStudioOverview>(`/api/projects/${projectId}/design-studio/overview`),
+    suggestions: (projectId: string, params?: { status?: string; contentType?: string }) => {
+      const query = new URLSearchParams();
+      if (params?.status) query.set('status', params.status);
+      if (params?.contentType) query.set('contentType', params.contentType);
+      const suffix = query.toString() ? `?${query.toString()}` : '';
+      return get<DesignSuggestion[]>(`/api/projects/${projectId}/design-studio/suggestions${suffix}`);
+    },
+    published: (projectId: string) =>
+      get<PublishedChange[]>(`/api/projects/${projectId}/design-studio/published`),
+    history: (projectId: string) =>
+      get<DesignStudioEvent[]>(`/api/projects/${projectId}/design-studio/history`),
+    snapshotHtml: (projectId: string, snapshotId: string) =>
+      get<{ html: string; pageUrl: string; capturedAt: string }>(
+        `/api/projects/${projectId}/design-studio/snapshots/${snapshotId}/html`),
+    analyze: (projectId: string, pageUrl?: string) =>
+      post<PageSnapshot>(`/api/projects/${projectId}/design-studio/analyze`, { pageUrl }),
+    slots: (projectId: string, snapshotId: string) =>
+      post<ContentSlot[]>(`/api/projects/${projectId}/design-studio/slots`, { snapshotId }),
+    generate: (projectId: string, body: GenerateSuggestionBody) =>
+      post<DesignSuggestion>(`/api/projects/${projectId}/design-studio/generate`, body),
+    preview: (projectId: string, body: { suggestionId: string; heading?: string; body?: string }) =>
+      post<{ preview: PreviewResult; score: DesignFitScore }>(
+        `/api/projects/${projectId}/design-studio/preview`, body),
+    approve: (projectId: string, body: { suggestionId: string; publishMethod: PublishMethod; notes?: string }) =>
+      post<ApprovalRecord>(`/api/projects/${projectId}/design-studio/approve`, body),
+    publish: (projectId: string, suggestionId: string) =>
+      post<PublishedChange>(`/api/projects/${projectId}/design-studio/publish`, { suggestionId }),
+    verify: (projectId: string, publishedChangeId: string) =>
+      post<VerificationResult>(`/api/projects/${projectId}/design-studio/verify`, { publishedChangeId }),
+    rollback: (projectId: string, publishedChangeId: string, reason?: string) =>
+      post<RollbackRecord>(`/api/projects/${projectId}/design-studio/rollback`, { publishedChangeId, reason }),
+  },
 };
 
 // ── Content Intelligence types ────────────────────────────────────────────

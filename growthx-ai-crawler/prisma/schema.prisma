@@ -369,6 +369,9 @@ model Project {
   gbpFixProposals           GbpFixProposal[]
   competitorChangeAlerts    CompetitorChangeAlert[]
   growthOpportunities       GrowthOpportunity[]
+  pageSnapshots             PageSnapshot[]
+  contentSuggestions        ContentSuggestion[]
+  publishedChanges          PublishedChange[]
 
   @@index([organizationId])
 }
@@ -3013,4 +3016,224 @@ model GbpSourceStatus {
 
   @@unique([projectId, locationName, source])
   @@index([projectId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Design Studio
+//
+// Reviewing an AI content change against the customer's real page before it
+// ships. The unit of work is a ContentSuggestion: generated against a real
+// PageSnapshot, bounded by a ContentSlot, scored by a PreviewResult, approved
+// once by a human, published through one method, then verified — or rolled
+// back.
+//
+// The status vocabulary is deliberately honest end to end: PUBLISHED is only
+// written after a deploy actually succeeded, and VERIFIED only after a re-crawl
+// confirmed the content is live. Nothing here lets the UI claim a change
+// shipped because a request was accepted.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum DesignStudioStatus {
+  SUGGESTED
+  PREVIEWED
+  AWAITING_APPROVAL
+  APPROVED
+  PUBLISHED
+  VERIFIED
+  FAILED
+  ROLLED_BACK
+}
+
+/// How a change reaches the customer's site. GITHUB_PR and CMS_DRAFT both stop
+/// short of the live site on purpose; DIRECT is opt-in per project.
+enum DesignStudioPublishMethod {
+  GITHUB_PR
+  CMS_DRAFT
+  DIRECT
+  DEVELOPER_HANDOFF
+}
+
+enum DesignRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// A captured copy of one real page: what the preview renders against.
+///
+/// `htmlSnapshotUrl` is the crawler's existing stored HTML. The screenshot
+/// fields are nullable because no screenshot capture step exists yet — the UI
+/// shows "no screenshot captured" rather than a placeholder image, so a missing
+/// capture is never mistaken for a captured blank page.
+model PageSnapshot {
+  id                    String              @id @default(uuid())
+  projectId             String
+  pageUrl               String
+  /// Stored HTML, read back through StorageService.
+  htmlSnapshotUrl       String?
+  desktopScreenshotUrl  String?
+  mobileScreenshotUrl   String?
+  /// Fonts, colours and spacing lifted off the page, so generated content can
+  /// be checked against the real design rather than a guess at it.
+  capturedStyles        Json                @default("{}")
+  /// Ordered section map (selector, type, bounding box) used to place content.
+  capturedSections      Json                @default("[]")
+  capturedAt            DateTime            @default(now())
+  project               Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  slots                 ContentSlot[]
+  suggestions           ContentSuggestion[]
+
+  @@index([projectId, pageUrl])
+  @@index([projectId, capturedAt])
+}
+
+/// One editable region of a page, with the limits that keep an edit safe.
+///
+/// The max* fields are what turn "this content is too long" from an opinion
+/// into a check: they are measured off the real page, not assumed.
+model ContentSlot {
+  id               String              @id @default(uuid())
+  pageSnapshotId   String
+  /// CSS selector locating the slot in the captured DOM.
+  domSelector      String
+  /// HERO | OVERVIEW | FAQ | SPECS | COMPARISON | LINKS | CTA | OTHER
+  sectionType      String              @default("OTHER")
+  currentText      String              @default("")
+  maxWords         Int?
+  maxChars         Int?
+  maxDesktopLines  Int?
+  maxMobileLines   Int?
+  allowedHtml      String[]            @default([])
+  /// False for navigation, global headers and anything sharing a CSS class
+  /// with unrelated sections — editing those changes more than one place.
+  safeToEdit       Boolean             @default(false)
+  /// 0-1. How sure the extractor is that this selector is really this section.
+  confidence       Float               @default(0)
+  pageSnapshot     PageSnapshot        @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
+  suggestions      ContentSuggestion[]
+
+  @@index([pageSnapshotId, sectionType])
+}
+
+/// A proposed content change, from generation through to its final state.
+model ContentSuggestion {
+  id                  String              @id @default(uuid())
+  projectId           String
+  pageSnapshotId      String
+  slotId              String?
+  title               String
+  /// The SEO problem this change answers, e.g. "Thin content detected".
+  seoIssue            String
+  recommendedLocation String
+  currentWordCount    Int                 @default(0)
+  suggestedWordCount  Int                 @default(0)
+  contentType         String              @default("OVERVIEW")
+  heading             String?
+  body                String              @default("")
+  /// CONCISE | PROFESSIONAL | TECHNICAL | PREMIUM | CONVERSION
+  variant             String?
+  targetKeyword       String?
+  lockedPhrases       String[]            @default([])
+  /// 0-100, or null before a preview has scored it. Null renders as "—".
+  designFitScore      Int?
+  /// LOW | MEDIUM | HIGH
+  seoValue            String?
+  mobileRisk          DesignRiskLevel?
+  status              DesignStudioStatus  @default(SUGGESTED)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  project             Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageSnapshot        PageSnapshot        @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
+  slot                ContentSlot?        @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  previews            PreviewResult[]
+  approval            ApprovalRecord?
+  published           PublishedChange?
+
+  @@index([projectId, status])
+  @@index([pageSnapshotId])
+}
+
+/// The scored render of one suggestion against its page.
+model PreviewResult {
+  id             String            @id @default(uuid())
+  suggestionId   String
+  designFitScore Int
+  /// Per-factor breakdown, so the score is explainable rather than a number.
+  scoreBreakdown Json              @default("{}")
+  /// Each automated visual check and whether it passed.
+  safetyChecks   Json              @default("[]")
+  /// Blocking problems. Non-empty means publishing stays disabled.
+  blockingIssues String[]          @default([])
+  createdAt      DateTime          @default(now())
+  suggestion     ContentSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@index([suggestionId, createdAt])
+}
+
+/// The human decision. One per suggestion — nothing publishes without it.
+model ApprovalRecord {
+  id            String                   @id @default(uuid())
+  suggestionId  String                   @unique
+  approvedByUserId String?
+  publishMethod DesignStudioPublishMethod
+  notes         String?
+  approvedAt    DateTime                 @default(now())
+  suggestion    ContentSuggestion        @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+}
+
+/// A change that reached a publishing target. `status` is PUBLISHED only once
+/// the deploy succeeded — a failed attempt stays FAILED and says why.
+model PublishedChange {
+  id             String                    @id @default(uuid())
+  projectId      String
+  suggestionId   String                    @unique
+  pageUrl        String
+  method         DesignStudioPublishMethod
+  status         DesignStudioStatus        @default(APPROVED)
+  pullRequestUrl String?
+  /// Set when the target is a CMS draft rather than a repository.
+  externalDraftId String?
+  beforeContent  String                    @default("")
+  afterContent   String                    @default("")
+  error          String?
+  publishedAt    DateTime?
+  createdAt      DateTime                  @default(now())
+  project        Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  suggestion     ContentSuggestion         @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  verifications  VerificationResult[]
+  rollbacks      RollbackRecord[]
+
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+}
+
+/// Proof, after a re-crawl, that the change is actually live and did no harm.
+model VerificationResult {
+  id                String          @id @default(uuid())
+  publishedChangeId String
+  recrawledAt       DateTime?
+  /// Whether the new content was found on the live page, and what changed.
+  seoResult         Json            @default("{}")
+  /// Layout checks re-run against the live page.
+  visualResult      Json            @default("{}")
+  contentFound      Boolean         @default(false)
+  status            DesignStudioStatus @default(PUBLISHED)
+  createdAt         DateTime        @default(now())
+  publishedChange   PublishedChange @relation(fields: [publishedChangeId], references: [id], onDelete: Cascade)
+
+  @@index([publishedChangeId, createdAt])
+}
+
+model RollbackRecord {
+  id                String          @id @default(uuid())
+  publishedChangeId String
+  reason            String?
+  /// PUBLISHED here would be a lie: a rollback either succeeded or failed.
+  succeeded         Boolean         @default(false)
+  error             String?
+  pullRequestUrl    String?
+  rolledBackAt      DateTime        @default(now())
+  publishedChange   PublishedChange @relation(fields: [publishedChangeId], references: [id], onDelete: Cascade)
+
+  @@index([publishedChangeId])
 }

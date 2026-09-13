@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
+import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
 import {
   useCrawlHistory,
@@ -247,6 +248,7 @@ function WebsiteAuditClient() {
             )}
 
             <div className="flex items-center gap-2">
+              <DesignStudioLink label="Create Visual Preview" />
               <button
                 type="button"
                 onClick={handleExportPdf}

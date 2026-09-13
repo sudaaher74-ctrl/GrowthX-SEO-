@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Check, Globe, Loader2, PenTool, Plus, Sparkles, Target, X, BookOpen, GitBranch, ExternalLink, ArrowRight, Layers, FileText } from "lucide-react";
 import { ActionButton, PageHeader, Panel, Table, Th, Tr, Td, Tabs, Pill } from "@/components/ui/console";
+import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import {
   useWorkspace,
   useContentPieces,
@@ -89,6 +90,7 @@ function ContentOpportunitiesClient() {
         subtitle="Turn SEO audits and competitor intelligence into prioritized actions, content briefs, and published assets."
         actions={
           <div className="flex items-center gap-2">
+            <DesignStudioLink label="Open in Design Studio" />
             <ActionButton
               variant="secondary"
               icon={planContent.isPending ? <Loader2 size={12} className="animate-spin" /> : <PenTool size={12} />}
