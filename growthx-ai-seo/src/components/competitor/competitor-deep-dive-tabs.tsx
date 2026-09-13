@@ -163,7 +163,7 @@ export function CompetitorsDiscoveryTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <Users className="h-5 w-5" />
             </div>
             <div>
@@ -179,7 +179,7 @@ export function CompetitorsDiscoveryTab({
           <button
             type="button"
             onClick={onAddCompetitor}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
             <span>+ Add Competitor</span>
@@ -200,7 +200,7 @@ export function CompetitorsDiscoveryTab({
             onClick={() => setFilterType(tab.id as typeof filterType)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterType === tab.id
-                ? "bg-purple-600 text-white shadow-2xs"
+                ? "bg-slate-950 text-white shadow-2xs"
                 : "bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -212,7 +212,7 @@ export function CompetitorsDiscoveryTab({
       {/* Competitor Cards Grid */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center space-y-3">
-          <div className="h-12 w-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
+          <div className="h-12 w-12 rounded-2xl bg-slate-100 text-slate-900 flex items-center justify-center mx-auto">
             <Globe className="h-6 w-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900">No Competitors Found</h3>
@@ -224,7 +224,7 @@ export function CompetitorsDiscoveryTab({
           <button
             type="button"
             onClick={onAddCompetitor}
-            className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-xs hover:bg-purple-700"
+            className="px-4 py-2 rounded-xl bg-slate-950 text-white text-xs font-bold shadow-xs hover:bg-black"
           >
             Add Competitor Domain
           </button>
@@ -236,12 +236,12 @@ export function CompetitorsDiscoveryTab({
             return (
               <div
                 key={comp.id}
-                className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4 hover:border-purple-200 transition-all"
+                className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-200 transition-all"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center font-extrabold text-sm text-purple-700">
+                      <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center font-extrabold text-sm text-slate-800">
                         {(comp.name || comp.domain)[0].toUpperCase()}
                       </div>
                       <div>
@@ -264,7 +264,7 @@ export function CompetitorsDiscoveryTab({
                       <span
                         className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           isCrawling
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
+                            ? "bg-slate-100 text-slate-800 border border-slate-200"
                             : comp.status === "ACTIVE"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                             : "bg-slate-100 text-slate-600"
@@ -291,7 +291,7 @@ export function CompetitorsDiscoveryTab({
                     </div>
                     <div>
                       <span className="text-[10px] font-bold uppercase text-slate-400">AI Citation Share</span>
-                      <div className="text-sm font-bold text-purple-700 mt-0.5">
+                      <div className="text-sm font-bold text-slate-800 mt-0.5">
                         {comp.aiCitationSharePct != null ? `${comp.aiCitationSharePct}%` : "—"}
                       </div>
                     </div>
@@ -302,7 +302,7 @@ export function CompetitorsDiscoveryTab({
                   <button
                     type="button"
                     onClick={() => onAddToFixPlan?.(5, `Gaps against ${comp.domain}`)}
-                    className="text-xs font-bold text-purple-700 hover:text-purple-800 flex items-center gap-1"
+                    className="text-xs font-bold text-slate-800 hover:text-slate-900 flex items-center gap-1"
                   >
                     <span>Stage Opportunities to Fix Plan</span>
                     <ArrowRight className="h-3.5 w-3.5" />
@@ -319,10 +319,10 @@ export function CompetitorsDiscoveryTab({
       )}
 
       {/* ── AUTOMATED COMPETITOR DISCOVERY FROM CRAWL & SERP ── */}
-      <div className="rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50/40 via-white to-indigo-50/30 p-6 shadow-xs space-y-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
+            <div className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -330,7 +330,7 @@ export function CompetitorsDiscoveryTab({
                 <h2 className="text-base font-bold text-slate-900">
                   Automated Competitor Discovery
                 </h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
                   {discoveredCandidates.length > 0 ? `${discoveredCandidates.length} Detected from Crawl` : "Continuous Engine"}
                 </span>
               </div>
@@ -356,17 +356,17 @@ export function CompetitorsDiscoveryTab({
               return (
                 <div
                   key={candidate.domain}
-                  className="rounded-xl border border-purple-100 bg-white p-4 shadow-2xs hover:border-purple-300 transition-all flex flex-col justify-between space-y-3"
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:border-slate-300 transition-all flex flex-col justify-between space-y-3"
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                        <div className="h-7 w-7 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs">
                           {candidate.domain[0].toUpperCase()}
                         </div>
                         <span className="font-bold text-slate-900 text-sm">{candidate.domain}</span>
                       </div>
-                      <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-semibold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-full">
                         {candidate.occurrences} signal{candidate.occurrences > 1 ? "s" : ""}
                       </span>
                     </div>
@@ -379,7 +379,7 @@ export function CompetitorsDiscoveryTab({
                     type="button"
                     onClick={() => handleTrackDomain(candidate.domain, "Auto-discovered competitor")}
                     disabled={Boolean(trackingDomain)}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs"
                   >
                     {isTracking ? (
                       <>
@@ -406,7 +406,7 @@ export function CompetitorsDiscoveryTab({
         )}
 
         {/* Quick Add Form */}
-        <div className="pt-2 border-t border-purple-100/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div className="pt-2 border-t border-slate-200/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
           <div className="relative flex-1">
             <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -414,7 +414,7 @@ export function CompetitorsDiscoveryTab({
               value={manualDomain}
               onChange={(e) => setManualDomain(e.target.value)}
               placeholder="e.g. competitor-domain.com"
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 font-medium"
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950 text-slate-800 font-medium"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualDomain.trim()) {
                   handleTrackDomain(manualDomain);
@@ -523,7 +523,7 @@ export function CompetitorTechnicalGapsTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <Cpu className="h-5 w-5" />
             </div>
             <div>
@@ -539,7 +539,7 @@ export function CompetitorTechnicalGapsTab({
           type="button"
           onClick={() => onAddToFixPlan?.(issues.length, "Technical Architecture Improvements")}
           disabled={issues.length === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Stage Technical Fixes to 30-Day Plan</span>
@@ -596,7 +596,7 @@ export function CompetitorTechnicalGapsTab({
                     <button
                       type="button"
                       onClick={() => onAddToFixPlan?.(1, `Remediate: ${item.metric}`)}
-                      className="px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-[11px] font-bold transition-colors"
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 text-[11px] font-bold transition-colors"
                     >
                       Stage
                     </button>
@@ -642,7 +642,7 @@ export function CompetitorAiVisibilityTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <Bot className="h-5 w-5" />
             </div>
             <div>
@@ -657,7 +657,7 @@ export function CompetitorAiVisibilityTab({
         <button
           type="button"
           onClick={() => onAddToFixPlan?.(prompts.length || 5, "AI Citation Engine Tasks")}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Stage AI Visibility Tasks to Fix Plan</span>
@@ -666,15 +666,15 @@ export function CompetitorAiVisibilityTab({
 
       {/* Model Share Cards (Real Data) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="rounded-2xl border border-purple-200/80 bg-white p-5 shadow-xs">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-700">ChatGPT (OpenAI)</span>
-            <span className="text-xs font-bold text-purple-600">
+            <span className="text-xs font-bold text-slate-900">
               {chatgptShare > 0 ? `${chatgptShare}% Share` : "Pending Sweep"}
             </span>
           </div>
           <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-purple-600 rounded-full" style={{ width: `${Math.max(4, chatgptShare)}%` }} />
+            <div className="h-full bg-slate-950 rounded-full" style={{ width: `${Math.max(4, chatgptShare)}%` }} />
           </div>
           <p className="text-[11px] text-slate-500 mt-2">
             Measured from synthetic buyer queries
@@ -766,7 +766,7 @@ export function CompetitorAiVisibilityTab({
                         <button
                           type="button"
                           onClick={() => onAddToFixPlan?.(1, `AEO: ${p.text}`)}
-                          className="px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-[11px] font-bold transition-colors"
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 text-[11px] font-bold transition-colors"
                         >
                           Stage
                         </button>
@@ -843,7 +843,7 @@ export function CompetitorOpportunitiesTab({
         impact: "High",
         effort: "Low",
         signal: "Rich Results Audit",
-        color: "bg-purple-50 text-purple-700",
+        color: "bg-slate-100 text-slate-800",
       });
     }
 
@@ -894,7 +894,7 @@ export function CompetitorOpportunitiesTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <Zap className="h-5 w-5" />
             </div>
             <div>
@@ -910,7 +910,7 @@ export function CompetitorOpportunitiesTab({
           type="button"
           onClick={() => onAddToFixPlan?.(selectedItems.size, `${selectedItems.size} High-Impact Strategy Items`)}
           disabled={opportunities.length === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Add Selected ({selectedItems.size}) to 30-Day Fix Plan</span>
@@ -934,7 +934,7 @@ export function CompetitorOpportunitiesTab({
                 key={opp.id}
                 onClick={() => toggleSelect(opp.id)}
                 className={`cursor-pointer rounded-2xl border p-5 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                  isSelected ? "border-purple-300 bg-purple-50/30" : "border-slate-200/80 bg-white hover:border-slate-300"
+                  isSelected ? "border-slate-300 bg-slate-50/30" : "border-slate-200/80 bg-white hover:border-slate-300"
                 }`}
               >
                 <div className="flex items-start gap-3.5">
@@ -943,7 +943,7 @@ export function CompetitorOpportunitiesTab({
                     checked={isSelected}
                     onChange={() => toggleSelect(opp.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="mt-1 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    className="mt-1 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                   />
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -969,7 +969,7 @@ export function CompetitorOpportunitiesTab({
                       e.stopPropagation();
                       onAddToFixPlan?.(1, opp.title);
                     }}
-                    className="px-3 py-1.5 rounded-xl border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 text-xs font-bold transition-colors shadow-2xs"
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 text-xs font-bold transition-colors shadow-2xs"
                   >
                     Stage Item
                   </button>
@@ -1005,7 +1005,7 @@ export function CompetitorReportsTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <FileBarChart className="h-5 w-5" />
             </div>
             <div>
@@ -1020,7 +1020,7 @@ export function CompetitorReportsTab({
         <button
           type="button"
           onClick={onGenerateReport}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Sparkles className="h-4 w-4" />
           <span>Generate New Report</span>
@@ -1028,10 +1028,10 @@ export function CompetitorReportsTab({
       </div>
 
       {/* Featured Report Card */}
-      <div className="rounded-2xl border border-purple-200 bg-linear-to-r from-purple-50/80 via-white to-slate-50 p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100/60 px-2.5 py-0.5 rounded-full">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 bg-slate-100/60 px-2.5 py-0.5 rounded-full">
               Latest Comprehensive Audit
             </span>
             <h2 className="text-xl font-bold text-slate-900">
@@ -1065,7 +1065,7 @@ export function CompetitorReportsTab({
             <button
               type="button"
               onClick={onGenerateReport}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 text-xs font-bold transition-all shadow-2xs"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-800 hover:bg-slate-100 text-xs font-bold transition-all shadow-2xs"
             >
               <Share2 className="h-4 w-4" />
               <span>Share Link</span>

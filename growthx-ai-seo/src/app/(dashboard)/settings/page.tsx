@@ -229,7 +229,7 @@ function TeamTab({ orgId }: { orgId: string | null }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="teammate@yourbusiness.in"
-            className="flex-1 min-w-[200px] text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
+            className="flex-1 min-w-[200px] text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-slate-950"
           />
           <select
             value={role}

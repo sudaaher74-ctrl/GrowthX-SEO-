@@ -148,7 +148,7 @@ export function AiVisibilityRecommendationsTab({
   const getCategoryBadge = (category: RecommendationRow["category"]) => {
     switch (category) {
       case "Content":
-        return "bg-purple-50 text-purple-700 border-purple-200/60";
+        return "bg-slate-100 text-slate-800 border-slate-200";
       case "Technical":
         return "bg-blue-50 text-blue-700 border-blue-200/60";
       case "Authority":
@@ -190,8 +190,8 @@ export function AiVisibilityRecommendationsTab({
           value="24"
           subtext="AI-generated, prioritized actions"
           icon={<FileText size={16} />}
-          iconBgColor="bg-purple-50 text-purple-600"
-          colorScheme="purple"
+          iconBgColor="bg-slate-100 text-slate-900"
+          colorScheme="default"
         />
 
         {/* Quick Wins */}
@@ -233,7 +233,7 @@ export function AiVisibilityRecommendationsTab({
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                   <Target size={14} />
                 </div>
                 <h3 className="text-[14.5px] font-bold text-slate-900">
@@ -330,7 +330,7 @@ export function AiVisibilityRecommendationsTab({
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 pb-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                     <Zap size={14} />
                   </div>
                   <div>
@@ -384,7 +384,7 @@ export function AiVisibilityRecommendationsTab({
             <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 pb-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                     <Brain size={14} />
                   </div>
                   <div>
@@ -453,7 +453,7 @@ export function AiVisibilityRecommendationsTab({
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                   <FileText size={14} />
                 </div>
                 <h3 className="text-[14px] font-bold text-slate-900">
@@ -508,13 +508,13 @@ export function AiVisibilityRecommendationsTab({
               </div>
 
               {/* Phase 3 */}
-              <div className="relative pl-6 border-l-2 border-purple-500">
-                <div className="absolute -left-[7px] top-0 h-3 w-3 rounded-full bg-purple-500 ring-4 ring-white" />
+              <div className="relative pl-6 border-l-2 border-slate-950">
+                <div className="absolute -left-[7px] top-0 h-3 w-3 rounded-full bg-slate-500 ring-4 ring-white" />
                 <div className="flex items-center justify-between">
                   <h4 className="text-[12.5px] font-bold text-slate-900">
                     Phase 3: Expand &amp; Monitor (Days 31–90)
                   </h4>
-                  <span className="rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200/60">
+                  <span className="rounded-md bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-800 border border-slate-200">
                     Long-term Growth
                   </span>
                 </div>
@@ -530,7 +530,7 @@ export function AiVisibilityRecommendationsTab({
           {/* Success Metrics (Projected) */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
             <div className="flex items-center gap-2 pb-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                 <BarChart3 size={14} />
               </div>
               <div>
@@ -573,7 +573,7 @@ export function AiVisibilityRecommendationsTab({
                   <span className="font-bold text-emerald-600">+35%</span>
                 </div>
                 <div className="mt-1.5 h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-purple-600" style={{ width: "62%" }} />
+                  <div className="h-full rounded-full bg-slate-950" style={{ width: "62%" }} />
                 </div>
               </div>
 
@@ -597,7 +597,7 @@ export function AiVisibilityRecommendationsTab({
                   onImplementWithAi(recommendationsList[0]);
                 }
               }}
-              className="mt-6 flex w-full items-center justify-center gap-1.5 rounded-xl bg-purple-600 py-3 px-4 text-[12.5px] font-bold text-white hover:bg-purple-700 transition-all shadow-sm active:scale-[0.99]"
+              className="mt-6 flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-950 py-3 px-4 text-[12.5px] font-bold text-white hover:bg-black transition-all shadow-sm active:scale-[0.99]"
             >
               <span>Implement Recommendations with AI</span>
               <ArrowRight size={14} />
@@ -675,7 +675,7 @@ export function AiVisibilityRecommendationsTab({
                   if (onImplementWithAi) onImplementWithAi(selectedRec);
                   setSelectedRec(null);
                 }}
-                className="rounded-xl bg-purple-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-purple-700 transition-colors"
+                className="rounded-xl bg-slate-950 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors"
               >
                 Implement with AI →
               </button>

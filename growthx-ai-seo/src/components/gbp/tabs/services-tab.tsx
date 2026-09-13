@@ -73,7 +73,7 @@ export function ServicesTab({
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-brand-100">
                 <div className="flex items-center gap-2">
-                  <Briefcase size={15} className="text-purple-600" />
+                  <Briefcase size={15} className="text-slate-900" />
                   <h3 className="text-sm font-bold text-brand-950">Services on this profile</h3>
                 </div>
                 <span className="font-mono text-xs font-bold text-brand-600">

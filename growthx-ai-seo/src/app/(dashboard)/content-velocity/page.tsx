@@ -221,7 +221,7 @@ const REC_CONFIG: Record<string, { label: string; color: string; bg: string; ico
   MERGE: { label: "Merge Pages", color: "text-rose-700", bg: "bg-rose-50 border-rose-200", icon: <GitMerge size={13} className="text-rose-500" /> },
   REDIRECT: { label: "301 Redirect", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: <ArrowRight size={13} className="text-amber-500" /> },
   DIFFERENTIATE: { label: "Differentiate", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: <Layers size={13} className="text-blue-500" /> },
-  CANONICALIZE: { label: "Add Canonical", color: "text-purple-700", bg: "bg-purple-50 border-purple-200", icon: <RotateCcw size={13} className="text-purple-500" /> },
+  CANONICALIZE: { label: "Add Canonical", color: "text-slate-800", bg: "bg-slate-50 border-slate-200", icon: <RotateCcw size={13} className="text-slate-500" /> },
 };
 
 function CannibalizationTab({ projectId }: { projectId: string }) {
@@ -352,7 +352,7 @@ const PHASE_CONFIG = {
 const CONTENT_TYPE_ICONS: Record<string, React.ReactNode> = {
   PILLAR: <Star size={12} className="text-blue-500" />,
   CLUSTER_SPOKE: <FileText size={12} className="text-emerald-500" />,
-  FAQ: <BookOpen size={12} className="text-purple-500" />,
+  FAQ: <BookOpen size={12} className="text-slate-500" />,
   CASE_STUDY: <TrendingUp size={12} className="text-amber-500" />,
   LANDING_PAGE: <Layers size={12} className="text-rose-500" />,
 };

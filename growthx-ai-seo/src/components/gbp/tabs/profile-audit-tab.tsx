@@ -217,7 +217,7 @@ export function ProfileAuditTab({
                 className="flex w-full items-center justify-between p-2 rounded-lg hover:bg-brand-50 border border-transparent hover:border-brand-200 text-xs font-semibold text-brand-800 transition"
               >
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded bg-slate-100 text-slate-900 flex items-center justify-center">
                     <Sparkles size={12} />
                   </div>
                   <span>Generate Business Description (AI)</span>
@@ -465,7 +465,7 @@ export function ProfileAuditTab({
           {/* Competitor Comparison Card */}
           <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
             <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-              <BarChart2 size={15} className="text-purple-600" />
+              <BarChart2 size={15} className="text-slate-900" />
               <span>Competitor Comparison</span>
             </div>
             <p className="text-[11px] text-brand-500 mt-1 leading-normal">

@@ -334,7 +334,7 @@ function IntegrationsClient() {
         <div className="rounded-xl border bg-white p-5 shadow-2xs" style={{ borderColor: "var(--border-color)" }}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-700">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-800">
                 <GitBranch size={20} />
               </div>
               <div>

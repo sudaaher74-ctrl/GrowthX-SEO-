@@ -41,7 +41,7 @@ export interface CompetitorOverviewTabProps {
 }
 
 const COMPETITOR_DOT_COLORS = [
-  "bg-purple-600",
+  "bg-slate-950",
   "bg-blue-600",
   "bg-emerald-500",
   "bg-amber-500",
@@ -234,9 +234,9 @@ export function CompetitorOverviewTab({
         <button
           type="button"
           onClick={onAddCompetitor}
-          className="flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-[12px] font-semibold text-slate-600 hover:border-purple-300 hover:text-purple-700 hover:bg-purple-50/40 transition-colors shadow-2xs"
+          className="flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-white/70 px-3 py-2 text-[12px] font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-800 hover:bg-slate-50/40 transition-colors shadow-2xs"
         >
-          <Plus size={13} className="text-purple-600" />
+          <Plus size={13} className="text-slate-900" />
           <span>Add Competitor</span>
         </button>
       </div>
@@ -257,8 +257,8 @@ export function CompetitorOverviewTab({
           value={customerHealthScore}
           subtext="Automated crawler audit score"
           icon={<Shield size={16} />}
-          iconBgColor="bg-purple-50 text-purple-600"
-          colorScheme="purple"
+          iconBgColor="bg-slate-100 text-slate-900"
+          colorScheme="default"
         />
 
         <AiKpiCard
@@ -303,7 +303,7 @@ export function CompetitorOverviewTab({
                     type="button"
                     onClick={() => setMetricTab("pages")}
                     className={`rounded-md px-2.5 py-1 transition-colors ${
-                      metricTab === "pages" ? "bg-purple-600 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      metricTab === "pages" ? "bg-slate-950 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     Pages Crawled
@@ -312,7 +312,7 @@ export function CompetitorOverviewTab({
                     type="button"
                     onClick={() => setMetricTab("health")}
                     className={`rounded-md px-2.5 py-1 transition-colors ${
-                      metricTab === "health" ? "bg-purple-600 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      metricTab === "health" ? "bg-slate-950 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     SEO Health
@@ -321,7 +321,7 @@ export function CompetitorOverviewTab({
                     type="button"
                     onClick={() => setMetricTab("ai")}
                     className={`rounded-md px-2.5 py-1 transition-colors ${
-                      metricTab === "ai" ? "bg-purple-600 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      metricTab === "ai" ? "bg-slate-950 text-white shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     AI Share
@@ -427,7 +427,7 @@ export function CompetitorOverviewTab({
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-[14px] font-bold text-slate-900">AI Platform Citations</h3>
-              <span className="text-[11px] text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded-md">
+              <span className="text-[11px] text-slate-800 font-semibold bg-slate-50 px-2 py-0.5 rounded-md">
                 Verified LLMs
               </span>
             </div>
@@ -438,11 +438,11 @@ export function CompetitorOverviewTab({
                   <div key={asst.assistant} className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
                       <span className="text-slate-800">{asst.assistant}</span>
-                      <span className="text-purple-700 font-bold">{asst.citationSharePct}% citation share</span>
+                      <span className="text-slate-800 font-bold">{asst.citationSharePct}% citation share</span>
                     </div>
                     <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-purple-600 rounded-full"
+                        className="h-full bg-slate-950 rounded-full"
                         style={{ width: `${Math.max(4, asst.citationSharePct)}%` }}
                       />
                     </div>
@@ -453,7 +453,7 @@ export function CompetitorOverviewTab({
                 ))
               ) : (
                 <div className="p-6 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
-                  <Bot className="h-6 w-6 text-purple-600 mx-auto" />
+                  <Bot className="h-6 w-6 text-slate-900 mx-auto" />
                   <p className="text-xs font-bold text-slate-800">No AI Sweep Run Yet</p>
                   <p className="text-[11px] text-slate-500">
                     Run an AI Visibility sweep to measure citations in ChatGPT, Claude, and Gemini.
@@ -475,7 +475,7 @@ export function CompetitorOverviewTab({
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 pb-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-900">
                 <Search size={14} />
               </div>
               <div>
@@ -531,7 +531,7 @@ export function CompetitorOverviewTab({
           <button
             type="button"
             onClick={onViewAllKeywordGaps}
-            className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-[11.5px] font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors"
+            className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-200 transition-colors"
           >
             <span>View All Keyword Gaps</span>
             <ArrowRight size={13} />
@@ -596,7 +596,7 @@ export function CompetitorOverviewTab({
           <button
             type="button"
             onClick={onViewAllContentGaps}
-            className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-[11.5px] font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors"
+            className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-200 transition-colors"
           >
             <span>View All Content Gaps</span>
             <ArrowRight size={13} />
@@ -622,7 +622,7 @@ export function CompetitorOverviewTab({
               {topOpportunities.map((opp) => (
                 <div
                   key={opp.id}
-                  className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 hover:bg-purple-50/40 hover:border-purple-100 transition-colors"
+                  className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 hover:bg-slate-50/40 hover:border-slate-200 transition-colors"
                 >
                   <p className="text-[12px] font-bold text-slate-900">{opp.title}</p>
                   <p className="mt-0.5 text-[11px] text-slate-500 leading-snug line-clamp-2">{opp.desc}</p>
@@ -634,7 +634,7 @@ export function CompetitorOverviewTab({
           <button
             type="button"
             onClick={onGenerateInsights}
-            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 py-2.5 text-[12px] font-bold text-white hover:bg-purple-700 transition shadow-xs"
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-slate-950 py-2.5 text-[12px] font-bold text-white hover:bg-black transition shadow-xs"
           >
             <Sparkles size={13} />
             <span>Add All Opportunities to Fix Plan</span>

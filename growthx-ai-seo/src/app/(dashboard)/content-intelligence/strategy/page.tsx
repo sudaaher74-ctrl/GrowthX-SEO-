@@ -245,7 +245,7 @@ function StrategyDocument({
               <div className="rounded-xl border p-4 bg-white space-y-1.5" style={{ borderColor: "var(--color-brand-200)" }}>
                 <div className="flex items-center justify-between">
                   <strong className="text-brand-950">Instagram Reels Strategy</strong>
-                  <span className="rounded bg-gradient-to-r from-purple-500 to-pink-500 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Reels</span>
+                  <span className="rounded bg-gradient-to-r from-slate-700 to-pink-500 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">Reels</span>
                 </div>
                 <p className="text-brand-600 leading-relaxed">
                   {platformStrat?.instagramReels || "Focus on 35–45s problem-led educational shorts. Start with bold mistake hooks in the first 3s, show side-by-side B-roll, and conclude with 'DM for Design Guide'."}

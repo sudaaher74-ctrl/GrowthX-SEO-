@@ -242,7 +242,7 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
             <div className="rounded-2xl border bg-white p-5 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-brand-600">Found In</span>
-                <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-900 flex items-center justify-center">
                   <Search size={16} />
                 </div>
               </div>

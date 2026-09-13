@@ -549,13 +549,13 @@ export function CompetitorKeywordsPanel({
             </div>
           </div>
 
-          <div className="rounded-xl border bg-purple-50/50 p-3.5 border-purple-200">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-800">
+          <div className="rounded-xl border bg-slate-50/50 p-3.5 border-slate-200">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
               🛡️ Your Unique Terms
             </span>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-[22px] font-bold text-purple-950">{stats.ourExclusiveCount}</span>
-              <span className="text-[11px] text-purple-700">exclusive authority</span>
+              <span className="text-[22px] font-bold text-slate-950">{stats.ourExclusiveCount}</span>
+              <span className="text-[11px] text-slate-800">exclusive authority</span>
             </div>
           </div>
         </div>
@@ -612,7 +612,7 @@ export function CompetitorKeywordsPanel({
                 onClick={() => setFilterCategory("OURS")}
                 className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
                   filterCategory === "OURS"
-                    ? "bg-purple-700 text-white shadow-sm"
+                    ? "bg-black text-white shadow-sm"
                     : "bg-white border text-brand-700 hover:bg-brand-50"
                 }`}
                 style={filterCategory !== "OURS" ? { borderColor: "var(--border-color)" } : {}}
@@ -736,7 +736,7 @@ export function CompetitorKeywordsPanel({
                                 </span>
                               )}
                               {item.ourProfile.placements.inTitle > 0 && (
-                                <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 border border-purple-200">
+                                <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-800 border border-slate-200">
                                   Title ({item.ourProfile.placements.inTitle})
                                 </span>
                               )}
@@ -773,7 +773,7 @@ export function CompetitorKeywordsPanel({
                             </span>
                           )}
                           {item.status === "OUR_ADVANTAGE" && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-slate-800 border border-slate-200">
                               <CheckCircle2 size={11} />
                               Your Unique Advantage
                             </span>
@@ -831,7 +831,7 @@ export function CompetitorKeywordsPanel({
                                 </span>
                               )}
                               {item.competitorProfile.placements.inTitle > 0 && (
-                                <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 border border-purple-200">
+                                <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-800 border border-slate-200">
                                   Title ({item.competitorProfile.placements.inTitle})
                                 </span>
                               )}
@@ -1008,7 +1008,7 @@ export function CompetitorKeywordsPanel({
                               ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                               : item.status === "SHARED_BATTLEFIELD"
                               ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-purple-50 text-purple-700 border border-purple-200"
+                              : "bg-slate-100 text-slate-800 border border-slate-200"
                           }`}
                         >
                           {item.status === "MISSING_OPPORTUNITY"

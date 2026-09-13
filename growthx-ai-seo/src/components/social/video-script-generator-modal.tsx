@@ -304,10 +304,10 @@ export function VideoScriptGeneratorModal({
 
           {/* Content Creator Collaboration Dispatch */}
           {allCreators.length > 0 && (
-            <div className="p-3.5 bg-gradient-to-r from-purple-500/10 to-accent-500/10 border border-purple-200 dark:border-purple-800/60 rounded-lg space-y-2">
+            <div className="p-3.5 bg-gradient-to-r from-slate-700/10 to-accent-500/10 border border-slate-200 dark:border-slate-700 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users size={16} className="text-purple-600 dark:text-purple-400" />
+                  <Users size={16} className="text-slate-900 dark:text-slate-400" />
                   <span className="text-xs font-bold text-brand-950 dark:text-brand-100">
                     Dispatch Production Brief to Content Creator
                   </span>

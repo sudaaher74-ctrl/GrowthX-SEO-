@@ -80,19 +80,19 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
 
   return (
     <div
-      className="rounded-2xl border bg-gradient-to-r from-purple-50/80 via-white to-purple-50/50 p-4 shadow-xs"
+      className="rounded-2xl border bg-white p-4 shadow-xs"
       style={{ borderColor: "var(--border-color, #e2e8f0)" }}
     >
       <div className="flex items-center gap-2 mb-3">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-500 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-600" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-950" />
         </span>
-        <Radar size={14} className="text-purple-600" />
+        <Radar size={14} className="text-slate-900" />
         <span className="text-[12px] font-bold text-slate-900">
           Auditing {crawling.length} competitor{crawling.length > 1 ? "s" : ""} — inspecting pages, tech health, keywords &amp; schema
         </span>
-        <Loader2 size={13} className="animate-spin text-purple-600 ml-auto" />
+        <Loader2 size={13} className="animate-spin text-slate-900 ml-auto" />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -102,7 +102,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
             className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2 shadow-2xs"
             style={{ borderColor: "var(--border-color, #e2e8f0)" }}
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-[10px] font-bold text-purple-700">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-800">
               {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -116,7 +116,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin text-purple-600" />
+              <Loader2 size={11} className="animate-spin text-slate-900" />
             </div>
           </div>
         ))}
@@ -337,7 +337,7 @@ function CompetitorIntelligenceClient() {
             Competitor Intelligence
           </Link>
           <span>/</span>
-          <span className="text-purple-700 font-bold">{currentTabObj.label}</span>
+          <span className="text-slate-800 font-bold">{currentTabObj.label}</span>
         </div>
 
         {/* Global Horizontal Sub-navigation Pill Strip */}
@@ -351,7 +351,7 @@ function CompetitorIntelligenceClient() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
-                    ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20"
+                    ? "bg-slate-950 text-white shadow-sm shadow-slate-900/10"
                     : "text-slate-600 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
                 }`}
               >
@@ -364,19 +364,19 @@ function CompetitorIntelligenceClient() {
 
       {/* ── FIX PLAN INTEGRATION TOAST NOTIFICATION ── */}
       {fixPlanToast && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-purple-950 text-white shadow-xl shadow-purple-950/20 animate-in fade-in slide-in-from-top duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950 text-white shadow-xl shadow-slate-950/20 animate-in fade-in slide-in-from-top duration-300">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-2xs">
+            <div className="h-9 w-9 rounded-xl bg-slate-950 flex items-center justify-center text-white shrink-0 shadow-2xs">
               <Zap className="h-5 w-5" />
             </div>
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-2">
                 <span>Added to 30-Day Fix Plan</span>
-                <span className="bg-purple-800 text-purple-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-semibold">
                   Fix Engine Ready
                 </span>
               </div>
-              <p className="text-[11px] text-purple-200 mt-0.5">
+              <p className="text-[11px] text-slate-300 mt-0.5">
                 Staged <strong>{fixPlanToast.count} items ({fixPlanToast.label})</strong>. Fix Engine will consolidate Website Audit, Competitors, and AI Visibility findings into your single-approval 30-day plan.
               </p>
             </div>
@@ -385,7 +385,7 @@ function CompetitorIntelligenceClient() {
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
             <Link
               href="/fix-engine"
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-purple-950 font-bold text-xs hover:bg-purple-50 transition shadow-2xs"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition shadow-2xs"
             >
               <span>View in Fix Engine</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -393,7 +393,7 @@ function CompetitorIntelligenceClient() {
             <button
               type="button"
               onClick={() => setFixPlanToast(null)}
-              className="p-1 text-purple-300 hover:text-white rounded-lg transition"
+              className="p-1 text-slate-400 hover:text-white rounded-lg transition"
             >
               <X className="h-4 w-4" />
             </button>
@@ -506,7 +506,7 @@ function CompetitorIntelligenceClient() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700">
+                <div className="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
@@ -534,7 +534,7 @@ function CompetitorIntelligenceClient() {
                   placeholder="e.g. competitor.com"
                   value={competitorDomain}
                   onChange={(e) => setCompetitorDomain(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950"
                 />
               </div>
 
@@ -547,7 +547,7 @@ function CompetitorIntelligenceClient() {
                   placeholder="e.g. Acme Corp"
                   value={competitorName}
                   onChange={(e) => setCompetitorName(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950"
                 />
               </div>
 
@@ -568,7 +568,7 @@ function CompetitorIntelligenceClient() {
                 <button
                   type="submit"
                   disabled={addCompetitorMutation.isPending}
-                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 disabled:opacity-60"
+                  className="px-5 py-2 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 disabled:opacity-60"
                 >
                   {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
                 </button>

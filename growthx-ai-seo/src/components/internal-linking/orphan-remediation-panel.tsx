@@ -147,7 +147,7 @@ export function OrphanRemediationPanel({
                         href={orphan.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-slate-400 hover:text-purple-600 transition"
+                        className="text-slate-400 hover:text-slate-900 transition"
                       >
                         <ExternalLink size={12} />
                       </a>

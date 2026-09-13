@@ -397,7 +397,7 @@ export default function CompetitorWorkspacePage() {
                             </span>
                           )}
                           {cls.storytellingStyle && (
-                            <span className="rounded bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] font-medium text-purple-700">
+                            <span className="rounded bg-slate-50 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-800">
                               Style: {cls.storytellingStyle}
                             </span>
                           )}

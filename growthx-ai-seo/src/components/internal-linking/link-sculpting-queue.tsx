@@ -63,16 +63,16 @@ export function LinkSculptingQueue({
   return (
     <div className="space-y-6">
       {/* ── HEADER BANNER ── */}
-      <div className="rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-950 via-indigo-950 to-slate-950 p-6 text-white shadow-md">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 p-6 text-white shadow-md">
         <div className="space-y-2 max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-[11px] font-bold tracking-wide text-purple-200 backdrop-blur-md">
-            <Zap size={12} className="text-purple-300" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-wide text-slate-300 backdrop-blur-md">
+            <Zap size={12} className="text-slate-400" />
             <span>PAGERANK LINK EQUITY SCULPTING</span>
           </div>
           <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
             Channel Internal Authority to High-Intent Money Pages
           </h2>
-          <p className="text-[13px] leading-relaxed text-purple-200/90">
+          <p className="text-[13px] leading-relaxed text-slate-300/90">
             Internal PageRank sculpting optimizes the flow of link equity across your domain. High-authority donor pages pass surplus juice to under-linked conversion and solution pages through natural in-content anchors, boosting rankings without acquiring new external backlinks.
           </p>
         </div>
@@ -82,7 +82,7 @@ export function LinkSculptingQueue({
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <Link2 size={16} className="text-purple-600" />
+            <Link2 size={16} className="text-slate-900" />
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               High-ROI Internal Link Insertion Queue ({opportunities.length})
             </h3>
@@ -106,19 +106,19 @@ export function LinkSculptingQueue({
               return (
                 <div
                   key={opp.id}
-                  className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs hover:border-purple-300 transition space-y-4"
+                  className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs hover:border-slate-300 transition space-y-4"
                 >
                   {/* Top Row: Source Hub -> Target */}
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                       {/* Donor Hub */}
-                      <div className="rounded-xl border border-purple-100 bg-purple-50/50 p-3.5 space-y-1">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1">
-                            <Layers size={12} className="text-purple-600" />
+                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1">
+                            <Layers size={12} className="text-slate-900" />
                             <span>Source Donor Page</span>
                           </span>
-                          <span className="text-[10px] font-black text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
                             {opp.sourcePageRank}/100 PageRank
                           </span>
                         </div>
@@ -166,7 +166,7 @@ export function LinkSculptingQueue({
                         <button
                           type="button"
                           onClick={() => handleStageLink(opp)}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-slate-800 hover:from-black hover:to-slate-900 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
                         >
                           <Sparkles size={13} />
                           <span>Stage to Fix Engine</span>
@@ -186,7 +186,7 @@ export function LinkSculptingQueue({
                         <React.Fragment key={i}>
                           {part}
                           {i < arr.length - 1 && (
-                            <span className="font-bold text-purple-700 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200 underline decoration-purple-500 decoration-2 underline-offset-2">
+                            <span className="font-bold text-slate-800 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200 underline decoration-slate-900 decoration-2 underline-offset-2">
                               {opp.recommendedAnchorText}
                             </span>
                           )}

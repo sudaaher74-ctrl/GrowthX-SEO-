@@ -131,18 +131,18 @@ export function CompetitorInterceptEngine({
   return (
     <div className="space-y-6">
       {/* ── HEADER BANNER ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-900 via-indigo-900 to-slate-950 p-6 text-white shadow-md">
-        <div className="absolute right-0 top-0 -mt-10 -mr-10 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white shadow-md">
+        <div className="absolute right-0 top-0 -mt-10 -mr-10 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
         <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-[11px] font-bold tracking-wide text-purple-200 backdrop-blur-md">
-              <Swords size={12} className="text-purple-300" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-wide text-slate-300 backdrop-blur-md">
+              <Swords size={12} className="text-slate-400" />
               <span>AUTONOMOUS COMPETITOR POACHING ENGINE</span>
             </div>
             <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
               Intercept Vulnerable Competitor #1–3 Rankings
             </h2>
-            <p className="text-[13px] leading-relaxed text-purple-200/90">
+            <p className="text-[13px] leading-relaxed text-slate-300/90">
               Evaluates competitor top-ranking URLs against structural vulnerabilities: missing JSON-LD schema, sluggish TTFB latency, and thin content depth. Automatically synthesizes verified counter-attack blueprints ready to stage directly into the Fix Engine.
             </p>
           </div>
@@ -153,7 +153,7 @@ export function CompetitorInterceptEngine({
               <select
                 value={selectedCompetitorId}
                 onChange={(e) => setSelectedCompetitorId(e.target.value)}
-                className="appearance-none rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 pr-8 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="appearance-none rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 pr-8 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-slate-400"
               >
                 <option value="all" className="bg-slate-900 text-white">All Tracked Competitors</option>
                 {competitors.map((c) => (
@@ -184,7 +184,7 @@ export function CompetitorInterceptEngine({
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[11.5px] font-bold text-slate-500 uppercase tracking-wider">Poachable Rankings</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-900">
               <Target size={16} />
             </div>
           </div>
@@ -192,7 +192,7 @@ export function CompetitorInterceptEngine({
             <span className="text-2xl font-black text-slate-900">
               {scoreboard ? scoreboard.totalPoachable : 0}
             </span>
-            <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+            <span className="text-[11px] font-semibold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-md">
               Top #1–3 Rankings
             </span>
           </div>
@@ -272,7 +272,7 @@ export function CompetitorInterceptEngine({
             placeholder="Search keywords or competitor domains..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20"
           />
         </div>
 
@@ -283,7 +283,7 @@ export function CompetitorInterceptEngine({
             <button
               type="button"
               onClick={() => setTierFilter("ALL")}
-              className={`rounded-lg px-2.5 py-1 transition ${tierFilter === "ALL" ? "bg-white text-purple-700 font-bold shadow-2xs" : "hover:text-slate-900"}`}
+              className={`rounded-lg px-2.5 py-1 transition ${tierFilter === "ALL" ? "bg-white text-slate-800 font-bold shadow-2xs" : "hover:text-slate-900"}`}
             >
               All Targets
             </button>
@@ -297,7 +297,7 @@ export function CompetitorInterceptEngine({
             <button
               type="button"
               onClick={() => setTierFilter("MODERATE")}
-              className={`rounded-lg px-2.5 py-1 transition ${tierFilter === "MODERATE" ? "bg-white text-purple-700 font-bold shadow-2xs" : "hover:text-slate-900"}`}
+              className={`rounded-lg px-2.5 py-1 transition ${tierFilter === "MODERATE" ? "bg-white text-slate-800 font-bold shadow-2xs" : "hover:text-slate-900"}`}
             >
               Moderate
             </button>
@@ -307,7 +307,7 @@ export function CompetitorInterceptEngine({
           <select
             value={defectFilter}
             onChange={(e) => setDefectFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-purple-500 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-slate-950 focus:outline-none"
           >
             <option value="ALL">All Defects</option>
             <option value="NO_SCHEMA">Missing JSON-LD Schema</option>
@@ -321,7 +321,7 @@ export function CompetitorInterceptEngine({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-purple-500 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-slate-950 focus:outline-none"
           >
             <option value="score-desc">Highest Vulnerability</option>
             <option value="vol-desc">Search Volume</option>
@@ -334,7 +334,7 @@ export function CompetitorInterceptEngine({
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
         {interceptsQuery.isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Loader2 size={32} className="animate-spin text-purple-600 mb-3" />
+            <Loader2 size={32} className="animate-spin text-slate-900 mb-3" />
             <p className="text-xs font-semibold">Auditing competitor rankings and diagnostic vulnerabilities...</p>
           </div>
         ) : filteredOpportunities.length === 0 ? (
@@ -364,19 +364,19 @@ export function CompetitorInterceptEngine({
                   return (
                     <tr
                       key={opp.id}
-                      className="hover:bg-purple-50/30 transition-colors group cursor-pointer"
+                      className="hover:bg-slate-50/30 transition-colors group cursor-pointer"
                       onClick={() => setActiveBlueprintOpp(opp)}
                     >
                       {/* Keyword & Intent */}
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900 group-hover:text-purple-700 transition-colors capitalize">
+                        <div className="font-bold text-slate-900 group-hover:text-slate-800 transition-colors capitalize">
                           {opp.keyword}
                         </div>
                         <div className="mt-1 flex items-center gap-1.5">
                           <span
                             className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                               opp.intent === "COMMERCIAL"
-                                ? "bg-purple-100 text-purple-700"
+                                ? "bg-slate-100 text-slate-800"
                                 : opp.intent === "TRANSACTIONAL"
                                 ? "bg-emerald-100 text-emerald-700"
                                 : "bg-blue-100 text-blue-700"
@@ -478,9 +478,9 @@ export function CompetitorInterceptEngine({
                           <button
                             type="button"
                             onClick={() => setActiveBlueprintOpp(opp)}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 px-3 py-1.5 text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-95"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 px-3 py-1.5 text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-95"
                           >
-                            <Sparkles size={12} className="text-purple-600" />
+                            <Sparkles size={12} className="text-slate-900" />
                             <span>View Blueprint</span>
                             <ArrowRight size={12} />
                           </button>
@@ -505,7 +505,7 @@ export function CompetitorInterceptEngine({
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 rounded-md bg-purple-100 px-2 py-0.5 text-[11px] font-bold text-purple-700">
+                <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-800">
                   <Swords size={12} />
                   <span>COUNTER-ATTACK CONTENT BLUEPRINT</span>
                 </div>
@@ -547,7 +547,7 @@ export function CompetitorInterceptEngine({
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Recommended URL Slug</span>
-                <p className="mt-1 text-xs font-mono font-semibold text-purple-700 truncate">
+                <p className="mt-1 text-xs font-mono font-semibold text-slate-800 truncate">
                   {activeBlueprintOpp.blueprint.targetSlug}
                 </p>
               </div>
@@ -563,13 +563,13 @@ export function CompetitorInterceptEngine({
             {/* Semantic Heading Outline */}
             <div className="space-y-2.5">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers size={14} className="text-purple-600" />
+                <Layers size={14} className="text-slate-900" />
                 <span>Structured Semantic Heading Hierarchy (H2 / H3)</span>
               </h4>
               <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
                 {activeBlueprintOpp.blueprint.semanticHeadings.map((h, idx) => (
                   <div key={idx} className="p-3 flex items-start gap-3">
-                    <span className="shrink-0 font-mono text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200/50">
+                    <span className="shrink-0 font-mono text-[10px] font-bold text-slate-900 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/50">
                       {h.level}
                     </span>
                     <div className="space-y-0.5">
@@ -585,7 +585,7 @@ export function CompetitorInterceptEngine({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Code2 size={14} className="text-purple-600" />
+                  <Code2 size={14} className="text-slate-900" />
                   <span>Structured Schema.org FAQPage Patch (JSON-LD)</span>
                 </h4>
                 <button
@@ -631,7 +631,7 @@ export function CompetitorInterceptEngine({
             <div className="flex items-center justify-between border-t border-slate-100 pt-4">
               <Link
                 href="/fix-engine?tab=implementation"
-                className="text-xs font-semibold text-purple-600 hover:text-purple-800 transition flex items-center gap-1"
+                className="text-xs font-semibold text-slate-900 hover:text-slate-900 transition flex items-center gap-1"
               >
                 <span>Go to Fix Engine Implementation Queue</span>
                 <ArrowRight size={13} />
@@ -659,7 +659,7 @@ export function CompetitorInterceptEngine({
                   <button
                     type="button"
                     onClick={() => handleStageBlueprint(activeBlueprintOpp)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:from-purple-700 hover:to-indigo-700 transition active:scale-95"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:from-black hover:to-slate-900 transition active:scale-95"
                   >
                     <Sparkles size={13} />
                     <span>Stage Blueprint into Fix Engine</span>

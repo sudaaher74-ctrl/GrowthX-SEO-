@@ -87,7 +87,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
       >
         <div className="space-y-2 flex-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-xs">
               <Sparkles size={16} />
             </div>
             <h2 className="text-lg font-bold text-brand-950 tracking-tight">AI Recommendations</h2>
@@ -103,7 +103,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
           type="button"
           onClick={handleRunAnalysis}
           disabled={!localSeo || analyzeMutation.isPending}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-sm hover:bg-purple-700 transition disabled:opacity-50"
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 text-white text-xs font-bold shadow-sm hover:bg-black transition disabled:opacity-50"
         >
           {analyzeMutation.isPending ? (
             <Loader2 size={14} className="animate-spin" />

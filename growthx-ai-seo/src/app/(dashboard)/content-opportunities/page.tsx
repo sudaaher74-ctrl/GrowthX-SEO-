@@ -417,7 +417,7 @@ function ContentOpportunitiesClient() {
                       <Td><span className="font-mono text-[11.5px] text-brand-600">{piece.targetQuery || piece.title}</span></Td>
                       <Td><span className="rounded bg-brand-100 px-2 py-0.5 text-[11px] font-medium text-brand-700">{piece.format || "Article"}</span></Td>
                       <Td><span className="font-mono text-xs text-brand-700">1,400 – 2,200 words</span></Td>
-                      <Td><span className="font-mono text-[11px] text-purple-700">TechArticle, FAQPage</span></Td>
+                      <Td><span className="font-mono text-[11px] text-slate-800">TechArticle, FAQPage</span></Td>
                       <Td align="right">
                         <button
                           type="button"

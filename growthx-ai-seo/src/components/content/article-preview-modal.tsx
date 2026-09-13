@@ -279,7 +279,7 @@ export function ArticlePreviewModal({
                       words (~{Math.max(1, Math.round(rawBody.split(/\s+/).filter(Boolean).length / 200))}m read)
                     </span>
                   </div>
-                  <span className="mt-1 inline-block rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold px-2 py-0.5">
+                  <span className="mt-1 inline-block rounded bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5">
                     Long-Form Authority
                   </span>
                 </div>

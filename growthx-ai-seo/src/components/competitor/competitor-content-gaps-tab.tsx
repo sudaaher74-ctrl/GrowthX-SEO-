@@ -48,7 +48,7 @@ export interface ContentGapItem {
 }
 
 const COMPETITOR_AVATARS: Record<number, { bg: string }> = {
-  0: { bg: "bg-purple-600" },
+  0: { bg: "bg-slate-950" },
   1: { bg: "bg-blue-600" },
   2: { bg: "bg-emerald-500" },
   3: { bg: "bg-amber-500" },
@@ -281,7 +281,7 @@ export function CompetitorContentGapsTab({
   if (competitors.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center space-y-3">
-        <div className="h-12 w-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
+        <div className="h-12 w-12 rounded-2xl bg-slate-100 text-slate-900 flex items-center justify-center mx-auto">
           <Globe className="h-6 w-6" />
         </div>
         <h3 className="text-base font-bold text-slate-900">No Competitors Tracked Yet</h3>
@@ -303,7 +303,7 @@ export function CompetitorContentGapsTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
               <FileText className="h-5 w-5" />
             </div>
             <div>
@@ -320,7 +320,7 @@ export function CompetitorContentGapsTab({
           <button
             type="button"
             onClick={onExport}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 text-sm font-semibold transition-all shadow-2xs"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 text-sm font-semibold transition-all shadow-2xs"
           >
             <Download className="h-4 w-4" />
             <span>Export</span>
@@ -330,7 +330,7 @@ export function CompetitorContentGapsTab({
             type="button"
             onClick={handleAddSelected}
             disabled={filteredGaps.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-purple-500/20 active:scale-[0.98]"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
           >
             <Play className="h-4 w-4 fill-white" />
             <span>Add Selected to Fix Plan</span>
@@ -379,7 +379,7 @@ export function CompetitorContentGapsTab({
         {/* High-Priority Opportunities */}
         <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center shrink-0">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -389,7 +389,7 @@ export function CompetitorContentGapsTab({
               <div className="text-[12px] font-medium text-slate-500">High-Priority Guides &amp; Vs</div>
             </div>
           </div>
-          <div className="mt-3 text-[11px] font-medium text-purple-600">
+          <div className="mt-3 text-[11px] font-medium text-slate-900">
             Commercial search intent
           </div>
         </div>
@@ -455,7 +455,7 @@ export function CompetitorContentGapsTab({
                   }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
-                      ? "border-purple-300 bg-purple-50/50 shadow-2xs"
+                      ? "border-slate-300 bg-slate-50/50 shadow-2xs"
                       : "border-slate-200/80 hover:border-slate-300 bg-white"
                   }`}
                 >
@@ -463,7 +463,7 @@ export function CompetitorContentGapsTab({
                     <span className="font-bold text-xs text-slate-900 truncate">{comp.domain}</span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isSelected ? "bg-purple-200/80 text-purple-800" : "bg-slate-100 text-slate-600"
+                        isSelected ? "bg-slate-200/80 text-slate-900" : "bg-slate-100 text-slate-600"
                       }`}
                     >
                       {isSelected ? "Active Analysis" : "Compare"}
@@ -479,16 +479,16 @@ export function CompetitorContentGapsTab({
           </div>
 
           <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Currently inspecting: <strong className="text-purple-700">{activeCompetitor?.domain}</strong></span>
+            <span>Currently inspecting: <strong className="text-slate-800">{activeCompetitor?.domain}</strong></span>
             <span>{filteredGaps.length} gaps identified</span>
           </div>
         </div>
 
         {/* Right 4 Cols: AI Insights */}
-        <div className="lg:col-span-4 rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/50 via-white to-white p-6 shadow-xs flex flex-col justify-between space-y-4">
+        <div className="lg:col-span-4 rounded-2xl border border-slate-200/70 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="h-8 w-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center">
                 <Bot className="h-4 w-4" />
               </div>
               <div>
@@ -498,9 +498,9 @@ export function CompetitorContentGapsTab({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-white border border-purple-100 shadow-2xs">
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 mb-1">
-                  <Lightbulb className="h-3.5 w-3.5 text-purple-600" />
+                  <Lightbulb className="h-3.5 w-3.5 text-slate-900" />
                   <span>High-Converting Hubs Missing</span>
                 </div>
                 <p className="text-slate-600 leading-relaxed text-[11.5px]">
@@ -510,7 +510,7 @@ export function CompetitorContentGapsTab({
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-white border border-purple-100 shadow-2xs">
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs">
                 <div className="flex items-center gap-1.5 font-bold text-slate-800 mb-1">
                   <Sparkles className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
                   <span>Fix Engine 30-Day Batch</span>
@@ -525,7 +525,7 @@ export function CompetitorContentGapsTab({
           <button
             type="button"
             onClick={handleAddSelected}
-            className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <span>Stage {filteredGaps.length} Topics to Fix Plan</span>
             <ArrowRight className="h-3.5 w-3.5" />
@@ -544,7 +544,7 @@ export function CompetitorContentGapsTab({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search content topics or page archetypes..."
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
             />
           </div>
 
@@ -553,7 +553,7 @@ export function CompetitorContentGapsTab({
             <select
               value={selectedContentType}
               onChange={(e) => setSelectedContentType(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
             >
               <option value="all">All content types</option>
               <option value="Guide">Guide</option>
@@ -570,7 +570,7 @@ export function CompetitorContentGapsTab({
             <select
               value={selectedCoverage}
               onChange={(e) => setSelectedCoverage(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
             >
               <option value="all">All coverage statuses</option>
               <option value="Missing">Missing</option>
@@ -585,7 +585,7 @@ export function CompetitorContentGapsTab({
             <select
               value={selectedOpportunity}
               onChange={(e) => setSelectedOpportunity(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="appearance-none pl-3 pr-8 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
             >
               <option value="all">All opportunities</option>
               <option value="High">High</option>
@@ -599,7 +599,7 @@ export function CompetitorContentGapsTab({
           <button
             type="button"
             onClick={handleResetFilters}
-            className="px-3.5 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 rounded-xl transition-all"
+            className="px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 rounded-xl transition-all"
           >
             Reset
           </button>
@@ -629,8 +629,8 @@ export function CompetitorContentGapsTab({
 
         {/* State: Crawling or empty */}
         {isCompetitorCrawling ? (
-          <div className="p-8 text-center space-y-3 border rounded-xl border-purple-100 bg-purple-50/30">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-600 mx-auto" />
+          <div className="p-8 text-center space-y-3 border rounded-xl border-slate-200 bg-slate-50/30">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-900 mx-auto" />
             <p className="text-xs font-bold text-slate-900">
               Inspecting content pages on {activeCompetitor?.domain}...
             </p>
@@ -656,7 +656,7 @@ export function CompetitorContentGapsTab({
                       type="checkbox"
                       checked={selectedIds.size === filteredGaps.length && filteredGaps.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                      className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                     />
                   </th>
                   <th className="p-3.5 font-bold">Topic / Page Title</th>
@@ -676,7 +676,7 @@ export function CompetitorContentGapsTab({
                     <tr
                       key={item.id}
                       className={`hover:bg-slate-50/80 transition-colors ${
-                        isSelected ? "bg-purple-50/40" : ""
+                        isSelected ? "bg-slate-50/40" : ""
                       }`}
                     >
                       <td className="p-3.5 text-center">
@@ -684,7 +684,7 @@ export function CompetitorContentGapsTab({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelectRow(item.id)}
-                          className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                          className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                         />
                       </td>
                       <td className="p-3.5 font-semibold text-slate-900 max-w-sm">
@@ -694,7 +694,7 @@ export function CompetitorContentGapsTab({
                             href={item.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[10px] text-purple-600 hover:underline flex items-center gap-1 font-normal mt-0.5"
+                            className="text-[10px] text-slate-900 hover:underline flex items-center gap-1 font-normal mt-0.5"
                           >
                             <span className="truncate max-w-xs">{item.sourceUrl}</span>
                             <ExternalLink className="h-2.5 w-2.5 shrink-0" />
@@ -729,7 +729,7 @@ export function CompetitorContentGapsTab({
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                             item.aiPotential === "High"
-                              ? "bg-purple-50 text-purple-700 border border-purple-200/60"
+                              ? "bg-slate-100 text-slate-800 border border-slate-200"
                               : "bg-blue-50 text-blue-700 border border-blue-200/60"
                           }`}
                         >
@@ -753,7 +753,7 @@ export function CompetitorContentGapsTab({
                         <button
                           type="button"
                           onClick={() => onAddToFixPlan?.(1, `Create Hub: ${item.topic}`)}
-                          className="px-2.5 py-1 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-[11px] font-bold transition-colors"
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 text-[11px] font-bold transition-colors"
                         >
                           Stage
                         </button>

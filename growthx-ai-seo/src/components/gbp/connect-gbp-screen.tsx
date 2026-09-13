@@ -113,8 +113,8 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
               <span>Optimize</span>
             </div>
 
-            <div className="absolute bottom-5 right-2 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200/80 text-purple-600 dark:bg-purple-950/80 dark:border-purple-800 dark:text-purple-300 text-[11px] font-semibold shadow-2xs">
-              <TrendingUp size={11} className="text-purple-600 dark:text-purple-400" />
+            <div className="absolute bottom-5 right-2 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-slate-900 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-400 text-[11px] font-semibold shadow-2xs">
+              <TrendingUp size={11} className="text-slate-900 dark:text-slate-400" />
               <span>Grow</span>
             </div>
 
@@ -296,7 +296,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
 
               {/* 4. Photos & Media */}
               <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-900 dark:bg-slate-900/50 dark:text-slate-400">
                   <ImageIcon size={15} />
                 </div>
                 <div>

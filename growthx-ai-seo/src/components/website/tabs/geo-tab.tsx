@@ -78,7 +78,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
           <div>
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
               <span>Overall GEO Score</span>
-              <Sparkles size={14} className="text-purple-600" />
+              <Sparkles size={14} className="text-slate-900" />
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -94,7 +94,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : geoReadinessScore != null && geoReadinessScore >= 45
                     ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-purple-50 text-purple-700 border-purple-200"
+                    : "bg-slate-100 text-slate-800 border-slate-200"
                 )}
               >
                 {geoReadinessScore != null && geoReadinessScore >= 70
@@ -108,7 +108,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
           <div className="mt-4">
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
-                className="h-full bg-purple-600 rounded-full"
+                className="h-full bg-slate-950 rounded-full"
                 style={{ width: `${geoReadinessScore || 0}%` }}
               />
             </div>
@@ -199,7 +199,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
       {/* Strategic Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-2.5">
-          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-400">
             <Sparkles size={14} />
             <span>Direct Quotability Strategy</span>
           </div>
@@ -350,7 +350,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
                           };
                           onAutoFix?.(geoIssue);
                         }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 px-2.5 py-1 text-xs font-semibold transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-100 text-slate-800 dark:text-slate-400 hover:bg-slate-100 px-2.5 py-1 text-xs font-semibold transition-colors"
                       >
                         <Sparkles size={11} />
                         <span>Convert to Answer Block</span>

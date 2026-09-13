@@ -390,7 +390,7 @@ function NavLink({
                 className={cn(
                   "block py-1 px-2 text-[11.5px] rounded transition truncate",
                   isSubActive
-                    ? "bg-purple-50 text-purple-700 font-bold"
+                    ? "bg-slate-100 text-slate-800 font-bold"
                     : "text-brand-600 hover:text-brand-950 font-medium hover:bg-brand-100/60"
                 )}
               >

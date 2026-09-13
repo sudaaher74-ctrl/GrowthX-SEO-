@@ -46,7 +46,7 @@ const ENGINES_CONFIG = [
   { id: "CHATGPT" as const, name: "ChatGPT Search", model: "GPT-4o (or Sarvam)", color: "from-emerald-500 to-green-600", border: "border-emerald-200" },
   { id: "GEMINI" as const, name: "Google Gemini", model: "Gemini 2.0 (or Sarvam)", color: "from-blue-500 to-indigo-600", border: "border-blue-200" },
   { id: "CLAUDE" as const, name: "Claude", model: "Claude 3.5 (or Sarvam)", color: "from-amber-500 to-orange-600", border: "border-amber-200" },
-  { id: "SARVAM" as const, name: "Sarvam AI", model: "Sarvam-105b (Indus)", color: "from-purple-500 to-violet-600", border: "border-purple-200" },
+  { id: "SARVAM" as const, name: "Sarvam AI", model: "Sarvam-105b (Indus)", color: "from-slate-700 to-slate-800", border: "border-slate-200" },
 ];
 
 export function GeoSimulationSandbox({
@@ -111,20 +111,20 @@ export function GeoSimulationSandbox({
   return (
     <div className="space-y-6">
       {/* ── HEADER BANNER ── */}
-      <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-6 shadow-md relative overflow-hidden">
-        <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-6 shadow-md relative overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/5 blur-3xl pointer-events-none" />
         <div className="relative z-10 space-y-2 max-w-3xl">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/40">
-              <Sparkles className="h-3 w-3 text-purple-400" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wider uppercase bg-white/10 text-slate-400 border border-white/20">
+              <Sparkles className="h-3 w-3 text-slate-400" />
               Generative Engine Optimization (GEO)
             </span>
-            <span className="text-[11px] text-purple-300">Multi-Model Live Simulation</span>
+            <span className="text-[11px] text-slate-400">Multi-Model Live Simulation</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
             Live AI Search &amp; Citation Simulation Sandbox
           </h2>
-          <p className="text-xs sm:text-sm text-purple-200/80 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-300/80 leading-relaxed">
             Directly test how Perplexity, ChatGPT Search, Google Gemini, and Claude evaluate your brand vs. competitors for target buyer queries. When competitors are cited, generate instant LLM displacement patches.
           </p>
         </div>
@@ -146,7 +146,7 @@ export function GeoSimulationSandbox({
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleRunSimulation()}
                 placeholder="e.g. Best AI SEO automation tools for ecommerce..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-xs font-medium text-slate-900 bg-slate-50/50 placeholder:text-slate-400 transition"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-xs font-medium text-slate-900 bg-slate-50/50 placeholder:text-slate-400 transition"
               />
             </div>
 
@@ -154,7 +154,7 @@ export function GeoSimulationSandbox({
               type="button"
               onClick={() => handleRunSimulation()}
               disabled={simulateMutation.isPending || !query.trim()}
-              className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              className="px-6 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-slate-900/10 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
             >
               {simulateMutation.isPending ? (
                 <>
@@ -182,7 +182,7 @@ export function GeoSimulationSandbox({
                 setQuery(s);
                 handleRunSimulation(s);
               }}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-600 transition cursor-pointer border border-slate-200/60"
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-50 hover:text-slate-800 text-slate-600 transition cursor-pointer border border-slate-200/60"
             >
               {s}
             </button>
@@ -202,11 +202,11 @@ export function GeoSimulationSandbox({
                   onClick={() => toggleEngine(eng.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
                     isSelected
-                      ? "bg-purple-50 border-purple-300 text-purple-800 shadow-2xs"
+                      ? "bg-slate-50 border-slate-300 text-slate-900 shadow-2xs"
                       : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50"
                   }`}
                 >
-                  <Bot size={13} className={isSelected ? "text-purple-600" : "text-slate-400"} />
+                  <Bot size={13} className={isSelected ? "text-slate-900" : "text-slate-400"} />
                   <span>{eng.name}</span>
                   <span className="text-[10px] text-slate-400">({eng.model.split(" ")[0]})</span>
                 </button>
@@ -248,7 +248,7 @@ export function GeoSimulationSandbox({
 
             <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Share of Voice</span>
-              <div className="text-2xl font-bold text-purple-700 mt-1">{result.overallShareOfVoice}%</div>
+              <div className="text-2xl font-bold text-slate-800 mt-1">{result.overallShareOfVoice}%</div>
               <span className="text-[11px] text-slate-500 mt-0.5 block">Relative to competitor brand mentions</span>
             </div>
 
@@ -276,7 +276,7 @@ export function GeoSimulationSandbox({
               return (
                 <div
                   key={eng.engine}
-                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-purple-200 transition"
+                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-200 transition"
                 >
                   <div className="space-y-3">
                     {/* Model Header */}
@@ -362,10 +362,10 @@ export function GeoSimulationSandbox({
           </div>
 
           {/* ── AUTONOMOUS CITATION DISPLACEMENT PATCH CARD ── */}
-          <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50/70 via-white to-indigo-50/40 p-6 shadow-sm space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-500/25 shrink-0">
+                <div className="h-11 w-11 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0">
                   <Flame className="h-6 w-6" />
                 </div>
                 <div>
@@ -373,7 +373,7 @@ export function GeoSimulationSandbox({
                     <h3 className="text-base font-bold text-slate-900">
                       Targeted AI Citation Displacement Patch
                     </h3>
-                    <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
                       Priority: {result.displacementPatch.priority}
                     </span>
                   </div>
@@ -387,7 +387,7 @@ export function GeoSimulationSandbox({
                 <button
                   type="button"
                   onClick={() => handleStageDisplacement(result.displacementPatch)}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 active:scale-[0.98] flex items-center gap-2 cursor-pointer"
                 >
                   {stagedSuccess ? (
                     <>
@@ -417,10 +417,10 @@ export function GeoSimulationSandbox({
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <FileCode size={13} className="text-purple-600" />
+                    <FileCode size={13} className="text-slate-900" />
                     LLM RAG Citation Paragraph
                   </span>
-                  <span className="text-[10.5px] font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                  <span className="text-[10.5px] font-mono text-slate-900 bg-slate-50 px-2 py-0.5 rounded">
                     Entity-Anchored
                   </span>
                 </div>

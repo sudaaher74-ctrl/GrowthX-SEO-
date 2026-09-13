@@ -241,7 +241,7 @@ export function AutoCompetitorsPanel({
       <div className="border-b border-[var(--border-color)] p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm shadow-indigo-500/20">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-black text-white shadow-sm shadow-indigo-500/20">
               <Sparkles size={20} className={isDiscovering ? "animate-pulse" : ""} />
             </div>
             <div>
@@ -642,7 +642,7 @@ export function AutoCompetitorsPanel({
                       </div>
 
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="max-w-[140px] truncate rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                        <span className="max-w-[140px] truncate rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-900 dark:text-slate-400">
                           {comp.marketPosition}
                         </span>
                         <div className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">

@@ -69,8 +69,8 @@ export default function MetaOptimizerPage() {
         {analyzeMut.isPending && (
           <div className="py-20 flex flex-col items-center justify-center space-y-4">
             <div className="relative">
-              <div className="absolute inset-0 rounded-full blur-xl bg-purple-500/20 animate-pulse"></div>
-              <Sparkles className="relative text-purple-500 animate-bounce" size={32} />
+              <div className="absolute inset-0 rounded-full blur-xl bg-white/10 animate-pulse"></div>
+              <Sparkles className="relative text-slate-500 animate-bounce" size={32} />
             </div>
             <p className="text-sm font-medium text-brand-950">Analyzing content and rewriting tags...</p>
           </div>

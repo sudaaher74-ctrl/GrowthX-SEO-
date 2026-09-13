@@ -136,7 +136,7 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
               setToastMessage(`Added ${filtered.length} audit issues to your 30-Day Fix Plan!`);
               setTimeout(() => setToastMessage(null), 8000);
             }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
           >
             <Zap size={12} />
             <span>Add {filtered.length} Issues to Fix Plan</span>
@@ -145,22 +145,22 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
 
         {/* Fix Plan Staging Toast */}
         {toastMessage && (
-          <div className="m-3 p-3 rounded-xl bg-purple-950 text-white text-xs flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-200">
+          <div className="m-3 p-3 rounded-xl bg-slate-950 text-white text-xs flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-200">
             <div className="flex items-center gap-2">
-              <Zap size={14} className="text-purple-400 shrink-0" />
+              <Zap size={14} className="text-slate-400 shrink-0" />
               <span>{toastMessage} Consolidated for single-approval 30-day execution.</span>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 href="/fix-engine"
-                className="px-2.5 py-1 rounded-md bg-white text-purple-950 font-bold text-[11px] hover:bg-purple-50 transition"
+                className="px-2.5 py-1 rounded-md bg-white text-slate-950 font-bold text-[11px] hover:bg-slate-50 transition"
               >
                 View in Fix Engine →
               </Link>
               <button
                 type="button"
                 onClick={() => setToastMessage(null)}
-                className="text-purple-300 hover:text-white p-0.5"
+                className="text-slate-400 hover:text-white p-0.5"
               >
                 <X size={13} />
               </button>
@@ -224,7 +224,7 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
                           setToastMessage(`Added "${issue.issueType.replace(/_/g, " ")}" to your 30-Day Fix Plan!`);
                           setTimeout(() => setToastMessage(null), 8000);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 hover:bg-black text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
                       >
                         <Zap size={12} />
                         <span>Add to Fix Plan</span>

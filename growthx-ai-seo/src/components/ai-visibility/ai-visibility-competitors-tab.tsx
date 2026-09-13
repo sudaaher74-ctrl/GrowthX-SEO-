@@ -35,12 +35,12 @@ export interface AiVisibilityCompetitorsTabProps {
 }
 
 const BAR_COLORS = [
-  "bg-purple-600",
-  "bg-blue-500",
-  "bg-emerald-500",
-  "bg-amber-400",
-  "bg-rose-400",
-  "bg-indigo-500",
+  "bg-slate-950",
+  "bg-slate-600",
+  "bg-slate-400",
+  "bg-slate-300",
+  "bg-slate-200",
+  "bg-slate-700",
 ];
 
 export function AiVisibilityCompetitorsTab({
@@ -95,7 +95,7 @@ export function AiVisibilityCompetitorsTab({
     return comparisonRows.slice(0, 6).map((r, idx) => ({
       name: r.isYou ? `${r.domain}\n(You)` : r.domain,
       sharePct: r.sharePct,
-      color: r.isYou ? "bg-purple-600" : BAR_COLORS[(idx + 1) % BAR_COLORS.length],
+      color: r.isYou ? "bg-slate-950" : BAR_COLORS[(idx + 1) % BAR_COLORS.length],
       heightPct: Math.max(10, Math.min(100, Math.round((r.sharePct / maxShare) * 90))),
     }));
   }, [comparisonRows]);
@@ -117,8 +117,8 @@ export function AiVisibilityCompetitorsTab({
           value={`${yourShare}%`}
           subtext="Proportion of total LLM recommendations"
           icon={<Users size={16} />}
-          iconBgColor="bg-purple-50 text-purple-600"
-          colorScheme="purple"
+          iconBgColor="bg-slate-100 text-slate-900"
+          colorScheme="default"
         />
 
         {/* KPI 2: Competitors Cited More */}
@@ -179,14 +179,14 @@ export function AiVisibilityCompetitorsTab({
                 <button
                   type="button"
                   onClick={() => setChartMode("bar")}
-                  className={`p-1.5 rounded-md ${chartMode === "bar" ? "bg-white text-purple-700 shadow-2xs" : "text-slate-500"}`}
+                  className={`p-1.5 rounded-md ${chartMode === "bar" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"}`}
                 >
                   <BarChart3 size={14} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setChartMode("trend")}
-                  className={`p-1.5 rounded-md ${chartMode === "trend" ? "bg-white text-purple-700 shadow-2xs" : "text-slate-500"}`}
+                  className={`p-1.5 rounded-md ${chartMode === "trend" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"}`}
                 >
                   <LineChart size={14} />
                 </button>
@@ -223,7 +223,7 @@ export function AiVisibilityCompetitorsTab({
             <button
               type="button"
               onClick={onAddCompetitor}
-              className="text-purple-700 font-semibold hover:underline flex items-center gap-1"
+              className="text-slate-900 font-semibold hover:underline flex items-center gap-1"
             >
               <Plus size={12} /> Add Rival
             </button>
@@ -235,7 +235,7 @@ export function AiVisibilityCompetitorsTab({
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center">
                   <Sparkles size={16} />
                 </div>
                 <div>
@@ -248,7 +248,7 @@ export function AiVisibilityCompetitorsTab({
             <div className="mt-4 space-y-3">
               <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 text-xs space-y-1">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Target size={14} className="text-purple-600" />
+                  <Target size={14} className="text-slate-900" />
                   Target Rival Comparison Intent
                 </span>
                 <p className="text-slate-600 text-[11px] leading-relaxed">
@@ -281,7 +281,7 @@ export function AiVisibilityCompetitorsTab({
           <button
             type="button"
             onClick={onViewAllGaps}
-            className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <span>View All Competitor Gaps</span>
             <ArrowRight size={13} />
@@ -305,7 +305,7 @@ export function AiVisibilityCompetitorsTab({
 
         {comparisonRows.length === 0 ? (
           <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
-            <Bot className="h-6 w-6 text-purple-600 mx-auto" />
+            <Bot className="h-6 w-6 text-slate-400 mx-auto" />
             <p className="text-xs font-bold text-slate-800">No Benchmarked Competitors Yet</p>
             <p className="text-[11px] text-slate-500">
               Add competitors to compare citations and model recommendation share.
@@ -328,14 +328,14 @@ export function AiVisibilityCompetitorsTab({
                 {comparisonRows.map((row) => (
                   <tr
                     key={row.domain}
-                    className={`hover:bg-slate-50/80 transition-colors ${row.isYou ? "bg-purple-50/40" : ""}`}
+                    className={`hover:bg-slate-50/80 transition-colors ${row.isYou ? "bg-slate-50" : ""}`}
                   >
                     <td className="p-3.5 font-bold text-slate-900">#{row.rank}</td>
                     <td className="p-3.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-2">
                         <span>{row.domain}</span>
                         {row.isYou && (
-                          <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          <span className="bg-slate-100 text-slate-900 text-[10px] px-2 py-0.5 rounded-full font-bold">
                             Your Domain
                           </span>
                         )}
@@ -346,7 +346,7 @@ export function AiVisibilityCompetitorsTab({
                         <span className="font-bold text-slate-900 w-10">{row.sharePct}%</span>
                         <div className="h-2 w-24 bg-slate-100 rounded-full overflow-hidden">
                           <div
-                            className={`h-full ${row.isYou ? "bg-purple-600" : "bg-blue-500"} rounded-full`}
+                            className={`h-full ${row.isYou ? "bg-slate-950" : "bg-slate-400"} rounded-full`}
                             style={{ width: `${Math.max(4, row.sharePct)}%` }}
                           />
                         </div>

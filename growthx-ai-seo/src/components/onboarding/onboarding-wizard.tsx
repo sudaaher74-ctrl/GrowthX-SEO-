@@ -490,13 +490,13 @@ export function OnboardingWizard() {
 
           {/* 4. GitHub Repository */}
           <IntegrationCard
-            icon={<GitBranch size={20} className="text-purple-300" />}
-            iconBg="bg-purple-500/15"
+            icon={<GitBranch size={20} className="text-slate-400" />}
+            iconBg="bg-slate-500/15"
             title="GitHub Repository"
             subtitle="Autonomous AI engineers can open pull requests for technical fixes"
             features={["Auto PR creation", "Schema fixes", "Technical SEO patches", "Code review"]}
             badge="Optional"
-            badgeColor="bg-purple-500/20 text-purple-300 border border-purple-500/30"
+            badgeColor="bg-white/10 text-slate-400 border border-slate-950/30"
             state={steps.github}
             isActive={activeStep === "github"}
             onSkip={() => markSkipped("github")}
@@ -558,7 +558,7 @@ export function OnboardingWizard() {
                     onError: (err) => setNotice(errorMessage(err)),
                   })
                 }
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 py-2.5 px-4 font-semibold text-sm text-white hover:bg-purple-500 transition disabled:opacity-40"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-2.5 px-4 font-semibold text-sm text-white hover:bg-slate-500 transition disabled:opacity-40"
               >
                 {connectRepo.isPending ? (
                   <Loader2 size={14} className="animate-spin" />

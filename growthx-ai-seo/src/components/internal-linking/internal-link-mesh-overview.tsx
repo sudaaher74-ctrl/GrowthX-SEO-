@@ -69,7 +69,7 @@ export function InternalLinkMeshOverview({
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Crawled Mesh Pages</span>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-slate-900">{scoreboard?.totalUrls || nodes.length}</span>
-            <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+            <span className="text-[11px] font-semibold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-md">
               Nodes
             </span>
           </div>
@@ -142,13 +142,13 @@ export function InternalLinkMeshOverview({
           onClick={() => setSelectedTier(selectedTier === "PILLAR_HUB" ? "ALL" : "PILLAR_HUB")}
           className={`rounded-xl border p-3.5 transition cursor-pointer ${
             selectedTier === "PILLAR_HUB"
-              ? "border-purple-500 bg-purple-50/60 ring-2 ring-purple-500/20"
+              ? "border-slate-950 bg-slate-50/60 ring-2 ring-slate-900/20"
               : "border-slate-200 bg-white hover:bg-slate-50"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-purple-900">Pillar Authority Hubs</span>
-            <span className="text-xs font-black text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-slate-950">Pillar Authority Hubs</span>
+            <span className="text-xs font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
               {nodes.filter((n) => n.equityTier === "PILLAR_HUB").length}
             </span>
           </div>
@@ -227,7 +227,7 @@ export function InternalLinkMeshOverview({
             placeholder="Search page URL or title..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:border-slate-950 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20"
           />
         </div>
 
@@ -236,7 +236,7 @@ export function InternalLinkMeshOverview({
             <button
               type="button"
               onClick={() => setSelectedTier("ALL")}
-              className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-1.5 rounded-xl border border-purple-200 hover:bg-purple-100"
+              className="text-[11px] font-bold text-slate-800 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100"
             >
               Reset Tier Filter ({selectedTier})
             </button>
@@ -245,7 +245,7 @@ export function InternalLinkMeshOverview({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-purple-500 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-slate-950 focus:outline-none"
           >
             <option value="pr-desc">Highest PageRank First</option>
             <option value="in-desc">Most Inbound Links</option>
@@ -318,7 +318,7 @@ export function InternalLinkMeshOverview({
                           <div
                             className={`h-full rounded-full ${
                               node.pageRankScore >= 70
-                                ? "bg-purple-600"
+                                ? "bg-slate-950"
                                 : node.pageRankScore >= 40
                                 ? "bg-blue-500"
                                 : node.isOrphan
@@ -336,7 +336,7 @@ export function InternalLinkMeshOverview({
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold ${
                           node.equityTier === "PILLAR_HUB"
-                            ? "bg-purple-100 text-purple-700"
+                            ? "bg-slate-100 text-slate-800"
                             : node.equityTier === "HEALTHY"
                             ? "bg-emerald-100 text-emerald-700"
                             : node.equityTier === "STARVED"

@@ -383,7 +383,7 @@ export function RecommendationsTabContent({
           className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-sm"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11.5px] font-bold uppercase tracking-wider text-purple-700">
+            <span className="text-[11.5px] font-bold uppercase tracking-wider text-slate-500">
               {rec.pillar}
             </span>
             <div className="flex items-center gap-2">

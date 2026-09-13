@@ -95,7 +95,7 @@ const PAGE_KIND: Record<
     label: "Articles & Guides",
     singular: "Article / Guide",
     icon: FileText,
-    color: "bg-purple-50 text-purple-700 border-purple-200",
+    color: "bg-slate-100 text-slate-800 border-slate-200",
     description: "In-depth informational guides, whitepapers, or authoritative knowledge articles.",
     whyFavor:
       "Positions the domain as the definitive subject-matter authority, generating high-authority backlinks and appearing in conversational AI queries and search summaries.",

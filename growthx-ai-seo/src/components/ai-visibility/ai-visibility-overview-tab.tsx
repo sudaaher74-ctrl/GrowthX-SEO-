@@ -105,7 +105,7 @@ export function AiVisibilityOverviewTab({
       return [];
     }
 
-    const barColors = ["bg-indigo-500", "bg-blue-500", "bg-sky-500", "bg-purple-500", "bg-emerald-500"];
+    const barColors = ["bg-slate-700", "bg-slate-500", "bg-slate-400", "bg-slate-300", "bg-slate-200"];
     return sov.slice(0, 5).map((item, idx) => ({
       rank: idx + 1,
       domain: item.domain || item.label,
@@ -147,8 +147,8 @@ export function AiVisibilityOverviewTab({
           value={shareOfVoice}
           subtext="Presence compared to tracked competitors."
           icon={<PieChart size={16} />}
-          iconBgColor="bg-purple-50 text-purple-600"
-          colorScheme="purple"
+          iconBgColor="bg-slate-100 text-slate-900"
+          colorScheme="default"
           infoTooltip="Your proportion of total brand recommendations vs. rival domains."
         />
 
@@ -178,9 +178,14 @@ export function AiVisibilityOverviewTab({
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">AI Model Distribution</h3>
-              <span className="text-[11px] text-purple-700 font-semibold bg-purple-50 px-2 py-0.5 rounded-md">
-                Live Citations
-              </span>
+              <div className="flex gap-2 items-center">
+                <span className="text-[10px] text-slate-500 flex items-center gap-1 border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50">
+                  <Sparkles size={10} className="text-slate-400" /> Powered by Sarvam AI
+                </span>
+                <span className="text-[11px] text-slate-700 font-semibold bg-slate-100 px-2 py-0.5 rounded-md">
+                  Live Citations
+                </span>
+              </div>
             </div>
 
             {/* Donut graphic */}
@@ -226,7 +231,7 @@ export function AiVisibilityOverviewTab({
           <button
             type="button"
             onClick={onViewInsightsTab}
-            className="mt-5 w-full py-2.5 px-4 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition flex items-center justify-center gap-1.5"
+            className="mt-5 w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs font-bold hover:bg-slate-100 transition flex items-center justify-center gap-1.5"
           >
             <span>View AI Council Analysis</span>
             <ArrowRight size={13} />
@@ -246,7 +251,7 @@ export function AiVisibilityOverviewTab({
               <button
                 type="button"
                 onClick={onViewCompetitorsTab}
-                className="text-xs font-semibold text-purple-700 hover:text-purple-800 flex items-center gap-1"
+                className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1"
               >
                 <span>View All</span>
                 <ArrowRight size={13} />
@@ -257,7 +262,7 @@ export function AiVisibilityOverviewTab({
             <div className="mt-5 space-y-4">
               {topCompetitors.length === 0 ? (
                 <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
-                  <Bot className="h-6 w-6 text-purple-600 mx-auto" />
+                  <Bot className="h-6 w-6 text-slate-400 mx-auto" />
                   <p className="text-xs font-bold text-slate-800">No Share of Voice Measurements Yet</p>
                   <p className="text-[11px] text-slate-500">
                     Add competitors and run an AI Visibility sweep to measure brand mentions across LLMs.
@@ -267,11 +272,11 @@ export function AiVisibilityOverviewTab({
                 topCompetitors.map((comp) => (
                   <div key={comp.domain} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className={`flex items-center gap-1.5 ${comp.isYou ? "text-purple-700 font-bold" : "text-slate-700"}`}>
+                      <span className={`flex items-center gap-1.5 ${comp.isYou ? "text-slate-950 font-bold" : "text-slate-700"}`}>
                         <span>#{comp.rank}</span>
                         <span className="truncate">{comp.domain}</span>
                         {comp.isYou && (
-                          <span className="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.2 rounded font-bold">
+                          <span className="bg-slate-100 text-slate-900 text-[10px] px-1.5 py-0.2 rounded font-bold">
                             You
                           </span>
                         )}
@@ -293,7 +298,7 @@ export function AiVisibilityOverviewTab({
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
             <span>Aggregated across ChatGPT, Claude, and Gemini</span>
-            <span className="text-purple-700 font-semibold cursor-pointer" onClick={onViewCompetitorsTab}>
+            <span className="text-slate-900 font-semibold cursor-pointer hover:underline" onClick={onViewCompetitorsTab}>
               Deep Dive →
             </span>
           </div>

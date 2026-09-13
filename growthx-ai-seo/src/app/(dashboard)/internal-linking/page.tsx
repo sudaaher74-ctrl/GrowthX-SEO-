@@ -49,7 +49,7 @@ interface InternalLinkingResponse {
 }
 
 const LINK_TYPE_CONFIG: Record<string, { label: string; tone: string; bg: string }> = {
-  TOPICAL_AUTHORITY: { label: "Topical Authority", tone: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
+  TOPICAL_AUTHORITY: { label: "Topical Authority", tone: "text-slate-800", bg: "bg-slate-50 border-slate-200" },
   PILLAR_PAGE: { label: "Pillar Cluster Link", tone: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
   PRODUCT_CONVERSION: { label: "High-Intent Conversion", tone: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
   RELATED_GUIDE: { label: "Related Guide", tone: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
@@ -121,7 +121,7 @@ export default function InternalLinkingPage() {
       part.toLowerCase() === anchor.toLowerCase() ? (
         <span
           key={i}
-          className="bg-purple-100 text-purple-900 font-semibold px-1 py-0.5 rounded border border-purple-300 underline decoration-purple-500 decoration-2 underline-offset-2"
+          className="bg-slate-100 text-slate-950 font-semibold px-1 py-0.5 rounded border border-slate-300 underline decoration-slate-900 decoration-2 underline-offset-2"
         >
           {part}
         </span>
@@ -154,7 +154,7 @@ export default function InternalLinkingPage() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`relative pb-3 text-[13px] font-medium transition-colors flex items-center gap-1.5 ${
                     isActive
-                      ? "font-bold text-purple-700"
+                      ? "font-bold text-slate-800"
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
@@ -165,7 +165,7 @@ export default function InternalLinkingPage() {
                     </span>
                   )}
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-purple-600" />
+                    <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-slate-950" />
                   )}
                 </button>
               );
@@ -245,7 +245,7 @@ export default function InternalLinkingPage() {
                             linkMut.mutate();
                           }
                         }}
-                        className="pl-9 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                        className="pl-9 h-10 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950"
                       />
                     </div>
                   </div>
@@ -253,7 +253,7 @@ export default function InternalLinkingPage() {
                     type="button"
                     onClick={() => linkMut.mutate()}
                     disabled={!url.trim() || linkMut.isPending}
-                    className="h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    className="h-10 px-5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                   >
                     {linkMut.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
                     <span>Generate Linking Strategy</span>
@@ -266,8 +266,8 @@ export default function InternalLinkingPage() {
             {linkMut.isPending && (
               <div className="py-24 flex flex-col items-center justify-center space-y-4">
                 <div className="relative">
-                  <div className="absolute inset-0 rounded-full blur-xl bg-purple-500/20 animate-pulse" />
-                  <Network className="relative text-purple-600 animate-bounce" size={36} />
+                  <div className="absolute inset-0 rounded-full blur-xl bg-white/10 animate-pulse" />
+                  <Network className="relative text-slate-900 animate-bounce" size={36} />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-bold text-slate-900">Analyzing Topical Authority &amp; Page Graph...</p>
@@ -308,7 +308,7 @@ export default function InternalLinkingPage() {
 
                   <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">New Links Suggested</p>
-                    <p className="text-2xl font-black text-purple-600 mt-2">{singlePageData.suggestions.length}</p>
+                    <p className="text-2xl font-black text-slate-900 mt-2">{singlePageData.suggestions.length}</p>
                   </div>
 
                   <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
@@ -323,7 +323,7 @@ export default function InternalLinkingPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                     <div className="flex items-center gap-2">
-                      <Link2 size={16} className="text-purple-600" />
+                      <Link2 size={16} className="text-slate-900" />
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                         Recommended Internal Link Placements ({singlePageData.suggestions.length})
                       </h3>
@@ -339,7 +339,7 @@ export default function InternalLinkingPage() {
                       return (
                         <div
                           key={idx}
-                          className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs hover:border-purple-300 transition space-y-3"
+                          className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs hover:border-slate-300 transition space-y-3"
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -360,7 +360,7 @@ export default function InternalLinkingPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleStageSingleLink(s, idx)}
-                                  className="text-xs font-bold text-purple-600 hover:text-purple-800 transition flex items-center gap-1"
+                                  className="text-xs font-bold text-slate-900 hover:text-slate-900 transition flex items-center gap-1"
                                 >
                                   <Sparkles size={12} />
                                   <span>Stage to Fix Engine</span>
@@ -396,16 +396,16 @@ export default function InternalLinkingPage() {
                                 href={s.targetUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-[11px] text-purple-600 hover:underline flex items-center gap-1 truncate"
+                                className="text-[11px] text-slate-900 hover:underline flex items-center gap-1 truncate"
                               >
                                 <span className="truncate">{s.targetUrl}</span>
                                 <ExternalLink size={11} className="shrink-0" />
                               </a>
                             </div>
 
-                            <div className="p-3 bg-purple-50/40 rounded-xl border border-purple-100 space-y-1">
-                              <span className="text-[10.5px] font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1">
-                                <Zap size={11} className="text-purple-600" />
+                            <div className="p-3 bg-slate-50/40 rounded-xl border border-slate-200 space-y-1">
+                              <span className="text-[10.5px] font-bold text-slate-950 uppercase tracking-wider flex items-center gap-1">
+                                <Zap size={11} className="text-slate-900" />
                                 <span>Strategic Impact</span>
                               </span>
                               <p className="text-xs text-slate-700 leading-snug">

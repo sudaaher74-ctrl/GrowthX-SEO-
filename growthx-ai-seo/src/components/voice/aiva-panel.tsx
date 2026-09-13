@@ -52,7 +52,7 @@ export function AivaPanel() {
             >
               <button
                 onClick={toggleOpen}
-                className="group relative flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
+                className="group relative flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-black/5 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
                 aria-label="Open Nexa Voice Assistant"
               >
                 <div className="absolute inset-0 -m-1 rounded-full aiva-border-segment opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

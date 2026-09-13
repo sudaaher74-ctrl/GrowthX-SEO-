@@ -585,7 +585,7 @@ export function PagesTab({
                       {/* Type */}
                       {visibleColumns.type && (
                         <td className="p-3">
-                          <span className="rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 px-2 py-0.5 text-[11px] font-medium">
+                          <span className="rounded-md bg-slate-100 text-slate-800 dark:bg-slate-100 dark:text-slate-300 px-2 py-0.5 text-[11px] font-medium">
                             {pageType}
                           </span>
                         </td>

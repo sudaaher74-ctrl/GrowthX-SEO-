@@ -31,8 +31,8 @@ export function AiPipelineBanner({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Left: AI-Powered Recommendations */}
           <div className="lg:col-span-4 flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
-              <Target size={22} className="text-purple-600" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
+              <Target size={22} className="text-slate-900" />
             </div>
             <div>
               <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
@@ -119,8 +119,8 @@ export function AiPipelineBanner({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Left: Competitor Analysis Heading */}
           <div className="lg:col-span-4 flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
-              <FileText size={22} className="text-purple-600" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
+              <FileText size={22} className="text-slate-900" />
             </div>
             <div>
               <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
@@ -189,7 +189,7 @@ export function AiPipelineBanner({
             </p>
             {/* Progress line */}
             <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-              <div className="h-full w-full rounded-full bg-gradient-to-r from-purple-600 to-indigo-600" />
+              <div className="h-full w-full rounded-full bg-slate-950" />
             </div>
             <button
               type="button"
@@ -257,12 +257,12 @@ export function AiPipelineBanner({
 
             {/* AI Discussion Node (Centerpiece) */}
             <div className="flex flex-col items-center text-center z-10">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-sm ring-4 ring-indigo-50">
-                <MessageSquare size={20} className="fill-white/20" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm ring-4 ring-slate-100">
+                <Sparkles size={20} className="text-white" />
               </div>
-              <span className="mt-1.5 text-[11.5px] font-bold text-indigo-950">AI Discussion</span>
+              <span className="mt-1.5 text-[11.5px] font-bold text-slate-900">Sarvam AI</span>
               <span className="text-[9.5px] text-slate-400 max-w-[110px] leading-tight">
-                Models are sharing insights about your business
+                Orchestrating model simulation
               </span>
             </div>
 
@@ -310,7 +310,7 @@ export function AiPipelineBanner({
           </p>
           {/* Progress bar */}
           <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-            <div className="h-full w-full rounded-full bg-gradient-to-r from-purple-600 to-indigo-600" />
+            <div className="h-full w-full rounded-full bg-slate-950" />
           </div>
           <button
             type="button"

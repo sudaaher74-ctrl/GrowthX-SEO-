@@ -24,33 +24,22 @@ import {
 function DashboardMockup() {
   return (
     <div className="relative select-none w-full max-w-[510px] mx-auto lg:mr-4">
-      {/* Top-Left Floating Card: Website Audit */}
-      <div className="absolute -left-2 sm:-left-5 -top-4 z-20 bg-white rounded-2xl shadow-xl border border-slate-100/90 px-3.5 py-2.5 flex items-center gap-3 w-52 sm:w-56 animate-float-slow">
-        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-          <FileText size={18} className="text-blue-600" />
+      {/* Top Floating Badge: SEO Health Score — completely above the card */}
+      <div className="absolute bottom-[calc(100%+16px)] left-6 sm:left-10 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
+        <div className="flex items-center gap-1.5 mb-1 text-slate-500">
+          <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <Sparkles size={11} />
+          </div>
+          <p className="text-[10px] font-bold text-slate-800">SEO Health Score</p>
         </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold text-slate-900 leading-tight truncate">
-            Find what&apos;s holding you back
-          </p>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-            Website Audit
-          </p>
-        </div>
-      </div>
-
-      {/* Top-Right Floating Card: Competitor Intelligence */}
-      <div className="absolute -right-2 sm:-right-5 -top-4 z-20 bg-white rounded-2xl shadow-xl border border-slate-100/90 px-3.5 py-2.5 flex items-center gap-3 w-56 sm:w-60 animate-float">
-        <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
-          <BarChart3 size={18} className="text-teal-600" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold text-slate-900 leading-tight">
-            Discover opportunities your competitors cover
-          </p>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-            Competitor Intelligence
-          </p>
+        <div className="flex items-end justify-between mt-0.5">
+          <div>
+            <p className="text-xl font-black text-slate-900 leading-none">78</p>
+            <p className="text-[9px] font-bold text-emerald-600 mt-0.5">↑ 22%</p>
+          </div>
+          <svg className="w-10 h-5 text-emerald-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 16 Q 14 6, 26 12 T 48 3" />
+          </svg>
         </div>
       </div>
 
@@ -254,33 +243,22 @@ function DashboardMockup() {
         </div>
       </div>
 
-      {/* Bottom-Left Floating Card: AI Visibility */}
-      <div className="absolute -left-2 sm:-left-5 -bottom-4 z-20 bg-white rounded-2xl shadow-xl border border-slate-100/90 px-3.5 py-2.5 flex items-center gap-3 w-52 sm:w-56 animate-float-slow">
-        <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-          <Sparkles size={18} className="text-violet-600" />
+      {/* Bottom Floating Badge: AI Visibility — completely below the card */}
+      <div className="absolute top-[calc(100%+16px)] right-6 sm:right-10 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-40 animate-float-slow hidden sm:block">
+        <div className="flex items-center gap-1.5 mb-1 text-slate-500">
+          <div className="w-5 h-5 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
+            <Sparkles size={11} />
+          </div>
+          <p className="text-[10px] font-bold text-slate-800">AI Visibility</p>
         </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold text-slate-900 leading-tight">
-            See how AI platforms perceive your brand
-          </p>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-            AI Visibility
-          </p>
-        </div>
-      </div>
-
-      {/* Bottom-Right Floating Card: Fix Engine */}
-      <div className="absolute -right-2 sm:-right-5 -bottom-4 z-20 bg-white rounded-2xl shadow-xl border border-slate-100/90 px-3.5 py-2.5 flex items-center gap-3 w-56 sm:w-60 animate-float">
-        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-          <Settings size={18} className="text-emerald-600" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold text-slate-900 leading-tight">
-            Automatically implement approved improvements
-          </p>
-          <p className="text-[10px] font-medium text-slate-400 mt-0.5">
-            Fix Engine
-          </p>
+        <div className="flex items-end justify-between mt-0.5">
+          <div>
+            <p className="text-xl font-black text-slate-900 leading-none">52</p>
+            <p className="text-[9px] font-bold text-violet-600 mt-0.5">↑ 28%</p>
+          </div>
+          <svg className="w-10 h-5 text-violet-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 17 Q 14 10, 26 13 T 48 4" />
+          </svg>
         </div>
       </div>
 
@@ -322,7 +300,7 @@ export function HeroSection() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200/80 text-violet-700 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full">
               <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
-              AI-Powered SEO &amp; GEO Automation
+              AI Powered SEO &amp; GEO Automation
             </div>
 
             {/* Headline */}

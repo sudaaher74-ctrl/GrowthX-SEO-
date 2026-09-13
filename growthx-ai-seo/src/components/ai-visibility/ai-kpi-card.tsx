@@ -12,7 +12,7 @@ export interface AiKpiCardProps {
   subtext: string;
   icon: React.ReactNode;
   iconBgColor?: string;
-  colorScheme?: "emerald" | "blue" | "purple" | "orange" | "yellow" | "coral";
+  colorScheme?: "emerald" | "blue" | "purple" | "orange" | "yellow" | "coral" | "default";
   infoTooltip?: string;
   className?: string;
 }
@@ -48,10 +48,18 @@ export function AiKpiCard({
       strokeD: "M0,32 C40,24 80,30 120,20 C160,10 200,28 240,22 C280,16 320,10 360,18 C390,24 400,16 420,20",
     },
     purple: {
-      stroke: "#8b5cf6",
-      stopStart: "#8b5cf6",
-      stopEnd: "#a78bfa",
+      stroke: "#0f172a",
+      stopStart: "#0f172a",
+      stopEnd: "#475569",
       fillId: "fill-purple",
+      d: "M0,30 C30,34 70,18 110,24 C150,30 180,16 220,26 C260,34 300,20 340,22 C370,24 390,18 420,24 L420,50 L0,50 Z",
+      strokeD: "M0,30 C30,34 70,18 110,24 C150,30 180,16 220,26 C260,34 300,20 340,22 C370,24 390,18 420,24",
+    },
+    default: {
+      stroke: "#0f172a",
+      stopStart: "#0f172a",
+      stopEnd: "#475569",
+      fillId: "fill-default",
       d: "M0,30 C30,34 70,18 110,24 C150,30 180,16 220,26 C260,34 300,20 340,22 C370,24 390,18 420,24 L420,50 L0,50 Z",
       strokeD: "M0,30 C30,34 70,18 110,24 C150,30 180,16 220,26 C260,34 300,20 340,22 C370,24 390,18 420,24",
     },

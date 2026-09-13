@@ -148,7 +148,7 @@ function OverviewContent({
     {
       label: "Direction requests",
       icon: Navigation,
-      tint: "text-purple-600",
+      tint: "text-slate-900",
       value: totals?.directionRequests ?? null,
     },
     { label: "Website clicks", icon: Globe, tint: "text-amber-600", value: totals?.websiteClicks ?? null },
@@ -601,7 +601,7 @@ function OverviewContent({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <Sparkles size={14} className="text-purple-600" />
+              <Sparkles size={14} className="text-slate-900" />
               <h3 className="text-sm font-bold text-brand-950">AI Recommendations</h3>
             </div>
             <button

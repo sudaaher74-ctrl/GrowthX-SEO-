@@ -185,7 +185,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
 
         <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
           <div className="flex items-center gap-1.5 text-xs font-medium text-brand-500">
-            <Clock size={14} className="text-purple-600" />
+            <Clock size={14} className="text-slate-900" />
             <span>Awaiting Reply</span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -328,15 +328,15 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                       </p>
                     </div>
                   ) : (
-                    <div className="p-3.5 rounded-xl bg-purple-50/40 border border-purple-200/60 space-y-2.5">
+                    <div className="p-3.5 rounded-xl bg-slate-50/40 border border-slate-200 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
-                          <Sparkles size={13} className="text-purple-600" />
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-950">
+                          <Sparkles size={13} className="text-slate-900" />
                           <span>AI Smart Reply</span>
                         </div>
 
                         {/* Tone Switcher */}
-                        <div className="flex rounded-md bg-white border border-purple-200 p-0.5 text-[10px] font-semibold">
+                        <div className="flex rounded-md bg-white border border-slate-200 p-0.5 text-[10px] font-semibold">
                           {(["PROFESSIONAL", "WARM", "DE_ESCALATION"] as const).map((tone) => (
                             <button
                               key={tone}
@@ -344,7 +344,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                               onClick={() => setActiveTone(tone)}
                               className={cn(
                                 "px-2 py-0.5 rounded transition",
-                                activeTone === tone ? "bg-purple-700 text-white" : "text-brand-600 hover:text-brand-950",
+                                activeTone === tone ? "bg-black text-white" : "text-brand-600 hover:text-brand-950",
                               )}
                             >
                               {tone === "PROFESSIONAL" ? "Professional" : tone === "WARM" ? "Warm" : "De-escalate"}
@@ -360,7 +360,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                         onChange={(e) =>
                           setEditingReply((prev) => ({ ...prev, [review.id]: e.target.value }))
                         }
-                        className="w-full p-2.5 text-xs rounded-lg border border-purple-200 bg-white focus:outline-none focus:ring-1 focus:ring-purple-700"
+                        className="w-full p-2.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-slate-700"
                       />
 
                       <div className="flex items-center justify-between pt-1">
@@ -368,7 +368,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                           type="button"
                           onClick={() => handleDraft(review.id)}
                           disabled={draftMutation.isPending}
-                          className="text-xs font-semibold text-purple-700 hover:text-purple-800 flex items-center gap-1 transition"
+                          className="text-xs font-semibold text-slate-800 hover:text-slate-900 flex items-center gap-1 transition"
                         >
                           <Sparkles size={12} className={draftMutation.isPending ? "animate-spin" : ""} />
                           <span>{draftMutation.isPending ? "Generating draft…" : "Generate AI Draft"}</span>

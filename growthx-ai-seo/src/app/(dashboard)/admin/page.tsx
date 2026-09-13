@@ -426,13 +426,13 @@ export default function AdminPage() {
                 <div className="p-4 rounded-xl border border-brand-200/80 dark:border-brand-800/80 bg-brand-50/30 dark:bg-brand-900/10 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
-                      <Server size={15} className="text-purple-500" />
+                      <Server size={15} className="text-slate-500" />
                       Redis / BullMQ
                     </span>
                     <Pill tone={workersPaused ? "warn" : "good"}>{workersPaused ? "PAUSED" : "CONNECTED"}</Pill>
                   </div>
                   <p className="text-xs text-[var(--text-muted)]">Crawl-jobs and page-fetch event loops active.</p>
-                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold block pt-1">
+                  <span className="text-[11px] font-mono text-slate-900 dark:text-slate-400 font-semibold block pt-1">
                     Worker Queues: 2 Active
                   </span>
                 </div>
@@ -685,7 +685,7 @@ export default function AdminPage() {
                     <Tr key={q.name}>
                       <Td>
                         <div className="flex items-center gap-2 font-mono text-xs font-semibold text-brand-950 dark:text-brand-100">
-                          <Server size={13} className="text-purple-500" />
+                          <Server size={13} className="text-slate-500" />
                           <span>{q.name}</span>
                         </div>
                       </Td>
@@ -814,7 +814,7 @@ export default function AdminPage() {
                       <Tr key={creator.id}>
                         <Td>
                           <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-pink-500 to-black flex items-center justify-center text-white font-bold text-xs">
                               {creator.name.slice(0, 2).toUpperCase()}
                             </div>
                             <div>

@@ -650,7 +650,7 @@ export default function UnifiedDashboardPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-semibold text-brand-950 dark:text-brand-100 flex items-center gap-1.5">
-                <TrendingUp size={14} className="text-purple-600 dark:text-purple-400" />
+                <TrendingUp size={14} className="text-slate-900 dark:text-slate-400" />
                 30-Day Action Roadmap
               </span>
               <Pill tone="good">ACTIVE PLAN</Pill>
@@ -665,7 +665,7 @@ export default function UnifiedDashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[var(--text-muted)]">Execution Cadence:</span>
-                <span className="font-semibold text-purple-600 dark:text-purple-400">Weekly Milestones</span>
+                <span className="font-semibold text-slate-900 dark:text-slate-400">Weekly Milestones</span>
               </div>
             </div>
           </div>

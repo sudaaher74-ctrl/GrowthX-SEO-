@@ -143,8 +143,8 @@ function AiVisibilityClient() {
       {/* ── HEADER SECTION ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100/70 text-purple-600 border border-purple-200/60 shadow-2xs">
-            <Sparkles size={20} className="text-purple-600" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100/70 text-slate-900 border border-slate-200 shadow-2xs">
+            <Sparkles size={20} className="text-slate-900" />
           </div>
           <div>
             <h1 className="text-[22px] font-extrabold tracking-tight text-slate-900 leading-none">
@@ -168,9 +168,9 @@ function AiVisibilityClient() {
             <button
               type="button"
               onClick={() => setActiveTab("sandbox")}
-              className="flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/80 px-3 py-2 text-[12px] font-bold text-purple-700 shadow-2xs hover:bg-purple-100 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-[12px] font-bold text-slate-800 shadow-2xs hover:bg-slate-100 transition-colors"
             >
-              <Bot size={14} className="text-purple-600" />
+              <Bot size={14} className="text-slate-900" />
               <span>Launch GEO Sandbox</span>
             </button>
           )}
@@ -195,7 +195,7 @@ function AiVisibilityClient() {
                 type="button"
                 onClick={handleRunSweep}
                 disabled={sweep.isPending || !projectId}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-60 active:scale-[0.98]"
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-black hover:to-slate-900 transition-all disabled:opacity-60 active:scale-[0.98]"
               >
                 {sweep.isPending ? (
                   <>
@@ -217,7 +217,7 @@ function AiVisibilityClient() {
                 onClick={() => setShowAddQueryModal(true)}
                 className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-[12px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
               >
-                <Plus size={14} className="text-purple-600" />
+                <Plus size={14} className="text-slate-900" />
                 <span>Add Brand Query</span>
               </button>
 
@@ -225,7 +225,7 @@ function AiVisibilityClient() {
                 type="button"
                 onClick={handleRunSweep}
                 disabled={sweep.isPending || !projectId}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-60 active:scale-[0.98]"
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:from-black hover:to-slate-900 transition-all disabled:opacity-60 active:scale-[0.98]"
               >
                 {sweep.isPending ? (
                   <>
@@ -289,13 +289,13 @@ function AiVisibilityClient() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative pb-3 text-[13px] font-medium transition-colors ${
                   isActive
-                    ? "font-bold text-purple-700"
+                    ? "font-bold text-slate-800"
                     : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 {tab.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-purple-600" />
+                  <span className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-slate-950" />
                 )}
               </button>
             );
@@ -308,7 +308,7 @@ function AiVisibilityClient() {
             onClick={() => setShowAddCompModal(true)}
             className="mb-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11.5px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
           >
-            <Plus size={12} className="text-purple-600" />
+            <Plus size={12} className="text-slate-900" />
             <span>Add Competitor</span>
           </button>
         )}
@@ -376,7 +376,7 @@ function AiVisibilityClient() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-purple-600" />
+                <Sparkles size={16} className="text-slate-900" />
                 <h3 className="text-[15px] font-bold text-slate-900">Add Brand Query to Monitor</h3>
               </div>
               <button
@@ -398,7 +398,7 @@ function AiVisibilityClient() {
                   value={newQueryText}
                   onChange={(e) => setNewQueryText(e.target.value)}
                   placeholder="e.g., best AI SEO software for agencies"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/30 focus:border-purple-600"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                   autoFocus
                 />
                 <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
@@ -417,7 +417,7 @@ function AiVisibilityClient() {
                 <button
                   type="submit"
                   disabled={addPrompts.isPending || !newQueryText.trim()}
-                  className="rounded-xl bg-purple-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
                 >
                   {addPrompts.isPending ? "Adding..." : "Add & Monitor"}
                 </button>
@@ -433,7 +433,7 @@ function AiVisibilityClient() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <Building2 size={16} className="text-purple-600" />
+                <Building2 size={16} className="text-slate-900" />
                 <h3 className="text-[15px] font-bold text-slate-900">Add Competitor Domain</h3>
               </div>
               <button
@@ -455,7 +455,7 @@ function AiVisibilityClient() {
                   value={newCompDomain}
                   onChange={(e) => setNewCompDomain(e.target.value)}
                   placeholder="e.g., semrush.com or ahrefs.com"
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/30 focus:border-purple-600"
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900"
                   autoFocus
                 />
                 <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
@@ -474,7 +474,7 @@ function AiVisibilityClient() {
                 <button
                   type="submit"
                   disabled={addCompetitor.isPending || !newCompDomain.trim()}
-                  className="rounded-xl bg-purple-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  className="rounded-xl bg-slate-950 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
                 >
                   {addCompetitor.isPending ? "Adding..." : "Add Competitor"}
                 </button>

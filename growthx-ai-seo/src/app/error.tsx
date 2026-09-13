@@ -44,7 +44,7 @@ export default function RootError({
           <button
             type="button"
             onClick={() => unstable_retry()}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-purple-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-purple-700"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-black"
           >
             <RotateCw size={13} />
             Try again

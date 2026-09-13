@@ -326,7 +326,7 @@ export function PerformanceTab({
                 <span className="text-slate-600 dark:text-slate-400">LCP</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-purple-600" />
+                <span className="h-2 w-2 rounded-full bg-slate-950" />
                 <span className="text-slate-600 dark:text-slate-400">INP (ms)</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -425,7 +425,7 @@ export function PerformanceTab({
                     {trendPoints[hoveredTrendIndex].date}
                   </p>
                   <p className="text-blue-400">● LCP: {trendPoints[hoveredTrendIndex].lcp}s</p>
-                  <p className="text-purple-400">● INP: {trendPoints[hoveredTrendIndex].inp}ms</p>
+                  <p className="text-slate-400">● INP: {trendPoints[hoveredTrendIndex].inp}ms</p>
                   <p className="text-emerald-400">● CLS: {trendPoints[hoveredTrendIndex].cls}</p>
                 </div>
               )}

@@ -173,7 +173,7 @@ export function TechnicalSeoTab({
     const lower = name.toLowerCase();
     if (lower.includes("crawl") || lower.includes("index")) return <Globe size={13} className="text-blue-500" />;
     if (lower.includes("speed") || lower.includes("perf")) return <Zap size={13} className="text-amber-500" />;
-    if (lower.includes("mobile")) return <Smartphone size={13} className="text-purple-500" />;
+    if (lower.includes("mobile")) return <Smartphone size={13} className="text-slate-500" />;
     if (lower.includes("structure") || lower.includes("schema")) return <FileCode size={13} className="text-emerald-500" />;
     if (lower.includes("security")) return <Shield size={13} className="text-rose-500" />;
     if (lower.includes("redirect")) return <ArrowRightLeft size={13} className="text-cyan-500" />;

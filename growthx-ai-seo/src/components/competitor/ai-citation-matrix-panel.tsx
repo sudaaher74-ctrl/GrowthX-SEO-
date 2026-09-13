@@ -266,15 +266,15 @@ export function AiCitationMatrixPanel({
           </div>
         </div>
 
-        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-2.5 border-l-4 border-l-purple-500">
-          <div className="flex items-center gap-2 text-purple-700 font-bold text-xs uppercase tracking-wider">
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-2xs space-y-2.5 border-l-4 border-l-slate-950">
+          <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wider">
             <Zap size={15} />
             <span>Pillar 2: Entity Grounding & Knowledge Graph</span>
           </div>
           <p className="text-xs text-brand-600 leading-relaxed">
             LLMs cross-reference brand authority via Schema.org JSON-LD and sameAs entity links (Wikidata, LinkedIn, Crunchbase). Unlinked brands get replaced by recognized competitors in ChatGPT Search.
           </p>
-          <div className="rounded-lg bg-purple-50/60 border border-purple-200 p-2.5 text-[11px] font-mono text-purple-900 font-medium">
+          <div className="rounded-lg bg-slate-50/60 border border-slate-200 p-2.5 text-[11px] font-mono text-slate-950 font-medium">
             Target: Schema Organization + sameAs Wikidata & LinkedIn links
           </div>
         </div>

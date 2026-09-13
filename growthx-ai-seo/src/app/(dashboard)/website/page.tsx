@@ -277,7 +277,7 @@ function WebsiteAuditClient() {
 
               <Link
                 href="/fix-engine"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-purple-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-colors"
               >
                 <Zap size={13} />
                 <span>View in Fix Plan →</span>
