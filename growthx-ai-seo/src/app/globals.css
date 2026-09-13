@@ -92,6 +92,15 @@
   --radius-lg: 0.875rem; /* 14px */
   --radius-xl: 1rem; /* 16px */
   --radius-2xl: 1.5rem;
+
+  /* Card elevation.
+     These live in `@theme` rather than only in `:root` so that `shadow-card`
+     and `shadow-card-hover` exist as real utilities. They were declared in a
+     `tailwind.config.ts` that Tailwind v4 never loaded, so every use of them
+     rendered no shadow at all. `:root` aliases them below, which keeps the
+     `.card` class and the utility on one definition instead of two. */
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.02), 0 1px 4px 0 rgba(0, 0, 0, 0.015);
+  --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
 }
 
 /* ───── CSS Custom Properties for theming ───── */
@@ -129,8 +138,8 @@
   /* Card */
   --card-bg: #ffffff;
   --card-border: #e5e7eb;
-  --card-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02), 0 1px 4px 0 rgba(0, 0, 0, 0.015);
-  --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+  --card-shadow: var(--shadow-card);
+  --card-shadow-hover: var(--shadow-card-hover);
 
   /* Scrollbar */
   --scrollbar-thumb: #d4d4d8;

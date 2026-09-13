@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Target, RefreshCw, Check, X, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useWorkspace } from "@/hooks/use-growthx";
+import { PageHeader } from "@/components/ui/page-header";
 
 const GAP_TYPES: Record<string, { label: string; color: string; bg: string; description: string }> = {
   MARKET_GAP: { label: "Market Gap", color: "var(--color-success-500)", bg: "#10b98118", description: "No competitor is doing this — wide open opportunity" },
@@ -44,26 +45,23 @@ export default function GapsPage() {
   return (
     <div className="min-h-screen bg-brand-50">
       <div className="border-b bg-white px-6 py-5" style={{ borderColor: "var(--color-brand-100)" }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f59e0b18]">
-              <Target size={17} className="text-warning-500" />
-            </div>
-            <div>
-              <h1 className="text-[15px] font-semibold text-brand-950">Content Gap Analysis</h1>
-              <p className="text-[12px] text-brand-500">What competitors are doing, what you&apos;re missing, and where to differentiate.</p>
-            </div>
-          </div>
-          <button
-            onClick={() => analyzeMut.mutate()}
-            disabled={analyzeMut.isPending}
-            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100 disabled:opacity-60"
-            style={{ borderColor: "var(--color-brand-200)" }}
-          >
-            {analyzeMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            {analyzeMut.isPending ? "Analyzing…" : "Re-analyze Gaps"}
-          </button>
-        </div>
+        <PageHeader
+          title="Content Gap Analysis"
+          description="What competitors are doing, what you're missing, and where to differentiate."
+          icon={<Target size={17} />}
+          tone="warning"
+          actions={
+            <button
+              onClick={() => analyzeMut.mutate()}
+              disabled={analyzeMut.isPending}
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100 disabled:opacity-60"
+              style={{ borderColor: "var(--color-brand-200)" }}
+            >
+              {analyzeMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {analyzeMut.isPending ? "Analyzing…" : "Re-analyze Gaps"}
+            </button>
+          }
+        />
       </div>
 
       <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">
