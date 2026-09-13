@@ -580,6 +580,40 @@ export interface CrawlIssue {
   page?: { url: string; pageType?: string; statusCode?: number } | null;
 }
 
+/**
+ * Everything the fix modal shows, all of it grounded in stored data.
+ *
+ * Mirrors `FixPreview` in the crawler's `fix-preview.util.ts`. Nulls are
+ * meaningful: a null `location.path` means no repository could confirm the
+ * file, and a null `validatorUrl` means this fix type has no public checker.
+ */
+export interface FixPreviewResult {
+  fixType: string;
+  issueType: string;
+  targetUrl: string;
+  before: {
+    value: string | null;
+    existingSchemas: Array<{ schemaType: string; isValid: boolean; rawJson: string | null }>;
+    note: string;
+  };
+  after: {
+    proposedValue: string;
+    codeSnippet: string;
+    source: "model" | "heuristic";
+    model?: string;
+  };
+  location: {
+    path: string | null;
+    source: "repository" | "derived";
+    candidates: string[];
+    note: string;
+  };
+  /** PAGE changes what visitors see; SERP the search listing; METADATA neither. */
+  surface: "PAGE" | "SERP" | "METADATA";
+  surfaceNote: string;
+  validatorUrl: string | null;
+}
+
 export interface FixPatch {
   fixType: string;
   targetUrl: string;
@@ -3062,6 +3096,8 @@ export const api = {
   analyzeIssue: (issueId: string) => post<Record<string, string | number>>(`/api/issues/${issueId}/analyze`, {}),
   autoFixIssue: (issueId: string) =>
     post<FixPatch>(`/api/issues/${issueId}/autofix`, {}),
+  fixPreview: (issueId: string) =>
+    post<FixPreviewResult>(`/api/issues/${issueId}/fix-preview`, {}),
   approveFix: (issueId: string) => post(`/api/issues/${issueId}/approve`, {}),
 
   // ── AI visibility

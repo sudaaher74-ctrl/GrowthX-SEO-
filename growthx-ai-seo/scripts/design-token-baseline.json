@@ -146,7 +146,6 @@
   "components/ui/truthful-state.tsx": 11,
   "components/voice/aiva-orb.tsx": 1,
   "components/voice/aiva-panel.tsx": 32,
-  "components/website/auto-fix-modal.tsx": 34,
   "components/website/cwv-benchmark-bar.tsx": 51,
   "components/website/donut-chart.tsx": 14,
   "components/website/gauge-score.tsx": 40,
