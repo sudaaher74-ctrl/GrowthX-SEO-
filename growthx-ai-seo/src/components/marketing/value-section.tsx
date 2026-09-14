@@ -123,31 +123,33 @@ export function ValueSection() {
           <div className="space-y-6">
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-violet-600 mb-2">
-                From Data to Done
+                Under the Hood (For the Technical Buyer)
               </p>
               {/* Title without dash */}
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">
-                From analysis to action<br />
-                all in one platform.
+                Enterprise-grade<br />
+                crawler &amp; verification.
               </h2>
             </div>
             <p className="text-base text-slate-600 leading-relaxed">
-              GrowthX analyzes, prioritizes and executes the work so you can focus on what matters most for your business.
+              Our live crawler engine verifies every issue and seals it with a CERT-GX cryptographic checksum. You know exactly what changed, verified directly against HTTP status codes and live DOM state.
             </p>
 
-            {/* Metrics */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {METRICS.map((m) => (
-                <div key={m.value} className="bg-white rounded-2xl border border-slate-200/80 p-4 text-center shadow-xs">
-                  <p className="text-2xl sm:text-3xl font-black text-slate-900">{m.value}</p>
-                  <p className="text-xs font-bold text-slate-700 mt-1 leading-tight">{m.label}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{m.sublabel}</p>
-                </div>
-              ))}
+            {/* Features (replacing metrics) */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+                <p className="text-[13px] font-bold text-slate-900 mb-1">AST Schema Inspection</p>
+                <p className="text-[12px] text-slate-600 leading-relaxed">
+                  We don&apos;t just look for schema tags; we validate your structured JSON-LD syntax (e.g. Organization, WebSite) to ensure search engines can parse it perfectly.
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+                <p className="text-[13px] font-bold text-slate-900 mb-1">Geo-Targeted Prompt Sweeps</p>
+                <p className="text-[12px] text-slate-600 leading-relaxed">
+                  Our AI Visibility engine runs localized prompt checks to see how AI assistants respond to queries in different cities and metros, helping you win local markets.
+                </p>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-400">
-              * Figures are illustrative examples — not verified customer data.
-            </p>
 
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-4 pt-2">

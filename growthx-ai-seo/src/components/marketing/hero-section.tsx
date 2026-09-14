@@ -306,17 +306,17 @@ export function HeroSection() {
             {/* Headline */}
             <div>
               <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold text-slate-900 leading-[1.1] tracking-tight">
-                Turn Search and<br />
-                AI Visibility into
+                Everything you need to<br />
+                grow in the
               </h1>
               <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold leading-[1.1] tracking-tight bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent mt-1">
-                Real Business Growth
+                age of AI search.
               </h1>
             </div>
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
-              GrowthX analyzes your website, competitors, and AI platforms, creates a prioritized 30-day plan, and automatically implements the improvements for you.
+              GrowthX brings together technical SEO, competitor intelligence, and AI visibility—and turns insights into automatic execution.
             </p>
 
             {/* CTAs */}

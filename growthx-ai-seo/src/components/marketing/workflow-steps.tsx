@@ -30,7 +30,7 @@ const PIPELINE_STEPS = [
   {
     num: "01",
     title: "Enter your website",
-    description: "Simply enter your website URL and let GrowthX analyze it in minutes.",
+    description: "Simply enter your website URL and let GrowthX analyze your digital footprint in minutes.",
     icon: Link2,
     iconBg: "bg-violet-100/70 text-violet-600",
   },
@@ -38,7 +38,7 @@ const PIPELINE_STEPS = [
     num: "02",
     title: "Get AI-powered insights",
     description:
-      "We analyze your website, competitors and AI visibility to find the biggest opportunities.",
+      "Our engine analyzes your website health, competitor landscape, and brand visibility across modern AI platforms (ChatGPT, Claude, Gemini, etc.).",
     icon: Search,
     iconBg: "bg-sky-100/70 text-sky-600",
   },
@@ -46,7 +46,7 @@ const PIPELINE_STEPS = [
     num: "03",
     title: "Receive your 30-day plan",
     description:
-      "Get a prioritized plan with clear actions, expected impact and automatic execution options.",
+      "Get a prioritized roadmap with clear actions, expected impact, and automatic execution options.",
     icon: ListChecks,
     iconBg: "bg-emerald-100/70 text-emerald-600",
   },
@@ -54,7 +54,7 @@ const PIPELINE_STEPS = [
     num: "04",
     title: "Watch your growth",
     description:
-      "Track improvements, see real results and stay ahead in search and AI platforms.",
+      "Track live improvements, see real results, and stay ahead in both traditional search and next-generation AI platforms.",
     icon: TrendingUp,
     iconBg: "bg-indigo-100/70 text-indigo-600",
   },

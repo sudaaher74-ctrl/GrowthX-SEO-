@@ -9,10 +9,21 @@ const FEATURES = [
     iconColor: "text-blue-600",
     borderColor: "hover:border-blue-200",
     accentColor: "text-blue-600",
-    title: "Website Audit",
+    title: "Technical Website Audit",
     description:
-      "Detect technical, on-page and performance issues automatically. Know exactly what's holding your site back.",
+      "Detect technical, on-page, and performance issues automatically. We use live headless crawlers (simulating Googlebot) to validate everything from Server Response Time (TTFB) to JSON-LD schema syntax, canonical loops, and title hierarchies. Know exactly what's holding your site back.",
     cta: "Find what's holding you back →",
+  },
+  {
+    icon: Sparkles,
+    iconBg: "bg-violet-50",
+    iconColor: "text-violet-600",
+    borderColor: "hover:border-violet-200",
+    accentColor: "text-violet-600",
+    title: "AI Visibility Tracking",
+    description:
+      "Search is changing. Track exactly how Large Language Models (like ChatGPT, Claude, and Gemini) perceive your brand. We monitor your brand's citations, measure geographical brand presence, and alert you when AI assistants recommend competitors over you.",
+    cta: "Be visible in AI searches →",
   },
   {
     icon: Trophy,
@@ -22,19 +33,8 @@ const FEATURES = [
     accentColor: "text-amber-600",
     title: "Competitor Intelligence",
     description:
-      "See what your competitors are doing, find gaps and uncover new opportunities before they do.",
+      "See what your competitors are doing, find content gaps, and uncover new ranking opportunities before they do.",
     cta: "Stay ahead of your competition →",
-  },
-  {
-    icon: Sparkles,
-    iconBg: "bg-violet-50",
-    iconColor: "text-violet-600",
-    borderColor: "hover:border-violet-200",
-    accentColor: "text-violet-600",
-    title: "AI Visibility",
-    description:
-      "Track how ChatGPT, Claude and Gemini perceive your brand and where you can improve your presence.",
-    cta: "Be visible in AI searches →",
   },
   {
     icon: Wrench,
@@ -42,9 +42,9 @@ const FEATURES = [
     iconColor: "text-emerald-600",
     borderColor: "hover:border-emerald-200",
     accentColor: "text-emerald-600",
-    title: "Fix Engine",
+    title: "The Fix Engine",
     description:
-      "Get a prioritized 30-day plan and automatically implement the approved improvements for you.",
+      "Don't just find problems—fix them. Get a prioritized 30-day plan. Once you approve, our engine automatically verifies the improvements and generates a cryptographic Verification Certificate to guarantee the defect was resolved.",
     cta: "Turn insights into real growth →",
   },
 ];
@@ -56,11 +56,11 @@ export function FeatureCards() {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-bold uppercase tracking-widest text-violet-600 mb-3">
-            How GrowthX Works
+            Core Capabilities
           </p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight">
-            Everything you need to grow<br />
-            in the age of AI search
+            A clear plan.<br />
+            Measurable growth.
           </h2>
           <p className="mt-4 text-lg text-slate-500 leading-relaxed">
             GrowthX brings together SEO, competitor intelligence and AI visibility — and turns insights into execution.
