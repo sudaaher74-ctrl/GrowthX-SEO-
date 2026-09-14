@@ -19,6 +19,7 @@ import {
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
+import { computeCrawlSummary } from "@/lib/crawl-summary";
 
 interface PagesTabProps {
   crawl: CrawlJob | null;
@@ -100,23 +101,48 @@ export function PagesTab({
       ? currentRun.pagesCrawled - lastRun.pagesCrawled
       : null;
 
-  const successfulCount = pages.filter((p) => p.statusCode >= 200 && p.statusCode < 300).length;
-  const redirectedCount = pages.filter((p) => p.statusCode >= 300 && p.statusCode < 400).length;
-  const blockedCount = pages.filter((p) => p.statusCode >= 400).length;
+  // Every count on this tab comes from the one shared summary, so the Pages
+  // tab and the Technical SEO tab can no longer disagree about the same crawl.
+  const summary = useMemo(
+    () =>
+      computeCrawlSummary({
+        pages: pages.map((p) => ({
+          url: p.url,
+          statusCode: p.statusCode ?? null,
+          indexability: p.indexability ?? null,
+          blockedSuspected: p.blockedSuspected ?? null,
+          jsRequired: p.jsRequired ?? null,
+          discoverySource: p.discoverySource ?? null,
+          fetchFailed: p.statusCode == null || p.statusCode === 0,
+        })),
+        issues: issues.map((i) => ({
+          issueType: i.issueType,
+          severity: i.severity,
+          confidence: (i as { confidence?: string }).confidence ?? null,
+          affectedUrl: i.affectedUrl ?? null,
+        })),
+        performance: pages.map((p) => ({
+          lcpMs: p.performance?.lcpMs ?? null,
+          inpMs: p.performance?.inpMs ?? null,
+          clsScore: p.performance?.clsScore ?? null,
+        })),
+      }),
+    [pages, issues]
+  );
 
-  // 2. Indexable Pages card metrics
-  const nonIndexablePages = useMemo(() => {
-    return pages.filter(
-      (p) =>
-        p.statusCode >= 400 ||
-        issues.some(
-          (i) => i.affectedUrl === p.url && (i.issueType || "").toUpperCase().includes("NOINDEX")
-        )
-    );
-  }, [pages, issues]);
+  const successfulCount = summary.successful;
+  const redirectedCount = summary.redirected;
+  // Errored and blocked are kept apart: a page a WAF challenged is not the
+  // same claim as a page that 404s, and merging them is how "0 blocked" and
+  // "1 Blocked" appeared on one screen.
+  const erroredCount = summary.errored;
+  const blockedCount = summary.blocked;
+  const unreachableCount = summary.unreachable;
 
-  const indexableCount = Math.max(0, pages.length - nonIndexablePages.length);
-  const indexablePct = pages.length > 0 ? Math.round((indexableCount / pages.length) * 100) : 0;
+  const indexableCount = summary.indexable;
+  const nonIndexableCount = summary.nonIndexable;
+  const unknownIndexabilityCount = summary.indexabilityUnknown;
+  const indexablePct = summary.indexablePercent;
 
   // 3. Page Type Distribution Donut
   const pageTypeCounts = useMemo(() => {
@@ -203,11 +229,7 @@ export function PagesTab({
     }
 
     if (selectedIndexability !== "ALL") {
-      if (selectedIndexability === "INDEXABLE") {
-        result = result.filter((p) => !nonIndexablePages.some((nip) => nip.id === p.id));
-      } else {
-        result = result.filter((p) => nonIndexablePages.some((nip) => nip.id === p.id));
-      }
+      result = result.filter((p) => (p.indexability ?? "UNKNOWN") === selectedIndexability);
     }
 
     // Sorting
@@ -228,7 +250,7 @@ export function PagesTab({
     });
 
     return result;
-  }, [pages, searchQuery, selectedType, selectedStatus, selectedIndexability, sortBy, nonIndexablePages, issuesPerUrl]);
+  }, [pages, searchQuery, selectedType, selectedStatus, selectedIndexability, sortBy, issuesPerUrl]);
 
   // Pagination calculation
   const totalPagesCount = Math.ceil(filteredPages.length / itemsPerPage) || 1;
@@ -301,13 +323,25 @@ export function PagesTab({
               <b className="text-slate-900 dark:text-white">{successfulCount}</b> Successful
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
-              <b className="text-slate-900 dark:text-white">{blockedCount}</b> Blocked
+              <span className="h-2 w-2 rounded-full bg-error-500" />
+              <b className="text-brand-950">{erroredCount}</b> Errored
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              <b className="text-slate-900 dark:text-white">{redirectedCount}</b> Redirected
+              <span className="h-2 w-2 rounded-full bg-warning-500" />
+              <b className="text-brand-950">{redirectedCount}</b> Redirected
             </span>
+            {blockedCount > 0 && (
+              <span className="flex items-center gap-1" title="The origin answered with a challenge a browser would not get. Not the same as an error.">
+                <span className="h-2 w-2 rounded-full bg-warning-600" />
+                <b className="text-brand-950">{blockedCount}</b> Blocked
+              </span>
+            )}
+            {unreachableCount > 0 && (
+              <span className="flex items-center gap-1" title="We could not reach these pages at all, so nothing about them was assessed.">
+                <span className="h-2 w-2 rounded-full bg-brand-400" />
+                <b className="text-brand-950">{unreachableCount}</b> Unreachable
+              </span>
+            )}
           </div>
         </div>
 
@@ -334,23 +368,35 @@ export function PagesTab({
           <div className="mt-4">
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 flex">
               <div
-                className="h-full bg-emerald-500 transition-all duration-500"
+                className="h-full bg-success-500 transition-all duration-500"
                 style={{ width: `${indexablePct}%` }}
               />
               <div
-                className="h-full bg-slate-300 dark:bg-slate-700 transition-all duration-500"
-                style={{ width: `${100 - indexablePct}%` }}
+                className="h-full bg-warning-400 transition-all duration-500"
+                style={{ width: `${pages.length ? (nonIndexableCount / pages.length) * 100 : 0}%` }}
+              />
+              {/* Unknown is neutral, never red: a signal we could not read is
+                  not a signal that said no. */}
+              <div
+                className="h-full bg-brand-300 transition-all duration-500"
+                style={{ width: `${pages.length ? (unknownIndexabilityCount / pages.length) * 100 : 0}%` }}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-brand-500">
               <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
                 <span>{indexableCount} Indexable</span>
               </span>
               <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span>{nonIndexablePages.length} Non-indexable</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-warning-400" />
+                <span>{nonIndexableCount} Non-indexable</span>
               </span>
+              {unknownIndexabilityCount > 0 && (
+                <span className="flex items-center gap-1" title="We could not determine indexability for these pages.">
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+                  <span>{unknownIndexabilityCount} Unknown</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -467,7 +513,8 @@ export function PagesTab({
             >
               <option value="ALL">All Indexability</option>
               <option value="INDEXABLE">Indexable</option>
-              <option value="NON_INDEXABLE">Non-indexable</option>
+              <option value="NOT_INDEXABLE">Non-indexable</option>
+              <option value="UNKNOWN">Unknown</option>
             </select>
 
             {/* Columns Dropdown Toggle */}
@@ -547,7 +594,7 @@ export function PagesTab({
                   const isSelected = selectedPageIds.has(page.id);
                   const seoScore = getPageSeoScore(page);
                   const issueCount = issuesPerUrl.get(page.url) || 0;
-                  const isIndexable = !nonIndexablePages.some((nip) => nip.id === page.id);
+                  const indexability = page.indexability ?? "UNKNOWN";
                   const pageType = formatPageType(page);
 
                   return (
@@ -570,7 +617,10 @@ export function PagesTab({
                       {/* URL / Title */}
                       <td className="p-3 max-w-[280px]">
                         <div className="font-semibold text-slate-900 dark:text-white truncate">
-                          {page.title || "Untitled Document"}
+                          {/* "Untitled Document" is only honest when we read
+                              the page and it had no title. When we never got a
+                              response, say that instead. */}
+                          {page.title || (page.statusCode == null || page.statusCode === 0 ? "Not retrieved" : "Untitled Document")}
                         </div>
                         <a
                           href={page.url}
@@ -580,6 +630,32 @@ export function PagesTab({
                         >
                           {page.url}
                         </a>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {page.jsRequired && (
+                            <span
+                              className="rounded border bg-accent-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-accent-700"
+                              title="This page's content only exists after JavaScript runs. Most AI answer engines do not execute it."
+                            >
+                              JS
+                            </span>
+                          )}
+                          {page.discoverySource && (
+                            <span
+                              className="rounded border bg-brand-50 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-brand-600"
+                              title={`How this URL was discovered: ${page.discoverySource}`}
+                            >
+                              {page.discoverySource}
+                            </span>
+                          )}
+                          {page.blockedSuspected && (
+                            <span
+                              className="rounded border bg-warning-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-warning-700"
+                              title="The origin answered with a challenge a browser would not get. We could not assess this page."
+                            >
+                              Blocked?
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Type */}
@@ -597,14 +673,25 @@ export function PagesTab({
                           <span
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-bold",
-                              page.statusCode === 200
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              page.statusCode == null || page.statusCode === 0
+                                ? "bg-brand-100 text-brand-600"
+                                : page.statusCode >= 200 && page.statusCode < 300
+                                ? "bg-success-50 text-success-700"
                                 : page.statusCode >= 300 && page.statusCode < 400
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400"
+                                ? "bg-warning-50 text-warning-700"
+                                : "bg-error-50 text-error-700"
                             )}
+                            title={
+                              page.statusChain && page.statusChain.length > 1
+                                ? page.statusChain.map((h) => `${h.status} ${h.url}`).join("\n")
+                                : undefined
+                            }
                           >
-                            {page.statusCode} {page.statusCode === 200 ? "OK" : page.statusCode === 301 ? "Redirect" : ""}
+                            {/* No status means we never got a response, which
+                                is our failure to report, not the site's. */}
+                            {page.statusCode == null || page.statusCode === 0
+                              ? "Unreachable"
+                              : `${page.statusCode}${page.statusCode >= 200 && page.statusCode < 300 ? " OK" : page.statusCode >= 300 && page.statusCode < 400 ? " Redirect" : ""}`}
                           </span>
                         </td>
                       )}
@@ -615,12 +702,20 @@ export function PagesTab({
                           <span
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                              isIndexable
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
+                              indexability === "INDEXABLE"
+                                ? "bg-success-50 text-success-700"
+                                : indexability === "NOT_INDEXABLE"
+                                ? "bg-warning-50 text-warning-700"
+                                : // Unknown renders neutral. It is not a finding.
+                                  "bg-brand-100 text-brand-600"
                             )}
+                            title={(page.indexabilityReason ?? []).map((r) => r.evidence).join("\n") || undefined}
                           >
-                            {isIndexable ? "Indexable" : "Noindex"}
+                            {indexability === "INDEXABLE"
+                              ? "Indexable"
+                              : indexability === "NOT_INDEXABLE"
+                              ? "Not indexable"
+                              : "Unknown"}
                           </span>
                         </td>
                       )}

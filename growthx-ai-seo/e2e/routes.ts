@@ -3,18 +3,22 @@
  *
  * Kept as data so the smoke test covers new routes the moment they exist:
  * a page added without a line here is a page nothing checks.
+ *
+ * The converse costs just as much: a route listed here that no longer exists
+ * fails the suite forever on Next's own 404, which reads as a broken page
+ * rather than as a stale list. /onboarding and /projects went in d6ae619 and
+ * /analyze/results in 64d4c1a, and all three sat here failing afterwards. When
+ * a page is deleted, delete its line.
  */
 export const PUBLIC_ROUTES = [
   "/",
   "/login",
   "/register",
   "/pricing",
-  "/onboarding",
   "/legal/privacy",
   "/legal/terms",
   "/analyze",
   "/analyze/progress",
-  "/analyze/results",
 ];
 
 export const DASHBOARD_ROUTES = [
@@ -59,7 +63,6 @@ export const DASHBOARD_ROUTES = [
   "/meta-optimizer",
   "/monitoring",
   "/opportunities",
-  "/projects",
   "/reports",
   "/schema-generator",
   "/search",

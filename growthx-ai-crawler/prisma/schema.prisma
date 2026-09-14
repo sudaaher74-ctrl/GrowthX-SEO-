@@ -83,46 +83,82 @@ model CrawlJob {
   pages               Page[]
   /// Social profiles this crawl found published on the site.
   socialLinks         SiteSocialLink[]
+  /// The crawl's URL frontier. Persisted rather than held in worker memory so
+  /// a crawl survives a worker restart and can be paused and resumed.
+  frontier            CrawlFrontier[]
 
   @@index([websiteId, status])
   @@index([createdAt])
 }
 
 model Page {
-  id              String       @id @default(uuid())
-  crawlJobId      String
-  url             String
-  finalUrl        String
-  statusCode      Int
-  responseTimeMs  Int
-  contentType     String?
-  title           String?
-  metaDescription String?
-  canonicalUrl    String?
-  robotsMeta      String?
-  h1              String[]     @default([])
-  h2              String[]     @default([])
-  h3              String[]     @default([])
-  wordCount       Int          @default(0)
-  readingTimeMin  Float        @default(0)
-  duplicateScore  Float        @default(0)
-  contentHash     String?
-  simHash         String?
+  id                 String       @id @default(uuid())
+  crawlJobId         String
+  url                String
+  finalUrl           String
+  statusCode         Int
+  responseTimeMs     Int
+  contentType        String?
+  title              String?
+  metaDescription    String?
+  canonicalUrl       String?
+  robotsMeta         String?
+  h1                 String[]     @default([])
+  h2                 String[]     @default([])
+  h3                 String[]     @default([])
+  wordCount          Int          @default(0)
+  readingTimeMin     Float        @default(0)
+  duplicateScore     Float        @default(0)
+  contentHash        String?
+  simHash            String?
   /// HOME | SERVICE | PRODUCT | LOCATION | BLOG | CASE_STUDY | FAQ | ABOUT |
   /// CONTACT | LEGAL | OTHER. Derived from the URL and headings at crawl time.
   /// Every gap comparison counts pages by kind, so this is what makes "they
   /// have 24 service pages you do not" answerable rather than a URL total.
-  pageType        String       @default("OTHER")
-  htmlSnapshotUrl String?
-  screenshotUrl   String?
-  crawledAt       DateTime     @default(now())
-  aeoMetrics      AeoMetrics?
-  images          Image[]
-  issues          Issue[]
-  links           Link[]
-  crawlJob        CrawlJob     @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
-  performance     Performance?
-  schemas         Schema[]
+  pageType           String       @default("OTHER")
+  htmlSnapshotUrl    String?
+  /// Snapshot of the bytes the origin served, before any JavaScript ran.
+  rawHtml            String?
+  /// Snapshot of the DOM after the render tier executed the page's JavaScript.
+  /// Null when the render tier never ran, which is itself the signal that the
+  /// static body was complete enough not to need it.
+  renderedHtml       String?
+  /// True when the page's SEO signals exist only after JavaScript execution.
+  /// Googlebot renders; Bing, GPTBot, PerplexityBot, ClaudeBot and most social
+  /// scrapers largely do not, so this is the difference between a page that is
+  /// merely slow to index and one that is blank to every AI answer engine.
+  jsRequired         Boolean      @default(false)
+  /// sitemap | link | bundle | seed | robots — how this URL entered the frontier.
+  /// A page only ever reached from a JS bundle manifest is a page no crawler
+  /// that does not execute JavaScript will ever find.
+  discoverySource    String       @default("seed")
+  /// Every redirect hop as [{ url, status, location }], not just the endpoints.
+  /// An apex->www->https chain and a redirect loop are indistinguishable from
+  /// a start and end URL alone.
+  statusChain        Json?
+  /// The origin answered with a challenge or refusal that a browser does not
+  /// get. Deliberately not the same as a recorded status: it says we suspect a
+  /// block and carries the evidence, rather than asserting the site said no.
+  blockedSuspected   Boolean      @default(false)
+  /// Why indexability came out the way it did, as a machine-readable reason
+  /// list. Never inferred from the status code.
+  indexabilityReason Json?
+  /// dns | tls | timeout | proxy | http | ssrf | unknown, when no origin
+  /// response was obtained at all. statusCode is 0 in that case, which is not
+  /// a real HTTP status and so cannot be mistaken for one the site sent.
+  fetchErrorKind  String?
+  /// INDEXABLE | NOT_INDEXABLE | UNKNOWN. UNKNOWN is a real answer — a signal
+  /// we could not read is not a signal that said no — and renders grey.
+  indexability       String       @default("UNKNOWN")
+  screenshotUrl      String?
+  crawledAt          DateTime     @default(now())
+  aeoMetrics         AeoMetrics?
+  images             Image[]
+  issues             Issue[]
+  links              Link[]
+  crawlJob           CrawlJob     @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  performance        Performance?
+  schemas            Schema[]
 
   @@unique([crawlJobId, url])
   @@index([crawlJobId, statusCode])
@@ -3066,22 +3102,22 @@ enum DesignRiskLevel {
 /// shows "no screenshot captured" rather than a placeholder image, so a missing
 /// capture is never mistaken for a captured blank page.
 model PageSnapshot {
-  id                    String              @id @default(uuid())
-  projectId             String
-  pageUrl               String
+  id                   String              @id @default(uuid())
+  projectId            String
+  pageUrl              String
   /// Stored HTML, read back through StorageService.
-  htmlSnapshotUrl       String?
-  desktopScreenshotUrl  String?
-  mobileScreenshotUrl   String?
+  htmlSnapshotUrl      String?
+  desktopScreenshotUrl String?
+  mobileScreenshotUrl  String?
   /// Fonts, colours and spacing lifted off the page, so generated content can
   /// be checked against the real design rather than a guess at it.
-  capturedStyles        Json                @default("{}")
+  capturedStyles       Json                @default("{}")
   /// Ordered section map (selector, type, bounding box) used to place content.
-  capturedSections      Json                @default("[]")
-  capturedAt            DateTime            @default(now())
-  project               Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  slots                 ContentSlot[]
-  suggestions           ContentSuggestion[]
+  capturedSections     Json                @default("[]")
+  capturedAt           DateTime            @default(now())
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  slots                ContentSlot[]
+  suggestions          ContentSuggestion[]
 
   @@index([projectId, pageUrl])
   @@index([projectId, capturedAt])
@@ -3092,32 +3128,32 @@ model PageSnapshot {
 /// The max* fields are what turn "this content is too long" from an opinion
 /// into a check: they are measured off the real page, not assumed.
 model ContentSlot {
-  id               String              @id @default(uuid())
-  pageSnapshotId   String
+  id              String              @id @default(uuid())
+  pageSnapshotId  String
   /// CSS selector locating the slot in the captured DOM.
-  domSelector      String
+  domSelector     String
   /// HERO | OVERVIEW | FAQ | SPECS | COMPARISON | LINKS | CTA | OTHER
-  sectionType      String              @default("OTHER")
-  currentText      String              @default("")
-  maxWords         Int?
-  maxChars         Int?
-  maxDesktopLines  Int?
-  maxMobileLines   Int?
-  allowedHtml      String[]            @default([])
+  sectionType     String              @default("OTHER")
+  currentText     String              @default("")
+  maxWords        Int?
+  maxChars        Int?
+  maxDesktopLines Int?
+  maxMobileLines  Int?
+  allowedHtml     String[]            @default([])
   /// False for navigation, global headers and anything sharing a CSS class
   /// with unrelated sections — editing those changes more than one place.
-  safeToEdit       Boolean             @default(false)
+  safeToEdit      Boolean             @default(false)
   /// 0-1. How sure the extractor is that this selector is really this section.
-  confidence       Float               @default(0)
-  pageSnapshot     PageSnapshot        @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
-  suggestions      ContentSuggestion[]
+  confidence      Float               @default(0)
+  pageSnapshot    PageSnapshot        @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
+  suggestions     ContentSuggestion[]
 
   @@index([pageSnapshotId, sectionType])
 }
 
 /// A proposed content change, from generation through to its final state.
 model ContentSuggestion {
-  id                  String              @id @default(uuid())
+  id                  String             @id @default(uuid())
   projectId           String
   pageSnapshotId      String
   slotId              String?
@@ -3125,26 +3161,26 @@ model ContentSuggestion {
   /// The SEO problem this change answers, e.g. "Thin content detected".
   seoIssue            String
   recommendedLocation String
-  currentWordCount    Int                 @default(0)
-  suggestedWordCount  Int                 @default(0)
-  contentType         String              @default("OVERVIEW")
+  currentWordCount    Int                @default(0)
+  suggestedWordCount  Int                @default(0)
+  contentType         String             @default("OVERVIEW")
   heading             String?
-  body                String              @default("")
+  body                String             @default("")
   /// CONCISE | PROFESSIONAL | TECHNICAL | PREMIUM | CONVERSION
   variant             String?
   targetKeyword       String?
-  lockedPhrases       String[]            @default([])
+  lockedPhrases       String[]           @default([])
   /// 0-100, or null before a preview has scored it. Null renders as "—".
   designFitScore      Int?
   /// LOW | MEDIUM | HIGH
   seoValue            String?
   mobileRisk          DesignRiskLevel?
-  status              DesignStudioStatus  @default(SUGGESTED)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  project             Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  pageSnapshot        PageSnapshot        @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
-  slot                ContentSlot?        @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  status              DesignStudioStatus @default(SUGGESTED)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  project             Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageSnapshot        PageSnapshot       @relation(fields: [pageSnapshotId], references: [id], onDelete: Cascade)
+  slot                ContentSlot?       @relation(fields: [slotId], references: [id], onDelete: SetNull)
   previews            PreviewResult[]
   approval            ApprovalRecord?
   published           PublishedChange?
@@ -3172,36 +3208,36 @@ model PreviewResult {
 
 /// The human decision. One per suggestion — nothing publishes without it.
 model ApprovalRecord {
-  id            String                   @id @default(uuid())
-  suggestionId  String                   @unique
+  id               String                    @id @default(uuid())
+  suggestionId     String                    @unique
   approvedByUserId String?
-  publishMethod DesignStudioPublishMethod
-  notes         String?
-  approvedAt    DateTime                 @default(now())
-  suggestion    ContentSuggestion        @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  publishMethod    DesignStudioPublishMethod
+  notes            String?
+  approvedAt       DateTime                  @default(now())
+  suggestion       ContentSuggestion         @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
 }
 
 /// A change that reached a publishing target. `status` is PUBLISHED only once
 /// the deploy succeeded — a failed attempt stays FAILED and says why.
 model PublishedChange {
-  id             String                    @id @default(uuid())
-  projectId      String
-  suggestionId   String                    @unique
-  pageUrl        String
-  method         DesignStudioPublishMethod
-  status         DesignStudioStatus        @default(APPROVED)
-  pullRequestUrl String?
+  id              String                    @id @default(uuid())
+  projectId       String
+  suggestionId    String                    @unique
+  pageUrl         String
+  method          DesignStudioPublishMethod
+  status          DesignStudioStatus        @default(APPROVED)
+  pullRequestUrl  String?
   /// Set when the target is a CMS draft rather than a repository.
   externalDraftId String?
-  beforeContent  String                    @default("")
-  afterContent   String                    @default("")
-  error          String?
-  publishedAt    DateTime?
-  createdAt      DateTime                  @default(now())
-  project        Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  suggestion     ContentSuggestion         @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
-  verifications  VerificationResult[]
-  rollbacks      RollbackRecord[]
+  beforeContent   String                    @default("")
+  afterContent    String                    @default("")
+  error           String?
+  publishedAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  project         Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  suggestion      ContentSuggestion         @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  verifications   VerificationResult[]
+  rollbacks       RollbackRecord[]
 
   @@index([projectId, status])
   @@index([projectId, createdAt])
@@ -3209,17 +3245,17 @@ model PublishedChange {
 
 /// Proof, after a re-crawl, that the change is actually live and did no harm.
 model VerificationResult {
-  id                String          @id @default(uuid())
+  id                String             @id @default(uuid())
   publishedChangeId String
   recrawledAt       DateTime?
   /// Whether the new content was found on the live page, and what changed.
-  seoResult         Json            @default("{}")
+  seoResult         Json               @default("{}")
   /// Layout checks re-run against the live page.
-  visualResult      Json            @default("{}")
-  contentFound      Boolean         @default(false)
+  visualResult      Json               @default("{}")
+  contentFound      Boolean            @default(false)
   status            DesignStudioStatus @default(PUBLISHED)
-  createdAt         DateTime        @default(now())
-  publishedChange   PublishedChange @relation(fields: [publishedChangeId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  publishedChange   PublishedChange    @relation(fields: [publishedChangeId], references: [id], onDelete: Cascade)
 
   @@index([publishedChangeId, createdAt])
 }
@@ -3236,4 +3272,42 @@ model RollbackRecord {
   publishedChange   PublishedChange @relation(fields: [publishedChangeId], references: [id], onDelete: Cascade)
 
   @@index([publishedChangeId])
+}
+
+/// One row per URL a crawl knows about, in whatever state it has reached.
+///
+/// The frontier used to live in a Redis set and a Map on the worker, which
+/// meant a restart mid-crawl lost every URL that had been discovered but not
+/// yet fetched, and there was no way to pause a crawl and resume it. Both are
+/// ordinary things to want from a crawl of several hundred pages.
+///
+/// `normalizedUrl` is the dedup key and is what the unique constraint is on;
+/// `url` is what we actually request, because plenty of sites serve one host
+/// spelling and redirect the other.
+model CrawlFrontier {
+  id              String    @id @default(uuid())
+  crawlJobId      String
+  /// The dedup key: lowercased host, default port stripped, tracking params
+  /// removed, trailing slash policy applied.
+  normalizedUrl   String
+  /// The URL as discovered, which is what gets fetched.
+  url             String
+  /// PENDING | IN_PROGRESS | DONE | SKIPPED | FAILED
+  state           String    @default("PENDING")
+  depth           Int       @default(0)
+  /// sitemap | link | bundle | seed | robots
+  discoverySource String    @default("link")
+  /// The page this URL was first found on, for orphan and depth analysis.
+  sourceUrl       String?
+  /// Why a SKIPPED or FAILED URL is not being fetched.
+  reason          String?
+  attempts        Int       @default(0)
+  claimedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  crawlJob        CrawlJob  @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+
+  @@unique([crawlJobId, normalizedUrl])
+  @@index([crawlJobId, state])
+  @@index([crawlJobId, state, depth])
 }

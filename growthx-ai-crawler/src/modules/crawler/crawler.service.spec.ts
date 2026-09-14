@@ -18,6 +18,8 @@ function makeService(overrides: Partial<Record<string, any>> = {}): CrawlerServi
     robots: {},
     sitemap: {},
     fetcher: {},
+    fetchSvc: {},
+    discovery: {},
     metrics: {},
     htmlExtractor: {},
     imageAnalyzer: {},
@@ -39,6 +41,8 @@ function makeService(overrides: Partial<Record<string, any>> = {}): CrawlerServi
     deps.robots as any,
     deps.sitemap as any,
     deps.fetcher as any,
+    deps.fetchSvc as any,
+    deps.discovery as any,
     deps.metrics as any,
     deps.htmlExtractor as any,
     deps.imageAnalyzer as any,
@@ -170,10 +174,14 @@ describe('CrawlerService', () => {
 
   describe('depth and robots limits', () => {
     function serviceForPageFetch(overrides: Partial<Record<string, any>> = {}) {
+      // Page fetches go through FetchService now; `fetchPage` keeps its name
+      // here because what these tests assert is whether a fetch happened at
+      // all, which is unchanged.
       const fetchPage = jest.fn();
       const service = makeService({
         robots: { isUrlAllowed: jest.fn().mockResolvedValue(true) },
-        fetcher: { fetchPage },
+        fetchSvc: { fetch: fetchPage },
+        discovery: { isAllowed: jest.fn().mockReturnValue({ allowed: true, evidence: 'no rule matched' }) },
         ...overrides,
       });
       return { service, fetchPage };
@@ -195,7 +203,21 @@ describe('CrawlerService', () => {
 
     it('fetches a page at the depth limit', async () => {
       const { service, fetchPage } = serviceForPageFetch();
-      fetchPage.mockResolvedValue({ html: '', statusCode: 200, redirectChain: [], engine: 'cheerio' });
+      fetchPage.mockResolvedValue({
+        url: 'https://example.com/edge',
+        finalUrl: 'https://example.com/edge',
+        statusCode: 200,
+        statusChain: [{ url: 'https://example.com/edge', status: 200 }],
+        headers: {},
+        contentType: 'text/html',
+        rawHtml: '',
+        html: '',
+        jsRequired: false,
+        escalationReasons: [],
+        blockedSuspected: false,
+        totalMs: 5,
+        tier: 'static',
+      });
 
       await service.processPageFetch({
         jobId: 'job1',
