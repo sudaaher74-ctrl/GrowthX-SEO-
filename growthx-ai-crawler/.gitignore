@@ -23,3 +23,6 @@ node_modules/.prisma/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local verification scratch (mirrored third-party assets, diagnostic scripts)
+tmp-verify/

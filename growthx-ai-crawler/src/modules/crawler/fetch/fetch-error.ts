@@ -58,7 +58,17 @@ export function classifyTransportError(err: unknown): FetchError {
   const message = e?.cause?.message || e?.message || String(err);
   const haystack = `${code} ${message}`.toUpperCase();
 
-  if (e?.name === 'AbortError' || /TIMEOUT|ETIMEDOUT|UND_ERR_HEADERS_TIMEOUT|UND_ERR_BODY_TIMEOUT|UND_ERR_CONNECT_TIMEOUT/.test(haystack)) {
+  // ERR_CANCELED and CanceledError are counted as timeouts because the only
+  // AbortSignal the crawler attaches to a request is its own wall-clock
+  // deadline; nothing else cancels one. Without this arm, a request killed by
+  // that deadline is classified 'unknown' and loses the one useful thing we
+  // knew about it.
+  if (
+    e?.name === 'AbortError' ||
+    e?.name === 'CanceledError' ||
+    e?.name === 'TimeoutError' ||
+    /TIMEOUT|ETIMEDOUT|ERR_CANCELED|CANCELED|UND_ERR_HEADERS_TIMEOUT|UND_ERR_BODY_TIMEOUT|UND_ERR_CONNECT_TIMEOUT/.test(haystack)
+  ) {
     return new FetchError('timeout', message, undefined, 504);
   }
   if (/ENOTFOUND|EAI_AGAIN|DNS/.test(haystack)) {

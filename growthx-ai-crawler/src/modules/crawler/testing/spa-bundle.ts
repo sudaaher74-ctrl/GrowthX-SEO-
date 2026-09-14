@@ -11,7 +11,14 @@
  */
 export const SPA_CLIENT_BUNDLE = `
 (function () {
-  document.title = 'Best Archery Academy New Panvel | Archery Coaching Navi Mumbai | Drona Archery Academy';
+  // Route-aware, as the real single-page app is: each path renders its own
+  // copy so the fixture does not present five identical pages.
+  var route = window.location.pathname;
+  var routeName = route === '/' ? '' : route.replace(/[^a-z]/gi, ' ').trim();
+
+  document.title = route === '/'
+    ? 'Best Archery Academy New Panvel | Archery Coaching Navi Mumbai | Drona Archery Academy'
+    : 'Best Archery Academy New Panvel | ' + routeName + ' | Drona Archery Academy';
 
   var desc = document.createElement('meta');
   desc.setAttribute('name', 'description');
@@ -27,7 +34,7 @@ export const SPA_CLIENT_BUNDLE = `
   ]);
   document.head.appendChild(ld);
 
-  var sentence = 'Drona Archery Academy trains beginners and competitive archers across New Panvel and Navi Mumbai with Olympic recurve coaching, certified instructors, and structured progression from first arrow to tournament podium. ';
+  var sentence = 'Drona Archery Academy ' + (routeName || 'home') + ' trains beginners and competitive archers across New Panvel and Navi Mumbai with Olympic recurve coaching, certified instructors, and structured progression from first arrow to tournament podium. ';
   var body = '';
   for (var i = 0; i < 22; i++) { body += sentence; }
 
@@ -43,7 +50,7 @@ export const SPA_CLIENT_BUNDLE = `
   document.getElementById('root').innerHTML =
     '<header><nav>' + nav + '</nav></header>' +
     '<main>' +
-      '<h1>Best Archery Academy in New Panvel</h1>' +
+      '<h1>Best Archery Academy in New Panvel' + (routeName ? ': ' + routeName : '') + '</h1>' +
       '<h1>Olympic Recurve Coaching in Navi Mumbai</h1>' +
       '<h2>Beginner Programs</h2><h2>Kids Archery</h2><h2>Olympic Recurve</h2>' +
       '<h2>Coaching Team</h2><h2>Facilities</h2><h2>Tournaments</h2><h2>Contact Us</h2>' +

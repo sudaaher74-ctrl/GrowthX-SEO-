@@ -186,7 +186,12 @@ export class FetchService {
       tier: 'static',
     };
 
-    const wantsRender = verdict.escalate || blockedSuspected;
+    // A page the origin refused has no content worth rendering, so the render
+    // budget is not spent on it. The one exception is a challenge status: that
+    // is exactly the case where a browser may be served what a plain client
+    // was not.
+    const worthRendering = (statik.status >= 200 && statik.status < 300) || blockedSuspected;
+    const wantsRender = worthRendering && (verdict.escalate || blockedSuspected);
     if (!wantsRender || !renderAllowed) {
       if (wantsRender && !renderAllowed) {
         this.logger.debug(`[${targetUrl}] needs rendering but the crawl's render budget is spent.`);
@@ -384,6 +389,31 @@ export class FetchService {
     const settleMs = Number(process.env.RENDER_SETTLE_MS || 3000);
 
     return this.browserPool.withPage(userAgent, async (page) => {
+      // Subresources that cannot change a single SEO signal are not fetched.
+      // Fonts, images and media are read from the DOM, never from their bytes,
+      // and a third-party stylesheet changes nothing we extract. Blocking them
+      // is ordinary crawler practice - it is faster and it spends nobody
+      // else's bandwidth - and it also removes a real failure mode: a webfont
+      // host that hangs is render-blocking, so the page never reaches
+      // domcontentloaded, the navigation times out, and we capture the empty
+      // shell and report it as a page with no title and no words.
+      //
+      // Scripts and same-origin stylesheets are always allowed: a site whose
+      // application bundle is served from a CDN must still be able to render.
+      await page.route('**/*', (route) => {
+        const request = route.request();
+        const type = request.resourceType();
+        if (type === 'font' || type === 'image' || type === 'media') return route.abort();
+        if (type === 'stylesheet') {
+          try {
+            if (new URL(request.url()).host !== new URL(targetUrl).host) return route.abort();
+          } catch {
+            return route.abort();
+          }
+        }
+        return route.continue();
+      }).catch(() => {});
+
       let documentStatus: number | undefined;
 
       // Only the main frame's own document response tells us the page's status.
@@ -397,15 +427,63 @@ export class FetchService {
 
       let navigationStatus: number | undefined;
       try {
-        const response = await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: timeoutMs });
+        // domcontentloaded first, then network idle as a separate wait.
+        // Handing the whole budget to a single `waitUntil: 'networkidle'` means
+        // one slow third-party asset - a font, an analytics beacon - consumes
+        // the time the page needed to hydrate, and we then read a DOM that is
+        // still the empty shell. Splitting them bounds each phase on its own.
+        const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
         navigationStatus = response?.status();
       } catch (err) {
-        // networkidle never arriving is normal on a page that polls. Whatever
-        // has rendered by now is still worth reading, so fall through.
         this.logger.debug(`[${targetUrl}] render navigation did not settle cleanly: ${(err as Error).message}`);
       }
 
-      await page.waitForSelector('a[href]', { timeout: settleMs, state: 'attached' }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: settleMs * 2 }).catch(() => {});
+
+      // Then the explicit settle: the first anchor, or the framework's mount
+      // node acquiring children, whichever lands first. `networkidle` is not a
+      // settle on its own - a framework can be idle on the wire and still be a
+      // tick away from mounting.
+      await Promise.race([
+        page.waitForSelector('a[href]', { timeout: settleMs, state: 'attached' }).catch(() => undefined),
+        page
+          .waitForFunction(
+            () => {
+              const mount = document.querySelector('#root, #app, #__next, [data-reactroot]');
+              return !mount || mount.children.length > 0;
+            },
+            undefined,
+            { timeout: settleMs, polling: 100 },
+          )
+          .catch(() => undefined),
+      ]);
+
+      // One retry when the DOM is still the shell we started with. A framework
+      // that has not mounted within the settle is usually contending for CPU -
+      // several renders in flight, a large bundle - rather than genuinely
+      // inert, and reading the shell here is exactly the wrong answer: it is
+      // recorded as a page with no title and no words, which is then reported
+      // as four separate content defects.
+      const stillAShell = await page
+        .evaluate(() => {
+          const mount = document.querySelector('#root, #app, #__next, [data-reactroot]');
+          return document.querySelectorAll('a[href]').length === 0 && Boolean(mount) && mount!.children.length === 0;
+        })
+        .catch(() => false);
+
+      if (stillAShell) {
+        this.logger.debug(`[${targetUrl}] still an empty shell after the first settle; waiting once more.`);
+        await page
+          .waitForFunction(
+            () => {
+              const mount = document.querySelector('#root, #app, #__next, [data-reactroot]');
+              return document.querySelectorAll('a[href]').length > 0 || (mount ? mount.children.length > 0 : true);
+            },
+            undefined,
+            { timeout: settleMs * 2, polling: 100 },
+          )
+          .catch(() => undefined);
+      }
 
       const html = await page.content().catch(() => '');
       const measured = await page
