@@ -39,7 +39,6 @@
   "app/(marketing)/pricing/page.tsx": 79,
   "app/analyze/page.tsx": 31,
   "app/analyze/progress/page.tsx": 58,
-  "app/analyze/results/page.tsx": 135,
   "app/auth/callback/page.tsx": 11,
   "app/error.tsx": 13,
   "app/global-error.tsx": 9,

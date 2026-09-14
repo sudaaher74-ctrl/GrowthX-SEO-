@@ -295,7 +295,7 @@ function ProgressInner() {
             {isFinished ? (
               <button
                 onClick={() =>
-                  router.push(`/analyze/results?url=${encodeURIComponent(rawUrl)}`)
+                  router.push(`/register?domain=${encodeURIComponent(hostname)}`)
                 }
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl text-base font-semibold text-white bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all hover:scale-[1.02] cursor-pointer"
               >
