@@ -80,7 +80,7 @@ export function TechnicalSeoTab({
           blockedSuspected: p.blockedSuspected ?? null,
           jsRequired: p.jsRequired ?? null,
           discoverySource: p.discoverySource ?? null,
-          fetchFailed: p.statusCode === null || p.statusCode === undefined,
+          fetchFailed: p.statusCode == null || p.statusCode === 0,
         })),
         issues: issues.map((i) => ({
           issueType: i.issueType,

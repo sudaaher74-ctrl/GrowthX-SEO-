@@ -143,6 +143,10 @@ model Page {
   /// Why indexability came out the way it did, as a machine-readable reason
   /// list. Never inferred from the status code.
   indexabilityReason Json?
+  /// dns | tls | timeout | proxy | http | ssrf | unknown, when no origin
+  /// response was obtained at all. statusCode is 0 in that case, which is not
+  /// a real HTTP status and so cannot be mistaken for one the site sent.
+  fetchErrorKind  String?
   /// INDEXABLE | NOT_INDEXABLE | UNKNOWN. UNKNOWN is a real answer — a signal
   /// we could not read is not a signal that said no — and renders grey.
   indexability       String       @default("UNKNOWN")

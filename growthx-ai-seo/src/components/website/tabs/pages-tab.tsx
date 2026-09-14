@@ -113,7 +113,7 @@ export function PagesTab({
           blockedSuspected: p.blockedSuspected ?? null,
           jsRequired: p.jsRequired ?? null,
           discoverySource: p.discoverySource ?? null,
-          fetchFailed: p.statusCode === null || p.statusCode === undefined,
+          fetchFailed: p.statusCode == null || p.statusCode === 0,
         })),
         issues: issues.map((i) => ({
           issueType: i.issueType,
@@ -620,7 +620,7 @@ export function PagesTab({
                           {/* "Untitled Document" is only honest when we read
                               the page and it had no title. When we never got a
                               response, say that instead. */}
-                          {page.title || (page.statusCode == null ? "Not retrieved" : "Untitled Document")}
+                          {page.title || (page.statusCode == null || page.statusCode === 0 ? "Not retrieved" : "Untitled Document")}
                         </div>
                         <a
                           href={page.url}
@@ -673,7 +673,7 @@ export function PagesTab({
                           <span
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-bold",
-                              page.statusCode == null
+                              page.statusCode == null || page.statusCode === 0
                                 ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400"
                                 : page.statusCode >= 200 && page.statusCode < 300
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
@@ -689,7 +689,7 @@ export function PagesTab({
                           >
                             {/* No status means we never got a response, which
                                 is our failure to report, not the site's. */}
-                            {page.statusCode == null
+                            {page.statusCode == null || page.statusCode === 0
                               ? "Unreachable"
                               : `${page.statusCode}${page.statusCode >= 200 && page.statusCode < 300 ? " OK" : page.statusCode >= 300 && page.statusCode < 400 ? " Redirect" : ""}`}
                           </span>

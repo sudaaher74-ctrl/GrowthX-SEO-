@@ -77,10 +77,15 @@ export function computeCrawlSummary(params: {
 }): CrawlSummary {
   const { pages, issues } = params;
 
+  // 0 is what the crawler stores when no origin answered. It is not a real
+  // HTTP status, which is the point: nothing that asks `>= 400` can mistake a
+  // network failure on our side for a defect on the customer's site.
+  const noResponse = (p: SummaryPage) => p.statusCode === null || p.statusCode === undefined || p.statusCode === 0;
+
   const successful = pages.filter((p) => typeof p.statusCode === 'number' && p.statusCode >= 200 && p.statusCode < 300).length;
   const redirected = pages.filter((p) => typeof p.statusCode === 'number' && p.statusCode >= 300 && p.statusCode < 400).length;
   const blocked = pages.filter((p) => p.blockedSuspected === true).length;
-  const unreachable = pages.filter((p) => p.statusCode === null || p.statusCode === undefined).length;
+  const unreachable = pages.filter(noResponse).length;
   const errored = pages.filter(
     (p) => typeof p.statusCode === 'number' && p.statusCode >= 400 && !p.blockedSuspected,
   ).length;
@@ -97,7 +102,7 @@ export function computeCrawlSummary(params: {
 
   // Pages we could not fetch are excluded from the score rather than scored as
   // zero: a network failure on our side is not the customer's SEO defect.
-  const scorablePages = pages.filter((p) => !p.fetchFailed && p.statusCode !== null && p.statusCode !== undefined && !p.blockedSuspected);
+  const scorablePages = pages.filter((p) => !p.fetchFailed && !noResponse(p) && !p.blockedSuspected);
   const excludedUrls = new Set(pages.filter((p) => !scorablePages.includes(p)).map((p) => p.url));
   const scorableIssues = issues.filter((i) => !i.affectedUrl || !excludedUrls.has(i.affectedUrl));
 

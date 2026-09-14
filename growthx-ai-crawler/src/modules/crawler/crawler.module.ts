@@ -5,12 +5,28 @@ import { CrawlerProcessor } from './crawler.processor';
 import { CrawlController } from './crawl.controller';
 import { VerificationEngineService } from './verification-engine.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { BrowserPoolService } from './fetch/browser-pool.service';
+import { FetchService } from './fetch/fetch.service';
+import { DiscoveryService } from './discovery/discovery.service';
+import { FrontierService } from './frontier/frontier.service';
 
 @Global()
 @Module({
   imports: [OrganizationsModule],
   controllers: [CrawlController],
-  providers: [CrawlerService, FetcherService, CrawlerProcessor, VerificationEngineService],
-  exports: [CrawlerService, FetcherService, VerificationEngineService],
+  providers: [
+    CrawlerService,
+    // The v1 fetcher stays registered: competitor crawling and the
+    // verification engine still call it, and moving those is separate work
+    // with its own tests. New crawls go through FetchService.
+    FetcherService,
+    BrowserPoolService,
+    FetchService,
+    DiscoveryService,
+    FrontierService,
+    CrawlerProcessor,
+    VerificationEngineService,
+  ],
+  exports: [CrawlerService, FetcherService, FetchService, DiscoveryService, FrontierService, VerificationEngineService],
 })
 export class CrawlerModule {}

@@ -17,10 +17,30 @@ import { SchemaValidatorService } from '../analyzer/schema-validator.service';
 import { ContentAnalyzerService } from '../analyzer/content-analyzer.service';
 import { PerformanceService } from '../performance/performance.service';
 import { IssueEngineService } from '../issues/issue-engine.service';
-import { calculateHealthScore } from '../issues/health-score.util';
 import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
+import { FetchService, FetchOutcome } from './fetch/fetch.service';
+import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
+import { computeIndexability } from './indexability';
+import { evaluateSite } from './issue-rules';
+import { findDuplicateClusters } from './frontier/duplicate-clusters';
+import { computeCrawlSummary } from './crawl-summary';
 import * as url from 'url';
+
+/**
+ * Ceiling on the HTML kept per page, per column.
+ *
+ * rawHtml and renderedHtml exist so the two can be compared, and the
+ * comparison only needs the head and the top of the body. Storing both in
+ * full for a 500-page crawl runs to hundreds of megabytes against a database
+ * whose whole allowance is a gigabyte, so both are capped.
+ */
+const MAX_STORED_HTML_BYTES = Number(process.env.MAX_STORED_HTML_BYTES || 128 * 1024);
+
+function capHtml(html: string | undefined): string | undefined {
+  if (!html) return undefined;
+  return html.length <= MAX_STORED_HTML_BYTES ? html : `${html.slice(0, MAX_STORED_HTML_BYTES)}\n<!-- truncated by the crawler -->`;
+}
 
 /** Notified after a crawl job has finished and its results are stored. */
 export type CrawlCompletionHandler = (jobId: string, websiteId: string) => Promise<void>;
@@ -30,6 +50,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CrawlerService.name);
   private readonly localVisited = new Map<string, Set<string>>();
   private readonly jobSitemapUrls = new Map<string, Set<string>>();
+  /** Sitemap defects found while seeding, raised as site-level issues at the end. */
+  private readonly jobSitemapFindings = new Map<string, SitemapFinding[]>();
+  /** Parsed robots.txt per job, so indexability can cite the rule that applied. */
+  private readonly jobRobots = new Map<string, Awaited<ReturnType<DiscoveryService['fetchRobots']>>>();
   private readonly completionHandlers: CrawlCompletionHandler[] = [];
 
   /** Per-job crawl statistics for richer qualityDiagnostics. */
@@ -58,6 +82,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     private readonly robots: RobotsService,
     private readonly sitemap: SitemapService,
     private readonly fetcher: FetcherService,
+    private readonly fetchSvc: FetchService,
+    private readonly discovery: DiscoveryService,
     private readonly metrics: MetricsService,
     private readonly htmlExtractor: HtmlExtractorService,
     private readonly imageAnalyzer: ImageAnalyzerService,
@@ -231,20 +257,36 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const robotsRules = await this.robots.fetchRobotsRules(payload.domain);
     const delayMs = robotsRules.crawlDelayMs || payload.rateLimitDelayMs || 500;
 
-    if (payload.useSitemap) {
-      try {
-        const sitemapResult = await this.sitemap.discoverAndParseSitemaps(payload.domain, robotsRules.sitemapLocations);
-        for (const entry of sitemapResult.urls) {
-          if (entry.loc) {
-            const normLoc = this.normalizeUrl(entry.loc);
-            seedUrls.add(normLoc);
-            sitemapSet.add(normLoc);
-          }
-        }
-        this.logger.log(`[JOB ${payload.jobId}] Sitemap discovery: ${sitemapResult.sitemapsDiscovered.length} sitemaps, ${sitemapResult.urls.length} URLs found.`);
-      } catch (err) {
-        this.logger.warn(`[JOB ${payload.jobId}] Sitemap discovery failed or incomplete`, err);
+    // Seeding runs through DiscoveryService, which unions robots.txt, declared
+    // sitemaps, the conventional sitemap paths and nested index files, and —
+    // the part that matters here — reports a sitemap whose URLs are on another
+    // domain instead of quietly enqueueing them. The previous path added five
+    // URLs on a domain that does not resolve, watched all five fail, and
+    // reported that a sitemap had been found.
+    try {
+      const discovered = await this.discovery.discoverSeeds(payload.startUrl, { useSitemap: payload.useSitemap });
+      this.jobRobots.set(payload.jobId, discovered.robots);
+      this.jobSitemapFindings.set(payload.jobId, discovered.findings);
+
+      for (const found of discovered.urls) {
+        if (found.source === 'seed') continue;
+        seedUrls.add(found.normalizedUrl);
+        if (found.source === 'sitemap') sitemapSet.add(found.normalizedUrl);
       }
+
+      this.logger.log(
+        `[JOB ${payload.jobId}] Discovery: ${discovered.sitemapsFetched.length} sitemap(s), ` +
+          `${sitemapSet.size} usable URL(s), ${discovered.foreignSitemapUrls.length} on a foreign domain, ` +
+          `${discovered.findings.length} sitemap finding(s).`,
+      );
+      for (const finding of discovered.findings) {
+        this.logger.warn(`[JOB ${payload.jobId}] Sitemap ${finding.kind}: ${finding.evidence}`);
+      }
+    } catch (err) {
+      // Discovery failing must not stop the crawl: the start URL is still a
+      // seed, and a site with a broken sitemap is exactly the site worth
+      // crawling from its homepage.
+      this.logger.warn(`[JOB ${payload.jobId}] Seed discovery failed; continuing from the start URL alone.`, err);
     }
 
     this.jobSitemapUrls.set(payload.jobId, sitemapSet);
@@ -377,7 +419,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
-      const fetchRes = await this.fetcher.fetchPage(normUrl);
+      // The two-tier fetch. Beyond rendering client-side pages, the contract
+      // that matters is that `statusCode` is only ever a number the origin
+      // actually sent: a DNS, TLS, timeout or proxy failure arrives as a typed
+      // error and is recorded as such, instead of being written down as the
+      // site refusing us.
+      const outcome = await this.fetchSvc.fetch(normUrl);
+      const fetchRes = this.toLegacyFetchResult(outcome);
+      const sitemapSetForJob = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
 
       // A file is not a page. The extension filter at enqueue time catches
       // most of these before the request is even made; this catches the ones
@@ -426,6 +475,37 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // answer.
         const pageType = classifyPageType({ url: normUrl, title: htmlData.title, h1: htmlData.h1 });
 
+        // Indexability is computed from robots.txt, meta robots, the
+        // X-Robots-Tag header and the canonical — never from the status code.
+        // There was previously no such field at all, and the UI derived it
+        // from `statusCode >= 400`, which is how a page carrying none of those
+        // directives came to be labelled "Noindex".
+        const robotsDecision = this.discovery.isAllowed(this.jobRobots.get(payload.jobId), normUrl);
+        const indexability = computeIndexability({
+          statusCode: outcome.statusCode,
+          robotsTxtAllows: robotsDecision?.allowed,
+          robotsTxtEvidence: robotsDecision?.evidence,
+          metaRobots: htmlData.robotsMeta,
+          xRobotsTag: outcome.headers['x-robots-tag'],
+          canonicalUrl: htmlData.canonicalUrl,
+          pageUrl: outcome.finalUrl,
+          fetchFailed: Boolean(outcome.error),
+        });
+
+        const v2Columns = {
+          rawHtml: capHtml(outcome.rawHtml),
+          // Only kept when it differs from the raw body: otherwise it is a
+          // second copy of the same bytes on every page of every crawl.
+          renderedHtml: outcome.jsRequired ? capHtml(outcome.renderedHtml) : null,
+          jsRequired: outcome.jsRequired,
+          discoverySource: sitemapSetForJob.has(normUrl) ? 'sitemap' : payload.sourceUrl ? 'link' : 'seed',
+          statusChain: outcome.statusChain as unknown as object,
+          blockedSuspected: outcome.blockedSuspected,
+          indexability: indexability.indexability,
+          indexabilityReason: indexability.reasons as unknown as object,
+          fetchErrorKind: outcome.error?.kind ?? null,
+        };
+
         const page = await this.prisma.page.upsert({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
           update: {
@@ -435,6 +515,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             responseTimeMs: fetchRes.responseTimeMs,
             contentType: fetchRes.contentType,
             htmlSnapshotUrl: snapshotUrl,
+            ...v2Columns,
             title: htmlData.title,
             metaDescription: htmlData.metaDescription,
             canonicalUrl: htmlData.canonicalUrl,
@@ -456,6 +537,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             responseTimeMs: fetchRes.responseTimeMs,
             contentType: fetchRes.contentType,
             htmlSnapshotUrl: snapshotUrl,
+            ...v2Columns,
             title: htmlData.title,
             metaDescription: htmlData.metaDescription,
             canonicalUrl: htmlData.canonicalUrl,
@@ -502,10 +584,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           }).catch(() => {});
         }
 
-        // 4. Run Issue Engine
-        const sitemapSet = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
-        const inSitemap = sitemapSet.has(normUrl);
+        // 4. Run Issue Engine.
+        //
+        // Suppressed entirely when the fetch produced no response, or when the
+        // origin answered with a challenge a browser would not get. One bad
+        // outcome used to spawn six findings — a missing title, a missing meta
+        // description, a missing canonical, a missing H1 — every one of them
+        // measured against a body we never received. The single finding that
+        // says so is raised by the site-level pass in completeJob.
+        const inSitemap = sitemapSetForJob.has(normUrl);
 
+        if (outcome.error || outcome.blockedSuspected) {
+          await this.persistFetchFailureIssue(payload.jobId, page.id, normUrl, outcome);
+        } else {
         await this.issueEngine.evaluateAndPersistIssues(
           payload.jobId,
           page.id,
@@ -521,6 +612,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           inSitemap,
           true
         );
+
+        // The legacy engine knows nothing about rendering, so the highest-value
+        // finding on a client-rendered site has to be raised here. Without
+        // this, a site that is blank to every AI answer engine passes its audit
+        // with nothing said about it.
+        await this.persistRenderFindings(payload.jobId, page.id, normUrl, outcome);
+        }
 
         // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
         if (payload.depth === 0 && fetchRes.statusCode === 200) {
@@ -549,6 +647,223 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           }
         }
       }
+    }
+  }
+
+  /**
+   * Raises JS_RENDER_REQUIRED, or RENDER_UNAVAILABLE when the page needed
+   * rendering and we could not do it.
+   *
+   * The evidence is the raw-versus-rendered difference, so the claim is
+   * checkable rather than asserted: this many words and links before
+   * JavaScript ran, this many after.
+   */
+  private async persistRenderFindings(crawlJobId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
+    if (outcome.jsRequired && outcome.renderDiff) {
+      const diff = outcome.renderDiff;
+      await this.persistIssue(crawlJobId, pageId, pageUrl, {
+        issueType: 'JS_RENDER_REQUIRED',
+        severity: 'HIGH',
+        confidence: 'CONFIRMED',
+        description: 'Content is only available after JavaScript execution.',
+        explanation:
+          'The HTML the server sends is an empty shell. Everything that describes this page — its title, its copy and its links — is ' +
+          'written by JavaScript in the browser afterwards.',
+        impact:
+          'Googlebot renders JavaScript, so Google will eventually see this page, though on a slower second pass. Bingbot, GPTBot, ' +
+          'PerplexityBot, ClaudeBot and most social-preview scrapers largely do not, so to those engines this page is effectively blank. ' +
+          'That is the difference between being ranked late and not being quotable in an AI answer at all.',
+        recommendation:
+          'Server-render or pre-render this route so the title, meta description, copy and navigation are present in the initial HTML response.',
+        evidence:
+          `Raw HTML: ${diff.rawWordCount} words, ${diff.rawLinkCount} links, title "${diff.rawTitle ?? '(none)'}". ` +
+          `After rendering: ${diff.renderedWordCount} words, ${diff.renderedLinkCount} links, title "${diff.renderedTitle ?? '(none)'}". ` +
+          (diff.fingerprints.length ? `Build fingerprints: ${diff.fingerprints.join(', ')}.` : ''),
+      });
+      return;
+    }
+
+    if (outcome.renderUnavailable && outcome.escalationReasons.length > 0) {
+      await this.persistIssue(crawlJobId, pageId, pageUrl, {
+        issueType: 'RENDER_UNAVAILABLE',
+        severity: 'MEDIUM',
+        confidence: 'CONFIRMED',
+        description: 'This page needs JavaScript to be read, and we could not render it on this crawl.',
+        explanation: 'The static response is an empty shell and the render tier was unavailable or out of budget.',
+        impact: 'Content findings for this page are incomplete and should not be trusted until it has been rendered.',
+        recommendation: 'Re-run the audit with the render budget raised for this site.',
+        evidence: `Escalation reasons: ${outcome.escalationReasons.join(', ')}`,
+      });
+    }
+  }
+
+  /**
+   * Raises the findings that are about the crawl rather than about one page:
+   * a sitemap on the wrong domain, sitemap URLs that do not resolve, and
+   * clusters of URLs serving identical content.
+   *
+   * Duplicate clusters are reported once for the cluster. Reporting them as
+   * one thin-content finding per copy both inflates the issue count and names
+   * the wrong fix — the answer is a canonical, not more words.
+   */
+  private async persistSiteFindings(jobId: string, websiteId: string): Promise<void> {
+    try {
+      const website = await this.prisma.website.findUnique({ where: { id: websiteId }, select: { url: true, domain: true } });
+      const siteUrl = website?.url?.startsWith('http') ? website.url : `https://${website?.domain ?? ''}`;
+      if (!siteUrl || siteUrl === 'https://') return;
+
+      const sitemapFindings = this.jobSitemapFindings.get(jobId) || [];
+      const sitemapSet = this.jobSitemapUrls.get(jobId) || new Set<string>();
+
+      const pages = await this.prisma.page.findMany({
+        where: { crawlJobId: jobId },
+        select: { url: true, statusCode: true, contentHash: true, fetchErrorKind: true },
+      });
+
+      const deadSitemapUrls = pages
+        .filter((p) => sitemapSet.has(p.url) && (p.statusCode === 0 || p.statusCode >= 400))
+        .map((p) => ({
+          url: p.url,
+          status: p.statusCode,
+          reason: p.statusCode === 0 ? `${p.fetchErrorKind ?? 'unknown'}: could not be fetched` : `HTTP ${p.statusCode}`,
+        }));
+
+      const duplicateClusters = findDuplicateClusters(pages.map((p) => ({ url: p.url, contentHash: p.contentHash })));
+
+      const findings = evaluateSite({ siteUrl, sitemapFindings, duplicateClusters, deadSitemapUrls });
+      for (const finding of findings) {
+        await this.persistIssue(jobId, null, finding.affectedUrl, {
+          issueType: finding.id,
+          severity: finding.severity,
+          confidence: finding.confidence,
+          description: finding.description,
+          explanation: finding.explanation,
+          impact: finding.impact,
+          recommendation: finding.recommendation,
+          evidence: finding.evidence,
+        });
+      }
+
+      if (findings.length > 0) {
+        this.logger.log(`[JOB ${jobId}] Raised ${findings.length} site-level finding(s): ${findings.map((f) => f.id).join(', ')}`);
+      }
+    } catch (err) {
+      // Site-level findings are additional to a crawl that has already
+      // succeeded; failing to write one must not un-finish the job.
+      this.logger.error(`[JOB ${jobId}] Could not persist site-level findings`, err);
+    }
+  }
+
+  /**
+   * Maps a v2 fetch outcome onto the shape the existing analysis pipeline
+   * expects.
+   *
+   * An adapter rather than a rewrite of every analyser: the extractors, the
+   * link and image analysers and the issue engine all read `{ html, statusCode,
+   * contentType, ... }`, and they are correct — the defect was never in them,
+   * it was in what they were being fed. `html` is the rendered DOM whenever the
+   * render tier ran, which is the whole point.
+   *
+   * `statusCode` is 0 when no origin answered. That is not a real HTTP status,
+   * so every existing reader asking `=== 200` or `>= 400` simply does not match
+   * it, rather than counting our network failure as the customer's defect.
+   */
+  private toLegacyFetchResult(outcome: FetchOutcome) {
+    return {
+      url: outcome.url,
+      finalUrl: outcome.finalUrl,
+      statusCode: outcome.statusCode ?? 0,
+      responseTimeMs: outcome.totalMs,
+      contentType: outcome.contentType,
+      html: outcome.html,
+      redirectChain: outcome.statusChain.map((hop) => hop.url),
+      engine: outcome.tier === 'rendered' ? ('playwright' as const) : ('cheerio' as const),
+      errorMessage: outcome.error?.message,
+    };
+  }
+
+  /**
+   * The one finding raised for a page we could not read.
+   *
+   * Everything the content rules would have said about such a page is a
+   * statement about a body that never arrived, so this replaces them rather
+   * than joining them.
+   */
+  private async persistFetchFailureIssue(crawlJobId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
+    const blocked = !outcome.error && outcome.blockedSuspected;
+    const issue = blocked
+      ? {
+          issueType: 'FETCH_BLOCKED_SUSPECTED',
+          severity: 'HIGH',
+          confidence: 'LIKELY',
+          description: `The origin answered HTTP ${outcome.statusCode} even with a full browser request.`,
+          explanation:
+            'A bot-protection layer appears to be refusing automated clients. We retried with a complete browser header set and then ' +
+            'through a real browser, and the refusal persisted, so this page could not be assessed.',
+          impact:
+            'Whatever refuses us may also refuse Bingbot, GPTBot, PerplexityBot and ClaudeBot. No content finding about this page can be ' +
+            'trusted until it can be fetched.',
+          recommendation: 'Allow our crawler in your WAF or CDN bot rules, then re-run the audit.',
+          evidence: outcome.blockedEvidence || `HTTP ${outcome.statusCode}`,
+        }
+      : {
+          issueType: 'FETCH_FAILED',
+          severity: this.isRootUrl(pageUrl) ? 'CRITICAL' : 'HIGH',
+          confidence: 'CONFIRMED',
+          description: `Could not fetch page: ${outcome.error?.label ?? 'no response'}.`,
+          explanation:
+            'No response was obtained from the origin, so nothing about this page could be assessed. This is a report of what happened ' +
+            'on our side, not a statement about the page itself.',
+          impact: 'A page we cannot reach may be a page search engines cannot reach. No other finding about it would be trustworthy.',
+          recommendation: `Check that ${pageUrl} resolves and responds from outside your own network.`,
+          evidence: `${outcome.error?.kind ?? 'unknown'}: ${outcome.error?.message ?? 'no response'}`,
+        };
+
+    await this.persistIssue(crawlJobId, pageId, pageUrl, issue);
+  }
+
+  /** Writes one finding, ignoring a duplicate already recorded for this crawl. */
+  private async persistIssue(
+    crawlJobId: string,
+    pageId: string | null,
+    affectedUrl: string,
+    issue: { issueType: string; severity: string; confidence: string; description: string; explanation: string; impact: string; recommendation: string; evidence: string },
+  ): Promise<void> {
+    const dedupKey = `${affectedUrl}::${issue.issueType}`;
+    try {
+      const existing = await this.prisma.issue.findFirst({ where: { crawlJobId, dedupKey } });
+      if (existing) return;
+      await this.prisma.issue.create({
+        data: {
+          crawlJobId,
+          pageId: pageId ?? undefined,
+          issueType: issue.issueType,
+          severity: issue.severity as never,
+          confidence: issue.confidence as never,
+          category: 'TECHNICAL' as never,
+          affectedUrl,
+          description: issue.description,
+          explanation: issue.explanation,
+          impact: issue.impact,
+          recommendation: issue.recommendation,
+          evidence: issue.evidence,
+          dedupKey,
+          status: 'OPEN',
+          aiFixAvailable: false,
+        },
+      });
+      await this.prisma.crawlJob.update({ where: { id: crawlJobId }, data: { issuesFound: { increment: 1 } } });
+    } catch (err) {
+      this.logger.error(`[JOB ${crawlJobId}] Could not persist ${issue.issueType} for ${affectedUrl}`, err);
+    }
+  }
+
+  private isRootUrl(rawUrl: string): boolean {
+    try {
+      const parsed = new URL(rawUrl);
+      return parsed.pathname === '/' || parsed.pathname === '';
+    } catch {
+      return false;
     }
   }
 
@@ -726,13 +1041,28 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const [pages, issues] = await Promise.all([
       this.prisma.page.findMany({
         where: { crawlJobId: jobId },
-        select: { id: true, url: true, statusCode: true, responseTimeMs: true },
+        select: {
+          id: true,
+          url: true,
+          statusCode: true,
+          responseTimeMs: true,
+          indexability: true,
+          blockedSuspected: true,
+          jsRequired: true,
+          discoverySource: true,
+        },
       }),
       this.prisma.issue.findMany({
         where: { crawlJobId: jobId },
         include: { page: { select: { url: true } } },
       }),
     ]);
+
+    // Site-level findings: defects about the site as a whole rather than about
+    // any one page. A sitemap pointing at another domain is the reason a crawl
+    // like dronaarchery.com's ends at one page, and it belongs to the crawl,
+    // not to whichever URL happened to be fetched first.
+    await this.persistSiteFindings(jobId, job.websiteId);
 
     const totalPages = pages.length;
     const totalFindings = issues.length;
@@ -747,17 +1077,31 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
     const uniqueIssuesCount = uniqueIssueMap.size;
 
-    // 2. Authoritative health score calculation
-    const scoreResult = calculateHealthScore({
-      pagesCrawled: totalPages,
+    // 2. Authoritative health score.
+    //
+    // Computed by the same function the dashboard calls, so the gauge and the
+    // breakdown printed beside it cannot disagree. The previous scorer lived
+    // only on this side and counted every page equally, including the ones we
+    // never managed to fetch — which is how a site whose homepage we failed to
+    // read scored 0 out of 100 for defects that were ours, not theirs.
+    const crawlSummary = computeCrawlSummary({
+      pages: pages.map((p) => ({
+        url: p.url,
+        statusCode: p.statusCode,
+        indexability: p.indexability,
+        blockedSuspected: p.blockedSuspected,
+        jsRequired: p.jsRequired,
+        discoverySource: p.discoverySource,
+      })),
       issues: Array.from(uniqueIssueMap.values()).map((i) => ({
+        issueType: i.issueType,
         severity: i.severity,
         confidence: (i as any).confidence || 'CONFIRMED',
         affectedUrl: i.page?.url || i.affectedUrl,
-        issueType: i.issueType,
       })),
     });
-    const healthScore = scoreResult.healthScore;
+    const scoreResult = crawlSummary.health;
+    const healthScore = scoreResult.score;
 
     // 3. Check previous completed crawl job to count resolved issues
     let resolvedIssuesCount = 0;
@@ -849,6 +1193,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       uniqueIssuesCount,
       resolvedIssuesCount,
       scoreBreakdown: scoreResult,
+      /** The one computed view of this crawl. Every surface reads from here. */
+      summary: crawlSummary,
     };
 
     const finished = await this.prisma.crawlJob.update({
@@ -893,6 +1239,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);
+    this.jobSitemapFindings.delete(jobId);
+    this.jobRobots.delete(jobId);
     this.jobStats.delete(jobId);
 
     await this.announceCompletion(jobId, job.websiteId);

@@ -22,6 +22,21 @@ describe('computeCrawlSummary', () => {
     expect(summary.errored + summary.blocked + summary.unreachable + summary.successful).toBe(4);
   });
 
+  it('counts a stored 0 as unreachable, not as a successful fetch', () => {
+    // 0 is what the crawler writes when no origin answered.
+    const summary = computeCrawlSummary({
+      pages: [{ url: 'a', statusCode: 0, indexability: 'UNKNOWN' }],
+      issues: [{ issueType: 'FETCH_FAILED', severity: 'CRITICAL', affectedUrl: 'a' }],
+    });
+
+    expect(summary.unreachable).toBe(1);
+    expect(summary.successful).toBe(0);
+    expect(summary.errored).toBe(0);
+    // And it is excluded from the score: our network failure is not their defect.
+    expect(summary.health.pagesExcluded).toBe(1);
+    expect(summary.health.totalPenalty).toBe(0);
+  });
+
   it('reads indexability off the page, never off the status code', () => {
     const summary = computeCrawlSummary({
       pages: [{ url: 'a', statusCode: 403, indexability: 'INDEXABLE' }],
