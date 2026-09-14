@@ -78,9 +78,30 @@ export class BrowserPoolService implements OnModuleDestroy {
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
+            // /dev/shm is 64MB in a default container, which Chromium exhausts
+            // and then crashes on rather than degrading.
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--disable-software-rasterizer',
+            // Footprint, not speed. The smallest deployment target is a 512MB
+            // container already running a 300MB Node heap, so a default
+            // Chromium does not fit beside it. Each of these removes a
+            // subsystem a crawler never uses.
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-sync',
+            '--disable-translate',
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--mute-audio',
+            `--js-flags=--max-old-space-size=${process.env.RENDER_JS_HEAP_MB || 128}`,
+            // Deliberately NOT --single-process. It saves memory and it also
+            // makes a slow page wedge the whole browser rather than one tab,
+            // which is how renders came back as empty shells under load.
+            ...(process.env.CHROMIUM_EXTRA_ARGS ? process.env.CHROMIUM_EXTRA_ARGS.split(' ').filter(Boolean) : []),
           ],
         });
 

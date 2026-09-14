@@ -54,6 +54,17 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly jobSitemapFindings = new Map<string, SitemapFinding[]>();
   /** Parsed robots.txt per job, so indexability can cite the rule that applied. */
   private readonly jobRobots = new Map<string, Awaited<ReturnType<DiscoveryService['fetchRobots']>>>();
+  /**
+   * Pages rendered so far, per job.
+   *
+   * A browser page is by far the most expensive thing a crawl does, and the
+   * smallest deployment target has room for one at a time. Without a ceiling a
+   * 500-page crawl of a client-rendered site would launch 500 renders on a
+   * 512MB container. Pages past the budget are still fetched and still
+   * assessed; they are marked RENDER_UNAVAILABLE so the report says its
+   * coverage is partial rather than quietly reporting a shell as the page.
+   */
+  private readonly jobRendersUsed = new Map<string, number>();
   private readonly completionHandlers: CrawlCompletionHandler[] = [];
 
   /** Per-job crawl statistics for richer qualityDiagnostics. */
@@ -424,7 +435,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // actually sent: a DNS, TLS, timeout or proxy failure arrives as a typed
       // error and is recorded as such, instead of being written down as the
       // site refusing us.
-      const outcome = await this.fetchSvc.fetch(normUrl);
+      const rendersUsed = this.jobRendersUsed.get(payload.jobId) ?? 0;
+      const renderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
+      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed: rendersUsed < renderBudget });
+      if (outcome.tier === 'rendered') {
+        this.jobRendersUsed.set(payload.jobId, rendersUsed + 1);
+      }
       const fetchRes = this.toLegacyFetchResult(outcome);
       const sitemapSetForJob = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
 
@@ -1241,6 +1257,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.jobSitemapUrls.delete(jobId);
     this.jobSitemapFindings.delete(jobId);
     this.jobRobots.delete(jobId);
+    this.jobRendersUsed.delete(jobId);
     this.jobStats.delete(jobId);
 
     await this.announceCompletion(jobId, job.websiteId);

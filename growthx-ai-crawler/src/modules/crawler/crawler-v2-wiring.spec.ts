@@ -172,6 +172,39 @@ describe('CrawlerService writes the v2 columns', () => {
   });
 });
 
+describe('CrawlerService budgets rendering', () => {
+  it('allows rendering while the budget holds', async () => {
+    const fetch = jest.fn(async (_url: string, _opts?: unknown) => outcome());
+    const { service } = makeService({ fetchSvc: { fetch } });
+
+    await service.processPageFetch(payload);
+
+    expect(fetch).toHaveBeenCalledWith('https://example.com/', { renderAllowed: true });
+  });
+
+  it('stops offering the render tier once the budget is spent', async () => {
+    const previous = process.env.CRAWL_MAX_RENDERED_PAGES;
+    process.env.CRAWL_MAX_RENDERED_PAGES = '1';
+    try {
+      const fetch = jest.fn(async (_url: string, _opts?: unknown) =>
+        outcome({ tier: 'rendered', jsRequired: true, renderedHtml: '<html><body><h1>R</h1></body></html>' }),
+      );
+      const { service } = makeService({ fetchSvc: { fetch } });
+
+      await service.processPageFetch(payload);
+      await service.processPageFetch({ ...payload, targetUrl: 'https://example.com/second' });
+
+      expect(fetch.mock.calls[0][1]).toEqual({ renderAllowed: true });
+      // The budget was spent by the first page, so the second is fetched but
+      // not rendered - still assessed, and honest about being partial.
+      expect(fetch.mock.calls[1][1]).toEqual({ renderAllowed: false });
+    } finally {
+      if (previous === undefined) delete process.env.CRAWL_MAX_RENDERED_PAGES;
+      else process.env.CRAWL_MAX_RENDERED_PAGES = previous;
+    }
+  });
+});
+
 describe('CrawlerService suppresses the issue cascade', () => {
   it('raises one finding for an unreachable page and runs no content rules', async () => {
     const evaluateAndPersistIssues = jest.fn(async () => []);

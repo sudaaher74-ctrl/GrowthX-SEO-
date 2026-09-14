@@ -37,6 +37,21 @@ services:
         value: "--max-old-space-size=300"
       - key: ENABLE_PLAYWRIGHT_STARTUP
         value: "false"
+      # Rendering is what makes a client-rendered site readable at all, and it
+      # is also the most expensive thing the crawler does. On a 512MB instance
+      # already running a 300MB Node heap there is room for exactly one
+      # Chromium page at a time, and for a bounded number of them per crawl.
+      - key: MAX_RENDER_CONCURRENCY
+        value: "1"
+      - key: RENDER_JS_HEAP_MB
+        value: "96"
+      - key: CRAWL_MAX_RENDERED_PAGES
+        value: "50"
+      # Both HTML bodies are stored per page so raw and rendered can be
+      # compared. Uncapped, a 500-page crawl writes hundreds of megabytes into
+      # a database whose whole free-tier allowance is a gigabyte.
+      - key: MAX_STORED_HTML_BYTES
+        value: "131072"
       # Secrets are never checked into the repository.
       #
       # `sync: false` tells Render to prompt for the value in the dashboard and
