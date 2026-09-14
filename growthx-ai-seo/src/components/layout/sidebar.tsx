@@ -51,10 +51,6 @@ export function Sidebar({
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
 
-  const agencyNav: NavItem[] = [
-    { label: "Projects", href: "/clients", icon: LayoutGrid, tag: projects.length ? String(projects.length) : undefined },
-  ];
-
   // Core Navigation Tabs strictly following Master Product Specification Section 26
   const mainNav: NavItem[] = [
     {
@@ -156,12 +152,7 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
-          <SectionLabel>Portfolio</SectionLabel>
-          {agencyNav.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
-          ))}
-
-          <div className="mt-5">
+          <div>
             <SectionLabel>Workspace</SectionLabel>
 
             {/* Client switcher */}
