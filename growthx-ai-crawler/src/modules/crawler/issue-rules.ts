@@ -308,7 +308,7 @@ export function evaluatePage(input: PageRuleInput): Finding[] {
       explanation: `Below roughly ${THIN_CONTENT_WORDS} words there is usually not enough substance to answer a query fully.`,
       impact: 'Thin pages rank poorly and are rarely cited by AI answer engines.',
       recommendation: 'Expand the page with material that answers what a visitor actually came to find out.',
-      evidence: `${extracted.wordCount} words in main content (navigation, header and footer excluded).`,
+      evidence: `${extracted.wordCount} words in main content, ${extracted.bodyWordCount} including navigation, header and footer.`,
       sourceField: 'extracted.wordCount',
     }));
   }

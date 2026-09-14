@@ -1,3 +1,5 @@
+import { existsSync } from 'fs';
+
 /**
  * Fixture origins are loopback, which the SSRF guard refuses by design.
  * Opened only for the test process.
@@ -8,6 +10,5 @@ process.env.ALLOW_PRIVATE_CRAWL_TARGETS = 'true';
 // Playwright's own download. Harmless when unset.
 if (!process.env.PLAYWRIGHT_EXECUTABLE_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH) {
   const candidate = `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium`;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  if (require('fs').existsSync(candidate)) process.env.PLAYWRIGHT_EXECUTABLE_PATH = candidate;
+  if (existsSync(candidate)) process.env.PLAYWRIGHT_EXECUTABLE_PATH = candidate;
 }

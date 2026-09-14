@@ -36,7 +36,16 @@ export interface ExtractedPage {
   h1: string[];
   h2: string[];
   h3: string[];
+  /** Main content only: navigation, header and footer removed. */
   wordCount: number;
+  /**
+   * Every word in <body>, boilerplate included.
+   *
+   * Kept alongside wordCount because the two answer different questions and
+   * quoting one as the other is how a thin-content finding becomes an
+   * argument. A page can carry 427 words of which 103 are its own navigation.
+   */
+  bodyWordCount: number;
   internalLinks: ExtractedPageLink[];
   externalLinks: ExtractedPageLink[];
   images: ExtractedPageImage[];
@@ -47,6 +56,22 @@ export interface ExtractedPage {
   twitterCard: Record<string, string>;
   language?: string;
   mainText: string;
+}
+
+
+/**
+ * Serialized HTML has no word boundaries at block edges.
+ *
+ * `<h1>Archery</h1><p>Coaching</p>` is two words to a reader and one token to
+ * `textContent`, which runs them together as "ArcheryCoaching". A browser's
+ * `innerText` inserts the break; cheerio does not, and the difference showed up
+ * as a word count 18% below the browser's on a real page - enough to push a
+ * page across the thin-content threshold in the wrong direction.
+ */
+const BLOCK_BOUNDARY = /<\/?(?:address|article|aside|blockquote|br|dd|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>/gi;
+
+function separateBlocks(html: string): string {
+  return (html || '').replace(BLOCK_BOUNDARY, (tag) => ` ${tag} `);
 }
 
 /** Chrome that is on every page and is not what the page is about. */
@@ -180,7 +205,11 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
   // Word count is taken from the main content with navigation and footers
   // removed, on a throwaway parse so the link and image extraction above still
   // sees the whole page.
-  const $content = cheerio.load(html || '');
+  const $body = cheerio.load(separateBlocks(html));
+  $body('script, style, noscript, template').remove();
+  const bodyText = $body('body').text().replace(/\s+/g, ' ').trim();
+
+  const $content = cheerio.load(separateBlocks(html));
   $content(BOILERPLATE_SELECTORS).remove();
   const main = $content('main').first().length ? $content('main').first() : $content('article').first().length ? $content('article').first() : $content('body');
   const mainText = main.text().replace(/\s+/g, ' ').trim();
@@ -198,6 +227,7 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
     h2: headings.filter((h) => h.level === 2).map((h) => h.text),
     h3: headings.filter((h) => h.level === 3).map((h) => h.text),
     wordCount: mainText ? mainText.split(' ').filter(Boolean).length : 0,
+    bodyWordCount: bodyText ? bodyText.split(' ').filter(Boolean).length : 0,
     internalLinks,
     externalLinks,
     images,

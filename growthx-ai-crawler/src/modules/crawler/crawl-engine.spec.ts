@@ -90,7 +90,11 @@ ${['/', '/about', '/archery-programs', '/gallery', '/contact']
       // 157, not the 156 the brief states: measured from the live production
       // bundle at /assets/index-DrDh8OKf.js, which the fixture copies verbatim.
       expect(home.extracted!.metaDescriptionLength).toBe(157);
+      // Main content, boilerplate excluded. The live page also reports 427
+      // for whole-body innerText, which is bodyWordCount here; the two answer
+      // different questions and the thin-content rule quotes both.
       expect(home.extracted!.wordCount).toBeGreaterThan(400);
+      expect(home.extracted!.bodyWordCount).toBeGreaterThanOrEqual(home.extracted!.wordCount);
       expect(home.extracted!.h1).toHaveLength(2);
       expect(home.extracted!.h2).toHaveLength(7);
       expect(home.extracted!.images).toHaveLength(6);

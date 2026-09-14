@@ -179,3 +179,148 @@ The UI contradictions are two different formulas for one number:
 | RC-3 | Typed `FetchError { kind }`, header escalation on 403/429/503, `blockedSuspected` with evidence, redirect chain captured hop-by-hop, apex↔www normalised |
 | RC-4 | `computeIndexability()` — status + robots.txt + meta robots + X-Robots-Tag + canonical, nothing else, with an explicit `unknown` |
 | RC-5 | Cascade suppression on fetch failure, evidence/confidence on every issue, one shared `computeCrawlSummary()` for both tabs, "No data" for absent CWV |
+
+---
+
+# Verification
+
+Added after the rebuild. Every number below was produced by the code in this
+branch, not asserted.
+
+## Test suite
+
+```
+Test Suites: 122 passed, 122 total
+Tests:       1352 passed, 1352 total
+```
+
+233 of those are the crawler's. Each required fixture is covered:
+
+| Required case | Where |
+| --- | --- |
+| SPA with empty shell, client-injected title/meta/JSON-LD | `fetch/fetch.service.spec.ts`, `crawl-engine.spec.ts` |
+| Sitemap on a foreign, non-resolving domain | `discovery/discovery.service.spec.ts`, `crawl-engine.spec.ts` |
+| Sitemap index, nested, with a `.xml.gz` child | `discovery/discovery.service.spec.ts` |
+| WAF that 403s a bare UA and 200s a browser UA | `fetch/fetch.service.spec.ts` |
+| apex→www→https chain, zero errors | `fetch/fetch.service.spec.ts`, `crawl-engine.spec.ts` |
+| robots.txt Disallow `*` / Allow our token, and the reverse | `discovery/discovery.service.spec.ts` |
+| `X-Robots-Tag: noindex` header with no meta tag | `indexability.spec.ts`, `crawl-engine.spec.ts` |
+| Cross-domain canonical | `indexability.spec.ts`, `crawl-engine.spec.ts` |
+| Two URLs, identical content → one cluster, not two thin-content findings | `frontier/frontier.spec.ts`, `crawl-engine.spec.ts` |
+| Infinite calendar / pagination trap stopped by maxDepth and maxPages | `frontier/frontier.spec.ts`, `crawl-engine.spec.ts` |
+
+Fixtures are served over a real socket by `testing/fixture-server.ts`. The
+defects this suite exists to catch live in the transport — redirect chains
+walked hop by hop, a WAF answering on headers, gzipped sitemaps, a header that
+never appears in the HTML — and none of that is exercised by stubbing `fetch`.
+
+## Re-run against dronaarchery.com
+
+Two runs, because this sandbox's egress proxy terminates Chromium's TLS
+(`ERR_CONNECTION_RESET`, confirmed against the proxy's own failure log). The
+static tier reaches the live origin; the render tier cannot.
+
+**Run 1 — the live site**, `scripts/audit-site.ts https://www.dronaarchery.com/`:
+
+```
+Pages crawled 1 · successful 1 · errored 0 · blocked 0 · unreachable 0
+Indexable     1 (100%)
+```
+
+Status 200 and INDEXABLE against the live origin — the phantom 403 and the
+phantom noindex are both gone — and both `SITEMAP_WRONG_DOMAIN` findings fire
+against the real robots.txt and the real sitemap. The render is degraded to
+Chromium's own error page because of the proxy, so the page counts are not
+meaningful in this run.
+
+**Run 2 — a byte-exact mirror of the production site** served on loopback
+(`index.html` md5 verified identical to the live response; the real 551 KB
+`/assets/index-DrDh8OKf.js`, the real `robots.txt` and `sitemap.xml`):
+
+```
+Pages crawled 5 · successful 5 · errored 0 · blocked 0 · unreachable 0
+Indexable     5 (100%)   JS required 5   Core Web Vitals: No data
+Health score  73/100 (every crawled page was scored)
+Discovery     { seed: 1, link: 4 }
+
+200 INDEXABLE JS seed 380/423w  /                  "Best Archery Academy New Panvel | Archery Coaching Navi Mumbai | …"
+200 INDEXABLE JS link 274/317w  /about             "About Us | Professional Archery Academy in Navi Mumbai | …"
+200 INDEXABLE JS link 132/175w  /archery-programs  "Archery Training Programs | Kids & Olympic Recurve | New Panvel …"
+200 INDEXABLE JS link 109/152w  /gallery           "Archery Gallery & Achievements | Deona Archery Academy | …"
+200 INDEXABLE JS link  19/62w   /contact           "Contact Us | Archery Classes in Panvel & Navi Mumbai | …"
+```
+
+Against the target table in the brief:
+
+| | Before | Target | Now |
+| --- | --- | --- | --- |
+| Pages crawled | 1 | 5 | **5** |
+| HTTP status | 403 | 200 | **200** |
+| Indexability | Noindex | Indexable | **Indexable** |
+| Title | "Untitled Document" | 86 chars | **86 chars, verbatim** |
+| Word count | 0 | ~427 | **423** body / **380** main |
+| Health score | 0/100 | — | **73/100, itemised** |
+
+The two genuine findings are raised and no phantom one is:
+
+```
+[HIGH/CONFIRMED]     JS_RENDER_REQUIRED    ×5
+[CRITICAL/CONFIRMED] SITEMAP_WRONG_DOMAIN  ×2
+```
+
+with the evidence a user can check themselves:
+
+```
+JS_RENDER_REQUIRED
+  Raw HTML: 5 words, 0 links, title "AURA | Premium Archery Academy".
+  After rendering: 380 words, 20 links, title "Best Archery Academy New Panvel | …".
+
+SITEMAP_WRONG_DOMAIN
+  robots.txt at https://www.dronaarchery.com/robots.txt declares
+  "Sitemap: https://deonaarcheryacademy.com/sitemap.xml", which is on
+  deonaarcheryacademy.com rather than dronaarchery.com.
+
+  5 of 5 URLs in https://www.dronaarchery.com/sitemap.xml are on
+  deonaarcheryacademy.com, not dronaarchery.com.
+```
+
+The remaining findings — `NO_CANONICAL` ×5, `THIN_CONTENT` ×4, `MISSING_H1` ×4,
+`LONG_TITLE` ×5, `NOT_IN_SITEMAP` ×4, `MULTIPLE_H1` ×1 — are all real and all
+verifiable on the live site. The homepage genuinely has two H1s and an 86-character
+title; `/about` genuinely has no H1; no page declares a canonical.
+
+Note that the four other routes were discovered from **rendered links**, not from
+the sitemap. That is the design working as intended: the sitemap is useless on
+this site, and the union of sources is what stops a single broken source ending
+a crawl.
+
+## Two corrections to the brief's figures
+
+* **Meta description is 157 characters, not 156.** Measured directly from the
+  production bundle at `/assets/index-DrDh8OKf.js`.
+* **427 words is whole-body text, not main content.** Measured in a browser,
+  `document.body.innerText` is 427 and the same DOM with navigation, header and
+  footer removed is 380. The crawler reports both: `wordCount` (main, 380) is
+  what the thin-content rule uses, `bodyWordCount` (423) is the comparable
+  figure. The 4-word gap to the browser's 427 is CSS-hidden text that
+  `innerText` omits and `textContent` does not.
+
+## Not done in this pass
+
+Stated explicitly rather than stubbed:
+
+* **`FrontierService` is built and tested but not yet wired into
+  `CrawlerService`.** The database table, the atomic claim, requeue-on-restart
+  and the limits all exist and are covered; `crawler.service.ts` still runs its
+  own Redis-set frontier. `CrawlEngine` is the new pipeline end to end and is
+  what the integration tests exercise. Swapping the orchestrator over is a
+  contained follow-up, and is deliberately separate from this change so the
+  BullMQ and Redis paths can be migrated with their own tests.
+* **Rendered screenshots** (the optional flag in the brief) are not implemented.
+* **`discoverBundleRoutes` is written and verifies every candidate with a real
+  fetch, but is not yet called by `CrawlEngine`.** On this site rendered links
+  already find every route; enabling it without a site that needs it would be
+  shipping an unexercised path.
+* **Core Web Vitals still come from the existing PageSpeed integration.** The
+  change here is that missing metrics now render as "No data" rather than as a
+  green "Good" badge.
