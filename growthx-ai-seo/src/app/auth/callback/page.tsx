@@ -22,25 +22,12 @@ function CallbackContent() {
           const orgId = orgs?.[0]?.id;
           if (orgId) auth.setOrgId(orgId);
 
-          // Check if this user has already completed onboarding.
-          // We key the flag on the first project (or org) so that new
-          // accounts always see the onboarding wizard.
-          const projectId = localStorage.getItem("growthx.project") || orgId || "";
-          const onboardingDone =
-            projectId
-              ? localStorage.getItem(`growthx_onboarding_done_${projectId}`) === "true"
-              : false;
-
-          if (onboardingDone) {
-            router.push("/dashboard");
-          } else {
-            router.push("/onboarding");
-          }
+          router.push("/dashboard");
         })
         .catch((err) => {
           console.error("Failed to list orgs after google login", err);
-          // Fall back to onboarding on any error so user still lands somewhere useful
-          router.push("/onboarding");
+          // Fall back to dashboard on any error so user still lands somewhere useful
+          router.push("/dashboard");
         });
     } else {
       setError("Authentication failed. Tokens not found.");
