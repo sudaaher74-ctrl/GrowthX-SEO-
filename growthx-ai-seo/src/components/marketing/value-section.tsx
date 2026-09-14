@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Play, CheckCircle2, Circle, Loader2, TrendingUp } from "lucide-react";
+import { Panel } from "@/components/ui/console";
 
 const WORKFLOW_STEPS = [
   { label: "Website crawled", status: "done", time: "2 min ago" },
@@ -29,8 +30,8 @@ function WorkflowViz() {
       </div>
 
       {/* Main workflow card — completely unobstructed and fully visible */}
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 overflow-hidden relative z-10">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+      <div className="bg-white rounded-2xl shadow-xl border overflow-hidden relative z-10">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-brand-50/70">
           <div className="flex items-center gap-2">
             <div className="flex gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
@@ -137,18 +138,16 @@ export function ValueSection() {
 
             {/* Features (replacing metrics) */}
             <div className="space-y-4">
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-                <p className="text-[13px] font-bold text-slate-900 mb-1">AST Schema Inspection</p>
-                <p className="text-[12px] text-slate-600 leading-relaxed">
+              <Panel title="AST Schema Inspection" padded>
+                <p className="text-[12px] text-brand-600 leading-relaxed">
                   We don&apos;t just look for schema tags; we validate your structured JSON-LD syntax (e.g. Organization, WebSite) to ensure search engines can parse it perfectly.
                 </p>
-              </div>
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-                <p className="text-[13px] font-bold text-slate-900 mb-1">Geo-Targeted Prompt Sweeps</p>
-                <p className="text-[12px] text-slate-600 leading-relaxed">
+              </Panel>
+              <Panel title="Geo-Targeted Prompt Sweeps" padded>
+                <p className="text-[12px] text-brand-600 leading-relaxed">
                   Our AI Visibility engine runs localized prompt checks to see how AI assistants respond to queries in different cities and metros, helping you win local markets.
                 </p>
-              </div>
+              </Panel>
             </div>
 
             {/* CTAs */}

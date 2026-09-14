@@ -85,8 +85,8 @@ function WorkflowAppPreview() {
       {/* Main card */}
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden">
         <div className="flex">
-          {/* Dark Sidebar */}
-          <div className="w-32 sm:w-36 bg-[#0a101d] p-3 sm:p-3.5 shrink-0 flex flex-col justify-between">
+          {/* Sidebar */}
+          <div className="w-32 sm:w-36 bg-brand-950 p-3 sm:p-3.5 shrink-0 flex flex-col justify-between">
             <div>
               <div className="mb-4 pl-1">
                 <span className="text-sm font-black tracking-tight text-white">

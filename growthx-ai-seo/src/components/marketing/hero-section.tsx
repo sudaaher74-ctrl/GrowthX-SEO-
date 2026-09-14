@@ -47,8 +47,8 @@ function DashboardMockup() {
       <div className="relative mt-6 bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden">
         {/* Container with Sidebar + Main Workspace */}
         <div className="flex">
-          {/* Dark Sidebar */}
-          <div className="w-28 sm:w-32 bg-[#0a101d] p-3 shrink-0 flex flex-col justify-between">
+          {/* Sidebar */}
+          <div className="w-28 sm:w-32 bg-brand-950 p-3 shrink-0 flex flex-col justify-between">
             <div>
               {/* Logo */}
               <div className="mb-3.5 pl-1">
