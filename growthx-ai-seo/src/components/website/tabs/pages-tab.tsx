@@ -323,23 +323,23 @@ export function PagesTab({
               <b className="text-slate-900 dark:text-white">{successfulCount}</b> Successful
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
-              <b className="text-slate-900 dark:text-white">{erroredCount}</b> Errored
+              <span className="h-2 w-2 rounded-full bg-error-500" />
+              <b className="text-brand-950">{erroredCount}</b> Errored
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              <b className="text-slate-900 dark:text-white">{redirectedCount}</b> Redirected
+              <span className="h-2 w-2 rounded-full bg-warning-500" />
+              <b className="text-brand-950">{redirectedCount}</b> Redirected
             </span>
             {blockedCount > 0 && (
               <span className="flex items-center gap-1" title="The origin answered with a challenge a browser would not get. Not the same as an error.">
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-                <b className="text-slate-900 dark:text-white">{blockedCount}</b> Blocked
+                <span className="h-2 w-2 rounded-full bg-warning-600" />
+                <b className="text-brand-950">{blockedCount}</b> Blocked
               </span>
             )}
             {unreachableCount > 0 && (
               <span className="flex items-center gap-1" title="We could not reach these pages at all, so nothing about them was assessed.">
-                <span className="h-2 w-2 rounded-full bg-slate-400" />
-                <b className="text-slate-900 dark:text-white">{unreachableCount}</b> Unreachable
+                <span className="h-2 w-2 rounded-full bg-brand-400" />
+                <b className="text-brand-950">{unreachableCount}</b> Unreachable
               </span>
             )}
           </div>
@@ -368,32 +368,32 @@ export function PagesTab({
           <div className="mt-4">
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 flex">
               <div
-                className="h-full bg-emerald-500 transition-all duration-500"
+                className="h-full bg-success-500 transition-all duration-500"
                 style={{ width: `${indexablePct}%` }}
               />
               <div
-                className="h-full bg-amber-400 transition-all duration-500"
+                className="h-full bg-warning-400 transition-all duration-500"
                 style={{ width: `${pages.length ? (nonIndexableCount / pages.length) * 100 : 0}%` }}
               />
-              {/* Unknown is grey, never red: a signal we could not read is not
-                  a signal that said no. */}
+              {/* Unknown is neutral, never red: a signal we could not read is
+                  not a signal that said no. */}
               <div
-                className="h-full bg-slate-300 dark:bg-slate-700 transition-all duration-500"
+                className="h-full bg-brand-300 transition-all duration-500"
                 style={{ width: `${pages.length ? (unknownIndexabilityCount / pages.length) * 100 : 0}%` }}
               />
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-brand-500">
               <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
                 <span>{indexableCount} Indexable</span>
               </span>
               <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-warning-400" />
                 <span>{nonIndexableCount} Non-indexable</span>
               </span>
               {unknownIndexabilityCount > 0 && (
                 <span className="flex items-center gap-1" title="We could not determine indexability for these pages.">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
                   <span>{unknownIndexabilityCount} Unknown</span>
                 </span>
               )}
@@ -633,7 +633,7 @@ export function PagesTab({
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           {page.jsRequired && (
                             <span
-                              className="rounded border border-violet-200 bg-violet-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300"
+                              className="rounded border bg-accent-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-accent-700"
                               title="This page's content only exists after JavaScript runs. Most AI answer engines do not execute it."
                             >
                               JS
@@ -641,7 +641,7 @@ export function PagesTab({
                           )}
                           {page.discoverySource && (
                             <span
-                              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                              className="rounded border bg-brand-50 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-brand-600"
                               title={`How this URL was discovered: ${page.discoverySource}`}
                             >
                               {page.discoverySource}
@@ -649,7 +649,7 @@ export function PagesTab({
                           )}
                           {page.blockedSuspected && (
                             <span
-                              className="rounded border border-orange-200 bg-orange-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-orange-700 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
+                              className="rounded border bg-warning-50 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-warning-700"
                               title="The origin answered with a challenge a browser would not get. We could not assess this page."
                             >
                               Blocked?
@@ -674,12 +674,12 @@ export function PagesTab({
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-bold",
                               page.statusCode == null || page.statusCode === 0
-                                ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                                ? "bg-brand-100 text-brand-600"
                                 : page.statusCode >= 200 && page.statusCode < 300
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                ? "bg-success-50 text-success-700"
                                 : page.statusCode >= 300 && page.statusCode < 400
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400"
+                                ? "bg-warning-50 text-warning-700"
+                                : "bg-error-50 text-error-700"
                             )}
                             title={
                               page.statusChain && page.statusChain.length > 1
@@ -703,11 +703,11 @@ export function PagesTab({
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                               indexability === "INDEXABLE"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                ? "bg-success-50 text-success-700"
                                 : indexability === "NOT_INDEXABLE"
-                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                                : // Unknown renders grey. It is not a finding.
-                                  "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                                ? "bg-warning-50 text-warning-700"
+                                : // Unknown renders neutral. It is not a finding.
+                                  "bg-brand-100 text-brand-600"
                             )}
                             title={(page.indexabilityReason ?? []).map((r) => r.evidence).join("\n") || undefined}
                           >

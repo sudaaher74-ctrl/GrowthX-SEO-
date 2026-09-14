@@ -419,28 +419,28 @@ export function TechnicalSeoTab({
               not even true: every point came from issues raised against a page
               that had never been fetched. */}
           {healthScore != null && (
-            <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] dark:border-slate-800">
-              <div className="mb-1 font-semibold uppercase tracking-wider text-slate-400">
+            <div className="mt-3 border-t pt-3 text-[11px]">
+              <div className="mb-1 font-semibold uppercase tracking-wider text-brand-400">
                 Score breakdown
               </div>
               <div className="space-y-0.5">
                 {summary.health.penalties
                   .filter((row) => row.count > 0)
                   .map((row) => (
-                    <div key={row.severity} className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                    <div key={row.severity} className="flex items-center justify-between text-brand-600">
                       <span>
                         {row.count} {row.severity.toLowerCase()}
                       </span>
-                      <span className="font-mono text-rose-600 dark:text-rose-400">-{row.penalty}</span>
+                      <span className="font-mono text-error-600">-{row.penalty}</span>
                     </div>
                   ))}
-                <div className="flex items-center justify-between border-t border-slate-100 pt-0.5 font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300">
+                <div className="flex items-center justify-between border-t pt-0.5 font-semibold text-brand-700">
                   <span>Across {summary.health.pagesScored} scored page(s)</span>
                   <span className="font-mono">-{summary.health.totalPenalty}</span>
                 </div>
               </div>
               {summary.health.pagesExcluded > 0 && (
-                <p className="mt-1.5 text-slate-500 dark:text-slate-400">{summary.health.note}</p>
+                <p className="mt-1.5 text-brand-500">{summary.health.note}</p>
               )}
             </div>
           )}
@@ -526,12 +526,12 @@ export function TechnicalSeoTab({
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
                   cwvOverallStatus === "No data"
-                    ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                    ? "bg-brand-100 text-brand-500"
                     : cwvOverallStatus === "Good"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    ? "bg-success-50 text-success-700"
                     : cwvOverallStatus === "Needs Work"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
+                    ? "bg-warning-50 text-warning-700"
+                    : "bg-error-50 text-error-700"
                 )}
                 title={
                   cwvOverallStatus === "No data"
