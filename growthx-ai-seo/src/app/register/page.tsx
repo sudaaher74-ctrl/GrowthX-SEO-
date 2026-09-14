@@ -51,7 +51,7 @@ export default function RegisterPage() {
             if (proj?.id) {
               localStorage.setItem("growthx.project", proj.id);
               try {
-                await api.startCrawl({ domain: pendingDomain, projectId: proj.id });
+                await api.startCrawl({ domain: pendingDomain });
               } catch (crawlErr) {
                 console.error("Failed to start initial crawl", crawlErr);
               }
