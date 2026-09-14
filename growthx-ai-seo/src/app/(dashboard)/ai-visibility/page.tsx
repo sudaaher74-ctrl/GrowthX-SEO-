@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import {
   useWorkspace,
-  usePortfolio,
   useVisibility,
   useTrackedPrompts,
   useRunSweep,
@@ -61,12 +60,12 @@ const TABS = [
 ];
 
 function AiVisibilityClient() {
-  const { orgId, projectId } = useWorkspace();
+  const { orgId, projectId, projects } = useWorkspace();
   const qc = useQueryClient();
-  const portfolio = usePortfolio(orgId);
-  const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
-  const domain = client?.domain || "aivaenterprises.com";
-  const businessName = client?.name || "Aiva";
+  
+  const currentProject = projects?.find(p => p.id === projectId);
+  const domain = currentProject?.name || "aivaenterprises.com";
+  const businessName = domain.split('.')[0] || "Aiva";
 
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
