@@ -552,6 +552,20 @@ export interface CrawlPage {
   canonicalUrl: string | null;
   responseTimeMs: number;
   performance?: CrawlPerformance | null;
+  /// Computed by the crawler from robots.txt, meta robots, X-Robots-Tag and
+  /// the canonical - never from the status code. UNKNOWN is a real answer and
+  /// must render grey, not red.
+  indexability?: "INDEXABLE" | "NOT_INDEXABLE" | "UNKNOWN" | null;
+  indexabilityReason?: Array<{ code: string; evidence: string }> | null;
+  /// True when this page's content exists only after JavaScript runs.
+  jsRequired?: boolean | null;
+  /// sitemap | link | bundle | seed | robots
+  discoverySource?: string | null;
+  /// The origin answered with a challenge a browser would not get. Distinct
+  /// from an error: it is a suspicion carrying evidence, not a recorded status.
+  blockedSuspected?: boolean | null;
+  /// Every redirect hop, not just the endpoints.
+  statusChain?: Array<{ url: string; status: number; location?: string }> | null;
 }
 
 export interface CrawlPerformance {

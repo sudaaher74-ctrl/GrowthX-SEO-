@@ -27,6 +27,7 @@ import {
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage, CrawlQualityDiagnostics } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
+import { computeCrawlSummary } from "@/lib/crawl-summary";
 import { GaugeScore } from "../gauge-score";
 import type { WebsiteTabId } from "@/components/website/tabs/tab-id";
 
@@ -64,17 +65,42 @@ export function TechnicalSeoTab({
   // 1. Health Score
   const healthScore = crawl?.healthScore != null ? Math.round(crawl.healthScore) : null;
 
-  // 2. Crawlability %
-  const totalDiscovered = qualityDiagnostics?.urlsDiscovered || pages.length || 1;
-  const blockedCount =
-    qualityDiagnostics?.robotsBlocked ??
-    issues.filter((i) => (i.issueType || "").toUpperCase().includes("ROBOT")).length;
-  const errorPagesCount = pages.filter((p) => p.statusCode >= 400).length;
-  const crawlabilityPercent =
-    qualityDiagnostics?.crawlCoveragePercent ??
-    (pages.length > 0
-      ? Math.max(0, Math.min(100, Math.round(((pages.length - errorPagesCount) / pages.length) * 100)))
-      : 0);
+  // 2-4. Every count on this tab comes from the one shared summary, which is
+  // the same function the Pages tab calls. The two used to derive these
+  // numbers independently and contradict each other on screen: this tab read
+  // qualityDiagnostics.robotsBlocked and showed "Crawlability 100%, 0 blocked"
+  // beside the Pages tab's "1 Blocked", for one crawl of one site.
+  const summary = useMemo(
+    () =>
+      computeCrawlSummary({
+        pages: pages.map((p) => ({
+          url: p.url,
+          statusCode: p.statusCode ?? null,
+          indexability: p.indexability ?? null,
+          blockedSuspected: p.blockedSuspected ?? null,
+          jsRequired: p.jsRequired ?? null,
+          discoverySource: p.discoverySource ?? null,
+          fetchFailed: p.statusCode === null || p.statusCode === undefined,
+        })),
+        issues: issues.map((i) => ({
+          issueType: i.issueType,
+          severity: i.severity,
+          confidence: (i as { confidence?: string }).confidence ?? null,
+          affectedUrl: i.affectedUrl ?? null,
+        })),
+        performance: pages.map((p) => ({
+          lcpMs: p.performance?.lcpMs ?? null,
+          inpMs: p.performance?.inpMs ?? null,
+          clsScore: p.performance?.clsScore ?? null,
+        })),
+      }),
+    [pages, issues]
+  );
+
+  const blockedCount = summary.blocked;
+  const errorPagesCount = summary.errored;
+  const unreachableCount = summary.unreachable;
+  const crawlabilityPercent = summary.crawlablePercent;
 
   // Delta vs last crawl
   const lastRun = historyRuns.length >= 2 ? historyRuns[historyRuns.length - 2] : null;
@@ -84,52 +110,26 @@ export function TechnicalSeoTab({
       ? Math.round(((currentRun.pagesCrawled - lastRun.pagesCrawled) / lastRun.pagesCrawled) * 100)
       : null;
 
-  // 3. Indexability %
-  const noindexIssues = issues.filter(
-    (i) =>
-      (i.issueType || "").toUpperCase().includes("NOINDEX") ||
-      (i.description || "").toUpperCase().includes("NOINDEX")
-  );
   const canonicalIssues = issues.filter(
     (i) =>
       (i.issueType || "").toUpperCase().includes("CANONICAL") ||
       (i.category || "").toUpperCase().includes("CANONICAL")
   );
-  const nonIndexableCount = Math.min(
-    pages.length,
-    noindexIssues.length + errorPagesCount
-  );
-  const indexableCount = Math.max(0, pages.length - nonIndexableCount);
-  const indexabilityPercent =
-    pages.length > 0 ? Math.round((indexableCount / pages.length) * 100) : 0;
+  const nonIndexableCount = summary.nonIndexable;
+  const unknownIndexabilityCount = summary.indexabilityUnknown;
+  const indexabilityPercent = summary.indexablePercent;
 
-  // 4. Core Web Vitals Summary
-  const pagesWithPerf = pages.filter((p) => p.performance?.lcpMs || p.performance?.performanceScore);
-  const avgLcpMs =
-    pagesWithPerf.length > 0
-      ? pagesWithPerf.reduce((sum, p) => sum + (p.performance?.lcpMs || 0), 0) / pagesWithPerf.length
-      : null;
-  const avgInpMs =
-    pagesWithPerf.length > 0
-      ? pagesWithPerf.reduce((sum, p) => sum + (p.performance?.inpMs || 0), 0) / pagesWithPerf.length
-      : null;
-  const avgCls =
-    pagesWithPerf.length > 0
-      ? pagesWithPerf.reduce((sum, p) => sum + (p.performance?.clsScore || 0), 0) / pagesWithPerf.length
-      : null;
-
-  const lcpDisplay = avgLcpMs != null ? `${(avgLcpMs / 1000).toFixed(1)}s` : "—";
-  const inpDisplay = avgInpMs != null ? `${Math.round(avgInpMs)}ms` : "—";
-  const clsDisplay = avgCls != null ? avgCls.toFixed(2) : "—";
-
-  const cwvOverallStatus: "Good" | "Poor" | "Needs Work" =
-    avgLcpMs == null
-      ? "Good"
-      : avgLcpMs > 4000 || (avgInpMs != null && avgInpMs > 500) || (avgCls != null && avgCls > 0.25)
-      ? "Poor"
-      : avgLcpMs > 2500 || (avgInpMs != null && avgInpMs > 200) || (avgCls != null && avgCls > 0.1)
-      ? "Needs Work"
-      : "Good";
+  const cwv = summary.coreWebVitals;
+  const avgLcpMs = cwv.lcpMs;
+  const avgInpMs = cwv.inpMs;
+  const avgCls = cwv.cls;
+  const lcpDisplay = avgLcpMs != null ? `${(avgLcpMs / 1000).toFixed(1)}s` : "\u2014";
+  const inpDisplay = avgInpMs != null ? `${Math.round(avgInpMs)}ms` : "\u2014";
+  const clsDisplay = avgCls != null ? avgCls.toFixed(2) : "\u2014";
+  // "No data" is a state of its own. The old rule was
+  // `avgLcpMs == null ? "Good" : ...`, which awarded a green badge over three
+  // empty dashes: a metric never collected is not a metric the site passed.
+  const cwvOverallStatus = cwv.status;
 
   // 5. HTTPS & Security
   const isHttps = pages.length > 0 ? pages.some((p) => p.url.startsWith("https://")) : true;
@@ -413,6 +413,37 @@ export function TechnicalSeoTab({
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
           />
+
+          {/* What subtracted what. A score with no arithmetic behind it is not
+              actionable, and on the audit that prompted this rebuild it was
+              not even true: every point came from issues raised against a page
+              that had never been fetched. */}
+          {healthScore != null && (
+            <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] dark:border-slate-800">
+              <div className="mb-1 font-semibold uppercase tracking-wider text-slate-400">
+                Score breakdown
+              </div>
+              <div className="space-y-0.5">
+                {summary.health.penalties
+                  .filter((row) => row.count > 0)
+                  .map((row) => (
+                    <div key={row.severity} className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>
+                        {row.count} {row.severity.toLowerCase()}
+                      </span>
+                      <span className="font-mono text-rose-600 dark:text-rose-400">-{row.penalty}</span>
+                    </div>
+                  ))}
+                <div className="flex items-center justify-between border-t border-slate-100 pt-0.5 font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300">
+                  <span>Across {summary.health.pagesScored} scored page(s)</span>
+                  <span className="font-mono">-{summary.health.totalPenalty}</span>
+                </div>
+              </div>
+              {summary.health.pagesExcluded > 0 && (
+                <p className="mt-1.5 text-slate-500 dark:text-slate-400">{summary.health.note}</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 2. Crawlability */}
@@ -440,7 +471,8 @@ export function TechnicalSeoTab({
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {blockedCount} blocked / {errorPagesCount} errors
+              {errorPagesCount} errors / {blockedCount} blocked
+              {unreachableCount > 0 ? ` / ${unreachableCount} unreachable` : ""}
             </p>
           </div>
           <div className="mt-4">
@@ -468,7 +500,8 @@ export function TechnicalSeoTab({
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {noindexIssues.length} noindex / {canonicalIssues.length} canonical issues
+              {nonIndexableCount} not indexable / {canonicalIssues.length} canonical issues
+              {unknownIndexabilityCount > 0 ? ` / ${unknownIndexabilityCount} unknown` : ""}
             </p>
           </div>
           <div className="mt-4">
@@ -492,12 +525,19 @@ export function TechnicalSeoTab({
               <span
                 className={cn(
                   "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                  cwvOverallStatus === "Good"
+                  cwvOverallStatus === "No data"
+                    ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                    : cwvOverallStatus === "Good"
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : cwvOverallStatus === "Needs Work"
                     ? "bg-amber-50 text-amber-700 border-amber-200"
                     : "bg-rose-50 text-rose-700 border-rose-200"
                 )}
+                title={
+                  cwvOverallStatus === "No data"
+                    ? "No Core Web Vitals were collected for this crawl."
+                    : `Averaged across ${cwv.pagesMeasured} measured page(s).`
+                }
               >
                 {cwvOverallStatus}
               </span>
