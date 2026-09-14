@@ -50,6 +50,11 @@ export default function RegisterPage() {
             const proj = await api.createProject(pendingDomain, orgId);
             if (proj?.id) {
               localStorage.setItem("growthx.project", proj.id);
+              try {
+                await api.startCrawl({ domain: pendingDomain, projectId: proj.id });
+              } catch (crawlErr) {
+                console.error("Failed to start initial crawl", crawlErr);
+              }
             }
           } catch (err) {
             console.error("Failed to create pending project", err);
