@@ -41,7 +41,22 @@ export default function RegisterPage() {
         orgId = org?.id ?? null;
       }
 
-      if (orgId) auth.setOrgId(orgId);
+      if (orgId) {
+        auth.setOrgId(orgId);
+        const searchParams = new URLSearchParams(window.location.search);
+        const pendingDomain = searchParams.get("domain") || localStorage.getItem("growthx_pending_domain");
+        if (pendingDomain) {
+          try {
+            const proj = await api.createProject(pendingDomain, orgId);
+            if (proj?.id) {
+              localStorage.setItem("growthx.project", proj.id);
+            }
+          } catch (err) {
+            console.error("Failed to create pending project", err);
+          }
+          localStorage.removeItem("growthx_pending_domain");
+        }
+      }
 
       router.push("/dashboard");
     } catch (err) {
@@ -120,6 +135,10 @@ export default function RegisterPage() {
 
         <a
           href={`${getApiBase()}/auth/google`}
+          onClick={() => {
+            const domain = new URLSearchParams(window.location.search).get("domain");
+            if (domain) localStorage.setItem("growthx_pending_domain", domain);
+          }}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">

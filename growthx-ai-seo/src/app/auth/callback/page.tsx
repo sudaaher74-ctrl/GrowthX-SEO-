@@ -18,9 +18,24 @@ function CallbackContent() {
 
       // Auto-select an organization if possible
       api.listOrganizations()
-        .then((orgs) => {
+        .then(async (orgs) => {
           const orgId = orgs?.[0]?.id;
-          if (orgId) auth.setOrgId(orgId);
+          if (orgId) {
+            auth.setOrgId(orgId);
+            
+            const pendingDomain = localStorage.getItem("growthx_pending_domain");
+            if (pendingDomain) {
+              try {
+                const proj = await api.createProject(pendingDomain, orgId);
+                if (proj?.id) {
+                  localStorage.setItem("growthx.project", proj.id);
+                }
+              } catch (err) {
+                console.error("Failed to create pending project", err);
+              }
+              localStorage.removeItem("growthx_pending_domain");
+            }
+          }
 
           router.push("/dashboard");
         })
