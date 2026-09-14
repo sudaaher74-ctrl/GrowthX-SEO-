@@ -4,6 +4,7 @@ import { BrowserPoolService, DEFAULT_CHROME_UA } from './browser-pool.service';
 import { FetchError, classifyTransportError } from './fetch-error';
 import { EscalationReason, shouldEscalateToRender, spaFingerprints } from './render-escalation';
 import { registrableDomain, sameRegistrableDomain } from '../url/registrable-domain';
+import { deadlineSignal } from './http-deadline';
 
 /** One hop of a redirect chain, recorded rather than collapsed. */
 export interface RedirectHop {
@@ -322,6 +323,8 @@ export class FetchService {
         response = await axios.get(current, {
           headers,
           timeout: timeoutMs,
+          // A hard cap as well as axios's idle timeout: see deadlineSignal.
+          signal: deadlineSignal(timeoutMs),
           // Every hop is walked by hand. The chain itself is a finding: an
           // apex-to-www-to-https chain is three hops of normal housekeeping and
           // a loop is a defect, and a client that collapses both to a final URL
