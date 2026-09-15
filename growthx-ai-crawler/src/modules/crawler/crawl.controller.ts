@@ -218,13 +218,17 @@ export class CrawlController {
         const batchSize = 10000;
 
         while (hasMore) {
-          const issuesBatch = await this.prisma.issue.findMany({
+          const queryOptions: any = {
             where: { crawlJobId: latest.id },
             select: { id: true, severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
             take: batchSize,
-            ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
             orderBy: { id: 'asc' },
-          });
+          };
+          if (cursorId) {
+            queryOptions.skip = 1;
+            queryOptions.cursor = { id: cursorId };
+          }
+          const issuesBatch: any[] = await this.prisma.issue.findMany(queryOptions);
 
           for (const i of issuesBatch) {
             const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
