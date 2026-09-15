@@ -10,7 +10,7 @@ import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { FixPreviewService } from '../ai/fix-preview.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
-import { calculateHealthScore } from '../issues/health-score.util';
+import { calculateHealthScore, HealthScoreCalculator } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VerificationEngineService } from './verification-engine.service';
@@ -212,7 +212,8 @@ export class CrawlController {
 
     if (latest && latest.status === 'COMPLETED' && latest.healthScore === null) {
       try {
-        const uniqueMap = new Map<string, any>();
+        const uniqueKeys = new Set<string>();
+        const calculator = new HealthScoreCalculator(latest.pagesCrawled);
         let cursorId: string | null = null;
         let hasMore = true;
         const batchSize = 10000;
@@ -232,10 +233,11 @@ export class CrawlController {
 
           for (const i of issuesBatch) {
             const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
-            if (!uniqueMap.has(key)) {
-              uniqueMap.set(key, {
+            if (!uniqueKeys.has(key)) {
+              uniqueKeys.add(key);
+              calculator.addIssue({
                 severity: i.severity,
-                confidence: i.confidence,
+                confidence: i.confidence || 'CONFIRMED',
                 affectedUrl: i.affectedUrl,
                 issueType: i.issueType,
               });
@@ -249,17 +251,9 @@ export class CrawlController {
           }
         }
 
-        const scoreRes = calculateHealthScore({
-          pagesCrawled: latest.pagesCrawled,
-          issues: Array.from(uniqueMap.values()).map((i) => ({
-            severity: i.severity,
-            confidence: i.confidence || 'CONFIRMED',
-            affectedUrl: i.affectedUrl,
-            issueType: i.issueType,
-          })),
-        });
+        const scoreRes = calculator.getScore();
         latest.healthScore = scoreRes.healthScore;
-        latest.uniqueIssuesCount = uniqueMap.size;
+        latest.uniqueIssuesCount = uniqueKeys.size;
         await this.prisma.crawlJob
           .update({
             where: { id: latest.id },
