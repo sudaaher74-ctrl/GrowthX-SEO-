@@ -1065,8 +1065,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 1. Retrieve crawled pages and issues to calculate authoritative health score and diagnostics
-    const [pages, issues] = await Promise.all([
-      this.prisma.page.findMany({
+    const pages: any[] = [];
+    let pagesCursor: string | null = null;
+    let hasMorePages = true;
+    while (hasMorePages) {
+      const queryOptions: any = {
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1078,8 +1081,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           jsRequired: true,
           discoverySource: true,
         },
-      }),
-      this.prisma.issue.findMany({
+        take: 10000,
+        orderBy: { id: 'asc' },
+      };
+      if (pagesCursor) {
+        queryOptions.skip = 1;
+        queryOptions.cursor = { id: pagesCursor };
+      }
+      const batch = await this.prisma.page.findMany(queryOptions);
+      pages.push(...batch);
+      if (batch.length < 10000) hasMorePages = false;
+      else pagesCursor = batch[batch.length - 1].id;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+
+    const issues: any[] = [];
+    let issuesCursor: string | null = null;
+    let hasMoreIssues = true;
+    while (hasMoreIssues) {
+      const queryOptions: any = {
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1090,8 +1110,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           dedupKey: true,
           page: { select: { url: true } },
         },
-      }),
-    ]);
+        take: 10000,
+        orderBy: { id: 'asc' },
+      };
+      if (issuesCursor) {
+        queryOptions.skip = 1;
+        queryOptions.cursor = { id: issuesCursor };
+      }
+      const batch = await this.prisma.issue.findMany(queryOptions);
+      issues.push(...batch);
+      if (batch.length < 10000) hasMoreIssues = false;
+      else issuesCursor = batch[batch.length - 1].id;
+      await new Promise((resolve) => setImmediate(resolve));
+    }
 
     // Site-level findings: defects about the site as a whole rather than about
     // any one page. A sitemap pointing at another domain is the reason a crawl
@@ -1152,10 +1183,26 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (previousJob) {
-        const prevIssues = await this.prisma.issue.findMany({
-          where: { crawlJobId: previousJob.id },
-          select: { dedupKey: true, issueType: true, affectedUrl: true, page: { select: { url: true } } },
-        });
+        const prevIssues: any[] = [];
+        let prevCursor: string | null = null;
+        let hasMorePrev = true;
+        while (hasMorePrev) {
+          const queryOptions: any = {
+            where: { crawlJobId: previousJob.id },
+            select: { id: true, dedupKey: true, issueType: true, affectedUrl: true, page: { select: { url: true } } },
+            take: 10000,
+            orderBy: { id: 'asc' },
+          };
+          if (prevCursor) {
+            queryOptions.skip = 1;
+            queryOptions.cursor = { id: prevCursor };
+          }
+          const batch = await this.prisma.issue.findMany(queryOptions);
+          prevIssues.push(...batch);
+          if (batch.length < 10000) hasMorePrev = false;
+          else prevCursor = batch[batch.length - 1].id;
+          await new Promise((resolve) => setImmediate(resolve));
+        }
 
         const currentKeys = new Set(uniqueIssueMap.keys());
         const prevKeys = new Set(
