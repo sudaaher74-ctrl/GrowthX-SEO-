@@ -1081,7 +1081,15 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }),
       this.prisma.issue.findMany({
         where: { crawlJobId: jobId },
-        include: { page: { select: { url: true } } },
+        select: {
+          id: true,
+          issueType: true,
+          severity: true,
+          confidence: true,
+          affectedUrl: true,
+          dedupKey: true,
+          page: { select: { url: true } },
+        },
       }),
     ]);
 
