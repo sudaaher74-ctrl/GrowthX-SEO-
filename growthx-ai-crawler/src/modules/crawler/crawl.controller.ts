@@ -212,15 +212,39 @@ export class CrawlController {
 
     if (latest && latest.status === 'COMPLETED' && latest.healthScore === null) {
       try {
-        const issues = await this.prisma.issue.findMany({
-          where: { crawlJobId: latest.id },
-          select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
-        });
         const uniqueMap = new Map<string, any>();
-        for (const i of issues) {
-          const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
-          if (!uniqueMap.has(key)) uniqueMap.set(key, i);
+        let cursorId: string | null = null;
+        let hasMore = true;
+        const batchSize = 10000;
+
+        while (hasMore) {
+          const issuesBatch = await this.prisma.issue.findMany({
+            where: { crawlJobId: latest.id },
+            select: { id: true, severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
+            take: batchSize,
+            ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
+            orderBy: { id: 'asc' },
+          });
+
+          for (const i of issuesBatch) {
+            const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, {
+                severity: i.severity,
+                confidence: i.confidence,
+                affectedUrl: i.affectedUrl,
+                issueType: i.issueType,
+              });
+            }
+          }
+
+          if (issuesBatch.length < batchSize) {
+            hasMore = false;
+          } else {
+            cursorId = issuesBatch[issuesBatch.length - 1].id;
+          }
         }
+
         const scoreRes = calculateHealthScore({
           pagesCrawled: latest.pagesCrawled,
           issues: Array.from(uniqueMap.values()).map((i) => ({
