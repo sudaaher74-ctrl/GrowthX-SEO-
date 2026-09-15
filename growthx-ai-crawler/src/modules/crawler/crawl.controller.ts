@@ -257,7 +257,7 @@ export class CrawlController {
         await this.prisma.crawlJob
           .update({
             where: { id: latest.id },
-            data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueMap.size },
+            data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueKeys.size },
           })
           .catch(() => {});
       } catch (err) {}
