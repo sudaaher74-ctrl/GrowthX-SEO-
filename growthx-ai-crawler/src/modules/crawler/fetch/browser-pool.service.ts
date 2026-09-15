@@ -22,6 +22,11 @@ class Semaphore {
     const next = this.waiting.shift();
     if (next) next();
   }
+
+  /** Renders currently running. Recycling is only safe when this is zero. */
+  get active(): number {
+    return this.inFlight;
+  }
 }
 
 export const DEFAULT_CHROME_UA =
@@ -51,6 +56,26 @@ export class BrowserPoolService implements OnModuleDestroy {
   /** Set once a launch has failed, so we do not pay the timeout on every page. */
   private launchFailure?: string;
 
+  /** Renders served by the browser currently running. Reset on every launch. */
+  private rendersSinceLaunch = 0;
+  private idleTimer?: NodeJS.Timeout;
+  private closing?: Promise<void>;
+
+  /**
+   * Chromium leaks steadily: a renderer process that has served a few dozen
+   * pages holds noticeably more than a fresh one, and no amount of closing
+   * pages gives it back. Relaunching on a page count is the standard remedy.
+   */
+  private readonly maxRendersPerBrowser = Math.max(1, Number(process.env.MAX_RENDERS_PER_BROWSER || 40));
+
+  /**
+   * A crawl is bursty: minutes of rendering, then hours of nothing. Holding a
+   * warm Chromium through the idle stretch costs ~250MB of a 512MB container
+   * for no benefit, and it is what leaves the API one allocation away from the
+   * OOM killer while it is doing nothing at all. Zero disables the idle close.
+   */
+  private readonly idleShutdownMs = Number(process.env.BROWSER_IDLE_SHUTDOWN_MS ?? 90_000);
+
   constructor() {
     const max = Number(process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || 3);
     this.semaphore = new Semaphore(Math.max(1, max));
@@ -62,9 +87,13 @@ export class BrowserPoolService implements OnModuleDestroy {
   }
 
   private async ensureContext(userAgent: string): Promise<BrowserContext | undefined> {
+    // A close already in flight must finish before a relaunch is attempted, or
+    // the two race and leave a live browser with no reference to it.
+    if (this.closing) await this.closing.catch(() => {});
     if (this.context && this.browser?.isConnected()) return this.context;
     if (this.launchFailure) return undefined;
     if (this.launching) return this.launching;
+    this.rendersSinceLaunch = 0;
 
     this.launching = (async () => {
       try {
@@ -140,6 +169,8 @@ export class BrowserPoolService implements OnModuleDestroy {
     const context = await this.ensureContext(userAgent);
     if (!context) return undefined;
 
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+
     await this.semaphore.acquire();
     let page: Page | undefined;
     try {
@@ -147,12 +178,52 @@ export class BrowserPoolService implements OnModuleDestroy {
       return await work(page);
     } finally {
       if (page) await page.close().catch(() => {});
+      this.rendersSinceLaunch++;
       this.semaphore.release();
+      await this.recycleIfSpent();
+      this.scheduleIdleShutdown();
     }
   }
 
+  /** Relaunches a browser that has served its quota, once nothing is running. */
+  private async recycleIfSpent(): Promise<void> {
+    if (this.semaphore.active > 0) return;
+    if (this.rendersSinceLaunch < this.maxRendersPerBrowser) return;
+    this.logger.log(`Recycling Chromium after ${this.rendersSinceLaunch} renders to give its leaked memory back.`);
+    await this.shutdownBrowser();
+  }
+
+  /** Gives Chromium's memory back while no crawl is running. */
+  private scheduleIdleShutdown(): void {
+    if (this.idleShutdownMs <= 0) return;
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      if (this.semaphore.active > 0) return;
+      this.logger.log(`Closing idle Chromium after ${this.idleShutdownMs}ms with no renders.`);
+      void this.shutdownBrowser();
+    }, this.idleShutdownMs);
+    // Never hold the event loop open on account of the idle timer.
+    this.idleTimer.unref?.();
+  }
+
+  private async shutdownBrowser(): Promise<void> {
+    if (this.closing) return this.closing;
+    const context = this.context;
+    const browser = this.browser;
+    this.context = undefined;
+    this.browser = undefined;
+    this.rendersSinceLaunch = 0;
+    this.closing = (async () => {
+      await context?.close().catch(() => {});
+      await browser?.close().catch(() => {});
+    })().finally(() => {
+      this.closing = undefined;
+    });
+    return this.closing;
+  }
+
   async onModuleDestroy(): Promise<void> {
-    await this.context?.close().catch(() => {});
-    await this.browser?.close().catch(() => {});
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    await this.shutdownBrowser();
   }
 }

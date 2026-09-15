@@ -353,7 +353,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
-      const maxConcurrency = payload.maxConcurrency || 10;
+      // Each in-flight worker holds a page's HTML — raw and rendered — plus its
+      // extraction, so concurrency is a memory multiplier, not just a speed
+      // dial. Ten of them on a 512MB instance already running Chromium is what
+      // the OOM killer was reacting to. The ceiling is the deployment's, not a
+      // constant.
+      const maxConcurrency = Math.max(
+        1,
+        Math.min(
+          payload.maxConcurrency || Number(process.env.DEFAULT_CRAWL_CONCURRENCY || 3),
+          Number(process.env.MAX_CRAWL_CONCURRENCY || 3),
+        ),
+      );
       this.localJobActiveWorkers.set(payload.jobId, 0);
 
       const worker = async () => {
