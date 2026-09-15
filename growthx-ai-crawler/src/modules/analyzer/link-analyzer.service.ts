@@ -28,8 +28,7 @@ export class LinkAnalyzerService {
   /**
    * Analyzes all hyperlinks in HTML for internal/external classification, nofollow attributes, and broken anchor (#) targets
    */
-  analyzeLinks(html: string, pageUrl: string): LinkAnalysisResult {
-    const $ = cheerio.load(html || '');
+  analyzeLinks($: cheerio.CheerioAPI, pageUrl: string): LinkAnalysisResult {
     const parsedDomain = url.parse(pageUrl);
     const origin = `${parsedDomain.protocol}//${parsedDomain.host}`;
 

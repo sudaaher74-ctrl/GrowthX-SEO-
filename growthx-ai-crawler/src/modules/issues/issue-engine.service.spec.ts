@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { IssueEngineService, DetectedIssueInput } from './issue-engine.service';
 import { PrismaService } from '../../database/prisma.service';
+import * as cheerio from 'cheerio';
 
 describe('IssueEngineService', () => {
   let service: IssueEngineService;
@@ -55,6 +56,7 @@ describe('IssueEngineService', () => {
       200,
       ['https://growthx.ai/test-page'],
       '<html></html>',
+      cheerio.load('<html></html>'),
       htmlData,
       images,
       links,
@@ -94,6 +96,7 @@ describe('IssueEngineService', () => {
       200,
       ['https://growthx.ai/page'],
       '<html></html>',
+      cheerio.load('<html></html>'),
       htmlData,
       [],
       { internalCount: 2, externalCount: 0 } as any,
@@ -130,6 +133,7 @@ describe('IssueEngineService', () => {
       200,
       ['https://aivaenterprises.com/contact'],
       '<html></html>',
+      cheerio.load('<html></html>'),
       htmlData,
       [],
       { internalCount: 1, externalCount: 0 } as any,
@@ -165,6 +169,7 @@ describe('IssueEngineService', () => {
       200,
       ['https://growthx.ai/p'],
       '<html></html>',
+      cheerio.load('<html></html>'),
       htmlData,
       [],
       { internalCount: 0, externalCount: 0 } as any,

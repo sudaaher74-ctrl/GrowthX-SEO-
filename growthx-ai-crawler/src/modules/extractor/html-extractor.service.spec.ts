@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HtmlExtractorService } from './html-extractor.service';
+import * as cheerio from 'cheerio';
 
 describe('HtmlExtractorService', () => {
   let service: HtmlExtractorService;
@@ -37,7 +38,8 @@ describe('HtmlExtractorService', () => {
       </html>
     `;
 
-    const res = service.extract(sampleHtml, 'https://growthx.ai/test');
+    const $ = cheerio.load(sampleHtml);
+    const res = service.extract($, 'https://growthx.ai/test');
     expect(res.title).toBe('Test SEO Title');
     expect(res.metaDescription).toBe('This is a test meta description for GrowthX AI.');
     expect(res.canonicalUrl).toBe('https://growthx.ai/test');

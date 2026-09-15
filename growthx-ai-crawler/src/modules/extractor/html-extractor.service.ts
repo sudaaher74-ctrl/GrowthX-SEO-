@@ -28,8 +28,7 @@ export class HtmlExtractorService {
   /**
    * Parses raw HTML string and extracts all technical SEO metadata, headers, structured data, and OpenGraph tags.
    */
-  extract(html: string, pageUrl: string): ExtractedHtmlData {
-    const $ = cheerio.load(html || '');
+  extract($: cheerio.CheerioAPI, pageUrl: string): ExtractedHtmlData {
 
     // 1. Language & Charset
     const language = $('html').attr('lang')?.trim() || $('html').attr('xml:lang')?.trim();

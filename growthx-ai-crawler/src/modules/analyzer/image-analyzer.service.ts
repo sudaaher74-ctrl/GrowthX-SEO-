@@ -20,8 +20,7 @@ export class ImageAnalyzerService {
   /**
    * Analyzes all images in HTML, detecting alt text issues, lazy loading, and dimension properties
    */
-  analyzeImages(html: string, pageUrl: string): ExtractedImage[] {
-    const $ = cheerio.load(html || '');
+  analyzeImages($: cheerio.CheerioAPI, pageUrl: string): ExtractedImage[] {
     const images: ExtractedImage[] = [];
 
     $('img').each((_, el) => {

@@ -40,6 +40,7 @@ export class IssueEngineService {
     statusCode: number,
     redirectChain: string[],
     html: string,
+    $: cheerio.CheerioAPI,
     htmlData: ExtractedHtmlData,
     images: ExtractedImage[],
     links: LinkAnalysisResult,
@@ -437,7 +438,6 @@ export class IssueEngineService {
         aiFixAvailable: false,
       });
     } else if (pageUrl.startsWith('https://')) {
-      const $ = cheerio.load(html || '');
       let mixedCount = 0;
       $('img[src^="http://"], script[src^="http://"], link[rel="stylesheet"][href^="http://"]').each(() => {
         mixedCount++;

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../../storage/storage.service';
+import * as cheerio from 'cheerio';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
 import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
@@ -482,16 +483,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       try {
         // 1. Run Analysis Pipeline if HTML 200 OK
-        let htmlData = this.htmlExtractor.extract('', normUrl);
+        let $ = cheerio.load('');
+        let htmlData = this.htmlExtractor.extract($, normUrl);
         let images = [] as any[];
         let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
         let schemas = [] as any[];
         let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
 
         if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
-          htmlData = this.htmlExtractor.extract(fetchRes.html, normUrl);
-          images = this.imageAnalyzer.analyzeImages(fetchRes.html, normUrl);
-          links = this.linkAnalyzer.analyzeLinks(fetchRes.html, normUrl);
+          $ = cheerio.load(fetchRes.html);
+          htmlData = this.htmlExtractor.extract($, normUrl);
+          images = this.imageAnalyzer.analyzeImages($, normUrl);
+          links = this.linkAnalyzer.analyzeLinks($, normUrl);
           schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
           content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
         }
@@ -629,8 +632,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           page.id,
           normUrl,
           fetchRes.statusCode,
-          fetchRes.redirectChain || [normUrl],
+          fetchRes.redirectChain || [],
           fetchRes.html || '',
+          $,
           htmlData,
           images,
           links,
