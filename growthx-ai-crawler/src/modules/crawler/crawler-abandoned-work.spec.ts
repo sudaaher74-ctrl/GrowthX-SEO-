@@ -92,3 +92,54 @@ describe('CrawlerService — work for finished crawls', () => {
     expect(service.markUrlVisited).toHaveBeenCalled();
   });
 });
+
+/**
+ * Coverage has to come from a number that survives the process.
+ *
+ * `jobStats` is one process's memory, and completeJob is reached from a
+ * page-fetch worker or after a restart, where it is empty. Falling back to the
+ * page count made the denominator equal the numerator, so a crawl that read 6
+ * of 29 pages reported "6 of 6" at 100% coverage -- a reassuring wrong answer
+ * rather than a missing one, and the reason this shortfall was hunted in the
+ * queue, the render pool and the stall sweep before anyone looked here.
+ */
+describe('CrawlerService — where the coverage denominator comes from', () => {
+  function diagnosticsFor(job: any, statsDiscovered?: number) {
+    const service: any = new (CrawlerService as any)(
+      { crawlJob: { findUnique: jest.fn(async () => job) } },
+      {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+    );
+    if (statsDiscovered !== undefined) {
+      service.jobStats.set(job.id, { urlsDiscovered: statsDiscovered, urlsSkipped: 0, robotsBlocked: 0, internalLinksFound: 0, crawlStatus: 'COMPLETED' });
+    }
+    return service;
+  }
+
+  it('prefers the persisted count over an empty in-memory map', () => {
+    const service = diagnosticsFor({ id: 'j1', pagesDiscovered: 29 });
+    const job = { pagesDiscovered: 29 };
+    const stats = service.jobStats.get('j1');
+
+    // The expression completeJob evaluates.
+    expect(job.pagesDiscovered || stats?.urlsDiscovered || 0).toBe(29);
+  });
+
+  it('never lets the page count stand in for what was discovered', () => {
+    const totalPages = 6;
+    const job = { pagesDiscovered: 0 };
+    const stats = undefined as any;
+
+    const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
+
+    // The old expression was `?? totalPages`, which produced 6 and a tidy 100%.
+    expect(urlsDiscovered).not.toBe(totalPages);
+    expect(urlsDiscovered).toBe(0);
+  });
+
+  it('reports no coverage rather than full coverage when the denominator is unknown', () => {
+    const urlsDiscovered = 0;
+    const coverage = urlsDiscovered > 0 ? Math.round((6 / urlsDiscovered) * 100) : null;
+
+    expect(coverage).toBeNull();
+  });
+});

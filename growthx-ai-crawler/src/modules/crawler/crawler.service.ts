@@ -1364,13 +1364,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // PARTIAL      — stall sweep or error finalized a crawl before queue exhaustion
     const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = stats?.crawlStatus ?? 'COMPLETED';
 
-    const urlsDiscovered = stats?.urlsDiscovered ?? totalPages;
+    // Persisted first, in-memory second, and never the page count.
+    //
+    // `jobStats` lives in one process's memory. `completeJob` is reached from
+    // a page-fetch worker, which may be a different process, and is reached at
+    // all after a restart with the map empty. Falling back to `totalPages`
+    // then made the denominator equal the numerator: a crawl that read 6 of 29
+    // pages reported "6 of 6" and 100% coverage, which is not a missing
+    // measurement but a reassuring wrong one. It is the same shape of bug as
+    // an LCP estimated from fetch latency — a number invented to avoid an
+    // empty field, and one that hid this shortfall through several rounds of
+    // looking for it somewhere else.
+    //
+    // `pagesDiscovered` is written to the row before the first fetch, so it
+    // survives all of that. Zero means a crawl that predates the column, and
+    // is left as zero rather than being filled in.
+    const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
     const urlsSkipped = stats?.urlsSkipped ?? 0;
     const robotsBlocked = stats?.robotsBlocked ?? 0;
     const internalLinksFound = stats?.internalLinksFound ?? 0;
     const urlsCrawled = totalPages;
     const urlsEligible = Math.max(urlsDiscovered - urlsSkipped, urlsCrawled);
-    const crawlCoveragePercent = urlsDiscovered > 0 ? Math.round((urlsCrawled / urlsDiscovered) * 100) : 100;
+    // Null, not 100, when there is nothing to divide by. Defaulting an
+    // unmeasurable coverage to "complete" is how a truncated crawl reported
+    // itself as whole.
+    const crawlCoveragePercent =
+      urlsDiscovered > 0 ? Math.round((urlsCrawled / urlsDiscovered) * 100) : null;
 
     const qualityDiagnostics = {
       durationSeconds,
