@@ -151,7 +151,7 @@
   "components/website/tabs/issues-tab.tsx": 89,
   "components/website/tabs/overview-tab.tsx": 83,
   "components/website/tabs/pages-tab.tsx": 192,
-  "components/website/tabs/performance-tab.tsx": 203,
+  "components/website/tabs/performance-tab.tsx": 157,
   "components/website/tabs/technical-seo-tab.tsx": 304,
   "lib/utils.ts": 6
 }

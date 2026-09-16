@@ -729,12 +729,41 @@ export function TechnicalSeoTab({
                 <span>Duration</span>
                 <span className="font-mono text-slate-900 dark:text-white">{durationText}</span>
               </div>
+              {/* "6 pages" and "6 of 29 pages" are different reports, and only
+                  the second one distinguishes a small site from a crawl that
+                  stopped early. The crawler has recorded both all along; this
+                  panel simply never showed the denominator, so a crawl that
+                  read a fifth of a site looked exactly like a complete one. */}
               <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                 <span>Pages crawled</span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">
-                  {pages.length.toLocaleString()}
+                  {qualityDiagnostics?.urlsDiscovered
+                    ? `${pages.length.toLocaleString()} of ${qualityDiagnostics.urlsDiscovered.toLocaleString()}`
+                    : pages.length.toLocaleString()}
                 </span>
               </div>
+              {qualityDiagnostics?.urlsDiscovered != null &&
+                qualityDiagnostics.urlsDiscovered > pages.length && (
+                  <>
+                    <div className="flex items-center justify-between text-brand-700 dark:text-brand-300">
+                      <span>Coverage</span>
+                      <span className="font-mono text-warning-700 dark:text-warning-500">
+                        {qualityDiagnostics.crawlCoveragePercent ?? Math.round((pages.length / qualityDiagnostics.urlsDiscovered) * 100)}%
+                      </span>
+                    </div>
+                    {Boolean(qualityDiagnostics.urlsSkipped) && (
+                      <div className="flex items-center justify-between text-brand-700 dark:text-brand-300">
+                        <span>Skipped</span>
+                        <span className="font-mono text-brand-950 dark:text-brand-50">
+                          {qualityDiagnostics.urlsSkipped!.toLocaleString()}
+                          {Boolean(qualityDiagnostics.robotsBlocked) && ` (${qualityDiagnostics.robotsBlocked} by robots)`}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                  </>
+                )}
               <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                 <span>Average latency</span>
                 <span className="font-mono text-slate-900 dark:text-white">{avgLatency}</span>
