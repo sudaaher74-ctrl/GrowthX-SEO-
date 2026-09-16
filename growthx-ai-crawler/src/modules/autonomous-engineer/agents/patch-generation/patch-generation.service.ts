@@ -1,5 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Project, SyntaxKind, ObjectLiteralExpression, Node, ReturnStatement } from 'ts-morph';
+// Loaded on demand, not at import. ts-morph carries the TypeScript compiler
+// and costs ~55MB of RSS the moment it is required. Patch generation runs
+// only when the autonomous engineer is asked to change a customer repository,
+// so on the 512MB instance that memory sat held for a feature that never ran,
+// while the crawler beside it was being OOM-killed.
+import type { Project, ObjectLiteralExpression, ReturnStatement } from 'ts-morph';
+
+/**
+ * The loaded module, cached after the first use.
+ *
+ * The async entry points below load it; the small synchronous helpers read it
+ * back through `loaded()`. They are only ever reached from those entry points,
+ * so by the time one runs the module is present -- and `loaded()` throws
+ * rather than returning undefined if that assumption is ever broken.
+ */
+let tsMorphModule: typeof import('ts-morph') | undefined;
+
+async function tsMorph(): Promise<typeof import('ts-morph')> {
+  if (!tsMorphModule) tsMorphModule = await import('ts-morph');
+  return tsMorphModule;
+}
+
+function loaded(): typeof import('ts-morph') {
+  if (!tsMorphModule) {
+    throw new Error('ts-morph was used before it was loaded; call it from an entry point that awaits tsMorph().');
+  }
+  return tsMorphModule;
+}
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -105,6 +132,7 @@ Respond strictly with a JSON object.
    * `metadata.openGraph.title`, creating the intermediate object if needed.
    */
   async updateNextJsMetadata(filePath: string, propertyPath: string, newValue: string): Promise<boolean> {
+    const { Project, SyntaxKind } = await tsMorph();
     this.logger.log(`Patching Next.js metadata (${propertyPath}) in ${filePath}...`);
 
     const project = new Project();
@@ -312,6 +340,7 @@ Respond strictly with a JSON object.
 
   /** The page component function a Next.js JSON-LD patch is injected into. */
   private findNextJsPageComponent(sourceFile: import('ts-morph').SourceFile) {
+    const { Node } = loaded();
     const defaultFn = sourceFile.getFunctions().find((f) => f.isDefaultExport());
     if (defaultFn) return defaultFn;
 
@@ -334,6 +363,7 @@ Respond strictly with a JSON object.
    * component is usually a loading/error state, not the real page markup.
    */
   private getComponentJsxRoot(body: import('ts-morph').Block) {
+    const { Node } = loaded();
     const returnStatement = [...body.getStatements()].reverse().find((s): s is ReturnStatement => Node.isReturnStatement(s));
     const expr = returnStatement?.getExpression();
     const jsxRoot = expr && Node.isParenthesizedExpression(expr) ? expr.getExpression() : expr;
@@ -345,6 +375,7 @@ Respond strictly with a JSON object.
 
   /** Inserts `snippet` as the first child of a JSX root, wrapping in a Fragment if it is a single element. */
   private prependJsxChild(jsxRoot: NonNullable<ReturnType<PatchGenerationService['getComponentJsxRoot']>>, snippet: string): void {
+    const { Node } = loaded();
     if (Node.isJsxFragment(jsxRoot)) {
       const originalText = jsxRoot.getText();
       const insertPos = originalText.indexOf('>') + 1;
@@ -360,6 +391,7 @@ Respond strictly with a JSON object.
    * orphan page. A page that already links to `href` is left alone.
    */
   async injectNextJsInternalLink(filePath: string, anchorText: string, href?: string): Promise<PatchOutcome> {
+    const { Project, SyntaxKind, Node } = await tsMorph();
     if (!href) {
       return { applied: false, reason: 'Missing the URL to link to.' };
     }
@@ -396,6 +428,7 @@ Respond strictly with a JSON object.
    * declaration in place instead of duplicating the script tag.
    */
   async injectNextJsJsonLd(filePath: string, jsonLd: string | object): Promise<PatchOutcome> {
+    const { Project, Node } = await tsMorph();
     let parsed: any;
     try {
       parsed = typeof jsonLd === 'string' ? JSON.parse(jsonLd) : jsonLd;

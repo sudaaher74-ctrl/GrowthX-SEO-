@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Project } from 'ts-morph';
+// Loaded on demand, not at import. ts-morph carries the TypeScript compiler
+// and costs ~55MB of RSS the moment it is required. This service indexes a
+// customer repository, which no deployment does on a normal day, so on the
+// 512MB instance that memory was held permanently for a feature that never
+// ran -- while the crawler beside it was being killed for going over.
+import type { Project } from 'ts-morph';
 
 export interface SemanticSearchResult {
   filePath: string;
@@ -19,7 +24,8 @@ export class AstParserService {
    */
   async indexRepository(repoPath: string): Promise<number> {
     this.logger.log(`Indexing repository at ${repoPath} for Semantic Search...`);
-    const project = new Project();
+    const { Project } = await import('ts-morph');
+    const project: Project = new Project();
     project.addSourceFilesAtPaths(`${repoPath}/**/*.ts`);
     project.addSourceFilesAtPaths(`${repoPath}/**/*.tsx`);
 
