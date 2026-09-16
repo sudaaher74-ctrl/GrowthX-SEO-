@@ -9,13 +9,51 @@ class Semaphore {
 
   constructor(private readonly max: number) {}
 
-  async acquire(): Promise<void> {
+  /**
+   * Takes a permit, or gives up waiting.
+   *
+   * Waiting without a bound is what turned a slow render into a stalled job.
+   * The page-fetch worker runs ten at a time and there is one render permit on
+   * a small instance, so nine callers queue here — and a caller blocked here
+   * is a BullMQ job holding its lock while doing nothing. Past the lock
+   * duration BullMQ calls it stalled and runs it again, and because the
+   * pending-task counter is decremented in a `finally`, the second run
+   * decrements it a second time. The counter reaches zero while most of the
+   * site is still queued, the crawl is marked complete, and a 29-page site is
+   * reported as 5 pages.
+   *
+   * Returning false instead lets the caller record the page from its static
+   * response and move on, which is a worse page but a correct crawl.
+   */
+  async acquire(timeoutMs?: number): Promise<boolean> {
     if (this.inFlight < this.max) {
       this.inFlight++;
-      return;
+      return true;
     }
-    await new Promise<void>((resolve) => this.waiting.push(resolve));
+    if (!timeoutMs) {
+      await new Promise<void>((resolve) => this.waiting.push(resolve));
+      this.inFlight++;
+      return true;
+    }
+
+    let waiter!: () => void;
+    const granted = await new Promise<boolean>((resolve) => {
+      waiter = () => resolve(true);
+      this.waiting.push(waiter);
+      const timer = setTimeout(() => resolve(false), timeoutMs);
+      timer.unref?.();
+    });
+
+    if (!granted) {
+      // Drop the abandoned waiter so a later release does not hand a permit to
+      // nobody, which would leak the permit for the life of the process.
+      const index = this.waiting.indexOf(waiter);
+      if (index >= 0) this.waiting.splice(index, 1);
+      return false;
+    }
+
     this.inFlight++;
+    return true;
   }
 
   release(): void {
@@ -94,6 +132,16 @@ export class BrowserPoolService implements OnModuleDestroy {
    * answering trips it.
    */
   private readonly renderHardTimeoutMs = Number(process.env.RENDER_HARD_TIMEOUT_MS ?? 75_000);
+
+  /**
+   * How long a page waits for a free render slot before giving up on the
+   * rendered tier.
+   *
+   * Sized so a page can wait out one render in front of it but not a whole
+   * queue of them. Giving up costs this page its JavaScript content, which is
+   * recorded as RENDER_UNAVAILABLE; waiting costs the crawl its page count.
+   */
+  private readonly renderWaitTimeoutMs = Number(process.env.RENDER_WAIT_TIMEOUT_MS ?? 90_000);
 
   constructor() {
     const max = Number(process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || 3);
@@ -228,7 +276,14 @@ export class BrowserPoolService implements OnModuleDestroy {
 
     if (this.idleTimer) clearTimeout(this.idleTimer);
 
-    await this.semaphore.acquire();
+    // Bounded, for the reason on `acquire`: a caller blocked here is a queue
+    // job holding its lock and doing nothing, and past the lock duration that
+    // job is re-run and the crawl's pending counter is decremented twice.
+    if (!(await this.semaphore.acquire(this.renderWaitTimeoutMs))) {
+      this.logger.warn('Waited too long for a render slot; reading this page without JavaScript.');
+      return undefined;
+    }
+
     let page: Page | undefined;
     let wedged = false;
     try {

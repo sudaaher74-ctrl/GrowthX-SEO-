@@ -96,3 +96,65 @@ describe('BrowserPoolService — a wedged browser', () => {
     ).rejects.toThrow('ERR_NAME_NOT_RESOLVED');
   });
 });
+
+/**
+ * A page that cannot get a render slot must give up, not queue behind the
+ * whole crawl.
+ *
+ * The page-fetch worker runs ten at a time against one render permit, so nine
+ * callers wait. A caller waiting here is a BullMQ job holding its lock and
+ * doing nothing; past the lock duration BullMQ runs it again, and the crawl's
+ * pending-task counter -- decremented in a `finally` -- is decremented twice.
+ * The counter hits zero with the site still queued and the crawl is marked
+ * complete: a 29-page site reported as 5 pages, "completed in 4 minutes".
+ */
+describe('BrowserPoolService — contention for the render slot', () => {
+  const OLD = { ...process.env };
+  beforeEach(() => {
+    process.env.MAX_RENDER_CONCURRENCY = '1';
+    process.env.RENDER_WAIT_TIMEOUT_MS = '60';
+    process.env.RENDER_HARD_TIMEOUT_MS = '5000';
+  });
+  afterEach(() => { process.env = { ...OLD }; });
+
+  function pool() {
+    const p = new BrowserPoolService();
+    (p as any).shutdownBrowser = jest.fn(async () => {});
+    (p as any).ensureContext = jest.fn(async () => ({ newPage: async () => ({ close: async () => {} }) }));
+    return p;
+  }
+
+  it('gives up rather than waiting behind a long render', async () => {
+    const p = pool();
+    let releaseFirst!: () => void;
+    const first = p.withPage('ua', () => new Promise<string>((r) => { releaseFirst = () => r('first'); }));
+
+    // Second caller finds the only permit taken and must not block on it.
+    const second = await p.withPage('ua', async () => 'second');
+    expect(second).toBeUndefined();
+
+    releaseFirst();
+    await first;
+  });
+
+  it('serves the next page normally once the slot frees up', async () => {
+    const p = pool();
+
+    expect(await p.withPage('ua', async () => 'one')).toBe('one');
+    expect(await p.withPage('ua', async () => 'two')).toBe('two');
+  });
+
+  /** An abandoned waiter left in the queue would leak the permit forever. */
+  it('does not leak the permit when a waiter gives up', async () => {
+    const p = pool();
+    let releaseFirst!: () => void;
+    const first = p.withPage('ua', () => new Promise<string>((r) => { releaseFirst = () => r('first'); }));
+
+    await p.withPage('ua', async () => 'gives up');
+    releaseFirst();
+    await first;
+
+    // If the abandoned waiter still held a slot, this would never resolve.
+    expect(await p.withPage('ua', async () => 'after')).toBe('after');
+  });
+});

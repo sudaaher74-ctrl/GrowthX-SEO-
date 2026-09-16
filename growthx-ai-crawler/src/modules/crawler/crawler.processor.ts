@@ -92,7 +92,24 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
       async (job: Job<PageFetchPayload>) => {
         await this.crawlerService.processPageFetch(job.data);
       },
-      { connection: redisConnection, concurrency: maxPageFetchConcurrency }
+      {
+        connection: redisConnection,
+        concurrency: maxPageFetchConcurrency,
+        // BullMQ's default lock is 30 seconds, and a page of a client-rendered
+        // site takes longer than that: navigation, network idle, the settle,
+        // and possibly a wait for the one render slot a small instance allows.
+        // The lock is renewed on a timer, so a busy event loop -- parsing HTML,
+        // scoring issues -- can miss a renewal even while the job is healthy.
+        // Either way BullMQ declares the job stalled and runs it a second time,
+        // and since the crawl's pending-task counter is decremented in a
+        // `finally`, the second run decrements it again. The counter reaches
+        // zero with most of the site still queued, the crawl is marked
+        // complete, and a 29-page site reports as 5 pages.
+        //
+        // Sized above the render ceiling plus the wait for a slot, so only a
+        // genuinely dead worker trips it.
+        lockDuration: Number(process.env.PAGE_FETCH_LOCK_MS ?? 180_000),
+      }
     );
 
     this.pageFetchWorker.on('failed', (job, err) => {
