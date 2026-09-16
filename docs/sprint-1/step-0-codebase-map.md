@@ -78,6 +78,10 @@ This is the deliverable gate G3 re-runs against.
 | M7 | `growthx-ai-seo/src/lib/api-client.ts:2985` | `listOrganizations()` | Same pattern: falls back to `{id:"org-1", name:"GrowthX"}`. |
 | M8 | `growthx-ai-seo/src/app/login/page.tsx:328-341` | Founder testimonial card | Quotes **Sudarshan Aher, Founder & CEO of GrowthX**, praising GrowthX, styled as a customer testimonial. |
 
+| M9 | `growthx-ai-seo/src/components/website/tabs/performance-tab.tsx:495-537` | "Mobile vs Desktop" panel | **Every value hardcoded.** LCP `3.2s/2.1s`, INP `210ms/140ms`, CLS `0.16/0.08`, Page Size `2.4MB/3.1MB`, and all four deltas (↓18%, ↓12%, ↓20%, ↓8%). Rendered beside a Core Web Vitals card that correctly reads "No data", so one screen states both that the vitals are unmeasured and that mobile LCP improved 18%. |
+| M10 | same file, `trendPoints` ~line 137 | Core Web Vitals baseline | Five invented history points (`Aug 10`–`Aug 30`, lcp 3.4→2.9) returned when only one crawl exists, drawn under a "Last 28 days" label as if measured. |
+| M11 | same file, `avgLcpMs` ~line 76 and `trendPoints` ~line 130 | LCP derivation | With no PageSpeed data, LCP is invented as `avgResponseTimeMs * 1.6`. `responseTimeMs` is `outcome.totalMs`, the crawler's own wall-clock including render and time blocked on the render semaphore — so it measures our queue, not the customer's site. On the 2026-09-16 milquufresh crawl this produced **LCP 359.8s** from 224,897ms average latency. The trend line then multiplies that one number by `(0.95 + (i * 0.04) % 0.15)` per point to manufacture day-to-day variation. |
+
 Additionally, several detectors that *are* gated cite invented provenance in
 otherwise-real findings: sources named `GrowthX Content Intelligence`,
 `GrowthX Strategy Engine`, `GrowthX SEO Engine`, `Industry Benchmark`,
