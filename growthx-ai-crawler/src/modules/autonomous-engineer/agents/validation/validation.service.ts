@@ -3,7 +3,13 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as ts from 'typescript';
+// Loaded on demand. The TypeScript compiler is ~45MB of RSS the moment it is
+// required, and this service transpiles a customer's changed files to check
+// them -- which happens only when the autonomous engineer has been asked to
+// patch a repository. Held at import, that memory was resident on every
+// instance for a feature that runs on no normal day, on a box that was being
+// OOM-killed at 512MB while crawling.
+import type * as ts from 'typescript';
 import * as cheerio from 'cheerio';
 
 const execAsync = promisify(exec);
@@ -83,6 +89,7 @@ export class ValidationService {
    * Catches unclosed JSX tags, malformed expressions, and invalid JSON immediately.
    */
   private async validateFilesSyntax(repoDir: string, files: string[]): Promise<ValidationResult> {
+    const ts = await import('typescript');
     for (const relativePath of files) {
       const absolutePath = path.resolve(repoDir, relativePath);
       let content: string;
