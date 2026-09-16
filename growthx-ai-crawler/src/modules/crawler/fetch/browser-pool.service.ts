@@ -159,6 +159,12 @@ export class BrowserPoolService implements OnModuleDestroy {
             '--no-first-run',
             '--no-default-browser-check',
             '--mute-audio',
+            // One renderer, not one per tab. Render concurrency is already 1,
+            // so a second renderer process only ever arrives from a page
+            // opening another, and on a 512MB instance that is the allocation
+            // that does not fit. Distinct from --single-process, which is
+            // rejected below for a different reason.
+            '--renderer-process-limit=1',
             `--js-flags=--max-old-space-size=${process.env.RENDER_JS_HEAP_MB || 128}`,
             // Deliberately NOT --single-process. It saves memory and it also
             // makes a slow page wedge the whole browser rather than one tab,

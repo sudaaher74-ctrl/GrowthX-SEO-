@@ -33,32 +33,35 @@ services:
         value: production
       - key: PORT
         value: 3000
+      # 300MB left no room for a browser beside it. Chromium measures ~190MB
+      # PSS idle and ~220MB on an ordinary page, and 512MB does not hold both
+      # a 300MB heap and that. A 160MB heap is ample for a crawler whose page
+      # bodies are capped at 128KB, and it is what makes rendering possible on
+      # the free plan at all.
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=300"
+        value: "--max-old-space-size=160"
       - key: ENABLE_PLAYWRIGHT_STARTUP
         value: "false"
       # Rendering is what makes a client-rendered site readable at all, and it
       # is also the most expensive thing the crawler does. On a 512MB instance
-      # already running a 300MB Node heap there is room for exactly one
-      # Chromium page at a time, and for a bounded number of them per crawl.
+      # there is room for exactly one Chromium page at a time, and for a
+      # bounded number of them per crawl.
       - key: MAX_RENDER_CONCURRENCY
         value: "1"
       - key: RENDER_JS_HEAP_MB
         value: "96"
-      # Chromium is not launched unless this much memory is free. A 512MB
-      # instance running a 300MB Node heap has roughly 200MB spare and a
-      # browser needs more than that, so on the free plan this refuses every
-      # render — deliberately. Refusing costs the rendered tier and records
-      # RENDER_UNAVAILABLE on the affected pages; launching anyway gets the
-      # container OOM-killed mid-crawl, which loses the whole job and reports
-      # nothing but "FAILED".
+      # Chromium is not launched unless this much memory is free, measured
+      # against the cgroup limit rather than the host's. Refusing costs only
+      # the rendered tier and records RENDER_UNAVAILABLE on the affected
+      # pages; launching into too little memory gets the container OOM-killed
+      # mid-crawl, which loses the whole job and reports nothing but "FAILED".
       #
-      # Raising the instance to one with ~1GB is what actually restores
-      # rendering, and rendering is what a client-side site needs to be read
-      # at all. Lower this only after measuring Chromium's resident size on
-      # the sites being crawled.
+      # 250MB is Chromium's measured PSS on an ordinary page plus a little
+      # room. Measure before lowering it: RSS is not the figure to use, since
+      # a browser is ten processes sharing most of their pages and summing
+      # their RSS counts the same memory ten times.
       - key: RENDER_MIN_FREE_MB
-        value: "400"
+        value: "250"
       - key: CRAWL_MAX_RENDERED_PAGES
         value: "50"
       # Both HTML bodies are stored per page so raw and rendered can be

@@ -1,44 +1,55 @@
-import { renderBudget, ContainerMemory } from './memory-budget';
+import { renderBudget, containerMemory, ContainerMemory } from './memory-budget';
+import * as fs from 'fs';
 
 const MB = 1024 * 1024;
 
 describe('renderBudget', () => {
   /**
-   * The case this exists for: Render's free instance, with the Node heap the
-   * Dockerfile asks for already resident. Chromium measured 350-600MB beside
-   * it, so there is no arrangement of these numbers that fits.
+   * The free instance as it was configured: a 300MB Node heap leaves ~210MB,
+   * and Chromium needs more than that. This is the crawl that died.
    */
-  it('refuses a 512MB instance already holding a 300MB heap', () => {
+  it('refuses a 512MB instance still holding the old 300MB heap', () => {
     const memory: ContainerMemory = { limitBytes: 512 * MB, usedBytes: 300 * MB, source: 'cgroup-v2' };
 
-    const verdict = renderBudget(memory, 400);
+    expect(renderBudget(memory, 250).allowed).toBe(false);
+  });
 
-    expect(verdict.allowed).toBe(false);
-    expect(verdict.headroomMb).toBe(212);
+  /**
+   * The same instance after cutting the heap to 160MB. Chromium measures
+   * ~190MB PSS idle and ~220MB on an ordinary page, so this one fits — which
+   * is what makes rendering possible on the free plan without paying.
+   */
+  it('allows a 512MB instance once the heap is cut to 160MB', () => {
+    const memory: ContainerMemory = { limitBytes: 512 * MB, usedBytes: 180 * MB, source: 'cgroup-v2' };
+
+    const verdict = renderBudget(memory, 250);
+
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.headroomMb).toBe(332);
   });
 
   it('explains the refusal in terms an operator can act on', () => {
     const memory: ContainerMemory = { limitBytes: 512 * MB, usedBytes: 300 * MB, source: 'cgroup-v2' };
 
-    const verdict = renderBudget(memory, 400);
+    const verdict = renderBudget(memory, 250);
 
     // The figures have to be in the sentence: "rendering is unavailable" with
     // no numbers is what sends someone to the container log.
     expect(verdict.reason).toContain('212MB');
     expect(verdict.reason).toContain('512MB');
-    expect(verdict.reason).toContain('400MB');
+    expect(verdict.reason).toContain('250MB');
   });
 
-  it('allows a paid instance with room to spare', () => {
+  it('allows a larger instance with room to spare', () => {
     const memory: ContainerMemory = { limitBytes: 2048 * MB, usedBytes: 400 * MB, source: 'cgroup-v2' };
 
-    expect(renderBudget(memory, 400).allowed).toBe(true);
+    expect(renderBudget(memory, 250).allowed).toBe(true);
   });
 
   it('allows exactly the required headroom', () => {
-    const memory: ContainerMemory = { limitBytes: 1000 * MB, usedBytes: 600 * MB, source: 'cgroup-v2' };
+    const memory: ContainerMemory = { limitBytes: 1000 * MB, usedBytes: 750 * MB, source: 'cgroup-v2' };
 
-    expect(renderBudget(memory, 400).allowed).toBe(true);
+    expect(renderBudget(memory, 250).allowed).toBe(true);
   });
 
   /**
@@ -47,14 +58,62 @@ describe('renderBudget', () => {
    * works today in order to protect the one where it does not.
    */
   it('allows rendering when the limit cannot be read', () => {
-    expect(renderBudget({ source: 'unknown' }, 400).allowed).toBe(true);
+    expect(renderBudget({ source: 'unknown' }, 250).allowed).toBe(true);
   });
 
   it('allows rendering when usage is unreadable even though the limit is known', () => {
-    expect(renderBudget({ limitBytes: 512 * MB, source: 'cgroup-v2' }, 400).allowed).toBe(true);
+    expect(renderBudget({ limitBytes: 512 * MB, source: 'cgroup-v2' }, 250).allowed).toBe(true);
   });
 
   it('carries no reason when it allows', () => {
-    expect(renderBudget({ limitBytes: 2048 * MB, usedBytes: 100 * MB, source: 'os' }, 400).reason).toBeUndefined();
+    expect(renderBudget({ limitBytes: 2048 * MB, usedBytes: 100 * MB, source: 'os' }, 250).reason).toBeUndefined();
+  });
+});
+
+describe('containerMemory', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  /**
+   * The page cache is charged to the cgroup and is reclaimed under pressure
+   * rather than causing a kill. Counted as used, a container that has merely
+   * been up for a while reads as full — a real host here reported 640MB of
+   * cache against a 512MB working set — and rendering would be refused
+   * forever on a box with ample free memory.
+   */
+  it('discounts reclaimable page cache from cgroup v2 usage', () => {
+    jest.spyOn(fs, 'readFileSync').mockImplementation(((path: any) => {
+      if (String(path) === '/sys/fs/cgroup/memory.max') return String(512 * MB);
+      if (String(path) === '/sys/fs/cgroup/memory.current') return String(400 * MB);
+      if (String(path) === '/sys/fs/cgroup/memory.stat') return `anon 100\ninactive_file ${250 * MB}\n`;
+      throw new Error('ENOENT');
+    }) as any);
+
+    const memory = containerMemory();
+
+    expect(memory.source).toBe('cgroup-v2');
+    // 400MB charged, 250MB of it reclaimable cache.
+    expect(Math.round(memory.usedBytes! / MB)).toBe(150);
+    expect(renderBudget(memory, 250).allowed).toBe(true);
+  });
+
+  it('reads the cgroup limit rather than the host total', () => {
+    jest.spyOn(fs, 'readFileSync').mockImplementation(((path: any) => {
+      if (String(path) === '/sys/fs/cgroup/memory.max') return String(512 * MB);
+      if (String(path) === '/sys/fs/cgroup/memory.current') return String(200 * MB);
+      if (String(path) === '/sys/fs/cgroup/memory.stat') return 'inactive_file 0\n';
+      throw new Error('ENOENT');
+    }) as any);
+
+    expect(Math.round(containerMemory().limitBytes! / MB)).toBe(512);
+  });
+
+  /** cgroup v1 writes a huge sentinel for "no limit"; it must not be believed. */
+  it('treats the cgroup v1 unlimited sentinel as no limit', () => {
+    jest.spyOn(fs, 'readFileSync').mockImplementation(((path: any) => {
+      if (String(path) === '/sys/fs/cgroup/memory/memory.limit_in_bytes') return '9223372036854771712';
+      throw new Error('ENOENT');
+    }) as any);
+
+    expect(containerMemory().source).toBe('os');
   });
 });

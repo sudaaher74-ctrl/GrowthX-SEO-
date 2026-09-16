@@ -4,15 +4,12 @@ import * as os from 'os';
 /**
  * Whether there is room to run Chromium beside the Node process.
  *
- * Rendering is the only thing the crawler does that allocates more than the
- * container has. A warm Chromium with the crawler's own launch flags measures
- * roughly 350-600MB resident depending on the page; the smallest deployment
- * target is a 512MB instance already holding a 300MB Node heap. Those numbers
- * do not fit together, and the way they fail is the worst available: the
- * kernel kills the container mid-crawl, every in-flight page is lost, the job
- * keeps its RUNNING status with `pagesCrawled` still at zero, and five minutes
- * later the stall sweep finds it and records a bare FAILED. The operator sees
- * a crawl that ran for seven minutes, read nothing and explained nothing.
+ * Rendering is the only thing the crawler does that can exceed what the
+ * container has, and the way it fails is the worst available: the kernel kills
+ * the container mid-crawl, every in-flight page is lost, the job keeps its
+ * RUNNING status with `pagesCrawled` still at zero, and the stall sweep closes
+ * it out minutes later. The operator sees a crawl that ran for seven minutes,
+ * read nothing and explained nothing.
  *
  * Checking first turns that into a decision. A site whose pages cannot be
  * rendered is still worth crawling — its URLs, status codes, titles and
@@ -23,6 +20,17 @@ import * as os from 'os';
  * The check is deliberately one-directional: when the limit cannot be read,
  * rendering is allowed. Guessing "no" on a host that reports nothing would
  * silently disable rendering on deployments where it works today.
+ *
+ * ── On the numbers ────────────────────────────────────────────────────────
+ * Chromium's cost has to be measured as PSS, not RSS. A headless browser is
+ * nine or ten processes sharing most of their pages, so summing their RSS
+ * counts the same memory repeatedly: measured together, a browser rendering a
+ * 20,000-link page reported 704MB of summed RSS and 329MB of PSS. Only the
+ * second figure is what the cgroup actually charges.
+ *
+ * Measured with the launch flags this crawler uses: ~190MB PSS idle, ~330MB
+ * PSS on a deliberately extreme DOM. An ordinary content page sits nearer
+ * 220MB, which is where the default below comes from.
  */
 
 /** cgroup v1 writes this sentinel, or one close to it, to mean "no limit". */
@@ -39,10 +47,30 @@ function readNumber(path: string): number | undefined {
   }
 }
 
+/**
+ * Reclaimable page cache charged to the cgroup.
+ *
+ * `memory.current` counts the page cache, and the kernel evicts that under
+ * pressure rather than killing anything. Left in, a container that has simply
+ * been up for a while reads as full — this host reports 640MB of cache — and
+ * rendering would be refused permanently on a box with ample free memory.
+ * Inactive file pages are the portion certain to be reclaimable, so they are
+ * the honest thing to discount.
+ */
+function reclaimableBytes(statPath: string, field: string): number {
+  try {
+    const stat = fs.readFileSync(statPath, 'utf8');
+    const match = new RegExp(`^${field}\\s+(\\d+)`, 'm').exec(stat);
+    return Number(match?.[1] || 0);
+  } catch {
+    return 0;
+  }
+}
+
 export interface ContainerMemory {
   /** The cgroup limit, or the host's total when no limit is imposed. */
   limitBytes?: number;
-  /** Bytes charged to the cgroup, which includes this process and Chromium. */
+  /** Bytes charged to the cgroup, with reclaimable page cache discounted. */
   usedBytes?: number;
   source: 'cgroup-v2' | 'cgroup-v1' | 'os' | 'unknown';
 }
@@ -50,22 +78,30 @@ export interface ContainerMemory {
 /**
  * The memory ceiling this process actually lives under.
  *
- * `os.totalmem()` reports the host's memory, not the container's, so on any
- * scheduler it reads as tens of gigabytes while the cgroup kills the process
- * at 512MB. The cgroup files are the only honest answer; the host total is the
+ * `os.totalmem()` reports the host's memory, not the container's, so under any
+ * scheduler it reads as tens of gigabytes while the cgroup kills the process at
+ * 512MB. The cgroup files are the only honest answer; the host total is the
  * fallback for running outside a container at all.
  */
 export function containerMemory(): ContainerMemory {
   const v2Limit = readNumber('/sys/fs/cgroup/memory.max');
   if (v2Limit !== undefined) {
-    return { limitBytes: v2Limit, usedBytes: readNumber('/sys/fs/cgroup/memory.current'), source: 'cgroup-v2' };
+    const current = readNumber('/sys/fs/cgroup/memory.current');
+    const cache = reclaimableBytes('/sys/fs/cgroup/memory.stat', 'inactive_file');
+    return {
+      limitBytes: v2Limit,
+      usedBytes: current === undefined ? undefined : Math.max(0, current - cache),
+      source: 'cgroup-v2',
+    };
   }
 
   const v1Limit = readNumber('/sys/fs/cgroup/memory/memory.limit_in_bytes');
   if (v1Limit !== undefined) {
+    const current = readNumber('/sys/fs/cgroup/memory/memory.usage_in_bytes');
+    const cache = reclaimableBytes('/sys/fs/cgroup/memory/memory.stat', 'total_inactive_file');
     return {
       limitBytes: v1Limit,
-      usedBytes: readNumber('/sys/fs/cgroup/memory/memory.usage_in_bytes'),
+      usedBytes: current === undefined ? undefined : Math.max(0, current - cache),
       source: 'cgroup-v1',
     };
   }
@@ -89,14 +125,14 @@ export interface RenderBudgetVerdict {
 /**
  * Decides whether launching Chromium now is survivable.
  *
- * `requiredMb` is what a browser needs beside the Node process, not what it
- * peaks at on a heavy page. It is configurable because the honest figure
- * depends on the sites being crawled, and an operator who has measured their
- * own workload should be able to say so.
+ * `requiredMb` is what a browser needs beside the Node process for an ordinary
+ * page, not what it peaks at on a pathological one. It is configurable because
+ * the honest figure depends on the sites being crawled, and an operator who has
+ * measured their own workload should be able to say so.
  */
 export function renderBudget(
   memory: ContainerMemory = containerMemory(),
-  requiredMb = Number(process.env.RENDER_MIN_FREE_MB || 400),
+  requiredMb = Number(process.env.RENDER_MIN_FREE_MB || 250),
 ): RenderBudgetVerdict {
   if (memory.limitBytes === undefined || memory.usedBytes === undefined) {
     return { allowed: true, requiredMb };
