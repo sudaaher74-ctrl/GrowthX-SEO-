@@ -1,7 +1,9 @@
 const listChannels = jest.fn();
 const listPlaylistItems = jest.fn();
 const listVideos = jest.fn();
-jest.mock('googleapis', () => ({
+// The service imports the per-API module, not the aggregate; mocking
+// 'googleapis' here would intercept nothing.
+jest.mock('../integrations/google/google-apis', () => ({
   google: {
     youtube: () => ({
       channels: { list: listChannels },

@@ -33,13 +33,16 @@ services:
         value: production
       - key: PORT
         value: 3000
-      # 300MB left no room for a browser beside it. Chromium measures ~190MB
-      # PSS idle and ~220MB on an ordinary page, and 512MB does not hold both
-      # a 300MB heap and that. A 160MB heap is ample for a crawler whose page
-      # bodies are capped at 128KB, and it is what makes rendering possible on
-      # the free plan at all.
+      # Measured, not guessed. Loading the module graph alone -- before Nest
+      # instantiates anything or a request arrives -- settles at ~141MB of
+      # heap and ~273MB RSS once googleapis is imported per-API rather than
+      # in aggregate (see google-apis.ts). A 160MB cap crashes this app at
+      # boot; 256 leaves ~115MB of heap for serving and still holds baseline
+      # RSS near 273MB, which is what leaves room for a browser on a 512MB
+      # instance. Raising the cap further buys headroom without costing RSS,
+      # but the render budget below is what actually protects the container.
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=160"
+        value: "--max-old-space-size=256"
       - key: ENABLE_PLAYWRIGHT_STARTUP
         value: "false"
       # Rendering is what makes a client-rendered site readable at all, and it
@@ -56,12 +59,15 @@ services:
       # pages; launching into too little memory gets the container OOM-killed
       # mid-crawl, which loses the whole job and reports nothing but "FAILED".
       #
-      # 250MB is Chromium's measured PSS on an ordinary page plus a little
-      # room. Measure before lowering it: RSS is not the figure to use, since
-      # a browser is ten processes sharing most of their pages and summing
-      # their RSS counts the same memory ten times.
+      # 220MB is Chromium's measured PSS on an ordinary page (~190MB idle).
+      # A 512MB instance with this app's ~273MB baseline has roughly 239MB
+      # spare, so a render is permitted while the app is near idle and
+      # declined once it is not -- which is exactly the intent. Measure
+      # before changing it: RSS is not the figure to use, since a browser is
+      # ten processes sharing most of their pages and summing their RSS
+      # counts the same memory ten times.
       - key: RENDER_MIN_FREE_MB
-        value: "250"
+        value: "220"
       - key: CRAWL_MAX_RENDERED_PAGES
         value: "50"
       # Both HTML bodies are stored per page so raw and rendered can be

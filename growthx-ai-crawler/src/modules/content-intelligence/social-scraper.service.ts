@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { google } from 'googleapis';
+import { google } from '../integrations/google/google-apis';
 import axios from 'axios';
 
 /** The slice of Business Discovery this reads. */

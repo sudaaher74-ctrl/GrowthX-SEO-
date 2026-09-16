@@ -1,8 +1,11 @@
-import { google } from 'googleapis';
+import { google } from './google-apis';
 import { BusinessProfileService } from './business-profile.service';
 import { fakePrisma } from './business-profile.testing';
 
-jest.mock('googleapis', () => ({
+// Mocks the per-API module the service imports. Mocking 'googleapis' itself
+// no longer intercepts anything: the aggregate entry point is not on the
+// service's import path, which is the entire point of google-apis.ts.
+jest.mock('./google-apis', () => ({
   google: {
     mybusinessaccountmanagement: jest.fn(),
     mybusinessbusinessinformation: jest.fn(),

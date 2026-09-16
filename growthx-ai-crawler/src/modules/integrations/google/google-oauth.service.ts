@@ -4,7 +4,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnav
 // nests its own copy — and they are structurally identical but nominally
 // different types, so mixing them makes every google.<api>() call reject the
 // client it was just handed.
-import { google } from 'googleapis';
+import { google } from './google-apis';
 import type { OAuth2Client } from 'googleapis-common';
 import { PrismaService } from '../../../database/prisma.service';
 import { decryptToken, encryptToken, tokenEncryptionAvailable } from './token-crypto';

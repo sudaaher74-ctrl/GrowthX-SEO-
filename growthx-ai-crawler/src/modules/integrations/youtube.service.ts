@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { OAuth2Client } from 'google-auth-library';
-import { google } from 'googleapis';
+import { google } from './google/google-apis';
 
 @Injectable()
 export class YoutubeService {

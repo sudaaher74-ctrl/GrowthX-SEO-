@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { google } from 'googleapis';
+import { google } from './google-apis';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
 
