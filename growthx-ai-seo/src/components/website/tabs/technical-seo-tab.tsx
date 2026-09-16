@@ -759,8 +759,6 @@ export function TechnicalSeoTab({
                     )}
                   </>
                 )}
-                  </>
-                )}
               <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                 <span>Average latency</span>
                 <span className="font-mono text-slate-900 dark:text-white">{avgLatency}</span>
