@@ -45,6 +45,20 @@ services:
         value: "1"
       - key: RENDER_JS_HEAP_MB
         value: "96"
+      # Chromium is not launched unless this much memory is free. A 512MB
+      # instance running a 300MB Node heap has roughly 200MB spare and a
+      # browser needs more than that, so on the free plan this refuses every
+      # render — deliberately. Refusing costs the rendered tier and records
+      # RENDER_UNAVAILABLE on the affected pages; launching anyway gets the
+      # container OOM-killed mid-crawl, which loses the whole job and reports
+      # nothing but "FAILED".
+      #
+      # Raising the instance to one with ~1GB is what actually restores
+      # rendering, and rendering is what a client-side site needs to be read
+      # at all. Lower this only after measuring Chromium's resident size on
+      # the sites being crawled.
+      - key: RENDER_MIN_FREE_MB
+        value: "400"
       - key: CRAWL_MAX_RENDERED_PAGES
         value: "50"
       # Both HTML bodies are stored per page so raw and rendered can be

@@ -168,9 +168,24 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             // crawl surfaces with exactly the pages it managed to record.
             await this.completeJob(job.id);
           } else {
+            // A status with no reason is what makes this failure unreadable:
+            // the UI shows "FAILED", the operator has no idea whether the site
+            // was unreachable, the worker died or the job was never picked up,
+            // and the only way to find out is the container log. Recording
+            // what is actually known — that the job was accepted, recorded no
+            // page, and then stopped reporting — at least names the shape of
+            // the failure and the usual cause.
             await this.prisma.crawlJob.update({
               where: { id: job.id },
-              data: { status: 'FAILED', finishedAt: new Date() },
+              data: {
+                status: 'FAILED',
+                finishedAt: new Date(),
+                errorMessage:
+                  `The crawl stopped responding before it recorded a single page, and was closed after ` +
+                  `${Math.round(CrawlerService.STALL_TIMEOUT_MS / 60000)} minutes without progress. ` +
+                  `This usually means the worker process was restarted or ran out of memory mid-crawl. ` +
+                  `Running the audit again is safe.`,
+              },
             });
             this.logger.warn(`[JOB ${job.id}] Abandoned before any page was crawled; marked FAILED.`);
           }

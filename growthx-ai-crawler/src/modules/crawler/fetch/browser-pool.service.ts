@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { chromium, Browser, BrowserContext, Page } from 'playwright';
+import { renderBudget } from './memory-budget';
 
 /** Caps concurrent renders. Chromium pages are the expensive resource here. */
 class Semaphore {
@@ -81,9 +82,17 @@ export class BrowserPoolService implements OnModuleDestroy {
     this.semaphore = new Semaphore(Math.max(1, max));
   }
 
+  /**
+   * Why the last launch was declined for want of memory, and when to look
+   * again. Separate from `launchFailure` because this one can come right.
+   */
+  private budgetRefusal?: string;
+  private budgetRecheckAt = 0;
+  private readonly budgetCooldownMs = Number(process.env.RENDER_BUDGET_RECHECK_MS ?? 60_000);
+
   /** The reason the browser is unavailable, or undefined if it is fine. */
   get unavailableReason(): string | undefined {
-    return this.launchFailure;
+    return this.launchFailure ?? this.budgetRefusal;
   }
 
   private async ensureContext(userAgent: string): Promise<BrowserContext | undefined> {
@@ -93,6 +102,30 @@ export class BrowserPoolService implements OnModuleDestroy {
     if (this.context && this.browser?.isConnected()) return this.context;
     if (this.launchFailure) return undefined;
     if (this.launching) return this.launching;
+    if (this.budgetRefusal && Date.now() < this.budgetRecheckAt) return undefined;
+
+    // Checked before every launch, not once at startup: the browser is closed
+    // and relaunched as a crawl progresses, and the memory available to the
+    // next launch is not the memory that was available to the first.
+    //
+    // Launching into insufficient memory does not fail, it gets the container
+    // killed, which loses the crawl and every page it had already recorded.
+    // Declining to launch costs only the rendered tier, and the caller records
+    // RENDER_UNAVAILABLE so the report states what was not assessed.
+    // Not recorded as a launch failure: that flag is permanent for the life of
+    // the process, which is right for a missing executable and wrong for
+    // memory. A crawl that finishes, or the idle close giving Chromium back,
+    // changes the answer. The refusal is held for a cooldown instead, so the
+    // check is neither permanent nor repeated on every page of a large crawl.
+    const budget = renderBudget();
+    if (!budget.allowed) {
+      this.budgetRefusal = budget.reason;
+      this.budgetRecheckAt = Date.now() + this.budgetCooldownMs;
+      this.logger.warn(`Chromium was not launched: ${budget.reason}`);
+      return undefined;
+    }
+    this.budgetRefusal = undefined;
+
     this.rendersSinceLaunch = 0;
 
     this.launching = (async () => {
