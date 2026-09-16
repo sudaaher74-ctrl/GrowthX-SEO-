@@ -106,9 +106,22 @@ export function containerMemory(): ContainerMemory {
     };
   }
 
+  // No cgroup limit: this is a workstation or a bare host, not a container.
+  //
+  // Deliberately reported without a usage figure, which makes renderBudget
+  // allow. This guard exists to stop a container being OOM-killed by its
+  // cgroup; a machine with no such limit pages to disk instead of killing the
+  // process, so the failure it protects against cannot happen here.
+  //
+  // `os.freemem()` is also the wrong number to reach for. On macOS it counts
+  // only strictly unused pages and excludes the file cache, so a 16GB laptop
+  // in normal use reports a few hundred megabytes free — which, compared
+  // against a 220MB threshold, would refuse rendering on a machine with ample
+  // memory. That is exactly the deployment the crawler is moved to when the
+  // 512MB instance cannot cope, so getting it wrong defeats the remedy.
   const total = os.totalmem();
   if (Number.isFinite(total) && total > 0) {
-    return { limitBytes: total, usedBytes: total - os.freemem(), source: 'os' };
+    return { limitBytes: total, source: 'os' };
   }
 
   return { source: 'unknown' };

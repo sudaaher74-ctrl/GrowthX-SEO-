@@ -68,6 +68,20 @@ describe('renderBudget', () => {
   it('carries no reason when it allows', () => {
     expect(renderBudget({ limitBytes: 2048 * MB, usedBytes: 100 * MB, source: 'os' }, 250).reason).toBeUndefined();
   });
+
+  /**
+   * A workstation has no cgroup limit, so it pages rather than being killed --
+   * the failure this guard exists for cannot happen there. It matters because
+   * that machine is precisely where the crawler is moved when a 512MB
+   * instance cannot cope: os.freemem() on macOS counts only strictly unused
+   * pages and excludes the file cache, so a 16GB laptop in normal use reports
+   * a few hundred megabytes and would have every render refused.
+   */
+  it('allows rendering on a host with no container limit', () => {
+    const laptop: ContainerMemory = { limitBytes: 16 * 1024 * MB, source: 'os' };
+
+    expect(renderBudget(laptop, 250).allowed).toBe(true);
+  });
 });
 
 describe('containerMemory', () => {
