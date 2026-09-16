@@ -86,6 +86,28 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private static readonly STALL_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
   private stallSweep?: NodeJS.Timeout;
 
+  /**
+   * Crawl-job statuses, briefly cached, so abandoned work can be dropped
+   * without a database round trip per queued URL.
+   *
+   * `page-fetch` is one queue shared by every crawl, and a job outlives the
+   * crawl that enqueued it: a crawl that is cancelled, fails, or is closed out
+   * by the stall sweep leaves its remaining URLs in the queue, and nothing
+   * removed them. Production accumulated 18,000 such URLs across 38 finished
+   * crawls. Because rendering is capped at one page at a time on a small
+   * instance, the queue drains at roughly two pages a minute, so that backlog
+   * represents days of work — and a newly requested crawl sits behind all of
+   * it, records nothing within the stall timeout, and is marked FAILED. The
+   * symptom is a crawler that appears broken while it is in fact busy doing
+   * work nobody is waiting for.
+   *
+   * A short TTL is the point: long enough that draining a large backlog costs
+   * a handful of queries rather than thousands, short enough that a crawl
+   * cancelled mid-flight stops within seconds.
+   */
+  private readonly jobStatusCache = new Map<string, { status: string; readAt: number }>();
+  private static readonly JOB_STATUS_TTL_MS = 10 * 1000;
+
 
   constructor(
     private readonly prisma: PrismaService,
@@ -420,8 +442,46 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Processes an individual page fetch task, executing the full SEO extraction & issue engine pipeline
    */
+  /**
+   * Whether this crawl still wants its queued URLs fetched.
+   *
+   * Anything past PENDING/RUNNING is finished, and fetching a page for it
+   * would write a row onto a crawl the dashboard already reports as closed.
+   */
+  private async crawlStillWants(jobId: string): Promise<boolean> {
+    const cached = this.jobStatusCache.get(jobId);
+    if (cached && Date.now() - cached.readAt < CrawlerService.JOB_STATUS_TTL_MS) {
+      return cached.status === 'RUNNING' || cached.status === 'PENDING';
+    }
+
+    let status: string;
+    try {
+      const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId }, select: { status: true } });
+      // A job row that no longer exists is not one to keep fetching for.
+      status = job?.status ?? 'GONE';
+    } catch {
+      // A failed lookup must not drop real work: assume the crawl is live and
+      // let the fetch proceed. Draining is an optimisation; crawling is not.
+      return true;
+    }
+
+    this.jobStatusCache.set(jobId, { status, readAt: Date.now() });
+    if (this.jobStatusCache.size > 500) {
+      for (const [key, value] of this.jobStatusCache) {
+        if (Date.now() - value.readAt >= CrawlerService.JOB_STATUS_TTL_MS) this.jobStatusCache.delete(key);
+      }
+    }
+
+    return status === 'RUNNING' || status === 'PENDING';
+  }
+
   async processPageFetch(payload: PageFetchPayload): Promise<void> {
     try {
+      // Before any fetch, render or write: this queue is shared by every
+      // crawl, and work for a crawl that has already finished is work that
+      // starves the one the customer is waiting on.
+      if (!(await this.crawlStillWants(payload.jobId))) return;
+
       const normUrl = this.normalizeUrl(payload.targetUrl);
 
       const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
