@@ -30,6 +30,13 @@ class Semaphore {
   }
 }
 
+/** A Chromium that stopped answering, as opposed to one that returned an error. */
+class RenderTimeoutError extends Error {
+  constructor(readonly phase: string) {
+    super(`Chromium did not respond while ${phase}.`);
+  }
+}
+
 export const DEFAULT_CHROME_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -76,6 +83,17 @@ export class BrowserPoolService implements OnModuleDestroy {
    * OOM killer while it is doing nothing at all. Zero disables the idle close.
    */
   private readonly idleShutdownMs = Number(process.env.BROWSER_IDLE_SHUTDOWN_MS ?? 90_000);
+
+  /**
+   * The wall-clock ceiling on one render, after which the browser is presumed
+   * wedged rather than slow.
+   *
+   * Comfortably above the sum of the navigation and settle budgets a caller
+   * sets (20s navigation, 6s network idle, 3s settle, plus one retry), so a
+   * genuinely slow page finishes normally and only a browser that has stopped
+   * answering trips it.
+   */
+  private readonly renderHardTimeoutMs = Number(process.env.RENDER_HARD_TIMEOUT_MS ?? 75_000);
 
   constructor() {
     const max = Number(process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || 3);
@@ -212,16 +230,59 @@ export class BrowserPoolService implements OnModuleDestroy {
 
     await this.semaphore.acquire();
     let page: Page | undefined;
+    let wedged = false;
     try {
-      page = await context.newPage();
-      return await work(page);
+      // Bounded, because the permit taken above is the only one on a small
+      // instance and nothing else reclaims it.
+      //
+      // Playwright's own timeouts cover navigation and selectors, and every
+      // caller sets them. They do not cover `newPage()`, and they do not cover
+      // a Chromium that has stopped answering at all — which is what a browser
+      // does when it is squeezed rather than killed: it neither crashes nor
+      // returns, so `work` never settles, the `finally` never runs, and the
+      // permit is held for the life of the process. Every subsequent render
+      // then blocks on `acquire()` forever. Production showed exactly that:
+      // ten page-fetch workers pinned to `active` with the queue behind them
+      // unmoving for twenty minutes.
+      page = await this.bounded(context.newPage(), 'opening a page');
+      return await this.bounded(work(page), 'rendering a page');
+    } catch (err) {
+      wedged = err instanceof RenderTimeoutError;
+      if (wedged) this.logger.error(`Chromium stopped responding while ${(err as RenderTimeoutError).phase}; recycling it.`);
+      else throw err;
+      return undefined;
     } finally {
-      if (page) await page.close().catch(() => {});
+      // A page belonging to a browser that has stopped answering will not
+      // close either, so it is not waited on.
+      if (page && !wedged) await page.close().catch(() => {});
       this.rendersSinceLaunch++;
       this.semaphore.release();
-      await this.recycleIfSpent();
+      // A browser that failed to answer once is not trusted again: it is torn
+      // down here so the next render starts a fresh one, rather than every
+      // later render paying the same timeout.
+      if (wedged) await this.shutdownBrowser().catch(() => {});
+      else await this.recycleIfSpent();
       this.scheduleIdleShutdown();
     }
+  }
+
+  /**
+   * Rejects with RenderTimeoutError if `promise` has not settled in time.
+   *
+   * The underlying operation is abandoned rather than cancelled — there is no
+   * way to cancel a wedged CDP call — which is why the caller tears the
+   * browser down afterwards instead of reusing it.
+   */
+  private bounded<T>(promise: Promise<T>, phase: string): Promise<T> {
+    const ms = this.renderHardTimeoutMs;
+    let timer: NodeJS.Timeout;
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new RenderTimeoutError(phase)), ms);
+        timer.unref?.();
+      }),
+    ]).finally(() => clearTimeout(timer!)) as Promise<T>;
   }
 
   /** Relaunches a browser that has served its quota, once nothing is running. */
