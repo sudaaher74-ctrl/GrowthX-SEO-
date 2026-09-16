@@ -17,6 +17,22 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   /**
+   * Whether this process is consuming the queues.
+   *
+   * Queue depth alone cannot distinguish "nothing was dispatched" from "the
+   * consumer never started", and the second is the failure that leaves a crawl
+   * at PENDING until the stall sweep closes it. Reported alongside the counts
+   * so the pair is readable in one request.
+   */
+  get workerStatus(): Record<string, unknown> {
+    return {
+      crawlJobs: Boolean(this.crawlJobWorker?.isRunning()),
+      pageFetch: Boolean(this.pageFetchWorker?.isRunning()),
+      disabledByEnv: process.env.WORKER_MODE === 'false' || process.env.DISABLE_WORKERS === 'true',
+    };
+  }
+
+  /**
    * Starts the workers once the queue has settled, without blocking the boot.
    *
    * Reading the Redis client synchronously here was the original bug: the queue

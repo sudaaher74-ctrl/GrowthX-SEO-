@@ -1,5 +1,7 @@
-import { Controller, Get, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Controller, Get, Logger, OnApplicationBootstrap, Optional } from '@nestjs/common';
 import { AiTask, MultiAiRouterService } from './modules/ai-search/multi-ai-router/multi-ai-router.service';
+import { QueueService } from './modules/queue/queue.service';
+import { CrawlerProcessor } from './modules/crawler/crawler.processor';
 
 /**
  * When this process started. A redeploy resets it, which — together with the
@@ -35,7 +37,34 @@ function realKey(value?: string): boolean {
 export class HealthController implements OnApplicationBootstrap {
   private readonly logger = new Logger(HealthController.name);
 
-  constructor(private readonly router: MultiAiRouterService) {}
+  constructor(
+    private readonly router: MultiAiRouterService,
+    // Optional so the health endpoint still answers on a deployment that does
+    // not run the crawler at all. A health check that depends on the subsystem
+    // it reports on is not a health check.
+    @Optional() private readonly queue?: QueueService,
+    @Optional() private readonly processor?: CrawlerProcessor,
+  ) {}
+
+  /**
+   * Whether crawls can actually be dispatched and consumed here.
+   *
+   * A crawl that records no page and is then closed by the stall sweep is
+   * indistinguishable, from the dashboard, from a crawl that was never picked
+   * up. This makes the difference readable without container logs: work
+   * waiting with no worker running is a consumer that did not start; empty
+   * queues with a failing crawl is a job that was never dispatched.
+   */
+  @Get('queues')
+  async queues() {
+    if (!this.queue) return { ...buildInfo(), queueing: 'The queue service is not loaded in this process.' };
+
+    return {
+      ...buildInfo(),
+      ...(await this.queue.queueDiagnostics()),
+      workers: this.processor?.workerStatus ?? { note: 'The crawler processor is not loaded in this process.' },
+    };
+  }
 
   @Get()
   check() {

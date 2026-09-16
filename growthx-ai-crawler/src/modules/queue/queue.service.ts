@@ -239,4 +239,50 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   getRedisClient(): IORedis | undefined {
     return this.redisConnection;
   }
+
+  /**
+   * What the queues are actually doing, for the health endpoint.
+   *
+   * A crawl that records no page and is closed out by the stall sweep looks
+   * identical from the dashboard whether the job was never enqueued, was
+   * enqueued into a Redis nothing is consuming, or was picked up and died.
+   * Those have different fixes and the only way to tell them apart was the
+   * container log. Counts distinguish them: work waiting with nothing active
+   * is a worker that is not running; nothing anywhere is a job that was never
+   * dispatched.
+   *
+   * Counts and connection states only — never the URL, which carries the
+   * password.
+   */
+  async queueDiagnostics(): Promise<Record<string, unknown>> {
+    const redisConfigured = Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
+
+    if (!this.redisConnection || !this.crawlJobsQueue || !this.pageFetchQueue) {
+      return {
+        redis: {
+          configured: redisConfigured,
+          connected: false,
+          // The distinction that matters: configured-but-unreachable means
+          // crawls fall back to running in-process, which works but serialises
+          // them onto the web dyno.
+          mode: redisConfigured ? 'unreachable — crawls run synchronously' : 'not configured — crawls run synchronously',
+        },
+      };
+    }
+
+    const counts = async (queue: Queue) => {
+      try {
+        return await queue.getJobCounts('waiting', 'active', 'delayed', 'failed', 'completed');
+      } catch (err: any) {
+        return { error: err?.message ?? 'counts unavailable' };
+      }
+    };
+
+    const [crawlJobs, pageFetch] = await Promise.all([counts(this.crawlJobsQueue), counts(this.pageFetchQueue)]);
+
+    return {
+      redis: { configured: redisConfigured, connected: this.redisConnection.status === 'ready', status: this.redisConnection.status },
+      queues: { 'crawl-jobs': crawlJobs, 'page-fetch': pageFetch },
+    };
+  }
 }

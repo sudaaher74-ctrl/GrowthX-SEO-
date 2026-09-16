@@ -27,6 +27,8 @@ import { FrontierService } from './frontier/frontier.service';
     CrawlerProcessor,
     VerificationEngineService,
   ],
-  exports: [CrawlerService, FetcherService, FetchService, DiscoveryService, FrontierService, VerificationEngineService],
+  // CrawlerProcessor is exported so the health endpoint can report whether
+  // the BullMQ workers actually started in this process.
+  exports: [CrawlerService, FetcherService, FetchService, DiscoveryService, FrontierService, VerificationEngineService, CrawlerProcessor],
 })
 export class CrawlerModule {}
