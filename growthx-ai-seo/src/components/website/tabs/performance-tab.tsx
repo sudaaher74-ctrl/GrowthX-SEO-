@@ -72,11 +72,11 @@ export function PerformanceTab({
       const valid = pagesWithPerf.map((p) => p.performance?.lcpMs).filter((n): n is number => n != null);
       if (valid.length > 0) return valid.reduce((a, b) => a + b, 0) / valid.length;
     }
-    if (pages.length > 0) {
-      // Estimate LCP from response times
-      const avgMs = pages.reduce((a, b) => a + (b.responseTimeMs || 0), 0) / pages.length;
-      return avgMs * 1.6;
-    }
+    // No estimate from response time. LCP is when the largest element paints
+    // in a real browser; a crawler's fetch latency is a different quantity and
+    // scaling it by a constant does not turn it into one. Deriving it that way
+    // put "LCP 359.8s" on a customer dashboard, from a figure that was mostly
+    // our own render queue. Null here renders as "No data", which is true.
     return null;
   }, [pagesWithPerf, pages]);
 
@@ -123,26 +123,18 @@ export function PerformanceTab({
   }, [pages]);
 
   // 3. Historical Trend Chart Points (Real history if multiple runs exist, or baseline points)
-  const trendPoints = useMemo(() => {
-    if (historyRuns.length > 0) {
-      return historyRuns.map((r, i) => {
-        const date = r.finishedAt ? new Date(r.finishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : `Run ${i + 1}`;
-        const lcp = avgLcpMs ? Number(((avgLcpMs / 1000) * (0.95 + (i * 0.04) % 0.15)).toFixed(1)) : 2.8;
-        const inp = avgInpMs ? Math.round(avgInpMs * (0.9 + (i * 0.05) % 0.2)) : 180;
-        const cls = avgCls ? Number((avgCls * (0.9 + (i * 0.05) % 0.2)).toFixed(2)) : 0.12;
-        return { date, lcp, inp, cls };
-      });
-    }
-    // Baseline points if only 1 crawl exists
-    return [
-      { date: "Aug 10", lcp: 3.4, inp: 220, cls: 0.15 },
-      { date: "Aug 15", lcp: 3.2, inp: 210, cls: 0.14 },
-      { date: "Aug 20", lcp: 3.0, inp: 195, cls: 0.13 },
-      { date: "Aug 25", lcp: 3.1, inp: 240, cls: 0.18 },
-      { date: "Aug 30", lcp: 2.9, inp: 185, cls: 0.12 },
-      { date: "Sep 5", lcp: avgLcpMs ? Number((avgLcpMs / 1000).toFixed(1)) : 2.8, inp: avgInpMs ? Math.round(avgInpMs) : 180, cls: avgCls ? Number(avgCls.toFixed(2)) : 0.12 },
-    ];
-  }, [historyRuns, avgLcpMs, avgInpMs, avgCls]);
+  /**
+   * Core Web Vitals over time, once there is a source for them.
+   *
+   * There is not one today: a crawl history row carries pagesCrawled,
+   * issuesFound and a finish time, and no vitals at all. What this returned
+   * before was five invented points dated weeks back -- 3.4, 3.2, 3.0, 3.1,
+   * 2.9 -- plus a final point derived by scaling one average, drawn under a
+   * "Last 28 days" label as though it had been measured. A trend nobody
+   * recorded is not a trend, so the chart shows nothing until per-crawl
+   * vitals are stored.
+   */
+  const trendPoints = useMemo<{ date: string; lcp: number; inp: number; cls: number }[]>(() => [], []);
 
   // 4. Filtered & Sorted Pages for Slowest Pages Table
   const slowestPages = useMemo(() => {
@@ -451,93 +443,14 @@ export function PerformanceTab({
           </div>
         </div>
 
-        {/* 3. Mobile vs Desktop */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Mobile vs Desktop</h3>
-              <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setActiveDeviceTab("mobile")}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2.5 py-1 font-semibold transition",
-                    activeDeviceTab === "mobile"
-                      ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
-                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                  )}
-                >
-                  <Smartphone size={12} />
-                  <span>Mobile</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveDeviceTab("desktop")}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2.5 py-1 font-semibold transition",
-                    activeDeviceTab === "desktop"
-                      ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white"
-                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
-                  )}
-                >
-                  <Laptop size={12} />
-                  <span>Desktop</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Metrics comparison */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">LCP</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
-                    {activeDeviceTab === "mobile" ? "3.2s" : "2.1s"}
-                  </span>
-                  <span className="rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5">
-                    <ArrowDown size={10} /> 18%
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">INP</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
-                    {activeDeviceTab === "mobile" ? "210ms" : "140ms"}
-                  </span>
-                  <span className="rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5">
-                    <ArrowDown size={10} /> 12%
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">CLS</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
-                    {activeDeviceTab === "mobile" ? "0.16" : "0.08"}
-                  </span>
-                  <span className="rounded bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5">
-                    <ArrowDown size={10} /> 20%
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">Page Size</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
-                    {activeDeviceTab === "mobile" ? "2.4 MB" : "3.1 MB"}
-                  </span>
-                  <span className="rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5">
-                    <ArrowDown size={10} /> 8%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Mobile vs Desktop lived here and reported no measurement.
+            Every figure was a literal -- LCP 3.2s/2.1s, INP 210ms/140ms,
+            CLS 0.16/0.08, page size, and all four "down N%" deltas -- rendered
+            beside a Core Web Vitals card that correctly read "No data". One
+            screen said both that the vitals were unmeasured and that mobile
+            LCP had improved 18%. Nothing here split a measurement by device,
+            so there was no honest version of this panel to keep: it returns
+            when a device dimension is actually collected. */}
       </div>
 
       {/* ======================================================== */}

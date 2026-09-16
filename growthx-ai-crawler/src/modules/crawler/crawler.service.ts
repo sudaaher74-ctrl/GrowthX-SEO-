@@ -879,7 +879,17 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       url: outcome.url,
       finalUrl: outcome.finalUrl,
       statusCode: outcome.statusCode ?? 0,
-      responseTimeMs: outcome.totalMs,
+      // How fast the origin answered, not how long we took.
+      //
+      // `totalMs` is our own wall clock for the whole fetch: the static
+      // request, the render, and the time the render spent queued behind
+      // another one on the single permit a small instance allows. Stored as
+      // the page's response time, a contended crawl makes the customer's site
+      // look slow — the 2026-09-16 milquufresh crawl recorded 224,897ms
+      // "average latency", which was our queue, and the Performance tab then
+      // multiplied it into an LCP of 359.8 seconds. TTFB is the figure that
+      // means what the column says.
+      responseTimeMs: outcome.ttfbMs ?? outcome.totalMs,
       contentType: outcome.contentType,
       html: outcome.html,
       redirectChain: outcome.statusChain.map((hop) => hop.url),

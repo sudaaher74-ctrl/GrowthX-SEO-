@@ -485,6 +485,46 @@ export class FetchService {
           .catch(() => undefined);
       }
 
+      // The settles above fire on the *first* sign of life — one anchor, or the
+      // mount node gaining any child — and a framework reaches that state while
+      // still building. Usually that is fine: measured against a live SPA,
+      // three of four pages read identically either way. The exception is the
+      // one that matters, because a page caught mid-build is recorded with
+      // fewer words than it has, and an undercount is what turns a real page
+      // into a THIN_CONTENT finding.
+      //
+      // So wait for the rendered text to stop changing: it grows as components
+      // mount and data resolves, then goes flat. Two identical samples end it.
+      //
+      // Empty never counts as settled, which is the part that took a
+      // measurement to learn. A page whose text is briefly empty — a route
+      // transition, a loading state swapped for content — is "unchanged at
+      // zero" for as long as it takes, and accepting that reads a blank page
+      // as a finished one. Waiting through it turned a homepage that captured
+      // 112 words into one that captured none. The cap bounds a page that
+      // never settles at all.
+      await page
+        .waitForFunction(
+          (quietPolls: number) => {
+            const w = window as any;
+            const length = (document.body?.innerText || '').length;
+            if (length === 0) {
+              w.__gxStable = 0;
+              w.__gxLast = -1;
+              return false;
+            }
+            if (w.__gxLast === length) w.__gxStable = (w.__gxStable || 0) + 1;
+            else {
+              w.__gxLast = length;
+              w.__gxStable = 0;
+            }
+            return w.__gxStable >= quietPolls;
+          },
+          2,
+          { timeout: settleMs * 2, polling: 150 },
+        )
+        .catch(() => undefined);
+
       const html = await page.content().catch(() => '');
       const measured = await page
         .evaluate(() => ({
