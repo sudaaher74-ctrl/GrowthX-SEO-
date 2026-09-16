@@ -521,7 +521,14 @@ export class FetchService {
             return w.__gxStable >= quietPolls;
           },
           2,
-          { timeout: settleMs * 2, polling: 150 },
+          // A ceiling, not a wait. The check returns as soon as the text has
+          // held steady for two polls, so a page that renders quickly costs
+          // ~300ms of this budget and a slow one is allowed to finish rather
+          // than being read half-built. Tying it to `settleMs` capped heavy
+          // pages at six seconds, which is under what a large SPA on a slow
+          // connection needs, and the cost of expiring early is a page
+          // recorded with a fraction of its words.
+          { timeout: Number(process.env.RENDER_STABLE_TIMEOUT_MS || 12_000), polling: 150 },
         )
         .catch(() => undefined);
 
