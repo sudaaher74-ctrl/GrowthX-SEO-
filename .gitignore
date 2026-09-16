@@ -41,6 +41,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# The template is not a secret and is no use to anyone if git hides it: the
+# whole point is that a fresh machine clones the repo and finds it. The real
+# `.env.selfhost` beside it stays ignored by the rule above.
+!.env.selfhost.example
+
 # vercel
 .vercel
 

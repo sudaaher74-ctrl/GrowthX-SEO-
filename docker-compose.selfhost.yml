@@ -1,0 +1,184 @@
+# The stack, sized for a laptop with 8GB of RAM.
+#
+# `docker-compose.yml` beside this file targets a development machine with
+# memory to spare: no limits, ten page-fetch workers, a frontend container. On
+# 8GB shared with Windows that configuration is what gets the OOM killer
+# involved, and a crawl killed mid-flight is the failure this project has spent
+# the most time on.
+#
+# Three deliberate differences:
+#
+#   1. Every container has a hard memory limit. Docker publishes that limit to
+#      the container's cgroup, which is exactly what the crawler's render budget
+#      reads before launching Chromium (see fetch/memory-budget.ts). Without a
+#      limit the budget check has nothing to measure against and rendering is
+#      allowed unconditionally.
+#
+#   2. The API does not crawl. WORKER_MODE=false leaves it serving HTTP, and the
+#      worker container does the fetching with the memory to do it. The two are
+#      separate processes with no shared memory, which is safe because a crawl's
+#      state now lives in Redis rather than in one process's fields.
+#
+#   3. No frontend container. The UI stays on Vercel and reaches this stack
+#      through the tunnel; running Next.js here would cost ~500MB for a page
+#      Vercel already serves for free.
+#
+# Usage:
+#   docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost up -d
+#   docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost logs -f worker
+#
+# Memory ledger, against a WSL2 allowance of 5GB:
+#   postgres 640m + redis 300m + api 1024m + worker 2000m = 3.96GB
+#   leaving ~1GB inside WSL for the Docker daemon and the page cache.
+
+name: growthx
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: growthx_crawler
+      POSTGRES_USER: growthx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}
+    # Bound to 127.0.0.1, not 0.0.0.0. The tunnel publishes the API and nothing
+    # else; a database reachable from the network is how a laptop becomes a
+    # breach. Keep the binding even though the tunnel only forwards one port.
+    ports:
+      - "127.0.0.1:5432:5432"
+    # Postgres sizes itself for a server by default. These are the three
+    # settings that matter on a laptop.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=192MB
+      - -c
+      - max_connections=60
+      - -c
+      - work_mem=8MB
+    mem_limit: 640m
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U growthx -d growthx_crawler"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # `noeviction` is not a default worth inheriting — it is the whole point.
+    # Redis holds the crawl's queue, its visited set and its pending-task
+    # counter. Under `allkeys-lru` a memory squeeze would evict those silently,
+    # and a crawl would lose URLs with nothing anywhere saying so. Refusing the
+    # write instead makes the problem loud.
+    command:
+      - redis-server
+      - --maxmemory
+      - 224mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "no"
+      - --save
+      - "300"
+      - "10"
+    ports:
+      - "127.0.0.1:6379:6379"
+    mem_limit: 300m
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./growthx-ai-crawler
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.selfhost
+    environment:
+      DATABASE_URL: postgresql://growthx:${POSTGRES_PASSWORD}@postgres:5432/growthx_crawler?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      PORT: "3000"
+      # Serves HTTP only. The worker below consumes the queues.
+      WORKER_MODE: "false"
+      NODE_OPTIONS: --max-old-space-size=768
+      LOCAL_STORAGE_PATH: /app/storage/snapshots
+      PLAYWRIGHT_HEADLESS: "true"
+      ENABLE_PLAYWRIGHT_STARTUP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    mem_limit: 1024m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - crawler_snapshots:/app/storage/snapshots
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  worker:
+    build:
+      context: ./growthx-ai-crawler
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Straight to the worker entrypoint, bypassing docker-entrypoint.sh: the API
+    # container runs the migrations and two containers migrating the same
+    # database at boot is an advisory lock nobody needs to take.
+    command: ["node", "dist/main-worker.js"]
+    env_file:
+      - .env.selfhost
+    environment:
+      DATABASE_URL: postgresql://growthx:${POSTGRES_PASSWORD}@postgres:5432/growthx_crawler?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      WORKER_MODE: "true"
+      NODE_OPTIONS: --max-old-space-size=768
+      LOCAL_STORAGE_PATH: /app/storage/snapshots
+      PLAYWRIGHT_HEADLESS: "true"
+
+      # ── The numbers that make this laptop worth the move ─────────────────
+      # Render's free instance had room for one Chromium page at a time, and
+      # every page of a client-rendered site needs one. Two renders at ~250MB
+      # PSS each fit inside the 2000m limit below beside a 768MB heap.
+      MAX_RENDER_CONCURRENCY: "2"
+      # Chromium is not launched unless this much is free inside the cgroup.
+      # Measured, not guessed: ~190MB idle, ~250MB on an ordinary page, ~330MB
+      # on a deliberately extreme DOM.
+      RENDER_MIN_FREE_MB: "320"
+      # 50 on Render, because the budget was the scarce thing. Here a 300-page
+      # site can be read in full.
+      CRAWL_MAX_RENDERED_PAGES: "300"
+      # CRAWLER_WORKER_CONCURRENCY is deliberately unset: page-fetch workers
+      # now default to twice the render capacity, which is 4 here. Setting it
+      # higher only queues jobs against a permit they cannot have.
+      CRAWLER_JOB_CONCURRENCY: "2"
+      DEFAULT_CRAWL_CONCURRENCY: "4"
+      MAX_CRAWL_CONCURRENCY: "6"
+      MAX_STORED_HTML_BYTES: "262144"
+    mem_limit: 2000m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - crawler_snapshots:/app/storage/snapshots
+
+volumes:
+  postgres_data:
+  redis_data:
+  crawler_snapshots:
