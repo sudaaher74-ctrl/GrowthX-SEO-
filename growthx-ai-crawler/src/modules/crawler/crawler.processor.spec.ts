@@ -1,7 +1,7 @@
 const workerInstances: any[] = [];
 jest.mock('bullmq', () => ({
-  Worker: jest.fn().mockImplementation((name: string) => {
-    const instance = { name, on: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
+  Worker: jest.fn().mockImplementation((name: string, _processor: unknown, opts: any) => {
+    const instance = { name, opts, on: jest.fn(), close: jest.fn().mockResolvedValue(undefined) };
     workerInstances.push(instance);
     return instance;
   }),
@@ -88,5 +88,56 @@ describe('CrawlerProcessor — worker startup', () => {
     ]);
 
     expect(returned).toBe('returned');
+  });
+});
+
+/**
+ * Page-fetch workers exist to keep the browser busy, and on a small instance
+ * there is one render permit. Workers past that point queue for it, hold a
+ * BullMQ lock while waiting, and settle for the unrendered shell when the wait
+ * runs out — which is how a client-rendered page is recorded with five words.
+ */
+describe('CrawlerProcessor — how many page fetches run at once', () => {
+  const OLD = { ...process.env };
+
+  function startedWith(env: Record<string, string | undefined>): any {
+    workerInstances.length = 0;
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    const queue = { ready: Promise.resolve(), getRedisClient: () => ({ host: 'redis' }) };
+    const processor = new CrawlerProcessor(queue as any, {} as any);
+    processor.onModuleInit();
+    return queue.ready.then(() => workerInstances.find((w) => w.name === 'page-fetch'));
+  }
+
+  beforeEach(() => {
+    delete process.env.CRAWLER_WORKER_CONCURRENCY;
+    delete process.env.MAX_RENDER_CONCURRENCY;
+    delete process.env.MAX_PLAYWRIGHT_CONCURRENCY;
+    delete process.env.WORKER_MODE;
+    delete process.env.DISABLE_WORKERS;
+  });
+  afterEach(() => {
+    process.env = { ...OLD };
+  });
+
+  it('keeps the queue close to the render capacity on a one-permit instance', async () => {
+    const worker = await startedWith({ MAX_RENDER_CONCURRENCY: '1' });
+
+    expect(worker.opts.concurrency).toBe(2);
+  });
+
+  it('scales with a larger browser budget', async () => {
+    const worker = await startedWith({ MAX_RENDER_CONCURRENCY: '4' });
+
+    expect(worker.opts.concurrency).toBe(8);
+  });
+
+  it('still does what it is told', async () => {
+    const worker = await startedWith({ MAX_RENDER_CONCURRENCY: '1', CRAWLER_WORKER_CONCURRENCY: '10' });
+
+    expect(worker.opts.concurrency).toBe(10);
   });
 });

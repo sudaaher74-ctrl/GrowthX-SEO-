@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
+import { randomUUID } from 'crypto';
 
 export interface CrawlJobPayload {
   jobId: string;
@@ -26,6 +27,14 @@ export interface PageFetchPayload {
   rateLimitDelayMs: number;
   /** Ceiling on pages fetched by the whole job. Undefined means no ceiling. */
   pageLimit?: number;
+  /**
+   * Identifies this enqueued task, so that settling it can be made idempotent.
+   *
+   * Assigned once, when the task is added, and carried through every re-run
+   * BullMQ performs of it — a retry after a failure, or a second run after the
+   * job's lock lapses. See `settlePageFetchTask`.
+   */
+  taskId?: string;
 }
 
 @Injectable()
@@ -149,8 +158,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     if (!this.pageFetchQueue) {
       return;
     }
-    await this.incrementPendingTasks(payload.jobId, 1);
-    await this.pageFetchQueue.add('fetch-url', payload, {
+    const task: PageFetchPayload = { ...payload, taskId: payload.taskId || randomUUID() };
+    await this.incrementPendingTasks(task.jobId, 1);
+    await this.pageFetchQueue.add('fetch-url', task, {
       delay: delayMs,
       removeOnComplete: true,
       removeOnFail: true,
@@ -183,7 +193,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
     const jobs = payloads.map((payload) => ({
       name: 'fetch-url',
-      data: payload,
+      data: { ...payload, taskId: payload.taskId || randomUUID() },
       opts: {
         delay: delayMs,
         removeOnComplete: true as const,
@@ -199,6 +209,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private readonly inMemoryTaskCounters = new Map<string, number>();
+  /** The Redis-free equivalent of the settled-task set; see `settlePageFetchTask`. */
+  private readonly inMemorySettledTasks = new Map<string, Set<string>>();
 
   async incrementPendingTasks(jobId: string, count: number = 1): Promise<number> {
     if (this.redisConnection) {
@@ -225,6 +237,92 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       this.inMemoryTaskCounters.set(jobId, current);
     }
     return current;
+  }
+
+  /**
+   * Tasks already accounted for, so that a re-run of one cannot be counted twice.
+   *
+   * BullMQ runs a task more than once in two ordinary situations: an attempt
+   * that throws is retried, and an attempt whose lock lapses — a render waiting
+   * for the one permit a small instance allows, say — is declared stalled and
+   * run again while the first run is still going. Both re-runs reach the
+   * `finally` that decrements the crawl's pending-task counter.
+   *
+   * That is how a crawl ends early. Every duplicate decrement takes the counter
+   * one below the work that is actually outstanding, so it reaches zero with
+   * URLs still queued; the crawl is marked COMPLETED, and every remaining task
+   * is then dropped by the check that refuses to fetch for a finished crawl.
+   * milquufresh.in, whose sitemap lists 29 URLs, reported six pages and a
+   * completed crawl.
+   */
+  private settledTasksKey(jobId: string): string {
+    return `job:${jobId}:settled_tasks`;
+  }
+
+  /**
+   * Records that one enqueued task is finished with, and returns what is left.
+   *
+   * Idempotent per `taskId`: the first call for a task decrements the counter,
+   * every later call for the same task leaves it alone and reports the count
+   * unchanged. The membership test and the decrement are one Redis round trip
+   * so that two workers running the same stalled task cannot both pass the
+   * test before either decrements.
+   *
+   * A payload with no `taskId` — one enqueued before this existed, still in
+   * Redis across a deploy — falls back to a plain decrement, which is the old
+   * behaviour rather than a new failure.
+   */
+  async settlePageFetchTask(jobId: string, taskId?: string): Promise<{ remaining: number; alreadySettled: boolean }> {
+    if (!taskId) {
+      return { remaining: await this.decrementPendingTasks(jobId), alreadySettled: false };
+    }
+
+    if (this.redisConnection) {
+      // KEYS[1] settled set, KEYS[2] pending counter, ARGV[1] task id, ARGV[2] ttl.
+      const script = `
+        if redis.call('SADD', KEYS[1], ARGV[1]) == 1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[2])
+          return { redis.call('DECR', KEYS[2]), 0 }
+        end
+        return { tonumber(redis.call('GET', KEYS[2]) or '0'), 1 }
+      `;
+      try {
+        const [remaining, seen] = (await this.redisConnection.eval(
+          script,
+          2,
+          this.settledTasksKey(jobId),
+          `job:${jobId}:pending_tasks`,
+          taskId,
+          '86400',
+        )) as [number, number];
+        return { remaining: Math.max(0, Number(remaining)), alreadySettled: seen === 1 };
+      } catch (error) {
+        // A crawl that cannot reach Redis is already in trouble; finishing it
+        // on the old accounting is better than leaving it running forever.
+        this.logger.warn(`Could not settle task ${taskId} of job ${jobId} idempotently: ${(error as Error).message}`);
+        return { remaining: await this.decrementPendingTasks(jobId), alreadySettled: false };
+      }
+    }
+
+    let settled = this.inMemorySettledTasks.get(jobId);
+    if (!settled) {
+      settled = new Set<string>();
+      this.inMemorySettledTasks.set(jobId, settled);
+    }
+    if (settled.has(taskId)) {
+      return { remaining: await this.getPendingTasks(jobId), alreadySettled: true };
+    }
+    settled.add(taskId);
+    return { remaining: await this.decrementPendingTasks(jobId), alreadySettled: false };
+  }
+
+  /** Drops the per-job accounting a finished crawl no longer needs. */
+  async forgetJobTasks(jobId: string): Promise<void> {
+    this.inMemorySettledTasks.delete(jobId);
+    this.inMemoryTaskCounters.delete(jobId);
+    if (this.redisConnection) {
+      await this.redisConnection.del(this.settledTasksKey(jobId)).catch(() => undefined);
+    }
   }
 
   async getPendingTasks(jobId: string): Promise<number> {

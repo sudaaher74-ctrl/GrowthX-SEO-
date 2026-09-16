@@ -30,36 +30,60 @@ class Semaphore {
       this.inFlight++;
       return true;
     }
-    if (!timeoutMs) {
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
-      this.inFlight++;
-      return true;
-    }
 
+    // Settled once, by whichever of the two outcomes happens first. Both paths
+    // have to agree, because a permit granted to a caller that has already
+    // given up is a permit nobody will ever release.
+    let settled = false;
     let waiter!: () => void;
+
     const granted = await new Promise<boolean>((resolve) => {
-      waiter = () => resolve(true);
+      waiter = () => {
+        if (settled) {
+          // The permit was handed to a caller that timed out in the same tick.
+          // Pass it on rather than losing it.
+          this.release();
+          return;
+        }
+        settled = true;
+        resolve(true);
+      };
       this.waiting.push(waiter);
-      const timer = setTimeout(() => resolve(false), timeoutMs);
+
+      if (!timeoutMs) return;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        // Drop the abandoned waiter so a later release does not hand a permit
+        // to nobody, which would leak it for the life of the process.
+        const index = this.waiting.indexOf(waiter);
+        if (index >= 0) this.waiting.splice(index, 1);
+        resolve(false);
+      }, timeoutMs);
       timer.unref?.();
     });
 
-    if (!granted) {
-      // Drop the abandoned waiter so a later release does not hand a permit to
-      // nobody, which would leak the permit for the life of the process.
-      const index = this.waiting.indexOf(waiter);
-      if (index >= 0) this.waiting.splice(index, 1);
-      return false;
-    }
-
-    this.inFlight++;
-    return true;
+    // No increment here: a waiter is woken by `release`, which hands over the
+    // permit it was holding rather than returning it to the pool.
+    return granted;
   }
 
+  /**
+   * Returns a permit, handing it straight to the next caller in line.
+   *
+   * Decrementing first and letting the woken caller increment again opens a
+   * window: the waiter is resolved but its continuation has not run yet, so a
+   * caller arriving in between sees a free slot, takes it, and then the waiter
+   * takes one too. With one permit on a 512MB instance that means two Chromium
+   * pages at once, which is the memory the cap exists to prevent.
+   */
   release(): void {
-    this.inFlight = Math.max(0, this.inFlight - 1);
     const next = this.waiting.shift();
-    if (next) next();
+    if (next) {
+      next();
+      return;
+    }
+    this.inFlight = Math.max(0, this.inFlight - 1);
   }
 
   /** Renders currently running. Recycling is only safe when this is zero. */

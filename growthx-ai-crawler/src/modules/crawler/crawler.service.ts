@@ -22,6 +22,7 @@ import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import { FetchService, FetchOutcome } from './fetch/fetch.service';
 import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
+import { ParsedRobots } from './discovery/robots-txt';
 import { computeIndexability } from './indexability';
 import { evaluateSite } from './issue-rules';
 import { findDuplicateClusters } from './frontier/duplicate-clusters';
@@ -334,10 +335,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // domain instead of quietly enqueueing them. The previous path added five
     // URLs on a domain that does not resolve, watched all five fail, and
     // reported that a sitemap had been found.
+    let discoveredRobots: ParsedRobots | undefined;
+    let sitemapFindings: SitemapFinding[] = [];
     try {
       const discovered = await this.discovery.discoverSeeds(payload.startUrl, { useSitemap: payload.useSitemap });
-      this.jobRobots.set(payload.jobId, discovered.robots);
-      this.jobSitemapFindings.set(payload.jobId, discovered.findings);
+      discoveredRobots = discovered.robots;
+      sitemapFindings = discovered.findings;
 
       for (const found of discovered.urls) {
         if (found.source === 'seed') continue;
@@ -360,7 +363,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`[JOB ${payload.jobId}] Seed discovery failed; continuing from the start URL alone.`, err);
     }
 
-    this.jobSitemapUrls.set(payload.jobId, sitemapSet);
+    // Shared rather than remembered: the pages of this crawl are fetched by
+    // workers that do not share this process's memory, and by this process
+    // again after a restart.
+    await this.saveCrawlState(payload.jobId, { sitemapUrls: sitemapSet, robots: discoveredRobots, sitemapFindings });
 
     // Update urlsDiscovered stat with seed count
     const stats = this.jobStats.get(payload.jobId);
@@ -516,35 +522,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
       if (alreadyVisited) {
-        const stats = this.jobStats.get(payload.jobId);
-        if (stats) stats.urlsSkipped++;
+        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
         return;
       }
       if (limitReached) {
         // Mark the job status as LIMIT_REACHED so the UI shows it correctly
-        const stats = this.jobStats.get(payload.jobId);
-        if (stats) {
-          stats.urlsSkipped++;
-          stats.crawlStatus = 'LIMIT_REACHED';
-        }
+        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
+        await this.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
         return;
       }
 
       if (payload.depth > payload.maxDepth) {
-        const stats = this.jobStats.get(payload.jobId);
-        if (stats) stats.urlsSkipped++;
+        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
         return;
       }
 
       const allowed = await this.robots.isUrlAllowed(normUrl);
       if (!allowed) {
-        const stats = this.jobStats.get(payload.jobId);
-        if (stats) {
-          stats.urlsSkipped++;
-          stats.robotsBlocked++;
-        }
+        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
+        await this.bumpJobStat(payload.jobId, 'robotsBlocked');
         return;
       }
+
+      // Read once per page from wherever the crawl's state actually lives, so
+      // a page fetched by another worker — or by this one after a restart —
+      // knows the same sitemap and the same robots.txt as the first page did.
+      const crawlState = await this.loadCrawlState(payload.jobId);
 
       this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
       // The two-tier fetch. Beyond rendering client-side pages, the contract
@@ -552,14 +555,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // actually sent: a DNS, TLS, timeout or proxy failure arrives as a typed
       // error and is recorded as such, instead of being written down as the
       // site refusing us.
-      const rendersUsed = this.jobRendersUsed.get(payload.jobId) ?? 0;
+      const rendersUsed = await this.rendersUsed(payload.jobId);
       const renderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
       const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed: rendersUsed < renderBudget });
       if (outcome.tier === 'rendered') {
-        this.jobRendersUsed.set(payload.jobId, rendersUsed + 1);
+        await this.noteRenderUsed(payload.jobId);
       }
       const fetchRes = this.toLegacyFetchResult(outcome);
-      const sitemapSetForJob = this.jobSitemapUrls.get(payload.jobId) || new Set<string>();
+      const sitemapSetForJob = crawlState.sitemapUrls;
 
       // A file is not a page. The extension filter at enqueue time catches
       // most of these before the request is even made; this catches the ones
@@ -615,7 +618,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // There was previously no such field at all, and the UI derived it
         // from `statusCode >= 400`, which is how a page carrying none of those
         // directives came to be labelled "Noindex".
-        const robotsDecision = this.discovery.isAllowed(this.jobRobots.get(payload.jobId), normUrl);
+        const robotsDecision = this.discovery.isAllowed(crawlState.robots, normUrl);
         const indexability = computeIndexability({
           statusCode: outcome.statusCode,
           robotsTxtAllows: robotsDecision?.allowed,
@@ -773,10 +776,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       } catch (dbErr: any) {
         this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
       }
+    } catch (err) {
+      // A URL is claimed before it is fetched, so that two workers cannot crawl
+      // it at once. The claim outlives the attempt that made it, so an attempt
+      // that dies before recording anything takes the page with it: BullMQ
+      // retries the task, the retry finds the URL already claimed and returns
+      // without fetching, and the page is simply absent from a crawl that
+      // reports itself complete. Handing the claim back lets the retry do the
+      // work it was scheduled for.
+      await this.releaseUrlClaim(payload.jobId, this.normalizeUrl(payload.targetUrl));
+      throw err;
     } finally {
       if (this.queue.pageFetchQueue) {
-        const remaining = await this.queue.decrementPendingTasks(payload.jobId);
-        if (remaining <= 0) {
+        // Settled by task identity, not by arrival: BullMQ runs a task again
+        // after a retry or a lapsed lock, and counting those re-runs as
+        // separate work is what drove the counter to zero with most of the
+        // site still queued. `alreadySettled` means this run is a duplicate of
+        // one already accounted for, so the crawl is not finished by it.
+        const { remaining, alreadySettled } = await this.queue.settlePageFetchTask(payload.jobId, payload.taskId);
+        if (!alreadySettled && remaining <= 0) {
           const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
           if (job && job.status === 'RUNNING') {
             await this.completeJob(payload.jobId);
@@ -848,8 +866,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       const siteUrl = website?.url?.startsWith('http') ? website.url : `https://${website?.domain ?? ''}`;
       if (!siteUrl || siteUrl === 'https://') return;
 
-      const sitemapFindings = this.jobSitemapFindings.get(jobId) || [];
-      const sitemapSet = this.jobSitemapUrls.get(jobId) || new Set<string>();
+      const { sitemapUrls: sitemapSet, sitemapFindings } = await this.loadCrawlState(jobId);
 
       const pages = await this.prisma.page.findMany({
         where: { crawlJobId: jobId },
@@ -1107,6 +1124,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    if (internalLinks.length > 0) {
+      await this.bumpJobStat(payload.jobId, 'internalLinksFound', internalLinks.length);
+    }
+
     if (newPayloads.length === 0) return;
 
     if (this.queue.pageFetchQueue) {
@@ -1119,6 +1140,205 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         localQueue.push(...newPayloads);
       }
     }
+  }
+
+  /**
+   * Crawl-wide facts that every page fetch needs and no single process owns.
+   *
+   * The sitemap's URL set, the parsed robots.txt and the sitemap's defects are
+   * established once, by whichever process runs `processCrawlJob`, and then
+   * read by every page fetch. Holding them in a field made them invisible to
+   * anyone else: the worker deployment runs page fetches in a second container
+   * (see docker-compose.yml), and a container that restarts mid-crawl — the
+   * ordinary outcome of Chromium meeting a 512MB instance — comes back with
+   * the maps empty and keeps fetching the same crawl's queued URLs.
+   *
+   * What that costs is not theoretical. Every page then fetched is recorded as
+   * `seed` rather than `sitemap`, so the audit misreports how its own URLs were
+   * found; `inSitemap` is false for all of them, so the issue engine raises
+   * "not in the sitemap" against pages the sitemap does list; and indexability
+   * is decided without the robots.txt rules. A crawl of milquufresh.in showed
+   * exactly that — its homepage labelled `sitemap` and every later page
+   * labelled `seed`, which is the signature of the state having been lost
+   * between the two fetches.
+   *
+   * Stored in Redis where there is one, since that is already the crawl's
+   * shared memory, and kept in the fields as a per-process cache and as the
+   * whole story when Redis is absent and one process does everything.
+   */
+  private async saveCrawlState(
+    jobId: string,
+    state: { sitemapUrls: Set<string>; robots: ParsedRobots | undefined; sitemapFindings: SitemapFinding[] },
+  ): Promise<void> {
+    this.jobSitemapUrls.set(jobId, state.sitemapUrls);
+    this.jobRobots.set(jobId, state.robots);
+    this.jobSitemapFindings.set(jobId, state.sitemapFindings);
+
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return;
+    try {
+      await redisClient.set(
+        `job:${jobId}:crawl_state`,
+        JSON.stringify({
+          sitemapUrls: [...state.sitemapUrls],
+          robots: state.robots,
+          sitemapFindings: state.sitemapFindings,
+        }),
+        'EX',
+        86400,
+      );
+    } catch (error) {
+      this.logger.warn(`[JOB ${jobId}] Crawl state could not be shared with the other workers: ${(error as Error).message}`);
+    }
+  }
+
+  private async loadCrawlState(
+    jobId: string,
+  ): Promise<{ sitemapUrls: Set<string>; robots: ParsedRobots | undefined; sitemapFindings: SitemapFinding[] }> {
+    const cached = this.jobSitemapUrls.get(jobId);
+    if (cached) {
+      return { sitemapUrls: cached, robots: this.jobRobots.get(jobId), sitemapFindings: this.jobSitemapFindings.get(jobId) || [] };
+    }
+
+    const empty = { sitemapUrls: new Set<string>(), robots: undefined, sitemapFindings: [] as SitemapFinding[] };
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return empty;
+
+    try {
+      const raw = await redisClient.get(`job:${jobId}:crawl_state`);
+      if (!raw) return empty;
+      const parsed = JSON.parse(raw) as {
+        sitemapUrls?: string[];
+        robots?: ParsedRobots;
+        sitemapFindings?: SitemapFinding[];
+      };
+      const state = {
+        sitemapUrls: new Set<string>(parsed.sitemapUrls || []),
+        robots: parsed.robots,
+        sitemapFindings: parsed.sitemapFindings || [],
+      };
+      // Cached in this process, so the rest of this worker's pages cost nothing.
+      this.jobSitemapUrls.set(jobId, state.sitemapUrls);
+      this.jobRobots.set(jobId, state.robots);
+      this.jobSitemapFindings.set(jobId, state.sitemapFindings);
+      return state;
+    } catch (error) {
+      this.logger.warn(`[JOB ${jobId}] Crawl state could not be read back: ${(error as Error).message}`);
+      return empty;
+    }
+  }
+
+  /** Drops a finished crawl's shared state, which nothing will read again. */
+  private async forgetCrawlState(jobId: string): Promise<void> {
+    await this.queue.forgetJobTasks?.(jobId);
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return;
+    try {
+      await redisClient.del(`job:${jobId}:crawl_state`, `job:${jobId}:stats`, `job:${jobId}:renders_used`);
+    } catch {
+      /* every one of these keys expires on its own within the day */
+    }
+  }
+
+  /**
+   * The crawl's render budget, counted where the whole crawl can see it.
+   *
+   * A budget held per process is no budget at all once there are two of them:
+   * each worker starts its own count from zero and the instance gets the sum.
+   */
+  private async rendersUsed(jobId: string): Promise<number> {
+    const redisClient = this.queue.getRedisClient?.();
+    if (redisClient) {
+      try {
+        const value = await redisClient.get(`job:${jobId}:renders_used`);
+        return value ? parseInt(value, 10) || 0 : 0;
+      } catch {
+        // Fall through to this process's own count rather than refusing to render.
+      }
+    }
+    return this.jobRendersUsed.get(jobId) ?? 0;
+  }
+
+  private async noteRenderUsed(jobId: string): Promise<void> {
+    this.jobRendersUsed.set(jobId, (this.jobRendersUsed.get(jobId) ?? 0) + 1);
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return;
+    try {
+      const key = `job:${jobId}:renders_used`;
+      await redisClient.incr(key);
+      await redisClient.expire(key, 86400);
+    } catch {
+      /* the in-process count above still bounds this worker */
+    }
+  }
+
+  /**
+   * A crawl's running totals, likewise kept where every worker can add to them.
+   *
+   * These are what the audit shows as coverage: how many URLs were skipped and
+   * how many robots.txt refused. Counted in one process's memory they came back
+   * as zero whenever the crawl was finished by another, which reads as "nothing
+   * was skipped" — the reassuring answer rather than the true one.
+   */
+  private async bumpJobStat(jobId: string, field: 'urlsSkipped' | 'robotsBlocked' | 'internalLinksFound', by = 1): Promise<void> {
+    const stats = this.jobStats.get(jobId);
+    if (stats) stats[field] += by;
+
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return;
+    try {
+      const key = `job:${jobId}:stats`;
+      await redisClient.hincrby(key, field, by);
+      await redisClient.expire(key, 86400);
+    } catch {
+      /* a lost counter must never cost a page */
+    }
+  }
+
+  private async setJobCrawlStatus(jobId: string, status: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL'): Promise<void> {
+    const stats = this.jobStats.get(jobId);
+    if (stats) stats.crawlStatus = status;
+
+    const redisClient = this.queue.getRedisClient?.();
+    if (!redisClient) return;
+    try {
+      const key = `job:${jobId}:stats`;
+      await redisClient.hset(key, 'crawlStatus', status);
+      await redisClient.expire(key, 86400);
+    } catch {
+      /* as above */
+    }
+  }
+
+  private async readJobStats(jobId: string): Promise<{
+    urlsSkipped: number;
+    robotsBlocked: number;
+    internalLinksFound: number;
+    crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL';
+  }> {
+    const local = this.jobStats.get(jobId);
+    const redisClient = this.queue.getRedisClient?.();
+    if (redisClient) {
+      try {
+        const stored = (await redisClient.hgetall(`job:${jobId}:stats`)) as Record<string, string>;
+        if (stored && Object.keys(stored).length > 0) {
+          return {
+            urlsSkipped: Number(stored.urlsSkipped || 0),
+            robotsBlocked: Number(stored.robotsBlocked || 0),
+            internalLinksFound: Number(stored.internalLinksFound || 0),
+            crawlStatus: (stored.crawlStatus as 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL') || 'COMPLETED',
+          };
+        }
+      } catch {
+        /* fall back to whatever this process saw */
+      }
+    }
+    return {
+      urlsSkipped: local?.urlsSkipped ?? 0,
+      robotsBlocked: local?.robotsBlocked ?? 0,
+      internalLinksFound: local?.internalLinksFound ?? 0,
+      crawlStatus: local?.crawlStatus ?? 'COMPLETED',
+    };
   }
 
   /**
@@ -1170,6 +1390,24 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
     visitedSet.add(member);
     return { alreadyVisited: false, limitReached: false };
+  }
+
+  /**
+   * Hands a claimed URL back, so another attempt may fetch it.
+   *
+   * Only for an attempt that recorded nothing. A URL whose page was stored
+   * keeps its claim, because re-fetching it would be duplicate work.
+   */
+  private async releaseUrlClaim(jobId: string, targetUrl: string): Promise<void> {
+    const member = this.visitKey(targetUrl);
+    // Optional, because this one runs while an error is already on its way out:
+    // a second failure here would replace the error the caller needs to see.
+    const redisClient = this.queue.getRedisClient?.();
+    if (redisClient) {
+      await redisClient.srem(`job:${jobId}:visited`, member).catch(() => undefined);
+      return;
+    }
+    this.localVisited.get(jobId)?.delete(member);
   }
 
   async completeJob(jobId: string): Promise<void> {
@@ -1355,14 +1593,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const startedAt = job.startedAt || new Date();
     const finishedAt = new Date();
     const durationSeconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
-    const sitemapSet = this.jobSitemapUrls.get(jobId);
+    const { sitemapUrls: sitemapSet } = await this.loadCrawlState(jobId);
     const stats = this.jobStats.get(jobId);
+    // Skips, robots refusals and the crawl's own status are counted by
+    // whichever worker did the skipping, so they are read back from the
+    // crawl's shared store rather than from this process's memory.
+    const sharedStats = await this.readJobStats(jobId);
 
     // Determine final crawl status:
     // COMPLETED    — queue fully exhausted, no ceiling hit
     // LIMIT_REACHED — page ceiling was hit (explicitly configured cap)
     // PARTIAL      — stall sweep or error finalized a crawl before queue exhaustion
-    const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = stats?.crawlStatus ?? 'COMPLETED';
+    const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = sharedStats.crawlStatus;
 
     // Persisted first, in-memory second, and never the page count.
     //
@@ -1380,9 +1622,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // survives all of that. Zero means a crawl that predates the column, and
     // is left as zero rather than being filled in.
     const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
-    const urlsSkipped = stats?.urlsSkipped ?? 0;
-    const robotsBlocked = stats?.robotsBlocked ?? 0;
-    const internalLinksFound = stats?.internalLinksFound ?? 0;
+    const urlsSkipped = sharedStats.urlsSkipped;
+    const robotsBlocked = sharedStats.robotsBlocked;
+    const internalLinksFound = sharedStats.internalLinksFound;
     const urlsCrawled = totalPages;
     const urlsEligible = Math.max(urlsDiscovered - urlsSkipped, urlsCrawled);
     // Null, not 100, when there is nothing to divide by. Defaulting an
@@ -1398,8 +1640,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       pagesCrawled: urlsCrawled,
       statusCodes: statusCodeDist,
       avgResponseTimeMs,
-      sitemapFound: Boolean(sitemapSet && sitemapSet.size > 0),
-      sitemapUrlsCount: sitemapSet?.size || 0,
+      sitemapFound: sitemapSet.size > 0,
+      sitemapUrlsCount: sitemapSet.size,
       // Richer crawl summary
       urlsDiscovered,
       urlsEligible,
@@ -1463,6 +1705,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.jobRobots.delete(jobId);
     this.jobRendersUsed.delete(jobId);
     this.jobStats.delete(jobId);
+    await this.forgetCrawlState(jobId);
 
     await this.announceCompletion(jobId, job.websiteId);
   }

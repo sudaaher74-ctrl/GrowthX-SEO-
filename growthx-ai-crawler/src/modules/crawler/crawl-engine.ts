@@ -280,7 +280,13 @@ export class CrawlEngine {
       headers: outcome.headers,
     };
 
-    const discovered = extracted && !robotsDecision?.allowed === false ? extracted.internalLinks.map((l) => l.absoluteUrl) : [];
+    // `undefined` means there was no robots.txt to judge by, which is not a
+    // refusal. Written as `!robotsDecision?.allowed === false` this read as
+    // `(!undefined) === false`, so a site whose robots.txt could not be fetched
+    // had every link on every page discarded and the crawl ended at its
+    // homepage — the one case where following links is all a crawler has left.
+    const robotsRefused = robotsDecision?.allowed === false;
+    const discovered = extracted && !robotsRefused ? extracted.internalLinks.map((l) => l.absoluteUrl) : [];
 
     return { page, discovered, rendered: outcome.tier === 'rendered' };
   }

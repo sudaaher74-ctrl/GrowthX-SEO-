@@ -287,6 +287,31 @@ ${['/', '/about', '/archery-programs', '/gallery', '/contact']
     expect(finding.evidence).toContain('/gone - HTTP 404');
   });
 
+  /**
+   * An unreadable robots.txt is not a refusal.
+   *
+   * `isAllowed` answers `undefined` when there was no robots.txt to judge by,
+   * and the link-following condition read that as "not allowed": every link on
+   * every page was discarded and the crawl ended at the URL it started from —
+   * on precisely the site where links are the only discovery left.
+   */
+  it('follows links on a site whose robots.txt could not be read', async () => {
+    engine = build();
+    const routes: Record<string, any> = {};
+    server = await startFixtureServer(routes);
+    Object.assign(routes, {
+      '/robots.txt': { handler: (_req: any, res: any) => res.destroy() },
+      '/': { body: staticPage({ title: 'Home of a site with no readable robots', links: ['/pricing', '/about'] }) },
+      '/pricing': { body: staticPage({ title: 'What this site charges for its service', links: ['/'] }) },
+      '/about': { body: staticPage({ title: 'Who is behind this particular site', links: ['/'] }) },
+    });
+
+    const report = await engine.crawl(server.url('/'));
+
+    expect(report.robotsFetched).toBe(false);
+    expect(report.pages.map((p) => new URL(p.url).pathname).sort()).toEqual(['/', '/about', '/pricing']);
+  });
+
   it('records a redirect chain as one page with zero errors', async () => {
     engine = build();
     const routes: Record<string, any> = {};

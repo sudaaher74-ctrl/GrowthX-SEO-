@@ -69,7 +69,23 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const maxPageFetchConcurrency = process.env.CRAWLER_WORKER_CONCURRENCY ? parseInt(process.env.CRAWLER_WORKER_CONCURRENCY, 10) : 10;
+    // Sized against the render capacity, not against the CPU.
+    //
+    // Every page of a client-rendered site needs the browser, and a small
+    // instance has room for one render at a time. Ten workers against one
+    // permit do not crawl faster: nine of them queue, each holding a BullMQ
+    // lock while doing nothing, and each eventually gives up on rendering and
+    // records the SPA's empty shell as the page. That is both halves of what
+    // milquufresh.in's audit showed — a lock lapsing into a duplicate run,
+    // and a homepage recorded with five words.
+    //
+    // Twice the render capacity keeps the permit busy while leaving the wait
+    // for it short. An explicit setting still wins, for a deployment whose
+    // sites are mostly static or whose browser capacity is larger.
+    const renderSlots = Math.max(1, Number(process.env.MAX_RENDER_CONCURRENCY || process.env.MAX_PLAYWRIGHT_CONCURRENCY || 3));
+    const maxPageFetchConcurrency = process.env.CRAWLER_WORKER_CONCURRENCY
+      ? parseInt(process.env.CRAWLER_WORKER_CONCURRENCY, 10)
+      : Math.max(2, renderSlots * 2);
     const maxCrawlJobConcurrency = process.env.CRAWLER_JOB_CONCURRENCY ? parseInt(process.env.CRAWLER_JOB_CONCURRENCY, 10) : 5;
 
     // Worker for orchestrating crawl jobs
