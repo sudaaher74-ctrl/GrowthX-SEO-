@@ -83,3 +83,64 @@ describe('CrawlerService — stalled job sweep', () => {
     await expect(service.finalizeStalledJobs()).resolves.toBeUndefined();
   });
 });
+
+/**
+ * The pages a truncated crawl did record are real and worth showing. The
+ * claim that the crawl finished is not.
+ *
+ * A run that read 7 of 29 discovered URLs was closed by the sweep and
+ * reported COMPLETED with 7 pages. Nothing on the crawl said otherwise, so
+ * the health score, the issue counts and the page total all described a
+ * quarter of the site while presenting themselves as the whole of it.
+ */
+describe('CrawlerService — a crawl cut short', () => {
+  let prisma: any;
+  let service: any;
+  let updates: any[];
+
+  beforeEach(() => {
+    updates = [];
+    prisma = {
+      crawlJob: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(async (args: any) => {
+          updates.push(args);
+          return {};
+        }),
+      },
+    };
+    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    service.completeJob = jest.fn(async () => {});
+  });
+
+  const stalled = (pagesCrawled: number, pagesDiscovered: number) => {
+    prisma.crawlJob.findMany.mockResolvedValue([{ id: 'j1', pagesCrawled, pagesDiscovered, status: 'RUNNING' }]);
+    return service.finalizeStalledJobs();
+  };
+
+  it('says how much of the site it actually read', async () => {
+    await stalled(7, 29);
+
+    const reason = updates.find((u) => u.data?.errorMessage)?.data.errorMessage ?? '';
+    expect(reason).toContain('7 of 29');
+  });
+
+  it('still surfaces the pages it managed to record', async () => {
+    await stalled(7, 29);
+
+    expect(service.completeJob).toHaveBeenCalledWith('j1');
+  });
+
+  it('stays quiet when the crawl actually covered what it found', async () => {
+    await stalled(29, 29);
+
+    expect(updates.find((u) => u.data?.errorMessage)).toBeUndefined();
+  });
+
+  /** An older crawl predating the column reads 0 discovered, which is not a shortfall. */
+  it('does not invent a shortfall for a crawl with no discovered count', async () => {
+    await stalled(7, 0);
+
+    expect(updates.find((u) => u.data?.errorMessage)).toBeUndefined();
+  });
+});

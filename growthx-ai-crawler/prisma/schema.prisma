@@ -60,6 +60,15 @@ model CrawlJob {
   websiteId           String
   status              JobStatus        @default(PENDING)
   pagesCrawled        Int              @default(0)
+  /// URLs this crawl set out to fetch, from the homepage, sitemaps and links
+  /// found along the way.
+  ///
+  /// Without it a truncated crawl is indistinguishable from a complete one.
+  /// A crawl that recorded 7 of 29 discovered URLs and was closed out by the
+  /// stall sweep reported COMPLETED with 7 pages, and every figure derived
+  /// from it -- health score, issue counts, "pages crawled" -- described a
+  /// quarter of the site while presenting itself as the whole of it.
+  pagesDiscovered     Int              @default(0)
   issuesFound         Int              @default(0)
   concurrency         Int              @default(5)
   depthLimit          Int              @default(10)

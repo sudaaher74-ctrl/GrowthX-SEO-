@@ -175,7 +175,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     try {
       const stalled = await this.prisma.crawlJob.findMany({
         where: { status: { in: ['RUNNING', 'PENDING'] }, updatedAt: { lt: idleSince } },
-        select: { id: true, pagesCrawled: true, status: true },
+        select: { id: true, pagesCrawled: true, pagesDiscovered: true, status: true },
       });
       if (stalled.length === 0) return;
 
@@ -189,6 +189,28 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             // completeJob runs the graph analysis and flips the status, so the
             // crawl surfaces with exactly the pages it managed to record.
             await this.completeJob(job.id);
+
+            // Those pages are real and worth showing, but the crawl did not
+            // finish and must not read as though it had. A run that recorded
+            // 7 of 29 discovered URLs was reported COMPLETED with 7 pages, and
+            // every figure drawn from it -- health score, issue counts, page
+            // totals -- described a quarter of the site while presenting
+            // itself as the whole of it. The one status left is COMPLETED, so
+            // the shortfall is carried in the reason instead of being lost.
+            if (job.pagesDiscovered > job.pagesCrawled) {
+              await this.prisma.crawlJob
+                .update({
+                  where: { id: job.id },
+                  data: {
+                    errorMessage:
+                      `Stopped early: ${job.pagesCrawled} of ${job.pagesDiscovered} discovered pages were crawled ` +
+                      `before the crawl stopped making progress for ` +
+                      `${Math.round(CrawlerService.STALL_TIMEOUT_MS / 60000)} minutes. ` +
+                      `The findings below cover only the pages that were read. Running the audit again is safe.`,
+                  },
+                })
+                .catch(() => {});
+            }
           } else {
             // A status with no reason is what makes this failure unreadable:
             // the UI shows "FAILED", the operator has no idea whether the site
@@ -343,6 +365,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // Update urlsDiscovered stat with seed count
     const stats = this.jobStats.get(payload.jobId);
     if (stats) stats.urlsDiscovered = seedUrls.size;
+
+    // Recorded before any fetch, so the denominator survives whatever happens
+    // to the crawl afterwards. "7 pages" and "7 of 29 pages" are different
+    // reports, and only the second one lets a reader tell a small site from a
+    // truncated crawl.
+    await this.prisma.crawlJob
+      .update({ where: { id: payload.jobId }, data: { pagesDiscovered: seedUrls.size } })
+      .catch(() => {});
 
     this.logger.log(`[JOB ${payload.jobId}] Total seed URLs to crawl: ${seedUrls.size} (${sitemapSet.size} from sitemaps, 1 homepage)`);
 
