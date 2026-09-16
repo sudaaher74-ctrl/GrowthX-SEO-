@@ -117,3 +117,31 @@ describe('containerMemory', () => {
     expect(containerMemory().source).toBe('os');
   });
 });
+
+describe('the unconfigured default', () => {
+  const MB2 = 1024 * 1024;
+  const OLD = process.env.RENDER_MIN_FREE_MB;
+  beforeEach(() => delete process.env.RENDER_MIN_FREE_MB);
+  afterEach(() => { if (OLD === undefined) delete process.env.RENDER_MIN_FREE_MB; else process.env.RENDER_MIN_FREE_MB = OLD; });
+
+  /**
+   * Production does not sync its Blueprint, so RENDER_MIN_FREE_MB is never
+   * set there and the default is the only value that runs. A default above
+   * the headroom a 512MB instance actually has would decline every render on
+   * the one deployment this guard exists for.
+   */
+  it('permits a render on a 512MB instance at this app measured baseline', () => {
+    const baselineRss = 273 * MB2;
+
+    const verdict = renderBudget({ limitBytes: 512 * MB2, usedBytes: baselineRss, source: 'cgroup-v2' });
+
+    expect(verdict.requiredMb).toBe(220);
+    expect(verdict.allowed).toBe(true);
+  });
+
+  it('still declines once the app is working and the headroom is gone', () => {
+    const verdict = renderBudget({ limitBytes: 512 * MB2, usedBytes: 350 * MB2, source: 'cgroup-v2' });
+
+    expect(verdict.allowed).toBe(false);
+  });
+});

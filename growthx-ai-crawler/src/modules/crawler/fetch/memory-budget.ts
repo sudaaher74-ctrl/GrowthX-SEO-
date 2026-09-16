@@ -132,7 +132,13 @@ export interface RenderBudgetVerdict {
  */
 export function renderBudget(
   memory: ContainerMemory = containerMemory(),
-  requiredMb = Number(process.env.RENDER_MIN_FREE_MB || 250),
+  // 220MB: Chromium's measured PSS on an ordinary page, against ~190MB idle.
+  // The default has to be a number that works unconfigured, because the
+  // deployment this protects does not sync its Blueprint and so never sets the
+  // variable. A 512MB instance with this app's ~273MB baseline has ~239MB
+  // free, and a default above that would decline every render on the one
+  // deployment it exists for.
+  requiredMb = Number(process.env.RENDER_MIN_FREE_MB || 220),
 ): RenderBudgetVerdict {
   if (memory.limitBytes === undefined || memory.usedBytes === undefined) {
     return { allowed: true, requiredMb };
