@@ -50,6 +50,7 @@ function GoogleBusinessProfileContent() {
     tabParam && GBP_TABS.some((t) => t.id === tabParam) ? tabParam : "overview";
 
   const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [connectModalMode, setConnectModalMode] = useState<"search" | "manual">("search");
   // The picker can also be opened deliberately, from "Change location".
   const [pickerRequested, setPickerRequested] = useState(false);
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
@@ -105,7 +106,10 @@ function GoogleBusinessProfileContent() {
     disconnectMutation.mutate(GBP_PROVIDER, { onSuccess: clearCallback });
   }, [disconnectMutation, clearCallback]);
 
-  const openConnect = useCallback(() => setConnectModalOpen(true), []);
+  const openConnect = useCallback((mode: "search" | "manual" = "search") => {
+    setConnectModalMode(mode);
+    setConnectModalOpen(true);
+  }, []);
   const openLocationPicker = useCallback(() => setPickerRequested(true), []);
 
   if (seoLoading || overviewLoading) {
@@ -182,7 +186,8 @@ function GoogleBusinessProfileContent() {
   const pendingProposals = proposals.filter((p) => p.status === "PENDING").length;
 
   const tabHandlers = {
-    onConnect: openConnect,
+    onConnect: () => openConnect("search"),
+    onEditManual: () => openConnect("manual"),
     onChooseLocation: openLocationPicker,
     onSync: handleSync,
     isSyncing: syncMutation.isPending,
@@ -194,12 +199,14 @@ function GoogleBusinessProfileContent() {
         projectId={projectId}
         connection={connection}
         profile={overview?.profile}
+        localSeo={localSeo}
         activeTabTitle={currentTabMeta?.label}
         onSync={handleSync}
         isSyncing={syncMutation.isPending}
         lastSyncNotice={lastSyncNotice}
         onChooseLocation={openLocationPicker}
-        onConnect={openConnect}
+        onConnect={() => openConnect("search")}
+        onEditManual={() => openConnect("manual")}
         onDisconnect={handleDisconnect}
         isDisconnecting={disconnectMutation.isPending}
       />
@@ -270,6 +277,8 @@ function GoogleBusinessProfileContent() {
         onOpenChange={setConnectModalOpen}
         projectId={projectId}
         connection={connection}
+        localSeo={localSeo}
+        defaultMode={connectModalMode}
       />
     </div>
   );

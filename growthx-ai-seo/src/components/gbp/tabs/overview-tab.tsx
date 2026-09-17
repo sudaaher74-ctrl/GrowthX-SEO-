@@ -17,12 +17,15 @@ import {
   BadgeCheck,
   HelpCircle,
   Clock,
+  Edit3,
 } from "lucide-react";
 import type { GbpTabKey } from "../gbp-tabs";
 import { GbpTabGate, GbpStatePanel, formatGbpTimestamp, metricValue } from "../gbp-states";
 import { useGbpMetrics, useGbpOverview, useGbpReviews } from "@/hooks/use-growthx";
 import type { GbpFixProposal, GbpOverview, LocalSeoData } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+
+import { GoogleGLogo } from "../gbp-icons";
 
 interface OverviewTabProps {
   projectId: string | null;
@@ -31,6 +34,7 @@ interface OverviewTabProps {
   proposals: GbpFixProposal[];
   onSelectTab: (tab: GbpTabKey) => void;
   onConnect?: () => void;
+  onEditManual?: () => void;
   onChooseLocation?: () => void;
   onSync?: () => void;
   isSyncing?: boolean;
@@ -55,11 +59,27 @@ export function OverviewTab({
   proposals,
   onSelectTab,
   onConnect,
+  onEditManual,
   onChooseLocation,
   onSync,
   isSyncing,
 }: OverviewTabProps) {
   const query = useGbpOverview(projectId);
+
+  // When a local listing is tracked (via manual entry or Places search) but Google OAuth
+  // has not been connected yet, show the tracked listing overview rather than a blank gate.
+  const isGoogleConnected = query.data?.connection && query.data.connection.state !== "NOT_CONNECTED";
+  if (!isGoogleConnected && localSeo && localSeo.businessName) {
+    return (
+      <LocalTrackedOverview
+        localSeo={localSeo}
+        proposals={proposals}
+        onSelectTab={onSelectTab}
+        onConnect={onConnect}
+        onEditManual={onEditManual}
+      />
+    );
+  }
 
   return (
     <GbpTabGate
@@ -82,6 +102,206 @@ export function OverviewTab({
         />
       )}
     </GbpTabGate>
+  );
+}
+
+function LocalTrackedOverview({
+  localSeo,
+  proposals,
+  onSelectTab,
+  onConnect,
+  onEditManual,
+}: {
+  localSeo: LocalSeoData;
+  proposals: GbpFixProposal[];
+  onSelectTab: (tab: GbpTabKey) => void;
+  onConnect?: () => void;
+  onEditManual?: () => void;
+}) {
+  const pendingProposals = proposals.filter((p) => p.status === "PENDING");
+  const rankings = localSeo.rankings ?? [];
+
+  return (
+    <div className="space-y-6">
+      {/* ── Identity + Tracked Details ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div
+          className="lg:col-span-7 rounded-2xl border bg-white p-5 shadow-xs"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-brand-950 truncate">
+                  {localSeo.businessName}
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[10px] font-semibold text-success-700 border border-success-200">
+                  <BadgeCheck size={11} /> Tracked Listing
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-brand-500 flex items-center gap-1">
+                <MapPin size={12} className="shrink-0 text-brand-400" />
+                <span>{localSeo.address}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-1 bg-warning-50 border border-warning-200 px-2.5 py-1 rounded-lg shrink-0">
+              <Star size={14} className="fill-warning-500 text-warning-500" />
+              <span className="text-sm font-bold text-warning-700">
+                {localSeo.rating > 0 ? localSeo.rating.toFixed(1) : "—"}
+              </span>
+              <span className="text-xs text-warning-600">({localSeo.reviewCount})</span>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-brand-100 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="text-[11px] text-brand-400 block">Total Reviews</span>
+                <span className="text-sm font-bold text-brand-950">{localSeo.reviewCount}</span>
+              </div>
+              <div className="h-6 w-px bg-brand-100" />
+              <div>
+                <span className="text-[11px] text-brand-400 block">Average Rating</span>
+                <span className="text-sm font-bold text-brand-950">
+                  {localSeo.rating > 0 ? `${localSeo.rating.toFixed(1)} / 5.0` : "Not set"}
+                </span>
+              </div>
+              <div className="h-6 w-px bg-brand-100" />
+              <div>
+                <span className="text-[11px] text-brand-400 block">Citations Found</span>
+                <span className="text-sm font-bold text-brand-950">{localSeo.citationsCount || 0}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {onEditManual && (
+                <button
+                  type="button"
+                  onClick={onEditManual}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-white text-brand-700 text-xs font-semibold hover:bg-brand-50 transition"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <Edit3 size={12} className="text-brand-500" />
+                  <span>Edit Details</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onSelectTab("rankings")}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition"
+              >
+                <span>Scan Geo-Grid</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Sync with Google prompt banner */}
+        <div
+          className="lg:col-span-5 rounded-2xl border bg-brand-50/70 p-5 shadow-xs flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-white border border-brand-200 flex items-center justify-center shadow-xs">
+                <GoogleGLogo size={14} />
+              </div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-950">
+                Connect Google Account (Optional)
+              </h3>
+            </div>
+            <p className="text-xs text-brand-600 leading-relaxed">
+              To pull private merchant analytics directly from Google — such as Search impressions, customer calls, direction requests, photos, and direct post publishing — connect your Google Business Profile manager account.
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-brand-200/60 flex items-center justify-between">
+            <span className="text-[11px] text-brand-500">OAuth API Integration</span>
+            <button
+              type="button"
+              onClick={onConnect}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-brand-200 text-brand-950 text-xs font-semibold hover:bg-brand-50 shadow-xs transition"
+            >
+              <GoogleGLogo size={12} />
+              <span>Connect with Google</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Feature Cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Geo Grid Rank Tracker */}
+        <div
+          onClick={() => onSelectTab("rankings")}
+          className="rounded-xl border bg-white p-4 shadow-xs hover:border-brand-300 transition cursor-pointer flex flex-col justify-between group"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-success-50 text-success-700 flex items-center justify-center mb-3">
+              <Navigation size={16} />
+            </div>
+            <h4 className="text-sm font-bold text-brand-950 group-hover:text-accent-600 transition">
+              Local Rankings & Geo-Grid
+            </h4>
+            <p className="text-xs text-brand-500 mt-1 leading-relaxed">
+              Track local search positions across a map grid for key terms around your location.
+            </p>
+          </div>
+          <div className="mt-4 pt-2 border-t border-brand-100 flex items-center justify-between text-xs text-brand-600 font-semibold">
+            <span>{rankings.length > 0 ? `${rankings.length} tracked terms` : "Run grid scan"}</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* Profile Audit */}
+        <div
+          onClick={() => onSelectTab("audit")}
+          className="rounded-xl border bg-white p-4 shadow-xs hover:border-brand-300 transition cursor-pointer flex flex-col justify-between group"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-accent-50 text-accent-700 flex items-center justify-center mb-3">
+              <CheckCircle2 size={16} />
+            </div>
+            <h4 className="text-sm font-bold text-brand-950 group-hover:text-accent-600 transition">
+              Profile Audit & Fixes
+            </h4>
+            <p className="text-xs text-brand-500 mt-1 leading-relaxed">
+              Audit profile consistency, NAP accuracy, and high-impact local SEO optimizations.
+            </p>
+          </div>
+          <div className="mt-4 pt-2 border-t border-brand-100 flex items-center justify-between text-xs text-brand-600 font-semibold">
+            <span>{pendingProposals.length} suggestions</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* Competitors */}
+        <div
+          onClick={() => onSelectTab("competitors")}
+          className="rounded-xl border bg-white p-4 shadow-xs hover:border-brand-300 transition cursor-pointer flex flex-col justify-between group"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div>
+            <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-800 flex items-center justify-center mb-3">
+              <Eye size={16} />
+            </div>
+            <h4 className="text-sm font-bold text-brand-950 group-hover:text-accent-600 transition">
+              Local Competitor Intelligence
+            </h4>
+            <p className="text-xs text-brand-500 mt-1 leading-relaxed">
+              Benchmark rating, review velocity, and citations against local competitors in your category.
+            </p>
+          </div>
+          <div className="mt-4 pt-2 border-t border-brand-100 flex items-center justify-between text-xs text-brand-600 font-semibold">
+            <span>View competitors</span>
+            <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

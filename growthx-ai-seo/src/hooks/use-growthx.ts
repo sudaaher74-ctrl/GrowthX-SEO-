@@ -198,6 +198,8 @@ export function useConnectLocalBusiness(projectId: string | null) {
       api.connectLocalBusiness(projectId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
+      qc.invalidateQueries({ queryKey: ["gbp-overview", projectId] });
+      qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] });
     },
   });
 }

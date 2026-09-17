@@ -9,16 +9,18 @@ import {
   Link2,
   Unlink,
   AlertTriangle,
+  Edit3,
 } from "lucide-react";
 import { GbpStoreIcon, GoogleGLogo } from "./gbp-icons";
 import { formatGbpTimestamp } from "./gbp-states";
 import { useAnalyzeGbp } from "@/hooks/use-growthx";
-import type { GbpConnection, GbpProfile } from "@/lib/api-client";
+import type { GbpConnection, GbpProfile, LocalSeoData } from "@/lib/api-client";
 
 interface GbpHeaderProps {
   projectId: string | null;
   connection: GbpConnection | null | undefined;
   profile: GbpProfile | null | undefined;
+  localSeo?: LocalSeoData | null;
   activeTabTitle?: string;
   activeTabSubtitle?: string;
   onSync?: () => void;
@@ -27,6 +29,7 @@ interface GbpHeaderProps {
   lastSyncNotice?: string | null;
   onChooseLocation?: () => void;
   onConnect?: () => void;
+  onEditManual?: () => void;
   onDisconnect?: () => void;
   isDisconnecting?: boolean;
 }
@@ -44,6 +47,7 @@ export function GbpHeader({
   projectId,
   connection,
   profile,
+  localSeo,
   activeTabTitle,
   activeTabSubtitle,
   onSync,
@@ -51,6 +55,7 @@ export function GbpHeader({
   lastSyncNotice,
   onChooseLocation,
   onConnect,
+  onEditManual,
   onDisconnect,
   isDisconnecting,
 }: GbpHeaderProps) {
@@ -59,6 +64,7 @@ export function GbpHeader({
 
   const lastSynced = formatGbpTimestamp(connection?.lastSyncedAt);
   const isConnected = Boolean(connection) && connection?.state !== "NOT_CONNECTED";
+  const isLocalTracked = !isConnected && Boolean(localSeo?.businessName);
   const mapsUri =
     profile?.mapsUri ??
     (profile?.businessName
@@ -91,6 +97,8 @@ export function GbpHeader({
               {activeTabSubtitle ||
                 (connection?.selectedResourceName
                   ? `Tracking ${connection.selectedResourceName} — synced from Google.`
+                  : isLocalTracked
+                  ? `Tracking ${localSeo!.businessName} — local listing active.`
                   : "Optimize your Google Business Profile, get more reviews, and grow your local visibility.")}
             </p>
           </div>
@@ -102,10 +110,16 @@ export function GbpHeader({
           <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-brand-500">
             <span
               className={`inline-flex rounded-full h-2 w-2 ${
-                lastSynced ? "bg-emerald-500" : "bg-brand-300"
+                lastSynced || isLocalTracked ? "bg-emerald-500" : "bg-brand-300"
               }`}
             />
-            <span>{lastSynced ? `Last synced: ${lastSynced}` : "Never synced"}</span>
+            <span>
+              {lastSynced
+                ? `Last synced: ${lastSynced}`
+                : isLocalTracked
+                ? "Listing Tracked"
+                : "Never synced"}
+            </span>
           </div>
 
           <div className="relative">
@@ -189,6 +203,26 @@ export function GbpHeader({
                     </div>
                   </>
                 )}
+              </div>
+            ) : isLocalTracked ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onEditManual}
+                  className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 shadow-xs hover:bg-brand-50 transition"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <Edit3 size={13} className="text-brand-500" />
+                  <span>Edit Listing</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onConnect}
+                  className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition"
+                >
+                  <GoogleGLogo size={13} />
+                  <span>Connect Google</span>
+                </button>
               </div>
             ) : (
               <button

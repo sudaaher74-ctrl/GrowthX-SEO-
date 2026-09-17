@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Loader2, MapPin, Star, Check, AlertCircle, X } from "lucide-react";
 import { GoogleGLogo } from "./gbp-icons";
 import { ConnectWithGoogleButton } from "./connect-with-google-button";
 import { useSearchLocalBusiness, useConnectLocalBusiness } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
-import type { GbpConnection } from "@/lib/api-client";
+import type { GbpConnection, LocalSeoData } from "@/lib/api-client";
 
 interface ConnectGbpModalProps {
   open: boolean;
@@ -14,6 +14,7 @@ interface ConnectGbpModalProps {
   projectId: string | null;
   /** The live connection envelope, so the Google option can be honest about its state. */
   connection?: GbpConnection | null;
+  localSeo?: LocalSeoData | null;
   onConnected?: () => void;
   defaultMode?: "search" | "manual";
 }
@@ -23,6 +24,7 @@ export function ConnectGbpModal({
   onOpenChange,
   projectId,
   connection,
+  localSeo,
   onConnected,
   defaultMode = "search",
 }: ConnectGbpModalProps) {
@@ -33,6 +35,18 @@ export function ConnectGbpModal({
   const [manualRating, setManualRating] = useState("");
   const [manualReviews, setManualReviews] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setActiveMode(defaultMode);
+      if (localSeo?.businessName) {
+        setManualName(localSeo.businessName);
+        setManualAddress(localSeo.address || "");
+        setManualRating(localSeo.rating > 0 ? String(localSeo.rating) : "");
+        setManualReviews(localSeo.reviewCount > 0 ? String(localSeo.reviewCount) : "");
+      }
+    }
+  }, [open, defaultMode, localSeo]);
 
   const searchMutation = useSearchLocalBusiness(projectId);
   const connectMutation = useConnectLocalBusiness(projectId);
