@@ -16,6 +16,7 @@ interface SelectGbpLocationProps {
   /** Called once the location is committed and its first sync has finished. */
   onSelected?: () => void;
   onCancel?: () => void;
+  onTrackAlternative?: () => void;
 }
 
 /**
@@ -26,7 +27,12 @@ interface SelectGbpLocationProps {
  * the choice and running the first sync are done together, because a location
  * selected but never synced is a screen full of nothing with no explanation.
  */
-export function SelectGbpLocation({ projectId, onSelected, onCancel }: SelectGbpLocationProps) {
+export function SelectGbpLocation({
+  projectId,
+  onSelected,
+  onCancel,
+  onTrackAlternative,
+}: SelectGbpLocationProps) {
   const { data, isLoading, isError, error, refetch, isFetching } = useGbpLocations(projectId);
   const selectMutation = useSelectGoogleResource(projectId);
   const syncMutation = useSyncBusinessProfile(projectId);
@@ -110,14 +116,34 @@ export function SelectGbpLocation({ projectId, onSelected, onCancel }: SelectGbp
             If this mentions permission or approval, it is a Google-side decision on this
             deployment&apos;s API access rather than a problem with your account.
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="mt-1 px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
-          >
-            Try again
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
+            >
+              Try again
+            </button>
+            {onTrackAlternative && (
+              <button
+                type="button"
+                onClick={onTrackAlternative}
+                className="px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-800 hover:bg-brand-50 transition"
+              >
+                Track via Places / Manual Entry
+              </button>
+            )}
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-brand-500 hover:text-brand-800 transition"
+              >
+                Back to Dashboard
+              </button>
+            )}
+          </div>
         </div>
       ) : data && data.locations.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -204,14 +230,34 @@ export function SelectGbpLocation({ projectId, onSelected, onCancel }: SelectGbp
               ? "Google returned no Business Profile accounts for the account you signed in with. If your listing lives under a different Google login, or under an agency account you have not been added to, connect again with that one."
               : `Google returned ${data?.diagnostics.accountsReturnedByGoogle} Business Profile account(s) for this login, but no location inside them. Ask the owner to give this account access to the location, then try again.`}
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="mt-1 px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-800 hover:bg-brand-50 transition disabled:opacity-50"
-          >
-            Check again
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-800 hover:bg-brand-50 transition disabled:opacity-50"
+            >
+              Check again
+            </button>
+            {onTrackAlternative && (
+              <button
+                type="button"
+                onClick={onTrackAlternative}
+                className="px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition"
+              >
+                Track via Places / Manual Entry
+              </button>
+            )}
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-brand-500 hover:text-brand-800 transition"
+              >
+                Back to Dashboard
+              </button>
+            )}
+          </div>
         </div>
       )}
 

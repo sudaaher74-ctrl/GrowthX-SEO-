@@ -163,7 +163,11 @@ function GoogleBusinessProfileContent() {
         <SelectGbpLocation
           projectId={projectId}
           onSelected={clearCallback}
-          onCancel={connection?.state === "NEEDS_SELECTION" ? undefined : clearCallback}
+          onCancel={clearCallback}
+          onTrackAlternative={() => {
+            clearCallback();
+            openConnect("search");
+          }}
         />
       </div>
     );
