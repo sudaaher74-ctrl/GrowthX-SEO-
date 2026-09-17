@@ -144,3 +144,49 @@ export function inferTrailingSlashPolicy(
   }
   return undefined;
 }
+
+/**
+ * Evaluates whether a candidate URL belongs to the configured target domain
+ * or its approved subdomains.
+ */
+export function isInternalTargetUrl(
+  candidateUrl: string,
+  targetOriginOrDomain: string,
+  approvedSubdomains: string[] = [],
+): boolean {
+  try {
+    let candidateHost = new URL(candidateUrl).hostname.toLowerCase().replace(/\.$/, '');
+    let targetHost: string;
+    if (targetOriginOrDomain.includes('://')) {
+      targetHost = new URL(targetOriginOrDomain).hostname.toLowerCase().replace(/\.$/, '');
+    } else {
+      targetHost = targetOriginOrDomain.toLowerCase().replace(/\.$/, '').split('/')[0].split(':')[0];
+    }
+
+    if (candidateHost === targetHost) return true;
+
+    // Standardize www / apex
+    const baseTarget = targetHost.replace(/^www\./, '');
+    const baseCandidate = candidateHost.replace(/^www\./, '');
+
+    if (baseCandidate === baseTarget) return true;
+
+    // Check approved subdomains
+    for (const sub of approvedSubdomains) {
+      const cleanSub = sub.toLowerCase().replace(/^\./, '').replace(/^www\./, '');
+      if (candidateHost === cleanSub || candidateHost.endsWith(`.${cleanSub}`)) {
+        return true;
+      }
+    }
+
+    // Check if candidateHost is a subdomain of baseTarget
+    if (candidateHost.endsWith(`.${baseTarget}`)) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+

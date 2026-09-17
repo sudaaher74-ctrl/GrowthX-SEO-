@@ -2498,6 +2498,7 @@ export interface CrawlQualityDiagnostics {
     normalizedPenaltyPerUrl: number;
     pagesCrawled: number;
   };
+  summary?: any;
 }
 
 /** Per-channel guidance on a content strategy. Every field is optional: the

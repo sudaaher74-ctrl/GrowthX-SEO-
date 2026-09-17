@@ -4,6 +4,7 @@ import * as cheerio from 'cheerio';
 export type EscalationReason =
   | 'EMPTY_BODY_TEXT'
   | 'NO_ANCHORS'
+  | 'INSUFFICIENT_LINKS'
   | 'EMPTY_MOUNT_NODE'
   | 'SPA_FINGERPRINT'
   | 'FORCED';
@@ -32,6 +33,7 @@ const SPA_FINGERPRINTS: Array<{ id: string; test: RegExp }> = [
   { id: 'vite-asset-bundle', test: /<script[^>]+src=["'][^"']*\/assets\/index-[A-Za-z0-9_-]+\.js/i },
   { id: 'vite-favicon', test: /href=["'][^"']*vite\.svg/i },
   { id: 'next-data', test: /id=["']__NEXT_DATA__["']/i },
+  { id: 'next-app-router', test: /(self\.__next_f|_next\/static\/chunks\/app\/)/i },
   { id: 'next-bailout', test: /BAILOUT_TO_CLIENT_SIDE_RENDERING/i },
   { id: 'angular', test: /\sng-version=/i },
   { id: 'vue-not-ssr', test: /data-server-rendered=["']false["']/i },
@@ -68,6 +70,12 @@ export function shouldEscalateToRender(rawHtml: string, opts: { force?: boolean;
   if (opts.force) reasons.push('FORCED');
   if (bodyText.length < MIN_BODY_TEXT_CHARS) reasons.push('EMPTY_BODY_TEXT');
   if (rawAnchorCount === 0) reasons.push('NO_ANCHORS');
+  else if (
+    rawAnchorCount < 5 &&
+    (SPA_FINGERPRINTS.some((f) => f.test.test(html)) || /<script[^>]+src=["'][^"']*\/_next\/static\//i.test(html))
+  ) {
+    reasons.push('INSUFFICIENT_LINKS');
+  }
 
   for (const selector of MOUNT_SELECTORS) {
     const node = $(selector).first();

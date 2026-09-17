@@ -14,6 +14,7 @@ export interface ExtractedPageLink {
   rel?: string;
   isNofollow: boolean;
   isInternal: boolean;
+  location?: 'navigation' | 'footer' | 'header' | 'main' | 'other';
 }
 
 export interface ExtractedPageImage {
@@ -48,6 +49,8 @@ export interface ExtractedPage {
   bodyWordCount: number;
   internalLinks: ExtractedPageLink[];
   externalLinks: ExtractedPageLink[];
+  paginationUrls: string[];
+  structuredDataUrls: string[];
   images: ExtractedPageImage[];
   jsonLd: unknown[];
   microdataTypes: string[];
@@ -125,15 +128,43 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
     const absolute = normalizeUrl(href, { base: pageUrl });
     if (!absolute) return;
     const rel = $(el).attr('rel')?.trim();
+    const $el = $(el);
+    let location: ExtractedPageLink['location'] = 'other';
+    if ($el.closest('header').length > 0) {
+      location = 'header';
+    } else if ($el.closest('nav, [role="navigation"]').length > 0) {
+      location = 'navigation';
+    } else if ($el.closest('footer, [role="contentinfo"]').length > 0) {
+      location = 'footer';
+    } else if ($el.closest('main, article, [role="main"]').length > 0) {
+      location = 'main';
+    }
+
     const link: ExtractedPageLink = {
       href,
       absoluteUrl: absolute,
-      anchorText: $(el).text().replace(/\s+/g, ' ').trim(),
+      anchorText: $el.text().replace(/\s+/g, ' ').trim(),
       rel,
       isNofollow: /(^|\s)nofollow(\s|$)/i.test(rel || ''),
       isInternal: sameRegistrableDomain(absolute, pageUrl),
+      location,
     };
     (link.isInternal ? internalLinks : externalLinks).push(link);
+  });
+
+  const paginationUrls: string[] = [];
+  const addPagination = (rawHref?: string) => {
+    if (!rawHref) return;
+    const abs = normalizeUrl(rawHref, { base: pageUrl });
+    if (abs && sameRegistrableDomain(abs, pageUrl) && !paginationUrls.includes(abs)) {
+      paginationUrls.push(abs);
+    }
+  };
+  $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
+    addPagination($(el).attr('href'));
+  });
+  $('a[rel~="next" i], a[rel~="prev" i]').each((_, el) => {
+    addPagination($(el).attr('href'));
   });
 
   const images: ExtractedPageImage[] = [];
@@ -169,6 +200,8 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
       jsonLd.push({ '@type': 'INVALID_JSON_LD', raw: raw.slice(0, 200) });
     }
   });
+
+  const structuredDataUrls = extractUrlsFromJsonLd(jsonLd, pageUrl);
 
   const microdataTypes = $('[itemscope][itemtype]')
     .map((_, el) => $(el).attr('itemtype')?.trim())
@@ -230,6 +263,8 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
     bodyWordCount: bodyText ? bodyText.split(' ').filter(Boolean).length : 0,
     internalLinks,
     externalLinks,
+    paginationUrls,
+    structuredDataUrls,
     images,
     jsonLd,
     microdataTypes,
@@ -239,4 +274,46 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
     language: $('html').attr('lang')?.trim() || undefined,
     mainText,
   };
+}
+
+/** Recursively extracts internal URLs from JSON-LD structures (ItemLists, Products, Breadcrumbs, etc.) */
+export function extractUrlsFromJsonLd(items: unknown[], baseUrl: string): string[] {
+  const discovered = new Set<string>();
+
+  const inspectValue = (val: unknown) => {
+    if (!val) return;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      // Skip non-URLs, data URLs, Javascript, etc.
+      if (
+        (trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
+        !trimmed.startsWith('//') &&
+        !trimmed.includes('{') &&
+        !trimmed.includes('}')
+      ) {
+        const normalized = normalizeUrl(trimmed, { base: baseUrl });
+        if (normalized && sameRegistrableDomain(normalized, baseUrl)) {
+          discovered.add(normalized);
+        }
+      }
+    } else if (Array.isArray(val)) {
+      for (const item of val) inspectValue(item);
+    } else if (typeof val === 'object') {
+      for (const [key, propVal] of Object.entries(val as Record<string, unknown>)) {
+        if (
+          ['@id', 'url', 'item', 'contentUrl', 'sameAs', 'mainEntityOfPage', 'significantLink', 'target'].includes(key) ||
+          typeof propVal === 'string' ||
+          typeof propVal === 'object'
+        ) {
+          inspectValue(propVal);
+        }
+      }
+    }
+  };
+
+  for (const item of items) {
+    inspectValue(item);
+  }
+
+  return [...discovered];
 }

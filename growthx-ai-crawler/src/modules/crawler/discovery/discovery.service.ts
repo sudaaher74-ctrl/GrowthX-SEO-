@@ -8,8 +8,19 @@ import { normalizeUrl } from '../url/url-normalizer';
 import { registrableDomain, sameRegistrableDomain } from '../url/registrable-domain';
 import { DEFAULT_CHROME_UA } from '../fetch/browser-pool.service';
 import { deadlineSignal } from '../fetch/http-deadline';
+import { extractUrlsFromJsonLd } from '../page-extract';
 
-export type DiscoverySource = 'seed' | 'sitemap' | 'link' | 'bundle' | 'robots';
+export type DiscoverySource =
+  | 'seed'
+  | 'sitemap'
+  | 'homepage'
+  | 'internal_links'
+  | 'javascript_dom'
+  | 'canonical'
+  | 'other'
+  | 'link'
+  | 'bundle'
+  | 'robots';
 
 export interface DiscoveredUrl {
   url: string;
@@ -47,6 +58,7 @@ const FALLBACK_SITEMAP_PATHS = [
   '/sitemap-index.xml',
   '/wp-sitemap.xml',
   '/sitemap/sitemap.xml',
+  '/sitemap/index.xml',
 ];
 
 const DEFAULT_MAX_INDEX_DEPTH = 3;
@@ -309,12 +321,23 @@ export class DiscoveryService {
   }
 
   /**
-   * Links from a rendered page: anchors, rel=next/prev/canonical/alternate, and
-   * hrefs embedded in inline JSON where they are cheap to read.
+   * Links from a rendered page: anchors, rel=next/prev/canonical/alternate,
+   * JSON-LD structured data, and hrefs embedded in inline scripts/JSON.
    */
-  extractLinks(html: string, pageUrl: string): DiscoveredUrl[] {
+  extractLinks(html: string, pageUrl: string, defaultSource?: DiscoverySource): DiscoveredUrl[] {
     const $ = cheerio.load(html || '');
     const found = new Map<string, DiscoveredUrl>();
+
+    const isHomepage = (() => {
+      try {
+        const u = new URL(pageUrl);
+        return u.pathname === '/' || u.pathname === '';
+      } catch {
+        return false;
+      }
+    })();
+
+    const linkSource: DiscoverySource = defaultSource || (isHomepage ? 'homepage' : 'internal_links');
 
     const add = (href: string | undefined, source: DiscoverySource) => {
       if (!href) return;
@@ -325,10 +348,14 @@ export class DiscoveryService {
       }
     };
 
-    $('a[href]').each((_, el) => add($(el).attr('href'), 'link'));
+    $('a[href]').each((_, el) => add($(el).attr('href'), linkSource));
     $('link[rel]').each((_, el) => {
       const rel = ($(el).attr('rel') || '').toLowerCase();
-      if (['next', 'prev', 'previous', 'canonical', 'alternate'].includes(rel)) add($(el).attr('href'), 'link');
+      if (['next', 'prev', 'previous', 'alternate'].includes(rel)) {
+        add($(el).attr('href'), linkSource);
+      } else if (rel === 'canonical') {
+        add($(el).attr('href'), 'canonical');
+      }
     });
 
     // Next.js ships its route data in a JSON island; a route named there is a
@@ -338,9 +365,24 @@ export class DiscoveryService {
       const raw = $(el).html();
       if (!raw || raw.length > 2_000_000) return;
       for (const match of raw.matchAll(/"(\/(?!\/)[A-Za-z0-9._~\-/]*)"/g)) {
-        add(match[1], 'link');
+        add(match[1], linkSource);
       }
     });
+
+    // Extract URLs from JSON-LD structured data
+    const jsonLd: unknown[] = [];
+    $('script[type="application/ld+json" i]').each((_, el) => {
+      const raw = $(el).html();
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw.trim());
+        if (Array.isArray(parsed)) jsonLd.push(...parsed);
+        else jsonLd.push(parsed);
+      } catch {}
+    });
+    for (const jsonUrl of extractUrlsFromJsonLd(jsonLd, pageUrl)) {
+      add(jsonUrl, linkSource);
+    }
 
     return [...found.values()];
   }

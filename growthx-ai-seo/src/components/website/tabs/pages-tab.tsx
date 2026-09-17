@@ -2,15 +2,19 @@
 
 import React, { useMemo, useState } from "react";
 import {
+  AlertCircle,
   ArrowRight,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  Compass,
   ExternalLink,
   Filter,
   Globe,
   Layers,
+  Link as LinkIcon,
   MoreHorizontal,
   Search,
   SlidersHorizontal,
@@ -20,6 +24,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
 import { computeCrawlSummary } from "@/lib/crawl-summary";
+import { classifyPageType, toDisplayPageType, DISPLAY_PAGE_TYPES, DisplayPageType } from "@/lib/page-type";
 
 interface PagesTabProps {
   crawl: CrawlJob | null;
@@ -46,6 +51,8 @@ export function PagesTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+  const [showNotCrawled, setShowNotCrawled] = useState(false);
+  const [notCrawledReasonFilter, setNotCrawledReasonFilter] = useState("ALL");
 
   // Column visibility toggles
   const [visibleColumns, setVisibleColumns] = useState({
@@ -126,15 +133,22 @@ export function PagesTab({
           inpMs: p.performance?.inpMs ?? null,
           clsScore: p.performance?.clsScore ?? null,
         })),
+        discoveryMetrics: {
+          urlsDiscovered: crawl?.qualityDiagnostics?.urlsDiscovered ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsDiscovered,
+          urlsQueued: crawl?.qualityDiagnostics?.urlsEligible ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsQueued,
+          urlsCrawled: crawl?.qualityDiagnostics?.pagesCrawled ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsCrawled,
+          failed: (crawl?.qualityDiagnostics?.summary as any)?.failed,
+          duplicates: crawl?.qualityDiagnostics?.urlsSkipped ?? (crawl?.qualityDiagnostics?.summary as any)?.duplicates,
+          canonicalized: (crawl?.qualityDiagnostics?.summary as any)?.canonicalized,
+          bySource: (crawl?.qualityDiagnostics?.summary as any)?.bySource,
+          discoveredNotCrawled: (crawl?.qualityDiagnostics?.summary as any)?.discoveredNotCrawled,
+        },
       }),
-    [pages, issues]
+    [pages, issues, crawl]
   );
 
   const successfulCount = summary.successful;
   const redirectedCount = summary.redirected;
-  // Errored and blocked are kept apart: a page a WAF challenged is not the
-  // same claim as a page that 404s, and merging them is how "0 blocked" and
-  // "1 Blocked" appeared on one screen.
   const erroredCount = summary.errored;
   const blockedCount = summary.blocked;
   const unreachableCount = summary.unreachable;
@@ -144,41 +158,57 @@ export function PagesTab({
   const unknownIndexabilityCount = summary.indexabilityUnknown;
   const indexablePct = summary.indexablePercent;
 
+  const urlsDiscoveredCount = Math.max(
+    pages.length,
+    summary.urlsDiscovered || crawl?.qualityDiagnostics?.urlsDiscovered || 0
+  );
+  const urlsCrawledCount = summary.urlsCrawled || pages.length;
+  const notCrawledCount = Math.max(0, urlsDiscoveredCount - urlsCrawledCount);
+  const crawlCoveragePct = urlsDiscoveredCount > 0
+    ? Math.min(100, Math.round((urlsCrawledCount / urlsDiscoveredCount) * 100))
+    : 100;
+
+  // Page Type classification across all 10 types
+  const getPageType = (page: CrawlPage): DisplayPageType => {
+    if (page.pageType) {
+      const display = toDisplayPageType(page.pageType);
+      if (display !== "Other") return display;
+    }
+    const derived = classifyPageType({ url: page.url, title: page.title, h1: page.h1 });
+    return toDisplayPageType(derived);
+  };
+
   // 3. Page Type Distribution Donut
   const pageTypeCounts = useMemo(() => {
-    const map: Record<string, number> = {
-      Product: 0,
-      Category: 0,
-      Blog: 0,
-      Homepage: 0,
-      Static: 0,
-      Other: 0,
-    };
-
+    const counts: Record<string, number> = {};
+    for (const type of DISPLAY_PAGE_TYPES) {
+      counts[type] = 0;
+    }
     for (const page of pages) {
-      const type = page.pageType || "";
-      if (type.toLowerCase().includes("product") || page.url.includes("/product")) {
-        map.Product = (map.Product || 0) + 1;
-      } else if (type.toLowerCase().includes("cat") || page.url.includes("/category") || page.url.includes("/collection")) {
-        map.Category = (map.Category || 0) + 1;
-      } else if (type.toLowerCase().includes("blog") || page.url.includes("/blog") || page.url.includes("/news")) {
-        map.Blog = (map.Blog || 0) + 1;
-      } else if (page.url.endsWith("/") && !page.url.replace(/^https?:\/\/[^/]+/, "").replace(/^\/+/, "")) {
-        map.Homepage = (map.Homepage || 0) + 1;
-      } else if (type.toLowerCase().includes("static") || page.url.includes("/about") || page.url.includes("/contact")) {
-        map.Static = (map.Static || 0) + 1;
-      } else {
-        map.Other = (map.Other || 0) + 1;
-      }
+      const type = getPageType(page);
+      counts[type] = (counts[type] || 0) + 1;
     }
 
-    const res = [];
-    if (map.Product > 0) res.push({ label: "Product", value: map.Product, color: "#3b82f6" });
-    if (map.Category > 0) res.push({ label: "Category", value: map.Category, color: "#10b981" });
-    if (map.Blog > 0) res.push({ label: "Blog", value: map.Blog, color: "#8b5cf6" });
-    if (map.Homepage > 0) res.push({ label: "Homepage", value: map.Homepage, color: "#06b6d4" });
-    if (map.Static > 0) res.push({ label: "Static", value: map.Static, color: "#64748b" });
-    if (map.Other > 0) res.push({ label: "Other", value: map.Other, color: "#f59e0b" });
+    const colorMap: Record<string, string> = {
+      "Homepage": "#06b6d4",
+      "Product page": "#3b82f6",
+      "Category page": "#10b981",
+      "Blog/article": "#8b5cf6",
+      "Service page": "#f59e0b",
+      "Landing page": "#ec4899",
+      "Contact page": "#14b8a6",
+      "About page": "#6366f1",
+      "Static page": "#64748b",
+      "Other": "#94a3b8",
+    };
+
+    const res = DISPLAY_PAGE_TYPES
+      .filter((type) => (counts[type] || 0) > 0)
+      .map((type) => ({
+        label: type,
+        value: counts[type],
+        color: colorMap[type] || "#3b82f6",
+      }));
 
     return res.length > 0 ? res : [{ label: "All Pages", value: pages.length, color: "#3b82f6" }];
   }, [pages]);
@@ -198,6 +228,53 @@ export function PagesTab({
     ];
   }, [pages]);
 
+  // Crawl Source Breakdown
+  const discoverySourceList = useMemo(() => {
+    const raw = summary.bySource || {};
+    const sources = [
+      { key: "sitemap", label: "Sitemap", count: raw.sitemap || 0, color: "#3b82f6" },
+      { key: "homepage", label: "Homepage", count: raw.homepage || 0, color: "#06b6d4" },
+      { key: "internal_links", label: "Internal links", count: (raw.internal_links || 0) + (raw.link || 0), color: "#10b981" },
+      { key: "javascript_dom", label: "JavaScript DOM", count: raw.javascript_dom || 0, color: "#8b5cf6" },
+      { key: "canonical", label: "Canonical", count: raw.canonical || 0, color: "#f59e0b" },
+      { key: "other", label: "Other", count: (raw.other || 0) + (raw.unknown || 0) + (raw.seed || 0) + (raw.robots || 0), color: "#64748b" },
+    ];
+    const total = sources.reduce((acc, s) => acc + s.count, 0) || 1;
+    return sources.map((s) => ({
+      ...s,
+      percentage: Math.round((s.count / total) * 100),
+    }));
+  }, [summary.bySource]);
+
+  // URLs Discovered But Not Crawled items
+  const discoveredNotCrawledItems = useMemo(() => {
+    if (summary.discoveredNotCrawled && summary.discoveredNotCrawled.length > 0) {
+      return summary.discoveredNotCrawled;
+    }
+    const items: Array<{ url: string; reason: string }> = [];
+    if (summary.duplicates > 0) {
+      items.push({ url: `(${summary.duplicates} duplicate URL variations skipped)`, reason: "duplicate" });
+    }
+    if (summary.canonicalized > 0) {
+      items.push({ url: `(${summary.canonicalized} URLs pointing to canonical target)`, reason: "already crawled" });
+    }
+    const robotsBlocked = (crawl?.qualityDiagnostics as any)?.robotsBlocked || 0;
+    if (robotsBlocked > 0) {
+      items.push({ url: `(${robotsBlocked} URLs blocked by robots.txt rules)`, reason: "robots.txt" });
+    }
+    if (crawl?.qualityDiagnostics?.crawlStatus === "LIMIT_REACHED" && notCrawledCount > 0) {
+      items.push({ url: `(${notCrawledCount} URLs queued beyond max crawl limit)`, reason: "crawl limit" });
+    }
+    return items;
+  }, [summary.discoveredNotCrawled, summary.duplicates, summary.canonicalized, crawl, notCrawledCount]);
+
+  const filteredNotCrawled = useMemo(() => {
+    if (notCrawledReasonFilter === "ALL") return discoveredNotCrawledItems;
+    return discoveredNotCrawledItems.filter(
+      (item) => item.reason.toLowerCase() === notCrawledReasonFilter.toLowerCase()
+    );
+  }, [discoveredNotCrawledItems, notCrawledReasonFilter]);
+
   // 5. Filtered and Sorted Pages List
   const filteredPages = useMemo(() => {
     let result = [...pages];
@@ -210,15 +287,7 @@ export function PagesTab({
     }
 
     if (selectedType !== "ALL") {
-      result = result.filter((p) => {
-        const t = (p.pageType || "").toLowerCase();
-        if (selectedType === "Product") return t.includes("product") || p.url.includes("/product");
-        if (selectedType === "Category") return t.includes("cat") || p.url.includes("/category");
-        if (selectedType === "Blog") return t.includes("blog") || p.url.includes("/blog");
-        if (selectedType === "Static") return t.includes("static") || p.url.includes("/about") || p.url.includes("/contact");
-        if (selectedType === "Homepage") return p.url.endsWith("/") && !p.url.replace(/^https?:\/\/[^/]+/, "").replace(/^\/+/, "");
-        return true;
-      });
+      result = result.filter((p) => getPageType(p) === selectedType);
     }
 
     if (selectedStatus !== "ALL") {
@@ -273,23 +342,15 @@ export function PagesTab({
   };
 
   // Helper to format page type badge
-  const formatPageType = (page: CrawlPage) => {
-    const url = page.url.toLowerCase();
-    if (url.endsWith("/") && !url.replace(/^https?:\/\/[^/]+/, "").replace(/^\/+/, "")) return "Homepage";
-    if (url.includes("/product")) return "Product";
-    if (url.includes("/category") || url.includes("/collection")) return "Category";
-    if (url.includes("/blog") || url.includes("/news")) return "Blog";
-    if (url.includes("/about") || url.includes("/contact") || url.includes("/privacy") || url.includes("/terms")) return "Static";
-    return page.pageType || "Page";
-  };
+  const formatPageType = (page: CrawlPage) => getPageType(page);
 
   return (
     <div className="space-y-5">
       {/* ======================================================== */}
-      {/* TOP ROW: 4 CARDS                                         */}
+      {/* TOP ROW: 4 KPI CARDS                                     */}
       {/* ======================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. Total Pages Crawled */}
+        {/* 1. Total Pages Crawled (Strictly HTTP 2xx) */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -298,7 +359,7 @@ export function PagesTab({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {pages.length.toLocaleString()}
+                {successfulCount.toLocaleString()}
               </span>
               {pagesDelta !== null && pagesDelta !== 0 && (
                 <span
@@ -313,14 +374,14 @@ export function PagesTab({
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              All pages discovered on your website.
+              HTTP 2xx pages successfully fetched.
             </p>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-3 text-[11px] text-slate-600 dark:text-slate-400">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-400">
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <b className="text-slate-900 dark:text-white">{successfulCount}</b> Successful
+              <b className="text-slate-900 dark:text-white">{successfulCount}</b> OK
             </span>
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-error-500" />
@@ -331,13 +392,13 @@ export function PagesTab({
               <b className="text-brand-950">{redirectedCount}</b> Redirected
             </span>
             {blockedCount > 0 && (
-              <span className="flex items-center gap-1" title="The origin answered with a challenge a browser would not get. Not the same as an error.">
+              <span className="flex items-center gap-1" title="Origin challenge or suspicion.">
                 <span className="h-2 w-2 rounded-full bg-warning-600" />
                 <b className="text-brand-950">{blockedCount}</b> Blocked
               </span>
             )}
             {unreachableCount > 0 && (
-              <span className="flex items-center gap-1" title="We could not reach these pages at all, so nothing about them was assessed.">
+              <span className="flex items-center gap-1" title="Unreachable origin.">
                 <span className="h-2 w-2 rounded-full bg-brand-400" />
                 <b className="text-brand-950">{unreachableCount}</b> Unreachable
               </span>
@@ -345,16 +406,48 @@ export function PagesTab({
           </div>
         </div>
 
-        {/* 2. Indexable Pages */}
+        {/* 2. Total URLs Discovered */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-              <Layers size={14} className="text-blue-600" />
+              <Compass size={14} className="text-indigo-600" />
+              <span>Total URLs Discovered</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {urlsDiscoveredCount.toLocaleString()}
+              </span>
+              <span className="rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 px-2 py-0.5 text-xs font-bold">
+                Multi-source
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Identified across sitemaps, DOM & links.
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <b className="text-slate-900 dark:text-white">{urlsCrawledCount}</b> Crawled
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              <b className="text-slate-900 dark:text-white">{notCrawledCount}</b> Not Crawled
+            </span>
+          </div>
+        </div>
+
+        {/* 3. Indexable Pages */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <Layers size={14} className="text-emerald-600" />
               <span>Indexable Pages</span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {indexableCount}
+                {indexableCount.toLocaleString()}
               </span>
               <span className="rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-2 py-0.5 text-xs font-bold">
                 {indexablePct}%
@@ -375,8 +468,6 @@ export function PagesTab({
                 className="h-full bg-warning-400 transition-all duration-500"
                 style={{ width: `${pages.length ? (nonIndexableCount / pages.length) * 100 : 0}%` }}
               />
-              {/* Unknown is neutral, never red: a signal we could not read is
-                  not a signal that said no. */}
               <div
                 className="h-full bg-brand-300 transition-all duration-500"
                 style={{ width: `${pages.length ? (unknownIndexabilityCount / pages.length) * 100 : 0}%` }}
@@ -401,41 +492,235 @@ export function PagesTab({
           </div>
         </div>
 
-        {/* 3. Page Type Distribution */}
+        {/* 4. Crawl Coverage */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <LinkIcon size={14} className="text-purple-600" />
+              <span>Crawl Coverage</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {crawlCoveragePct}%
+              </span>
+              <span className="rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 px-2 py-0.5 text-xs font-bold">
+                {urlsCrawledCount}/{urlsDiscoveredCount}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Coverage of discovered URL frontier.
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+              <b className="text-slate-900 dark:text-white">{summary.duplicates || 0}</b> Deduplicated
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />
+              <b className="text-slate-900 dark:text-white">{summary.canonicalized || 0}</b> Canonicalized
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* MIDDLE ROW: 3 ANALYTICS CARDS                            */}
+      {/* ======================================================== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        {/* 1. Page Type Distribution (10 Types) */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
-              Page Type Distribution
-            </h3>
-            <div className="flex items-center justify-center py-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Page Type Distribution
+              </h3>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                10 Types
+              </span>
+            </div>
+            <div className="flex items-center justify-center py-2">
               <DonutChart
                 data={pageTypeCounts}
                 centerValue={pages.length}
                 centerLabel="Pages"
-                size={100}
+                size={110}
                 thickness={15}
               />
             </div>
           </div>
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            {pageTypeCounts.slice(0, 5).map((item) => (
+              <span key={item.label} className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-slate-600 dark:text-slate-400">{item.label}:</span>
+                <b className="text-slate-900 dark:text-white">{item.value}</b>
+              </span>
+            ))}
+            {pageTypeCounts.length > 5 && (
+              <span className="text-slate-400">+{pageTypeCounts.length - 5} more</span>
+            )}
+          </div>
         </div>
 
-        {/* 4. Status Code Distribution */}
+        {/* 2. Status Code Distribution */}
         <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
               Status Code Distribution
             </h3>
-            <div className="flex items-center justify-center py-1">
+            <div className="flex items-center justify-center py-2">
               <DonutChart
                 data={statusCodeCounts}
                 centerValue={pages.length}
                 centerLabel="Pages"
-                size={100}
+                size={110}
                 thickness={15}
               />
             </div>
           </div>
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            {statusCodeCounts.map((item) => (
+              <span key={item.label} className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-slate-600 dark:text-slate-400">{item.label}:</span>
+                <b className="text-slate-900 dark:text-white">{item.value}</b>
+              </span>
+            ))}
+          </div>
         </div>
+
+        {/* 3. Crawl-Source Breakdown */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Crawl-Source Breakdown
+              </h3>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Multi-Source
+              </span>
+            </div>
+            <div className="space-y-2 py-1">
+              {discoverySourceList.map((src) => (
+                <div key={src.key} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: src.color }} />
+                      {src.label}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                      <b className="text-slate-900 dark:text-white">{src.count}</b> ({src.percentage}%)
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${src.percentage}%`, backgroundColor: src.color }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* SECTION: URLs DISCOVERED BUT NOT CRAWLED                  */}
+      {/* ======================================================== */}
+      <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowNotCrawled(!showNotCrawled)}
+          className="w-full p-4 flex items-center justify-between hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <Compass size={16} className="text-amber-600" />
+            <div>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">
+                URLs Discovered But Not Crawled
+              </span>
+              <span className="ml-2 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 text-xs font-semibold">
+                {notCrawledCount.toLocaleString()} URLs
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+            <span>{showNotCrawled ? "Hide reasons" : "View reasons"}</span>
+            {showNotCrawled ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </div>
+        </button>
+
+        {showNotCrawled && (
+          <div className="p-4 pt-0 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            {/* Reason Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-3">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1">
+                Filter Reason:
+              </span>
+              {[
+                "ALL",
+                "crawl limit",
+                "duplicate",
+                "external",
+                "blocked",
+                "robots.txt",
+                "noindex",
+                "invalid URL",
+                "already crawled",
+                "error",
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setNotCrawledReasonFilter(reason)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                    notCrawledReasonFilter === reason
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  )}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+
+            {/* List / Table of Not Crawled URLs */}
+            {filteredNotCrawled.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400">
+                No URLs match the selected filter.
+              </div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-lg">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="p-2.5 pl-3">DISCOVERED URL</th>
+                      <th className="p-2.5 pr-3 text-right">EXCLUSION REASON</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredNotCrawled.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                        <td className="p-2.5 pl-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[400px]">
+                          {item.url}
+                        </td>
+                        <td className="p-2.5 pr-3 text-right">
+                          <span className="inline-block rounded-full bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                            {item.reason}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ======================================================== */}
@@ -469,7 +754,7 @@ export function PagesTab({
               )}
             </div>
 
-            {/* Page Type Filter */}
+            {/* Page Type Filter (10 Types) */}
             <select
               value={selectedType}
               onChange={(e) => {
@@ -479,11 +764,11 @@ export function PagesTab({
               className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
             >
               <option value="ALL">All Page Types</option>
-              <option value="Product">Product</option>
-              <option value="Category">Category</option>
-              <option value="Blog">Blog</option>
-              <option value="Homepage">Homepage</option>
-              <option value="Static">Static</option>
+              {DISPLAY_PAGE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </select>
 
             {/* Status Codes Filter */}

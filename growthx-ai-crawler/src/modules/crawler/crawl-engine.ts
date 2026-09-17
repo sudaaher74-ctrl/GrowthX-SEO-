@@ -5,7 +5,7 @@ import { contentFingerprint, findDuplicateClusters, DuplicateCluster } from './f
 import { extractPage, ExtractedPage } from './page-extract';
 import { computeIndexability, IndexabilityResult } from './indexability';
 import { evaluatePage, evaluateSite, Finding } from './issue-rules';
-import { normalizeUrl, inferTrailingSlashPolicy, TrailingSlashPolicy } from './url/url-normalizer';
+import { normalizeUrl, inferTrailingSlashPolicy, TrailingSlashPolicy, isInternalTargetUrl } from './url/url-normalizer';
 import { sameRegistrableDomain } from './url/registrable-domain';
 import { computeCrawlSummary, CrawlSummary } from './crawl-summary';
 import { isCrawlablePage } from './crawlable';
@@ -95,27 +95,83 @@ export class CrawlEngine {
     const queue: QueueEntry[] = [];
     const claimed = new Set<string>();
     let trailingSlash: TrailingSlashPolicy | undefined;
-    // Set when the page ceiling, rather than exhaustion, is what stopped URLs
-    // entering the frontier. Without it a capped crawl reports itself as having
-    // seen the whole site.
     let hitPageCeiling = false;
 
+    // Canonical queue state sets
+    const discoveredURLs = new Map<string, { url: string; source: DiscoverySource; foundIn?: string }>();
+    const queuedURLs = new Set<string>();
+    const crawledURLs = new Set<string>();
+    const successfulURLs = new Set<string>();
+    const failedURLs = new Set<string>();
+    const redirectedURLs = new Map<string, string>();
+    const blockedURLs = new Set<string>();
+    const duplicateURLs = new Set<string>();
+    const canonicalizedURLs = new Map<string, string>();
+    const discoveredNotCrawled: Array<{ url: string; reason: string }> = [];
+    const discoveredNotCrawledSeen = new Set<string>();
+
+    const recordDiscoveredNotCrawled = (url: string, reason: string) => {
+      const key = `${url}::${reason}`;
+      if (!discoveredNotCrawledSeen.has(key)) {
+        discoveredNotCrawledSeen.add(key);
+        discoveredNotCrawled.push({ url, reason });
+      }
+    };
+
     const enqueue = (url: string, depth: number, source: DiscoverySource, sourceUrl?: string): boolean => {
-      if (depth > this.limits.maxDepth) return false;
-      if (claimed.size + queue.length >= this.limits.maxPages) {
-        hitPageCeiling = true;
+      const normalized = normalizeUrl(url, { trailingSlash });
+      if (!normalized) {
+        recordDiscoveredNotCrawled(url, 'invalid URL');
         return false;
       }
-      const normalized = normalizeUrl(url, { trailingSlash });
-      if (!normalized || claimed.has(normalized)) return false;
-      if (!sameRegistrableDomain(normalized, startUrl)) return false;
-      if (!isCrawlablePage(normalized)) return false;
-      if (queue.some((q) => q.normalizedUrl === normalized)) return false;
+
+      if (!discoveredURLs.has(normalized)) {
+        discoveredURLs.set(normalized, { url, source, foundIn: sourceUrl });
+      }
+
+      if (!isInternalTargetUrl(normalized, startUrl)) {
+        recordDiscoveredNotCrawled(url, 'external');
+        return false;
+      }
+
+      if (!isCrawlablePage(normalized)) {
+        recordDiscoveredNotCrawled(url, 'invalid URL');
+        return false;
+      }
+
+      if (crawledURLs.has(normalized) || claimed.has(normalized)) {
+        duplicateURLs.add(normalized);
+        recordDiscoveredNotCrawled(url, 'already crawled');
+        return false;
+      }
+
+      if (queuedURLs.has(normalized) || queue.some((q) => q.normalizedUrl === normalized)) {
+        duplicateURLs.add(normalized);
+        recordDiscoveredNotCrawled(url, 'duplicate');
+        return false;
+      }
+
+      if (depth > this.limits.maxDepth) {
+        recordDiscoveredNotCrawled(url, 'max depth');
+        return false;
+      }
+
+      queuedURLs.add(normalized);
       queue.push({ url, normalizedUrl: normalized, depth, source, sourceUrl });
       return true;
     };
 
-    for (const seed of seeds.urls) enqueue(seed.url, seed.source === 'seed' ? 0 : 1, seed.source, seed.foundIn);
+    for (const seed of seeds.urls) {
+      const source: DiscoverySource =
+        seed.source === 'seed'
+          ? (isRoot(seed.url) ? 'homepage' : 'seed')
+          : seed.source;
+      enqueue(seed.url, seed.source === 'seed' ? 0 : 1, source, seed.foundIn);
+    }
+
+    for (const foreign of seeds.foreignSitemapUrls) {
+      recordDiscoveredNotCrawled(foreign, 'external');
+    }
 
     const sitemapUrls = new Set(seeds.urls.filter((u) => u.source === 'sitemap').map((u) => u.normalizedUrl));
     const pages: CrawledPage[] = [];
@@ -125,6 +181,7 @@ export class CrawlEngine {
     while (queue.length > 0) {
       if (pages.length >= this.limits.maxPages) {
         stoppedBecause = 'MAX_PAGES';
+        hitPageCeiling = true;
         break;
       }
       if (Date.now() - startedAt > this.limits.maxDurationMs) {
@@ -143,16 +200,54 @@ export class CrawlEngine {
 
       const results = await Promise.all(batch.map((entry) => this.crawlOne(entry, seeds, renderedPages, sitemapUrls)));
 
-      for (const { page, discovered, rendered } of results) {
+      for (const { page, discovered, rendered, externalUrls } of results) {
         if (rendered) renderedPages++;
         pages.push(page);
+        crawledURLs.add(page.url);
+
+        if (page.statusCode && page.statusCode >= 200 && page.statusCode < 300) {
+          successfulURLs.add(page.url);
+        } else if (page.fetchFailed || (page.statusCode && page.statusCode >= 400 && !page.blockedSuspected)) {
+          failedURLs.add(page.url);
+          recordDiscoveredNotCrawled(page.url, 'error');
+        } else if (page.blockedSuspected) {
+          blockedURLs.add(page.url);
+          recordDiscoveredNotCrawled(page.url, 'blocked');
+        }
+
+        if (page.indexability?.reasons?.some((r) => r.code === 'ROBOTS_TXT_DISALLOW')) {
+          blockedURLs.add(page.url);
+          recordDiscoveredNotCrawled(page.url, 'robots.txt');
+        }
+
+        if (page.statusChain && page.statusChain.length > 0) {
+          redirectedURLs.set(page.url, page.finalUrl);
+        }
+
+        if (page.extracted?.canonicalUrl && normalizeUrl(page.extracted.canonicalUrl) !== normalizeUrl(page.finalUrl)) {
+          canonicalizedURLs.set(page.url, page.extracted.canonicalUrl);
+        }
+
+        if (page.indexability?.indexability === 'NOT_INDEXABLE') {
+          recordDiscoveredNotCrawled(page.url, 'noindex');
+        }
+
+        for (const ext of externalUrls) {
+          recordDiscoveredNotCrawled(ext, 'external');
+        }
 
         if (!trailingSlash) {
           trailingSlash = inferTrailingSlashPolicy(page.statusChain);
         }
-        for (const link of discovered) {
-          enqueue(link, page.depth + 1, 'link', page.url);
+        for (const item of discovered) {
+          enqueue(item.url, page.depth + 1, item.source, page.url);
         }
+      }
+    }
+
+    if (queue.length > 0) {
+      for (const remaining of queue) {
+        recordDiscoveredNotCrawled(remaining.url, 'crawl limit');
       }
     }
 
@@ -195,6 +290,21 @@ export class CrawlEngine {
       }),
     );
 
+    const bySource: Record<string, number> = {
+      sitemap: 0,
+      homepage: 0,
+      internal_links: 0,
+      javascript_dom: 0,
+      canonical: 0,
+      other: 0,
+    };
+    for (const d of discoveredURLs.values()) {
+      let src = d.source;
+      if (src === 'seed' || src === 'robots') src = 'sitemap';
+      else if (src === 'link' || src === 'bundle') src = 'internal_links';
+      bySource[src] = (bySource[src] || 0) + 1;
+    }
+
     const summary = computeCrawlSummary({
       pages: pages.map((p) => ({
         url: p.url,
@@ -211,6 +321,16 @@ export class CrawlEngine {
         confidence: f.confidence,
         affectedUrl: f.affectedUrl,
       })),
+      discoveryMetrics: {
+        urlsDiscovered: discoveredURLs.size,
+        urlsQueued: queuedURLs.size,
+        urlsCrawled: pages.length,
+        failed: failedURLs.size,
+        duplicates: duplicateURLs.size,
+        canonicalized: canonicalizedURLs.size,
+        bySource,
+        discoveredNotCrawled,
+      },
     });
 
     return {
@@ -232,7 +352,12 @@ export class CrawlEngine {
     seeds: Awaited<ReturnType<DiscoveryService['discoverSeeds']>>,
     renderedSoFar: number,
     _sitemapUrls: Set<string>,
-  ): Promise<{ page: CrawledPage; discovered: string[]; rendered: boolean }> {
+  ): Promise<{
+    page: CrawledPage;
+    discovered: Array<{ url: string; source: DiscoverySource }>;
+    rendered: boolean;
+    externalUrls: string[];
+  }> {
     const host = new URL(entry.normalizedUrl).host;
     await this.limiter.acquire(host);
 
@@ -280,15 +405,51 @@ export class CrawlEngine {
       headers: outcome.headers,
     };
 
-    // `undefined` means there was no robots.txt to judge by, which is not a
-    // refusal. Written as `!robotsDecision?.allowed === false` this read as
-    // `(!undefined) === false`, so a site whose robots.txt could not be fetched
-    // had every link on every page discarded and the crawl ended at its
-    // homepage — the one case where following links is all a crawler has left.
-    const robotsRefused = robotsDecision?.allowed === false;
-    const discovered = extracted && !robotsRefused ? extracted.internalLinks.map((l) => l.absoluteUrl) : [];
+    const discovered: Array<{ url: string; source: DiscoverySource }> = [];
+    const externalUrls: string[] = [];
 
-    return { page, discovered, rendered: outcome.tier === 'rendered' };
+    if (extracted && robotsDecision?.allowed !== false) {
+      const isOriginRoot = isRoot(entry.url);
+      const defaultInternalSource: DiscoverySource = isOriginRoot ? 'homepage' : 'internal_links';
+      const sourceForHtml = outcome.tier === 'rendered' ? 'javascript_dom' : defaultInternalSource;
+
+      // 1. Internal links from <a> tags
+      for (const link of extracted.internalLinks) {
+        discovered.push({ url: link.absoluteUrl, source: sourceForHtml });
+      }
+
+      // 2. Canonical URL (if points to internal target)
+      if (extracted.canonicalUrl) {
+        discovered.push({ url: extracted.canonicalUrl, source: 'canonical' });
+      }
+
+      // 3. Hreflang URLs
+      for (const h of extracted.hreflang) {
+        discovered.push({ url: h.href, source: defaultInternalSource });
+      }
+
+      // 4. Pagination URLs
+      for (const pUrl of extracted.paginationUrls) {
+        discovered.push({ url: pUrl, source: defaultInternalSource });
+      }
+
+      // 5. Structured Data URLs
+      for (const sUrl of extracted.structuredDataUrls) {
+        discovered.push({ url: sUrl, source: defaultInternalSource });
+      }
+
+      // 6. Redirect destination
+      if (outcome.finalUrl && outcome.finalUrl !== entry.url) {
+        discovered.push({ url: outcome.finalUrl, source: defaultInternalSource });
+      }
+
+      // External links for tracking
+      for (const link of extracted.externalLinks) {
+        externalUrls.push(link.absoluteUrl);
+      }
+    }
+
+    return { page, discovered, rendered: outcome.tier === 'rendered', externalUrls };
   }
 
   /** Re-forms the fetch outcome the rules need from what was stored. */

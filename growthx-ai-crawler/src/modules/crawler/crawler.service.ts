@@ -27,6 +27,8 @@ import { computeIndexability } from './indexability';
 import { evaluateSite } from './issue-rules';
 import { findDuplicateClusters } from './frontier/duplicate-clusters';
 import { computeCrawlSummary } from './crawl-summary';
+import { extractUrlsFromJsonLd } from './page-extract';
+import { isInternalTargetUrl } from './url/url-normalizer';
 import * as url from 'url';
 
 /**
@@ -771,7 +773,43 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
         // 7. Enqueue internal links for BFS crawling
         if (fetchRes.statusCode === 200 && fetchRes.html) {
-          await this.discoverInternalLinksAndEnqueue(payload, links.internalLinks, page.id);
+          const allInternalTargets = [...links.internalLinks];
+          const existingTargets = new Set(allInternalTargets.map((l: any) => l.targetUrl));
+
+          // JSON-LD structured data URLs
+          if (htmlData.jsonLd && htmlData.jsonLd.length > 0) {
+            const jsonUrls = extractUrlsFromJsonLd(htmlData.jsonLd, normUrl);
+            for (const jUrl of jsonUrls) {
+              if (!existingTargets.has(jUrl)) {
+                existingTargets.add(jUrl);
+                allInternalTargets.push({ targetUrl: jUrl, anchorText: 'structured_data' });
+              }
+            }
+          }
+
+          // Canonical target
+          if (htmlData.canonicalUrl && isInternalTargetUrl(htmlData.canonicalUrl, normUrl)) {
+            if (!existingTargets.has(htmlData.canonicalUrl)) {
+              existingTargets.add(htmlData.canonicalUrl);
+              allInternalTargets.push({ targetUrl: htmlData.canonicalUrl, anchorText: 'canonical' });
+            }
+          }
+
+          // Pagination links: link[rel="next"], link[rel="prev"]
+          $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
+            const href = $(el).attr('href');
+            if (href) {
+              try {
+                const abs = new URL(href, normUrl).toString();
+                if (isInternalTargetUrl(abs, normUrl) && !existingTargets.has(abs)) {
+                  existingTargets.add(abs);
+                  allInternalTargets.push({ targetUrl: abs, anchorText: 'pagination' });
+                }
+              } catch {}
+            }
+          });
+
+          await this.discoverInternalLinksAndEnqueue(payload, allInternalTargets, page.id);
         }
       } catch (dbErr: any) {
         this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
@@ -1506,7 +1544,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // breakdown printed beside it cannot disagree. The previous scorer lived
     // only on this side and counted every page equally, including the ones we
     // never managed to fetch — which is how a site whose homepage we failed to
-    // read scored 0 out of 100 for defects that were ours, not theirs.
+    const { sitemapUrls: sitemapSet } = await this.loadCrawlState(jobId);
+    const stats = this.jobStats.get(jobId);
+    const sharedStats = await this.readJobStats(jobId);
+    const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
+    const urlsSkipped = sharedStats.urlsSkipped;
+    const robotsBlocked = sharedStats.robotsBlocked;
+    const internalLinksFound = sharedStats.internalLinksFound;
+
     const crawlSummary = computeCrawlSummary({
       pages: pages.map((p) => ({
         url: p.url,
@@ -1522,6 +1567,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         confidence: (i as any).confidence || 'CONFIRMED',
         affectedUrl: i.page?.url || i.affectedUrl,
       })),
+      discoveryMetrics: {
+        urlsDiscovered,
+        urlsQueued: urlsDiscovered,
+        urlsCrawled: totalPages,
+        failed: pages.filter((p) => p.statusCode == null || p.statusCode >= 400).length,
+        duplicates: urlsSkipped,
+      },
     });
     const scoreResult = crawlSummary.health;
     const healthScore = scoreResult.score;
@@ -1593,12 +1645,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const startedAt = job.startedAt || new Date();
     const finishedAt = new Date();
     const durationSeconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
-    const { sitemapUrls: sitemapSet } = await this.loadCrawlState(jobId);
-    const stats = this.jobStats.get(jobId);
-    // Skips, robots refusals and the crawl's own status are counted by
-    // whichever worker did the skipping, so they are read back from the
-    // crawl's shared store rather than from this process's memory.
-    const sharedStats = await this.readJobStats(jobId);
 
     // Determine final crawl status:
     // COMPLETED    — queue fully exhausted, no ceiling hit
@@ -1606,25 +1652,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // PARTIAL      — stall sweep or error finalized a crawl before queue exhaustion
     const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = sharedStats.crawlStatus;
 
-    // Persisted first, in-memory second, and never the page count.
-    //
-    // `jobStats` lives in one process's memory. `completeJob` is reached from
-    // a page-fetch worker, which may be a different process, and is reached at
-    // all after a restart with the map empty. Falling back to `totalPages`
-    // then made the denominator equal the numerator: a crawl that read 6 of 29
-    // pages reported "6 of 6" and 100% coverage, which is not a missing
-    // measurement but a reassuring wrong one. It is the same shape of bug as
-    // an LCP estimated from fetch latency — a number invented to avoid an
-    // empty field, and one that hid this shortfall through several rounds of
-    // looking for it somewhere else.
-    //
-    // `pagesDiscovered` is written to the row before the first fetch, so it
-    // survives all of that. Zero means a crawl that predates the column, and
-    // is left as zero rather than being filled in.
-    const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
-    const urlsSkipped = sharedStats.urlsSkipped;
-    const robotsBlocked = sharedStats.robotsBlocked;
-    const internalLinksFound = sharedStats.internalLinksFound;
     const urlsCrawled = totalPages;
     const urlsEligible = Math.max(urlsDiscovered - urlsSkipped, urlsCrawled);
     // Null, not 100, when there is nothing to divide by. Defaulting an

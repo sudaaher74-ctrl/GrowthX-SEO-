@@ -46,6 +46,22 @@ export interface HealthScoreBreakdown {
   note: string;
 }
 
+export interface DiscoveredNotCrawledUrl {
+  url: string;
+  reason: string;
+}
+
+export interface CrawlDiscoveryMetrics {
+  urlsDiscovered?: number;
+  urlsQueued?: number;
+  urlsCrawled?: number;
+  failed?: number;
+  duplicates?: number;
+  canonicalized?: number;
+  bySource?: Record<string, number>;
+  discoveredNotCrawled?: DiscoveredNotCrawledUrl[];
+}
+
 export interface CrawlSummary {
   pagesCrawled: number;
   /** Fetched with a 2xx. */
@@ -65,6 +81,13 @@ export interface CrawlSummary {
   bySource: Record<string, number>;
   coreWebVitals: CoreWebVitals;
   health: HealthScoreBreakdown;
+  urlsDiscovered: number;
+  urlsQueued: number;
+  urlsCrawled: number;
+  failed: number;
+  duplicates: number;
+  canonicalized: number;
+  discoveredNotCrawled: DiscoveredNotCrawledUrl[];
 }
 
 const SEVERITY_WEIGHTS: Record<string, number> = { CRITICAL: 20, HIGH: 8, MEDIUM: 3, LOW: 1 };
@@ -85,6 +108,7 @@ export function computeCrawlSummary(params: {
   pages: SummaryPage[];
   issues: SummaryIssue[];
   performance?: Array<{ lcpMs?: number | null; inpMs?: number | null; clsScore?: number | null }>;
+  discoveryMetrics?: CrawlDiscoveryMetrics;
 }): CrawlSummary {
   const { pages, issues } = params;
 
@@ -105,7 +129,9 @@ export function computeCrawlSummary(params: {
   const nonIndexable = pages.filter((p) => p.indexability === 'NOT_INDEXABLE').length;
   const indexabilityUnknown = pages.filter((p) => !p.indexability || (p.indexability as Indexability) === 'UNKNOWN').length;
 
-  const bySource: Record<string, number> = {};
+  const bySource: Record<string, number> = {
+    ...(params.discoveryMetrics?.bySource || {}),
+  };
   for (const page of pages) {
     const source = page.discoverySource || 'unknown';
     bySource[source] = (bySource[source] || 0) + 1;
@@ -116,6 +142,14 @@ export function computeCrawlSummary(params: {
   const scorablePages = pages.filter((p) => !p.fetchFailed && !noResponse(p) && !p.blockedSuspected);
   const excludedUrls = new Set(pages.filter((p) => !scorablePages.includes(p)).map((p) => p.url));
   const scorableIssues = issues.filter((i) => !i.affectedUrl || !excludedUrls.has(i.affectedUrl));
+
+  const urlsCrawled = params.discoveryMetrics?.urlsCrawled ?? pages.length;
+  const urlsDiscovered = params.discoveryMetrics?.urlsDiscovered ?? Math.max(pages.length, urlsCrawled);
+  const urlsQueued = params.discoveryMetrics?.urlsQueued ?? urlsDiscovered;
+  const failed = params.discoveryMetrics?.failed ?? (errored + unreachable);
+  const duplicates = params.discoveryMetrics?.duplicates ?? 0;
+  const canonicalized = params.discoveryMetrics?.canonicalized ?? 0;
+  const discoveredNotCrawled = params.discoveryMetrics?.discoveredNotCrawled ?? [];
 
   return {
     pagesCrawled: pages.length,
@@ -133,6 +167,13 @@ export function computeCrawlSummary(params: {
     bySource,
     coreWebVitals: summariseCoreWebVitals(params.performance || []),
     health: computeHealth(scorableIssues, scorablePages.length, pages.length - scorablePages.length),
+    urlsDiscovered,
+    urlsQueued,
+    urlsCrawled,
+    failed,
+    duplicates,
+    canonicalized,
+    discoveredNotCrawled,
   };
 }
 

@@ -35,6 +35,11 @@ async function main() {
   console.log(`  errored            ${report.summary.errored}`);
   console.log(`  blocked (suspect)  ${report.summary.blocked}`);
   console.log(`  unreachable        ${report.summary.unreachable}`);
+  console.log(`URLs Discovered      ${report.summary.urlsDiscovered}`);
+  console.log(`  queued             ${report.summary.urlsQueued}`);
+  console.log(`  duplicates         ${report.summary.duplicates}`);
+  console.log(`  canonicalized      ${report.summary.canonicalized}`);
+  console.log(`  not crawled        ${report.summary.discoveredNotCrawled?.length ?? 0}`);
   console.log(`Indexable            ${report.summary.indexable} (${report.summary.indexablePercent}%)`);
   console.log(`  not indexable      ${report.summary.nonIndexable}`);
   console.log(`  unknown            ${report.summary.indexabilityUnknown}`);
