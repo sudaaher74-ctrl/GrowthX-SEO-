@@ -5,6 +5,8 @@
  * auth and organizations sit at the root, everything else under `/api`.
  */
 
+import type { CrawlSummary } from "./crawl-summary";
+
 /**
  * Which API this build talks to.
  *
@@ -2498,7 +2500,16 @@ export interface CrawlQualityDiagnostics {
     normalizedPenaltyPerUrl: number;
     pagesCrawled: number;
   };
-  summary?: any;
+  /**
+   * The crawl's one computed view, as `computeCrawlSummary` produced it.
+   *
+   * Typed rather than `any` because this is the object every metric on the
+   * Pages and Technical SEO tabs is read from — the coverage denominator, the
+   * per-source URL counts, the not-crawled reasons. `Partial` because a crawl
+   * recorded before a field existed simply does not carry it, and a reader
+   * must handle that rather than assume a zero.
+   */
+  summary?: Partial<CrawlSummary>;
 }
 
 /** Per-channel guidance on a content strategy. Every field is optional: the
