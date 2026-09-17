@@ -22,6 +22,13 @@
  * Set PLAYWRIGHT_EXECUTABLE_PATH when Chromium is not where Playwright expects
  * it; without a browser the run still works, and the JavaScript-DOM source
  * correctly reports nothing rather than zero.
+ *
+ * Two things to know before running it. Booting the full application starts the
+ * rest of the app with it, which can set its own crawls going against third
+ * party sites — so point it at a disposable database and do not leave it
+ * running. And a transient failure fetching the sitemap reduces the crawl to
+ * the start URL alone; the assertions below catch that and fail rather than
+ * reporting a green run that tested nothing.
  */
 import { NestFactory } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
@@ -110,7 +117,19 @@ async function main() {
   const reasonTotal = Object.values(metrics.notCrawledReasons).reduce((a, b) => a + b, 0);
   const published = diagnostics.summary?.bySource || {};
 
+  // A crawl that reached one page satisfies every balance check below without
+  // testing any of them: 1 === 1 + 0, one source, nothing excluded. Silence is
+  // not success, so a degenerate run fails here rather than reporting green.
+  //
+  // The usual cause is the sitemap being unreachable — one ECONNRESET on the
+  // sitemap fetch drops this site from 29 seed URLs to the homepage alone, and
+  // the crawler is right to carry on from it. The run still proves nothing.
+  const sitemapUrls = Number((diagnostics as { sitemapUrlsCount?: number }).sitemapUrlsCount ?? 0);
+  const degenerate = metrics.urlsDiscovered <= 1;
+
   const checks: Array<[string, boolean]> = [
+    ['crawl was not degenerate (more than the start URL was discovered)', !degenerate],
+    ['sitemap contributed seeds, so discovery was actually exercised', sitemapUrls > 0 || metrics.bySource.sitemap > 0],
     ['crawl settled rather than timing out', finished?.status === 'COMPLETED' || finished?.status === 'FAILED'],
     ['inventory balances: crawled + notCrawled === discovered', metrics.urlsCrawled + metrics.notCrawled === metrics.urlsDiscovered],
     ['every uncrawled URL carries a reason', reasonTotal === metrics.notCrawled],
@@ -128,6 +147,13 @@ async function main() {
   for (const [label, passed] of checks) {
     console.log(`${passed ? 'PASS' : 'FAIL'}  ${label}`);
     if (!passed) ok = false;
+  }
+
+  if (degenerate) {
+    console.log(
+      `\nThis run reached ${metrics.urlsDiscovered} URL(s) and proves nothing about the accounting. ` +
+        `Check the log for a sitemap that could not be fetched, and run it again.`,
+    );
   }
 
   await app.close();

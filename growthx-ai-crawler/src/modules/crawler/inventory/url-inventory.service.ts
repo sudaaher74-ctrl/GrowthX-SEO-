@@ -190,11 +190,26 @@ export class UrlInventoryService {
       .catch(() => undefined);
   }
 
-  /** Marks a URL excluded, always with a reason. */
+  /**
+   * Marks a URL excluded, always with a reason.
+   *
+   * Never downgrades a URL that has already been fetched. The queue delivers a
+   * task more than once — a retry, a lapsed lock, or the same URL discovered
+   * again through a second source — and the crawler answers the repeat with
+   * `duplicate`. Applied blindly that rewrote the row of a page that had been
+   * crawled, status code and all, into "discovered, not crawled: duplicate".
+   * A crawl of milquufresh.in ended with 31 pages on disk and only 25 URLs the
+   * inventory would admit to having crawled, which is the same species of
+   * silent miscount this module exists to prevent.
+   *
+   * `crawledAt: null` is the guard rather than the state, because it is the
+   * fact that settles it: a URL with a crawl result is crawled, whatever a
+   * later duplicate task says about it.
+   */
   async markExcluded(crawlJobId: string, normalizedUrl: string, reason: ExclusionReason, detail?: Partial<CrawlOutcome>): Promise<void> {
     await this.prisma.crawlFrontier
       .updateMany({
-        where: { crawlJobId, normalizedUrl },
+        where: { crawlJobId, normalizedUrl, crawledAt: null },
         data: {
           state: reason === 'crawl_error' || reason === 'timeout' || reason === 'fetch_failed' ? 'FAILED' : 'SKIPPED',
           reason,
