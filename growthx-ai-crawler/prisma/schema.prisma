@@ -155,7 +155,7 @@ model Page {
   /// dns | tls | timeout | proxy | http | ssrf | unknown, when no origin
   /// response was obtained at all. statusCode is 0 in that case, which is not
   /// a real HTTP status and so cannot be mistaken for one the site sent.
-  fetchErrorKind  String?
+  fetchErrorKind     String?
   /// INDEXABLE | NOT_INDEXABLE | UNKNOWN. UNKNOWN is a real answer — a signal
   /// we could not read is not a signal that said no — and renders grey.
   indexability       String       @default("UNKNOWN")
@@ -3304,14 +3304,48 @@ model CrawlFrontier {
   /// PENDING | IN_PROGRESS | DONE | SKIPPED | FAILED
   state           String    @default("PENDING")
   depth           Int       @default(0)
-  /// sitemap | link | bundle | seed | robots
+  /// sitemap | link | bundle | seed | robots. The source that found this URL
+  /// first; `sources` carries every source that has since found it too.
   discoverySource String    @default("link")
+  /// Every source that discovered this URL, in the order they found it.
+  ///
+  /// A URL in both the sitemap and a page's navigation is one URL with two
+  /// sources, not two URLs. Keeping the list is what lets the source breakdown
+  /// report unique URLs per source and the overlap between them, instead of
+  /// summing per-source tallies into a total larger than the site.
+  sources         String[]  @default([])
   /// The page this URL was first found on, for orphan and depth analysis.
   sourceUrl       String?
-  /// Why a SKIPPED or FAILED URL is not being fetched.
+  /// Why a SKIPPED or FAILED URL is not being fetched. Surfaced to the UI as
+  /// the URL's exclusion reason: queued | robots_blocked | duplicate |
+  /// canonicalized | crawl_budget_exceeded | invalid_url | out_of_scope |
+  /// unsupported_content_type | crawl_error | timeout | fetch_failed |
+  /// queue_failed | skipped_by_configuration.
   reason          String?
+  /// The response this URL produced, once it was fetched. Null while it has
+  /// not been, which is different from a 0 (fetched, no origin response).
+  httpStatus      Int?
+  contentType     String?
+  /// INDEXABLE | NOT_INDEXABLE | UNKNOWN, decided per URL after the fetch.
+  /// Never inferred from the status code alone.
+  indexability    String?
+  /// The canonical this URL declared. A URL that points elsewhere stays in the
+  /// inventory under its own spelling; it is never replaced by its canonical.
+  canonicalUrl    String?
+  /// The robots.txt verdict, recorded even when it is "no". A URL excluded by
+  /// robots stays discovered and visible with its reason.
+  robotsAllowed   Boolean?
+  /// True when the render tier executed this page's JavaScript. False means it
+  /// was not rendered, which is not the same as having no JS-only links.
+  rendered        Boolean   @default(false)
+  /// Where a redirect sent us. Both this URL and its target stay in the
+  /// inventory.
+  redirectTarget  String?
   attempts        Int       @default(0)
   claimedAt       DateTime?
+  discoveredAt    DateTime  @default(now())
+  queuedAt        DateTime?
+  crawledAt       DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   crawlJob        CrawlJob  @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
@@ -3319,4 +3353,5 @@ model CrawlFrontier {
   @@unique([crawlJobId, normalizedUrl])
   @@index([crawlJobId, state])
   @@index([crawlJobId, state, depth])
+  @@index([crawlJobId, discoverySource])
 }

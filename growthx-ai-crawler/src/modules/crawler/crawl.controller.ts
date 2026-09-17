@@ -14,6 +14,7 @@ import { calculateHealthScore, HealthScoreCalculator } from '../issues/health-sc
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VerificationEngineService } from './verification-engine.service';
+import { UrlInventoryService } from './inventory/url-inventory.service';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -31,6 +32,7 @@ export class CrawlController {
     private readonly schedulerService: SchedulerService,
     private readonly orgContext: OrgContextService,
     private readonly verificationEngine: VerificationEngineService,
+    private readonly urlInventory: UrlInventoryService,
   ) {}
 
   /**
@@ -427,6 +429,102 @@ export class CrawlController {
     ]);
 
     return { data: pages, meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } };
+  }
+
+  /**
+   * Every URL this crawl knows about, and what became of each one.
+   *
+   * The dashboard's totals are sums over these rows, so a reader who does not
+   * believe a number can page through the URLs behind it. That is the point of
+   * the endpoint: the old surface could report "32 of 32, 100%" with no way to
+   * ask which 32, and a coverage figure nobody can audit is a claim rather than
+   * a measurement.
+   */
+  @Get('crawls/:id/urls')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'The crawl URL inventory: every discovered URL, its sources and its outcome' })
+  @ApiParam({ name: 'id', description: 'Crawl Job ID' })
+  @ApiQuery({ name: 'page', required: false, type: 'number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: 'number', example: 50 })
+  @ApiQuery({ name: 'state', required: false, description: 'PENDING | IN_PROGRESS | DONE | SKIPPED | FAILED' })
+  @ApiQuery({ name: 'source', required: false, description: 'sitemap | internal_link | javascript_dom | seed | ...' })
+  @ApiQuery({ name: 'reason', required: false, description: 'Exclusion reason, e.g. robots_blocked' })
+  async getCrawlUrls(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+    @Query('state') state?: string,
+    @Query('source') source?: string,
+    @Query('reason') reason?: string,
+  ) {
+    await this.crawlJobForCaller(req, id);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+
+    const where: any = { crawlJobId: id };
+    if (state) where.state = state.toUpperCase();
+    if (source) where.sources = { has: source };
+    if (reason) where.reason = reason;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.crawlFrontier.findMany({
+        where,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        orderBy: [{ discoveredAt: 'asc' }],
+        select: {
+          url: true,
+          normalizedUrl: true,
+          state: true,
+          reason: true,
+          sources: true,
+          discoverySource: true,
+          sourceUrl: true,
+          httpStatus: true,
+          contentType: true,
+          indexability: true,
+          canonicalUrl: true,
+          redirectTarget: true,
+          robotsAllowed: true,
+          rendered: true,
+          depth: true,
+          attempts: true,
+          discoveredAt: true,
+          queuedAt: true,
+          crawledAt: true,
+        },
+      }),
+      this.prisma.crawlFrontier.count({ where }),
+    ]);
+
+    return {
+      data: rows.map((row) => ({
+        ...row,
+        // A row written before `sources` existed still knows the one source it
+        // was created with.
+        sources: row.sources.length > 0 ? row.sources : [row.discoverySource],
+        crawlStatus: row.state === 'DONE' ? 'crawled' : row.state === 'FAILED' ? 'failed' : row.state === 'SKIPPED' ? 'excluded' : 'not_crawled',
+        // Stored on `reason`; named for what it means to a reader.
+        exclusionReason: row.state === 'DONE' ? null : row.reason || 'queued',
+      })),
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    };
+  }
+
+  @Get('crawls/:id/urls/reconciliation')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Crawl reconciliation: discovered, crawled and not-crawled with reasons, which must balance' })
+  @ApiParam({ name: 'id', description: 'Crawl Job ID' })
+  async getCrawlReconciliation(@Req() req: any, @Param('id') id: string) {
+    await this.crawlJobForCaller(req, id);
+    const metrics = await this.urlInventory.metrics(id);
+    return {
+      ...metrics,
+      // Stated rather than assumed, so a caller can assert it.
+      balances: metrics.urlsCrawled + metrics.notCrawled === metrics.urlsDiscovered,
+      coveragePercent: metrics.urlsDiscovered > 0 ? Math.round((metrics.urlsCrawled / metrics.urlsDiscovered) * 1000) / 10 : null,
+    };
   }
 
   @Get('crawls/:id/graph')

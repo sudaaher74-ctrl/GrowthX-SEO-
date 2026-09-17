@@ -30,6 +30,13 @@ function makeService(overrides: Partial<Record<string, any>> = {}): CrawlerServi
     issueEngine: {},
     graphService: {},
     crawlerGateway: {},
+    inventory: {
+      record: jest.fn(async () => ({ added: 0, merged: 0, invalid: 0 })),
+      markQueued: jest.fn(async () => undefined),
+      markCrawled: jest.fn(async () => undefined),
+      markExcluded: jest.fn(async () => undefined),
+      metrics: jest.fn(async () => null),
+    },
     entitlements: {},
     ...overrides,
   };
@@ -53,6 +60,7 @@ function makeService(overrides: Partial<Record<string, any>> = {}): CrawlerServi
     deps.issueEngine as any,
     deps.graphService as any,
     deps.crawlerGateway as any,
+    deps.inventory as any,
   );
 }
 

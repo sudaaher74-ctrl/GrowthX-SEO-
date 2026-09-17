@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlController } from './crawl.controller';
+import { UrlInventoryService } from './inventory/url-inventory.service';
 import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
 import { HistoryService } from '../history/history.service';
@@ -59,6 +60,7 @@ describe('CrawlController — crawl history', () => {
         // went unnoticed: CI does not run the backend suite.
         { provide: VerificationEngineService, useValue: {} },
         { provide: FixPreviewService, useValue: {} },
+        { provide: UrlInventoryService, useValue: {} },
       ],
     }).compile();
 

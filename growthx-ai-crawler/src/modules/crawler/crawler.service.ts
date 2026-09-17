@@ -27,6 +27,7 @@ import { computeIndexability } from './indexability';
 import { evaluateSite } from './issue-rules';
 import { findDuplicateClusters } from './frontier/duplicate-clusters';
 import { computeCrawlSummary } from './crawl-summary';
+import { UrlInventoryService } from './inventory/url-inventory.service';
 import { extractUrlsFromJsonLd } from './page-extract';
 import { isInternalTargetUrl } from './url/url-normalizer';
 import * as url from 'url';
@@ -130,7 +131,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     private readonly performanceService: PerformanceService,
     private readonly issueEngine: IssueEngineService,
     private readonly graphService: GraphService,
-    private readonly crawlerGateway: CrawlerGateway,) {}
+    private readonly crawlerGateway: CrawlerGateway,
+    private readonly inventory: UrlInventoryService,) {}
 
   /**
    * Initiates a new crawl job for a verified website
@@ -326,7 +328,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
     const seedUrls = new Set<string>();
     const sitemapSet = new Set<string>();
+    const discoveredUrls: Array<{ url: string; normalizedUrl: string; source: string; foundIn?: string }> = [];
     seedUrls.add(this.normalizeUrl(payload.startUrl));
+    discoveredUrls.push({
+      url: payload.startUrl,
+      normalizedUrl: this.normalizeUrl(payload.startUrl),
+      source: 'seed',
+    });
 
     const robotsRules = await this.robots.fetchRobotsRules(payload.domain);
     const delayMs = robotsRules.crawlDelayMs || payload.rateLimitDelayMs || 500;
@@ -345,6 +353,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       sitemapFindings = discovered.findings;
 
       for (const found of discovered.urls) {
+        // Recorded for every source, `seed` included: the start URL is a
+        // discovered URL like any other, and leaving it out of the inventory is
+        // how a denominator starts disagreeing with the rows beneath it.
+        discoveredUrls.push(found);
         if (found.source === 'seed') continue;
         seedUrls.add(found.normalizedUrl);
         if (found.source === 'sitemap') sitemapSet.add(found.normalizedUrl);
@@ -369,6 +381,27 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // workers that do not share this process's memory, and by this process
     // again after a restart.
     await this.saveCrawlState(payload.jobId, { sitemapUrls: sitemapSet, robots: discoveredRobots, sitemapFindings });
+
+    // The URL inventory, written before anything is fetched.
+    //
+    // `discoveredUrls` below is not the seed set: it is every URL any source
+    // named, each with the sources that named it, so a URL in both the sitemap
+    // and the homepage's navigation is one row with two sources. The count of
+    // rows is what "discovered" means from here on, and it keeps growing as
+    // links are found — which is the whole of the bug this replaces. The old
+    // path wrote the seed count into `pagesDiscovered` once, here, and never
+    // touched it again, so a URL found in a link was crawled without ever
+    // having been discovered and coverage could not come out as anything but
+    // 100%.
+    await this.inventory
+      .record(
+        payload.jobId,
+        discoveredUrls.map((d) => ({ url: d.url, source: d.source, sourceUrl: d.foundIn })),
+      )
+      .catch((err) => {
+        this.logger.warn(`[JOB ${payload.jobId}] Could not write the seed inventory: ${(err as Error).message}`);
+        return { added: 0, merged: 0, invalid: 0 };
+      });
 
     // Update urlsDiscovered stat with seed count
     const stats = this.jobStats.get(payload.jobId);
@@ -407,7 +440,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           pageLimit: payload.pageLimit,
         });
       }
-      await this.queue.bulkAddPageFetchTasks(seedPayloads, 0);
+      try {
+        await this.queue.bulkAddPageFetchTasks(seedPayloads, 0);
+        await this.inventory.markQueued(payload.jobId, [...seedUrls]);
+      } catch (err) {
+        // A URL that never reached the queue is not a URL that disappeared.
+        // It stays in the inventory, marked with why, so the reconciliation
+        // still balances and the gap is visible rather than inferred.
+        this.logger.error(`[JOB ${payload.jobId}] Seed enqueue failed; marking ${seedUrls.size} URL(s) queue_failed.`, err);
+        for (const seed of seedUrls) {
+          await this.inventory.markExcluded(payload.jobId, seed, 'queue_failed');
+        }
+        throw err;
+      }
     } 
     // Fallback: Concurrent In-Memory Queue
     else {
@@ -428,6 +473,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           pageLimit: payload.pageLimit,
         });
       }
+      await this.inventory.markQueued(payload.jobId, [...seedUrls]);
 
       // Each in-flight worker holds a page's HTML — raw and rendered — plus its
       // extraction, so concurrency is a memory multiplier, not just a speed
@@ -522,20 +568,27 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       const normUrl = this.normalizeUrl(payload.targetUrl);
 
+      // Every early return below leaves the URL in the inventory carrying the
+      // reason it was not fetched. Returning without one is what made a
+      // "discovered" URL disappear from the accounts entirely, so that the only
+      // self-consistent coverage the dashboard could print was 100%.
       const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
       if (alreadyVisited) {
         await this.bumpJobStat(payload.jobId, 'urlsSkipped');
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
         return;
       }
       if (limitReached) {
         // Mark the job status as LIMIT_REACHED so the UI shows it correctly
         await this.bumpJobStat(payload.jobId, 'urlsSkipped');
         await this.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
         return;
       }
 
       if (payload.depth > payload.maxDepth) {
         await this.bumpJobStat(payload.jobId, 'urlsSkipped');
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'skipped_by_configuration');
         return;
       }
 
@@ -543,6 +596,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       if (!allowed) {
         await this.bumpJobStat(payload.jobId, 'urlsSkipped');
         await this.bumpJobStat(payload.jobId, 'robotsBlocked');
+        // Excluded, never removed: a URL robots.txt forbids is still a URL the
+        // site published, and hiding it makes the sitemap and the crawl
+        // disagree with no way to see why.
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'robots_blocked', { robotsAllowed: false });
         return;
       }
 
@@ -582,6 +639,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // finishes the job lives in the finally block below, so returning
         // early still decrements and still completes the crawl.
         this.logger.debug(`[JOB ${payload.jobId}] Skipping ${normUrl}: ${fetchRes.contentType} is not a page.`);
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'unsupported_content_type', {
+          httpStatus: fetchRes.statusCode,
+        });
         return;
 
       }
@@ -690,6 +750,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             contentHash: content.contentHash,
             simHash: content.simHash || undefined,
           },
+        });
+
+        // The inventory's copy of the outcome. A 301 and a 404 are both crawl
+        // results recorded against the URL that produced them; neither removes
+        // the URL, and a canonical pointing elsewhere does not replace it.
+        await this.inventory.markCrawled(payload.jobId, normUrl, {
+          httpStatus: fetchRes.statusCode,
+          contentType: fetchRes.contentType,
+          indexability: indexability.indexability,
+          canonicalUrl: htmlData.canonicalUrl,
+          robotsAllowed: robotsDecision?.allowed ?? true,
+          rendered: outcome.tier === 'rendered',
+          redirectTarget: fetchRes.finalUrl !== normUrl ? fetchRes.finalUrl : null,
         });
 
         const updatedJob = await this.prisma.crawlJob.update({
@@ -809,7 +882,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             }
           });
 
-          await this.discoverInternalLinksAndEnqueue(payload, allInternalTargets, page.id);
+          // Which of these links exist only after JavaScript ran.
+          //
+          // The render tier already fetches both bodies, but every link it
+          // found was attributed to `link` regardless, so the "JavaScript DOM"
+          // row on the dashboard could only ever be 0 — including on a site
+          // like milquufresh.in, whose served HTML is a 2KB Vite shell with no
+          // anchors at all and whose entire navigation is JS-only. Reporting 0
+          // there is not a small inaccuracy: it says the crawler checked and
+          // found nothing, when in fact everything it found came from exactly
+          // that source.
+          const jsOnlyTargets = this.linksOnlyInRenderedDom(outcome, normUrl);
+          await this.discoverInternalLinksAndEnqueue(payload, allInternalTargets, page.id, jsOnlyTargets);
         }
       } catch (dbErr: any) {
         this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
@@ -1119,7 +1203,38 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Enqueues discovered internal links for BFS crawling
    */
-  private async discoverInternalLinksAndEnqueue(payload: PageFetchPayload, internalLinks: any[], sourcePageId: string): Promise<void> {
+  /**
+   * The internal links that appear in the rendered DOM and not in the bytes the
+   * origin served.
+   *
+   * Returned as a set of normalized URLs so the inventory can credit them to
+   * `javascript_dom`. An empty set when the page was never rendered, which is
+   * the honest answer: no render means no evidence either way, not zero.
+   */
+  private linksOnlyInRenderedDom(outcome: { rawHtml?: string; renderedHtml?: string; tier?: string }, pageUrl: string): Set<string> {
+    const jsOnly = new Set<string>();
+    if (outcome.tier !== 'rendered' || !outcome.renderedHtml) return jsOnly;
+
+    try {
+      const rawLinks = new Set(
+        this.discovery.extractLinks(outcome.rawHtml || '', pageUrl).map((l) => l.normalizedUrl),
+      );
+      for (const link of this.discovery.extractLinks(outcome.renderedHtml, pageUrl)) {
+        if (!rawLinks.has(link.normalizedUrl)) jsOnly.add(link.normalizedUrl);
+      }
+    } catch {
+      // Extraction is best-effort; a parse failure must not lose the links
+      // themselves, which are enqueued by the caller either way.
+    }
+    return jsOnly;
+  }
+
+  private async discoverInternalLinksAndEnqueue(
+    payload: PageFetchPayload,
+    internalLinks: any[],
+    sourcePageId: string,
+    jsOnlyTargets: Set<string> = new Set(),
+  ): Promise<void> {
     // Collect all eligible BFS links first, then bulk-enqueue them atomically.
     // Enqueueing one-by-one while workers are running creates the same race as
     // the seed URL loop: a worker that finishes between two enqueue calls can
@@ -1163,7 +1278,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (internalLinks.length > 0) {
+      // `internalLinksFound` counts link *events* — every anchor on every page.
+      // It is not a URL count and must never be presented as one: a nav menu
+      // repeated across 32 pages is 32 events over a handful of URLs. The
+      // inventory below is where the unique URLs go.
       await this.bumpJobStat(payload.jobId, 'internalLinksFound', internalLinks.length);
+      await this.inventory
+        .record(
+          payload.jobId,
+          internalLinks.map((link) => {
+            const normalized = this.normalizeUrl(link.targetUrl);
+            return {
+              url: normalized,
+              source: jsOnlyTargets.has(normalized) ? 'javascript_dom' : 'internal_link',
+              sourceUrl: payload.targetUrl,
+              depth: payload.depth + 1,
+            };
+          }),
+        )
+        .catch(() => undefined);
     }
 
     if (newPayloads.length === 0) return;
@@ -1171,11 +1304,20 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     if (this.queue.pageFetchQueue) {
       // Bulk-enqueue: pre-increments by newPayloads.length atomically,
       // then commits all jobs to Redis in one pipeline.
-      await this.queue.bulkAddPageFetchTasks(newPayloads, 0);
+      try {
+        await this.queue.bulkAddPageFetchTasks(newPayloads, 0);
+        await this.inventory.markQueued(payload.jobId, newPayloads.map((task) => task.targetUrl));
+      } catch (err) {
+        this.logger.error(`[JOB ${payload.jobId}] Link enqueue failed; marking ${newPayloads.length} URL(s) queue_failed.`, err);
+        for (const task of newPayloads) {
+          await this.inventory.markExcluded(payload.jobId, task.targetUrl, 'queue_failed');
+        }
+      }
     } else {
       const localQueue = this.localJobQueues.get(payload.jobId);
       if (localQueue) {
         localQueue.push(...newPayloads);
+        await this.inventory.markQueued(payload.jobId, newPayloads.map((task) => task.targetUrl));
       }
     }
   }
@@ -1547,10 +1689,33 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const { sitemapUrls: sitemapSet } = await this.loadCrawlState(jobId);
     const stats = this.jobStats.get(jobId);
     const sharedStats = await this.readJobStats(jobId);
-    const urlsDiscovered = job.pagesDiscovered || stats?.urlsDiscovered || 0;
+    // Read off the inventory rows, not off a counter.
+    //
+    // `job.pagesDiscovered` is written once, at seed time, so it cannot include
+    // a URL found in a link while the crawl ran. Using it as the denominator
+    // meant discovered could never exceed crawled, and the coverage card could
+    // only ever print 100%. The inventory has one row per unique URL whatever
+    // became of it, so the figure below is the number of URLs this crawl knows
+    // about, and it reconciles with the table the UI renders beneath it.
+    const inventoryMetrics = await this.inventory.metrics(jobId).catch((err) => {
+      this.logger.warn(`[JOB ${jobId}] Inventory metrics unavailable: ${(err as Error).message}`);
+      return null;
+    });
+
     const urlsSkipped = sharedStats.urlsSkipped;
     const robotsBlocked = sharedStats.robotsBlocked;
     const internalLinksFound = sharedStats.internalLinksFound;
+
+    // The fallback is the old seed count, which is a floor rather than a
+    // pretence: without the inventory we genuinely do not know how many URLs
+    // were found, and the crawled total is the least it can be.
+    const urlsDiscovered = inventoryMetrics
+      ? Math.max(inventoryMetrics.urlsDiscovered, totalPages)
+      : Math.max(job.pagesDiscovered || stats?.urlsDiscovered || 0, totalPages);
+
+    // `internalLinksFound` is an event count and stays one. The URL count per
+    // source comes from the inventory, where one URL found five times is one.
+    const discoveryEvents = { internal_link: internalLinksFound };
 
     const crawlSummary = computeCrawlSummary({
       pages: pages.map((p) => ({
@@ -1569,10 +1734,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       })),
       discoveryMetrics: {
         urlsDiscovered,
-        urlsQueued: urlsDiscovered,
+        urlsQueued: inventoryMetrics?.urlsQueued ?? urlsDiscovered,
         urlsCrawled: totalPages,
-        failed: pages.filter((p) => p.statusCode == null || p.statusCode >= 400).length,
-        duplicates: urlsSkipped,
+        failed: inventoryMetrics?.failed ?? pages.filter((p) => p.statusCode == null || p.statusCode >= 400).length,
+        duplicates: inventoryMetrics?.duplicates ?? urlsSkipped,
+        canonicalized: inventoryMetrics?.canonicalized,
+        bySource: inventoryMetrics?.bySource,
+        discoveryEvents,
+        multiSourceUrls: inventoryMetrics?.multiSourceUrls,
+        renderedPages: inventoryMetrics?.renderedPages,
+        // Whether the render tier ran at all, which the UI needs in order to
+        // say "Not scanned" instead of printing a zero it cannot stand behind.
+        renderingEnabled: (await this.rendersUsed(jobId)) > 0 || (inventoryMetrics?.renderedPages ?? 0) > 0,
+        discoveredNotCrawled: inventoryMetrics?.discoveredNotCrawled,
       },
     });
     const scoreResult = crawlSummary.health;
@@ -1678,6 +1852,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       internalLinksFound,
       crawlCoveragePercent,
       crawlStatus,
+      /**
+       * The crawl's books, as rows rather than as counters. `urlsCrawled` plus
+       * `notCrawled` equals `urlsDiscovered` by construction, and every URL in
+       * `notCrawledReasons` carries the reason it was not fetched.
+       */
+      inventory: inventoryMetrics,
+      internalLinkEvents: internalLinksFound,
       totalFindings,
       uniqueIssuesCount,
       resolvedIssuesCount,
@@ -1693,6 +1874,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         finishedAt,
         healthScore,
         pagesCrawled: totalPages,
+        // Corrected to what the crawl actually found. Left at the seed count it
+        // was written with at startup, this understates discovery by every URL
+        // reached through a link.
+        pagesDiscovered: urlsDiscovered,
         issuesFound: totalFindings,
         uniqueIssuesCount,
         resolvedIssuesCount,
