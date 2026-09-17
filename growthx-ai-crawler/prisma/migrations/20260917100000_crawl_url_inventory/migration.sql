@@ -32,5 +32,11 @@ ALTER TABLE "CrawlFrontier" ADD COLUMN "crawledAt" TIMESTAMP(3);
 -- Backfill: the source a row was created with is its first source.
 UPDATE "CrawlFrontier" SET "sources" = ARRAY["discoverySource"] WHERE cardinality("sources") = 0;
 
+-- And its real discovery time is when the row was written, not when this
+-- migration ran. The column default would stamp every historical URL with the
+-- moment of the deploy, which is a timestamp nothing observed -- the same kind
+-- of plausible-looking figure this whole change exists to remove.
+UPDATE "CrawlFrontier" SET "discoveredAt" = "createdAt";
+
 -- The source breakdown groups by source over a single crawl.
 CREATE INDEX "CrawlFrontier_crawlJobId_discoverySource_idx" ON "CrawlFrontier"("crawlJobId", "discoverySource");
