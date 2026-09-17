@@ -66,6 +66,13 @@ function makeService(overrides: Record<string, any> = {}): { service: CrawlerSer
     issueEngine: { evaluateAndPersistIssues: jest.fn(async () => []) },
     graphService: {},
     crawlerGateway: { broadcastProgress: jest.fn() },
+    inventory: {
+      record: jest.fn(async () => ({ added: 0, merged: 0, invalid: 0 })),
+      markQueued: jest.fn(async () => undefined),
+      markCrawled: jest.fn(async () => undefined),
+      markExcluded: jest.fn(async () => undefined),
+      metrics: jest.fn(async () => null),
+    },
     ...overrides,
   };
 
@@ -73,7 +80,7 @@ function makeService(overrides: Record<string, any> = {}): { service: CrawlerSer
     deps.prisma, deps.storage, deps.queue, deps.robots, deps.sitemap, deps.fetcher,
     deps.fetchSvc, deps.discovery, deps.metrics, deps.htmlExtractor, deps.imageAnalyzer,
     deps.linkAnalyzer, deps.schemaValidator, deps.contentAnalyzer, deps.performanceService,
-    deps.issueEngine, deps.graphService, deps.crawlerGateway,
+    deps.issueEngine, deps.graphService, deps.crawlerGateway, deps.inventory,
   );
   return { service, upserts, issues };
 }

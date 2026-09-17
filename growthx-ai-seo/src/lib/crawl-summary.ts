@@ -49,6 +49,8 @@ export interface HealthScoreBreakdown {
 export interface DiscoveredNotCrawledUrl {
   url: string;
   reason: string;
+  /** Every source that found this URL, so the row explains itself. */
+  sources?: string[];
 }
 
 export interface CrawlDiscoveryMetrics {
@@ -58,7 +60,25 @@ export interface CrawlDiscoveryMetrics {
   failed?: number;
   duplicates?: number;
   canonicalized?: number;
+  /**
+   * Unique URLs attributed to each discovery source. A URL found in both the
+   * sitemap and an internal link counts once under each, so these do not sum
+   * to `urlsDiscovered` — see `multiSourceUrls` for the overlap.
+   */
   bySource?: Record<string, number>;
+  /**
+   * Raw discovery events per source: every anchor on every page, not the
+   * unique URLs behind them. Kept apart from `bySource` because presenting
+   * "1,400 internal links" as "1,400 URLs" is how a source breakdown starts
+   * claiming more URLs than the site has.
+   */
+  discoveryEvents?: Record<string, number>;
+  /** URLs attributed to more than one source, i.e. the double-counted overlap. */
+  multiSourceUrls?: number;
+  /** Pages the render tier actually executed. */
+  renderedPages?: number;
+  /** Whether JavaScript rendering ran at all for this crawl. */
+  renderingEnabled?: boolean;
   discoveredNotCrawled?: DiscoveredNotCrawledUrl[];
 }
 
@@ -84,9 +104,29 @@ export interface CrawlSummary {
   urlsDiscovered: number;
   urlsQueued: number;
   urlsCrawled: number;
+  /** Discovered and never fetched. Never negative. */
+  notCrawled: number;
+  /**
+   * crawled / discovered, or null when nothing was discovered.
+   *
+   * Null rather than 100: a coverage we cannot compute is not a crawl that
+   * covered everything, and defaulting it to complete is what let a truncated
+   * crawl present itself as whole.
+   */
+  coveragePercent: number | null;
   failed: number;
   duplicates: number;
   canonicalized: number;
+  /** Raw per-source discovery events, when the crawler recorded them. */
+  discoveryEvents?: Record<string, number>;
+  /** URLs credited to more than one source. */
+  multiSourceUrls: number;
+  renderedPages: number;
+  /**
+   * False when the render tier never ran. The UI shows "Not scanned" for this,
+   * which is a different claim from "found 0 URLs".
+   */
+  javascriptDomScanned: boolean;
   discoveredNotCrawled: DiscoveredNotCrawledUrl[];
 }
 
@@ -129,12 +169,23 @@ export function computeCrawlSummary(params: {
   const nonIndexable = pages.filter((p) => p.indexability === 'NOT_INDEXABLE').length;
   const indexabilityUnknown = pages.filter((p) => !p.indexability || (p.indexability as Indexability) === 'UNKNOWN').length;
 
-  const bySource: Record<string, number> = {
-    ...(params.discoveryMetrics?.bySource || {}),
-  };
-  for (const page of pages) {
-    const source = page.discoverySource || 'unknown';
-    bySource[source] = (bySource[source] || 0) + 1;
+  // The crawler's own per-source tally wins outright when it has one.
+  //
+  // This used to spread the crawler's tally and then add the pages on top,
+  // which is correct exactly once. The dashboard calls this function a second
+  // time with the stored result of the first call, so every source was counted
+  // twice: milquufresh.in's 29-URL sitemap was published as "Sitemap 58" and
+  // its 3 link-discovered pages as "Internal Links 6". Deriving the tally from
+  // the pages is the fallback for a caller that has no discovery data, not an
+  // increment on top of one that does.
+  const bySource: Record<string, number> = {};
+  if (params.discoveryMetrics?.bySource) {
+    Object.assign(bySource, params.discoveryMetrics.bySource);
+  } else {
+    for (const page of pages) {
+      const source = page.discoverySource || 'unknown';
+      bySource[source] = (bySource[source] || 0) + 1;
+    }
   }
 
   // Pages we could not fetch are excluded from the score rather than scored as
@@ -144,12 +195,32 @@ export function computeCrawlSummary(params: {
   const scorableIssues = issues.filter((i) => !i.affectedUrl || !excludedUrls.has(i.affectedUrl));
 
   const urlsCrawled = params.discoveryMetrics?.urlsCrawled ?? pages.length;
-  const urlsDiscovered = params.discoveryMetrics?.urlsDiscovered ?? Math.max(pages.length, urlsCrawled);
+
+  // A URL we fetched is one we discovered, so the floor is the crawled count —
+  // but only the floor. The old expression was `?? max(pages.length, crawled)`,
+  // which applied even when the crawler *had* reported a discovered total, so
+  // discovered could never exceed crawled and coverage was always 100%. The
+  // clamp now applies to the fallback alone.
+  const reportedDiscovered = params.discoveryMetrics?.urlsDiscovered;
+  const urlsDiscovered =
+    reportedDiscovered === undefined || reportedDiscovered === null
+      ? Math.max(pages.length, urlsCrawled)
+      : Math.max(reportedDiscovered, urlsCrawled);
+
   const urlsQueued = params.discoveryMetrics?.urlsQueued ?? urlsDiscovered;
   const failed = params.discoveryMetrics?.failed ?? (errored + unreachable);
   const duplicates = params.discoveryMetrics?.duplicates ?? 0;
   const canonicalized = params.discoveryMetrics?.canonicalized ?? 0;
   const discoveredNotCrawled = params.discoveryMetrics?.discoveredNotCrawled ?? [];
+
+  const notCrawled = Math.max(0, urlsDiscovered - urlsCrawled);
+  const coveragePercent = urlsDiscovered > 0 ? Math.round((urlsCrawled / urlsDiscovered) * 100) : null;
+
+  // "0 URLs from the DOM" and "the DOM was never read" are different claims.
+  // Only the second is honest when Playwright did not run, so the flag is the
+  // render tier's own answer and falls back to whether any page was rendered.
+  const renderedPages = params.discoveryMetrics?.renderedPages ?? pages.filter((p) => p.jsRequired === true).length;
+  const javascriptDomScanned = params.discoveryMetrics?.renderingEnabled ?? renderedPages > 0;
 
   return {
     pagesCrawled: pages.length,
@@ -170,9 +241,15 @@ export function computeCrawlSummary(params: {
     urlsDiscovered,
     urlsQueued,
     urlsCrawled,
+    notCrawled,
+    coveragePercent,
     failed,
     duplicates,
     canonicalized,
+    discoveryEvents: params.discoveryMetrics?.discoveryEvents,
+    multiSourceUrls: params.discoveryMetrics?.multiSourceUrls ?? 0,
+    renderedPages,
+    javascriptDomScanned,
     discoveredNotCrawled,
   };
 }

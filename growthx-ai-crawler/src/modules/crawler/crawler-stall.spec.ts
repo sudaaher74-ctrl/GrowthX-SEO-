@@ -23,7 +23,7 @@ describe('CrawlerService — stalled job sweep', () => {
     };
 
     // Only the collaborators the sweep touches; the rest are irrelevant here.
-    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = jest.fn(async (id: string) => {
       completed.push(id);
     });
@@ -109,7 +109,7 @@ describe('CrawlerService — a crawl cut short', () => {
         }),
       },
     };
-    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = jest.fn(async () => {});
   });
 

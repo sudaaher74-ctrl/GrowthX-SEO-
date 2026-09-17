@@ -9,6 +9,7 @@ import { BrowserPoolService } from './fetch/browser-pool.service';
 import { FetchService } from './fetch/fetch.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { FrontierService } from './frontier/frontier.service';
+import { UrlInventoryService } from './inventory/url-inventory.service';
 
 @Global()
 @Module({
@@ -24,11 +25,12 @@ import { FrontierService } from './frontier/frontier.service';
     FetchService,
     DiscoveryService,
     FrontierService,
+    UrlInventoryService,
     CrawlerProcessor,
     VerificationEngineService,
   ],
   // CrawlerProcessor is exported so the health endpoint can report whether
   // the BullMQ workers actually started in this process.
-  exports: [CrawlerService, FetcherService, FetchService, DiscoveryService, FrontierService, VerificationEngineService, CrawlerProcessor],
+  exports: [CrawlerService, FetcherService, FetchService, DiscoveryService, FrontierService, UrlInventoryService, VerificationEngineService, CrawlerProcessor],
 })
 export class CrawlerModule {}

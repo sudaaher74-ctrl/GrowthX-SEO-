@@ -27,7 +27,7 @@ describe('CrawlerService — work for finished crawls', () => {
         }),
       },
     };
-    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
   });
 
   const payload = (jobId: string) => ({
@@ -107,7 +107,8 @@ describe('CrawlerService — where the coverage denominator comes from', () => {
   function diagnosticsFor(job: any, statsDiscovered?: number) {
     const service: any = new (CrawlerService as any)(
       { crawlJob: { findUnique: jest.fn(async () => job) } },
-      {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+      {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+      { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null },
     );
     if (statsDiscovered !== undefined) {
       service.jobStats.set(job.id, { urlsDiscovered: statsDiscovered, urlsSkipped: 0, robotsBlocked: 0, internalLinksFound: 0, crawlStatus: 'COMPLETED' });

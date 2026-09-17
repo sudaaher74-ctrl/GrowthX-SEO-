@@ -23,7 +23,7 @@ describe('CrawlerService — a crawl must not finish while URLs are still queued
       crawlJob: { findUnique: jest.fn(async () => ({ id: 'job1', status: 'RUNNING' })) },
     };
 
-    const service: any = new (CrawlerService as any)(prisma, {}, queue, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+    const service: any = new (CrawlerService as any)(prisma, {}, queue, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = overrides.onComplete || jest.fn();
     // The URL itself is beside the point here; every path below settles a task.
     service.markUrlVisited = jest.fn(async () => ({ alreadyVisited: true, limitReached: false }));

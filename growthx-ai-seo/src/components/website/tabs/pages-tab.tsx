@@ -23,7 +23,7 @@ import {
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
-import { computeCrawlSummary } from "@/lib/crawl-summary";
+import { computeCrawlSummary, type CrawlSummary } from "@/lib/crawl-summary";
 import { classifyPageType, toDisplayPageType, DISPLAY_PAGE_TYPES, DisplayPageType } from "@/lib/page-type";
 
 interface PagesTabProps {
@@ -32,6 +32,39 @@ interface PagesTabProps {
   issues: CrawlIssue[];
   historyRuns?: { pagesCrawled: number; issuesFound: number }[];
   onOpenPageDetails?: (page: CrawlPage) => void;
+}
+
+/**
+ * The parts of a crawl's `qualityDiagnostics` this tab reads.
+ *
+ * `inventory` is the crawler's per-URL reconciliation — one row per unique
+ * discovered URL — and is preferred over anything derived from the page list,
+ * because a page row only exists for a URL that was successfully fetched.
+ */
+interface CrawlInventoryMetrics {
+  urlsDiscovered: number;
+  urlsQueued: number;
+  urlsCrawled: number;
+  notCrawled: number;
+  failed: number;
+  duplicates: number;
+  canonicalized: number;
+  renderedPages: number;
+  bySource: Record<string, number>;
+  multiSourceUrls: number;
+  notCrawledReasons: Record<string, number>;
+  discoveredNotCrawled: Array<{ url: string; reason: string }>;
+}
+
+interface CrawlQualityDiagnostics {
+  urlsDiscovered?: number;
+  urlsEligible?: number;
+  pagesCrawled?: number;
+  urlsSkipped?: number;
+  robotsBlocked?: number;
+  crawlStatus?: string;
+  inventory?: CrawlInventoryMetrics | null;
+  summary?: Partial<CrawlSummary> & { discoveryEvents?: Record<string, number> };
 }
 
 export function PagesTab({
@@ -110,6 +143,11 @@ export function PagesTab({
 
   // Every count on this tab comes from the one shared summary, so the Pages
   // tab and the Technical SEO tab can no longer disagree about the same crawl.
+  // The crawler's reconciliation rows, when the crawl recorded them.
+  const diagnostics = crawl?.qualityDiagnostics as CrawlQualityDiagnostics | undefined;
+  const inventory = diagnostics?.inventory;
+  const storedSummary = diagnostics?.summary;
+
   const summary = useMemo(
     () =>
       computeCrawlSummary({
@@ -133,18 +171,26 @@ export function PagesTab({
           inpMs: p.performance?.inpMs ?? null,
           clsScore: p.performance?.clsScore ?? null,
         })),
+        // The crawler's own reconciliation is preferred over anything derived
+        // here. `inventory` is one row per unique discovered URL, so these are
+        // counts of rows rather than of pages, and the coverage denominator is
+        // the URLs the crawl found rather than the pages it managed to fetch.
         discoveryMetrics: {
-          urlsDiscovered: crawl?.qualityDiagnostics?.urlsDiscovered ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsDiscovered,
-          urlsQueued: crawl?.qualityDiagnostics?.urlsEligible ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsQueued,
-          urlsCrawled: crawl?.qualityDiagnostics?.pagesCrawled ?? (crawl?.qualityDiagnostics?.summary as any)?.urlsCrawled,
-          failed: (crawl?.qualityDiagnostics?.summary as any)?.failed,
-          duplicates: crawl?.qualityDiagnostics?.urlsSkipped ?? (crawl?.qualityDiagnostics?.summary as any)?.duplicates,
-          canonicalized: (crawl?.qualityDiagnostics?.summary as any)?.canonicalized,
-          bySource: (crawl?.qualityDiagnostics?.summary as any)?.bySource,
-          discoveredNotCrawled: (crawl?.qualityDiagnostics?.summary as any)?.discoveredNotCrawled,
+          urlsDiscovered: inventory?.urlsDiscovered ?? crawl?.qualityDiagnostics?.urlsDiscovered ?? storedSummary?.urlsDiscovered,
+          urlsQueued: inventory?.urlsQueued ?? crawl?.qualityDiagnostics?.urlsEligible ?? storedSummary?.urlsQueued,
+          urlsCrawled: inventory?.urlsCrawled ?? crawl?.qualityDiagnostics?.pagesCrawled ?? storedSummary?.urlsCrawled,
+          failed: inventory?.failed ?? storedSummary?.failed,
+          duplicates: inventory?.duplicates ?? crawl?.qualityDiagnostics?.urlsSkipped ?? storedSummary?.duplicates,
+          canonicalized: inventory?.canonicalized ?? storedSummary?.canonicalized,
+          bySource: inventory?.bySource ?? storedSummary?.bySource,
+          discoveryEvents: storedSummary?.discoveryEvents,
+          multiSourceUrls: inventory?.multiSourceUrls ?? storedSummary?.multiSourceUrls,
+          renderedPages: inventory?.renderedPages ?? storedSummary?.renderedPages,
+          renderingEnabled: storedSummary?.javascriptDomScanned,
+          discoveredNotCrawled: inventory?.discoveredNotCrawled ?? storedSummary?.discoveredNotCrawled,
         },
       }),
-    [pages, issues, crawl]
+    [pages, issues, crawl, inventory, storedSummary]
   );
 
   const successfulCount = summary.successful;
@@ -158,15 +204,18 @@ export function PagesTab({
   const unknownIndexabilityCount = summary.indexabilityUnknown;
   const indexablePct = summary.indexablePercent;
 
-  const urlsDiscoveredCount = Math.max(
-    pages.length,
-    summary.urlsDiscovered || crawl?.qualityDiagnostics?.urlsDiscovered || 0
-  );
-  const urlsCrawledCount = summary.urlsCrawled || pages.length;
-  const notCrawledCount = Math.max(0, urlsDiscoveredCount - urlsCrawledCount);
-  const crawlCoveragePct = urlsDiscoveredCount > 0
-    ? Math.min(100, Math.round((urlsCrawledCount / urlsDiscoveredCount) * 100))
-    : 100;
+  // Straight from the summary, which already applies the one rule that matters:
+  // a URL we fetched is a URL we discovered, so crawled is the floor for
+  // discovered — but only the floor. Clamping discovered *up* to the page count
+  // here is what forced the denominator to equal the numerator and published
+  // "100% (32/32)" for a crawl that had found more URLs than it fetched.
+  const urlsDiscoveredCount = summary.urlsDiscovered;
+  const urlsCrawledCount = summary.urlsCrawled;
+  const notCrawledCount = summary.notCrawled;
+  const crawlCoveragePct = summary.coveragePercent;
+  // A crawl that did not reach everything it found says so, rather than
+  // rounding itself up to complete.
+  const crawlIsPartial = crawlCoveragePct !== null && crawlCoveragePct < 100;
 
   // Page Type classification across all 10 types
   const getPageType = (page: CrawlPage): DisplayPageType => {
@@ -228,45 +277,86 @@ export function PagesTab({
     ];
   }, [pages]);
 
-  // Crawl Source Breakdown
+  // Crawl Source Breakdown: unique URLs per source, as a share of the URLs that
+  // exist.
+  //
+  // Sources overlap — a URL in the sitemap and in a nav menu is credited to
+  // both — so their counts must not be summed. The old denominator was exactly
+  // that sum, which made each bar a share of a total larger than the site and
+  // let the figures drift from the URL count above them.
   const discoverySourceList = useMemo(() => {
     const raw = summary.bySource || {};
+    const scanned = summary.javascriptDomScanned;
     const sources = [
-      { key: "sitemap", label: "Sitemap", count: raw.sitemap || 0, color: "#3b82f6" },
-      { key: "homepage", label: "Homepage", count: raw.homepage || 0, color: "#06b6d4" },
-      { key: "internal_links", label: "Internal links", count: (raw.internal_links || 0) + (raw.link || 0), color: "#10b981" },
-      { key: "javascript_dom", label: "JavaScript DOM", count: raw.javascript_dom || 0, color: "#8b5cf6" },
-      { key: "canonical", label: "Canonical", count: raw.canonical || 0, color: "#f59e0b" },
-      { key: "other", label: "Other", count: (raw.other || 0) + (raw.unknown || 0) + (raw.seed || 0) + (raw.robots || 0), color: "#64748b" },
+      { key: "sitemap", label: "Sitemap", count: raw.sitemap || 0, color: "#3b82f6", scanned: true },
+      { key: "homepage", label: "Homepage", count: raw.homepage || 0, color: "#06b6d4", scanned: true },
+      {
+        key: "internal_links",
+        label: "Internal links",
+        count: (raw.internal_links || 0) + (raw.internal_link || 0) + (raw.link || 0),
+        color: "#10b981",
+        scanned: true,
+      },
+      {
+        key: "javascript_dom",
+        label: "JavaScript DOM",
+        count: raw.javascript_dom || 0,
+        color: "#8b5cf6",
+        // "0" claims we rendered and found nothing. When the render tier never
+        // ran we have no such evidence, and the card says so instead.
+        scanned,
+      },
+      { key: "canonical", label: "Canonical", count: raw.canonical || 0, color: "#f59e0b", scanned: true },
+      { key: "redirect", label: "Redirects", count: raw.redirect || 0, color: "var(--color-series-7)", scanned: true },
+      {
+        key: "other",
+        label: "Other",
+        count: (raw.other || 0) + (raw.unknown || 0) + (raw.seed || 0) + (raw.robots || 0) + (raw.bundle || 0),
+        color: "#64748b",
+        scanned: true,
+      },
     ];
-    const total = sources.reduce((acc, s) => acc + s.count, 0) || 1;
+    const denominator = summary.urlsDiscovered || 1;
     return sources.map((s) => ({
       ...s,
-      percentage: Math.round((s.count / total) * 100),
+      percentage: Math.min(100, Math.round((s.count / denominator) * 100)),
     }));
-  }, [summary.bySource]);
+  }, [summary.bySource, summary.urlsDiscovered, summary.javascriptDomScanned]);
 
-  // URLs Discovered But Not Crawled items
-  const discoveredNotCrawledItems = useMemo(() => {
-    if (summary.discoveredNotCrawled && summary.discoveredNotCrawled.length > 0) {
-      return summary.discoveredNotCrawled;
+  /**
+   * The URLs this crawl discovered and did not fetch, each with the reason the
+   * crawler recorded for it.
+   *
+   * Only real rows. The previous version, when it had no per-URL data, invented
+   * summary lines out of whatever counters were to hand — "(5 duplicate URL
+   * variations skipped)" as a URL, robots and crawl-limit lines assembled from
+   * unrelated totals — so a reader could not tell a measured reason from a
+   * plausible-looking one. An empty list is the honest answer when the crawl
+   * did not record them.
+   */
+  const discoveredNotCrawledItems = useMemo(
+    () => summary.discoveredNotCrawled ?? [],
+    [summary.discoveredNotCrawled]
+  );
+
+  /** Reason -> count, straight from the crawler's inventory. */
+  const notCrawledReasonCounts = useMemo(() => {
+    if (inventory?.notCrawledReasons) return inventory.notCrawledReasons;
+    const counts: Record<string, number> = {};
+    for (const item of discoveredNotCrawledItems) {
+      counts[item.reason] = (counts[item.reason] || 0) + 1;
     }
-    const items: Array<{ url: string; reason: string }> = [];
-    if (summary.duplicates > 0) {
-      items.push({ url: `(${summary.duplicates} duplicate URL variations skipped)`, reason: "duplicate" });
-    }
-    if (summary.canonicalized > 0) {
-      items.push({ url: `(${summary.canonicalized} URLs pointing to canonical target)`, reason: "already crawled" });
-    }
-    const robotsBlocked = (crawl?.qualityDiagnostics as any)?.robotsBlocked || 0;
-    if (robotsBlocked > 0) {
-      items.push({ url: `(${robotsBlocked} URLs blocked by robots.txt rules)`, reason: "robots.txt" });
-    }
-    if (crawl?.qualityDiagnostics?.crawlStatus === "LIMIT_REACHED" && notCrawledCount > 0) {
-      items.push({ url: `(${notCrawledCount} URLs queued beyond max crawl limit)`, reason: "crawl limit" });
-    }
-    return items;
-  }, [summary.discoveredNotCrawled, summary.duplicates, summary.canonicalized, crawl, notCrawledCount]);
+    return counts;
+  }, [inventory, discoveredNotCrawledItems]);
+
+  /** One pill per reason the crawl recorded, plus "ALL". */
+  const notCrawledReasonPills = useMemo(() => {
+    const entries = Object.entries(notCrawledReasonCounts).sort((a, b) => b[1] - a[1]);
+    return [
+      { reason: "ALL", count: notCrawledCount || null },
+      ...entries.map(([reason, count]) => ({ reason, count })),
+    ];
+  }, [notCrawledReasonCounts, notCrawledCount]);
 
   const filteredNotCrawled = useMemo(() => {
     if (notCrawledReasonFilter === "ALL") return discoveredNotCrawledItems;
@@ -501,14 +591,25 @@ export function PagesTab({
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {crawlCoveragePct}%
+                {/* Never a number we cannot derive. "100%" was the old default
+                    for a crawl with nothing to divide by, which is the one
+                    reading the data can never support. */}
+                {crawlCoveragePct === null ? "Unknown" : `${crawlCoveragePct}%`}
               </span>
-              <span className="rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 px-2 py-0.5 text-xs font-bold">
-                {urlsCrawledCount}/{urlsDiscoveredCount}
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                crawlIsPartial
+                  ? "bg-warning-50 text-warning-700"
+                  : "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400"
+              }`}>
+                {crawlCoveragePct === null ? "No data" : `${urlsCrawledCount}/${urlsDiscoveredCount}`}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Coverage of discovered URL frontier.
+              {crawlCoveragePct === null
+                ? "No URLs were discovered, so coverage cannot be measured."
+                : crawlIsPartial
+                  ? `Partial crawl — ${notCrawledCount.toLocaleString()} discovered ${notCrawledCount === 1 ? "URL was" : "URLs were"} not fetched.`
+                  : "Every discovered URL was fetched."}
             </p>
           </div>
 
@@ -599,7 +700,9 @@ export function PagesTab({
                 Crawl-Source Breakdown
               </h3>
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                Multi-Source
+                {summary.multiSourceUrls > 0
+                  ? `${summary.multiSourceUrls} multi-source`
+                  : "Unique URLs"}
               </span>
             </div>
             <div className="space-y-2 py-1">
@@ -610,15 +713,21 @@ export function PagesTab({
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: src.color }} />
                       {src.label}
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                      <b className="text-slate-900 dark:text-white">{src.count}</b> ({src.percentage}%)
-                    </span>
+                    {src.scanned ? (
+                      <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                        <b className="text-slate-900 dark:text-white">{src.count}</b> ({src.percentage}%)
+                      </span>
+                    ) : (
+                      <span className="text-[11px] italic text-brand-400">Not scanned</span>
+                    )}
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${src.percentage}%`, backgroundColor: src.color }}
-                    />
+                    {src.scanned && (
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${src.percentage}%`, backgroundColor: src.color }}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -660,18 +769,12 @@ export function PagesTab({
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1">
                 Filter Reason:
               </span>
-              {[
-                "ALL",
-                "crawl limit",
-                "duplicate",
-                "external",
-                "blocked",
-                "robots.txt",
-                "noindex",
-                "invalid URL",
-                "already crawled",
-                "error",
-              ].map((reason) => (
+              {/* Derived from the reasons the crawler actually recorded, with
+                  their counts. The previous list was a fixed set of labels
+                  ("external", "noindex", "blocked") that the crawler never
+                  writes, so most pills filtered to nothing and the vocabulary
+                  on screen bore no relation to the data behind it. */}
+              {notCrawledReasonPills.map(({ reason, count }) => (
                 <button
                   key={reason}
                   type="button"
@@ -683,7 +786,8 @@ export function PagesTab({
                       : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   )}
                 >
-                  {reason}
+                  {reason === "ALL" ? "All" : reason.replace(/_/g, " ")}
+                  {count !== null && <span className="ml-1 opacity-70">{count}</span>}
                 </button>
               ))}
             </div>
@@ -691,7 +795,11 @@ export function PagesTab({
             {/* List / Table of Not Crawled URLs */}
             {filteredNotCrawled.length === 0 ? (
               <div className="py-6 text-center text-xs text-slate-400">
-                No URLs match the selected filter.
+                {notCrawledCount === 0
+                  ? "Every discovered URL was fetched."
+                  : discoveredNotCrawledItems.length === 0
+                    ? "This crawl did not record per-URL reasons."
+                    : "No URLs match the selected filter."}
               </div>
             ) : (
               <div className="max-h-60 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-lg">
@@ -699,6 +807,7 @@ export function PagesTab({
                   <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                     <tr>
                       <th className="p-2.5 pl-3">DISCOVERED URL</th>
+                      <th className="p-2.5">SOURCE</th>
                       <th className="p-2.5 pr-3 text-right">EXCLUSION REASON</th>
                     </tr>
                   </thead>
@@ -707,6 +816,14 @@ export function PagesTab({
                       <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
                         <td className="p-2.5 pl-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[400px]">
                           {item.url}
+                        </td>
+                        <td className="p-2.5 text-[11px] text-brand-500">
+                          {/* Every source that found it, so one URL in the
+                              sitemap and a nav menu reads as one row with two
+                              sources rather than as two URLs. */}
+                          {item.sources && item.sources.length > 0
+                            ? item.sources.map((source) => source.replace(/_/g, " ")).join(" + ")
+                            : "—"}
                         </td>
                         <td className="p-2.5 pr-3 text-right">
                           <span className="inline-block rounded-full bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
