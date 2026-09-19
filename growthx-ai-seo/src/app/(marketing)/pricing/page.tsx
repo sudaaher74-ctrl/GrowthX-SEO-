@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Headphones,
   ArrowRight,
-  ChevronDown,
   Sparkles,
 } from "lucide-react";
 import { LandingHeader } from "@/components/marketing/landing-header";
@@ -38,8 +37,8 @@ const PRICING_TIERS: PricingPlan[] = [
     name: "Starter",
     badge: "For small businesses",
     icon: Sprout,
-    iconColor: "text-emerald-600",
-    iconBg: "bg-emerald-50",
+    iconColor: "text-success-400",
+    iconBg: "bg-brand-900 border border-brand-800",
     description: "Everything you need to get started with AI-powered SEO.",
     monthlyPrice: "₹2,999",
     yearlyPrice: "₹2,399",
@@ -58,8 +57,8 @@ const PRICING_TIERS: PricingPlan[] = [
     name: "Growth",
     badge: "For growing businesses",
     icon: Crown,
-    iconColor: "text-violet-600",
-    iconBg: "bg-violet-50",
+    iconColor: "text-series-6",
+    iconBg: "bg-brand-900 border border-brand-800",
     description: "Go beyond insights — get a complete growth plan and automated execution.",
     monthlyPrice: "₹4,999",
     yearlyPrice: "₹3,999",
@@ -81,8 +80,8 @@ const PRICING_TIERS: PricingPlan[] = [
     name: "Scale",
     badge: "For large businesses",
     icon: BarChart3,
-    iconColor: "text-blue-600",
-    iconBg: "bg-blue-50",
+    iconColor: "text-accent-400",
+    iconBg: "bg-brand-900 border border-brand-800",
     description: "Advanced automation and intelligence for maximum growth.",
     monthlyPrice: "₹7,999",
     yearlyPrice: "₹6,399",
@@ -149,39 +148,44 @@ export default function PricingPage() {
   const isYearly = billingCycle === "yearly";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-violet-50/40 via-white to-slate-50 flex flex-col text-slate-900">
+    <div className="min-h-screen bg-brand-950 flex flex-col text-brand-50 relative overflow-hidden">
+      {/* Ambient background glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-series-6/10 blur-[140px] rounded-full pointer-events-none" />
+      <div className="absolute top-[500px] right-[-100px] w-[500px] h-[350px] bg-accent-600/10 blur-[130px] rounded-full pointer-events-none" />
+
       <LandingHeader />
 
-      <main className="flex-1 pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full relative z-10">
         {/* Header Section */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
           {/* Pill Badge */}
-          <div className="inline-flex items-center gap-1.5 bg-violet-100/70 border border-violet-200/80 text-violet-700 text-[11px] font-extrabold uppercase tracking-wider px-4 py-1 rounded-full mb-4">
+          <div className="inline-flex items-center gap-1.5 bg-brand-900/80 border border-brand-800 text-series-6 text-[11px] font-extrabold uppercase tracking-wider px-4 py-1 rounded-full mb-4 shadow-inner">
+            <Sparkles size={12} className="text-series-6" />
             Simple Pricing. Serious Growth.
           </div>
 
           {/* Headline */}
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-[1.15] mb-3">
+          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] mb-3">
             Choose the plan that fits{" "}
-            <span className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent">
+            <span className="text-series-6">
               your growth
             </span>
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base text-brand-400 leading-relaxed max-w-2xl mx-auto">
             Get powerful SEO and AI visibility tools with automated execution — at a price that grows with you.
           </p>
 
           {/* Billing Cycle Switcher */}
           <div className="mt-8 flex items-center justify-center relative">
-            <div className="bg-slate-100/90 p-1 rounded-full inline-flex items-center border border-slate-200/70 shadow-inner">
+            <div className="bg-brand-900/90 p-1 rounded-full inline-flex items-center border border-brand-800 shadow-inner">
               <button
                 type="button"
                 onClick={() => setBillingCycle("monthly")}
                 className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                   !isYearly
-                    ? "bg-violet-600 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-series-6 text-white shadow-sm"
+                    : "text-brand-400 hover:text-brand-200"
                 }`}
               >
                 Monthly
@@ -191,21 +195,21 @@ export default function PricingPage() {
                 onClick={() => setBillingCycle("yearly")}
                 className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
                   isYearly
-                    ? "bg-violet-600 text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-series-6 text-white shadow-sm"
+                    : "text-brand-400 hover:text-brand-200"
                 }`}
               >
                 <span>Yearly</span>
-                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="bg-success-950/60 text-success-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-success-800/60">
                   Save 20%
                 </span>
               </button>
             </div>
 
             {/* Handwritten Note Annotation with Arrow */}
-            <div className="hidden sm:flex items-center gap-1.5 absolute -right-2 top-0 lg:right-16 text-violet-600">
+            <div className="hidden sm:flex items-center gap-1.5 absolute -right-2 top-0 lg:right-16 text-series-6">
               <svg
-                className="w-8 h-8 text-violet-500 transform -rotate-12 translate-y-3"
+                className="w-8 h-8 text-series-6 transform -rotate-12 translate-y-3"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -218,7 +222,7 @@ export default function PricingPage() {
                 />
               </svg>
               <span
-                className="text-xs font-bold whitespace-nowrap text-violet-600"
+                className="text-xs font-bold whitespace-nowrap text-series-6"
                 style={{ fontFamily: "cursive", transform: "rotate(4deg)" }}
               >
                 More value with yearly billing
@@ -236,15 +240,15 @@ export default function PricingPage() {
             return (
               <div
                 key={tier.id}
-                className={`bg-white rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative ${
+                className={`rounded-3xl p-6 sm:p-7 flex flex-col justify-between transition-all duration-200 relative ${
                   tier.popular
-                    ? "border-2 border-violet-600 shadow-xl shadow-violet-100/80 ring-4 ring-violet-50"
-                    : "border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300"
+                    ? "bg-gradient-to-b from-brand-900/90 to-brand-950 border-2 border-series-6 shadow-2xl shadow-series-6/15"
+                    : "bg-brand-900/40 border border-brand-800 shadow-xl hover:border-brand-700 hover:bg-brand-900/60"
                 }`}
               >
                 {/* Most Popular Ribbon */}
                 {tier.popular && (
-                  <div className="absolute -top-3.5 right-6 bg-violet-600 text-white text-[11px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-md">
+                  <div className="absolute -top-3.5 right-6 bg-series-6 text-white text-[11px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-md">
                     Most Popular
                   </div>
                 )}
@@ -256,31 +260,31 @@ export default function PricingPage() {
                       <Icon size={20} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-black text-slate-900 leading-tight">
+                      <h3 className="text-xl font-black text-white leading-tight">
                         {tier.name}
                       </h3>
-                      <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                      <span className="text-[11px] font-semibold text-brand-300 bg-brand-800/80 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-brand-700/50">
                         {tier.badge}
                       </span>
                     </div>
                   </div>
 
                   {/* Description */}
-                  <p className="text-xs text-slate-500 leading-relaxed min-h-[36px] mb-5">
+                  <p className="text-xs text-brand-400 leading-relaxed min-h-[36px] mb-5">
                     {tier.description}
                   </p>
 
                   {/* Price Block */}
-                  <div className="mb-5 pb-5 border-b border-slate-100">
+                  <div className="mb-5 pb-5 border-b border-brand-800">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tight">
+                      <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                         {price}
                       </span>
-                      <span className="text-xs sm:text-sm font-semibold text-slate-500">
+                      <span className="text-xs sm:text-sm font-semibold text-brand-400">
                         / month
                       </span>
                     </div>
-                    <p className="text-[11px] font-medium text-slate-400 mt-1">
+                    <p className="text-[11px] font-medium text-brand-500 mt-1">
                       {isYearly ? "Billed annually (save 20%)" : "Billed monthly"}
                     </p>
                   </div>
@@ -290,8 +294,8 @@ export default function PricingPage() {
                     href={`/register?plan=${tier.id}&cycle=${billingCycle}`}
                     className={`w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all mb-6 cursor-pointer ${
                       tier.popular
-                        ? "bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-200 hover:shadow-lg"
-                        : "bg-white hover:bg-violet-50/60 text-slate-800 border border-slate-200 hover:border-violet-300 hover:text-violet-700"
+                        ? "bg-series-6 hover:bg-series-6/90 text-white shadow-md shadow-series-6/20 hover:shadow-lg hover:scale-[1.01]"
+                        : "bg-brand-800/80 hover:bg-brand-800 text-white border border-brand-700 hover:border-brand-600"
                     }`}
                   >
                     <span>Get Started</span>
@@ -301,8 +305,8 @@ export default function PricingPage() {
                   {/* Feature Checklist */}
                   <div className="space-y-2.5">
                     {tier.features.map((feat) => (
-                      <div key={feat} className="flex items-start gap-2.5 text-xs text-slate-700">
-                        <div className="w-4 h-4 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <div key={feat} className="flex items-start gap-2.5 text-xs text-brand-300">
+                        <div className="w-4 h-4 rounded-full bg-series-6/10 text-series-6 flex items-center justify-center shrink-0 mt-0.5 border border-series-6/20">
                           <Check size={11} strokeWidth={3} />
                         </div>
                         <span className="leading-snug">{feat}</span>
@@ -316,20 +320,20 @@ export default function PricingPage() {
         </div>
 
         {/* Assurance / Trust Strip */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-sm mb-8">
+        <div className="bg-brand-900/50 rounded-2xl border border-brand-800 p-5 sm:p-6 shadow-xl mb-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             {ASSURANCE_PILLARS.map((pillar) => {
               const PillarIcon = pillar.icon;
               return (
                 <div key={pillar.title} className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-brand-800/80 text-series-6 flex items-center justify-center shrink-0 border border-brand-700/60">
                     <PillarIcon size={18} />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                    <h4 className="text-xs sm:text-sm font-bold text-white leading-tight">
                       {pillar.title}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{pillar.desc}</p>
+                    <p className="text-[11px] text-brand-400 mt-0.5">{pillar.desc}</p>
                   </div>
                 </div>
               );
@@ -338,22 +342,22 @@ export default function PricingPage() {
         </div>
 
         {/* Still Not Sure? Talk to Our Team Banner */}
-        <div className="bg-gradient-to-r from-violet-50 via-indigo-50/50 to-white rounded-2xl border border-violet-100 p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-10">
+        <div className="bg-gradient-to-r from-brand-900 via-brand-900/90 to-brand-950 rounded-2xl border border-brand-800 p-6 sm:p-8 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-10">
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-violet-600 bg-violet-100/70 px-2.5 py-0.5 rounded-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-series-6 bg-brand-800/80 border border-series-6/30 px-2.5 py-0.5 rounded-full">
               Still Not Sure?
             </span>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1.5">
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1.5">
               Talk to our team
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            <p className="text-xs sm:text-sm text-brand-400 mt-0.5">
               Get a personalized recommendation based on your business goals.
             </p>
           </div>
 
           <Link
             href="/help"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-violet-700 bg-white border border-violet-200 hover:border-violet-300 hover:bg-violet-50 shadow-sm transition-all shrink-0 cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-brand-800 border border-brand-700 hover:bg-brand-700/80 hover:border-series-6/60 shadow-sm transition-all shrink-0 cursor-pointer"
           >
             <span>Contact Sales</span>
             <ArrowRight size={14} />
@@ -365,19 +369,19 @@ export default function PricingPage() {
           <button
             type="button"
             onClick={() => setOpenFaq(openFaq === null ? 0 : null)}
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-violet-600 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-brand-400 hover:text-series-6 transition-colors cursor-pointer"
           >
             <span>Have more questions?</span>
-            <span className="text-violet-600 underline underline-offset-4">View our FAQs →</span>
+            <span className="text-series-6 underline underline-offset-4">View our FAQs →</span>
           </button>
 
           {/* Interactive FAQ list if expanded */}
           {openFaq !== null && (
-            <div className="mt-6 max-w-2xl mx-auto text-left space-y-3 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm transition-all">
+            <div className="mt-6 max-w-2xl mx-auto text-left space-y-3 bg-brand-900/60 p-5 rounded-2xl border border-brand-800 shadow-xl transition-all">
               {PRICING_FAQS.map((faq, i) => (
-                <div key={i} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 mb-1">{faq.q}</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed">{faq.a}</p>
+                <div key={i} className="border-b border-brand-800/80 pb-3 last:border-0 last:pb-0">
+                  <h4 className="text-xs sm:text-sm font-bold text-white mb-1">{faq.q}</h4>
+                  <p className="text-xs text-brand-400 leading-relaxed">{faq.a}</p>
                 </div>
               ))}
             </div>

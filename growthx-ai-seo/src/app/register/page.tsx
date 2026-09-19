@@ -80,7 +80,7 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold underline underline-offset-2" style={{ color: "var(--color-brand-950)" }}>
+          <Link href="/login" className="font-semibold underline underline-offset-2 text-series-6 hover:text-series-6/80 transition-colors">
             Sign in
           </Link>
         </>
@@ -120,8 +120,7 @@ export default function RegisterPage() {
         {error && (
           <p
             role="alert"
-            className="rounded-lg border px-3 py-2 text-[13px]"
-            style={{ borderColor: "rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)", color: "var(--color-error-700)" }}
+            className="rounded-lg border px-3 py-2 text-[13px] border-error-500/40 bg-error-950/40 text-error-400"
           >
             {error}
           </p>
@@ -133,10 +132,10 @@ export default function RegisterPage() {
 
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
+            <div className="w-full border-t border-brand-800"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+            <span className="px-2 bg-brand-950 text-brand-500">Or continue with</span>
           </div>
         </div>
 
@@ -146,7 +145,7 @@ export default function RegisterPage() {
             const domain = new URLSearchParams(window.location.search).get("domain");
             if (domain) localStorage.setItem("growthx_pending_domain", domain);
           }}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-800 bg-brand-900 px-4 py-2.5 text-sm font-semibold text-brand-200 shadow-sm hover:bg-brand-850 focus:outline-none focus:ring-2 focus:ring-series-6/30"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24">
             <path

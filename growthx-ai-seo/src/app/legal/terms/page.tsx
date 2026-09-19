@@ -11,8 +11,8 @@ const LAST_UPDATED = "9 September 2026";
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mt-10 scroll-mt-24">
-      <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">{children}</div>
+      <h2 className="text-lg font-bold tracking-tight text-white">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-relaxed text-brand-300">{children}</div>
     </section>
   );
 }
@@ -20,10 +20,10 @@ function Section({ id, title, children }: { id: string; title: string; children:
 export default function TermsPage() {
   return (
     <article>
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Terms of Service</h1>
-      <p className="mt-2 text-sm text-slate-500">Last updated {LAST_UPDATED}</p>
+      <h1 className="text-2xl font-bold tracking-tight text-white">Terms of Service</h1>
+      <p className="mt-2 text-sm text-brand-500">Last updated {LAST_UPDATED}</p>
 
-      <p className="mt-6 text-sm leading-relaxed text-slate-600">
+      <p className="mt-6 text-sm leading-relaxed text-brand-300">
         These terms govern your use of GrowthX AI SEO. By creating an account or connecting a
         service to it, you agree to them.
       </p>

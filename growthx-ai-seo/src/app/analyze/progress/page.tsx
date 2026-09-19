@@ -104,19 +104,17 @@ function ProgressInner() {
           clearInterval(timer);
           return 100;
         }
-        // Increment with natural pacing
-        const step = Math.min(100, prev + 2);
+        const increment = 6;
+        const next = Math.min(prev + increment, 100);
 
-        // Add contextual logs as progress increases
-        const expectedLogIdx = Math.floor((step / 100) * logPool.length);
-        if (expectedLogIdx > currentLogIndex && currentLogIndex < logPool.length) {
-          setLogs((l) => [...l.slice(-5), logPool[currentLogIndex]]);
+        if (currentLogIndex < logPool.length) {
+          setLogs((l) => [...l.slice(-4), logPool[currentLogIndex]]);
           currentLogIndex++;
         }
 
-        return step;
+        return next;
       });
-    }, 110);
+    }, 450);
 
     return () => clearInterval(timer);
   }, [hostname]);
@@ -124,43 +122,39 @@ function ProgressInner() {
   const isFinished = progress >= 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50/20 flex flex-col">
-      {/* Top Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <Link href="/" className="text-xl font-extrabold tracking-tight text-slate-900">
-          Growth<span className="text-violet-600">X</span>
+    <div className="min-h-screen bg-brand-950 text-brand-50 flex flex-col relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-series-6/10 blur-[140px] rounded-full pointer-events-none" />
+
+      {/* Header with Step Tracker */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-brand-800 bg-brand-950/80 backdrop-blur-md relative z-10">
+        <Link href="/" className="text-xl font-extrabold tracking-tight text-white">
+          Growth<span className="text-series-6">X</span>
         </Link>
-        {/* Step Indicator */}
         <div className="flex items-center gap-2">
           {[
-            { num: "01", label: "Website", completed: true, active: false },
-            { num: "02", label: "Analyze", completed: false, active: true },
-            { num: "03", label: "Results", completed: false, active: false },
+            { num: "01", label: "Website", completed: true },
+            { num: "02", label: "Analyze", active: !isFinished, completed: isFinished },
+            { num: "03", label: "Results", active: isFinished },
           ].map((step, i) => (
             <div key={step.num} className="flex items-center gap-2">
-              {i > 0 && (
-                <div
-                  className={`w-8 h-px ${
-                    step.completed || step.active ? "bg-violet-400" : "bg-slate-200"
-                  }`}
-                />
-              )}
+              {i > 0 && <div className="w-8 h-px bg-brand-800" />}
               <div
                 className={`flex items-center gap-1.5 text-[12px] font-semibold ${
                   step.active
-                    ? "text-violet-600"
+                    ? "text-series-6"
                     : step.completed
-                    ? "text-emerald-600"
-                    : "text-slate-400"
+                    ? "text-success-400"
+                    : "text-brand-500"
                 }`}
               >
                 <span
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
                     step.completed
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-success-600 text-white"
                       : step.active
-                      ? "bg-violet-600 text-white animate-pulse"
-                      : "bg-slate-100 text-slate-400"
+                      ? "bg-series-6 text-white animate-pulse"
+                      : "bg-brand-900 border border-brand-800 text-brand-500"
                   }`}
                 >
                   {step.completed ? "✓" : step.num}
@@ -173,49 +167,49 @@ function ProgressInner() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 relative z-10">
         <div className="w-full max-w-2xl">
           {/* Domain Tag */}
           <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
-              <Globe size={12} className="text-violet-500" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-brand-900 text-brand-300 border border-brand-800">
+              <Globe size={12} className="text-series-6" />
               {hostname}
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-success-950/60 text-success-400 border border-success-800/60">
               <ShieldCheck size={12} />
               Live Scan
             </span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 text-center tracking-tight mb-2">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white text-center tracking-tight mb-2">
             {isFinished ? "Analysis Complete!" : "Analyzing Your Website..."}
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 text-center mb-8">
+          <p className="text-sm sm:text-base text-brand-400 text-center mb-8">
             {isFinished
               ? "Your baseline audit, competitor insights, and 30-day fix roadmap are ready."
               : "GrowthX is mapping your technical health, search authority, and AI visibility."}
           </p>
 
           {/* Large Progress Bar & Percentage */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm mb-6">
+          <div className="bg-brand-900/50 rounded-2xl border border-brand-800 p-6 shadow-xl mb-6">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-brand-400 uppercase tracking-wider">
                 Overall Progress
               </span>
-              <span className="text-2xl font-extrabold text-violet-600 tabular-nums">
+              <span className="text-2xl font-extrabold text-series-6 tabular-nums">
                 {progress}%
               </span>
             </div>
-            <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden p-0.5">
+            <div className="w-full h-3.5 bg-brand-950 rounded-full overflow-hidden p-0.5 border border-brand-800">
               <div
-                className="h-full bg-gradient-to-r from-violet-600 to-indigo-500 rounded-full transition-all duration-300 ease-out"
+                className="h-full bg-gradient-to-r from-series-6 to-accent-500 rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
           </div>
 
           {/* Workflow Stages Checklist */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-3 mb-6">
+          <div className="bg-brand-900/40 rounded-2xl border border-brand-800 p-5 shadow-xl space-y-3 mb-6">
             {STAGES.map((stage) => {
               const isStageDone = progress >= stage.threshold;
               const isStageCurrent =
@@ -228,19 +222,19 @@ function ProgressInner() {
                   key={stage.id}
                   className={`flex items-start gap-3.5 p-3 rounded-xl transition-all ${
                     isStageCurrent
-                      ? "bg-violet-50/70 border border-violet-100"
+                      ? "bg-series-6/10 border border-series-6/30"
                       : isStageDone
-                      ? "bg-slate-50/50"
+                      ? "bg-brand-950/50"
                       : "opacity-40"
                   }`}
                 >
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                       isStageDone
-                        ? "bg-emerald-500 text-white"
+                        ? "bg-success-600 text-white"
                         : isStageCurrent
-                        ? "bg-violet-600 text-white"
-                        : "bg-slate-100 text-slate-400"
+                        ? "bg-series-6 text-white"
+                        : "bg-brand-800 text-brand-400"
                     }`}
                   >
                     {isStageDone ? (
@@ -256,19 +250,19 @@ function ProgressInner() {
                       <p
                         className={`text-sm font-semibold ${
                           isStageDone
-                            ? "text-slate-900"
+                            ? "text-white"
                             : isStageCurrent
-                            ? "text-violet-900"
-                            : "text-slate-500"
+                            ? "text-white font-bold"
+                            : "text-brand-400"
                         }`}
                       >
                         {stage.title}
                       </p>
-                      <span className="text-[11px] font-medium text-slate-400">
+                      <span className="text-[11px] font-medium text-brand-400">
                         {isStageDone ? "Done" : isStageCurrent ? "In progress..." : "Pending"}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{stage.desc}</p>
+                    <p className="text-xs text-brand-400 mt-0.5 line-clamp-1">{stage.desc}</p>
                   </div>
                 </div>
               );
@@ -276,15 +270,15 @@ function ProgressInner() {
           </div>
 
           {/* Real-time Diagnostics Terminal Box */}
-          <div className="bg-slate-900 rounded-xl p-4 text-xs font-mono text-slate-300 shadow-md mb-8">
-            <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-800 text-slate-400 text-[11px]">
-              <Terminal size={13} className="text-violet-400" />
+          <div className="bg-brand-900 rounded-xl p-4 text-xs font-mono text-brand-300 shadow-md mb-8 border border-brand-800">
+            <div className="flex items-center gap-2 pb-2 mb-2 border-b border-brand-800 text-brand-400 text-[11px]">
+              <Terminal size={13} className="text-series-6" />
               <span>Crawler Diagnostics Console</span>
             </div>
             <div className="space-y-1 overflow-hidden min-h-[76px]">
               {logs.map((log, idx) => (
-                <div key={idx} className="truncate text-slate-300">
-                  <span className="text-violet-400 font-semibold">&gt;</span> {log}
+                <div key={idx} className="truncate text-brand-300">
+                  <span className="text-series-6 font-semibold">&gt;</span> {log}
                 </div>
               ))}
             </div>
@@ -297,14 +291,14 @@ function ProgressInner() {
                 onClick={() =>
                   router.push(`/register?domain=${encodeURIComponent(hostname)}`)
                 }
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl text-base font-semibold text-white bg-violet-600 hover:bg-violet-700 shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all hover:scale-[1.02] cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl text-base font-semibold text-white bg-series-6 hover:bg-series-6/90 shadow-lg shadow-series-6/20 transition-all hover:scale-[1.02] cursor-pointer"
               >
                 <span>View Full Analysis Results</span>
                 <ArrowRight size={18} />
               </button>
             ) : (
-              <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                <Loader2 size={14} className="animate-spin text-violet-500" />
+              <div className="flex items-center gap-2 text-xs font-medium text-brand-400">
+                <Loader2 size={14} className="animate-spin text-series-6" />
                 <span>Generating your comprehensive analysis report...</span>
               </div>
             )}
@@ -319,9 +313,9 @@ export default function AnalysisProgressPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="flex items-center gap-2 text-slate-500 text-sm">
-            <Loader2 size={18} className="animate-spin text-violet-600" />
+        <div className="min-h-screen flex items-center justify-center bg-brand-950">
+          <div className="flex items-center gap-2 text-brand-400 text-sm">
+            <Loader2 size={18} className="animate-spin text-series-6" />
             <span>Loading analysis engine...</span>
           </div>
         </div>

@@ -16,8 +16,8 @@ const LAST_UPDATED = "9 September 2026";
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mt-10 scroll-mt-24">
-      <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-600">{children}</div>
+      <h2 className="text-lg font-bold tracking-tight text-white">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-relaxed text-brand-300">{children}</div>
     </section>
   );
 }
@@ -25,10 +25,10 @@ function Section({ id, title, children }: { id: string; title: string; children:
 export default function PrivacyPolicyPage() {
   return (
     <article>
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-slate-500">Last updated {LAST_UPDATED}</p>
+      <h1 className="text-2xl font-bold tracking-tight text-white">Privacy Policy</h1>
+      <p className="mt-2 text-sm text-brand-500">Last updated {LAST_UPDATED}</p>
 
-      <p className="mt-6 text-sm leading-relaxed text-slate-600">
+      <p className="mt-6 text-sm leading-relaxed text-brand-300">
         GrowthX AI SEO (&ldquo;GrowthX&rdquo;, &ldquo;we&rdquo;) is a search-engine-optimisation
         workspace. Customers connect the websites and marketing accounts they own or manage, and we
         analyse that data to report on technical health, search visibility and local presence, and

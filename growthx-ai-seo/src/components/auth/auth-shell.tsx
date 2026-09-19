@@ -9,11 +9,11 @@ import { AuthIllustration } from "./auth-illustration";
  * surface and the dividing curve would both resolve to near-black and the
  * split would disappear entirely.
  */
-const FORM_BG = "#ffffff";
-const INK = "var(--color-brand-950)";
-const INK_SOFT = "var(--color-brand-600)";
-const INK_MUTED = "var(--color-brand-400)";
-const BORDER = "var(--color-brand-200)";
+const FORM_BG = "var(--color-brand-950)";
+const INK = "#ffffff";
+const INK_SOFT = "var(--color-brand-400)";
+const INK_MUTED = "var(--color-brand-500)";
+const BORDER = "var(--color-brand-800)";
 
 /**
  * The two-column frame shared by sign-in and registration.
@@ -211,14 +211,14 @@ export function Field({
       <input
         id={id}
         {...props}
-        className="w-full rounded-xl border px-3.5 py-2.5 text-[14px] outline-none transition-shadow placeholder:text-neutral-400 focus:ring-2"
+        className="w-full rounded-xl border px-3.5 py-2.5 text-[14px] outline-none transition-shadow placeholder:text-brand-500 focus:ring-2"
         style={
           {
-            background: FORM_BG,
+            background: "var(--color-brand-900)",
             borderColor: BORDER,
             color: INK,
             // Focus ring colour as a variable so the class above can stay static.
-            "--tw-ring-color": "rgba(0,0,0,0.28)",
+            "--tw-ring-color": "rgba(139,92,246,0.3)",
           } as React.CSSProperties
         }
       />
@@ -232,8 +232,7 @@ export function SubmitButton({ busy, children }: { busy: boolean; children: Reac
     <button
       type="submit"
       disabled={busy}
-      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-85 disabled:opacity-50"
-      style={{ background: INK }}
+      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 bg-series-6 cursor-pointer"
     >
       {busy && (
         <span
