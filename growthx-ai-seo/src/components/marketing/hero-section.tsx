@@ -25,35 +25,35 @@ function DashboardMockup() {
   return (
     <div className="relative select-none w-full max-w-[510px] mx-auto lg:mr-4">
       {/* Top Floating Badge: SEO Health Score — completely above the card */}
-      <div className="absolute bottom-[calc(100%+16px)] left-6 sm:left-10 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-slate-500">
-          <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+      <div className="absolute bottom-[calc(100%+16px)] left-6 sm:left-10 z-20 bg-brand-900 rounded-2xl shadow-xl border border-brand-800 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
+        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
+          <div className="w-5 h-5 rounded-lg bg-success-500/10 text-success-400 flex items-center justify-center">
             <Sparkles size={11} />
           </div>
-          <p className="text-[10px] font-bold text-slate-800">SEO Health Score</p>
+          <p className="text-[10px] font-bold text-white">SEO Health Score</p>
         </div>
         <div className="flex items-end justify-between mt-0.5">
           <div>
-            <p className="text-xl font-black text-slate-900 leading-none">78</p>
-            <p className="text-[9px] font-bold text-emerald-600 mt-0.5">↑ 22%</p>
+            <p className="text-xl font-black text-white leading-none">78</p>
+            <p className="text-[9px] font-bold text-success-400 mt-0.5">↑ 22%</p>
           </div>
-          <svg className="w-10 h-5 text-emerald-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-10 h-5 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 16 Q 14 6, 26 12 T 48 3" />
           </svg>
         </div>
       </div>
 
       {/* Main Dashboard Card */}
-      <div className="relative mt-6 bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden">
+      <div className="relative mt-6 bg-brand-900 rounded-3xl shadow-2xl border border-brand-800 overflow-hidden">
         {/* Container with Sidebar + Main Workspace */}
         <div className="flex">
           {/* Sidebar */}
-          <div className="w-28 sm:w-32 bg-brand-950 p-3 shrink-0 flex flex-col justify-between">
+          <div className="w-28 sm:w-32 bg-brand-950 p-3 shrink-0 flex flex-col justify-between border-r border-brand-900">
             <div>
               {/* Logo */}
               <div className="mb-3.5 pl-1">
                 <span className="text-sm font-black tracking-tight text-white">
-                  Growth<span className="text-violet-400">X</span>
+                  Growth<span className="text-series-6">X</span>
                 </span>
               </div>
 
@@ -74,11 +74,11 @@ function DashboardMockup() {
                       key={item.label}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
                         item.active
-                          ? "bg-violet-600/30 text-white border border-violet-500/40 shadow-xs"
-                          : "text-slate-400 hover:text-slate-200"
+                          ? "bg-series-6/30 text-white border border-series-6/40 shadow-xs"
+                          : "text-brand-400 hover:text-white"
                       }`}
                     >
-                      <ItemIcon size={12} className={item.active ? "text-violet-400" : "text-slate-400"} />
+                      <ItemIcon size={12} className={item.active ? "text-series-6" : "text-brand-400"} />
                       <span className="truncate">{item.label}</span>
                     </div>
                   );
@@ -88,23 +88,23 @@ function DashboardMockup() {
           </div>
 
           {/* Right Main Content */}
-          <div className="flex-1 min-w-0 flex flex-col bg-white">
+          <div className="flex-1 min-w-0 flex flex-col bg-brand-950">
             {/* Top Bar */}
-            <div className="flex items-center justify-between px-3.5 py-2 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between px-3.5 py-2 border-b border-brand-900 bg-brand-900/40">
               {/* Search placeholder */}
-              <div className="w-32 sm:w-44 h-6 bg-slate-100/90 rounded-lg" />
+              <div className="w-32 sm:w-44 h-6 bg-brand-900 rounded-lg border border-brand-800/80" />
 
               {/* Right Profile / Bell controls */}
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <Bell size={13} className="text-slate-500" />
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <Bell size={13} className="text-brand-400" />
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-warning-500" />
                 </div>
-                <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200">
-                  <div className="w-5 h-5 rounded-full bg-sky-500 text-white font-extrabold text-[9px] flex items-center justify-center">
+                <div className="flex items-center gap-1 pl-1.5 border-l border-brand-850">
+                  <div className="w-5 h-5 rounded-full bg-series-6 text-white font-extrabold text-[9px] flex items-center justify-center">
                     S
                   </div>
-                  <ChevronDown size={10} className="text-slate-400" />
+                  <ChevronDown size={10} className="text-brand-400" />
                 </div>
               </div>
             </div>
@@ -113,20 +113,20 @@ function DashboardMockup() {
             <div className="p-3.5 space-y-3">
               {/* Overview Header & Filter Pills */}
               <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <h3 className="text-xs font-black text-slate-900 tracking-tight">
+                <h3 className="text-xs font-black text-white tracking-tight">
                   Website Overview
                 </h3>
 
                 <div className="flex items-center gap-1.5">
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 hover:bg-slate-200/80 rounded-md text-[9px] font-semibold text-slate-700 border border-slate-200 cursor-pointer">
-                    <Search size={9} className="text-slate-400" />
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-900 hover:bg-brand-850 rounded-md text-[9px] font-semibold text-brand-300 border border-brand-800 cursor-pointer">
+                    <Search size={9} className="text-brand-400" />
                     <span>yourwebsite.com</span>
-                    <ChevronDown size={9} className="text-slate-400" />
+                    <ChevronDown size={9} className="text-brand-400" />
                   </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 hover:bg-slate-200/80 rounded-md text-[9px] font-semibold text-slate-700 border border-slate-200 cursor-pointer">
-                    <Calendar size={9} className="text-slate-400" />
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-900 hover:bg-brand-850 rounded-md text-[9px] font-semibold text-brand-300 border border-brand-800 cursor-pointer">
+                    <Calendar size={9} className="text-brand-400" />
                     <span>Last 30 days</span>
-                    <ChevronDown size={9} className="text-slate-400" />
+                    <ChevronDown size={9} className="text-brand-400" />
                   </div>
                 </div>
               </div>
@@ -134,56 +134,56 @@ function DashboardMockup() {
               {/* 4 KPI Cards with Wavy Sparklines */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {/* 1: SEO Health */}
-                <div className="bg-white rounded-xl p-2 border border-slate-100 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-slate-500">SEO Health</p>
+                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
+                  <p className="text-[8px] font-bold text-brand-400">SEO Health</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-sm sm:text-base font-black text-slate-900 leading-none">68</p>
-                      <p className="text-[8px] font-bold text-emerald-600 mt-0.5">↑ 12%</p>
+                      <p className="text-sm sm:text-base font-black text-white leading-none">68</p>
+                      <p className="text-[8px] font-bold text-success-400 mt-0.5">↑ 12%</p>
                     </div>
-                    <svg className="w-8 sm:w-10 h-4 text-emerald-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-8 sm:w-10 h-4 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 16 Q 14 6, 26 12 T 48 3" />
                     </svg>
                   </div>
                 </div>
 
                 {/* 2: AI Visibility */}
-                <div className="bg-white rounded-xl p-2 border border-slate-100 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-slate-500">AI Visibility</p>
+                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
+                  <p className="text-[8px] font-bold text-brand-400">AI Visibility</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-sm sm:text-base font-black text-slate-900 leading-none">52</p>
-                      <p className="text-[8px] font-bold text-violet-600 mt-0.5">↑ 28%</p>
+                      <p className="text-sm sm:text-base font-black text-white leading-none">52</p>
+                      <p className="text-[8px] font-bold text-series-6 mt-0.5">↑ 28%</p>
                     </div>
-                    <svg className="w-8 sm:w-10 h-4 text-violet-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-8 sm:w-10 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 17 Q 14 10, 26 13 T 48 4" />
                     </svg>
                   </div>
                 </div>
 
                 {/* 3: Organic Traffic */}
-                <div className="bg-white rounded-xl p-2 border border-slate-100 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-slate-500">Organic Traffic</p>
+                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
+                  <p className="text-[8px] font-bold text-brand-400">Organic Traffic</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-sm sm:text-base font-black text-slate-900 leading-none">12.4K</p>
-                      <p className="text-[8px] font-bold text-sky-600 mt-0.5">↑ 22%</p>
+                      <p className="text-sm sm:text-base font-black text-white leading-none">12.4K</p>
+                      <p className="text-[8px] font-bold text-accent-400 mt-0.5">↑ 22%</p>
                     </div>
-                    <svg className="w-8 sm:w-10 h-4 text-sky-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-8 sm:w-10 h-4 text-accent-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 18 Q 14 14, 26 10 T 48 2" />
                     </svg>
                   </div>
                 </div>
 
                 {/* 4: Ranking Keywords */}
-                <div className="bg-white rounded-xl p-2 border border-slate-100 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-slate-500">Ranking Keywords</p>
+                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
+                  <p className="text-[8px] font-bold text-brand-400">Ranking Keywords</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-sm sm:text-base font-black text-slate-900 leading-none">1,240</p>
-                      <p className="text-[8px] font-bold text-indigo-600 mt-0.5">↑ 18%</p>
+                      <p className="text-sm sm:text-base font-black text-white leading-none">1,240</p>
+                      <p className="text-[8px] font-bold text-series-6 mt-0.5">↑ 18%</p>
                     </div>
-                    <svg className="w-8 sm:w-10 h-4 text-indigo-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-8 sm:w-10 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 16 Q 14 14, 26 9 T 48 4" />
                     </svg>
                   </div>
@@ -193,46 +193,46 @@ function DashboardMockup() {
               {/* Bottom 2 Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                 {/* Current 30-Day Plan */}
-                <div className="bg-white rounded-xl p-3 border border-slate-100 shadow-xs flex flex-col justify-between">
+                <div className="bg-brand-900/60 rounded-xl p-3 border border-brand-800/80 shadow-xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg bg-violet-100/70 text-violet-700 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
                         <Calendar size={12} />
                       </div>
                       <div>
-                        <h4 className="text-[11px] font-extrabold text-slate-900 leading-tight">
+                        <h4 className="text-[11px] font-extrabold text-white leading-tight">
                           Current 30-Day Plan
                         </h4>
-                        <p className="text-[9px] text-slate-400">
+                        <p className="text-[9px] text-brand-400">
                           12 of 38 actions completed
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 my-2">
-                      <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                        <div className="bg-violet-600 h-1.5 rounded-full" style={{ width: "32%" }} />
+                      <div className="flex-1 bg-brand-950 rounded-full h-1.5 overflow-hidden border border-brand-850">
+                        <div className="bg-series-6 h-1.5 rounded-full" style={{ width: "32%" }} />
                       </div>
-                      <span className="text-[9px] font-bold text-slate-700">32%</span>
+                      <span className="text-[9px] font-bold text-brand-300">32%</span>
                     </div>
                   </div>
 
-                  <button className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-violet-200 text-violet-700 hover:bg-violet-50 text-[10px] font-bold transition-all w-fit cursor-pointer">
+                  <button className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
                     <span>View Plan</span>
                     <ArrowRight size={9} />
                   </button>
                 </div>
 
                 {/* Let GrowthX do the work */}
-                <div className="bg-gradient-to-br from-violet-50/70 via-indigo-50/40 to-slate-50 rounded-xl p-3 border border-violet-100/80 shadow-xs flex items-start gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-violet-100/90 text-violet-600 flex items-center justify-center shrink-0">
+                <div className="bg-brand-900/40 rounded-xl p-3 border border-brand-800 shadow-xs flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
                     <Zap size={14} />
                   </div>
                   <div>
-                    <h4 className="text-xs font-extrabold text-slate-900 leading-tight">
+                    <h4 className="text-xs font-extrabold text-white leading-tight">
                       Let GrowthX do the work
                     </h4>
-                    <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                    <p className="text-[10px] text-brand-400 leading-relaxed mt-0.5">
                       From insights to execution, all in one place.
                     </p>
                   </div>
@@ -244,28 +244,28 @@ function DashboardMockup() {
       </div>
 
       {/* Bottom Floating Badge: AI Visibility — completely below the card */}
-      <div className="absolute top-[calc(100%+16px)] right-6 sm:right-10 z-20 bg-white rounded-2xl shadow-xl border border-slate-100 p-2.5 sm:p-3 w-40 animate-float-slow hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-slate-500">
-          <div className="w-5 h-5 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
+      <div className="absolute top-[calc(100%+16px)] right-6 sm:right-10 z-20 bg-brand-900 rounded-2xl shadow-xl border border-brand-800 p-2.5 sm:p-3 w-40 animate-float-slow hidden sm:block">
+        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
+          <div className="w-5 h-5 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center">
             <Sparkles size={11} />
           </div>
-          <p className="text-[10px] font-bold text-slate-800">AI Visibility</p>
+          <p className="text-[10px] font-bold text-white">AI Visibility</p>
         </div>
         <div className="flex items-end justify-between mt-0.5">
           <div>
-            <p className="text-xl font-black text-slate-900 leading-none">52</p>
-            <p className="text-[9px] font-bold text-violet-600 mt-0.5">↑ 28%</p>
+            <p className="text-xl font-black text-white leading-none">52</p>
+            <p className="text-[9px] font-bold text-series-6 mt-0.5">↑ 28%</p>
           </div>
-          <svg className="w-10 h-5 text-violet-500" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-10 h-5 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 17 Q 14 10, 26 13 T 48 4" />
           </svg>
         </div>
       </div>
 
       {/* Cursive annotation with arrow at bottom right */}
-      <div className="absolute -bottom-14 right-4 sm:right-8 z-20 flex flex-col items-center text-violet-600">
+      <div className="absolute -bottom-14 right-4 sm:right-8 z-20 flex flex-col items-center text-series-6">
         <svg
-          className="w-6 h-6 text-violet-500 transform rotate-45 -translate-x-2 translate-y-1"
+          className="w-6 h-6 text-series-6 transform rotate-45 -translate-x-2 translate-y-1"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
@@ -274,7 +274,7 @@ function DashboardMockup() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
         </svg>
         <p
-          className="font-bold text-xs sm:text-sm whitespace-nowrap text-violet-600"
+          className="font-bold text-xs sm:text-sm whitespace-nowrap text-series-6"
           style={{ fontFamily: "cursive", transform: "rotate(-4deg)" }}
         >
           From insights<br className="sm:hidden" /> to real growth
@@ -286,11 +286,11 @@ function DashboardMockup() {
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-gradient-to-br from-slate-50 via-white to-violet-50/30 pt-16 pb-12 lg:pt-20 lg:pb-14">
-      {/* Soft background blobs */}
+    <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-brand-950 pt-20 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-900 overflow-hidden">
+      {/* Soft background ambient glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-violet-100/40 blur-3xl" />
-        <div className="absolute -bottom-40 -left-20 w-[450px] h-[450px] rounded-full bg-blue-100/30 blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-series-6/10 blur-[130px]" />
+        <div className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full bg-accent-600/10 blur-[120px]" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-4">
@@ -298,24 +298,24 @@ export function HeroSection() {
           {/* LEFT COLUMN */}
           <div className="space-y-5 lg:space-y-6">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-violet-50 border border-violet-200/80 text-violet-700 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full">
-              <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+            <div className="inline-flex items-center gap-2 bg-brand-900/80 border border-brand-800 text-brand-300 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full backdrop-blur-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-series-6 animate-pulse" />
               AI Powered SEO &amp; GEO Automation
             </div>
 
             {/* Headline */}
             <div>
-              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold text-slate-900 leading-[1.1] tracking-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold text-white leading-[1.1] tracking-tight">
                 Everything you need to<br />
                 grow in the
               </h1>
-              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold leading-[1.1] tracking-tight bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent mt-1">
+              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold leading-[1.1] tracking-tight bg-gradient-to-r from-series-6 via-violet-400 to-accent-400 bg-clip-text text-transparent mt-1">
                 age of AI search.
               </h1>
             </div>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
+            <p className="text-base sm:text-lg text-brand-400 leading-relaxed max-w-xl">
               GrowthX brings together technical SEO, competitor intelligence, and AI visibility—and turns insights into automatic execution.
             </p>
 
@@ -323,13 +323,13 @@ export function HeroSection() {
             <div className="flex flex-wrap items-center gap-3.5 pt-1">
               <Link
                 href="/analyze"
-                className="inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-700 active:scale-[0.98] text-white font-bold text-sm sm:text-[15px] px-6 py-3.5 rounded-2xl transition-all shadow-md shadow-violet-200 cursor-pointer"
+                className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm sm:text-[15px] px-6 py-3.5 rounded-2xl transition-all shadow-lg cursor-pointer"
               >
                 <span>Analyze Your Website</span>
                 <ArrowRight size={16} />
               </Link>
-              <button className="inline-flex items-center gap-2.5 bg-white border border-slate-200 text-slate-800 hover:text-slate-900 font-bold text-sm sm:text-[15px] px-5 py-3 rounded-2xl hover:bg-slate-50 transition-all shadow-xs cursor-pointer">
-                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-violet-600 text-white shadow-xs">
+              <button className="inline-flex items-center gap-2.5 bg-brand-900/80 border border-brand-800 text-brand-200 hover:text-white font-bold text-sm sm:text-[15px] px-5 py-3 rounded-2xl hover:bg-brand-850 transition-all shadow-xs cursor-pointer">
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-series-6 text-white shadow-xs">
                   <Play size={10} fill="white" className="ml-0.5" />
                 </div>
                 <span>Watch Demo</span>
@@ -337,17 +337,17 @@ export function HeroSection() {
             </div>
 
             {/* Trust signals */}
-            <div className="flex flex-wrap items-center gap-5 pt-1 text-xs sm:text-[13px] text-slate-600 font-semibold">
+            <div className="flex flex-wrap items-center gap-5 pt-1 text-xs sm:text-[13px] text-brand-400 font-semibold">
               {["No credit card required", "Free analysis", "Setup in minutes"].map((item) => (
                 <div key={item} className="flex items-center gap-1.5">
-                  <Check size={14} className="text-violet-600 shrink-0 font-extrabold" />
+                  <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
                   <span>{item}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Dashboard mockup matching Screenshot 2 */}
+          {/* RIGHT COLUMN: Dashboard mockup */}
           <div className="relative flex justify-center lg:justify-end pr-2 sm:pr-4">
             <DashboardMockup />
           </div>
