@@ -134,6 +134,41 @@ export class BusinessProfileService {
     private readonly oauth: GoogleOAuthService,
   ) {}
 
+  /**
+   * Retries a Google API call on 429 (rate-limit) responses.
+   *
+   * Google's Business Profile APIs share a per-project quota that is easily
+   * exhausted during the location picker — three quick refreshes can be enough.
+   * Rather than immediately surfacing a 429 the user cannot act on, we wait
+   * and try again up to `maxAttempts` times with exponential backoff.
+   *
+   * Non-429 failures are re-thrown immediately; only transient rate-limits are
+   * retried here.
+   */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    maxAttempts = 4,
+    baseDelayMs = 2_000,
+  ): Promise<T> {
+    let lastError: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        const status: number | null =
+          err?.status ?? err?.response?.status ?? (typeof err?.code === 'number' ? err.code : null);
+        if (status !== 429 || attempt === maxAttempts) throw err;
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        this.logger.warn(
+          `[GBP] Google rate-limited (429) — retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+
   private async auth(projectId: string): Promise<OAuth2Client> {
     return this.oauth.clientFor(projectId, 'business_profile');
   }
@@ -157,7 +192,9 @@ export class BusinessProfileService {
     const infoApi = google.mybusinessbusinessinformation({ version: 'v1', auth });
 
     try {
-      const accounts = await this.listAccounts(accountApi);
+      // withRetry handles transient 429s so the picker does not fail on a brief
+      // quota burst. Four attempts with 2 s → 4 s → 8 s → throw.
+      const accounts = await this.withRetry(() => this.listAccounts(accountApi));
       const locations: {
         id: string;
         accountId: string;
@@ -174,12 +211,14 @@ export class BusinessProfileService {
       for (const account of accounts) {
         let pageToken: string | undefined;
         do {
-          const { data } = await infoApi.accounts.locations.list({
-            parent: account.name!,
-            readMask: BusinessProfileService.PICKER_READ_MASK,
-            pageSize: 100,
-            pageToken,
-          });
+          const { data } = await this.withRetry(() =>
+            infoApi.accounts.locations.list({
+              parent: account.name!,
+              readMask: BusinessProfileService.PICKER_READ_MASK,
+              pageSize: 100,
+              pageToken,
+            }),
+          );
           for (const location of data.locations ?? []) {
             locations.push({
               id: location.name!,
@@ -983,7 +1022,10 @@ export class BusinessProfileService {
       return {
         kind: 'RATE_LIMITED',
         httpStatus,
-        message: 'Google is rate-limiting Business Profile requests for this project. The next sync will retry.',
+        message:
+          'Google is temporarily rate-limiting Business Profile requests for this project. ' +
+          'Automatic retries were attempted but Google is still busy. ' +
+          'Please wait a minute and click "Try again" — this usually resolves on its own.',
       };
     }
 
