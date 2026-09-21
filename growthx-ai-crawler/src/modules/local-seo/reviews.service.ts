@@ -106,11 +106,14 @@ export class ReviewsService {
     `;
 
     const aiResponse = await this.router.generate({ prompt, task: AiTask.FAST });
-    const replyText = aiResponse.text;
+    const replyText = aiResponse?.text?.trim();
+    if (!replyText) {
+      throw new Error('AI failed to generate a reply');
+    }
 
     const updated = await this.prisma.localReview.update({
       where: { id: reviewId },
-      data: { aiDraftedReply: replyText.trim() },
+      data: { aiDraftedReply: replyText },
     });
 
     return updated;

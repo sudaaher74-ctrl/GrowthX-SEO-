@@ -38,6 +38,7 @@ import {
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 import { AutoFixModal } from "@/components/website/auto-fix-modal";
+import { SeoAuditReportModal } from "@/components/website/audit-report-pdf/seo-audit-report-modal";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
 import { PerformanceTab } from "@/components/website/tabs/performance-tab";
@@ -74,6 +75,7 @@ function WebsiteAuditClient() {
   const [crawling, setCrawling] = useState(false);
   const [selectedFixIssue, setSelectedFixIssue] = useState<CrawlIssue | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -127,7 +129,7 @@ function WebsiteAuditClient() {
   }
 
   function handleExportPdf() {
-    window.print();
+    setShowPdfModal(true);
   }
 
   function handleCopyShareLink() {
@@ -437,9 +439,24 @@ function WebsiteAuditClient() {
           <IssuesTab
             issues={allIssues}
             onFixIssue={(issue) => setSelectedFixIssue(issue)}
+            onExportPdf={() => setShowPdfModal(true)}
           />
         )}
       </QueryState>
+
+      {/* 9-Page SEO Audit Report PDF Modal */}
+      <SeoAuditReportModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        clientName={client?.name}
+        domain={client?.domain}
+        crawledAt={crawl.data?.finishedAt || crawl.data?.startedAt}
+        crawlDuration={crawlDuration}
+        healthScore={crawl.data?.healthScore}
+        issues={allIssues}
+        pages={allPages}
+        qualityDiagnostics={qualityDiagnostics}
+      />
 
       {/* Auto Fix Modal */}
       {selectedFixIssue && (

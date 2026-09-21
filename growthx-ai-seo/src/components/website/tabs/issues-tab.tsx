@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileDown,
   Filter,
   MoreHorizontal,
   Search,
@@ -20,9 +21,10 @@ import type { CrawlIssue } from "@/lib/api-client";
 interface IssuesTabProps {
   issues: CrawlIssue[];
   onFixIssue: (issue: CrawlIssue) => void;
+  onExportPdf?: () => void;
 }
 
-export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
+export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -130,17 +132,31 @@ export function IssuesTab({ issues, onFixIssue }: IssuesTabProps) {
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setToastMessage(`Added ${filtered.length} audit issues to your 30-Day Fix Plan!`);
-              setTimeout(() => setToastMessage(null), 8000);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
-          >
-            <Zap size={12} />
-            <span>Add {filtered.length} Issues to Fix Plan</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {onExportPdf && (
+              <button
+                type="button"
+                onClick={onExportPdf}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 text-xs font-semibold transition shadow-xs cursor-pointer"
+                title="Download 9-Page PDF Audit Report"
+              >
+                <FileDown size={13} className="text-blue-600 dark:text-blue-400" />
+                <span>Download PDF</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setToastMessage(`Added ${filtered.length} audit issues to your 30-Day Fix Plan!`);
+                setTimeout(() => setToastMessage(null), 8000);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
+            >
+              <Zap size={12} />
+              <span>Add {filtered.length} Issues to Fix Plan</span>
+            </button>
+          </div>
         </div>
 
         {/* Fix Plan Staging Toast */}

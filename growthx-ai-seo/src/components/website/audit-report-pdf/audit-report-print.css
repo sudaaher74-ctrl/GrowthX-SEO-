@@ -1,0 +1,181 @@
+/* SEO Audit Report - Print & PDF Stylesheet */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+/* Base sheet styles for screen preview */
+.report-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  height: 297mm;
+  padding: 16mm 18mm 14mm 18mm;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  page-break-after: always;
+  break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #0f172a;
+}
+
+/* Page 1 (Cover) has full bleed gradient with custom padding */
+.report-sheet-cover {
+  padding: 20mm 20mm 16mm 20mm;
+  background: linear-gradient(145deg, #070e22 0%, #0d1a3a 45%, #08112b 100%);
+  color: #ffffff;
+}
+
+/* Print-specific media query */
+@media print {
+  /* Hide all dashboard shell, navigation, modals backdrop, and browser UI */
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide everything on the page except the printable report */
+  body * {
+    visibility: hidden;
+  }
+
+  #seo-audit-report-print-container,
+  #seo-audit-report-print-container * {
+    visibility: visible;
+  }
+
+  #seo-audit-report-print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff;
+  }
+
+  .report-sheet {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* High-res typography & component styles for the report */
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 3.5mm;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 3.5mm;
+}
+
+.report-header-dark {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.report-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 3mm;
+  border-top: 1px solid #f1f5f9;
+  font-size: 8.5pt;
+  color: #64748b;
+  margin-top: auto;
+}
+
+.report-footer-dark {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+}
+
+/* Custom visual elements */
+.report-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 7.5pt;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.report-pill-critical {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.report-pill-high {
+  background-color: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.report-pill-medium {
+  background-color: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+}
+
+.report-pill-low {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.report-pill-easy {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.report-pill-success {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.report-card {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+}
+
+.report-quote-box {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+/* Dotted leader for table of contents */
+.toc-dots {
+  flex: 1;
+  border-bottom: 1.5px dotted #cbd5e1;
+  margin: 0 10px 4px 10px;
+}

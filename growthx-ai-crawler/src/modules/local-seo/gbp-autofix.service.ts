@@ -15,19 +15,19 @@ export class GbpAutofixService {
    * Approves a fix proposal, applies it to the Google Business Profile, and marks it as PUSHED.
    */
   async approveAndPushFix(proposalId: string, projectId: string) {
+    const proposal = await this.prisma.gbpFixProposal.findFirst({
+      where: {
+        id: proposalId,
+        projectId,
+        status: 'PENDING',
+      },
+    });
+
+    if (!proposal) {
+      throw new NotFoundException(`Pending GBP fix proposal ${proposalId} not found for project ${projectId}`);
+    }
+
     try {
-      const proposal = await this.prisma.gbpFixProposal.findFirst({
-        where: {
-          id: proposalId,
-          projectId,
-          status: 'PENDING',
-        },
-      });
-
-      if (!proposal) {
-        throw new NotFoundException(`Pending GBP fix proposal ${proposalId} not found for project ${projectId}`);
-      }
-
       // Mark as approved immediately so it doesn't get processed twice
       await this.prisma.gbpFixProposal.update({
         where: { id: proposalId },
