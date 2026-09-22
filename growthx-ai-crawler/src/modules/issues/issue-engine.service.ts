@@ -7,6 +7,7 @@ import { ExtractedImage } from '../analyzer/image-analyzer.service';
 import { LinkAnalysisResult } from '../analyzer/link-analyzer.service';
 import { ContentMetrics } from '../analyzer/content-analyzer.service';
 import { ValidatedSchema } from '../analyzer/schema-validator.service';
+import { fingerprintFor, fingerprintScope } from './fingerprint.util';
 
 export interface DetectedIssueInput {
   issueType: string;
@@ -21,7 +22,21 @@ export interface DetectedIssueInput {
   evidence?: string;
   dedupKey: string;
   aiFixAvailable: boolean;
+  /**
+   * Stable identity across crawls, assigned centrally in the persist loop
+   * rather than at each of the thirty-odd places a check raises a finding.
+   *
+   * Deriving it in one place is not only less typing: a check added later
+   * gets a fingerprint whether or not whoever added it knew to set one. Asking
+   * thirty call sites to remember would mean the continuity this column exists
+   * for breaks quietly, on exactly the newest check, the first time someone
+   * forgets. Always present on issues returned by `evaluateAndPersistIssues`.
+   */
+  fingerprint?: string;
 }
+
+/** A finding that reached the database, which always carries its fingerprint. */
+export type PersistedIssue = DetectedIssueInput & { fingerprint: string };
 
 @Injectable()
 export class IssueEngineService {
@@ -35,6 +50,8 @@ export class IssueEngineService {
    */
   async evaluateAndPersistIssues(
     crawlJobId: string,
+    projectId: string | null,
+    websiteId: string,
     pageId: string,
     pageUrl: string,
     statusCode: number,
@@ -49,7 +66,7 @@ export class IssueEngineService {
     inSitemap: boolean,
     robotsTxtExists: boolean,
     pageType: string = 'OTHER'
-  ): Promise<DetectedIssueInput[]> {
+  ): Promise<PersistedIssue[]> {
     const issues: DetectedIssueInput[] = [];
     const isHomePage = this.isRootUrl(pageUrl);
 
@@ -560,12 +577,18 @@ export class IssueEngineService {
     }
 
     // Persist unique issues using stable deduplication keys
-    const persistedIssues: DetectedIssueInput[] = [];
+    const persistedIssues: PersistedIssue[] = [];
     const seenInBatch = new Set<string>();
+
+    // The scope a fingerprint is unique within: the project normally, the
+    // website for a competitor crawl, which has no project by design.
+    const scope = fingerprintScope(projectId, websiteId);
 
     for (const issue of issues) {
       if (seenInBatch.has(issue.dedupKey)) continue;
       seenInBatch.add(issue.dedupKey);
+
+      const fingerprint = fingerprintFor(scope, issue.issueType, issue.affectedUrl);
 
       try {
         const existing = await this.prisma.issue.findFirst({
@@ -576,6 +599,8 @@ export class IssueEngineService {
           await this.prisma.issue.create({
             data: {
               crawlJobId,
+              projectId,
+              fingerprint,
               pageId,
               issueType: issue.issueType,
               severity: issue.severity,
@@ -590,6 +615,10 @@ export class IssueEngineService {
               dedupKey: issue.dedupKey,
               status: 'OPEN',
               aiFixAvailable: issue.aiFixAvailable,
+              // firstDetectedAt and lastSeenAt default to now(). Reconciliation
+              // at the end of the crawl carries the real first-seen date
+              // forward from the previous crawl for a fingerprint we have seen
+              // before; doing it here would cost a lookup per finding.
             },
           });
 
@@ -598,7 +627,7 @@ export class IssueEngineService {
             data: { issuesFound: { increment: 1 } },
           });
 
-          persistedIssues.push(issue);
+          persistedIssues.push({ ...issue, fingerprint });
         }
       } catch (err) {
         this.logger.error(`Failed to persist issue ${issue.issueType} for ${pageUrl}`, err);
@@ -606,6 +635,179 @@ export class IssueEngineService {
     }
 
     return persistedIssues;
+  }
+
+  /**
+   * Compares this crawl's fingerprints against the previous crawl's and closes
+   * what is gone.
+   *
+   * Called once per crawl, after every page has been evaluated. This is the
+   * step that turns a pile of per-crawl rows into a history: without it a
+   * finding that was fixed simply stops appearing, which is indistinguishable
+   * from a finding on a page the crawl failed to reach.
+   *
+   * The previous crawl is the last COMPLETED job for the same website before
+   * this one. Comparing against an in-flight or failed crawl would read its
+   * missing pages as fixes and mark half the site resolved.
+   */
+  async reconcileAgainstPreviousCrawl(
+    projectId: string | null,
+    currentCrawlJobId: string,
+  ): Promise<{ resolved: number; regressed: number; carried: number }> {
+    const current = await this.prisma.crawlJob.findUnique({
+      where: { id: currentCrawlJobId },
+      select: { id: true, websiteId: true, createdAt: true },
+    });
+    if (!current) return { resolved: 0, regressed: 0, carried: 0 };
+
+    const previous = await this.prisma.crawlJob.findFirst({
+      where: {
+        websiteId: current.websiteId,
+        status: 'COMPLETED',
+        id: { not: currentCrawlJobId },
+        createdAt: { lt: current.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+
+    // Nothing to compare against. A first crawl has no history to carry and
+    // nothing it could have resolved.
+    if (!previous) return { resolved: 0, regressed: 0, carried: 0 };
+
+    // Scoped to the project as well as the crawl. A fingerprint already embeds
+    // its scope, so rows from a different project could not collide anyway —
+    // but a website that moved between projects would otherwise have its old
+    // findings compared against its new ones, and the mismatch read as the
+    // whole site being fixed at once.
+    //
+    // `fingerprint: { not: null }` excludes rows written before the backfill.
+    // Treating them as one group would make every one of them look like the
+    // same absent finding and mass-resolve live work.
+    const [currentRows, previousRows] = await Promise.all([
+      this.prisma.issue.findMany({
+        where: { crawlJobId: currentCrawlJobId, projectId, fingerprint: { not: null } },
+        select: { id: true, fingerprint: true },
+      }),
+      this.prisma.issue.findMany({
+        where: { crawlJobId: previous.id, projectId, fingerprint: { not: null } },
+        select: {
+          fingerprint: true,
+          status: true,
+          firstDetectedAt: true,
+          regressionCount: true,
+        },
+      }),
+    ]);
+
+    // One entry per fingerprint. A fingerprint appears at most once per crawl
+    // by construction, but a dedupKey collision in older data could break that
+    // assumption, and the earliest first-seen date is the correct one to keep.
+    const previousByFingerprint = new Map<
+      string,
+      { status: string; firstDetectedAt: Date; regressionCount: number }
+    >();
+    for (const row of previousRows) {
+      const fp = row.fingerprint as string;
+      const seen = previousByFingerprint.get(fp);
+      if (!seen || row.firstDetectedAt < seen.firstDetectedAt) {
+        previousByFingerprint.set(fp, {
+          status: row.status as string,
+          firstDetectedAt: row.firstDetectedAt,
+          regressionCount: row.regressionCount,
+        });
+      }
+    }
+
+    const currentFingerprints = new Set(
+      currentRows.map((r) => r.fingerprint as string),
+    );
+
+    const now = new Date();
+    let resolved = 0;
+    let regressed = 0;
+    let carried = 0;
+
+    // Present in both crawls: carry the real first-seen date forward and note
+    // that we saw it again. A finding that was resolved and is back is a
+    // regression, which the client report must be able to tell from a new one.
+    //
+    // Grouped rather than updated row by row. The values written come from the
+    // previous crawl, so findings first seen in the same crawl share them —
+    // which collapses what would be one query per finding into a handful. On a
+    // 10,000-page site the difference is thousands of round trips at the end
+    // of every crawl against about as many as there have been crawls.
+    const carryGroups = new Map<
+      string,
+      { ids: string[]; firstDetectedAt: Date; regressionCount: number; isRegression: boolean }
+    >();
+
+    for (const row of currentRows) {
+      const fp = row.fingerprint as string;
+      const before = previousByFingerprint.get(fp);
+      if (!before) continue;
+
+      const isRegression = before.status === 'RESOLVED';
+      const regressionCount = before.regressionCount + (isRegression ? 1 : 0);
+      const key = `${before.firstDetectedAt.toISOString()}::${regressionCount}::${isRegression}`;
+
+      const group = carryGroups.get(key);
+      if (group) {
+        group.ids.push(row.id);
+      } else {
+        carryGroups.set(key, {
+          ids: [row.id],
+          firstDetectedAt: before.firstDetectedAt,
+          regressionCount,
+          isRegression,
+        });
+      }
+
+      if (isRegression) regressed++;
+      else carried++;
+    }
+
+    for (const group of carryGroups.values()) {
+      await this.prisma.issue.updateMany({
+        where: { id: { in: group.ids } },
+        data: {
+          firstDetectedAt: group.firstDetectedAt,
+          lastSeenAt: now,
+          regressionCount: group.regressionCount,
+          ...(group.isRegression ? { status: 'OPEN', resolvedAt: null } : {}),
+        },
+      });
+    }
+
+    // In the previous crawl and not in this one: the site no longer has the
+    // problem. Recorded against the previous crawl's rows, because this crawl
+    // has no row to mark — that absence is the whole signal.
+    const goneFingerprints = [...previousByFingerprint.keys()].filter(
+      (fp) => !currentFingerprints.has(fp),
+    );
+
+    if (goneFingerprints.length > 0) {
+      const res = await this.prisma.issue.updateMany({
+        where: {
+          crawlJobId: previous.id,
+          projectId,
+          fingerprint: { in: goneFingerprints },
+          // Only OPEN findings resolve. IGNORED is a decision somebody made
+          // about this finding, and overwriting it would erase that they chose
+          // to leave it — a different thing from us confirming it is gone.
+          status: 'OPEN',
+        },
+        data: { status: 'RESOLVED', resolvedAt: now },
+      });
+      resolved = res.count;
+    }
+
+    this.logger.log(
+      `[JOB ${currentCrawlJobId}] Reconciled against ${previous.id}: ` +
+        `${carried} carried, ${regressed} regressed, ${resolved} resolved.`,
+    );
+
+    return { resolved, regressed, carried };
   }
 
   private isRootUrl(rawUrl: string): boolean {

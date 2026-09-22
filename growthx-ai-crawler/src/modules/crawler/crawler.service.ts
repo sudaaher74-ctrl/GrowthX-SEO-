@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { fingerprintFor, fingerprintScope } from '../issues/fingerprint.util';
 import { StorageService } from '../../storage/storage.service';
 import * as cheerio from 'cheerio';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
@@ -808,10 +809,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         const inSitemap = sitemapSetForJob.has(normUrl);
 
         if (outcome.error || outcome.blockedSuspected) {
-          await this.persistFetchFailureIssue(payload.jobId, page.id, normUrl, outcome);
+          await this.persistFetchFailureIssue(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         } else {
         await this.issueEngine.evaluateAndPersistIssues(
           payload.jobId,
+          await this.resolveProjectId(payload.websiteId),
+          payload.websiteId,
           page.id,
           normUrl,
           fetchRes.statusCode,
@@ -831,7 +834,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // finding on a client-rendered site has to be raised here. Without
         // this, a site that is blank to every AI answer engine passes its audit
         // with nothing said about it.
-        await this.persistRenderFindings(payload.jobId, page.id, normUrl, outcome);
+        await this.persistRenderFindings(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         }
 
         // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
@@ -934,10 +937,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * checkable rather than asserted: this many words and links before
    * JavaScript ran, this many after.
    */
-  private async persistRenderFindings(crawlJobId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
+  private async persistRenderFindings(crawlJobId: string, websiteId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
     if (outcome.jsRequired && outcome.renderDiff) {
       const diff = outcome.renderDiff;
-      await this.persistIssue(crawlJobId, pageId, pageUrl, {
+      await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, {
         issueType: 'JS_RENDER_REQUIRED',
         severity: 'HIGH',
         confidence: 'CONFIRMED',
@@ -960,7 +963,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (outcome.renderUnavailable && outcome.escalationReasons.length > 0) {
-      await this.persistIssue(crawlJobId, pageId, pageUrl, {
+      await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, {
         issueType: 'RENDER_UNAVAILABLE',
         severity: 'MEDIUM',
         confidence: 'CONFIRMED',
@@ -1007,7 +1010,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       const findings = evaluateSite({ siteUrl, sitemapFindings, duplicateClusters, deadSitemapUrls });
       for (const finding of findings) {
-        await this.persistIssue(jobId, null, finding.affectedUrl, {
+        await this.persistIssue(jobId, websiteId, null, finding.affectedUrl, {
           issueType: finding.id,
           severity: finding.severity,
           confidence: finding.confidence,
@@ -1074,7 +1077,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * statement about a body that never arrived, so this replaces them rather
    * than joining them.
    */
-  private async persistFetchFailureIssue(crawlJobId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
+  private async persistFetchFailureIssue(crawlJobId: string, websiteId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
     const blocked = !outcome.error && outcome.blockedSuspected;
     const issue = blocked
       ? {
@@ -1104,23 +1107,76 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           evidence: `${outcome.error?.kind ?? 'unknown'}: ${outcome.error?.message ?? 'no response'}`,
         };
 
-    await this.persistIssue(crawlJobId, pageId, pageUrl, issue);
+    await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, issue);
   }
 
-  /** Writes one finding, ignoring a duplicate already recorded for this crawl. */
+  /**
+   * The project a website belongs to, cached for the life of the process.
+   *
+   * Resolved once per website rather than once per finding: a 10,000-page
+   * crawl raises findings in the thousands, and every one of them would
+   * otherwise repeat the same lookup. A website moving between projects
+   * mid-crawl would be read stale, which costs that one crawl's findings their
+   * project and is corrected by the next crawl — a trade worth making against
+   * thousands of redundant queries.
+   */
+  private readonly projectIdByWebsite = new Map<string, string | null>();
+
+  private async resolveProjectId(websiteId: string): Promise<string | null> {
+    const cached = this.projectIdByWebsite.get(websiteId);
+    if (cached !== undefined) return cached;
+
+    // Null is a real answer here, not a failure: competitor sites are stored
+    // with no project on purpose. A lookup that fails outright gets the same
+    // answer — a finding with no project is worth strictly more than a crawl
+    // that died resolving one.
+    try {
+      const website = await this.prisma.website.findUnique({
+        where: { id: websiteId },
+        select: { projectId: true },
+      });
+      const projectId = website?.projectId ?? null;
+      this.projectIdByWebsite.set(websiteId, projectId);
+      return projectId;
+    } catch {
+      // Deliberately not cached. A transient failure that poisoned the cache
+      // would strip the project from every remaining finding in the crawl,
+      // long after the database recovered.
+      this.logger.warn(`Could not resolve the project for website ${websiteId}; findings will carry none.`);
+      return null;
+    }
+  }
+
+  /**
+   * Writes one finding, ignoring a duplicate already recorded for this crawl.
+   *
+   * Carries the same identity columns the issue engine writes. A finding that
+   * reached the database without a fingerprint is invisible to reconciliation,
+   * so it could never resolve and never regress — and the site-level findings
+   * that come through here are among the longest-lived a site has.
+   */
   private async persistIssue(
     crawlJobId: string,
+    websiteId: string,
     pageId: string | null,
     affectedUrl: string,
     issue: { issueType: string; severity: string; confidence: string; description: string; explanation: string; impact: string; recommendation: string; evidence: string },
   ): Promise<void> {
     const dedupKey = `${affectedUrl}::${issue.issueType}`;
+    const projectId = await this.resolveProjectId(websiteId);
+    const fingerprint = fingerprintFor(
+      fingerprintScope(projectId, websiteId),
+      issue.issueType,
+      affectedUrl,
+    );
     try {
       const existing = await this.prisma.issue.findFirst({ where: { crawlJobId, dedupKey } });
       if (existing) return;
       await this.prisma.issue.create({
         data: {
           crawlJobId,
+          projectId,
+          fingerprint,
           pageId: pageId ?? undefined,
           issueType: issue.issueType,
           severity: issue.severity as never,
@@ -1666,6 +1722,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // like dronaarchery.com's ends at one page, and it belongs to the crawl,
     // not to whichever URL happened to be fetched first.
     await this.persistSiteFindings(jobId, job.websiteId);
+
+    // Continuity across crawls. Runs after site findings so everything this
+    // crawl has to say is on the table before it is compared with last time's;
+    // reconciling first would read a site-level finding raised moments later
+    // as absent, and resolve something that is still true.
+    try {
+      const projectId = await this.resolveProjectId(job.websiteId);
+      await this.issueEngine.reconcileAgainstPreviousCrawl(projectId, jobId);
+    } catch (reconcileErr) {
+      // A crawl that cannot be reconciled is still a crawl worth finishing.
+      // The next one reconciles against this one and recovers the history.
+      this.logger.error(`[JOB ${jobId}] Issue reconciliation failed`, reconcileErr);
+    }
 
     const totalPages = pages.length;
     const totalFindings = issues.length;

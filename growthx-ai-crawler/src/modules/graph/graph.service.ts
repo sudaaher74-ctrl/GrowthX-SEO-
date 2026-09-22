@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { fingerprintFor, fingerprintScope } from '../issues/fingerprint.util';
 
 export interface GraphNode {
   url: string;
@@ -31,6 +32,28 @@ export class GraphService {
    * calculates BFS crawl depth, link equity, and performs evidence-grounded orphan page analysis.
    */
   async generateGraphReport(crawlJobId: string): Promise<GraphAnalysisReport> {
+    // Identity for any finding this analysis raises. Resolved once: these
+    // findings go through the same reconciliation as every other, and one
+    // without a fingerprint can never resolve and never regress.
+    //
+    // A failed lookup costs these findings their project, not the report: the
+    // link analysis is the point of this method, and refusing to produce it
+    // because a join failed would trade something valuable for something
+    // recoverable on the next crawl.
+    let graphProjectId: string | null = null;
+    let graphWebsiteId: string | null = null;
+    try {
+      const graphJob = await this.prisma.crawlJob.findUnique({
+        where: { id: crawlJobId },
+        select: { websiteId: true, website: { select: { projectId: true } } },
+      });
+      graphProjectId = graphJob?.website?.projectId ?? null;
+      graphWebsiteId = graphJob?.websiteId ?? null;
+    } catch {
+      this.logger.warn(`Could not resolve the project for crawl ${crawlJobId}; graph findings will carry none.`);
+    }
+    const graphScope = fingerprintScope(graphProjectId, graphWebsiteId ?? crawlJobId);
+
     this.logger.log(`Generating internal link graph and equity analysis for Job: ${crawlJobId}`);
 
     // Fetch all crawled pages for this job with canonical & robots metadata
@@ -209,6 +232,8 @@ export class GraphService {
           await this.prisma.issue.create({
             data: {
               crawlJobId,
+              projectId: graphProjectId,
+              fingerprint: fingerprintFor(graphScope, 'ORPHAN_PAGE', orphan.url),
               pageId: orphan.pageId,
               issueType: 'ORPHAN_PAGE',
               severity: orphan.severity,
@@ -249,6 +274,8 @@ export class GraphService {
             await this.prisma.issue.create({
               data: {
                 crawlJobId,
+                projectId: graphProjectId,
+                fingerprint: fingerprintFor(graphScope, 'EXCESSIVE_CRAWL_DEPTH', deepUrl),
                 pageId: pObj.id,
                 issueType: 'EXCESSIVE_CRAWL_DEPTH',
                 severity: 'LOW',

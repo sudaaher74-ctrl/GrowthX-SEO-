@@ -188,33 +188,75 @@ model AeoMetrics {
 }
 
 model Issue {
-  id               String            @id @default(uuid())
-  crawlJobId       String
-  pageId           String?
-  issueType        String
-  severity         IssueSeverity
-  affectedUrl      String
-  description      String
-  recommendation   String
-  status           IssueStatus       @default(OPEN)
-  aiFixAvailable   Boolean           @default(false)
-  confidence       String            @default("LIKELY")
-  impact           String?
-  explanation      String?
-  evidence         String?
-  dedupKey         String?
-  category         String?
+  id             String        @id @default(uuid())
+  crawlJobId     String
+  pageId         String?
+  issueType      String
+  severity       IssueSeverity
+  affectedUrl    String
+  description    String
+  recommendation String
+  status         IssueStatus   @default(OPEN)
+  aiFixAvailable Boolean       @default(false)
+  confidence     String        @default("LIKELY")
+  impact         String?
+  explanation    String?
+  evidence       String?
+  dedupKey       String?
+  category       String?
+
+  /// The client this finding belongs to. Denormalised from
+  /// crawlJob -> website -> project so a finding can be queried and tracked
+  /// without joining through the crawl that happened to discover it.
+  ///
+  /// Nullable because `Website.projectId` is: a competitor's site is crawled
+  /// with no project on purpose, and that null is what keeps a rival's pages
+  /// out of the customer's own analysis. Findings from those crawls have no
+  /// project to belong to. Every crawl of a customer's own site sets it.
+  projectId String?
+
+  /// Stable identity across crawls: scope::issueType::normalisedUrl.
+  ///
+  /// dedupKey deduplicates within one crawl; fingerprint is what lets the same
+  /// finding be recognised in the NEXT crawl, which is what makes
+  /// firstDetectedAt, resolvedAt and regression detection possible.
+  ///
+  /// Nullable only until the backfill has run over existing rows; a follow-up
+  /// migration makes it NOT NULL. See
+  /// src/modules/issues/scripts/backfill-issue-identity.ts.
+  fingerprint String?
+
+  /// When this finding was first seen, ever — not when this row was written.
+  /// Carried forward when a later crawl re-detects the same fingerprint.
+  firstDetectedAt DateTime @default(now())
+
+  /// Refreshed every crawl that still finds it. A fingerprint present in
+  /// crawl N and absent in crawl N+1 has resolved itself.
+  lastSeenAt DateTime @default(now())
+
+  /// Set when a crawl no longer finds a fingerprint that was previously open.
+  resolvedAt DateTime?
+
+  /// Incremented when a fingerprint is re-detected after having been resolved.
+  /// A regression is a different conversation with the client than a new
+  /// finding, and the report must be able to tell them apart.
+  regressionCount Int @default(0)
+
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   aiRecommendation AIRecommendation?
   crawlJob         CrawlJob          @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
   page             Page?             @relation(fields: [pageId], references: [id])
+  project          Project?          @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([crawlJobId, severity])
   @@index([affectedUrl, status])
   @@index([issueType])
   @@index([crawlJobId, dedupKey])
   @@index([crawlJobId, category])
+  @@index([projectId, status, severity])
+  @@index([projectId, fingerprint])
+  @@index([projectId, issueType, status])
 }
 
 model Image {
@@ -395,6 +437,7 @@ model Project {
   strategies                StrategyReport[]
   prompts                   TrackedPrompt[]
   websites                  Website[]
+  issues                    Issue[]
   LocalReview               LocalReview[]
   AgentRun                  AgentRun[]
   Evidence                  Evidence[]
