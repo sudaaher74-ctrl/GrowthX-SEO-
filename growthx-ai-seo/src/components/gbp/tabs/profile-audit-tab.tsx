@@ -49,11 +49,29 @@ export function ProfileAuditTab({
   const pendingProposals = proposals.filter((p) => p.status === "PENDING");
 
   // Profile completeness, derived only from fields we actually have.
+  //
+  // The four Places-sourced rows below are appended only once Places has been
+  // read for this listing. Before that, `phone` being empty means nobody asked
+  // Google — not that the merchant left it blank — and scoring it as an
+  // unchecked box would report a gap that has not been measured. This is the
+  // same distinction the backend records `placesDetailsSyncedAt` to preserve.
+  const placesRead = Boolean(localSeo?.placesDetailsSyncedAt);
   const checklist = [
     { label: "Business name", completed: Boolean(localSeo?.businessName) },
     { label: "Address", completed: Boolean(localSeo?.address) },
     { label: "Rating & reviews", completed: Boolean(localSeo && localSeo.reviewCount > 0) },
     { label: "Citations", completed: Boolean(localSeo && localSeo.citationsCount > 0) },
+    ...(placesRead
+      ? [
+          { label: "Phone number", completed: Boolean(localSeo?.phone) },
+          { label: "Website", completed: Boolean(localSeo?.websiteUri) },
+          { label: "Primary category", completed: Boolean(localSeo?.primaryCategory) },
+          {
+            label: "Opening hours",
+            completed: Boolean(localSeo?.hoursWeekdayText && localSeo.hoursWeekdayText.length > 0),
+          },
+        ]
+      : []),
   ];
   const completedCount = checklist.filter((c) => c.completed).length;
   const completionPercentage = localSeo ? Math.round((completedCount / checklist.length) * 100) : null;

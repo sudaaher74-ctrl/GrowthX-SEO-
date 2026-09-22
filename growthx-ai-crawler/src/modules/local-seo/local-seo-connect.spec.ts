@@ -280,6 +280,177 @@ describe('LocalSeoService — connectBusiness & location management', () => {
     });
   });
 
+  /**
+   * The Places-sourced profile fields.
+   *
+   * These exist because the Business Profile APIs are gated behind a Google
+   * approval granted per Cloud project: until it lands, Places is the only
+   * readable source for the listing, and an audit with no phone, website,
+   * hours or category to look at can only ever check four boxes.
+   *
+   * What each test here protects is the line between "Google has none" and
+   * "nothing asked". A null that means the second must never be rendered as
+   * the first.
+   */
+  describe('connectBusiness — Places profile details', () => {
+    const DETAILS = {
+      nationalPhoneNumber: '+91 20 2345 6789',
+      websiteUri: 'https://milquufresh.in',
+      primaryTypeDisplayName: { text: 'Fruit and vegetable wholesaler' },
+      types: ['wholesaler', 'food', 'point_of_interest'],
+      regularOpeningHours: {
+        weekdayDescriptions: ['Monday: 9:00 AM – 6:00 PM', 'Tuesday: 9:00 AM – 6:00 PM'],
+      },
+      businessStatus: 'OPERATIONAL',
+    };
+
+    afterEach(() => {
+      delete process.env.GOOGLE_PLACES_API_KEY;
+      delete (global as any).fetch;
+    });
+
+    it('reads the profile fields from Places and stores them on the location', async () => {
+      process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => DETAILS });
+      (global as any).fetch = fetchMock;
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+
+      await service.connectBusiness(projectId, mockPlaceData);
+
+      // Asked Google about the place itself, not carried up from the browser
+      // with the rest of the connect payload.
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toContain(`/v1/places/${mockPlaceData.placeId}`);
+      expect(init.headers['X-Goog-FieldMask']).toContain('nationalPhoneNumber');
+
+      // `reviews` and `editorialSummary` sit in Enterprise + Atmosphere,
+      // Google's most expensive tier. Requesting either would move the price
+      // of every lookup, so the mask must not grow to include them.
+      expect(init.headers['X-Goog-FieldMask']).not.toContain('reviews');
+      expect(init.headers['X-Goog-FieldMask']).not.toContain('editorialSummary');
+
+      const stored = prisma.locations[0];
+      expect(stored.phone).toBe('+91 20 2345 6789');
+      expect(stored.websiteUri).toBe('https://milquufresh.in');
+      expect(stored.primaryCategory).toBe('Fruit and vegetable wholesaler');
+      expect(stored.categories).toEqual(['wholesaler', 'food', 'point_of_interest']);
+      expect(stored.hoursWeekdayText).toHaveLength(2);
+      expect(stored.businessStatus).toBe('OPERATIONAL');
+      // Set only on a read that actually happened, which is what makes the
+      // nulls above readable as "Google has none" on any other listing.
+      expect(stored.placesDetailsSyncedAt).toBeInstanceOf(Date);
+    });
+
+    it('stores nothing Google did not send, rather than a default', async () => {
+      process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+      // A listing with no phone, no website and no published hours: Places
+      // answers with the fields simply absent.
+      (global as any).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ businessStatus: 'OPERATIONAL' }) });
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+
+      await service.connectBusiness(projectId, mockPlaceData);
+
+      const stored = prisma.locations[0];
+      expect(stored.phone).toBeNull();
+      expect(stored.websiteUri).toBeNull();
+      expect(stored.primaryCategory).toBeNull();
+      expect(stored.categories).toEqual([]);
+      expect(stored.hoursWeekdayText).toEqual([]);
+      // The read succeeded, so these nulls do mean the merchant has not filled
+      // them in — which is exactly what the audit is entitled to report.
+      expect(stored.placesDetailsSyncedAt).toBeInstanceOf(Date);
+    });
+
+    it('still attaches the listing when the details call fails', async () => {
+      process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+      (global as any).fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({
+            error: {
+              message: 'The caller does not have permission',
+              details: [{ reason: 'API_KEY_SERVICE_BLOCKED', metadata: { consumer: 'projects/1' } }],
+            },
+          }),
+      });
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+
+      const location = await service.connectBusiness(projectId, mockPlaceData);
+
+      // The location is what the customer asked to attach. Losing it because
+      // the extra fields could not be read would leave them with nothing.
+      expect(location.businessName).toBe('Apex Dental Care');
+      expect(prisma.locations).toHaveLength(1);
+      // And nothing claims the merchant has no phone number on the strength
+      // of a request that failed.
+      expect(prisma.locations[0].placesDetailsSyncedAt).toBeUndefined();
+    });
+
+    it('does not overwrite details already read when a later refresh fails', async () => {
+      process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+      (global as any).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => DETAILS });
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+      await service.connectBusiness(projectId, mockPlaceData);
+      expect(prisma.locations[0].phone).toBe('+91 20 2345 6789');
+
+      // Reconnecting is also the refresh path. A failed refresh must leave the
+      // last good read in place rather than blanking the profile.
+      (global as any).fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 429, text: async () => 'RESOURCE_EXHAUSTED' });
+      await service.connectBusiness(projectId, { ...mockPlaceData, reviewCount: 130 });
+
+      expect(prisma.locations).toHaveLength(1);
+      expect(prisma.locations[0].phone).toBe('+91 20 2345 6789');
+      expect(prisma.locations[0].reviewCount).toBe(130);
+    });
+
+    it('asks Places nothing for a manually entered listing', async () => {
+      process.env.GOOGLE_PLACES_API_KEY = 'test-key';
+      const fetchMock = jest.fn();
+      (global as any).fetch = fetchMock;
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+
+      // Manual entry has no place id, so there is nothing to ask about, and
+      // what the operator typed is stored exactly as typed.
+      await service.connectBusiness(projectId, {
+        businessName: 'Corner Store',
+        address: '5 Side Lane',
+        rating: 0,
+        reviewCount: 0,
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(prisma.locations[0].placesDetailsSyncedAt).toBeUndefined();
+    });
+
+    it('asks Places nothing when no key is configured', async () => {
+      const fetchMock = jest.fn();
+      (global as any).fetch = fetchMock;
+
+      const prisma = createInMemoryPrisma();
+      const service = new LocalSeoService(prisma as any);
+
+      await service.connectBusiness(projectId, mockPlaceData);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(prisma.locations).toHaveLength(1);
+    });
+  });
+
   describe('getProposals', () => {
     it('retrieves fix proposals for the project sorted by createdAt desc', async () => {
       const prisma = createInMemoryPrisma();

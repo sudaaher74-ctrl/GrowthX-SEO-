@@ -789,6 +789,35 @@ model LocalLocation {
   rating         Float          @default(0)
   reviewCount    Int            @default(0)
   citationsCount Int            @default(0)
+
+  /// The profile fields Places will serve without the Business Profile APIs.
+  ///
+  /// The first-party APIs are gated behind a Google approval granted per Cloud
+  /// project, and until it lands the only readable source for this listing is
+  /// Places. These columns are what Places returns for it, so the audit can
+  /// name a missing phone number or a missing website rather than reporting on
+  /// four fields and calling that a profile.
+  ///
+  /// All nullable, and null is never rendered as absent on its own:
+  /// placesDetailsSyncedAt below is what separates "Google has no phone for
+  /// this listing" from "nothing has asked Places yet".
+  phone          String?
+  websiteUri     String?
+  /// Google's own display name for the primary category, not a machine type.
+  primaryCategory String?
+  /// Every type Places lists for the place, primary included.
+  categories     String[]       @default([])
+  /// Places' weekdayDescriptions verbatim — one human-readable line per day.
+  /// Stored as Google wrote them rather than reduced to open/closed times,
+  /// which loses split shifts and "Open 24 hours".
+  hoursWeekdayText String[]     @default([])
+  /// OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY, as Places states it.
+  businessStatus String?
+  /// When Places details were last read into the columns above. Null means
+  /// never asked — every row created before this existed, and every listing
+  /// attached by manual entry, which has no place to ask about.
+  placesDetailsSyncedAt DateTime?
+
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)

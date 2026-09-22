@@ -156,6 +156,81 @@ export class LocalSeoService {
   }
 
   /**
+   * The profile fields Places holds for one place.
+   *
+   * Read server-side from the place id rather than carried up from the
+   * browser with the rest of the connect payload: these become the profile
+   * the audit reports on, and a field the client could set is a field the
+   * client could invent. The same call is what refreshes a listing connected
+   * before these columns existed, since reconnecting one updates it.
+   *
+   * Every field is optional in the answer, and an absent one stays null. The
+   * caller records `placesDetailsSyncedAt` on success, which is what lets a
+   * null be read as "Google has none" rather than "never asked".
+   *
+   * The field mask is deliberately bounded to Google's Enterprise SKU, which
+   * `rating` and `userRatingCount` already put this call in. `reviews` and
+   * `editorialSummary` would move every lookup to Enterprise + Atmosphere,
+   * Google's most expensive tier, so they are not requested here.
+   */
+  private async fetchPlaceDetails(placeId: string): Promise<{
+    phone: string | null;
+    websiteUri: string | null;
+    primaryCategory: string | null;
+    categories: string[];
+    hoursWeekdayText: string[];
+    businessStatus: string | null;
+  } | null> {
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    if (!apiKey) return null;
+
+    const fields = [
+      'nationalPhoneNumber',
+      'websiteUri',
+      'regularOpeningHours',
+      'primaryTypeDisplayName',
+      'types',
+      'businessStatus',
+    ].join(',');
+
+    const response = await fetch(
+      `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+      { headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': fields } },
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let message = `Google Places details returned HTTP ${response.status}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed?.error?.message) message += `: ${parsed.error.message}`;
+        message += describePlacesFailure(parsed);
+      } catch {
+        if (errorText) message += `: ${errorText.slice(0, 300)}`;
+      }
+      // Not thrown: the listing itself is what the customer asked to attach,
+      // and failing the whole connect because the extra fields could not be
+      // read would leave them with no location at all. The columns stay null
+      // and placesDetailsSyncedAt stays unset, so nothing claims the merchant
+      // has no phone number on the strength of a failed request.
+      this.logger.warn(message);
+      return null;
+    }
+
+    const place = await response.json();
+    return {
+      phone: place.nationalPhoneNumber ?? null,
+      websiteUri: place.websiteUri ?? null,
+      primaryCategory: place.primaryTypeDisplayName?.text ?? null,
+      categories: Array.isArray(place.types) ? place.types : [],
+      hoursWeekdayText: Array.isArray(place.regularOpeningHours?.weekdayDescriptions)
+        ? place.regularOpeningHours.weekdayDescriptions
+        : [],
+      businessStatus: place.businessStatus ?? null,
+    };
+  }
+
+  /**
    * Attaches a Google Places listing to a project as one of its locations.
    *
    * Keyed on (project, place): connecting the same listing twice updates it,
@@ -173,6 +248,13 @@ export class LocalSeoService {
       longitude?: number;
     }
   ) {
+    // Only a Places listing has details to read. Manual entry has no place id
+    // to ask about, and is stored exactly as the operator typed it.
+    const details = placeData.placeId ? await this.fetchPlaceDetails(placeData.placeId) : null;
+    const detailFields = details
+      ? { ...details, placesDetailsSyncedAt: new Date() }
+      : {};
+
     return this.prisma.localLocation.upsert({
       where: { projectId_placeId: { projectId, placeId: placeData.placeId ?? '' } },
       update: {
@@ -182,6 +264,10 @@ export class LocalSeoService {
         reviewCount: placeData.reviewCount,
         latitude: placeData.latitude ?? undefined,
         longitude: placeData.longitude ?? undefined,
+        // Spread rather than assigned field by field: when the details call
+        // failed this is empty, which leaves whatever a previous successful
+        // read stored instead of overwriting it with nulls.
+        ...detailFields,
       },
       create: {
         projectId,
@@ -192,6 +278,7 @@ export class LocalSeoService {
         reviewCount: placeData.reviewCount,
         latitude: placeData.latitude ?? null,
         longitude: placeData.longitude ?? null,
+        ...detailFields,
         // citationsCount is left at its column default of 0. It was previously
         // seeded with `Math.random() * 50 + 10` — a number with no relationship
         // to any citation, stored and then displayed as a measured figure.

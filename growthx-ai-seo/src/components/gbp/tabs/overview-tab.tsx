@@ -105,6 +105,104 @@ export function OverviewTab({
   );
 }
 
+/**
+ * The listing's profile fields, read from Places.
+ *
+ * Google gates the Business Profile APIs behind an approval granted per Cloud
+ * project, and an unapproved project is given a quota of zero rather than a
+ * refusal — so on a deployment still waiting, Places is the only source that
+ * answers. It serves the phone number, website, category and opening hours,
+ * which is most of what a profile is.
+ *
+ * The card renders nothing at all until Places has actually been read. That is
+ * the point of `placesDetailsSyncedAt`: before it is set, an empty phone field
+ * means nobody asked Google, and a row of dashes would state the opposite —
+ * that the merchant left their profile blank.
+ */
+function PlacesProfileCard({ localSeo }: { localSeo: LocalSeoData }) {
+  if (!localSeo.placesDetailsSyncedAt) return null;
+
+  const fields: { icon: typeof PhoneCall; label: string; value: string | null }[] = [
+    { icon: PhoneCall, label: "Phone", value: localSeo.phone ?? null },
+    { icon: Globe, label: "Website", value: localSeo.websiteUri ?? null },
+    { icon: BadgeCheck, label: "Primary category", value: localSeo.primaryCategory ?? null },
+  ];
+  const hours = localSeo.hoursWeekdayText ?? [];
+  // Google states this per listing; anything other than operational is worth
+  // showing on its own, since it changes what every other number here means.
+  const closed =
+    localSeo.businessStatus && localSeo.businessStatus !== "OPERATIONAL"
+      ? localSeo.businessStatus.replace(/_/g, " ").toLowerCase()
+      : null;
+
+  return (
+    <div
+      className="rounded-2xl border bg-white p-5 shadow-xs"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-bold text-brand-950">Profile fields</h3>
+          <p className="mt-0.5 text-xs text-brand-500">
+            Read from Google Places. A blank field is one Google holds nothing for — which is
+            itself worth fixing on your listing.
+          </p>
+        </div>
+        <span className="text-[11px] text-brand-400 shrink-0">
+          Places · {formatGbpTimestamp(localSeo.placesDetailsSyncedAt)}
+        </span>
+      </div>
+
+      {closed && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-warning-50 border border-warning-200 px-3 py-2 text-xs font-semibold text-warning-800">
+          <AlertTriangle size={14} className="shrink-0 text-warning-600" />
+          <span>Google lists this business as {closed}.</span>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {fields.map(({ icon: Icon, label, value }) => (
+          <div key={label} className="min-w-0">
+            <span className="text-[11px] text-brand-400 flex items-center gap-1.5">
+              <Icon size={12} className="text-brand-400 shrink-0" />
+              {label}
+            </span>
+            {value ? (
+              <span className="mt-0.5 block text-sm font-semibold text-brand-950 truncate">
+                {value}
+              </span>
+            ) : (
+              <span className="mt-0.5 block text-sm font-semibold text-brand-300">
+                Not on the listing
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 pt-4 border-t border-brand-100">
+        <span className="text-[11px] text-brand-400 flex items-center gap-1.5">
+          <Clock size={12} className="text-brand-400 shrink-0" />
+          Opening hours
+        </span>
+        {hours.length > 0 ? (
+          <ul className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+            {hours.map((line) => (
+              <li key={line} className="text-xs text-brand-700">
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-xs text-brand-300 font-semibold">
+            No hours published on the listing
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LocalTrackedOverview({
   localSeo,
   proposals,
@@ -229,6 +327,9 @@ function LocalTrackedOverview({
           </div>
         </div>
       </div>
+
+      {/* ── Profile fields, as Places holds them ───────────────────── */}
+      <PlacesProfileCard localSeo={localSeo} />
 
       {/* ── Feature Cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

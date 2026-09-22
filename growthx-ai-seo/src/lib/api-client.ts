@@ -1016,6 +1016,24 @@ export interface LocalSeoData {
   citationsCount: number;
   updatedAt: string;
   rankings?: LocalRanking[];
+
+  /**
+   * The profile fields Places serves while the Business Profile APIs are
+   * gated behind Google's per-project approval. Null means Google returned
+   * nothing for the field — but only once `placesDetailsSyncedAt` is set.
+   * Until then it means nothing has asked, which is not the same claim and
+   * must not be rendered as one.
+   */
+  phone?: string | null;
+  websiteUri?: string | null;
+  primaryCategory?: string | null;
+  categories?: string[];
+  /** Google's own weekday lines, e.g. "Monday: 9:00 AM – 6:00 PM". */
+  hoursWeekdayText?: string[];
+  /** OPERATIONAL, CLOSED_TEMPORARILY or CLOSED_PERMANENTLY. */
+  businessStatus?: string | null;
+  /** When Places details were last read. Null: never asked. */
+  placesDetailsSyncedAt?: string | null;
 }
 export interface GridNode {
   id: string;
