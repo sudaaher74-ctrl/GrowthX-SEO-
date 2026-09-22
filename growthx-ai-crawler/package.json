@@ -25,7 +25,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "script:backfill-issue-identity": "ts-node -r tsconfig-paths/register src/modules/issues/scripts/backfill-issue-identity.ts",
+    "script:backfill-issue-identity": "npm run build && node scripts/backfill-issue-identity.js",
     "postinstall": "prisma generate",
     "build:render": "npm install && npx prisma generate && npm run build",
     "start:render": "npx prisma migrate deploy && npm run start:prod"

@@ -113,6 +113,13 @@ run_migrations_in_background() {
   if [ "$RUN_PAGE_TYPE_BACKFILL" = "true" ]; then
     run_optional_step "Page type backfill" node scripts/backfill-page-types.js
   fi
+  # Gives findings written before Issue.fingerprint existed their identity.
+  # Opt-in rather than automatic: it walks the whole Issue table, and a long
+  # job wants to be started deliberately and watched, not fired on every boot.
+  # Idempotent, so re-running after it has finished writes nothing.
+  if [ "$RUN_ISSUE_IDENTITY_BACKFILL" = "true" ]; then
+    run_optional_step "Issue identity backfill" node scripts/backfill-issue-identity.js
+  fi
 }
 
 run_migrations_in_background &

@@ -52,8 +52,25 @@ function readProgress(): Progress {
   }
 }
 
+let progressWriteFailed = false;
+
 function writeProgress(p: Progress): void {
-  fs.writeFileSync(PROGRESS_FILE, JSON.stringify(p, null, 2));
+  try {
+    fs.writeFileSync(PROGRESS_FILE, JSON.stringify(p, null, 2));
+  } catch (err) {
+    // Losing resumability is a far smaller problem than losing the run. In the
+    // production image /app is root-owned and the process is `node`, so an
+    // unwritable progress file is a realistic outcome rather than a
+    // hypothetical one — and it must not stop the backfill from finishing.
+    if (!progressWriteFailed) {
+      progressWriteFailed = true;
+      console.warn(
+        `Could not write progress to ${PROGRESS_FILE} (${(err as Error).message}). ` +
+          'The backfill continues, but an interrupted run will restart from the beginning. ' +
+          'Set BACKFILL_PROGRESS_FILE to a writable path to restore resumability.',
+      );
+    }
+  }
 }
 
 export async function backfillIssueIdentity(

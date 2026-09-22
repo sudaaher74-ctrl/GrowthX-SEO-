@@ -12,13 +12,24 @@ can only land once the data satisfies it.
 1. Deploy `20260922093000_issue_project_and_fingerprint` (additive, nullable).
    Nothing breaks: the new write path fills the columns for every crawl from
    this point on, and old rows keep working with NULLs.
-2. Run the backfill against production:
+2. Run the backfill against production by setting `RUN_ISSUE_IDENTITY_BACKFILL=true`
+   on `growthx-crawler-api` and restarting it. The entrypoint runs
+   `node scripts/backfill-issue-identity.js` after migrations, in the
+   background, so it does not hold up the port bind. Unset the variable once it
+   has finished — it is idempotent, but there is no reason to walk the table on
+   every boot.
 
-   ```
-   npm run script:backfill-issue-identity
-   ```
+   Locally, `npm run script:backfill-issue-identity` does the same thing
+   (it builds first, because the runner reads the compiled output).
 
    It is batched, resumable and idempotent. Note the orphan count it prints.
+
+   The runner is plain JS on purpose: `ts-node` is a devDependency and the
+   production image is built with `npm ci --omit=dev`, so a TypeScript entry
+   point cannot run there at all. The logic itself is required from `dist/`
+   rather than duplicated, because a second copy of the URL normalisation
+   drifting by one trailing slash would silently break the continuity this is
+   for.
 3. Confirm nothing is left:
 
    ```sql
@@ -37,6 +48,22 @@ ALTER TABLE "Issue" ALTER COLUMN "fingerprint" SET NOT NULL;
 ```
 
 and in `schema.prisma`, `fingerprint String?` becomes `fingerprint String`.
+
+## Verified
+
+The forward migration, the `down.sql` beside it and the backfill were all run
+against a local PostgreSQL 16 with the full migration history applied:
+
+- `prisma migrate deploy` applies this migration last in the chain, clean.
+- The backfill collapses `http://www.example.com/a/` and
+  `https://example.com/a?utm_source=g` to one fingerprint, and sets
+  `firstDetectedAt` to the earliest `createdAt` across both rather than each
+  row's own.
+- Re-running it writes identical data (idempotent).
+- An unwritable `BACKFILL_PROGRESS_FILE` warns and continues rather than
+  failing the run.
+- `down.sql` drops every added column, index and constraint, preserves the
+  pre-existing rows, and the forward migration re-applies cleanly afterwards.
 
 ## What about the orphans?
 
