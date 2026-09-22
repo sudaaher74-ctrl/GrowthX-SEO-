@@ -64,6 +64,8 @@ describe('BusinessProfileService', () => {
     performance?: any;
     performanceError?: any;
     v4?: (path: string) => any;
+    /** Lets a test own the accounts call, to count how often it is made. */
+    accountsList?: jest.Mock;
   } = {}) {
     const prisma = fakePrisma();
     prisma.integration.rows.push({
@@ -84,7 +86,10 @@ describe('BusinessProfileService', () => {
     };
 
     (google.mybusinessaccountmanagement as jest.Mock).mockReturnValue({
-      accounts: { list: jest.fn().mockResolvedValue({ data: { accounts: [{ name: ACCOUNT }] } }) },
+      accounts: {
+        list:
+          options.accountsList ?? jest.fn().mockResolvedValue({ data: { accounts: [{ name: ACCOUNT }] } }),
+      },
     });
 
     (google.mybusinessbusinessinformation as jest.Mock).mockReturnValue({
@@ -211,6 +216,54 @@ describe('BusinessProfileService', () => {
         'PENDING_APPROVAL',
       );
       expect(service.classifyFailure(googleError(429, 'Quota exceeded')).kind).toBe('RATE_LIMITED');
+    });
+
+    it('tells a quota of zero from a quota that is briefly exhausted', () => {
+      const { service } = harness();
+
+      // What Google actually answers a Cloud project whose Business Profile
+      // access request has not been approved: the API is enabled, the
+      // credentials are good, and the quota it is provisioned with is 0.
+      const zeroQuota = googleError(
+        429,
+        "Quota exceeded for quota metric 'Requests' and limit 'Requests per minute' of service " +
+          "'mybusinessbusinessinformation.googleapis.com' for consumer 'project_number:1234'.",
+      );
+      zeroQuota.response.data.error.details = [
+        {
+          '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+          reason: 'RATE_LIMIT_EXCEEDED',
+          domain: 'googleapis.com',
+          metadata: { quota_limit: 'defaultPerMinutePerProject', quota_limit_value: '0' },
+        },
+      ];
+
+      const failure = service.classifyFailure(zeroQuota);
+      expect(failure.kind).toBe('QUOTA_NOT_GRANTED');
+      // The advice a zero quota must not give is "wait a minute", because
+      // there is no minute at which it succeeds.
+      expect(failure.message).not.toMatch(/wait a minute/i);
+      expect(failure.message).toMatch(/approved/i);
+
+      // A real burst keeps the retry-and-wait advice.
+      const burst = googleError(429, 'Quota exceeded');
+      burst.response.data.error.details = [
+        { '@type': 'type.googleapis.com/google.rpc.ErrorInfo', metadata: { quota_limit_value: '300' } },
+      ];
+      expect(service.classifyFailure(burst).kind).toBe('RATE_LIMITED');
+    });
+
+    it('does not retry a quota of zero, and reports it on the first answer', async () => {
+      const zeroQuota = googleError(429, 'Quota exceeded for quota metric ...');
+      zeroQuota.response.data.error.details = [{ metadata: { quota_limit_value: '0' } }];
+
+      const accountsList = jest.fn().mockRejectedValue(zeroQuota);
+      const { service } = harness({ accountsList });
+
+      await expect(service.listLocations(PROJECT)).rejects.toThrow(/zero Business Profile requests/i);
+      // One attempt, not four: retrying spends the customer's time to reach
+      // the same answer and spends the refusing quota to do it.
+      expect(accountsList).toHaveBeenCalledTimes(1);
     });
   });
 

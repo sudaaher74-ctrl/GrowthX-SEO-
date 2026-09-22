@@ -69,7 +69,13 @@ export const GBP_PROFILE_FIELDS = [
 ] as const;
 
 /** What a Google failure means for the customer, and for the connection row. */
-type FailureKind = 'REAUTH' | 'PENDING_APPROVAL' | 'RATE_LIMITED' | 'NOT_FOUND' | 'OTHER';
+type FailureKind =
+  | 'REAUTH'
+  | 'PENDING_APPROVAL'
+  | 'QUOTA_NOT_GRANTED'
+  | 'RATE_LIMITED'
+  | 'NOT_FOUND'
+  | 'OTHER';
 
 interface ClassifiedFailure {
   kind: FailureKind;
@@ -158,6 +164,17 @@ export class BusinessProfileService {
         const status: number | null =
           err?.status ?? err?.response?.status ?? (typeof err?.code === 'number' ? err.code : null);
         if (status !== 429 || attempt === maxAttempts) throw err;
+        // A quota of zero is not a burst. Retrying it burns fourteen seconds
+        // of the customer's time to arrive at the same answer, and every
+        // attempt is another request against a quota that is already refusing
+        // them, so it is surfaced on the first response instead.
+        if (quotaLimitIsZero(err)) {
+          this.logger.warn(
+            '[GBP] Google answered 429 with a quota limit of 0 — this Cloud project is not approved for the ' +
+              'Business Profile APIs, so the request is not retried.',
+          );
+          throw err;
+        }
         const delay = baseDelayMs * Math.pow(2, attempt - 1);
         this.logger.warn(
           `[GBP] Google rate-limited (429) — retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`,
@@ -687,13 +704,18 @@ export class BusinessProfileService {
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       let detail = '';
+      let googleError: any = null;
       try {
-        detail = JSON.parse(body)?.error?.message ?? '';
+        googleError = JSON.parse(body)?.error ?? null;
+        detail = googleError?.message ?? '';
       } catch {
         detail = body.slice(0, 300);
       }
       const error: any = new Error(detail || `Google returned HTTP ${response.status}.`);
       error.status = response.status;
+      // The structured error, not just its message: `details` carries the
+      // quota limit, which is what tells a 429 of zero from a 429 of busy.
+      if (googleError) error.googleError = googleError;
       throw error;
     }
 
@@ -1019,13 +1041,34 @@ export class BusinessProfileService {
     }
 
     if (httpStatus === 429) {
+      // Google's answer to an unapproved Cloud project, and the reason this
+      // branch cannot simply say "wait a minute": the quota is zero, so there
+      // is no minute at which it succeeds.
+      if (quotaLimitIsZero(error)) {
+        return {
+          kind: 'QUOTA_NOT_GRANTED',
+          httpStatus,
+          message:
+            'Google is allowing this deployment zero Business Profile requests per minute, which is what an ' +
+            'unapproved Cloud project is given rather than what a busy one is given. Waiting and retrying cannot ' +
+            'change it: the Business Profile API access request for this Cloud project has to be approved by ' +
+            'Google, which raises the quota above zero. Nothing about the Google account you signed in with is ' +
+            'wrong, and reconnecting will not help. Track this location via Places / Manual Entry until the ' +
+            'approval lands.',
+        };
+      }
       return {
         kind: 'RATE_LIMITED',
         httpStatus,
         message:
           'Google is temporarily rate-limiting Business Profile requests for this project. ' +
           'Automatic retries were attempted but Google is still busy. ' +
-          'Please wait a minute and click "Try again" — this usually resolves on its own.',
+          'Please wait a minute and click "Try again" — this usually resolves on its own.' +
+          // Google names the quota and the service it applies to, which is the
+          // only way for whoever runs this deployment to check the limit in
+          // Cloud Console rather than guess at it. As in the OTHER branch:
+          // Google's message field, which carries no token and no credential.
+          (raw ? ` Google said: ${raw.slice(0, 300)}` : ''),
       };
     }
 
@@ -1047,11 +1090,20 @@ export class BusinessProfileService {
 
     if (failure.kind === 'REAUTH') {
       await this.oauth.markNeedsReauth(projectId, 'business_profile', 'Google returned 401 for Business Profile.');
-    } else if (failure.kind === 'PENDING_APPROVAL' || failure.kind === 'RATE_LIMITED') {
+    } else if (
+      failure.kind === 'PENDING_APPROVAL' ||
+      failure.kind === 'QUOTA_NOT_GRANTED' ||
+      failure.kind === 'RATE_LIMITED'
+    ) {
       await this.oauth.markError(projectId, 'business_profile', failure.message);
     }
 
     this.logger.warn(`[GBP ${projectId}] ${failure.httpStatus ?? '—'}: ${failure.message}`);
+    // Google's own words, kept out of the customer-facing message but logged,
+    // because an operator checking whether the approval has landed needs the
+    // quota metric and limit Google named rather than our reading of it.
+    const raw: string = error?.response?.data?.error?.message ?? error?.message ?? '';
+    if (raw) this.logger.warn(`[GBP ${projectId}] Google said: ${raw.slice(0, 500)}`);
     return new ServiceUnavailableException(failure.message);
   }
 
@@ -1094,7 +1146,10 @@ export class BusinessProfileService {
     const failure = this.classifyFailure(error);
     if (failure.kind === 'REAUTH') {
       await this.oauth.markNeedsReauth(projectId, 'business_profile', `Google returned 401 for ${source}.`);
-    } else if (failure.kind === 'PENDING_APPROVAL' && (source === 'profile' || source === 'performance')) {
+    } else if (
+      (failure.kind === 'PENDING_APPROVAL' || failure.kind === 'QUOTA_NOT_GRANTED') &&
+      (source === 'profile' || source === 'performance')
+    ) {
       // Only the two first-party APIs speak for the connection as a whole. v4
       // being refused is normal on an otherwise healthy connection, and
       // marking the whole integration broken because photos are unreadable
@@ -1104,6 +1159,41 @@ export class BusinessProfileService {
     this.logger.warn(`[GBP ${projectId}] ${source}: ${failure.message}`);
     await this.recordSource(projectId, locationName, source, { failure });
   }
+}
+
+/**
+ * Everything Google attached to a failure, from either transport.
+ *
+ * The SDK clients put the parsed body on `response.data`; the v4 helper has no
+ * SDK, so it attaches the same object as `googleError`. Both are read here so
+ * the two paths classify identically.
+ */
+function googleErrorDetails(error: any): any[] {
+  const payload = error?.response?.data?.error ?? error?.googleError ?? null;
+  return Array.isArray(payload?.details) ? payload.details : [];
+}
+
+/**
+ * Whether a 429 is a quota of zero rather than a burst.
+ *
+ * This is the distinction that decides whether waiting is the advice. A Cloud
+ * project that has not been granted Business Profile access does not get a
+ * 403: the APIs enable fine and answer every request with
+ * RESOURCE_EXHAUSTED, because the per-minute quota they are provisioned with
+ * is 0 until Google approves the access request. The number is in the
+ * structured error, as `quota_limit_value` on the ErrorInfo detail, and it is
+ * the only thing that separates "approved and briefly busy" from "not
+ * approved, and no amount of waiting or retrying will change that".
+ */
+function quotaLimitIsZero(error: any): boolean {
+  for (const detail of googleErrorDetails(error)) {
+    const value = detail?.metadata?.quota_limit_value ?? detail?.metadata?.quotaLimitValue;
+    if (value !== undefined && value !== null && Number(value) === 0) return true;
+  }
+  // The v4 path can reduce a body to text before anything parses it, so the
+  // same fact is accepted in the message it came wrapped in.
+  const raw: string = error?.response?.data?.error?.message ?? error?.message ?? '';
+  return /quota_limit_value["'\s:]+["']?0\b/i.test(raw);
 }
 
 /** A single line for display. Null when Google gave no address at all. */
