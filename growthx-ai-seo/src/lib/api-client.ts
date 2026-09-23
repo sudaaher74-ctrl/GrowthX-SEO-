@@ -1935,6 +1935,82 @@ export interface GenerateBlueprintBody {
   weaknessType?: string;
 }
 
+export interface ProgrammaticBlueprint {
+  counterPattern: string;
+  targetArchitecture: string;
+  recommendedSchemaType: string;
+  semanticH2Outlines: string[];
+  differentiationAngle: string;
+  sampleCopyablePrompt: string;
+  targetSlugExample: string;
+}
+
+export interface ProgrammaticCluster {
+  patternId: string;
+  formula: string;
+  patternType: "COMPARISON" | "INTEGRATION" | "DIRECTORY_LOCATION" | "GLOSSARY" | "CALCULATOR" | "PRODUCT_VS" | "GENERIC";
+  competitorDomain: string;
+  sampleUrls: string[];
+  totalDetectedPages: number;
+  extractedVariables: string[];
+  sampleVariables: Record<string, string[]>;
+  estimatedMonthlyVisits: number;
+  counterBlueprint: ProgrammaticBlueprint;
+}
+
+export interface ProgrammaticScoreboard {
+  totalPatternsDetected: number;
+  totalProgrammaticPages: number;
+  estimatedTrafficCaptured: number;
+  dominantFormulaType: string;
+  highPriorityCounterAttacks: number;
+}
+
+export interface ProgrammaticMatrixResponse {
+  scoreboard: ProgrammaticScoreboard;
+  clusters: ProgrammaticCluster[];
+}
+
+export interface StealthRadarEvent {
+  id: string;
+  type: "BACKLINK_VAMPIRE" | "SCHEMA_GAP" | "AI_CITATION_POACH" | "TITLE_PIVOT";
+  competitorDomain: string;
+  title: string;
+  detectedAt: string;
+  targetUrl: string;
+  impactScore: number;
+  urgency: "HIGH" | "MEDIUM" | "LOW";
+  summary: string;
+  counterTactic: string;
+  copyableDeliverable: {
+    label: string;
+    snippet: string;
+  };
+}
+
+export interface StealthRadarResponse {
+  totalEvents: number;
+  highPriorityAlerts: number;
+  brokenLinkHijacks: number;
+  schemaVulnerabilities: number;
+  aiPoachOpportunities: number;
+  events: StealthRadarEvent[];
+}
+
+export interface DispatchFindingBody {
+  title: string;
+  summary: string;
+  recommendedAction: string;
+  potential?: string;
+  effort?: string;
+  category?: string;
+  source?: string;
+  evidence?: any;
+  actionPayload?: any;
+  affectedPages?: string[];
+}
+
+
 export interface LinkMeshScoreboard {
   totalUrls: number;
   totalInternalLinks: number;
@@ -3453,6 +3529,21 @@ export const api = {
 
   generateCounterAttackBlueprint: (projectId: string, body: GenerateBlueprintBody) =>
     post<InterceptBlueprint>(`/api/projects/${projectId}/action-engine/intercepts/generate-blueprint`, body),
+
+  getProgrammaticMatrix: (projectId: string, competitorId?: string) =>
+    get<ProgrammaticMatrixResponse>(
+      `/api/projects/${projectId}/action-engine/programmatic-matrix${competitorId ? `?competitorId=${encodeURIComponent(competitorId)}` : ""}`,
+    ),
+
+  getStealthRadar: (projectId: string) =>
+    get<StealthRadarResponse>(`/api/projects/${projectId}/action-engine/stealth-radar`),
+
+  dispatchFindingToQueue: (projectId: string, body: DispatchFindingBody) =>
+    post<{ success: boolean; message: string; opportunityId: string; fingerprint: string }>(
+      `/api/projects/${projectId}/action-engine/dispatch-to-queue`,
+      body,
+    ),
+
 
   gscProperties: (projectId: string) =>
     get<{

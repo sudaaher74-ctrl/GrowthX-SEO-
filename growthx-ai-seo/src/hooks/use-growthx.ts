@@ -16,6 +16,9 @@ import {
   type InterceptAnalysisResponse,
   type InterceptBlueprint,
   type GenerateBlueprintBody,
+  type ProgrammaticMatrixResponse,
+  type StealthRadarResponse,
+  type DispatchFindingBody,
   type InternalLinkingMeshResponse,
   type GenerateLinkPatchBody,
   type LinkSculptingPatch,
@@ -898,6 +901,58 @@ export function useGenerateCounterAttackBlueprint(projectId?: string | null) {
     },
   });
 }
+
+export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
+  return useQuery<ProgrammaticMatrixResponse>({
+    queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
+    queryFn: () => (projectId ? api.getProgrammaticMatrix(projectId, competitorId) : Promise.resolve({
+      scoreboard: {
+        totalPatternsDetected: 0,
+        totalProgrammaticPages: 0,
+        estimatedTrafficCaptured: 0,
+        dominantFormulaType: "None",
+        highPriorityCounterAttacks: 0,
+      },
+      clusters: [],
+    })),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCompetitorStealthRadar(projectId?: string | null) {
+  return useQuery<StealthRadarResponse>({
+    queryKey: ["competitor-stealth-radar", projectId],
+    queryFn: () => (projectId ? api.getStealthRadar(projectId) : Promise.resolve({
+      totalEvents: 0,
+      highPriorityAlerts: 0,
+      brokenLinkHijacks: 0,
+      schemaVulnerabilities: 0,
+      aiPoachOpportunities: 0,
+      events: [],
+    })),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useDispatchFindingToQueue(projectId?: string | null) {
+  const qc = useQueryClient();
+  return useMutation<{ success: boolean; message: string; opportunityId: string; fingerprint: string }, Error, DispatchFindingBody>({
+    mutationFn: (body) => {
+      if (!projectId) {
+        throw new Error("projectId required to dispatch finding");
+      }
+      return api.dispatchFindingToQueue(projectId, body);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["opportunities", projectId] });
+      qc.invalidateQueries({ queryKey: ["action-queue", projectId] });
+      qc.invalidateQueries({ queryKey: ["findings", projectId] });
+    },
+  });
+}
+
 
 export function useInternalLinkingMesh(projectId?: string | null) {
   return useQuery<InternalLinkingMeshResponse>({

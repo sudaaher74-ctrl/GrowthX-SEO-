@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { ActionStatus } from '@prisma/client';
+import { ActionStatus, FindingLifecycle, Prisma } from '@prisma/client';
+import * as crypto from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
@@ -9,6 +10,9 @@ import { CompetitorSetupService } from './competitor-setup.service';
 import { WebsiteComparisonService } from './website-comparison.service';
 import { CompetitorSeoReportService } from './competitor-seo-report.service';
 import { CompetitorInterceptService } from './competitor-intercept.service';
+import { ProgrammaticDecompilerService } from './programmatic-decompiler.service';
+import { CompetitorStealthRadarService } from './competitor-stealth-radar.service';
+import { PrismaService } from '../../database/prisma.service';
 
 export class UpdateActionDto {
   @IsEnum(ActionStatus)
@@ -29,6 +33,42 @@ export class GenerateBlueprintDto {
   @IsString()
   @IsOptional()
   weaknessType?: string;
+}
+
+export class DispatchToQueueDto {
+  @IsString()
+  title: string;
+
+  @IsString()
+  summary: string;
+
+  @IsString()
+  recommendedAction: string;
+
+  @IsString()
+  @IsOptional()
+  potential?: string;
+
+  @IsString()
+  @IsOptional()
+  effort?: string;
+
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @IsString()
+  @IsOptional()
+  source?: string;
+
+  @IsOptional()
+  evidence?: any;
+
+  @IsOptional()
+  actionPayload?: any;
+
+  @IsOptional()
+  affectedPages?: string[];
 }
 
 export class CompetitorDto {
@@ -111,6 +151,9 @@ export class CompetitorActionEngineController {
     private readonly comparison: WebsiteComparisonService,
     private readonly seoReport: CompetitorSeoReportService,
     private readonly interceptService: CompetitorInterceptService,
+    private readonly decompiler: ProgrammaticDecompilerService,
+    private readonly radar: CompetitorStealthRadarService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('website-comparison')
@@ -302,4 +345,97 @@ export class CompetitorActionEngineController {
   ) {
     return this.interceptService.generateBlueprint(projectId, body);
   }
+
+  @Get('programmatic-matrix')
+  @ApiOperation({ summary: 'Reverse-engineer competitor programmatic SEO directories and formulas' })
+  getProgrammaticMatrix(
+    @Param('projectId') projectId: string,
+    @Query('competitorId') competitorId?: string,
+  ) {
+    return this.decompiler.getProgrammaticMatrix(projectId, competitorId);
+  }
+
+  @Get('stealth-radar')
+  @ApiOperation({ summary: 'Real-time stealth radar detecting competitor DOM/Schema changes, title pivots, and broken 404 links' })
+  getStealthRadar(
+    @Param('projectId') projectId: string,
+  ) {
+    return this.radar.getStealthRadarEvents(projectId);
+  }
+
+  @Post('dispatch-to-queue')
+  @ApiOperation({ summary: 'Dispatch competitor finding or blueprint to customer Action Queue' })
+  async dispatchToQueue(
+    @Req() req: any,
+    @Param('projectId') projectId: string,
+    @Body() body: DispatchToQueueDto,
+  ) {
+    const orgId = req.user?.organizationId || req.organizationId || 'default-org';
+    const hashSeed = `${projectId}:${body.title}:${body.recommendedAction}`;
+    const fingerprint = `comp_action_${crypto.createHash('sha256').update(hashSeed).digest('hex').slice(0, 16)}`;
+    const now = new Date();
+
+    const priorityScore = body.potential === 'HIGH' ? 85 : body.potential === 'LOW' ? 40 : 65;
+
+    const opportunity = await this.prisma.growthOpportunity.upsert({
+      where: {
+        projectId_fingerprint: {
+          projectId,
+          fingerprint,
+        },
+      },
+      create: {
+        projectId,
+        organizationId: orgId,
+        fingerprint,
+        source: body.source || 'COMPETITOR',
+        category: body.category || 'COMPETITOR',
+        title: body.title,
+        summary: body.summary,
+        recommendedAction: body.recommendedAction,
+        evidence: (body.evidence || [
+          { label: 'Source', value: 'Competitor Intelligence Weapon', source: 'COMPETITOR_ENGINE' },
+        ]) as unknown as Prisma.InputJsonValue,
+        potential: body.potential || 'HIGH',
+        effort: body.effort || 'MEDIUM',
+        confidence: 90,
+        priority: priorityScore,
+        impact: priorityScore,
+        fixClass: 'APPROVAL',
+        affectedPages: body.affectedPages || [],
+        affectedCount: (body.affectedPages || []).length || 1,
+        status: 'OPEN',
+        lifecycle: FindingLifecycle.QUEUED,
+        detectedAt: now,
+        lastSeenAt: now,
+        lastTransitionAt: now,
+        transitions: [
+          {
+            from: 'DETECTED',
+            to: 'QUEUED',
+            at: now.toISOString(),
+            actor: { type: 'USER' },
+            reason: 'Dispatched manually from Competitor Intelligence Weapon',
+          },
+        ] as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        title: body.title,
+        summary: body.summary,
+        recommendedAction: body.recommendedAction,
+        potential: body.potential || 'HIGH',
+        effort: body.effort || 'MEDIUM',
+        lastSeenAt: now,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Successfully dispatched to Action Queue',
+      opportunityId: opportunity.id,
+      fingerprint: opportunity.fingerprint,
+      lifecycle: opportunity.lifecycle,
+    };
+  }
 }
+

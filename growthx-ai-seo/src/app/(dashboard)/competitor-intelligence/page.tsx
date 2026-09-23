@@ -33,34 +33,29 @@ import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { CompetitorOverviewTab } from "@/components/competitor/competitor-overview-tab";
-import { CompetitorKeywordGapsTab } from "@/components/competitor/competitor-keyword-gaps-tab";
-import { CompetitorContentGapsTab } from "@/components/competitor/competitor-content-gaps-tab";
 import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
-import {
-  CompetitorsDiscoveryTab,
-  CompetitorTechnicalGapsTab,
-  CompetitorAiVisibilityTab,
-  CompetitorOpportunitiesTab,
-  CompetitorReportsTab,
-} from "@/components/competitor/competitor-deep-dive-tabs";
+import { CompetitorProgrammaticTab } from "@/components/competitor/competitor-programmatic-tab";
+import { CompetitorStealthRadarTab } from "@/components/competitor/competitor-stealth-radar-tab";
 
 const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "intercept", label: "Poaching & Intercept" },
-  { id: "competitors", label: "Competitors" },
-  { id: "keywords", label: "Keyword Gaps" },
-  { id: "content", label: "Content Gaps" },
-  { id: "technical", label: "Technical Gaps" },
-  { id: "ai-visibility", label: "AI Visibility" },
-  { id: "opportunities", label: "Opportunities" },
-  { id: "reports", label: "Reports" },
+  { id: "overview", label: "Overview & Battleground" },
+  { id: "intercept", label: "Poaching & Counter-Attack" },
+  { id: "programmatic", label: "Programmatic Decompiler" },
+  { id: "radar", label: "Stealth Radar & AI Poacher" },
 ];
 
 // Map legacy tab keys if navigated from old links
 const LEGACY_TAB_MAP: Record<string, string> = {
-  identify: "competitors",
+  identify: "overview",
+  competitors: "overview",
   benchmarks: "overview",
-  website: "opportunities",
+  website: "overview",
+  keywords: "intercept",
+  content: "intercept",
+  technical: "radar",
+  "ai-visibility": "radar",
+  opportunities: "intercept",
+  reports: "overview",
 };
 
 /**
@@ -404,7 +399,7 @@ function CompetitorIntelligenceClient() {
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip competitors={competitorsList} />
 
-      {/* ── TAB 1: OVERVIEW ── */}
+      {/* ── COCKPIT 1: OVERVIEW & BATTLEGROUND ── */}
       {activeTab === "overview" && (
         <CompetitorOverviewTab
           projectId={projectId || ""}
@@ -412,13 +407,13 @@ function CompetitorIntelligenceClient() {
           competitors={competitorsList}
           onAddCompetitor={() => setShowAddModal(true)}
           onGenerateInsights={() => handleAddToFixPlan(10, "Top Opportunities")}
-          onViewAllKeywordGaps={() => setActiveTab("keywords")}
-          onViewAllContentGaps={() => setActiveTab("content")}
-          onGenerateReport={() => setActiveTab("reports")}
+          onViewAllKeywordGaps={() => setActiveTab("intercept")}
+          onViewAllContentGaps={() => setActiveTab("intercept")}
+          onGenerateReport={() => setActiveTab("overview")}
         />
       )}
 
-      {/* ── TAB 2: POACHING & INTERCEPT ── */}
+      {/* ── COCKPIT 2: POACHING & COUNTER-ATTACK ── */}
       {activeTab === "intercept" && (
         <CompetitorInterceptEngine
           projectId={projectId || ""}
@@ -428,42 +423,9 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {/* ── TAB 3: COMPETITORS DIRECTORY ── */}
-      {activeTab === "competitors" && (
-        <CompetitorsDiscoveryTab
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddCompetitor={() => setShowAddModal(true)}
-          onAddToFixPlan={handleAddToFixPlan}
-        />
-      )}
-
-      {/* ── TAB 3: KEYWORD GAPS ── */}
-      {activeTab === "keywords" && (
-        <CompetitorKeywordGapsTab
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
-          onExport={() => handleAddToFixPlan(Math.min(50, competitorsList.length * 10), "Exported Keywords")}
-        />
-      )}
-
-      {/* ── TAB 4: CONTENT GAPS ── */}
-      {activeTab === "content" && (
-        <CompetitorContentGapsTab
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
-          onExport={() => handleAddToFixPlan(Math.min(25, competitorsList.length * 5), "Exported Content Gaps")}
-        />
-      )}
-
-      {/* ── TAB 5: TECHNICAL GAPS ── */}
-      {activeTab === "technical" && (
-        <CompetitorTechnicalGapsTab
+      {/* ── COCKPIT 3: REVERSE PROGRAMMATIC SEO DECOMPILER ── */}
+      {activeTab === "programmatic" && (
+        <CompetitorProgrammaticTab
           projectId={projectId || ""}
           customerDomain={customerDomain}
           competitors={competitorsList}
@@ -471,32 +433,13 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {/* ── TAB 6: AI VISIBILITY ── */}
-      {activeTab === "ai-visibility" && (
-        <CompetitorAiVisibilityTab
+      {/* ── COCKPIT 4: STEALTH CODE & SCHEMA RADAR ── */}
+      {activeTab === "radar" && (
+        <CompetitorStealthRadarTab
           projectId={projectId || ""}
           customerDomain={customerDomain}
           competitors={competitorsList}
           onAddToFixPlan={handleAddToFixPlan}
-        />
-      )}
-
-      {/* ── TAB 7: OPPORTUNITIES (AI ENGINE) ── */}
-      {activeTab === "opportunities" && (
-        <CompetitorOpportunitiesTab
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
-        />
-      )}
-
-      {/* ── TAB 8: REPORTS ── */}
-      {activeTab === "reports" && (
-        <CompetitorReportsTab
-          domain={customerDomain}
-          competitors={competitorsList}
-          onGenerateReport={() => handleAddToFixPlan(1, "Executive Strategy Report")}
         />
       )}
 

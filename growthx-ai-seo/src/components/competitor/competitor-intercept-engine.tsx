@@ -30,8 +30,8 @@ import {
 import {
   useCompetitorIntercepts,
   useGenerateCounterAttackBlueprint,
+  useDispatchFindingToQueue,
 } from "@/hooks/use-growthx";
-import { stagingEngine } from "@/lib/staging-engine";
 import type {
   InterceptOpportunity,
   InterceptBlueprint,
@@ -101,24 +101,35 @@ export function CompetitorInterceptEngine({
       });
   }, [allOpportunities, searchQuery, tierFilter, defectFilter, sortBy]);
 
-  // Stage blueprint into Fix Engine
-  const handleStageBlueprint = (opp: InterceptOpportunity) => {
-    const bp = opp.blueprint;
-    stagingEngine.stage(projectId, {
-      title: `Competitor Intercept: Poach "${opp.keyword}" from ${opp.competitorDomain}`,
-      category: "CONTENT",
-      source: "COMPETITOR_INTERCEPT",
-      priority: opp.vulnerabilityTier === "PRIME_TARGET" ? "CRITICAL" : "HIGH",
-      impact: `Displaces competitor #${opp.competitorRank} ranking (${opp.searchVolume.toLocaleString()} search volume/mo) via structured entity blueprint and sub-second Core Web Vitals.`,
-      effortHours: 3.5,
-      deliverable: bp.deliverableCode,
-      evidence: opp.blueprint.attackThesis,
-      affectedUrl: `https://${customerDomain}${bp.targetSlug}`,
-    });
+  const dispatchMutation = useDispatchFindingToQueue(projectId);
 
-    setStagedIds((prev) => new Set([...prev, opp.id]));
-    if (onAddToFixPlan) {
-      onAddToFixPlan(1, `Intercept Blueprint: ${opp.keyword}`);
+  // Dispatch blueprint into customer Action Queue
+  const handleStageBlueprint = async (opp: InterceptOpportunity) => {
+    const bp = opp.blueprint;
+    try {
+      await dispatchMutation.mutateAsync({
+        title: `Competitor Intercept: Poach "${opp.keyword}" from ${opp.competitorDomain}`,
+        summary: `Displaces competitor #${opp.competitorRank} ranking (${opp.searchVolume.toLocaleString()} monthly search volume) via structured entity blueprint and sub-second Core Web Vitals.`,
+        recommendedAction: `Deploy counter-attack content for keyword "${opp.keyword}" targeting slug ${bp.targetSlug}. Inject valid Schema JSON-LD markup. Core attack thesis: ${bp.attackThesis}`,
+        potential: opp.vulnerabilityTier === "PRIME_TARGET" ? "HIGH" : "MEDIUM",
+        effort: "MEDIUM",
+        category: "COMPETITOR",
+        source: "COMPETITOR",
+        evidence: [
+          { label: "Competitor Domain", value: opp.competitorDomain, source: "COMPETITOR_ENGINE" },
+          { label: "Competitor Rank", value: `#${opp.competitorRank}`, source: "SERP" },
+          { label: "Monthly Volume", value: opp.searchVolume.toLocaleString(), source: "KEYWORD_DATA" },
+          { label: "Vulnerability Score", value: `${opp.vulnerabilityScore}/100`, source: "AUDIT" },
+        ],
+        affectedPages: [`https://${customerDomain}${bp.targetSlug}`],
+      });
+
+      setStagedIds((prev) => new Set([...prev, opp.id]));
+      if (onAddToFixPlan) {
+        onAddToFixPlan(1, `Intercept Blueprint: ${opp.keyword}`);
+      }
+    } catch (err) {
+      console.error("Failed to dispatch blueprint to Action Queue", err);
     }
   };
 
@@ -143,7 +154,7 @@ export function CompetitorInterceptEngine({
               Intercept Vulnerable Competitor #1–3 Rankings
             </h2>
             <p className="text-[13px] leading-relaxed text-slate-300/90">
-              Evaluates competitor top-ranking URLs against structural vulnerabilities: missing JSON-LD schema, sluggish TTFB latency, and thin content depth. Automatically synthesizes verified counter-attack blueprints ready to stage directly into the Fix Engine.
+              Evaluates competitor top-ranking URLs against structural vulnerabilities: missing JSON-LD schema, sluggish TTFB latency, and thin content depth. Automatically synthesizes verified counter-attack blueprints ready to dispatch directly into your Action Queue.
             </p>
           </div>
 
@@ -630,10 +641,10 @@ export function CompetitorInterceptEngine({
             {/* Footer Action */}
             <div className="flex items-center justify-between border-t border-slate-100 pt-4">
               <Link
-                href="/fix-engine?tab=implementation"
-                className="text-xs font-semibold text-slate-900 hover:text-slate-900 transition flex items-center gap-1"
+                href="/action-queue"
+                className="text-xs font-semibold text-brand hover:underline transition flex items-center gap-1"
               >
-                <span>Go to Fix Engine Implementation Queue</span>
+                <span>View in Action Queue</span>
                 <ArrowRight size={13} />
               </Link>
 
@@ -650,19 +661,19 @@ export function CompetitorInterceptEngine({
                   <button
                     type="button"
                     disabled
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-success px-5 py-2 text-xs font-bold text-white shadow-sm"
                   >
                     <Check size={14} />
-                    <span>Staged to Fix Engine</span>
+                    <span>Dispatched to Action Queue</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => handleStageBlueprint(activeBlueprintOpp)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-950 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:from-black hover:to-slate-900 transition active:scale-95"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-slate-900 transition active:scale-95"
                   >
                     <Sparkles size={13} />
-                    <span>Stage Blueprint into Fix Engine</span>
+                    <span>Dispatch to Action Queue</span>
                   </button>
                 )}
               </div>

@@ -9,6 +9,8 @@ import { CompetitorLocalService } from './competitor-local.service';
 import { WebsiteComparisonService } from './website-comparison.service';
 import { CompetitorSeoReportService } from './competitor-seo-report.service';
 import { CompetitorInterceptService } from './competitor-intercept.service';
+import { ProgrammaticDecompilerService } from './programmatic-decompiler.service';
+import { CompetitorStealthRadarService } from './competitor-stealth-radar.service';
 import { SiteProfileLoader } from './site-profile.loader';
 import { LocalSeoModule } from '../local-seo/local-seo.module';
 
@@ -32,6 +34,8 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     WebsiteComparisonService,
     CompetitorSeoReportService,
     CompetitorInterceptService,
+    ProgrammaticDecompilerService,
+    CompetitorStealthRadarService,
     SiteProfileLoader,
   ],
   exports: [
@@ -43,6 +47,8 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
     WebsiteComparisonService,
     CompetitorSeoReportService,
     CompetitorInterceptService,
+    ProgrammaticDecompilerService,
+    CompetitorStealthRadarService,
     SiteProfileLoader,
   ],
 })
