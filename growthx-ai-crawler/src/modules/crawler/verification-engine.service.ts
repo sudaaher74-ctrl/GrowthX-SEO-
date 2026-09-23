@@ -178,22 +178,9 @@ export class VerificationEngineService {
         };
       });
 
-      // Synthetic simulation fallback if target domain is offline or private
-      if (fetchResult.statusCode === 0 || fetchResult.statusCode >= 500 || !fetchResult.html) {
-        fetchResult = {
-          url: targetUrl,
-          finalUrl: targetUrl,
-          statusCode: 200,
-          responseTimeMs: Math.floor(Math.random() * 80) + 45,
-          html: `<!DOCTYPE html><html><head><title>${domain} Verified</title><meta name="description" content="Verified production deployment for ${domain}"><link rel="canonical" href="${targetUrl}"><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"${domain}"}</script></head><body><h1>${domain}</h1></body></html>`,
-          redirectChain: [targetUrl],
-          engine: 'cheerio',
-        };
-      }
-
       totalLatency += fetchResult.responseTimeMs;
 
-      // Parse HTML with Cheerio
+      // Parse HTML with Cheerio if available
       const $ = cheerio.load(fetchResult.html || '');
       const title = $('title').text().trim() || null;
       const metaDescription = $('meta[name="description"]').attr('content')?.trim() || null;
@@ -221,34 +208,53 @@ export class VerificationEngineService {
         } catch {}
       });
 
-      // Default schema fallback if valid site
-      if (detectedSchemas.length === 0 && fetchResult.statusCode === 200) {
-        detectedSchemas.push('Organization', 'WebSite');
-      }
-
       const issueType = issue?.issueType || 'Technical SEO Compliance';
       const beforeMetric = issue?.description || `${(issue?.severity || 'MEDIUM').toUpperCase()} defect detected during previous audit`;
 
       let status: 'VERIFIED' | 'FAILED' | 'PARTIAL' = 'VERIFIED';
-      let afterMetric = `HTTP 200 OK · ${fetchResult.responseTimeMs}ms TTFB`;
-      let proofSummary = `Googlebot UA re-crawl verified 200 OK response with active cache-control.`;
+      let afterMetric = `HTTP ${fetchResult.statusCode} · ${fetchResult.responseTimeMs}ms TTFB`;
+      let proofSummary = `Googlebot UA re-crawl verified HTTP ${fetchResult.statusCode} response.`;
 
-      const itypeLower = issueType.toLowerCase();
-      if (itypeLower.includes('schema') || itypeLower.includes('json-ld')) {
-        afterMetric = `Detected ${detectedSchemas.join(', ')} structured JSON-LD`;
-        proofSummary = `Schema validator confirmed valid syntax for ${detectedSchemas.join(', ')}.`;
-      } else if (itypeLower.includes('description') || itypeLower.includes('meta')) {
-        afterMetric = metaDescription ? `Meta description active (${metaDescription.length} chars)` : 'Meta description verified';
-        proofSummary = `Googlebot UA parsed compliant description: "${metaDescription?.slice(0, 50)}..."`;
-      } else if (itypeLower.includes('canonical')) {
-        afterMetric = canonical ? `Canonical link matches ${canonical}` : 'Self-referential canonical verified';
-        proofSummary = `Self-referencing canonical tag verified without redirect loops.`;
-      } else if (itypeLower.includes('title') || itypeLower.includes('h1')) {
-        afterMetric = title ? `Target Title active (${title.length} chars)` : 'Page Title present & optimized';
-        proofSummary = `Page heading hierarchy and title tag confirmed compliant.`;
+      if (fetchResult.statusCode === 0 || fetchResult.statusCode >= 400 || !fetchResult.html) {
+        status = 'FAILED';
+        afterMetric = `HTTP ${fetchResult.statusCode || 0} Error`;
+        proofSummary = fetchResult.errorMessage || `Target URL returned HTTP ${fetchResult.statusCode} during Googlebot re-fetch.`;
+      } else {
+        const itypeLower = issueType.toLowerCase();
+        if (itypeLower.includes('schema') || itypeLower.includes('json-ld')) {
+          if (detectedSchemas.length > 0) {
+            afterMetric = `Detected ${detectedSchemas.join(', ')} structured JSON-LD`;
+            proofSummary = `Schema validator confirmed valid syntax for ${detectedSchemas.join(', ')}.`;
+          } else {
+            status = 'FAILED';
+            afterMetric = 'No structured JSON-LD schemas detected';
+            proofSummary = 'Crawler inspected document but found 0 JSON-LD script blocks.';
+          }
+        } else if (itypeLower.includes('description') || itypeLower.includes('meta')) {
+          if (metaDescription) {
+            afterMetric = `Meta description active (${metaDescription.length} chars)`;
+            proofSummary = `Googlebot UA parsed compliant description: "${metaDescription.slice(0, 50)}..."`;
+          } else {
+            status = 'FAILED';
+            afterMetric = 'Missing meta description tag';
+            proofSummary = 'No <meta name="description"> tag found on page.';
+          }
+        } else if (itypeLower.includes('canonical')) {
+          afterMetric = canonical ? `Canonical link matches ${canonical}` : 'Self-referential canonical verified';
+          proofSummary = `Self-referencing canonical tag verified without redirect loops.`;
+        } else if (itypeLower.includes('title') || itypeLower.includes('h1')) {
+          if (title) {
+            afterMetric = `Target Title active (${title.length} chars)`;
+            proofSummary = `Page heading hierarchy and title tag confirmed compliant.`;
+          } else {
+            status = 'FAILED';
+            afterMetric = 'Missing <title> tag';
+            proofSummary = 'No title tag detected on the target page.';
+          }
+        }
       }
 
-      if (issue) {
+      if (issue && status === 'VERIFIED') {
         resolvedIssueIds.push(issue.id);
       }
 

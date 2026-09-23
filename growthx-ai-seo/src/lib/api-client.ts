@@ -1903,16 +1903,18 @@ export interface InterceptOpportunity {
   id: string;
   keyword: string;
   intent: "COMMERCIAL" | "INFORMATIONAL" | "TRANSACTIONAL";
-  searchVolume: number;
+  searchVolume: number | null;
   competitorDomain: string;
   competitorName: string;
   competitorUrl: string;
-  competitorRank: number;
+  competitorRank: number | null;
   customerRank: number | null;
   vulnerabilityScore: number;
   vulnerabilityTier: "PRIME_TARGET" | "MODERATE" | "DEFENDED";
   defects: InterceptDefect[];
   blueprint: InterceptBlueprint;
+  responseTimeMs?: number | null;
+  wordCount?: number | null;
 }
 
 export interface InterceptScoreboard {
@@ -1921,6 +1923,8 @@ export interface InterceptScoreboard {
   estimatedTrafficOpportunity: number;
   averageVulnerabilityScore: number;
   topDefectArea: string;
+  totalAuditedPages?: number;
+  avgResponseTimeMs?: number;
 }
 
 export interface InterceptAnalysisResponse {
@@ -3169,27 +3173,18 @@ export const api = {
   listOrganizations: async () => {
     try {
       const orgs = await get<{ id: string; name: string; slug: string }[]>("/organizations");
-      if (orgs && orgs.length > 0) return orgs;
-      throw new Error("No orgs found, using mock fallback");
+      return orgs || [];
     } catch {
-      return [{ id: "org-1", name: "GrowthX", slug: "growthx" }];
+      return [];
     }
   },
   createOrganization: (name: string, slug: string) => post<{ id: string; name: string; slug: string }>("/organizations", { name, slug }),
   listProjects: async (orgId: string) => {
     try {
       const projects = await get<{ id: string; name: string }[]>(`/projects/org/${orgId}`);
-      if (projects && projects.length > 0) return projects;
-      throw new Error("No projects found, using mock fallback");
+      return projects || [];
     } catch {
-      return [
-        { id: "proj-1", name: "milquufresh" },
-        { id: "proj-2", name: "Aivaenterprises" },
-        { id: "proj-3", name: "OS interior" },
-        { id: "proj-4", name: "dronarcheryacedeamy" },
-        { id: "proj-5", name: "brandkettle" },
-        { id: "proj-6", name: "immunitygroup" },
-      ];
+      return [];
     }
   },
   listMembers: (orgId: string) => get<OrgMember[]>(`/organizations/${orgId}/members`),

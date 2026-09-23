@@ -112,20 +112,14 @@ export class ProgrammaticDecompilerService {
       clusters.push(...detected);
     }
 
-    // If few or no crawled pages exist yet, generate domain-derived intelligence
-    if (clusters.length === 0) {
-      const primaryDomain = competitors[0]?.domain || 'competitor.com';
-      clusters.push(...this.generateFallbackClusters(primaryDomain, customerDomain));
-    }
-
     const totalTraffic = clusters.reduce((acc, c) => acc + c.estimatedMonthlyVisits, 0);
 
     return {
       scoreboard: {
         totalProgrammaticClusters: clusters.length,
-        totalCompetitorPagesIndexed: totalPagesIndexed > 0 ? totalPagesIndexed : 142,
+        totalCompetitorPagesIndexed: totalPagesIndexed,
         estimatedTotalTrafficCaptured: totalTraffic,
-        topPatternCategory: clusters[0]?.category || 'COMPARISONS',
+        topPatternCategory: clusters[0]?.category || 'None',
         readyToCounterCount: clusters.length,
       },
       clusters,
@@ -239,89 +233,5 @@ export class ProgrammaticDecompilerService {
 
     return results;
   }
-
-  private generateFallbackClusters(compDomain: string, customerDomain: string): ProgrammaticCluster[] {
-    return [
-      {
-        id: 'prog_fallback_vs',
-        patternName: 'Direct Competitor & Alternative Comparisons',
-        category: 'COMPARISONS',
-        urlPattern: `https://${compDomain}/vs/{competitor-name}`,
-        competitorDomain: compDomain,
-        pageCount: 34,
-        estimatedMonthlyVisits: 17680,
-        commercialIntent: 'HIGH',
-        variables: [
-          { name: 'competitor-name', exampleValues: ['semrush', 'ahrefs', 'spyfu', 'brightedge'], description: 'Rival vendor being targeted for comparison' },
-          { name: 'decision-intent', exampleValues: ['alternative', 'pricing-comparison', 'review'], description: 'User commercial evaluation stage' },
-        ],
-        sampleUrls: [
-          `https://${compDomain}/vs/semrush-alternative`,
-          `https://${compDomain}/vs/ahrefs-vs-${compDomain.replace(/\..*$/, '')}`,
-          `https://${compDomain}/vs/brightedge-pricing`,
-        ],
-        counterStrategy: {
-          recommendedUrlPattern: `https://${customerDomain}/compare/{your-brand}-vs-{competitor}`,
-          targetH1Formula: `{Your Brand} vs {Competitor}: The 2026 Feature & Speed Comparison`,
-          recommendedSchemaType: 'Product, FAQPage',
-          contentDepthBenchmark: '1,400+ words with interactive feature checklist & verified customer ratings',
-          differentiatorAngle: `Competitor pages use generic comparison bullets without code evidence. Our counter-blueprint provides verifiable AST proof and honest trade-offs to dominate the SERP.`,
-          sampleDeliverableTemplate: `<!-- Programmatic Comparison Matrix Template -->\n<h1>{Brand} vs {Competitor}: Definitive Feature & Performance Breakdown</h1>\n<p>Looking for a modern alternative to {Competitor}? See how {Brand}'s autonomous engine delivers verifiable results without manual intervention.</p>\n<table class="comparison-grid">\n  <thead><tr><th>Capability</th><th>{Brand}</th><th>{Competitor}</th></tr></thead>\n  <tbody>\n    <tr><td>Autonomous Execution</td><td>Included (Live AST)</td><td>Manual CSV Only</td></tr>\n    <tr><td>AI Citation Engine</td><td>Perplexity + ChatGPT</td><td>Traditional SERP only</td></tr>\n  </tbody>\n</table>`,
-        },
-      },
-      {
-        id: 'prog_fallback_int',
-        patternName: 'CMS & Platform Integration Directory',
-        category: 'INTEGRATIONS',
-        urlPattern: `https://${compDomain}/integrations/{platform}`,
-        competitorDomain: compDomain,
-        pageCount: 28,
-        estimatedMonthlyVisits: 10640,
-        commercialIntent: 'HIGH',
-        variables: [
-          { name: 'platform', exampleValues: ['shopify', 'wordpress', 'webflow', 'nextjs', 'magento'], description: 'E-commerce and CMS platform being integrated' },
-          { name: 'version', exampleValues: ['v2', 'headless', 'cloud'], description: 'Platform architecture profile' },
-        ],
-        sampleUrls: [
-          `https://${compDomain}/integrations/shopify-seo-app`,
-          `https://${compDomain}/integrations/wordpress-plugin`,
-          `https://${compDomain}/integrations/webflow-optimization`,
-        ],
-        counterStrategy: {
-          recommendedUrlPattern: `https://${customerDomain}/integrations/{platform}`,
-          targetH1Formula: `Automate {Platform} SEO with {Your Brand}: 1-Click Code Injection`,
-          recommendedSchemaType: 'SoftwareApplication',
-          contentDepthBenchmark: '900+ words + copyable configuration snippet + API rate limits',
-          differentiatorAngle: `Rival pages lack framework-specific guides. Adding exact React/WordPress snippet blocks captures high-value developer queries.`,
-          sampleDeliverableTemplate: `<!-- Programmatic Integration Hub Template -->\n<h1>Automate SEO Workflows between {Brand} and {Platform}</h1>\n<p>Seamlessly synchronize crawl insights and automated remediations directly with your {Platform} site.</p>`,
-        },
-      },
-      {
-        id: 'prog_fallback_tmpl',
-        patternName: 'Industry Solution & Use-Case Hubs',
-        category: 'CATEGORY_HUBS',
-        urlPattern: `https://${compDomain}/solutions/{industry}-seo`,
-        competitorDomain: compDomain,
-        pageCount: 19,
-        estimatedMonthlyVisits: 8360,
-        commercialIntent: 'TRANSACTIONAL',
-        variables: [
-          { name: 'industry', exampleValues: ['ecommerce', 'saas', 'law-firms', 'real-estate', 'healthcare'], description: 'Vertical market segment' },
-        ],
-        sampleUrls: [
-          `https://${compDomain}/solutions/ecommerce-seo`,
-          `https://${compDomain}/solutions/saas-growth`,
-          `https://${compDomain}/solutions/law-firm-marketing`,
-        ],
-        counterStrategy: {
-          recommendedUrlPattern: `https://${customerDomain}/solutions/{industry}`,
-          targetH1Formula: `Autonomous SEO Built for {Industry}: Accelerate Organic Acquisition`,
-          recommendedSchemaType: 'Service, FAQPage',
-          contentDepthBenchmark: '1,600+ words + industry-specific KPI calculator + case study quote',
-          differentiatorAngle: `Competitors list shallow marketing text. Countering with vertical-specific schema types and sample crawl audit blueprints captures decision-maker intent.`,
-          sampleDeliverableTemplate: `<!-- Programmatic Vertical Hub Template -->\n<h1>Tailored Search Intelligence for {Industry}</h1>\n<p>Eliminate crawl bottlenecks, optimize structured data, and establish category authority in {Industry}.</p>`,
-        },
-      },
-    ];
-  }
 }
+

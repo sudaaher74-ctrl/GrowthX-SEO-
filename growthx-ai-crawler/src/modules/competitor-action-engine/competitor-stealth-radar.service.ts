@@ -45,8 +45,9 @@ export class CompetitorStealthRadarService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Scans competitor crawl graphs to detect real-time technical regressions,
-   * schema omissions, broken assets, and AI citation deficits.
+   * Scans real competitor crawl records to detect measured technical regressions,
+   * schema omissions, 404 broken assets, and thin-content citation deficits.
+   * 100% grounded in real database crawl records with zero mock events.
    */
   async getStealthRadarEvents(projectId: string): Promise<StealthRadarResponse> {
     const website = await this.prisma.website.findFirst({
@@ -66,80 +67,140 @@ export class CompetitorStealthRadarService {
       take: 5,
     });
 
-    const primaryComp = competitors[0]?.domain || 'competitor.com';
-    const compName = competitors[0]?.name || primaryComp.replace(/\..*$/, '');
+    const events: StealthRadarEvent[] = [];
 
-    // Real-time events generated based on live competitor domain context
-    const events: StealthRadarEvent[] = [
-      {
-        id: 'radar_vamp_01',
-        type: 'BACKLINK_VAMPIRE',
-        severity: 'CRITICAL',
-        competitorDomain: primaryComp,
-        competitorUrl: `https://${primaryComp}/tools/free-seo-audit`,
-        headline: `Broken Asset Hijack: ${primaryComp} 404 with 84 Referring Domains`,
-        description: `Competitor deprecated their free audit utility page, resulting in a live 404 response. The URL currently retains 84 high-authority backlinks from publications and industry blogs ready to be reclaimed.`,
-        detectedAt: '3 hours ago',
-        impactScore: 94,
-        counterAction: {
-          label: 'Launch Replacement Tool & Claim Links',
-          deliverableType: 'OUTREACH_PITCH',
-          codeSnippet: `Subject: Broken link to ${primaryComp}'s audit tool on your resource page\n\nHi [Editor Name],\n\nI noticed your guide [Page Title] links to ${primaryComp}/tools/free-seo-audit, which is currently returning a 404 error.\n\nWe recently launched an autonomous real-time audit console at https://${customerDomain}/website that performs AST syntax checking and schema validation. If helpful, you can update the broken link to point to this active resource for your readers.\n\nBest,\n[Your Name]`,
-          actionableSummary: `Deploy replacement page on ${customerDomain} and send broken-link replacement pitches to reclaim high-DA referring domains.`,
+    for (const comp of competitors) {
+      if (!comp.websiteId) continue;
+      const compDomain = comp.domain;
+      const compName = comp.name || compDomain.replace(/\..*$/, '');
+
+      // 1. Real 404 Broken Assets (Backlink Vampire)
+      const brokenPages = await this.prisma.page.findMany({
+        where: {
+          crawlJob: { websiteId: comp.websiteId, status: 'COMPLETED' },
+          statusCode: 404,
         },
-      },
-      {
-        id: 'radar_schema_02',
-        type: 'SCHEMA_GAP',
-        severity: 'HIGH',
-        competitorDomain: primaryComp,
-        competitorUrl: `https://${primaryComp}/pricing`,
-        headline: `Zero Structured Data on High-Intent Pricing Page`,
-        description: `Competitor ranks for transactional brand queries but lacks Product, Offer, and FAQPage JSON-LD schemas. Search engines cannot render price badges or rich FAQ snippets in SERP results.`,
-        detectedAt: 'Yesterday',
-        impactScore: 88,
-        counterAction: {
-          label: 'Deploy Rich Pricing & FAQ Schema',
-          deliverableType: 'JSON_LD',
-          codeSnippet: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "${customerDomain} Growth Suite",\n  "description": "Autonomous AI Search Engine Optimization platform with verified code remediation.",\n  "offers": {\n    "@type": "AggregateOffer",\n    "priceCurrency": "USD",\n    "lowPrice": "99",\n    "highPrice": "499",\n    "offerCount": "3"\n  }\n}\n</script>`,
-          actionableSummary: `Inject JSON-LD Product & AggregateOffer schemas to secure rich price badges and outrank competitor in commercial search results.`,
+        select: { url: true, crawledAt: true },
+        take: 2,
+      });
+
+      for (const p of brokenPages) {
+        const path = this.safePath(p.url);
+        events.push({
+          id: `radar_vamp_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
+          type: 'BACKLINK_VAMPIRE',
+          severity: 'CRITICAL',
+          competitorDomain: compDomain,
+          competitorUrl: p.url,
+          headline: `Broken Asset Hijack: ${compDomain}${path} (HTTP 404)`,
+          description: `Competitor URL returned a verified 404 Not Found error during recent crawl. Any existing referring links and residual search traffic can be reclaimed.`,
+          detectedAt: this.formatTimeAgo(p.crawledAt),
+          impactScore: 92,
+          counterAction: {
+            label: 'Deploy Replacement Resource & Claim Traffic',
+            deliverableType: 'OUTREACH_PITCH',
+            codeSnippet: `Subject: Broken link to ${compDomain}'s resource on your guide\n\nHi [Editor Name],\n\nI noticed your article links to ${compDomain}${path}, which is currently returning a 404 error.\n\nWe maintain an active, verified resource on this topic at https://${customerDomain}${path}. If helpful, you can update the link to point to this active resource for your readers.\n\nBest,\n[Your Name]`,
+            actionableSummary: `Deploy replacement guide on ${customerDomain} and reach out to reclaim referring backlinks.`,
+          },
+        });
+      }
+
+      // 2. Real Schema Gaps on 200 Pages
+      const schemaGapPages = await this.prisma.page.findMany({
+        where: {
+          crawlJob: { websiteId: comp.websiteId, status: 'COMPLETED' },
+          statusCode: 200,
+          schemas: { none: {} },
         },
-      },
-      {
-        id: 'radar_ai_03',
-        type: 'AI_CITATION_POACH',
-        severity: 'HIGH',
-        competitorDomain: primaryComp,
-        competitorUrl: `https://${primaryComp}/features/ai-seo`,
-        headline: `Perplexity & ChatGPT Citation Deficit`,
-        description: `Perplexity cites ${primaryComp} for the prompt "Best AI SEO tools for ecommerce" because of an unverified feature bullet list. Ingesting an authoritative structured comparison table will displace their citation.`,
-        detectedAt: '2 days ago',
-        impactScore: 82,
-        counterAction: {
-          label: 'Inject LLM Citation Bait Matrix',
-          deliverableType: 'CITATION_BAIT',
-          codeSnippet: `| Feature | ${customerDomain} | ${compName} | Industry Average |\n| :--- | :--- | :--- | :--- |\n| Code Remediations | Automated AST Injection | Manual CSV Only | Manual |\n| LLM Citation Tracking | Perplexity, ChatGPT, Claude | Google SERP Only | None |\n| PageRank Internal Mesh | Automated Equity Sculpting | Static link list | None |`,
-          actionableSummary: `Inject structured Markdown comparison table to capture Perplexity, Claude, and ChatGPT Search citation models.`,
+        select: { url: true, title: true, crawledAt: true },
+        take: 2,
+      });
+
+      for (const p of schemaGapPages) {
+        const path = this.safePath(p.url);
+        events.push({
+          id: `radar_schema_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
+          type: 'SCHEMA_GAP',
+          severity: 'HIGH',
+          competitorDomain: compDomain,
+          competitorUrl: p.url,
+          headline: `Zero Structured Data on ${compDomain}${path}`,
+          description: `Competitor page lacks any Schema.org JSON-LD structured data. Search engines and AI models cannot extract rich badges or structured answers from this page.`,
+          detectedAt: this.formatTimeAgo(p.crawledAt),
+          impactScore: 86,
+          counterAction: {
+            label: 'Deploy Validated Schema Entity',
+            deliverableType: 'JSON_LD',
+            codeSnippet: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "${customerDomain} Offering",\n  "description": "Comprehensive, verified solution with rich attributes.",\n  "offers": {\n    "@type": "Offer",\n    "priceCurrency": "USD",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>`,
+            actionableSummary: `Inject JSON-LD Product & FAQPage schemas to secure rich SERP results over competitor.`,
+          },
+        });
+      }
+
+      // 3. Real Thin Content (< 300 words)
+      const thinPages = await this.prisma.page.findMany({
+        where: {
+          crawlJob: { websiteId: comp.websiteId, status: 'COMPLETED' },
+          statusCode: 200,
+          wordCount: { gt: 0, lt: 300 },
         },
-      },
-      {
-        id: 'radar_pivot_04',
-        type: 'TITLE_PIVOT',
-        severity: 'MEDIUM',
-        competitorDomain: primaryComp,
-        competitorUrl: `https://${primaryComp}/`,
-        headline: `Title Tag Pivot to "Agentic AI SEO"`,
-        description: `Competitor rewrote their home title tag from "Traditional SEO & Keyword Ranking" to "Agentic AI Search Optimization", signaling an intent to compete directly for autonomous search engine queries.`,
-        detectedAt: '4 days ago',
-        impactScore: 76,
-        counterAction: {
-          label: 'Counter-Optimize Semantic Meta Tags',
-          deliverableType: 'HTML_SNIPPET',
-          codeSnippet: `<title>GrowthX — The Autonomous Agentic SEO Platform for Verifiable Growth</title>\n<meta name="description" content="Deploy autonomous SEO execution that linters and AST parsers verify before publishing. Eliminate crawl bottlenecks and win AI search citations." />`,
-          actionableSummary: `Fortify home and product meta descriptions to reinforce authoritative category leadership for autonomous SEO queries.`,
+        select: { url: true, title: true, wordCount: true, crawledAt: true },
+        take: 2,
+      });
+
+      for (const p of thinPages) {
+        const path = this.safePath(p.url);
+        events.push({
+          id: `radar_ai_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
+          type: 'AI_CITATION_POACH',
+          severity: 'HIGH',
+          competitorDomain: compDomain,
+          competitorUrl: p.url,
+          headline: `Thin Content Deficit: ${compDomain}${path} (${p.wordCount} words)`,
+          description: `Competitor URL provides surface-level content (${p.wordCount} words), making it easily displaceable in Perplexity, Claude, and ChatGPT search citations with a deep comparison matrix.`,
+          detectedAt: this.formatTimeAgo(p.crawledAt),
+          impactScore: 80,
+          counterAction: {
+            label: 'Inject Structured Comparison Matrix',
+            deliverableType: 'CITATION_BAIT',
+            codeSnippet: `| Capability | ${customerDomain} | ${compName} |\n| :--- | :--- | :--- |\n| Deep Technical Specifications | Verified & Documented | Surface Level (${p.wordCount} words) |\n| Latency & Performance | Sub-second Edge Cached | Legacy Hosting |\n| Code Remediations | Automated | None |`,
+            actionableSummary: `Deploy structured Markdown comparison table to capture LLM citations.`,
+          },
+        });
+      }
+
+      // 4. Real Severe Latency (> 1800ms)
+      const slowPages = await this.prisma.page.findMany({
+        where: {
+          crawlJob: { websiteId: comp.websiteId, status: 'COMPLETED' },
+          statusCode: 200,
+          responseTimeMs: { gt: 1800 },
         },
-      },
-    ];
+        select: { url: true, title: true, responseTimeMs: true, crawledAt: true },
+        take: 2,
+      });
+
+      for (const p of slowPages) {
+        const path = this.safePath(p.url);
+        events.push({
+          id: `radar_speed_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
+          type: 'SPEED_DEFECT',
+          severity: 'MEDIUM',
+          competitorDomain: compDomain,
+          competitorUrl: p.url,
+          headline: `Severe TTFB Latency: ${p.responseTimeMs}ms on ${compDomain}${path}`,
+          description: `Competitor page suffers from slow server response (${p.responseTimeMs}ms), failing Core Web Vitals standards and impairing search crawl frequency.`,
+          detectedAt: this.formatTimeAgo(p.crawledAt),
+          impactScore: 74,
+          counterAction: {
+            label: 'Deploy High-Speed Counter Resource',
+            deliverableType: 'HTML_SNIPPET',
+            codeSnippet: `<!-- Edge Cached Counter Asset -->\n<link rel="preconnect" href="https://fonts.googleapis.com" />\n<meta http-equiv="x-dns-prefetch-control" content="on" />`,
+            actionableSummary: `Outperform competitor's sluggish ${p.responseTimeMs}ms latency with edge-cached sub-800ms page.`,
+          },
+        });
+      }
+    }
 
     const criticalCount = events.filter((e) => e.severity === 'CRITICAL').length;
     const backlinkCount = events.filter((e) => e.type === 'BACKLINK_VAMPIRE').length;
@@ -154,5 +215,24 @@ export class CompetitorStealthRadarService {
       },
       events,
     };
+  }
+
+  private safePath(urlStr: string): string {
+    try {
+      const pathname = new URL(urlStr).pathname;
+      return pathname.length > 28 ? pathname.slice(0, 25) + '...' : pathname || '/';
+    } catch {
+      return '/';
+    }
+  }
+
+  private formatTimeAgo(date?: Date | null): string {
+    if (!date) return 'Recently';
+    const elapsedMs = Date.now() - new Date(date).getTime();
+    const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    return days === 1 ? 'Yesterday' : `${days} days ago`;
   }
 }
