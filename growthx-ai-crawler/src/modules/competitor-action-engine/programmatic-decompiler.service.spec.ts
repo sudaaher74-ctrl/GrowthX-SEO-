@@ -41,4 +41,15 @@ describe('ProgrammaticDecompilerService', () => {
     expect(template).not.toMatch(/Live AST|Manual CSV|Perplexity/);
     expect(clusters[0].counterStrategy.targetH1Formula).toContain(String(new Date().getFullYear()));
   });
+
+  it('detects location directories from the rival city pages', async () => {
+    const { clusters } = await build([
+      'https://rival.com/locations/pune',
+      'https://rival.com/locations/nashik',
+    ]).getProgrammaticMatrix('p1');
+
+    expect(clusters.map((c) => c.category)).toEqual(['LOCATIONS']);
+    expect(clusters[0].variables[0].exampleValues).toEqual(['pune', 'nashik']);
+    expect(clusters[0]).not.toHaveProperty('estimatedMonthlyVisits');
+  });
 });

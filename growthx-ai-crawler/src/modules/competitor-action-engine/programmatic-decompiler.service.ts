@@ -226,6 +226,54 @@ export class ProgrammaticDecompilerService {
       });
     }
 
+    if (locationUrls.length >= 2) {
+      results.push({
+        id: `prog_loc_${hex}`,
+        patternName: 'Geographic & City Directory Hub',
+        category: 'LOCATIONS',
+        urlPattern: `https://${compDomain}/locations/{city-slug}`,
+        competitorDomain: compDomain,
+        pageCount: locationUrls.length,
+        commercialIntent: 'HIGH',
+        variables: [
+          { name: 'city-slug', exampleValues: slugsFrom(locationUrls), description: 'Place served, as it appears in their URLs' },
+        ],
+        sampleUrls: locationUrls.slice(0, 3),
+        counterStrategy: {
+          recommendedUrlPattern: `https://${customerDomain}/locations/{city-slug}`,
+          targetH1Formula: `{Your Service} in {City}`,
+          recommendedSchemaType: 'LocalBusiness, FAQPage',
+          contentDepthBenchmark: '1,000+ words + map + local FAQ',
+          differentiatorAngle: `${compDomain} publishes ${locationUrls.length} location pages. Cover the places you actually serve, with real local detail.`,
+          sampleDeliverableTemplate: `<!-- Location page scaffold: replace every [bracket] with your own facts -->\n<h1>{Your Service} in {City}</h1>\n<p>[What you offer in this area and how customers reach you]</p>\n<ul class="service-areas">\n  <li>[Neighbourhood or area served]</li>\n</ul>`,
+        },
+      });
+    }
+
+    if (toolUrls.length >= 2) {
+      results.push({
+        id: `prog_tool_${hex}`,
+        patternName: 'Interactive Calculator & Tool Engine',
+        category: 'TOOLS',
+        urlPattern: `https://${compDomain}/tools/{tool-slug}`,
+        competitorDomain: compDomain,
+        pageCount: toolUrls.length,
+        commercialIntent: 'HIGH',
+        variables: [
+          { name: 'tool-slug', exampleValues: slugsFrom(toolUrls), description: 'Tool or calculator, as it appears in their URLs' },
+        ],
+        sampleUrls: toolUrls.slice(0, 3),
+        counterStrategy: {
+          recommendedUrlPattern: `https://${customerDomain}/tools/{tool-slug}`,
+          targetH1Formula: `Free {Tool Name}`,
+          recommendedSchemaType: 'WebApplication, FAQPage',
+          contentDepthBenchmark: '800+ words + working tool + how it works',
+          differentiatorAngle: `${compDomain} publishes ${toolUrls.length} tool pages. Offer a working tool for the same job your customers need done.`,
+          sampleDeliverableTemplate: `<!-- Tool page scaffold: replace every [bracket] with your own content -->\n<h1>Free {Tool Name}</h1>\n<p>[What the tool calculates and who it helps]</p>`,
+        },
+      });
+    }
+
     return results;
   }
 }
