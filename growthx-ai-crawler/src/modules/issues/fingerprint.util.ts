@@ -73,6 +73,22 @@ export function siteFingerprint(projectId: string, issueType: string): string {
 }
 
 /**
+ * The unit the queue is displayed in: one row per problem, not per affected
+ * page.
+ *
+ * The live dashboard's priority queue shows five rows, all of them the same
+ * schema defect on five product URLs, while 150 findings of other kinds go
+ * unmentioned. Grouping by type within a site is what turns that into
+ * "Product schema missing offers — 29 pages" and leaves room for the rest.
+ *
+ * Shares a scope with the fingerprint, so a competitor crawl's groups stay
+ * separate from the customer's without needing a project.
+ */
+export function issueGroupKey(scope: string, issueType: string): string {
+  return `${scope}::${issueType}`;
+}
+
+/**
  * Findings about the site as a whole rather than about any one page. Their
  * affectedUrl is whichever URL happened to be fetched first, which is not
  * stable between crawls, so keying them by URL would report the same site-wide

@@ -25,6 +25,7 @@ import {
   usePortfolio,
   useLatestCrawl,
   useCrawlIssues,
+  useIssueCounts,
   useAutonomousPlanStatus,
   useApproveAutonomousPlan,
   useStartCrawl,
@@ -114,6 +115,7 @@ function FixEngineClient() {
   const latestCrawl = useLatestCrawl(activeDomain);
   const jobId = latestCrawl.data?.id ?? null;
   const issues = useCrawlIssues(jobId);
+  const issueCounts = useIssueCounts(projectId);
   const planQuery = useAutonomousPlanStatus(projectId);
   const approveMutation = useApproveAutonomousPlan(projectId);
   const startCrawl = useStartCrawl();
@@ -138,7 +140,12 @@ function FixEngineClient() {
   const isApproved = Boolean(planQuery.data?.isApproved || localApproved);
 
   const rawIssues = (issues.data?.data || []) as CrawlIssue[];
-  const totalFixes = rawIssues.length + stagedItems.length;
+  // One fix per problem, not per page: "add missing meta descriptions" is one
+  // item in a plan whether it touches two pages or two hundred. Read from the
+  // shared count, because `rawIssues` is a single 100-row page of the list —
+  // its length was a page size, which is why every plan here said 100 fixes.
+  const plannedProblems = issueCounts.data?.openGroups ?? 0;
+  const totalFixes = plannedProblems + stagedItems.length;
   const completedFixes = planQuery.data?.completedActionsCount ?? rawIssues.filter((i) => i.status === "resolved" || i.status === "completed").length;
 
   const competitorsList = competitorsQuery.data ?? [];

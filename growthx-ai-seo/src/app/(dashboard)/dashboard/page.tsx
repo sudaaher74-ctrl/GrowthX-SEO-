@@ -13,13 +13,14 @@ import {
   usePortfolio,
   useVisibility,
   useExecutiveSummary,
+  useIssueCounts,
+  useIssueGroups,
   useLatestCrawl,
-  useCrawlIssues,
   useLocalSeo,
   useMonitoring,
   useStartCrawl,
 } from "@/hooks/use-growthx";
-import { api } from "@/lib/api-client";
+import { api, type IssueSeverity } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { TruthfulKpiCard, TruthfulState, NotConnectedState, LoadingState } from "@/components/ui/truthful-state";
 
@@ -30,11 +31,15 @@ export default function UnifiedDashboardPage() {
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
 
   const crawl = useLatestCrawl(client?.domain ?? null);
-  const issues = useCrawlIssues(crawl.data?.id ?? null);
   const startCrawlMutation = useStartCrawl();
   const visibility = useVisibility(projectId);
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
+  // Every issue count on this page comes from here. The card used to read
+  // lowercase severity keys the server never sent, so every tile fell back to
+  // zero and printed CRITICAL 0 · HIGH 0 above a list of HIGH findings.
+  const issueCounts = useIssueCounts(projectId);
+  const issueGroups = useIssueGroups(projectId, { limit: 5 });
 
   const opportunities = useQuery({
     queryKey: ["opportunities", projectId],
@@ -59,15 +64,16 @@ export default function UnifiedDashboardPage() {
   // Health Score computation (0-100 or null if no crawl)
   const crawlCompleted = crawl.data && crawl.data.status === "COMPLETED";
   const healthScore = crawlCompleted ? (crawl.data?.healthScore ?? client?.health ?? null) : null;
-  const criticalCount = issues.data?.meta?.countsBySeverity?.critical ?? 0;
-  const highCount = issues.data?.meta?.countsBySeverity?.high ?? 0;
-  const uniqueIssuesCount = issues.data?.meta?.uniqueOpenIssues ?? issues.data?.meta?.total ?? 0;
+  const counts = issueCounts.data ?? null;
+  const criticalCount = counts?.bySeverity.CRITICAL ?? 0;
+  const openFindings = counts?.openFindings ?? 0;
+  const openGroups = counts?.openGroups ?? 0;
 
-  // Fix next queue: sort worst issues first (Critical -> High -> Medium -> Low)
-  const severityRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-  const fixNextIssues = [...(issues.data?.data ?? [])]
-    .sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9))
-    .slice(0, 5);
+  // One row per problem, not per page. Sorted by impact on the server, so the
+  // five shown are the five that matter most — not five pages of the same
+  // defect crowding out everything else that is wrong.
+  const priorityGroups = issueGroups.data?.groups ?? [];
+  const reachAvailable = issueGroups.data?.reachAvailable ?? false;
 
   const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 4);
 
@@ -300,10 +306,10 @@ export default function UnifiedDashboardPage() {
                   </div>
                   <div className="text-right">
                     <span className="text-[12px] font-semibold text-brand-950">
-                      {uniqueIssuesCount} Unique Issues
+                      {openFindings} open finding{openFindings === 1 ? "" : "s"}
                     </span>
                     <p className="text-[10.5px] text-brand-400">
-                      {issues.data?.meta?.totalFindings ?? uniqueIssuesCount} total findings
+                      across {openGroups} problem{openGroups === 1 ? "" : "s"}
                     </p>
                   </div>
                 </div>
@@ -314,22 +320,28 @@ export default function UnifiedDashboardPage() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600">Critical</span>
                   </div>
                   <div className="rounded-lg bg-amber-50/60 p-2 border border-amber-100">
-                    <span className="block text-[15px] font-bold text-amber-700 font-mono">{highCount}</span>
+                    <span className="block text-[15px] font-bold text-amber-700 font-mono">{counts?.bySeverity.HIGH ?? 0}</span>
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">High</span>
                   </div>
                   <div className="rounded-lg bg-blue-50/60 p-2 border border-blue-100">
                     <span className="block text-[15px] font-bold text-blue-700 font-mono">
-                      {issues.data?.meta?.countsBySeverity?.medium ?? 0}
+                      {counts?.bySeverity.MEDIUM ?? 0}
                     </span>
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">Medium</span>
                   </div>
                   <div className="rounded-lg bg-brand-50 p-2 border border-brand-200">
                     <span className="block text-[15px] font-bold text-brand-700 font-mono">
-                      {issues.data?.meta?.countsBySeverity?.low ?? 0}
+                      {counts?.bySeverity.LOW ?? 0}
                     </span>
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">Low</span>
                   </div>
                 </div>
+
+                {counts && healthScore != null && (
+                  <p className="text-[10.5px] leading-snug text-brand-500">
+                    {explainHealthScore(healthScore, counts.openFindings, counts.bySeverity)}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -444,31 +456,42 @@ export default function UnifiedDashboardPage() {
         {/* Priority Technical Fixes */}
         <Panel
           title="Priority Action Queue"
-          subtitle="Fix highest-severity issues first to recover search rank"
+          subtitle={
+            reachAvailable
+              ? "Ranked by the search traffic each problem touches"
+              : "Ranked by severity — connect Search Console for traffic-weighted priority"
+          }
           actions={
             <Link href="/website" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              See all {uniqueIssuesCount} issues →
+              See all {openGroups} problem{openGroups === 1 ? "" : "s"} →
             </Link>
           }
         >
           <div className="p-0">
-            {fixNextIssues.length === 0 ? (
+            {issueGroups.isLoading ? (
+              <div className="p-8 text-center text-[12px] text-brand-400">Loading priorities…</div>
+            ) : priorityGroups.length === 0 ? (
               <div className="p-8 text-center text-[12px] text-brand-400">
-                {crawlCompleted ? "No high-priority issues detected! Site is clean." : "Run your first crawl to detect issues."}
+                {crawlCompleted ? "No open problems detected. Site is clean." : "Run your first crawl to detect issues."}
               </div>
             ) : (
               <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
-                {fixNextIssues.map((issue) => (
-                  <div key={issue.id} className="p-3.5 flex items-start justify-between gap-3 hover:bg-brand-50/40 transition">
+                {priorityGroups.map((group) => (
+                  <div key={group.groupKey} className="p-3.5 flex items-start justify-between gap-3 hover:bg-brand-50/40 transition">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <SeverityBadge severity={issue.severity} />
+                        <SeverityBadge severity={group.severity} />
                         <span className="text-[12px] font-semibold text-brand-950 truncate">
-                          {issue.issueType.replace(/_/g, " ")}
+                          {group.title}
+                        </span>
+                        <span className="shrink-0 text-[10.5px] font-mono text-brand-400">
+                          {group.affectedCount} page{group.affectedCount === 1 ? "" : "s"}
                         </span>
                       </div>
                       <p className="text-[11.5px] text-brand-500 font-mono truncate max-w-md">
-                        {issue.affectedUrl}
+                        {group.affectedCount === 1
+                          ? group.sampleUrls[0]
+                          : `${group.sampleUrls[0]} and ${group.affectedCount - 1} more`}
                       </p>
                     </div>
                     <Link
@@ -711,6 +734,36 @@ function ChecklistBadge({
       />
       <span className="truncate">{label}</span>
     </Link>
+  );
+}
+
+/**
+ * One line saying why the score is what it is.
+ *
+ * The audit showed 89/100 labelled Good next to a hundred open findings. Both
+ * numbers were right — the scorer caps each page's penalty and discounts
+ * low-confidence findings, so many small problems barely move it — but nothing
+ * said so, and a client who cannot reconcile two numbers stops trusting both.
+ *
+ * The per-page cap mirrors MAX_PENALTY_PER_URL in the crawler's
+ * health-score.util.ts. Everything else here is read off the counts.
+ */
+const PENALTY_CAP_PER_PAGE = 20;
+
+function explainHealthScore(
+  score: number,
+  openFindings: number,
+  bySeverity: Record<IssueSeverity, number>,
+): string {
+  if (openFindings === 0) return `${score}/100 — no open findings.`;
+
+  const order: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+  const dominant = order.reduce((best, sev) => (bySeverity[sev] > bySeverity[best] ? sev : best), order[0]);
+  const noun = openFindings === 1 ? "finding" : "findings";
+
+  return (
+    `${score}/100 — ${openFindings} ${noun}, mostly ${dominant.toLowerCase()} severity. ` +
+    `Capped at ${PENALTY_CAP_PER_PAGE} penalty points per page so one broken page can't sink the score.`
   );
 }
 

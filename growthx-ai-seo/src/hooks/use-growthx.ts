@@ -21,6 +21,7 @@ import {
   type LinkSculptingPatch,
   type CrawlJob,
   type StrategyPlan,
+  type IssueGroupFilters,
 } from "@/lib/api-client";
 import { stagingEngine, EMPTY_STAGED_ITEMS, type StagedFixItem } from "@/lib/staging-engine";
 
@@ -1414,6 +1415,58 @@ export function useExecutiveSummary(projectId: string | null, days?: number) {
     queryKey: ["executive-summary", projectId, window],
     queryFn: () => api.executiveSummary(projectId!, window),
     enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/**
+ * How many things are wrong with the site, counted once.
+ *
+ * The dashboard, the audit and the Fix Engine all read this. Each used to count
+ * for itself, and one crawl was reported as 100, 156 and 100 at once, with a
+ * severity breakdown of 0/0/0/0 printed above a list of HIGH findings. Share
+ * this query key and the three screens cannot disagree.
+ */
+export function useIssueCounts(projectId: string | null, days?: number) {
+  const active = usePeriodDays();
+  const window = days ?? active;
+  return useQuery({
+    queryKey: ["issue-counts", projectId, window],
+    queryFn: () => api.issueCounts(projectId!, window),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/** Open findings grouped by problem, highest impact first. */
+export function useIssueGroups(
+  projectId: string | null,
+  filters: IssueGroupFilters = {},
+  days?: number,
+) {
+  const active = usePeriodDays();
+  const window = days ?? active;
+  return useQuery({
+    queryKey: ["issue-groups", projectId, filters.severity ?? null, filters.limit ?? null, window],
+    queryFn: () => api.issueGroups(projectId!, filters, window),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/**
+ * Every affected page of one group. Only fetched once a row is expanded, so
+ * the queue does not pay for page lists nobody opens.
+ */
+export function useIssueGroupPages(
+  projectId: string | null,
+  groupKey: string | null,
+  cursor?: string,
+) {
+  return useQuery({
+    queryKey: ["issue-group-pages", projectId, groupKey, cursor ?? null],
+    queryFn: () => api.issueGroupPages(projectId!, groupKey!, 100, cursor),
+    enabled: Boolean(projectId && groupKey),
     retry: false,
   });
 }

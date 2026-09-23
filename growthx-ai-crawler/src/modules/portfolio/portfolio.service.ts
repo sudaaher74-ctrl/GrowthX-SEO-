@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { IssueSeverity } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiVisibilityService } from '../ai-visibility/ai-visibility.service';
 import { calculateHealthScore } from '../issues/health-score.util';
+import { IssueCountService } from '../issues/issue-count.service';
 
 export interface PortfolioClient {
   projectId: string;
@@ -62,6 +62,7 @@ export class PortfolioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly visibility: AiVisibilityService,
+    private readonly issueCounts: IssueCountService,
   ) {}
 
   async getPortfolio(organizationId: string, days = 28) {
@@ -93,7 +94,11 @@ export class PortfolioService {
       let health: number | null = null;
 
       if (latestCrawl) {
-        criticalIssues = await this.countIssues(latestCrawl.id, IssueSeverity.CRITICAL);
+        // The same count the dashboard's CRITICAL tile shows. The sidebar tag
+        // and the portfolio alerts are built from this, and on every screen the
+        // sidebar sits beside a dashboard that must not contradict it. Counted
+        // across all the client's sites, where the crawl above is only one.
+        criticalIssues = (await this.issueCounts.countsForProject(project.id)).bySeverity.CRITICAL;
         if (latestCrawl.healthScore != null) {
           health = latestCrawl.healthScore;
         } else {
@@ -149,10 +154,6 @@ export class PortfolioService {
       summary: this.summarise(clients),
       alerts: this.buildAlerts(clients),
     };
-  }
-
-  private countIssues(crawlJobId: string, severity: IssueSeverity) {
-    return this.prisma.issue.count({ where: { crawlJobId, severity, status: 'OPEN' } });
   }
 
   /**
