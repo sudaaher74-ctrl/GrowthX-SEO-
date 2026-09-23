@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Wrench,
@@ -65,7 +66,11 @@ function FixEngineClient() {
   const allGroups = groupsQuery.data?.groups ?? [];
   const autoFixableCount = counts?.autoFixable ?? allGroups.filter((g) => g.fixClass === "AUTO").length;
 
-  const [activeTab, setActiveTab] = useState<TabType>("PENDING");
+  const searchParams = useSearchParams();
+  const requestedTab = (searchParams.get("tab") || searchParams.get("view") || "").toUpperCase();
+  const initialTab: TabType = requestedTab === "APPLIED" || requestedTab === "VERIFIED" || requestedTab === "HISTORY" ? "APPLIED" : "PENDING";
+
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [expandedUrls, setExpandedUrls] = useState<Record<string, boolean>>({});
   const [appliedRecords, setAppliedRecords] = useState<Record<string, AppliedFixRecord>>({});

@@ -95,12 +95,6 @@ export function Sidebar({
       tag: "Auto",
       tagTone: "success",
       aliases: ["/engineer"],
-      children: [
-        { label: "Current Plan", href: "/fix-engine?tab=overview", id: "overview" },
-        { label: "Implementation", href: "/fix-engine?tab=implementation", id: "implementation" },
-        { label: "Verification", href: "/fix-engine?tab=verification", id: "verification" },
-        { label: "History & Cycles", href: "/fix-engine?tab=history", id: "history" },
-      ],
     },
     {
       label: "Google Business Profile",
