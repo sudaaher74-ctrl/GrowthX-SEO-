@@ -1671,14 +1671,15 @@ export interface AutoIdentifiedCompetitor {
   name: string;
   industry: string;
   description: string;
-  overlapScore: number;
+  /** Measured from search evidence; null for a model's suggestion. */
+  overlapScore: number | null;
   marketPosition: string;
   location?: string;
   sampleKeywords: string[];
   keyDifferentiator: string;
   isAlreadyAdded?: boolean;
   existingId?: string;
-  /** Proven to be a real company: live site fetched, or hand-checked list. */
+  /** Proven to be a real company: its live site answered. */
   verified?: boolean;
   /** Title tag read from the live site while verifying. */
   verifiedTitle?: string;
@@ -1692,9 +1693,9 @@ export interface AutoIdentifiedCompetitor {
   verificationLevel?: "content" | "reachable";
   /**
    * `search` — found ranking for your own buyer keywords. `ai` — recalled by
-   * the model. `curated` — from the hand-checked list, used only to top up.
+   * the model.
    */
-  source?: "search" | "ai" | "curated";
+  source?: "search" | "ai";
 }
 
 export interface ComparisonRow {
@@ -1891,7 +1892,6 @@ export interface InterceptBlueprint {
   targetH1: string;
   targetSlug: string;
   targetWordCount: number;
-  estimatedTimeToDisplaceDays: number;
   attackThesis: string;
   semanticHeadings: Array<{ level: "H2" | "H3"; title: string; intentSummary: string }>;
   jsonLdSchema: string;
@@ -1908,7 +1908,10 @@ export interface InterceptOpportunity {
   competitorName: string;
   competitorUrl: string;
   competitorRank: number | null;
+  /** Average Search Console position; null when not measured. */
   customerRank: number | null;
+  /** You already have a page whose title or H1 covers this topic. */
+  coveredByUs: boolean;
   vulnerabilityScore: number;
   vulnerabilityTier: "PRIME_TARGET" | "MODERATE" | "DEFENDED";
   defects: InterceptDefect[];
@@ -1920,9 +1923,11 @@ export interface InterceptOpportunity {
 export interface InterceptScoreboard {
   totalPoachable: number;
   primeTargetsCount: number;
-  estimatedTrafficOpportunity: number;
+  /** Your measured Search Console impressions across these topics (30 days). */
+  searchImpressionsAtStake: number;
   averageVulnerabilityScore: number;
-  topDefectArea: string;
+  /** Null when no competitor page showed a defect. */
+  topDefectArea: string | null;
   totalAuditedPages?: number;
   avgResponseTimeMs?: number;
 }
@@ -1939,35 +1944,40 @@ export interface GenerateBlueprintBody {
   weaknessType?: string;
 }
 
-export interface ProgrammaticBlueprint {
-  counterPattern: string;
-  targetArchitecture: string;
-  recommendedSchemaType: string;
-  semanticH2Outlines: string[];
-  differentiationAngle: string;
-  sampleCopyablePrompt: string;
-  targetSlugExample: string;
+/** Mirrors ProgrammaticCluster in growthx-ai-crawler programmatic-decompiler.service.ts. */
+export interface ProgrammaticVariable {
+  name: string;
+  /** Real slugs taken from the competitor's own URLs. */
+  exampleValues: string[];
+  description: string;
 }
 
 export interface ProgrammaticCluster {
-  patternId: string;
-  formula: string;
-  patternType: "COMPARISON" | "INTEGRATION" | "DIRECTORY_LOCATION" | "GLOSSARY" | "CALCULATOR" | "PRODUCT_VS" | "GENERIC";
+  id: string;
+  patternName: string;
+  category: "INTEGRATIONS" | "COMPARISONS" | "TEMPLATES" | "GLOSSARY" | "LOCATIONS" | "TOOLS" | "CATEGORY_HUBS";
+  urlPattern: string;
   competitorDomain: string;
+  pageCount: number;
+  commercialIntent: "HIGH" | "MEDIUM" | "TRANSACTIONAL";
+  variables: ProgrammaticVariable[];
   sampleUrls: string[];
-  totalDetectedPages: number;
-  extractedVariables: string[];
-  sampleVariables: Record<string, string[]>;
-  estimatedMonthlyVisits: number;
-  counterBlueprint: ProgrammaticBlueprint;
+  counterStrategy: {
+    recommendedUrlPattern: string;
+    targetH1Formula: string;
+    recommendedSchemaType: string;
+    contentDepthBenchmark: string;
+    differentiatorAngle: string;
+    /** A scaffold with [bracketed] gaps for the customer to fill. */
+    sampleDeliverableTemplate: string;
+  };
 }
 
 export interface ProgrammaticScoreboard {
-  totalPatternsDetected: number;
-  totalProgrammaticPages: number;
-  estimatedTrafficCaptured: number;
-  dominantFormulaType: string;
-  highPriorityCounterAttacks: number;
+  totalProgrammaticClusters: number;
+  totalCompetitorPagesIndexed: number;
+  topPatternCategory: string;
+  readyToCounterCount: number;
 }
 
 export interface ProgrammaticMatrixResponse {
@@ -1975,29 +1985,33 @@ export interface ProgrammaticMatrixResponse {
   clusters: ProgrammaticCluster[];
 }
 
+/** Mirrors StealthRadarEvent in growthx-ai-crawler competitor-stealth-radar.service.ts. */
 export interface StealthRadarEvent {
   id: string;
-  type: "BACKLINK_VAMPIRE" | "SCHEMA_GAP" | "AI_CITATION_POACH" | "TITLE_PIVOT";
+  type: "SCHEMA_GAP" | "BACKLINK_VAMPIRE" | "TITLE_PIVOT" | "AI_CITATION_POACH" | "SPEED_DEFECT";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM";
   competitorDomain: string;
-  title: string;
+  competitorUrl: string;
+  headline: string;
+  description: string;
   detectedAt: string;
-  targetUrl: string;
+  /** A fixed weight per event type, used to rank alerts — not a measurement. */
   impactScore: number;
-  urgency: "HIGH" | "MEDIUM" | "LOW";
-  summary: string;
-  counterTactic: string;
-  copyableDeliverable: {
+  counterAction: {
     label: string;
-    snippet: string;
+    deliverableType: "JSON_LD" | "HTML_SNIPPET" | "CITATION_BAIT" | "OUTREACH_PITCH";
+    codeSnippet: string;
+    actionableSummary: string;
   };
 }
 
 export interface StealthRadarResponse {
-  totalEvents: number;
-  highPriorityAlerts: number;
-  brokenLinkHijacks: number;
-  schemaVulnerabilities: number;
-  aiPoachOpportunities: number;
+  scoreboard: {
+    activeEventsCount: number;
+    criticalVulnerabilities: number;
+    backlinkOpportunities: number;
+    aiCitationDeficits: number;
+  };
   events: StealthRadarEvent[];
 }
 
@@ -4198,19 +4212,20 @@ export interface EnrichedOpportunity {
   topic: string;
   pillar: string;
   opportunityScore: number;
+  /** Each figure is null when nothing measured it. */
   breakdown: {
-    businessRelevance: number;
-    searchOpportunity: number;
-    competitorEvidence: number;
-    contentGap: number;
-    confidence: number;
-    effort: 'LOW' | 'MEDIUM' | 'HIGH';
+    businessRelevance: number | null;
+    searchOpportunity: number | null;
+    competitorEvidence: number | null;
+    contentGap: number | null;
+    confidence: number | null;
+    effort: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   };
-  targetMarket: string;
+  targetMarket: string | null;
   competitorEvidenceSummary: string;
-  relatedKeywords: Array<{ keyword: string; searchVolume?: number; intent: string }>;
+  relatedKeywords: Array<{ keyword: string }>;
   suggestedFormats: string[];
-  recommendedAction: string;
+  recommendedAction: string | null;
 }
 
 export interface VideoScriptScene {

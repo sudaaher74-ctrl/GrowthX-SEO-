@@ -84,7 +84,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
     };
 
     // Search discovery is off by default so the existing cases stay about the
-    // model and the curated list; the cases that care switch it on.
+    // model; the cases that care switch it on.
     discovery = {
       isConfigured: jest.fn().mockReturnValue(false),
       discover: jest.fn().mockResolvedValue({ candidates: [], queriesRun: [] }),
@@ -106,22 +106,17 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
   });
 
   describe('autoIdentifyCompetitors', () => {
-    it('identifies top 5 competitors from the curated list when AI is not configured', async () => {
+    it('returns no competitors from a built-in list when neither search nor a model is available', async () => {
       const result = await service.autoIdentifyCompetitors('org1', 'p1', {
         industry: 'SEO, Performance Marketing & Digital Growth Agency',
       });
 
-      expect(result).toBeDefined();
       expect(result.customerDomain).toBe('growthx.ai');
       expect(result.region).toBe('worldwide');
-      expect(result.topCompetitors).toHaveLength(5);
-      expect(result.topCompetitors[0]).toHaveProperty('domain');
-      expect(result.topCompetitors[0]).toHaveProperty('name');
-      expect(result.topCompetitors[0]).toHaveProperty('overlapScore');
-      expect(result.topCompetitors[0]).toHaveProperty('marketPosition');
-      expect(result.topCompetitors[0]).toHaveProperty('sampleKeywords');
-      expect(result.topCompetitors[0].isAlreadyAdded).toBe(false);
-      expect(result.topCompetitors.every((c) => c.verified)).toBe(true);
+      // This used to answer from a hardcoded table with overlap scores and
+      // keywords nobody measured for the client.
+      expect(result.topCompetitors).toHaveLength(0);
+      expect(result.notes?.join(' ')).toContain('No competitor could be verified');
     });
 
     it('returns an empty list rather than padding an unrecognised niche with unrelated giants', async () => {
@@ -155,6 +150,8 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
         detectedAt: new Date().toISOString(),
       });
 
+      discovery.isConfigured.mockReturnValue(true);
+
       const result = await service.autoIdentifyCompetitors('org1', 'p1', {
         domain: 'aivaenterprises.com',
       });
@@ -164,7 +161,13 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.industryWasDetected).toBe(true);
       expect(result.regionWasDetected).toBe(true);
       expect(result.businessProfile?.businessName).toBe('AIVA Enterprises');
-      expect(result.topCompetitors.length).toBeGreaterThan(0);
+      // What was detected is what the market is searched for.
+      expect(discovery.discover).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: 'Fruit Pulp, Purees, Concentrates & IQF Agro Processing',
+          region: 'maharashtra',
+        }),
+      );
     });
 
     it('lets an explicit industry and region override what was detected', async () => {
@@ -197,30 +200,16 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.regionWasDetected).toBe(false);
     });
 
-    it('identifies real competitors in Maharashtra when region=maharashtra is selected', async () => {
-      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
-        domain: 'palfrozenfoods.in',
-        industry: 'Fruit Pulp & Food Exports',
-        region: 'maharashtra',
-      });
+    it.each([
+      ['maharashtra', 'palfrozenfoods.in', 'Fruit Pulp & Food Exports'],
+      ['india', 'palfrozenfoods.in', 'Fruit Pulp Exporter'],
+      ['maharashtra', 'milquufresh.in', 'Doorstep milk and dairy products delivery'],
+      ['india', 'milquufresh.in', 'Dairy & Milk Subscriptions'],
+    ] as const)('answers region=%s for %s from live evidence only, never a built-in list', async (region, domain, industry) => {
+      const result = await service.autoIdentifyCompetitors('org1', 'p1', { domain, industry, region });
 
-      expect(result.region).toBe('maharashtra');
-      expect(result.topCompetitors).toHaveLength(5);
-      expect(result.topCompetitors.some((c) => c.domain.includes('sahyadrifarms.com') || c.domain.includes('jainfarmfresh.com'))).toBe(true);
-      expect(result.topCompetitors[0].location).toContain('Maharashtra');
-    });
-
-    it('identifies real national competitors across India when region=india is selected', async () => {
-      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
-        domain: 'palfrozenfoods.in',
-        industry: 'Fruit Pulp Exporter',
-        region: 'india',
-      });
-
-      expect(result.region).toBe('india');
-      expect(result.topCompetitors).toHaveLength(5);
-      expect(result.topCompetitors.some((c) => c.domain.includes('capricornfood.com') || c.domain.includes('shimlahills.com'))).toBe(true);
-      expect(result.topCompetitors[0].location).toContain('India');
+      expect(result.region).toBe(region);
+      expect(result.topCompetitors).toHaveLength(0);
     });
 
     it('uses AI output when models are configured', async () => {
@@ -356,7 +345,7 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.notes?.join(' ')).toContain('could not be verified');
     });
 
-    it('never returns the same competitor twice after a top-up from the curated list', async () => {
+    it('shows only the verified rivals the model named, without padding the list', async () => {
       models.isConfigured.mockReturnValue(true);
       models.generate.mockResolvedValue({
         text: JSON.stringify({
@@ -382,95 +371,12 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
         region: 'maharashtra',
       });
 
-      const domains = result.topCompetitors.map((c) => c.domain);
-      expect(new Set(domains).size).toBe(domains.length);
-      expect(domains).toContain('sahyadrifarms.com');
+      expect(result.topCompetitors.map((c) => c.domain)).toEqual(['sahyadrifarms.com']);
+      expect(result.topCompetitors[0].source).toBe('ai');
     });
 
-    it('fills a doorstep milk client with real dairy rivals when the AI list comes back thin', async () => {
-      // The reported failure: a dairy client saw a single competitor. Four of
-      // five AI suggestions failed verification and the curated list had no
-      // dairy coverage to top up from, so the panel showed one card.
-      models.isConfigured.mockReturnValue(true);
-      models.generate.mockResolvedValue({
-        text: JSON.stringify({
-          competitors: [
-            {
-              domain: 'bigbasket.com',
-              name: 'BigBasket',
-              industry: 'Online Grocery',
-              description: 'Online grocery platform with dairy',
-              overlapScore: 50,
-              marketPosition: 'Market leader in online grocery',
-              location: 'Bengaluru, Karnataka, India',
-              sampleKeywords: ['fresh milk online'],
-              keyDifferentiator: 'Vast product assortment',
-            },
-          ],
-        }),
-      });
-
-      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
-        domain: 'milquufresh.in',
-        industry: 'Dairy, Fresh Milk Delivery & Milk Subscriptions',
-        region: 'india',
-      });
-
-      expect(result.topCompetitors).toHaveLength(5);
-      const domains = result.topCompetitors.map((c) => c.domain);
-      expect(new Set(domains).size).toBe(domains.length);
-      expect(domains).toContain('countrydelight.in');
-      expect(domains).toContain('amul.com');
-      expect(domains).toContain('motherdairy.com');
-    });
-
-    it('answers a Maharashtra dairy client with Maharashtra dairies, not fruit exporters', async () => {
-      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
-        domain: 'milquufresh.in',
-        industry: 'Doorstep milk and dairy products delivery',
-        region: 'maharashtra',
-      });
-
-      expect(result.topCompetitors).toHaveLength(5);
-      expect(result.topCompetitors.every((c) => c.location?.includes('Maharashtra'))).toBe(true);
-      expect(result.topCompetitors.some((c) => c.domain === 'gokulmilk.coop')).toBe(true);
-      // The food & agro list must not answer a dairy query.
-      expect(result.topCompetitors.some((c) => c.domain === 'sahyadrifarms.com')).toBe(false);
-    });
-
-    it('does not list the same company twice when AI and the curated list both name it', async () => {
-      models.isConfigured.mockReturnValue(true);
-      models.generate.mockResolvedValue({
-        text: JSON.stringify({
-          competitors: [
-            {
-              domain: 'amul.co.in',
-              name: 'Amul (GCMMF)',
-              industry: 'Dairy',
-              description: 'India largest dairy brand',
-              overlapScore: 99,
-              marketPosition: 'Category leader',
-              location: 'Anand, Gujarat, India',
-              sampleKeywords: ['amul milk'],
-              keyDifferentiator: 'Farmer network',
-            },
-          ],
-        }),
-      });
-
-      const result = await service.autoIdentifyCompetitors('org1', 'p1', {
-        domain: 'milquufresh.in',
-        industry: 'Dairy & Milk Subscriptions',
-        region: 'india',
-      });
-
-      const names = result.topCompetitors.map((c) => c.name.toLowerCase());
-      expect(new Set(names).size).toBe(names.length);
-      expect(names.filter((n) => n.includes('amul'))).toHaveLength(1);
-    });
-
-    it('finds competitors for a market the curated list has never heard of', async () => {
-      // A dentist in São Paulo: no curated coverage, and a model that names
+    it('finds competitors in any market through search', async () => {
+      // A dentist in São Paulo: a model that names
       // whoever it half-remembers. Search evidence is what makes this work.
       discovery.isConfigured.mockReturnValue(true);
       discovery.discover.mockResolvedValue({
@@ -580,8 +486,22 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       );
     });
 
-    it('still answers from the model and the curated list when search is unavailable', async () => {
+    it('still answers from the model when search is unavailable', async () => {
       discovery.isConfigured.mockReturnValue(false);
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({
+          competitors: [
+            {
+              domain: 'countrydelight.in',
+              name: 'Country Delight',
+              industry: 'Dairy',
+              description: 'Milk subscriptions',
+              location: 'Gurugram, India',
+            },
+          ],
+        }),
+      });
 
       const result = await service.autoIdentifyCompetitors('org1', 'p1', {
         domain: 'milquufresh.in',
@@ -590,8 +510,15 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       });
 
       expect(discovery.discover).not.toHaveBeenCalled();
-      expect(result.topCompetitors).toHaveLength(5);
-      expect(result.topCompetitors.every((c) => c.source === 'curated')).toBe(true);
+      expect(result.topCompetitors.map((c) => c.domain)).toEqual(['countrydelight.in']);
+      expect(result.topCompetitors.every((c) => c.source === 'ai')).toBe(true);
+      // A model's suggestion carries no measured overlap, and what it left
+      // out is not filled with stock phrases.
+      const [rival] = result.topCompetitors;
+      expect(rival.overlapScore).toBeNull();
+      expect(rival.sampleKeywords).toEqual([]);
+      expect(rival.marketPosition).toBe('');
+      expect(rival.keyDifferentiator).toBe('');
     });
 
     it('marks competitors as already added if they exist in the project', async () => {

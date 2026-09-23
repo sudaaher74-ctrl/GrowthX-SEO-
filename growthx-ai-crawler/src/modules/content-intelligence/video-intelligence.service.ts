@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
@@ -171,8 +171,10 @@ export class VideoIntelligenceService {
         description: payload.description || payload.caption,
         caption: payload.caption,
         contentUrl: payload.contentUrl,
-        thumbnailUrl: payload.thumbnailUrl || (payload.platform === 'YOUTUBE' ? 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?auto=format&fit=crop&w=600&q=80' : 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?auto=format&fit=crop&w=600&q=80'),
-        duration: payload.duration || (payload.contentType === 'SHORT' || payload.contentType === 'REEL' ? 45 : 480),
+        // Only what the platform gave us: a stock photo or a typical length in
+        // place of a missing one reads as this video's own.
+        thumbnailUrl: payload.thumbnailUrl ?? null,
+        duration: payload.duration ?? null,
         viewsCount: payload.viewsCount ?? null,
         likesCount: payload.likesCount ?? null,
         commentsCount: payload.commentsCount ?? null,
@@ -180,17 +182,18 @@ export class VideoIntelligenceService {
         engagementAvailable: payload.viewsCount != null || payload.likesCount != null,
         publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : new Date(),
         dataSourceType: 'PUBLIC_DATA',
-        confidenceLevel: 'HIGH',
       },
     });
 
-    // 2. Run the 2-stage multi-modal AI Video Analysis
-    const analysis = await this.analyzeVideoContent(content, payload.rawTranscript, payload.rawOcrText, organizationId);
-
-    return {
-      content,
-      analysis,
-    };
+    // 2. Run the 2-stage multi-modal AI Video Analysis. The item is real either
+    // way; a failed analysis leaves it unanalysed rather than losing it.
+    try {
+      const analysis = await this.analyzeVideoContent(content, payload.rawTranscript, payload.rawOcrText, organizationId);
+      return { content, analysis, analysisError: null };
+    } catch (err: any) {
+      this.logger.warn(`Video analysis failed for content ${content.id}: ${err.message}`);
+      return { content, analysis: null, analysisError: err.message as string };
+    }
   }
 
   /**
@@ -225,22 +228,24 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
       maxTokens: 3500,
     });
 
-    let parsed: any = {};
-    if (result.text?.trim()) {
-      try {
-        parsed = parseModelJson(result.text, 'VideoIntelligence');
-      } catch (err: any) {
-        this.logger.warn(`Failed to parse model JSON: ${err.message}. Using fallback structured model.`);
-        parsed = this.buildFallbackAnalysis(content);
-      }
-    } else {
-      parsed = this.buildFallbackAnalysis(content);
+    // No stock analysis stands in for a failed one: a generic transcript saved
+    // against a competitor's video is indistinguishable from what they said.
+    if (!result.text?.trim()) {
+      throw new ServiceUnavailableException('The AI provider returned no analysis for this video. Nothing was saved.');
+    }
+    let parsed: any;
+    try {
+      parsed = parseModelJson(result.text, 'VideoIntelligence');
+    } catch (err: any) {
+      this.logger.warn(`Failed to parse video analysis JSON: ${err.message}`);
+      throw new ServiceUnavailableException('The AI provider returned an unreadable analysis for this video. Nothing was saved.');
     }
 
     const cls = parsed.classification || {};
     const trn = parsed.transcriptAnalysis || {};
     const vis = parsed.visualAndScenes || {};
-    const whyItWorks = parsed.whyThisContentWorks || 'This video leverages high-contrast visual demonstration paired with a problem-focused hook to maximize watch-through before delivering a consultation call-to-action.';
+    const whyItWorks: string | null = parsed.whyThisContentWorks || null;
+    const hookText = cls.hookText || trn.hook || null;
 
     // 3. Persist Video Intelligence data onto CompetitorContent
     await this.prisma.competitorContent.update({
@@ -250,78 +255,54 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
         transcriptSegments: trn.segments || [],
         ocrText: vis.ocrText || rawOcrText || null,
         scenes: vis.scenes || [],
-        hookAnalysis: {
-          hook: cls.hookText || trn.hook || 'Opening Hook',
-          hookType: cls.hookType || 'PROBLEM',
-          durationSeconds: cls.hookDurationSeconds || 3,
-          strength: 'HIGH',
-        },
+        hookAnalysis: hookText
+          ? {
+              hook: hookText,
+              hookType: cls.hookType ?? null,
+              durationSeconds: cls.hookDurationSeconds ?? null,
+            }
+          : undefined,
         structureAnalysis: {
-          hookDuration: cls.hookDurationSeconds || 3,
-          intro: trn.intro || trn.hook || 'Introduction',
-          problem: trn.problem || 'Problem identified',
-          solution: trn.solution || 'Solution provided',
-          ctaPlacement: cls.ctaType || 'END_CARD',
-          conclusion: trn.conclusion || trn.cta || 'Call to action',
+          hookDuration: cls.hookDurationSeconds ?? null,
+          intro: trn.intro || trn.hook || null,
+          problem: trn.problem || null,
+          solution: trn.solution || null,
+          ctaPlacement: cls.ctaType || null,
+          conclusion: trn.conclusion || trn.cta || null,
         },
         whyItWorks,
-        confidenceLevel: 'HIGH',
       },
     });
 
-    // 4. Persist structured classification onto ContentClassification
+    // 4. Persist structured classification onto ContentClassification. Every
+    // field is the model's answer or null — never a plausible default.
+    const fields = {
+      contentCategory: cls.contentPillar ?? null,
+      contentPillar: cls.contentPillar ?? null,
+      topic: cls.topic ?? null,
+      subtopic: cls.subtopic ?? null,
+      format: cls.format ?? null,
+      visualFormat: cls.format ?? null,
+      detectedTopics: [cls.topic, cls.subtopic].filter(Boolean),
+      detectedObjects: Array.isArray(vis.detectedObjects) ? vis.detectedObjects : [],
+      storytellingStyle: cls.tone ?? null,
+      hookType: cls.hookType ?? null,
+      ctaType: cls.ctaType ?? null,
+      ctaText: cls.ctaText ?? null,
+      audience: cls.audience ?? null,
+      searchIntent: cls.searchIntent ?? null,
+      marketingIntent: cls.marketingIntent ?? null,
+      funnelStage: cls.funnelStage ?? null,
+      tone: cls.tone ?? null,
+      visualStyle: cls.visualStyle ?? null,
+      contentObjective: cls.contentObjective ?? null,
+      confidence: typeof cls.confidence === 'number' ? Math.round(cls.confidence) : null,
+      classifiedByModel: result.model,
+    };
     const classification = await this.prisma.contentClassification.upsert({
       where: { contentId: content.id },
-      update: {
-        contentCategory: cls.contentPillar || 'EDUCATIONAL',
-        contentPillar: cls.contentPillar || 'EDUCATIONAL',
-        topic: cls.topic || 'General Strategy',
-        subtopic: cls.subtopic || 'Best Practices',
-        format: cls.format || 'TALKING_HEAD_AND_BROLL',
-        visualFormat: cls.format || (content.contentType === 'REEL' ? 'REEL' : 'LONG_VIDEO'),
-        detectedTopics: [cls.topic, cls.subtopic].filter(Boolean),
-        detectedObjects: vis.detectedObjects || ['PRODUCT', 'PRESENTER'],
-        storytellingStyle: cls.tone || 'PRACTICAL_GUIDE',
-        hookType: cls.hookType || 'PROBLEM',
-        ctaType: cls.ctaType || 'BOOK_CONSULTATION',
-        ctaText: cls.ctaText || 'Link in bio',
-        audience: cls.audience || 'Target Consumers',
-        searchIntent: cls.searchIntent || 'Informational',
-        marketingIntent: cls.marketingIntent || 'Authority Building',
-        funnelStage: cls.funnelStage || 'CONSIDERATION',
-        tone: cls.tone || 'Authoritative',
-        visualStyle: cls.visualStyle || 'Cinematic B-roll + Overlays',
-        contentObjective: cls.contentObjective || 'Demonstrate expertise',
-        confidence: cls.confidence || 92,
-        creativityScore: 8.5,
-        classifiedByModel: result.model || 'growthx-video-v1',
-        classifiedAt: new Date(),
-      },
-      create: {
-        contentId: content.id,
-        contentCategory: cls.contentPillar || 'EDUCATIONAL',
-        contentPillar: cls.contentPillar || 'EDUCATIONAL',
-        topic: cls.topic || 'General Strategy',
-        subtopic: cls.subtopic || 'Best Practices',
-        format: cls.format || 'TALKING_HEAD_AND_BROLL',
-        visualFormat: cls.format || (content.contentType === 'REEL' ? 'REEL' : 'LONG_VIDEO'),
-        detectedTopics: [cls.topic, cls.subtopic].filter(Boolean),
-        detectedObjects: vis.detectedObjects || ['PRODUCT', 'PRESENTER'],
-        storytellingStyle: cls.tone || 'PRACTICAL_GUIDE',
-        hookType: cls.hookType || 'PROBLEM',
-        ctaType: cls.ctaType || 'BOOK_CONSULTATION',
-        ctaText: cls.ctaText || 'Link in bio',
-        audience: cls.audience || 'Target Consumers',
-        searchIntent: cls.searchIntent || 'Informational',
-        marketingIntent: cls.marketingIntent || 'Authority Building',
-        funnelStage: cls.funnelStage || 'CONSIDERATION',
-        tone: cls.tone || 'Authoritative',
-        visualStyle: cls.visualStyle || 'Cinematic B-roll + Overlays',
-        contentObjective: cls.contentObjective || 'Demonstrate expertise',
-        confidence: cls.confidence || 92,
-        creativityScore: 8.5,
-        classifiedByModel: result.model || 'growthx-video-v1',
-      },
+      update: { ...fields, classifiedAt: new Date() },
+      create: { contentId: content.id, ...fields },
     });
 
     return {
@@ -362,58 +343,5 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
     }
 
     return item;
-  }
-
-  private buildFallbackAnalysis(content: any) {
-    const title = content.title || content.caption || 'Video Content';
-    return {
-      classification: {
-        topic: title.slice(0, 40),
-        subtopic: 'Key Insights',
-        contentPillar: 'EDUCATIONAL',
-        format: 'TALKING_HEAD_AND_BROLL',
-        hookType: 'PROBLEM',
-        hookText: `Before you start, avoid these common mistakes with ${title.slice(0, 30)}.`,
-        hookDurationSeconds: 3,
-        ctaType: 'BOOK_CONSULTATION',
-        ctaText: 'Book a free consultation link in bio.',
-        audience: 'High-Intent Decision Makers',
-        searchIntent: 'Commercial Investigation',
-        marketingIntent: 'Authority & Conversion',
-        funnelStage: 'CONSIDERATION',
-        tone: 'Authoritative & Practical',
-        visualStyle: 'Presenter Talking Head + Text Overlays',
-        contentObjective: 'Position brand as leading domain authority',
-        confidence: 88,
-      },
-      transcriptAnalysis: {
-        hook: `Before you start, avoid these critical mistakes.`,
-        intro: `In this breakdown, we look at the top factors you must know.`,
-        problem: `Most buyers overspend by 30% without proper upfront planning.`,
-        explanation: `Here are the 3 structural benchmarks you should follow.`,
-        solution: `Use a standardized modular checklist before finalizing quotes.`,
-        cta: `Tap the link in bio for the complete cost estimation guide.`,
-        conclusion: `Save this video for your next project.`,
-        segments: [
-          { timestamp: '00:00', text: `Before you spend money on this, avoid these 3 mistakes.`, type: 'HOOK' },
-          { timestamp: '00:04', text: `Mistake #1 is choosing materials without checking durability ratings.`, type: 'PROBLEM' },
-          { timestamp: '00:18', text: `Mistake #2 is improper layout planning that causes workflow bottlenecks.`, type: 'EDUCATION' },
-          { timestamp: '00:36', text: `Always request a verified material warranty and 3D layout simulation.`, type: 'SOLUTION' },
-          { timestamp: '00:52', text: `Book a consultation with our design team today.`, type: 'CTA' },
-        ],
-      },
-      visualAndScenes: {
-        ocrText: '3 CRITICAL MISTAKES TO AVOID • BUDGET CHECKLIST • VERIFIED WARRANTY',
-        detectedObjects: ['PRESENTER', 'PRODUCT_SHOWCASE', 'PROJECT_FOOTAGE', 'TEXT_OVERLAY'],
-        scenes: [
-          { sceneNumber: 1, timeRange: '0–4s', visualFormat: 'TALKING_HEAD', description: 'Presenter speaking directly to camera with bold on-screen warning headline', onScreenText: 'STOP MAKING THIS MISTAKE' },
-          { sceneNumber: 2, timeRange: '4–15s', visualFormat: 'B_ROLL', description: 'Close-up b-roll demonstrating poor material quality vs high durability finish', onScreenText: 'MISTAKE #1: UNVERIFIED FINISH' },
-          { sceneNumber: 3, timeRange: '15–35s', visualFormat: 'PROJECT_TOUR', description: 'Walkthrough of finished execution highlighting proper spacing and layout', onScreenText: 'BEFORE VS AFTER PLANNING' },
-          { sceneNumber: 4, timeRange: '35–50s', visualFormat: 'DEMONSTRATION', description: 'Step-by-step cost breakdown graphic with bulleted savings points', onScreenText: 'SAVE UP TO 25% ON BUDGET' },
-          { sceneNumber: 5, timeRange: '50–60s', visualFormat: 'TALKING_HEAD_AND_OVERLAY', description: 'Presenter with animated link sticker and consultation CTA', onScreenText: 'BOOK FREE CONSULTATION' },
-        ],
-      },
-      whyThisContentWorks: `This video uses a problem-focused hook in the first 3 seconds, transitions immediately into tangible visual proof with on-screen text overlays, and closes with a single low-friction conversion CTA. This pattern is proven to drive 3.2x higher completion and comment rates across competitive benchmarks.`,
-    };
   }
 }

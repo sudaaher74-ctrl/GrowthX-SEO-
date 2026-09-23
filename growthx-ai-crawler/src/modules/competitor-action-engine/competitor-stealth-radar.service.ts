@@ -99,7 +99,7 @@ export class CompetitorStealthRadarService {
           counterAction: {
             label: 'Deploy Replacement Resource & Claim Traffic',
             deliverableType: 'OUTREACH_PITCH',
-            codeSnippet: `Subject: Broken link to ${compDomain}'s resource on your guide\n\nHi [Editor Name],\n\nI noticed your article links to ${compDomain}${path}, which is currently returning a 404 error.\n\nWe maintain an active, verified resource on this topic at https://${customerDomain}${path}. If helpful, you can update the link to point to this active resource for your readers.\n\nBest,\n[Your Name]`,
+            codeSnippet: `Subject: Broken link to ${compDomain}'s resource on your guide\n\nHi [Editor Name],\n\nI noticed your article links to ${compDomain}${path}, which is currently returning a 404 error.\n\nWe maintain an active resource on this topic at [URL of your replacement page]. If helpful, you can update the link to point to it for your readers.\n\nBest,\n[Your Name]`,
             actionableSummary: `Deploy replacement guide on ${customerDomain} and reach out to reclaim referring backlinks.`,
           },
         });
@@ -163,7 +163,9 @@ export class CompetitorStealthRadarService {
           counterAction: {
             label: 'Inject Structured Comparison Matrix',
             deliverableType: 'CITATION_BAIT',
-            codeSnippet: `| Capability | ${customerDomain} | ${compName} |\n| :--- | :--- | :--- |\n| Deep Technical Specifications | Verified & Documented | Surface Level (${p.wordCount} words) |\n| Latency & Performance | Sub-second Edge Cached | Legacy Hosting |\n| Code Remediations | Automated | None |`,
+            // Only the competitor's measured figure is filled in. Claims about
+            // the customer's side are theirs to make, so they are left blank.
+            codeSnippet: `| Capability | ${customerDomain} | ${compName} |\n| :--- | :--- | :--- |\n| Depth of coverage | [your page's word count] | ${p.wordCount} words (measured) |\n| [capability] | [your answer] | [their answer] |`,
             actionableSummary: `Deploy structured Markdown comparison table to capture LLM citations.`,
           },
         });
@@ -196,7 +198,7 @@ export class CompetitorStealthRadarService {
             label: 'Deploy High-Speed Counter Resource',
             deliverableType: 'HTML_SNIPPET',
             codeSnippet: `<!-- Edge Cached Counter Asset -->\n<link rel="preconnect" href="https://fonts.googleapis.com" />\n<meta http-equiv="x-dns-prefetch-control" content="on" />`,
-            actionableSummary: `Outperform competitor's sluggish ${p.responseTimeMs}ms latency with edge-cached sub-800ms page.`,
+            actionableSummary: `Competitor responded in ${p.responseTimeMs}ms (measured). Publish a faster page on the same topic.`,
           },
         });
       }

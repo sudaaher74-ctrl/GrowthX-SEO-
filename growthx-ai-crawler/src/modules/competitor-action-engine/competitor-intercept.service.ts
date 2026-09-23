@@ -15,7 +15,6 @@ export interface InterceptBlueprint {
   targetH1: string;
   targetSlug: string;
   targetWordCount: number;
-  estimatedTimeToDisplaceDays: number;
   attackThesis: string;
   semanticHeadings: Array<{ level: 'H2' | 'H3'; title: string; intentSummary: string }>;
   jsonLdSchema: string;
@@ -27,12 +26,19 @@ export interface InterceptOpportunity {
   id: string;
   keyword: string;
   intent: 'COMMERCIAL' | 'INFORMATIONAL' | 'TRANSACTIONAL';
+  /**
+   * The customer's own Search Console impressions for this query over the last
+   * 30 days. Null when Search Console has no row for it.
+   */
   searchVolume: number | null;
   competitorDomain: string;
   competitorName: string;
   competitorUrl: string;
   competitorRank: number | null;
+  /** Average Search Console position. Null when not measured. */
   customerRank: number | null;
+  /** The customer already has a page whose title or H1 covers this topic. */
+  coveredByUs: boolean;
   vulnerabilityScore: number;
   vulnerabilityTier: 'PRIME_TARGET' | 'MODERATE' | 'DEFENDED';
   defects: InterceptDefect[];
@@ -44,9 +50,11 @@ export interface InterceptOpportunity {
 export interface InterceptScoreboard {
   totalPoachable: number;
   primeTargetsCount: number;
-  estimatedTrafficOpportunity: number;
+  /** Sum of the customer's measured Search Console impressions across these topics. */
+  searchImpressionsAtStake: number;
   averageVulnerabilityScore: number;
-  topDefectArea: string;
+  /** Null when no competitor page showed a defect. */
+  topDefectArea: string | null;
   totalAuditedPages: number;
   avgResponseTimeMs: number;
 }
@@ -96,9 +104,9 @@ export class CompetitorInterceptService {
         scoreboard: {
           totalPoachable: 0,
           primeTargetsCount: 0,
-          estimatedTrafficOpportunity: 0,
+          searchImpressionsAtStake: 0,
           averageVulnerabilityScore: 0,
-          topDefectArea: 'None',
+          topDefectArea: null,
           totalAuditedPages: 0,
           avgResponseTimeMs: 0,
         },
@@ -202,70 +210,7 @@ export class CompetitorInterceptService {
         // Check if customer already covers this topic
         const isCoveredByUs = ourPageTitles.some((t) => t.includes(keyword.toLowerCase()));
 
-        // Calculate real observed defect score
-        const defects: InterceptDefect[] = [];
-        let score = 0;
-
-        const schemasCount = page.schemas?.length || 0;
-        if (schemasCount === 0) {
-          defects.push({
-            type: 'NO_SCHEMA',
-            label: 'Missing Structured JSON-LD',
-            severity: 'HIGH',
-            description: 'Competitor page has zero Schema.org structured data, missing Rich Results & AI citation anchors.',
-            points: 25,
-          });
-          score += 25;
-        }
-
-        const responseTime = page.responseTimeMs || 0;
-        if (responseTime > 800) {
-          defects.push({
-            type: 'SLOW_CWV',
-            label: `Slow Server Response (${responseTime}ms)`,
-            severity: responseTime > 1500 ? 'CRITICAL' : 'HIGH',
-            description: `Server TTFB is ${responseTime}ms, failing Google Core Web Vitals threshold for optimal indexing.`,
-            points: responseTime > 1500 ? 25 : 20,
-          });
-          score += responseTime > 1500 ? 25 : 20;
-        }
-
-        const wordCount = page.wordCount || 0;
-        if (wordCount > 0 && wordCount < 600) {
-          defects.push({
-            type: 'THIN_CONTENT',
-            label: `Thin Content Depth (${wordCount} words)`,
-            severity: wordCount < 300 ? 'CRITICAL' : 'HIGH',
-            description: `Page provides surface-level content (${wordCount} words), lacking comprehensive sub-topic exploration.`,
-            points: wordCount < 300 ? 25 : 20,
-          });
-          score += wordCount < 300 ? 25 : 20;
-        }
-
-        if (!page.metaDescription || (page.title && page.title.length < 25)) {
-          defects.push({
-            type: 'WEAK_TITLE',
-            label: 'Weak Title / Missing Meta Description',
-            severity: 'MEDIUM',
-            description: 'Snippet CTR is impaired due to suboptimal title length or missing meta description tag.',
-            points: 15,
-          });
-          score += 15;
-        }
-
-        const h2List = Array.isArray(page.h2) ? page.h2 : [];
-        if (h2List.length < 2) {
-          defects.push({
-            type: 'NO_DIRECT_ANSWER',
-            label: 'Lacks Direct Answer & Heading Hierarchy',
-            severity: 'MEDIUM',
-            description: 'Absence of structured H2 sections prevents LLM search engines and Google from extracting direct answers.',
-            points: 15,
-          });
-          score += 15;
-        }
-
-        score = Math.min(98, score);
+        const { defects, score } = this.measureDefects(page);
         if (score < 30) continue; // Skip pages that have minimal or no defects
 
         const vulnerabilityTier: 'PRIME_TARGET' | 'MODERATE' | 'DEFENDED' =
@@ -282,7 +227,7 @@ export class CompetitorInterceptService {
         const gscMatch = gscMap.get(keyword.toLowerCase());
         const searchVolume = gscMatch ? Math.round(gscMatch.impressions) : null;
         const competitorRank = null; // Unmeasured without live SERP probe — never fabricated
-        const customerRank = gscMatch?.position ? Math.round(gscMatch.position) : (isCoveredByUs ? 28 : null);
+        const customerRank = gscMatch?.position ? Math.round(gscMatch.position) : null;
 
         const blueprint = this.createCounterAttackBlueprint({
           keyword,
@@ -290,7 +235,7 @@ export class CompetitorInterceptService {
           competitorUrl: page.url,
           customerDomain,
           defects,
-          wordCount: wordCount || 400,
+          wordCount: page.wordCount || 0,
           intent,
         });
 
@@ -304,6 +249,7 @@ export class CompetitorInterceptService {
           competitorUrl: page.url,
           competitorRank,
           customerRank,
+          coveredByUs: isCoveredByUs,
           vulnerabilityScore: score,
           vulnerabilityTier,
           defects,
@@ -320,10 +266,9 @@ export class CompetitorInterceptService {
     // Compute scoreboard
     const totalPoachable = opportunities.length;
     const primeTargetsCount = opportunities.filter((o) => o.vulnerabilityTier === 'PRIME_TARGET').length;
-    const estimatedTrafficOpportunity = opportunities.reduce(
-      (acc, o) => acc + (o.searchVolume ? Math.round(o.searchVolume * 0.32) : 0),
-      0,
-    );
+    // Measured impressions only. This used to multiply them by an assumed 32%
+    // click-through rate and present the product as visits a month.
+    const searchImpressionsAtStake = opportunities.reduce((acc, o) => acc + (o.searchVolume ?? 0), 0);
     const avgScore =
       totalPoachable > 0
         ? Math.round(opportunities.reduce((acc, o) => acc + o.vulnerabilityScore, 0) / totalPoachable)
@@ -339,13 +284,13 @@ export class CompetitorInterceptService {
       }
     }
     const topDefectArea =
-      Object.entries(defectCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Thin Content Depth';
+      Object.entries(defectCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
     return {
       scoreboard: {
         totalPoachable,
         primeTargetsCount,
-        estimatedTrafficOpportunity,
+        searchImpressionsAtStake,
         averageVulnerabilityScore: avgScore,
         topDefectArea,
         totalAuditedPages,
@@ -373,22 +318,23 @@ export class CompetitorInterceptService {
     });
     const customerDomain = website?.domain || 'yourdomain.com';
 
-    const defects: InterceptDefect[] = [
-      {
-        type: 'NO_SCHEMA',
-        label: 'Missing Structured JSON-LD',
-        severity: 'HIGH',
-        description: 'Lacks structured entity markup and rich result attributes.',
-        points: 25,
-      },
-      {
-        type: 'THIN_CONTENT',
-        label: 'Surface Level Content',
-        severity: 'HIGH',
-        description: 'Lacks subtopic depth and definitive comparison matrices.',
-        points: 25,
-      },
-    ];
+    // The defects are read off the competitor's crawled page. Without one
+    // there is nothing measured to cite, so none are claimed.
+    const page = input.competitorUrl
+      ? await this.prisma.page.findFirst({
+          where: { url: input.competitorUrl, statusCode: { gte: 200, lt: 300 } },
+          orderBy: { crawledAt: 'desc' },
+          select: {
+            title: true,
+            metaDescription: true,
+            h2: true,
+            wordCount: true,
+            responseTimeMs: true,
+            schemas: { select: { schemaType: true } },
+          },
+        })
+      : null;
+    const defects = page ? this.measureDefects(page).defects : [];
 
     return this.createCounterAttackBlueprint({
       keyword: input.keyword,
@@ -396,7 +342,7 @@ export class CompetitorInterceptService {
       competitorUrl: input.competitorUrl || `https://${input.competitorDomain}/${this.slugify(input.keyword)}`,
       customerDomain,
       defects,
-      wordCount: 450,
+      wordCount: page?.wordCount || 0,
       intent: 'COMMERCIAL',
     });
   }
@@ -414,13 +360,13 @@ export class CompetitorInterceptService {
     const cleanKeyword = this.toTitleCase(keyword);
     const slug = this.slugify(keyword);
 
-    const targetH1 = `The Complete Guide to ${cleanKeyword} in 2026`;
+    const targetH1 = `The Complete Guide to ${cleanKeyword} in ${new Date().getFullYear()}`;
     const targetSlug = `/solutions/${slug}`;
     const targetWordCount = Math.max(1600, wordCount * 3);
-    const estimatedTimeToDisplaceDays = defects.some((d) => d.type === 'NO_SCHEMA') ? 14 : 21;
-
     const defectLabels = defects.map((d) => d.label.toLowerCase()).join(', ');
-    const attackThesis = `Competitor ${competitorDomain} currently ranks with observable technical vulnerabilities: ${defectLabels}. By deploying an authoritative, high-speed page with comprehensive entity coverage, interactive comparison matrices, and validated JSON-LD schema, ${customerDomain} will establish competitive search visibility across Google, Perplexity, and ChatGPT search groundings.`;
+    const attackThesis = defects.length
+      ? `The crawled page on ${competitorDomain} shows these measured weaknesses: ${defectLabels}. A page on ${customerDomain} that covers the topic in more depth, loads quickly and carries valid JSON-LD addresses each of them.`
+      : `No crawled page on ${competitorDomain} was found for this topic, so no weakness is claimed. The outline below is a starting structure for a page on ${customerDomain}.`;
 
     const semanticHeadings: Array<{ level: 'H2' | 'H3'; title: string; intentSummary: string }> = [
       {
@@ -450,33 +396,27 @@ export class CompetitorInterceptService {
       },
     ];
 
+    // The answers are the customer's to write. This used to ship publishable
+    // JSON-LD claiming "sub-second TTFB" and results "within 14 to 28 days" on
+    // the customer's behalf, none of it measured.
     const jsonLdObj = {
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
       mainEntity: [
         {
           '@type': 'Question',
-          name: `What is the most effective approach to ${keyword}?`,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `${cleanKeyword} requires automated AST code remediation, high-speed crawl groundings, and verified structured schema integration to establish top search authority.`,
-          },
+          name: `What is ${keyword}?`,
+          acceptedAnswer: { '@type': 'Answer', text: '[Your answer]' },
         },
         {
           '@type': 'Question',
-          name: `How does ${customerDomain} compare against ${competitorDomain}?`,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `${customerDomain} delivers modern end-to-end optimizations, sub-second TTFB, and zero-defect schema deployment.`,
-          },
+          name: `How does ${customerDomain} compare with ${competitorDomain}?`,
+          acceptedAnswer: { '@type': 'Answer', text: '[Your answer]' },
         },
         {
           '@type': 'Question',
-          name: `What results can be expected from optimizing for ${keyword}?`,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: `Websites targeting ${keyword} with comprehensive semantic depth typically observe improved AI visibility citations and higher Google rankings within 14 to 28 days.`,
-          },
+          name: `How do I choose a provider for ${keyword}?`,
+          acceptedAnswer: { '@type': 'Answer', text: '[Your answer]' },
         },
       ],
     };
@@ -492,16 +432,14 @@ export class CompetitorInterceptService {
   <header class="mb-10">
     <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">${targetH1}</h1>
     <p class="mt-4 text-xl text-slate-600 leading-relaxed">
-      Learn how modern organizations leverage ${cleanKeyword} to achieve scalable performance, 
-      verified search visibility, and superior user engagement.
+      <!-- Your one-paragraph summary of ${cleanKeyword} -->
     </p>
   </header>
 
   <section class="space-y-6">
     <h2>What is ${cleanKeyword}?</h2>
     <p>
-      ${cleanKeyword} represents a critical commercial competency. Rather than relying on outdated static content,
-      high-growth teams execute code-level optimizations and rich entity schemas.
+      <!-- A direct 40–60 word definition, written for this business -->
     </p>
   </section>
 
@@ -517,18 +455,91 @@ ${jsonLdSchema}
       targetH1,
       targetSlug,
       targetWordCount,
-      estimatedTimeToDisplaceDays,
       attackThesis,
       semanticHeadings,
       jsonLdSchema,
       keyDifferentiators: [
-        'Validated FAQPage JSON-LD schema injected in document head',
-        'Sub-800ms Core Web Vitals response time via edge caching',
-        'Structured comparison table targeting featured snippet position 0',
-        'Comprehensive 1,600+ word technical depth eliminating competitor content gap',
+        'Add valid FAQPage JSON-LD with your own answers',
+        'Keep server response under 800ms',
+        'Include a comparison table a search engine can lift as a snippet',
+        `Cover the topic in at least ${targetWordCount.toLocaleString()} words`,
       ],
       deliverableCode,
     };
+  }
+
+  /** Weaknesses read directly off a crawled page, with the points each is worth. */
+  private measureDefects(page: {
+    title?: string | null;
+    metaDescription?: string | null;
+    h2?: unknown;
+    wordCount?: number | null;
+    responseTimeMs?: number | null;
+    schemas?: unknown[] | null;
+  }): { defects: InterceptDefect[]; score: number } {
+    const defects: InterceptDefect[] = [];
+    let score = 0;
+
+    const schemasCount = page.schemas?.length || 0;
+    if (schemasCount === 0) {
+      defects.push({
+        type: 'NO_SCHEMA',
+        label: 'Missing Structured JSON-LD',
+        severity: 'HIGH',
+        description: 'Competitor page has zero Schema.org structured data, missing Rich Results & AI citation anchors.',
+        points: 25,
+      });
+      score += 25;
+    }
+
+    const responseTime = page.responseTimeMs || 0;
+    if (responseTime > 800) {
+      defects.push({
+        type: 'SLOW_CWV',
+        label: `Slow Server Response (${responseTime}ms)`,
+        severity: responseTime > 1500 ? 'CRITICAL' : 'HIGH',
+        description: `Server TTFB is ${responseTime}ms, failing Google Core Web Vitals threshold for optimal indexing.`,
+        points: responseTime > 1500 ? 25 : 20,
+      });
+      score += responseTime > 1500 ? 25 : 20;
+    }
+
+    const wordCount = page.wordCount || 0;
+    if (wordCount > 0 && wordCount < 600) {
+      defects.push({
+        type: 'THIN_CONTENT',
+        label: `Thin Content Depth (${wordCount} words)`,
+        severity: wordCount < 300 ? 'CRITICAL' : 'HIGH',
+        description: `Page provides surface-level content (${wordCount} words), lacking comprehensive sub-topic exploration.`,
+        points: wordCount < 300 ? 25 : 20,
+      });
+      score += wordCount < 300 ? 25 : 20;
+    }
+
+    if (!page.metaDescription || (page.title && page.title.length < 25)) {
+      defects.push({
+        type: 'WEAK_TITLE',
+        label: 'Weak Title / Missing Meta Description',
+        severity: 'MEDIUM',
+        description: 'Snippet CTR is impaired due to suboptimal title length or missing meta description tag.',
+        points: 15,
+      });
+      score += 15;
+    }
+
+    const h2List = Array.isArray(page.h2) ? page.h2 : [];
+    if (h2List.length < 2) {
+      defects.push({
+        type: 'NO_DIRECT_ANSWER',
+        label: 'Lacks Direct Answer & Heading Hierarchy',
+        severity: 'MEDIUM',
+        description: 'Absence of structured H2 sections prevents LLM search engines and Google from extracting direct answers.',
+        points: 15,
+      });
+      score += 15;
+    }
+
+    return { defects, score: Math.min(98, score) };
   }
 
   private isUtilityOrBoilerplatePath(urlStr: string): boolean {

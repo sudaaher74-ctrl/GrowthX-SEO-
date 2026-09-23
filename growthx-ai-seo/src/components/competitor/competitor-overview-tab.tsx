@@ -367,6 +367,9 @@ export function CompetitorOverviewTab({
               {competitors.map((comp, idx) => {
                 const pagesVal = comp.pagesCrawled ?? 0;
                 const healthVal = comp.healthScore ?? 0;
+                // Null means no prompt check has run for this rival yet, which
+                // is not the same claim as a measured 0%.
+                const aiMeasured = comp.aiCitationSharePct != null;
                 const aiVal = comp.aiCitationSharePct ?? 0;
 
                 const displayVal =
@@ -376,14 +379,18 @@ export function CompetitorOverviewTab({
                     ? healthVal > 0
                       ? `${healthVal} / 100`
                       : "Pending crawl"
-                    : `${aiVal}%`;
+                    : aiMeasured
+                    ? `${aiVal}%`
+                    : "Not measured";
 
                 const pct =
                   metricTab === "pages"
                     ? Math.min(100, Math.max(10, (pagesVal / 200) * 100))
-                    : metricTab === "health" && healthVal > 0
+                    : metricTab === "health"
                     ? healthVal
-                    : 35;
+                    : aiMeasured
+                    ? Math.min(100, aiVal)
+                    : 0;
 
                 return (
                   <div key={comp.id}>

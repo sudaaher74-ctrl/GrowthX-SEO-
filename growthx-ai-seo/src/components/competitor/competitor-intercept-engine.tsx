@@ -119,7 +119,7 @@ export function CompetitorInterceptEngine({
           { label: "Competitor Domain", value: opp.competitorDomain, source: "COMPETITOR_ENGINE" },
           { label: "Competitor URL", value: opp.competitorUrl, source: "CRAWLER" },
           { label: "Vulnerability Score", value: `${opp.vulnerabilityScore}/100`, source: "AUDIT" },
-          ...(opp.searchVolume ? [{ label: "Monthly Volume", value: opp.searchVolume.toLocaleString(), source: "KEYWORD_DATA" }] : []),
+          ...(opp.searchVolume ? [{ label: "Your Search Console impressions (30 days)", value: opp.searchVolume.toLocaleString(), source: "SEARCH_CONSOLE" }] : []),
         ],
         affectedPages: [`https://${customerDomain}${bp.targetSlug}`],
       });
@@ -237,7 +237,7 @@ export function CompetitorInterceptEngine({
         <div className="rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/40 to-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-[11.5px] font-bold text-emerald-800 uppercase tracking-wider">
-              {scoreboard && scoreboard.estimatedTrafficOpportunity > 0 ? "Est. Traffic at Stake" : "Avg Competitor Latency"}
+              {scoreboard && scoreboard.searchImpressionsAtStake > 0 ? "Impressions at Stake" : "Avg Competitor Latency"}
             </span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
               <TrendingUp size={16} />
@@ -245,17 +245,17 @@ export function CompetitorInterceptEngine({
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black text-emerald-950">
-              {scoreboard && scoreboard.estimatedTrafficOpportunity > 0
-                ? `+${scoreboard.estimatedTrafficOpportunity.toLocaleString()}`
+              {scoreboard && scoreboard.searchImpressionsAtStake > 0
+                ? scoreboard.searchImpressionsAtStake.toLocaleString()
                 : `${scoreboard?.avgResponseTimeMs || 0}ms`}
             </span>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-              {scoreboard && scoreboard.estimatedTrafficOpportunity > 0 ? "Visits / mo" : "Server TTFB"}
+              {scoreboard && scoreboard.searchImpressionsAtStake > 0 ? "Last 30 days" : "Server TTFB"}
             </span>
           </div>
           <p className="mt-1.5 text-[11px] text-slate-500">
-            {scoreboard && scoreboard.estimatedTrafficOpportunity > 0
-              ? "Addressable search demand captured by vulnerable pages."
+            {scoreboard && scoreboard.searchImpressionsAtStake > 0
+              ? "Your measured Search Console impressions on topics where a competitor page is weak."
               : "Average response time measured across all crawled competitor pages."}
           </p>
         </div>
@@ -270,7 +270,7 @@ export function CompetitorInterceptEngine({
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-base font-extrabold text-slate-900 truncate max-w-[170px]">
-              {scoreboard?.topDefectArea || "Thin Content Depth"}
+              {scoreboard?.topDefectArea ?? "None found"}
             </span>
           </div>
           <p className="mt-1.5 text-[11px] text-slate-500">
@@ -404,7 +404,11 @@ export function CompetitorInterceptEngine({
                             {opp.intent}
                           </span>
                           <span className="text-[10.5px] text-slate-400">
-                            {opp.customerRank ? `Your rank: #${opp.customerRank}` : "Uncovered topic"}
+                            {opp.customerRank
+                              ? `Your rank: #${opp.customerRank}`
+                              : opp.coveredByUs
+                              ? "Covered · rank not measured"
+                              : "Uncovered topic"}
                           </span>
                         </div>
                       </td>
@@ -592,9 +596,9 @@ export function CompetitorInterceptEngine({
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Target Depth &amp; Time</span>
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Target Depth</span>
                 <p className="mt-1 text-xs font-bold text-slate-800">
-                  {activeBlueprintOpp.blueprint.targetWordCount}+ words · ~{activeBlueprintOpp.blueprint.estimatedTimeToDisplaceDays} days to rank
+                  {activeBlueprintOpp.blueprint.targetWordCount}+ words
                 </p>
               </div>
             </div>

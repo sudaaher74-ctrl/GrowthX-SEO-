@@ -14,7 +14,6 @@ export interface ProgrammaticCluster {
   urlPattern: string;
   competitorDomain: string;
   pageCount: number;
-  estimatedMonthlyVisits: number;
   commercialIntent: 'HIGH' | 'MEDIUM' | 'TRANSACTIONAL';
   variables: ProgrammaticVariable[];
   sampleUrls: string[];
@@ -31,7 +30,6 @@ export interface ProgrammaticCluster {
 export interface ProgrammaticScoreboard {
   totalProgrammaticClusters: number;
   totalCompetitorPagesIndexed: number;
-  estimatedTotalTrafficCaptured: number;
   topPatternCategory: string;
   readyToCounterCount: number;
 }
@@ -79,7 +77,6 @@ export class ProgrammaticDecompilerService {
         scoreboard: {
           totalProgrammaticClusters: 0,
           totalCompetitorPagesIndexed: 0,
-          estimatedTotalTrafficCaptured: 0,
           topPatternCategory: 'None',
           readyToCounterCount: 0,
         },
@@ -112,13 +109,10 @@ export class ProgrammaticDecompilerService {
       clusters.push(...detected);
     }
 
-    const totalTraffic = clusters.reduce((acc, c) => acc + c.estimatedMonthlyVisits, 0);
-
     return {
       scoreboard: {
         totalProgrammaticClusters: clusters.length,
         totalCompetitorPagesIndexed: totalPagesIndexed,
-        estimatedTotalTrafficCaptured: totalTraffic,
         topPatternCategory: clusters[0]?.category || 'None',
         readyToCounterCount: clusters.length,
       },
@@ -153,80 +147,81 @@ export class ProgrammaticDecompilerService {
     }
 
     const results: ProgrammaticCluster[] = [];
+    const year = new Date().getFullYear();
+    const hex = Buffer.from(compDomain).toString('hex').slice(0, 8);
 
+    // Nothing here measures a competitor's traffic, so no visit figure is
+    // attached (this used to be page count × 520). Example values are the
+    // competitor's own slugs, and the templates are scaffolds for the customer
+    // to fill — never claims about either business.
     if (comparisonUrls.length >= 2) {
       results.push({
-        id: `prog_comp_${Buffer.from(compDomain).toString('hex').slice(0, 8)}`,
+        id: `prog_comp_${hex}`,
         patternName: 'Direct Competitor & Alternative Comparisons',
         category: 'COMPARISONS',
         urlPattern: `https://${compDomain}/vs/{competitor-slug}`,
         competitorDomain: compDomain,
         pageCount: comparisonUrls.length,
-        estimatedMonthlyVisits: comparisonUrls.length * 520,
         commercialIntent: 'HIGH',
         variables: [
-          { name: 'competitor-slug', exampleValues: ['semrush', 'ahrefs', 'moz'], description: 'Target rival platform being compared' },
-          { name: 'feature_matrix', exampleValues: ['pricing', 'reporting', 'ai-speed'], description: 'Head-to-head comparison dimensions' },
+          { name: 'competitor-slug', exampleValues: slugsFrom(comparisonUrls), description: 'Rival being compared, as it appears in their URLs' },
         ],
         sampleUrls: comparisonUrls.slice(0, 3),
         counterStrategy: {
           recommendedUrlPattern: `https://${customerDomain}/compare/{brand}-vs-{competitor}`,
-          targetH1Formula: `{Your Brand} vs {Competitor}: Complete Unbiased Comparison (2026)`,
+          targetH1Formula: `{Your Brand} vs {Competitor}: Side-by-Side Comparison (${year})`,
           recommendedSchemaType: 'Product, FAQPage',
-          contentDepthBenchmark: '1,500+ words + side-by-side spec table + customer review quote',
-          differentiatorAngle: 'Competitor comparison pages are heavily biased and lack real performance benchmarks. Our counter-blueprint provides verifiable AST proof and honest trade-offs.',
-          sampleDeliverableTemplate: `<!-- Programmatic Comparison Matrix Template -->\n<h1>{Brand} vs {Competitor}: Definitive Feature & Performance Breakdown</h1>\n<p>Looking for a modern alternative to {Competitor}? See how {Brand}'s autonomous engine delivers verifiable results without manual intervention.</p>\n<table class="comparison-grid">\n  <thead><tr><th>Capability</th><th>{Brand}</th><th>{Competitor}</th></tr></thead>\n  <tbody>\n    <tr><td>Autonomous Execution</td><td>Included (Live AST)</td><td>Manual CSV Only</td></tr>\n    <tr><td>AI Citation Engine</td><td>Perplexity + ChatGPT</td><td>Traditional SERP only</td></tr>\n  </tbody>\n</table>`,
+          contentDepthBenchmark: '1,500+ words + side-by-side comparison table + FAQ',
+          differentiatorAngle: `${compDomain} publishes ${comparisonUrls.length} comparison pages. Publish your own, with figures you can back up and honest trade-offs.`,
+          sampleDeliverableTemplate: `<!-- Comparison page scaffold: replace every [bracket] with your own facts -->\n<h1>{Brand} vs {Competitor}: Side-by-Side Comparison</h1>\n<p>[One-paragraph summary of who each option suits]</p>\n<table class="comparison-grid">\n  <thead><tr><th>Capability</th><th>{Brand}</th><th>{Competitor}</th></tr></thead>\n  <tbody>\n    <tr><td>[Capability]</td><td>[Your answer]</td><td>[Their answer]</td></tr>\n  </tbody>\n</table>`,
         },
       });
     }
 
     if (integrationUrls.length >= 2) {
       results.push({
-        id: `prog_int_${Buffer.from(compDomain).toString('hex').slice(0, 8)}`,
+        id: `prog_int_${hex}`,
         patternName: 'Ecosystem & Integration Directory',
         category: 'INTEGRATIONS',
         urlPattern: `https://${compDomain}/integrations/{app-slug}`,
         competitorDomain: compDomain,
         pageCount: integrationUrls.length,
-        estimatedMonthlyVisits: integrationUrls.length * 380,
         commercialIntent: 'HIGH',
         variables: [
-          { name: 'app-slug', exampleValues: ['slack', 'shopify', 'hubspot', 'wordpress'], description: 'Partner technology being connected' },
-          { name: 'workflow_category', exampleValues: ['cms', 'crm', 'notifications'], description: 'Integration functional domain' },
+          { name: 'app-slug', exampleValues: slugsFrom(integrationUrls), description: 'Partner or product being connected, as it appears in their URLs' },
         ],
         sampleUrls: integrationUrls.slice(0, 3),
         counterStrategy: {
           recommendedUrlPattern: `https://${customerDomain}/integrations/{app-slug}`,
-          targetH1Formula: `Connect {App Name} with {Your Brand}: 1-Click Automated Setup`,
+          targetH1Formula: `Connect {App Name} with {Your Brand}`,
           recommendedSchemaType: 'SoftwareApplication',
-          contentDepthBenchmark: '800+ words + webhook parameters + 3-step setup guide',
-          differentiatorAngle: 'Rival integration pages provide generic marketing copy without code snippets. Injected JSON configuration samples will capture high-intent developer and agency search traffic.',
-          sampleDeliverableTemplate: `<!-- Programmatic Integration Hub Template -->\n<h1>Automate SEO Workflows between {Brand} and {App Name}</h1>\n<p>Seamlessly synchronize crawl insights and automated remediations directly with your {App Name} workspace.</p>\n<div class="setup-steps">\n  <h3>Step 1: Install Integration</h3>\n  <pre><code>npm install @{brand}/connector-{app-slug}</code></pre>\n</div>`,
+          contentDepthBenchmark: '800+ words + setup steps + FAQ',
+          differentiatorAngle: `${compDomain} publishes ${integrationUrls.length} integration pages. Cover the same partners with concrete setup steps.`,
+          sampleDeliverableTemplate: `<!-- Integration page scaffold: replace every [bracket] with your own facts -->\n<h1>Connect {App Name} with {Brand}</h1>\n<p>[What the integration does, in one sentence]</p>\n<ol class="setup-steps">\n  <li>[Step 1]</li>\n  <li>[Step 2]</li>\n  <li>[Step 3]</li>\n</ol>`,
         },
       });
     }
 
     if (templateUrls.length >= 2) {
       results.push({
-        id: `prog_tmpl_${Buffer.from(compDomain).toString('hex').slice(0, 8)}`,
+        id: `prog_tmpl_${hex}`,
         patternName: 'Template & Asset Library',
         category: 'TEMPLATES',
         urlPattern: `https://${compDomain}/templates/{template-slug}`,
         competitorDomain: compDomain,
         pageCount: templateUrls.length,
-        estimatedMonthlyVisits: templateUrls.length * 290,
         commercialIntent: 'MEDIUM',
         variables: [
-          { name: 'template-slug', exampleValues: ['saas-audit', 'ecommerce-seo', 'local-schema'], description: 'Ready-to-use blueprint use-case' },
+          { name: 'template-slug', exampleValues: slugsFrom(templateUrls), description: 'Template or example, as it appears in their URLs' },
         ],
         sampleUrls: templateUrls.slice(0, 3),
         counterStrategy: {
           recommendedUrlPattern: `https://${customerDomain}/templates/{template-slug}`,
-          targetH1Formula: `Free {Template Name} Template (Instant Download & Execution)`,
+          targetH1Formula: `Free {Template Name} Template (${year})`,
           recommendedSchemaType: 'CreativeWork, FAQPage',
-          contentDepthBenchmark: '1,000+ words + copyable JSON-LD file + live preview screenshot',
-          differentiatorAngle: 'Competitor gates downloads behind lead forms. Providing direct copy buttons and preview cards drives natural backlinks and higher dwell time.',
-          sampleDeliverableTemplate: `<!-- Programmatic Asset Blueprint -->\n<h1>{Template Name} — Ready to Implement</h1>\n<p>Copy this production-tested SEO template directly into your codebase or CMS configuration.</p>`,
+          contentDepthBenchmark: '1,000+ words + downloadable file + preview',
+          differentiatorAngle: `${compDomain} publishes ${templateUrls.length} template pages. Offer comparable resources for the same use cases.`,
+          sampleDeliverableTemplate: `<!-- Template page scaffold: replace every [bracket] with your own content -->\n<h1>{Template Name}</h1>\n<p>[Who it is for and what it helps them do]</p>`,
         },
       });
     }
@@ -235,3 +230,17 @@ export class ProgrammaticDecompilerService {
   }
 }
 
+/** Up to four distinct final path segments from real URLs, e.g. "hubspot". */
+function slugsFrom(urls: string[]): string[] {
+  const slugs = new Set<string>();
+  for (const url of urls) {
+    try {
+      const last = new URL(url).pathname.split('/').filter(Boolean).pop();
+      if (last) slugs.add(decodeURIComponent(last).toLowerCase());
+    } catch {
+      // not a URL; nothing to take from it
+    }
+    if (slugs.size >= 4) break;
+  }
+  return [...slugs];
+}

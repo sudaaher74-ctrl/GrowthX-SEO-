@@ -188,7 +188,7 @@ export function AutoCompetitorsPanel({
           industry: c.industry,
           description: c.description,
           location: c.location,
-          confidenceScore: c.overlapScore,
+          confidenceScore: c.overlapScore ?? undefined,
         }));
 
       const res = await api.addSelectedCompetitors(projectId, { competitors: selectedItems });
@@ -608,20 +608,14 @@ export function AutoCompetitorsPanel({
                         {comp.verified && (
                           <span
                             title={
-                              comp.source === "curated"
-                                ? "From our hand-checked list of real companies in this market"
-                                : comp.verificationLevel === "reachable"
-                                  ? "The domain is live and answered, but its site blocks automated readers — common for large consumer brands"
-                                  : `Live site checked${comp.verifiedTitle ? `: “${comp.verifiedTitle}”` : ""}`
+                              comp.verificationLevel === "reachable"
+                                ? "The domain is live and answered, but its site blocks automated readers — common for large consumer brands"
+                                : `Live site checked${comp.verifiedTitle ? `: “${comp.verifiedTitle}”` : ""}`
                             }
                             className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
                           >
                             <ShieldCheck size={10} />
-                            {comp.source === "curated"
-                              ? "Known company"
-                              : comp.verificationLevel === "reachable"
-                                ? "Domain live"
-                                : "Site verified"}
+                            {comp.verificationLevel === "reachable" ? "Domain live" : "Site verified"}
                           </span>
                         )}
                         {comp.source === "search" && (
@@ -641,19 +635,31 @@ export function AutoCompetitorsPanel({
                         )}
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="max-w-[140px] truncate rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-900 dark:text-slate-400">
-                          {comp.marketPosition}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          <TrendingUp size={12} />
-                          <span>{comp.overlapScore}% overlap</span>
+                      {(comp.marketPosition || comp.overlapScore != null) && (
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          {comp.marketPosition ? (
+                            <span className="max-w-[140px] truncate rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-900 dark:text-slate-400">
+                              {comp.marketPosition}
+                            </span>
+                          ) : (
+                            <span />
+                          )}
+                          {/* Only search evidence measures overlap; a model's
+                              suggestion has no figure to show. */}
+                          {comp.overlapScore != null && (
+                            <div className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <TrendingUp size={12} />
+                              <span>{comp.overlapScore}% overlap</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      )}
 
-                      <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
-                        {comp.description}
-                      </p>
+                      {comp.description && (
+                        <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-[var(--text-secondary)]">
+                          {comp.description}
+                        </p>
+                      )}
 
                       {comp.keyDifferentiator && (
                         <p className="mt-1.5 text-[11px] italic text-[var(--text-muted)]">
@@ -662,6 +668,7 @@ export function AutoCompetitorsPanel({
                       )}
                     </div>
 
+                    {comp.sampleKeywords.length > 0 && (
                     <div className="mt-3 border-t border-[var(--border-color)] pt-2.5">
                       <div className="flex flex-wrap gap-1">
                         {comp.sampleKeywords.slice(0, 3).map((kw) => (
@@ -674,6 +681,7 @@ export function AutoCompetitorsPanel({
                         ))}
                       </div>
                     </div>
+                    )}
                   </div>
                 );
               })}

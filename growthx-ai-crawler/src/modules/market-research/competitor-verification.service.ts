@@ -9,7 +9,7 @@ export interface VerifiableCompetitor {
   name: string;
   industry: string;
   description: string;
-  overlapScore: number;
+  overlapScore: number | null;
   marketPosition: string;
   location?: string;
   sampleKeywords: string[];
@@ -285,7 +285,7 @@ export class CompetitorVerificationService {
       }
     }
 
-    verified.sort((a, b) => b.overlapScore - a.overlapScore);
+    verified.sort((a, b) => (b.overlapScore ?? -1) - (a.overlapScore ?? -1));
     return { verified, rejected };
   }
 

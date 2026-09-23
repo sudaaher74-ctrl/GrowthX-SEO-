@@ -71,25 +71,24 @@ export function CompetitorStealthRadarTab({
   const handleDispatchEvent = async (event: StealthRadarEvent) => {
     try {
       await dispatchMutation.mutateAsync({
-        title: `Stealth Radar: ${event.title}`,
-        summary: `${event.summary} Detected on competitor ${event.competitorDomain} (${event.targetUrl}).`,
-        recommendedAction: `${event.counterTactic} Exploits opportunity with deliverable: ${event.copyableDeliverable.label}`,
-        potential: event.urgency === "HIGH" ? "HIGH" : "MEDIUM",
+        title: `Stealth Radar: ${event.headline}`,
+        summary: `${event.description} Detected on competitor ${event.competitorDomain} (${event.competitorUrl}).`,
+        recommendedAction: `${event.counterAction.actionableSummary} Deliverable: ${event.counterAction.label}`,
+        potential: event.severity === "MEDIUM" ? "MEDIUM" : "HIGH",
         effort: "LOW",
         category: "COMPETITOR",
         source: "COMPETITOR",
         evidence: [
           { label: "Alert Type", value: event.type, source: "STEALTH_RADAR" },
           { label: "Competitor", value: event.competitorDomain, source: "CRAWLER" },
-          { label: "Target URL", value: event.targetUrl, source: "CRAWLER" },
-          { label: "Impact Score", value: `${event.impactScore}/100`, source: "RADAR_ENGINE" },
+          { label: "Target URL", value: event.competitorUrl, source: "CRAWLER" },
         ],
-        affectedPages: [event.targetUrl],
+        affectedPages: [event.competitorUrl],
       });
 
       setDispatchedIds((prev) => new Set([...prev, event.id]));
       if (onAddToFixPlan) {
-        onAddToFixPlan(1, `Stealth Alert: ${event.title}`);
+        onAddToFixPlan(1, `Stealth Alert: ${event.headline}`);
       }
     } catch (err) {
       console.error("Failed to dispatch radar event to Action Queue", err);
@@ -156,31 +155,31 @@ export function CompetitorStealthRadarTab({
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Total Live Alerts</div>
             <div className="text-2xl font-black text-white">
-              {data?.totalEvents ?? 0}
+              {data?.scoreboard.activeEventsCount ?? 0}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">High Priority Leaks</div>
             <div className="text-2xl font-black text-error-400">
-              {data?.highPriorityAlerts ?? 0}
+              {data?.scoreboard.criticalVulnerabilities ?? 0}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">404 Broken Backlinks</div>
             <div className="text-2xl font-black text-warning-400">
-              {data?.brokenLinkHijacks ?? 0}
+              {data?.scoreboard.backlinkOpportunities ?? 0}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Schema Vulnerabilities</div>
             <div className="text-2xl font-black text-warning-400">
-              {data?.schemaVulnerabilities ?? 0}
+              {events.filter((e) => e.type === "SCHEMA_GAP").length}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">AI Citation Gaps</div>
             <div className="text-2xl font-black text-brand-200">
-              {data?.aiPoachOpportunities ?? 0}
+              {data?.scoreboard.aiCitationDeficits ?? 0}
             </div>
           </div>
         </div>
@@ -251,30 +250,27 @@ export function CompetitorStealthRadarTab({
                       Target: {event.competitorDomain}
                     </span>
                     <span className="rounded bg-brand-100 px-2 py-0.5 font-mono text-[10px] text-brand-600 truncate max-w-xs">
-                      {event.targetUrl}
+                      {event.competitorUrl}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-error-50 px-2.5 py-0.5 text-xs font-black text-error-600">
-                      Impact {event.impactScore}/100
-                    </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        event.urgency === "HIGH"
-                          ? "bg-error-50 text-error-700"
-                          : "bg-brand-100 text-brand-700"
+                        event.severity === "MEDIUM"
+                          ? "bg-brand-100 text-brand-700"
+                          : "bg-error-50 text-error-700"
                       }`}
                     >
-                      {event.urgency} Urgency
+                      {event.severity}
                     </span>
                   </div>
                 </div>
 
                 {/* Event Description */}
                 <div>
-                  <h4 className="text-base font-bold text-brand-950">{event.title}</h4>
-                  <p className="mt-1 text-xs leading-relaxed text-brand-600">{event.summary}</p>
+                  <h4 className="text-base font-bold text-brand-950">{event.headline}</h4>
+                  <p className="mt-1 text-xs leading-relaxed text-brand-600">{event.description}</p>
                 </div>
 
                 {/* Counter Tactic Box */}
@@ -283,18 +279,18 @@ export function CompetitorStealthRadarTab({
                     <Zap size={13} className="text-brand-950" />
                     <span>GrowthX Counter-Tactic</span>
                   </div>
-                  <p className="text-xs text-brand-700 leading-relaxed">{event.counterTactic}</p>
+                  <p className="text-xs text-brand-700 leading-relaxed">{event.counterAction.actionableSummary}</p>
                 </div>
 
                 {/* Copyable Deliverable */}
                 <div className="rounded-xl border bg-brand-900 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-brand-300">
-                      Deliverable: {event.copyableDeliverable.label}
+                      Deliverable: {event.counterAction.label}
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleCopySnippet(event.id, event.copyableDeliverable.snippet)}
+                      onClick={() => handleCopySnippet(event.id, event.counterAction.codeSnippet)}
                       className="inline-flex items-center gap-1 text-xs font-bold text-success-400 hover:underline"
                     >
                       {isCopied ? <Check size={12} /> : <Copy size={12} />}
@@ -302,7 +298,7 @@ export function CompetitorStealthRadarTab({
                     </button>
                   </div>
                   <pre className="max-h-36 overflow-y-auto font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
-                    {event.copyableDeliverable.snippet}
+                    {event.counterAction.codeSnippet}
                   </pre>
                 </div>
 

@@ -876,9 +876,9 @@ export function useCompetitorIntercepts(projectId?: string | null, competitorId?
       scoreboard: {
         totalPoachable: 0,
         primeTargetsCount: 0,
-        estimatedTrafficOpportunity: 0,
+        searchImpressionsAtStake: 0,
         averageVulnerabilityScore: 0,
-        topDefectArea: "None",
+        topDefectArea: null,
       },
       opportunities: [],
     })),
@@ -905,16 +905,7 @@ export function useGenerateCounterAttackBlueprint(projectId?: string | null) {
 export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
-    queryFn: () => (projectId ? api.getProgrammaticMatrix(projectId, competitorId) : Promise.resolve({
-      scoreboard: {
-        totalPatternsDetected: 0,
-        totalProgrammaticPages: 0,
-        estimatedTrafficCaptured: 0,
-        dominantFormulaType: "None",
-        highPriorityCounterAttacks: 0,
-      },
-      clusters: [],
-    })),
+    queryFn: () => api.getProgrammaticMatrix(projectId!, competitorId),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
   });
@@ -923,14 +914,7 @@ export function useProgrammaticMatrix(projectId?: string | null, competitorId?: 
 export function useCompetitorStealthRadar(projectId?: string | null) {
   return useQuery<StealthRadarResponse>({
     queryKey: ["competitor-stealth-radar", projectId],
-    queryFn: () => (projectId ? api.getStealthRadar(projectId) : Promise.resolve({
-      totalEvents: 0,
-      highPriorityAlerts: 0,
-      brokenLinkHijacks: 0,
-      schemaVulnerabilities: 0,
-      aiPoachOpportunities: 0,
-      events: [],
-    })),
+    queryFn: () => api.getStealthRadar(projectId!),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
   });

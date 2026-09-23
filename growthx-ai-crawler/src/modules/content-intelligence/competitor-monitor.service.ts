@@ -108,33 +108,8 @@ export class CompetitorMonitorService {
       }
     }
 
-    // Default seeded alerts if freshly onboarded
-    if (alerts.length === 0) {
-      const activeAlerts = await this.prisma.competitorChangeAlert.findMany({
-        where: { organizationId, projectId },
-        take: 5,
-        orderBy: { detectedAt: 'desc' },
-      });
-
-      if (activeAlerts.length === 0 && competitors.length > 0) {
-        const seedAlert = await this.prisma.competitorChangeAlert.create({
-          data: {
-            organizationId,
-            projectId,
-            competitorId: competitors[0]?.id,
-            accountHandle: competitors[0]?.handle,
-            alertType: 'NEW_CAMPAIGN',
-            severity: 'INFO',
-            title: `New Educational Campaign Detected on ${competitors[0]?.displayName || competitors[0]?.handle}`,
-            description: `Competitor initiated a series focused on modular kitchen budgeting and layouts. Opportunity identified to produce differentiated authority counter-content.`,
-            metricChange: 'Campaign Series Active',
-            status: 'ACTIVE',
-          },
-        });
-        alerts.push(seedAlert);
-      }
-    }
-
+    // No alert is seeded for a freshly onboarded project: an invented
+    // "campaign detected" is a claim about a competitor nobody observed.
     return this.prisma.competitorChangeAlert.findMany({
       where: { organizationId, projectId },
       orderBy: { detectedAt: 'desc' },
