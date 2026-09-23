@@ -55,12 +55,54 @@ export function CompetitorStealthRadarTab({
   const { data, isLoading } = useCompetitorStealthRadar(projectId);
   const dispatchMutation = useDispatchFindingToQueue(projectId);
 
-  const events = data?.events || [];
+  const rawEvents = data?.events || [];
+
+  // Defensive normalization so unexpected or missing fields never crash the React render tree
+  const events: StealthRadarEvent[] = useMemo(() => {
+    return rawEvents.map((raw: any, index: number) => {
+      const id = raw.id || `radar_event_${index}`;
+      const type = raw.type || "SCHEMA_GAP";
+      const competitorDomain = raw.competitorDomain || "Competitor";
+      const title = raw.title || raw.headline || "Stealth Radar Alert";
+      const detectedAt = raw.detectedAt || "Recently";
+      const targetUrl = raw.targetUrl || raw.competitorUrl || `https://${competitorDomain}`;
+      const impactScore = Number(raw.impactScore ?? 75);
+      const urgency = raw.urgency || (raw.severity === "CRITICAL" ? "HIGH" : raw.severity) || "MEDIUM";
+      const summary = raw.summary || raw.description || "Identified competitive discrepancy.";
+      const counterTactic = raw.counterTactic || raw.counterAction?.actionableSummary || "Implement verified counter strategy.";
+
+      const rawDeliverable = raw.copyableDeliverable || raw.counterAction || {};
+      const copyableDeliverable = {
+        label: rawDeliverable.label || "Asset Blueprint",
+        snippet: rawDeliverable.snippet || rawDeliverable.codeSnippet || "<!-- Counter Asset -->",
+      };
+
+      return {
+        id,
+        type,
+        competitorDomain,
+        title,
+        detectedAt,
+        targetUrl,
+        impactScore,
+        urgency,
+        summary,
+        counterTactic,
+        copyableDeliverable,
+      };
+    });
+  }, [rawEvents]);
 
   const filteredEvents = useMemo(() => {
     if (filterType === "ALL") return events;
     return events.filter((e) => e.type === filterType);
   }, [events, filterType]);
+
+  const totalEventsCount = data?.totalEvents ?? (data as any)?.scoreboard?.activeEventsCount ?? events.length;
+  const highPriorityCount = data?.highPriorityAlerts ?? (data as any)?.scoreboard?.criticalVulnerabilities ?? events.filter((e) => e.urgency === "HIGH").length;
+  const brokenLinksCount = data?.brokenLinkHijacks ?? (data as any)?.scoreboard?.backlinkOpportunities ?? events.filter((e) => e.type === "BACKLINK_VAMPIRE").length;
+  const schemaVulnCount = data?.schemaVulnerabilities ?? events.filter((e) => e.type === "SCHEMA_GAP").length;
+  const aiGapsCount = data?.aiPoachOpportunities ?? (data as any)?.scoreboard?.aiCitationDeficits ?? events.filter((e) => e.type === "AI_CITATION_POACH").length;
 
   const handleCopySnippet = (id: string, snippet: string) => {
     navigator.clipboard.writeText(snippet);
@@ -73,7 +115,7 @@ export function CompetitorStealthRadarTab({
       await dispatchMutation.mutateAsync({
         title: `Stealth Radar: ${event.title}`,
         summary: `${event.summary} Detected on competitor ${event.competitorDomain} (${event.targetUrl}).`,
-        recommendedAction: `${event.counterTactic} Exploits opportunity with deliverable: ${event.copyableDeliverable.label}`,
+        recommendedAction: `${event.counterTactic} Exploits opportunity with deliverable: ${event.copyableDeliverable?.label || "Asset Deliverable"}`,
         potential: event.urgency === "HIGH" ? "HIGH" : "MEDIUM",
         effort: "LOW",
         category: "COMPETITOR",
@@ -96,7 +138,7 @@ export function CompetitorStealthRadarTab({
     }
   };
 
-  const getEventBadge = (type: StealthRadarEvent["type"]) => {
+  const getEventBadge = (type: string) => {
     switch (type) {
       case "BACKLINK_VAMPIRE":
         return {
@@ -121,6 +163,12 @@ export function CompetitorStealthRadarTab({
           label: "Title Tag Pivot Defect",
           icon: Heading,
           badgeClass: "bg-brand-100 text-brand-800 border-brand-200",
+        };
+      case "SPEED_DEFECT":
+        return {
+          label: "TTFB Latency Defect",
+          icon: Flame,
+          badgeClass: "bg-warning-50 text-warning-600 border-warning-200",
         };
       default:
         return {
@@ -156,31 +204,31 @@ export function CompetitorStealthRadarTab({
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Total Live Alerts</div>
             <div className="text-2xl font-black text-white">
-              {data?.totalEvents ?? 0}
+              {totalEventsCount}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">High Priority Leaks</div>
             <div className="text-2xl font-black text-error-400">
-              {data?.highPriorityAlerts ?? 0}
+              {highPriorityCount}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">404 Broken Backlinks</div>
             <div className="text-2xl font-black text-warning-400">
-              {data?.brokenLinkHijacks ?? 0}
+              {brokenLinksCount}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Schema Vulnerabilities</div>
             <div className="text-2xl font-black text-warning-400">
-              {data?.schemaVulnerabilities ?? 0}
+              {schemaVulnCount}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">AI Citation Gaps</div>
             <div className="text-2xl font-black text-brand-200">
-              {data?.aiPoachOpportunities ?? 0}
+              {aiGapsCount}
             </div>
           </div>
         </div>
@@ -287,24 +335,26 @@ export function CompetitorStealthRadarTab({
                 </div>
 
                 {/* Copyable Deliverable */}
-                <div className="rounded-xl border bg-brand-900 p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-brand-300">
-                      Deliverable: {event.copyableDeliverable.label}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleCopySnippet(event.id, event.copyableDeliverable.snippet)}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-success-400 hover:underline"
-                    >
-                      {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                      <span>{isCopied ? "Copied to Clipboard" : "Copy Deliverable"}</span>
-                    </button>
+                {event.copyableDeliverable && (
+                  <div className="rounded-xl border bg-brand-900 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-brand-300">
+                        Deliverable: {event.copyableDeliverable.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopySnippet(event.id, event.copyableDeliverable.snippet)}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-success-400 hover:underline"
+                      >
+                        {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{isCopied ? "Copied to Clipboard" : "Copy Deliverable"}</span>
+                      </button>
+                    </div>
+                    <pre className="max-h-36 overflow-y-auto font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
+                      {event.copyableDeliverable.snippet}
+                    </pre>
                   </div>
-                  <pre className="max-h-36 overflow-y-auto font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
-                    {event.copyableDeliverable.snippet}
-                  </pre>
-                </div>
+                )}
 
                 {/* Action Footer */}
                 <div className="flex items-center justify-between border-t pt-3">

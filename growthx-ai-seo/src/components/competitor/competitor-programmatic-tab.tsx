@@ -58,7 +58,58 @@ export function CompetitorProgrammaticTab({
   const dispatchMutation = useDispatchFindingToQueue(projectId);
 
   const scoreboard = data?.scoreboard;
-  const clusters = data?.clusters || [];
+  const rawClusters = data?.clusters || [];
+
+  // Defensive normalization to support both snake_case, legacy keys, or partial payloads safely
+  const clusters: ProgrammaticCluster[] = rawClusters.map((raw: any, index: number) => {
+    const patternId = raw.patternId || raw.id || `cluster_${index}`;
+    const formula = raw.formula || raw.urlPattern || "Pattern";
+    const patternType = raw.patternType || raw.category || "COMPARISON";
+    const competitorDomain = raw.competitorDomain || "Competitor";
+    const sampleUrls = Array.isArray(raw.sampleUrls) ? raw.sampleUrls : [];
+    const totalDetectedPages = Number(raw.totalDetectedPages ?? raw.pageCount ?? 0);
+    const estimatedMonthlyVisits = Number(raw.estimatedMonthlyVisits ?? 0);
+
+    const extractedVariables = Array.isArray(raw.extractedVariables)
+      ? raw.extractedVariables
+      : Array.isArray(raw.variables)
+      ? raw.variables.map((v: any) => (typeof v === "string" ? v : v?.name || String(v)))
+      : [];
+
+    const sampleVariables = (raw.sampleVariables && typeof raw.sampleVariables === "object")
+      ? raw.sampleVariables
+      : {};
+
+    const rawBp = raw.counterBlueprint || raw.counterStrategy || {};
+    const counterBlueprint = {
+      counterPattern: rawBp.counterPattern || rawBp.recommendedUrlPattern || `https://${customerDomain}/counter`,
+      targetArchitecture: rawBp.targetArchitecture || rawBp.recommendedUrlPattern || "/counter-architecture",
+      recommendedSchemaType: rawBp.recommendedSchemaType || "WebPage",
+      semanticH2Outlines: Array.isArray(rawBp.semanticH2Outlines) ? rawBp.semanticH2Outlines : [],
+      differentiationAngle: rawBp.differentiationAngle || rawBp.differentiatorAngle || "Verified, high-depth alternative.",
+      sampleCopyablePrompt: rawBp.sampleCopyablePrompt || rawBp.sampleDeliverableTemplate || "",
+      targetSlugExample: rawBp.targetSlugExample || "/example-route",
+    };
+
+    return {
+      patternId,
+      formula,
+      patternType,
+      competitorDomain,
+      sampleUrls,
+      totalDetectedPages,
+      extractedVariables,
+      sampleVariables,
+      estimatedMonthlyVisits,
+      counterBlueprint,
+    };
+  });
+
+  const totalPatterns = scoreboard?.totalPatternsDetected ?? (scoreboard as any)?.totalProgrammaticClusters ?? clusters.length;
+  const totalPages = scoreboard?.totalProgrammaticPages ?? (scoreboard as any)?.totalCompetitorPagesIndexed ?? 0;
+  const totalTraffic = scoreboard?.estimatedTrafficCaptured ?? (scoreboard as any)?.estimatedTotalTrafficCaptured ?? 0;
+  const dominantFormula = scoreboard?.dominantFormulaType ?? (scoreboard as any)?.topPatternCategory ?? (clusters[0]?.patternType || "Analyzing");
+  const readyBlueprints = scoreboard?.highPriorityCounterAttacks ?? (scoreboard as any)?.readyToCounterCount ?? clusters.length;
 
   const handleCopy = (text: string, type: "h2" | "prompt") => {
     navigator.clipboard.writeText(text);
@@ -142,31 +193,31 @@ export function CompetitorProgrammaticTab({
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Formulas Discovered</div>
             <div className="text-2xl font-black text-white">
-              {scoreboard?.totalPatternsDetected ?? 0}
+              {totalPatterns}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Competitor Programmatic Pages</div>
             <div className="text-2xl font-black text-white">
-              {scoreboard?.totalProgrammaticPages ? scoreboard.totalProgrammaticPages.toLocaleString() : "0"}
+              {totalPages ? totalPages.toLocaleString() : "0"}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Captured Traffic Est.</div>
             <div className="text-2xl font-black text-success-400">
-              ~{scoreboard?.estimatedTrafficCaptured ? scoreboard.estimatedTrafficCaptured.toLocaleString() : "0"}/mo
+              ~{totalTraffic ? totalTraffic.toLocaleString() : "0"}/mo
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Dominant Formula</div>
             <div className="text-sm font-bold text-brand-200 truncate">
-              {scoreboard?.dominantFormulaType ?? "Analyzing"}
+              {dominantFormula}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Ready Blueprints</div>
             <div className="text-2xl font-black text-white">
-              {scoreboard?.highPriorityCounterAttacks ?? 0}
+              {readyBlueprints}
             </div>
           </div>
         </div>
@@ -247,10 +298,10 @@ export function CompetitorProgrammaticTab({
                       <span>Counter-Architecture Proposal</span>
                     </div>
                     <p className="text-xs text-brand-700">
-                      Target: <span className="font-mono font-bold text-brand-950">{cluster.counterBlueprint.targetArchitecture}</span>
+                      Target: <span className="font-mono font-bold text-brand-950">{cluster.counterBlueprint?.targetArchitecture || "Standard Route"}</span>
                     </p>
                     <p className="text-[11px] text-brand-600 line-clamp-2">
-                      Angle: {cluster.counterBlueprint.differentiationAngle}
+                      Angle: {cluster.counterBlueprint?.differentiationAngle || "Technical optimization."}
                     </p>
                   </div>
                 </div>
@@ -333,9 +384,9 @@ export function CompetitorProgrammaticTab({
                 Recommended URL Route & Slug Structure
               </h4>
               <div className="rounded-xl border bg-brand-900 p-4 font-mono text-xs text-white space-y-1">
-                <div>Route: <span className="text-success-400 font-bold">{activeCluster.counterBlueprint.targetArchitecture}</span></div>
-                <div>Slug Example: <span className="text-brand-300">https://{customerDomain}{activeCluster.counterBlueprint.targetSlugExample}</span></div>
-                <div>JSON-LD Schema Type: <span className="text-warning-400 font-bold">{activeCluster.counterBlueprint.recommendedSchemaType}</span></div>
+                <div>Route: <span className="text-success-400 font-bold">{activeCluster.counterBlueprint?.targetArchitecture || "Direct"}</span></div>
+                <div>Slug Example: <span className="text-brand-300">https://{customerDomain}{activeCluster.counterBlueprint?.targetSlugExample || "/example"}</span></div>
+                <div>JSON-LD Schema Type: <span className="text-warning-400 font-bold">{activeCluster.counterBlueprint?.recommendedSchemaType || "WebPage"}</span></div>
               </div>
             </div>
 
@@ -345,56 +396,60 @@ export function CompetitorProgrammaticTab({
                 AI & Organic Differentiation Thesis
               </h4>
               <div className="rounded-xl border bg-brand-50 p-4 text-xs leading-relaxed text-brand-800">
-                {activeCluster.counterBlueprint.differentiationAngle}
+                {activeCluster.counterBlueprint?.differentiationAngle || "Comprehensive high-fidelity counter strategy."}
               </div>
             </div>
 
             {/* Semantic H2 Outlines */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
-                  Semantic Heading Hierarchy (H2 Specifications)
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(activeCluster.counterBlueprint.semanticH2Outlines.join("\n"), "h2")}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
-                >
-                  {copiedH2 ? <Check size={12} /> : <Copy size={12} />}
-                  <span>{copiedH2 ? "Copied" : "Copy Outlines"}</span>
-                </button>
+            {activeCluster.counterBlueprint?.semanticH2Outlines && activeCluster.counterBlueprint.semanticH2Outlines.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                    Semantic Heading Hierarchy (H2 Specifications)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(activeCluster.counterBlueprint.semanticH2Outlines.join("\n"), "h2")}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
+                  >
+                    {copiedH2 ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedH2 ? "Copied" : "Copy Outlines"}</span>
+                  </button>
+                </div>
+                <ul className="rounded-xl border bg-white divide-y">
+                  {activeCluster.counterBlueprint.semanticH2Outlines.map((h2, idx) => (
+                    <li key={idx} className="flex items-center gap-3 p-3 text-xs text-brand-800">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-600">
+                        {idx + 1}
+                      </span>
+                      <span className="font-semibold">{h2}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="rounded-xl border bg-white divide-y">
-                {activeCluster.counterBlueprint.semanticH2Outlines.map((h2, idx) => (
-                  <li key={idx} className="flex items-center gap-3 p-3 text-xs text-brand-800">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-600">
-                      {idx + 1}
-                    </span>
-                    <span className="font-semibold">{h2}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            )}
 
             {/* Generation Prompt */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
-                  Copyable LLM Prompt Template for Content Matrix
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(activeCluster.counterBlueprint.sampleCopyablePrompt, "prompt")}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
-                >
-                  {copiedPrompt ? <Check size={12} /> : <Copy size={12} />}
-                  <span>{copiedPrompt ? "Copied" : "Copy Prompt"}</span>
-                </button>
+            {activeCluster.counterBlueprint?.sampleCopyablePrompt && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                    Copyable LLM Prompt Template for Content Matrix
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(activeCluster.counterBlueprint.sampleCopyablePrompt, "prompt")}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
+                  >
+                    {copiedPrompt ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedPrompt ? "Copied" : "Copy Prompt"}</span>
+                  </button>
+                </div>
+                <pre className="max-h-48 overflow-y-auto rounded-xl border bg-brand-900 p-4 font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
+                  {activeCluster.counterBlueprint.sampleCopyablePrompt}
+                </pre>
               </div>
-              <pre className="max-h-48 overflow-y-auto rounded-xl border bg-brand-900 p-4 font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
-                {activeCluster.counterBlueprint.sampleCopyablePrompt}
-              </pre>
-            </div>
+            )}
 
             {/* Drawer Footer */}
             <div className="flex items-center justify-between border-t pt-4">
