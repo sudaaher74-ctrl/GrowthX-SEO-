@@ -64,18 +64,12 @@ interface GeoGridScanResult {
   model?: string;
 }
 
-const PRESET_KEYWORDS = [
-  "best local service",
-  "luxury jewellery store",
-  "emergency dentist",
-  "digital marketing agency",
-  "coffee shop near me",
-];
-
 export default function GeoTrackingPage() {
   const { projectId } = useWorkspace();
   const qc = useQueryClient();
-  const [keyword, setKeyword] = useState("luxury jewellery store");
+  // Empty until the user names the search they care about: a pre-filled
+  // example ran a real, billed grid scan for a business the user is not.
+  const [keyword, setKeyword] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [gridSize, setGridSize] = useState<3 | 5 | 7 | 9>(3);
   const [radiusKm, setRadiusKm] = useState<number>(5);
@@ -472,20 +466,6 @@ export default function GeoTrackingPage() {
                   Track how your business ranks in Google Local 3-Packs at specific distance nodes around your location.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-brand-500 uppercase tracking-wider">Quick Presets:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {PRESET_KEYWORDS.slice(0, 3).map((kw) => (
-                    <button
-                      key={kw}
-                      onClick={() => setKeyword(kw)}
-                      className="px-2.5 py-1 rounded-md text-[11px] bg-brand-100 text-brand-700 hover:bg-brand-200 transition"
-                    >
-                      {kw}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
@@ -515,7 +495,7 @@ export default function GeoTrackingPage() {
                 <input
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="e.g. Tanishq Jewellery"
+                  placeholder="Your business name as it appears on Google"
                   className="h-10 w-full rounded-md border border-brand-200 bg-white px-3 py-2 text-[13px] text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
                 />
               </div>

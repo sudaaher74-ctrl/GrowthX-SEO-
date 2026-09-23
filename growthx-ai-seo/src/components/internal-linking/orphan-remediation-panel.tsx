@@ -32,21 +32,19 @@ export function OrphanRemediationPanel({
   onViewSculpting,
 }: OrphanRemediationPanelProps) {
   const router = useRouter();
-  // Track which orphan IDs we've navigated to Fix Engine for (for UI feedback)
+  // Track which orphan IDs we've opened in the Action Queue (for UI feedback)
   const [remediatedIds, setRemediatedIds] = useState<Set<string>>(new Set());
 
   const handleRemediateOrphan = (orphan: LinkMeshNode) => {
-    // Mark as dispatched to Fix Engine
     setRemediatedIds((prev) => new Set([...prev, orphan.id]));
-    // Navigate to Fix Engine filtered on Link Mesh issues
-    router.push("/fix-engine?filter=LINKING");
+    // Remediation runs through the Action Queue; the Fix Engine is disabled.
+    router.push("/action-queue");
   };
 
   const handleRemediateAll = () => {
     const ids = orphans.map((o) => o.id);
     setRemediatedIds(new Set(ids));
-    // Navigate to Fix Engine filtered on Link Mesh — all orphans handled together
-    router.push("/fix-engine?filter=LINKING");
+    router.push("/action-queue");
   };
 
   return (
@@ -72,7 +70,7 @@ export function OrphanRemediationPanel({
               className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
             >
               <GitMerge size={13} />
-              <span>Remediate All in Fix Engine ({orphans.length})</span>
+              <span>Open All in Action Queue ({orphans.length})</span>
             </button>
           )}
         </div>
@@ -139,7 +137,7 @@ export function OrphanRemediationPanel({
                     {isRemediated ? (
                       <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-700 border border-indigo-200">
                         <Check size={14} className="text-indigo-600" />
-                        <span>Sent to Fix Engine</span>
+                        <span>Opened in Action Queue</span>
                       </div>
                     ) : (
                       <button

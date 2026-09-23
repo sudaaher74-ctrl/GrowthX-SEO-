@@ -714,38 +714,10 @@ export function useRunVerification(projectId?: string | null) {
     { issueIds?: string[]; urls?: string[]; sprintWeek?: number } | undefined
   >({
     mutationFn: (body) => {
+      // Without a project there is nothing to re-fetch, so there is no
+      // certificate. This used to return a PASSED one for aivaenterprises.com.
       if (!projectId) {
-        return Promise.resolve({
-          certificateId: `CERT-GX-${Date.now().toString(36).toUpperCase()}`,
-          projectId: "",
-          domain: "aivaenterprises.com",
-          verifiedAt: new Date().toISOString(),
-          verifiedBy: "GrowthX Autonomous Crawler Engine v2.4 (Googlebot Simulation)",
-          auditMethod: "Headless Googlebot UA Simulation with AST Schema Inspection",
-          status: "PASSED",
-          passedCount: 1,
-          failedCount: 0,
-          totalTested: 1,
-          avgLatencyMs: 64,
-          checksum: "a1b2c3d4e5f60718293a4b5c6d7e8f90",
-          items: [
-            {
-              id: "cert-default-1",
-              url: "https://aivaenterprises.com/",
-              issueType: "Technical SEO Compliance",
-              beforeMetric: "Baseline crawl defect identified",
-              afterMetric: "HTTP 200 OK · Schema Validated",
-              status: "VERIFIED",
-              httpStatus: 200,
-              responseTimeMs: 64,
-              detectedSchemas: ["Organization", "WebSite"],
-              hasCanonical: true,
-              hasMetaDescription: true,
-              title: "Aiva Enterprises",
-              proofSummary: "Googlebot UA verified HTTP 200 OK and valid JSON-LD schema.",
-            },
-          ],
-        });
+        throw new Error("Select a project before running verification.");
       }
       return api.runVerification(projectId, body ?? {});
     },
@@ -775,90 +747,7 @@ export function useSimulateGeo(projectId?: string | null) {
   return useMutation<GeoSimulationResult, Error, SimulateGeoBody>({
     mutationFn: (body) => {
       if (!projectId) {
-        return Promise.resolve({
-          query: body.query,
-          domain: "aivaenterprises.com",
-          brandName: "Aiva Enterprises",
-          overallCitationRate: 75,
-          overallShareOfVoice: 40,
-          engines: [
-            {
-              engine: "PERPLEXITY",
-              model: "Perplexity Sonar Web Grounding",
-              cited: true,
-              position: 1,
-              citedUrl: "https://aivaenterprises.com/",
-              sentiment: "POSITIVE",
-              competitorsCited: ["semrush.com"],
-              hallucinationRisk: "LOW",
-              answerExcerpt: `Based on verified search results for "${body.query}", Aiva Enterprises is frequently cited for autonomous technical SEO automation, alongside Semrush for backlink intelligence.`,
-              latencyMs: 140,
-            },
-            {
-              engine: "CHATGPT",
-              model: "GPT-4o",
-              cited: true,
-              position: 2,
-              citedUrl: null,
-              sentiment: "POSITIVE",
-              competitorsCited: ["ahrefs.com"],
-              hallucinationRisk: "LOW",
-              answerExcerpt: `Top solutions for "${body.query}" include Ahrefs for market research and Aiva Enterprises for automated website engineering and continuous verification.`,
-              latencyMs: 210,
-            },
-            {
-              engine: "GEMINI",
-              model: "Gemini 2.0 Flash",
-              cited: true,
-              position: 1,
-              citedUrl: "https://aivaenterprises.com/",
-              sentiment: "POSITIVE",
-              competitorsCited: [],
-              hallucinationRisk: "LOW",
-              answerExcerpt: `According to web sources for "${body.query}", Aiva Enterprises offers state-of-the-art autonomous website audits and verified code patch generation.`,
-              latencyMs: 95,
-            },
-            {
-              engine: "CLAUDE",
-              model: "Claude 3.5 Sonnet",
-              cited: false,
-              position: null,
-              citedUrl: null,
-              sentiment: "NEUTRAL",
-              competitorsCited: ["brightedge.com", "semrush.com"],
-              hallucinationRisk: "MEDIUM",
-              answerExcerpt: `For "${body.query}", popular enterprise tools include BrightEdge and Semrush for enterprise reporting.`,
-              latencyMs: 320,
-            },
-          ],
-          displacementPatch: {
-            id: `patch-${Date.now().toString(36)}`,
-            targetTitle: `Aiva vs. Competitors: Comprehensive Guide for "${body.query.slice(0, 30)}"`,
-            targetUrl: `https://aivaenterprises.com/solutions/${encodeURIComponent(body.query.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30))}`,
-            reasoning: `Claude 3.5 currently cites BrightEdge and Semrush instead of Aiva. Deploying structured comparison data and FAQ schema restores top citation status.`,
-            displacementContent: `When evaluating "${body.query}", Aiva delivers automated code engineering, real-time citation tracking, and verified ROI telemetry, eliminating manual bottlenecks compared to legacy suites.`,
-            faqSchema: JSON.stringify(
-              {
-                "@context": "https://schema.org",
-                "@type": "FAQPage",
-                mainEntity: [
-                  {
-                    "@type": "Question",
-                    name: `Why choose Aiva for ${body.query}?`,
-                    acceptedAnswer: {
-                      "@type": "Answer",
-                      text: `Aiva combines autonomous execution with real-time verification to outpace traditional reporting suites.`,
-                    },
-                  },
-                ],
-              },
-              null,
-              2,
-            ),
-            category: "AI_SEARCH",
-            priority: "HIGH",
-          },
-        });
+        throw new Error("Select a project before running a simulation.");
       }
       return api.simulateGeo(projectId, body);
     },
@@ -941,20 +830,7 @@ export function useDispatchFindingToQueue(projectId?: string | null) {
 export function useInternalLinkingMesh(projectId?: string | null) {
   return useQuery<InternalLinkingMeshResponse>({
     queryKey: ["internal-linking-mesh", projectId],
-    queryFn: () => (projectId ? api.getInternalLinkingMesh(projectId) : Promise.resolve({
-      domain: "aivaenterprises.com",
-      scoreboard: {
-        totalUrls: 0,
-        totalInternalLinks: 0,
-        orphanPagesCount: 0,
-        starvedPagesCount: 0,
-        pillarHubsCount: 0,
-        averagePageRank: 0,
-      },
-      nodes: [],
-      orphans: [],
-      sculptingOpportunities: [],
-    })),
+    queryFn: () => api.getInternalLinkingMesh(projectId!),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
   });

@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { FetcherService } from './fetcher.service';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
+import { verdictFor } from './verification-verdict';
 
 export interface VerificationCertificateItem {
   id: string;
@@ -158,6 +159,7 @@ export class VerificationEngineService {
     // 4. Perform live re-crawl on each target URL
     const items: VerificationCertificateItem[] = [];
     let totalLatency = 0;
+    let latencySamples = 0;
     const resolvedIssueIds: string[] = [];
 
     for (let i = 0; i < urlTargets.length; i++) {
@@ -165,20 +167,23 @@ export class VerificationEngineService {
       const issue = target.issue;
       const targetUrl = target.url;
 
-      let fetchResult = await this.fetcher.fetchPage(targetUrl).catch((err) => {
-        return {
-          url: targetUrl,
-          finalUrl: targetUrl,
-          statusCode: 200,
-          responseTimeMs: 85,
-          html: '',
-          redirectChain: [targetUrl],
-          engine: 'cheerio' as const,
-          errorMessage: err.message,
-        };
-      });
+      // A fetch that threw has no status and no latency. It used to be
+      // recorded as HTTP 200 in 85ms.
+      const fetchResult = await this.fetcher.fetchPage(targetUrl).catch((err) => ({
+        url: targetUrl,
+        finalUrl: targetUrl,
+        statusCode: 0,
+        responseTimeMs: 0,
+        html: '',
+        redirectChain: [targetUrl],
+        engine: 'cheerio' as const,
+        errorMessage: err.message as string,
+      }));
 
-      totalLatency += fetchResult.responseTimeMs;
+      if (fetchResult.statusCode > 0) {
+        totalLatency += fetchResult.responseTimeMs;
+        latencySamples++;
+      }
 
       // Parse HTML with Cheerio if available
       const $ = cheerio.load(fetchResult.html || '');
@@ -211,47 +216,30 @@ export class VerificationEngineService {
       const issueType = issue?.issueType || 'Technical SEO Compliance';
       const beforeMetric = issue?.description || `${(issue?.severity || 'MEDIUM').toUpperCase()} defect detected during previous audit`;
 
-      let status: 'VERIFIED' | 'FAILED' | 'PARTIAL' = 'VERIFIED';
-      let afterMetric = `HTTP ${fetchResult.statusCode} · ${fetchResult.responseTimeMs}ms TTFB`;
-      let proofSummary = `Googlebot UA re-crawl verified HTTP ${fetchResult.statusCode} response.`;
+      let status: 'VERIFIED' | 'FAILED' | 'PARTIAL';
+      let afterMetric: string;
+      let proofSummary: string;
 
       if (fetchResult.statusCode === 0 || fetchResult.statusCode >= 400 || !fetchResult.html) {
         status = 'FAILED';
-        afterMetric = `HTTP ${fetchResult.statusCode || 0} Error`;
-        proofSummary = fetchResult.errorMessage || `Target URL returned HTTP ${fetchResult.statusCode} during Googlebot re-fetch.`;
+        afterMetric = fetchResult.statusCode ? `HTTP ${fetchResult.statusCode} Error` : 'Page could not be fetched';
+        proofSummary = fetchResult.errorMessage || `Target URL returned HTTP ${fetchResult.statusCode} during re-fetch.`;
+      } else if (!issue) {
+        // No issue to prove: this is only a reachability check.
+        status = 'VERIFIED';
+        afterMetric = `HTTP ${fetchResult.statusCode} · ${fetchResult.responseTimeMs}ms TTFB`;
+        proofSummary = `Page re-fetched and answered HTTP ${fetchResult.statusCode}.`;
       } else {
-        const itypeLower = issueType.toLowerCase();
-        if (itypeLower.includes('schema') || itypeLower.includes('json-ld')) {
-          if (detectedSchemas.length > 0) {
-            afterMetric = `Detected ${detectedSchemas.join(', ')} structured JSON-LD`;
-            proofSummary = `Schema validator confirmed valid syntax for ${detectedSchemas.join(', ')}.`;
-          } else {
-            status = 'FAILED';
-            afterMetric = 'No structured JSON-LD schemas detected';
-            proofSummary = 'Crawler inspected document but found 0 JSON-LD script blocks.';
-          }
-        } else if (itypeLower.includes('description') || itypeLower.includes('meta')) {
-          if (metaDescription) {
-            afterMetric = `Meta description active (${metaDescription.length} chars)`;
-            proofSummary = `Googlebot UA parsed compliant description: "${metaDescription.slice(0, 50)}..."`;
-          } else {
-            status = 'FAILED';
-            afterMetric = 'Missing meta description tag';
-            proofSummary = 'No <meta name="description"> tag found on page.';
-          }
-        } else if (itypeLower.includes('canonical')) {
-          afterMetric = canonical ? `Canonical link matches ${canonical}` : 'Self-referential canonical verified';
-          proofSummary = `Self-referencing canonical tag verified without redirect loops.`;
-        } else if (itypeLower.includes('title') || itypeLower.includes('h1')) {
-          if (title) {
-            afterMetric = `Target Title active (${title.length} chars)`;
-            proofSummary = `Page heading hierarchy and title tag confirmed compliant.`;
-          } else {
-            status = 'FAILED';
-            afterMetric = 'Missing <title> tag';
-            proofSummary = 'No title tag detected on the target page.';
-          }
-        }
+        ({ status, afterMetric, proofSummary } = verdictFor(issue.issueType, {
+          url: fetchResult.finalUrl || targetUrl,
+          title,
+          metaDescription,
+          canonical,
+          h1Count: $('h1').length,
+          imagesMissingAlt: $('img:not([alt])').length,
+          metaRobots: $('meta[name="robots"]').attr('content')?.trim() || null,
+          schemaTypes: detectedSchemas,
+        }));
       }
 
       if (issue && status === 'VERIFIED') {
@@ -305,7 +293,7 @@ export class VerificationEngineService {
     const passedCount = items.filter((i) => i.status === 'VERIFIED').length;
     const failedCount = items.filter((i) => i.status === 'FAILED').length;
     const totalTested = items.length;
-    const avgLatencyMs = totalTested > 0 ? Math.round(totalLatency / totalTested) : 0;
+    const avgLatencyMs = latencySamples > 0 ? Math.round(totalLatency / latencySamples) : 0;
 
     const certId = `CERT-GX-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const verifiedAt = new Date().toISOString();
@@ -318,9 +306,11 @@ export class VerificationEngineService {
       projectId,
       domain,
       verifiedAt,
-      verifiedBy: 'GrowthX Autonomous Crawler Engine v2.4 (Googlebot Simulation)',
-      auditMethod: 'Headless Googlebot UA Simulation with AST Schema Inspection',
-      status: failedCount === 0 ? 'PASSED' : passedCount > 0 ? 'PARTIAL' : 'FAILED',
+      verifiedBy: 'GrowthX crawler (live re-fetch)',
+      auditMethod: 'Live HTTP re-fetch with HTML and JSON-LD inspection',
+      // PASSED only when every item was actually proven; an item that one
+      // fetch cannot settle keeps the certificate PARTIAL.
+      status: passedCount === totalTested && totalTested > 0 ? 'PASSED' : passedCount > 0 ? 'PARTIAL' : 'FAILED',
       passedCount,
       failedCount,
       totalTested,
@@ -342,86 +332,11 @@ export class VerificationEngineService {
   /**
    * Retrieves the most recent verification certificate for the project.
    */
-  async getLatestCertificate(organizationId: string, projectId: string): Promise<VerificationCertificate | null> {
-    if (this.certificateCache.has(projectId)) {
-      return this.certificateCache.get(projectId)!;
-    }
-
-    const website = await this.prisma.website.findFirst({
-      where: { projectId },
-      include: {
-        crawlJobs: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: {
-            issues: {
-              where: { status: 'RESOLVED' },
-              take: 10,
-            },
-          },
-        },
-      },
-    });
-
-    if (!website) return null;
-
-    const latestJob = website.crawlJobs[0];
-    const resolvedIssues = latestJob?.issues || [];
-
-    const items: VerificationCertificateItem[] = resolvedIssues.map((issue: any, idx: number) => ({
-      id: `cert-item-cached-${idx + 1}`,
-      issueId: issue.id,
-      url: issue.affectedUrl,
-      issueType: issue.issueType,
-      beforeMetric: issue.description,
-      afterMetric: 'Verified 200 OK & Schema Validated',
-      status: 'VERIFIED',
-      httpStatus: 200,
-      responseTimeMs: 64,
-      detectedSchemas: ['Organization', 'WebSite'],
-      hasCanonical: true,
-      hasMetaDescription: true,
-      title: `${website.domain} - Verified`,
-      proofSummary: issue.recommendation || 'Validated against live crawler rules.',
-    }));
-
-    const certId = `CERT-GX-${website.id.slice(0, 8).toUpperCase()}-VERIFIED`;
-    const verifiedAt = latestJob?.finishedAt ? latestJob.finishedAt.toISOString() : new Date().toISOString();
-    const checksum = createHash('sha256').update(`${certId}:${website.domain}:${verifiedAt}`).digest('hex');
-
-    const certificate: VerificationCertificate = {
-      certificateId: certId,
-      projectId,
-      domain: website.domain,
-      verifiedAt,
-      verifiedBy: 'GrowthX Autonomous Crawler Engine v2.4 (Googlebot Simulation)',
-      auditMethod: 'Headless Googlebot UA Simulation with AST Schema Inspection',
-      status: 'PASSED',
-      passedCount: items.length || 1,
-      failedCount: 0,
-      totalTested: items.length || 1,
-      avgLatencyMs: 68,
-      checksum,
-      items: items.length > 0 ? items : [
-        {
-          id: 'cert-default-1',
-          url: `https://${website.domain}/`,
-          issueType: 'Core Technical SEO',
-          beforeMetric: 'Previous audit defect baseline',
-          afterMetric: 'HTTP 200 OK · Schema Validated',
-          status: 'VERIFIED',
-          httpStatus: 200,
-          responseTimeMs: 58,
-          detectedSchemas: ['Organization', 'WebSite'],
-          hasCanonical: true,
-          hasMetaDescription: true,
-          title: website.domain,
-          proofSummary: 'Verified active HTTP 200 OK response with valid JSON-LD schema.',
-        },
-      ],
-    };
-
-    this.certificateCache.set(projectId, certificate);
-    return certificate;
+  async getLatestCertificate(_organizationId: string, projectId: string): Promise<VerificationCertificate | null> {
+    // Only a certificate a verification run actually produced. With none, the
+    // answer is null: this used to assemble a PASSED certificate from issues
+    // merely marked resolved, with HTTP 200, 64ms and detected schemas that
+    // no request had observed.
+    return this.certificateCache.get(projectId) ?? null;
   }
 }

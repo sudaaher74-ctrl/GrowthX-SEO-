@@ -8,7 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SeoAuditReportDocument } from "./seo-audit-report-document";
-import type { CrawlIssue, CrawlPage } from "@/lib/api-client";
+import type { CrawlIssue, CrawlPage, IssueCounts, IssueGroup } from "@/lib/api-client";
 import "./audit-report-print.css";
 
 export interface SeoAuditReportModalProps {
@@ -19,6 +19,8 @@ export interface SeoAuditReportModalProps {
   crawledAt?: string | null;
   crawlDuration?: string | null;
   healthScore?: number | null;
+  counts?: IssueCounts | null;
+  groups?: IssueGroup[] | null;
   issues: CrawlIssue[];
   pages: CrawlPage[];
   qualityDiagnostics?: {
@@ -36,6 +38,8 @@ export function SeoAuditReportModal({
   crawledAt,
   crawlDuration,
   healthScore,
+  counts,
+  groups,
   issues,
   pages,
   qualityDiagnostics,
@@ -54,7 +58,7 @@ export function SeoAuditReportModal({
 
   if (!isOpen) return null;
 
-  const displayDomain = domain || "milquufresh.in";
+  const displayDomain = domain || "your website";
 
   const handlePrint = () => {
     window.print();
@@ -78,7 +82,7 @@ export function SeoAuditReportModal({
                 Website SEO Audit Report — {displayDomain}
               </h3>
               <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                <Sparkles size={10} /> 9 Pages (A4)
+                <Sparkles size={10} /> A4
               </span>
             </div>
             <p className="text-[10px] text-slate-400 truncate">
@@ -117,6 +121,8 @@ export function SeoAuditReportModal({
           crawledAt={crawledAt}
           crawlDuration={crawlDuration}
           healthScore={healthScore}
+          counts={counts}
+          groups={groups}
           issues={issues}
           pages={pages}
           qualityDiagnostics={qualityDiagnostics}

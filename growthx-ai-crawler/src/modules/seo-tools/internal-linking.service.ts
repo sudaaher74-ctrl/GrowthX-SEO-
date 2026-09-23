@@ -278,10 +278,9 @@ Generate the internal linking strategy and actionable suggestions.`;
       });
     }
 
-    // If still empty (e.g. fresh project before first crawl), synthesize baseline domain pages
-    if (pages.length === 0) {
-      pages = this.generateFallbackDomainMesh(domain);
-    }
+    // Before the first crawl there are no pages, and the mesh is empty. This
+    // used to invent twelve pages — two of them "orphans" — for a site nobody
+    // had crawled, and offer to fix them.
 
     // Normalize URLs and create mapping
     const normalize = (u: string) => u.replace(/\/+$/, '').toLowerCase();
@@ -404,7 +403,7 @@ Generate the internal linking strategy and actionable suggestions.`;
       const estTransfer = Math.round(donor.pageRankScore * 0.28);
 
       // Build a topically-relevant bridge sentence from the target page's title/slug
-      const { sentence: sampleSentence, htmlBefore, htmlAfter } = this.generateBridgeSentence(
+      const { sentence: sampleSentence, htmlAfter } = this.generateBridgeSentence(
         target.url,
         target.title,
         cleanAnchor,
@@ -427,7 +426,9 @@ Generate the internal linking strategy and actionable suggestions.`;
           ? `Remediates critical orphan page status. Donor hub (${donor.pageRankScore}/100 PageRank) creates a direct Googlebot crawl bridge.`
           : `Channels high link equity from authoritative pillar page (${donor.pageRankScore}/100) into strategic starved landing page.`,
         codeDiff: {
-          before: htmlBefore,
+          // The donor page's real copy is not stored, so the "before" side says
+          // only what was measured: no link to the target exists there yet.
+          before: `<!-- ${donor.url} has no link to ${target.url} -->`,
           after: htmlAfter,
         },
       });
@@ -501,7 +502,7 @@ Generate the internal linking strategy and actionable suggestions.`;
     targetTitle: string,
     cleanAnchor: string,
     isOrphan: boolean,
-  ): { sentence: string; htmlBefore: string; htmlAfter: string } {
+  ): { sentence: string; htmlAfter: string } {
     const urlLower = targetUrl.toLowerCase();
 
     // Detect topical category from URL path segments
@@ -537,139 +538,9 @@ Generate the internal linking strategy and actionable suggestions.`;
       sentence = `When scaling search architecture, modern teams depend on <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> to establish authoritative topical coverage and eliminate crawl bottlenecks.`;
     }
 
-    // Build before/after HTML paragraph diff
-    const genericSentenceInner = sentence.replace(/<a\b[^>]*>(.*?)<\/a>/gi, '$1');
-    const htmlBefore = `<p>${genericSentenceInner.replace(/ — /, ', relying on manual processes, ')}</p>`;
     const htmlAfter = `<!-- GrowthX Neural Link Sculptor — Topical Bridge Injection -->\n<p>${sentence}</p>`;
 
-    return { sentence, htmlBefore, htmlAfter };
-  }
-
-  private generateFallbackDomainMesh(domain: string): any[] {
-    const base = `https://${domain}`;
-    return [
-      {
-        id: 'page_home',
-        url: `${base}/`,
-        title: `${domain} - Home & Enterprise Platform`,
-        pageType: 'HOME',
-        wordCount: 1450,
-        links: [
-          { targetUrl: `${base}/solutions/ai-automation`, anchorText: 'AI Automation', isNofollow: false },
-          { targetUrl: `${base}/features`, anchorText: 'Platform Features', isNofollow: false },
-          { targetUrl: `${base}/pricing`, anchorText: 'Pricing', isNofollow: false },
-          { targetUrl: `${base}/blog`, anchorText: 'Blog & Insights', isNofollow: false },
-          { targetUrl: `${base}/about`, anchorText: 'About Us', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_features',
-        url: `${base}/features`,
-        title: 'Core Platform Features & Automation Architecture',
-        pageType: 'FEATURE',
-        wordCount: 1200,
-        links: [
-          { targetUrl: `${base}/`, anchorText: 'Home', isNofollow: false },
-          { targetUrl: `${base}/pricing`, anchorText: 'Pricing', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_solutions',
-        url: `${base}/solutions/ai-automation`,
-        title: 'Enterprise AI SEO Automation Solutions',
-        pageType: 'SOLUTION',
-        wordCount: 1650,
-        links: [
-          { targetUrl: `${base}/pricing`, anchorText: 'Get Started', isNofollow: false },
-          { targetUrl: `${base}/case-studies`, anchorText: 'Case Studies', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_pricing',
-        url: `${base}/pricing`,
-        title: 'Transparent Pricing & Enterprise Tiers',
-        pageType: 'PRICING',
-        wordCount: 820,
-        links: [
-          { targetUrl: `${base}/contact`, anchorText: 'Talk to Sales', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_blog',
-        url: `${base}/blog`,
-        title: 'SEO Engineering & LLM Grounding Blog Hub',
-        pageType: 'BLOG',
-        wordCount: 1100,
-        links: [
-          { targetUrl: `${base}/blog/geo-citation-displacement`, anchorText: 'GEO Citations Guide', isNofollow: false },
-          { targetUrl: `${base}/blog/technical-seo-verification`, anchorText: 'Technical SEO Verification', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_blog_1',
-        url: `${base}/blog/geo-citation-displacement`,
-        title: 'How to Displace Competitor AI Citations in Perplexity',
-        pageType: 'ARTICLE',
-        wordCount: 1850,
-        links: [
-          { targetUrl: `${base}/solutions/ai-automation`, anchorText: 'AI Automation Solution', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_blog_2',
-        url: `${base}/blog/technical-seo-verification`,
-        title: 'Automated Post-Fix Verification Using Googlebot Simulation',
-        pageType: 'ARTICLE',
-        wordCount: 2100,
-        links: [
-          { targetUrl: `${base}/features`, anchorText: 'Verification Features', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_case_studies',
-        url: `${base}/case-studies`,
-        title: 'Enterprise Case Studies & Search Growth Proof',
-        pageType: 'CASE_STUDY',
-        wordCount: 950,
-        links: [
-          { targetUrl: `${base}/pricing`, anchorText: 'View Pricing', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_about',
-        url: `${base}/about`,
-        title: `About ${domain} Team & Mission`,
-        pageType: 'ABOUT',
-        wordCount: 650,
-        links: [
-          { targetUrl: `${base}/contact`, anchorText: 'Contact Team', isNofollow: false },
-        ],
-      },
-      {
-        id: 'page_contact',
-        url: `${base}/contact`,
-        title: 'Contact Engineering & Growth Advisory',
-        pageType: 'CONTACT',
-        wordCount: 420,
-        links: [],
-      },
-      {
-        id: 'page_orphan_1',
-        url: `${base}/guides/enterprise-schema-migration`,
-        title: 'Complete Enterprise Schema.org Migration Blueprint',
-        pageType: 'GUIDE',
-        wordCount: 1950,
-        links: [], // Zero inbound links -> TRUE ORPHAN PAGE
-      },
-      {
-        id: 'page_orphan_2',
-        url: `${base}/solutions/local-seo-geo-grid`,
-        title: 'Local SEO Geo-Grid Multi-Location Optimization',
-        pageType: 'SOLUTION',
-        wordCount: 1400,
-        links: [], // Zero inbound links -> TRUE ORPHAN PAGE
-      },
-    ];
+    return { sentence, htmlAfter };
   }
 }
 

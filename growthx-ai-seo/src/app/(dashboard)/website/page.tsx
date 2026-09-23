@@ -32,6 +32,7 @@ import {
   useCrawlIssues,
   useCrawlPages,
   useIssueCounts,
+  useIssueGroups,
   useLatestCrawl,
   usePortfolio,
   useRepository,
@@ -77,6 +78,8 @@ function WebsiteAuditClient() {
   // dashboard, reading the real total, said 156.
   const issueCounts = useIssueCounts(projectId);
   const counts = issueCounts.data ?? null;
+  // True affected-page counts per problem, for the printed report.
+  const issueGroups = useIssueGroups(projectId);
 
   const [activeTab, setActiveTab] = useState<TabId>(tabParam || "technical-seo");
   const [crawling, setCrawling] = useState(false);
@@ -468,6 +471,8 @@ function WebsiteAuditClient() {
         crawledAt={crawl.data?.finishedAt || crawl.data?.startedAt}
         crawlDuration={crawlDuration}
         healthScore={crawl.data?.healthScore}
+        counts={counts}
+        groups={issueGroups.data?.groups ?? null}
         issues={allIssues}
         pages={allPages}
         qualityDiagnostics={qualityDiagnostics}
