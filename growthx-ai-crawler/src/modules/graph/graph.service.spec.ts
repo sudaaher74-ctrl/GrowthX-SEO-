@@ -20,6 +20,12 @@ describe('GraphService', () => {
       },
       crawlJob: {
         update: jest.fn().mockResolvedValue({}),
+        // Findings raised here carry the same identity as every other, so the
+        // graph analysis resolves the project its crawl belongs to.
+        findUnique: jest.fn().mockResolvedValue({
+          websiteId: 'site_1',
+          website: { projectId: 'proj_1' },
+        }),
       },
     };
 

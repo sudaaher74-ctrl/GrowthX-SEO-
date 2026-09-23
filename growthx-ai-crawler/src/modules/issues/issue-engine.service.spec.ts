@@ -51,6 +51,8 @@ describe('IssueEngineService', () => {
 
     const issues: DetectedIssueInput[] = await service.evaluateAndPersistIssues(
       'job_123',
+      'proj_1',
+      'site_1',
       'page_456',
       'https://growthx.ai/test-page',
       200,
@@ -91,6 +93,8 @@ describe('IssueEngineService', () => {
 
     const issues = await service.evaluateAndPersistIssues(
       'job_123',
+      'proj_1',
+      'site_1',
       'page_456',
       'https://growthx.ai/page',
       200,
@@ -128,6 +132,8 @@ describe('IssueEngineService', () => {
 
     const issues = await service.evaluateAndPersistIssues(
       'job_123',
+      'proj_1',
+      'site_1',
       'page_456',
       'https://aivaenterprises.com/contact',
       200,
@@ -164,6 +170,8 @@ describe('IssueEngineService', () => {
 
     await service.evaluateAndPersistIssues(
       'job_123',
+      'proj_1',
+      'site_1',
       'page_456',
       'https://growthx.ai/p',
       200,
