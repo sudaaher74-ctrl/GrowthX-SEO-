@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Play,
   GitMerge,
+  Lock,
 } from "lucide-react";
 import { useWorkspace, usePortfolio, useIssueCounts, useIssueGroups, useIssueGroupPages, useInternalLinkingMesh } from "@/hooks/use-growthx";
 import type { IssueGroup, FixClass } from "@/lib/api-client";
@@ -104,6 +105,7 @@ function FixEngineClient() {
     remediatedCode: string;
     deliverable: string;
     groupKey?: string;
+    linkBridge?: AppliedFixRecord["linkBridge"];
   } | null>(null);
 
   // Categorize an issue group
@@ -316,6 +318,19 @@ function FixEngineClient() {
 
   return (
     <div className="space-y-6 pb-16">
+      {/* ── ROADMAP / DISABLED NOTICE BANNER ── */}
+      <div className="rounded-xl border border-warning-500/30 bg-warning-500/10 p-4 flex items-start gap-3">
+        <AlertTriangle className="text-warning-600 shrink-0 mt-0.5" size={17} />
+        <div className="space-y-1">
+          <h4 className="text-xs font-bold text-brand-950">
+            Remediation Roadmap Mode — Automated Code Execution Disabled
+          </h4>
+          <p className="text-xs text-brand-600 leading-relaxed">
+            Direct codebase pushes and automated PR deployment are currently disabled for this workspace. Use the prioritized technical blueprints, before/after code diffs, and step-by-step guidance below to resolve detected issues manually with your development team.
+          </p>
+        </div>
+      </div>
+
       {/* ── HEADER ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
         <div className="flex items-start gap-3">
@@ -327,12 +342,12 @@ function FixEngineClient() {
               <h1 className="text-xl font-bold tracking-tight text-brand-950 dark:text-white">
                 Fix Engine
               </h1>
-              <span className="rounded-md bg-accent-500/10 text-accent-600 px-2 py-0.5 text-[11px] font-bold">
-                Execution Console
+              <span className="rounded-md bg-warning-500/10 text-warning-600 px-2 py-0.5 text-[11px] font-bold">
+                Roadmap Mode (Auto-Deploy Disabled)
               </span>
             </div>
             <p className="mt-1 text-xs text-[var(--text-muted)] max-w-2xl leading-relaxed">
-              Preview code diffs, verify changes with AST and schema linters, and apply verified remediations directly to your site.
+              Review prioritized technical blueprints, inspect before/after code diffs, and follow step-by-step remediation instructions for your engineering team.
             </p>
           </div>
         </div>
@@ -344,20 +359,20 @@ function FixEngineClient() {
             <span>{activeDomain}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-xl border border-success-500/30 bg-success-500/10 px-3 py-1.5 text-xs font-bold text-success-700 dark:text-success-400">
-            <ShieldCheck size={14} className="text-success-600" />
-            <span>Safe Mode ON</span>
-            <span className="h-1.5 w-1.5 rounded-full bg-success-500 animate-pulse ml-0.5" />
+          <div className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-100 px-3 py-1.5 text-xs font-semibold text-brand-600">
+            <Lock size={13} className="text-brand-500" />
+            <span>Auto-Execution Disabled</span>
           </div>
 
           {pendingSafeCount > 0 && activeTab === "PENDING" && (
             <button
               type="button"
-              onClick={handleApplyAllSafe}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-950 text-white dark:bg-white dark:text-brand-950 px-3.5 py-1.5 text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+              disabled
+              className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-100 text-brand-500 px-3.5 py-1.5 text-xs font-semibold cursor-not-allowed opacity-60"
+              title="Automated live code execution is currently disabled for this workspace."
             >
-              <Sparkles size={13} />
-              <span>Apply All Safe Fixes ({pendingSafeCount})</span>
+              <Lock size={12} />
+              <span>Auto-Fix Disabled ({pendingSafeCount})</span>
             </button>
           )}
         </div>
@@ -609,26 +624,28 @@ function FixEngineClient() {
                         className="flex items-center gap-1.5 rounded-lg border bg-[var(--surface-2)] hover:bg-[var(--surface-1)] px-3 py-1.5 text-xs font-semibold text-brand-950 dark:text-white transition-colors cursor-pointer"
                       >
                         <Code2 size={13} />
-                        <span>Preview Diff</span>
+                        <span>Inspect Diff</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleApplySingleFix(group)}
-                        disabled={isApplying}
-                        className="flex items-center gap-1.5 rounded-lg bg-brand-950 text-white dark:bg-white dark:text-brand-950 hover:opacity-90 px-3.5 py-1.5 text-xs font-bold transition-opacity shadow-xs disabled:opacity-50 cursor-pointer"
+                        onClick={() =>
+                          setDiffModalState({
+                            isOpen: true,
+                            issueTitle: group.title,
+                            category: group.category || "Technical SEO",
+                            targetUrl: primaryUrl,
+                            originalCode: diff.originalCode,
+                            remediatedCode: diff.remediatedCode,
+                            deliverable: diff.deliverable,
+                            groupKey: group.groupKey,
+                            linkBridge: (diff as any)._linkBridge,
+                          })
+                        }
+                        className="flex items-center gap-1.5 rounded-lg bg-brand-950 text-white dark:bg-white dark:text-brand-950 hover:opacity-90 px-3.5 py-1.5 text-xs font-bold transition-opacity shadow-xs cursor-pointer"
                       >
-                        {isApplying ? (
-                          <>
-                            <Loader2 size={13} className="animate-spin" />
-                            <span>Applying...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play size={12} />
-                            <span>Apply Fix</span>
-                          </>
-                        )}
+                        <FileText size={12} />
+                        <span>View Blueprint</span>
                       </button>
                     </div>
                   </div>

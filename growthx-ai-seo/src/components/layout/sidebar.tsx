@@ -24,6 +24,7 @@ interface NavItem {
   /** Small right-aligned counter or metric. */
   tag?: string;
   tagTone?: "default" | "danger" | "success";
+  disabled?: boolean;
   children?: { label: string; href: string; id: string }[];
 }
 
@@ -92,8 +93,9 @@ export function Sidebar({
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
-      tag: "Auto",
-      tagTone: "success",
+      tag: "Disabled",
+      tagTone: "default",
+      disabled: true,
       aliases: ["/engineer"],
     },
     {
@@ -104,18 +106,12 @@ export function Sidebar({
       tagTone: "default",
     },
     {
-      label: "Content Velocity",
-      href: "/content-velocity",
-      icon: Zap,
-      tag: "New",
-      tagTone: "success",
-    },
-    {
       label: "Design Studio",
       href: "/design-studio",
       icon: Wand2,
-      tag: "New",
-      tagTone: "success",
+      tag: "Disabled",
+      tagTone: "default",
+      disabled: true,
     },
     {
       label: "Reports",
@@ -335,6 +331,23 @@ function NavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
+  if (item.disabled) {
+    return (
+      <div
+        className="flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] cursor-not-allowed opacity-40 select-none font-medium text-brand-400"
+        title={`${item.label} is disabled`}
+      >
+        <item.icon size={15} className="text-brand-400" />
+        <span className="flex-1 truncate">{item.label}</span>
+        {item.tag && (
+          <span className="shrink-0 rounded-full px-[6px] py-px font-mono text-[9px] font-semibold leading-[14px] bg-brand-100 text-brand-500 border">
+            {item.tag}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   const active =
     pathname === item.href ||
     pathname.startsWith(`${item.href}/`) ||

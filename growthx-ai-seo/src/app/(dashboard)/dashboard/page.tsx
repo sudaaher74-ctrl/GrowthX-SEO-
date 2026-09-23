@@ -111,9 +111,9 @@ export default function UnifiedDashboardPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <Link href="/fix-engine">
+            <Link href="/action-queue">
               <ActionButton variant="primary" icon={<Zap size={12} className="fill-white" />}>
-                Open Fix Engine
+                View Action Queue
               </ActionButton>
             </Link>
             <ActionButton

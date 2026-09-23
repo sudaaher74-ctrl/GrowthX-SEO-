@@ -295,11 +295,11 @@ function WebsiteAuditClient() {
               </button>
 
               <Link
-                href="/fix-engine"
+                href="/action-queue"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-colors"
               >
                 <Zap size={13} />
-                <span>Open Fix Engine →</span>
+                <span>View Action Queue →</span>
               </Link>
             </div>
           </div>

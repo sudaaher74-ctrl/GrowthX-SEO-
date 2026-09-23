@@ -145,11 +145,11 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
             )}
 
             <Link
-              href="/fix-engine"
+              href="/action-queue"
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
             >
               <Zap size={12} />
-              <span>Review in Fix Engine ({filtered.length}) →</span>
+              <span>Review in Action Queue ({filtered.length}) →</span>
             </Link>
           </div>
         </div>

@@ -384,10 +384,10 @@ function CompetitorIntelligenceClient() {
 
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
             <Link
-              href="/fix-engine"
+              href="/action-queue"
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition shadow-2xs"
             >
-              <span>View in Fix Engine</span>
+              <span>View in Action Queue</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <button
