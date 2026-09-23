@@ -54,17 +54,25 @@ The easiest way to launch the complete GrowthX AI Crawler stack (API, PostgreSQL
 # 1. Clone repo and enter directory
 cd growthx-ai-crawler
 
-# 2. Start the full infrastructure
-docker-compose up --build -d
+# 2. Provide secrets — compose refuses to start without them
+cat > .env <<ENV
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+JWT_SECRET=$(openssl rand -hex 32)
+GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 12)
+ENV
 
-# 3. Check logs
-docker-compose logs -f crawler-api
+# 3. Start the full infrastructure
+docker compose up --build -d
+
+# 4. Check logs
+docker compose logs -f crawler-api
 ```
 
 ### Accessing Services:
 - **Crawler REST API & Swagger Docs**: [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
 - **Prometheus Metrics**: [http://localhost:9090](http://localhost:9090)
-- **Grafana Dashboard**: [http://localhost:3001](http://localhost:3001) *(Login: `admin` / `admin`)*
+- **Grafana Dashboard**: [http://localhost:3001](http://localhost:3001) *(Login: `admin` / the `GRAFANA_ADMIN_PASSWORD` from `.env`)*
 
 ---
 

@@ -7,7 +7,6 @@ import {
   ListChecks,
   TrendingUp,
   ArrowRight,
-  Play,
   Check,
   CheckCircle2,
   Bell,
@@ -402,12 +401,6 @@ export function WorkflowSteps() {
                   <span>Analyze Your Website</span>
                   <ArrowRight size={14} />
                 </Link>
-                <button className="inline-flex items-center gap-2 bg-brand-900/80 border border-brand-800 text-brand-200 hover:text-white font-bold text-xs sm:text-sm px-4 py-3 rounded-xl hover:bg-brand-850 transition-colors cursor-pointer">
-                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-series-6 text-white shadow-xs">
-                    <Play size={10} fill="white" className="ml-0.5" />
-                  </div>
-                  <span>Watch a 2 min demo</span>
-                </button>
               </div>
 
               {/* Trust Checkmarks */}

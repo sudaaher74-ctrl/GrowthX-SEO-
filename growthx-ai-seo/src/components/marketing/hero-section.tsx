@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Play,
   Check,
   FileText,
   BarChart3,
@@ -328,12 +327,6 @@ export function HeroSection() {
                 <span>Analyze Your Website</span>
                 <ArrowRight size={16} />
               </Link>
-              <button className="inline-flex items-center gap-2.5 bg-brand-900/80 border border-brand-800 text-brand-200 hover:text-white font-bold text-sm sm:text-[15px] px-5 py-3 rounded-2xl hover:bg-brand-850 transition-all shadow-xs cursor-pointer">
-                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-series-6 text-white shadow-xs">
-                  <Play size={10} fill="white" className="ml-0.5" />
-                </div>
-                <span>Watch Demo</span>
-              </button>
             </div>
 
             {/* Trust signals */}
