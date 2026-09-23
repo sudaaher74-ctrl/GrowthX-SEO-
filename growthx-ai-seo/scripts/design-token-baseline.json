@@ -15,7 +15,7 @@
   "app/(dashboard)/content-intelligence/patterns/page.tsx": 18,
   "app/(dashboard)/content-intelligence/strategy/page.tsx": 6,
   "app/(dashboard)/content-opportunities/page.tsx": 21,
-  "app/(dashboard)/dashboard/page.tsx": 38,
+  "app/(dashboard)/dashboard/page.tsx": 27,
   "app/(dashboard)/error.tsx": 12,
   "app/(dashboard)/geo-tracking/page.tsx": 101,
   "app/(dashboard)/help/page.tsx": 9,
