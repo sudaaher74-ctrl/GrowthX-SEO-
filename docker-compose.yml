@@ -1,7 +1,10 @@
 # Compose refuses to start until every required secret is set in .env (see
 # .env.example). The checks live here so the lines that use each value can
 # stay plain references.
-x-required-secrets: "${POSTGRES_PASSWORD:?}${ENCRYPTION_KEY:?}${JWT_SECRET:?}"
+x-required-secrets:
+  - "${POSTGRES_PASSWORD:?}"
+  - "${ENCRYPTION_KEY:?}"
+  - "${JWT_SECRET:?}"
 
 services:
   postgres:

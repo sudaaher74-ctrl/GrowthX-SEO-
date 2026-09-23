@@ -1,6 +1,10 @@
 # Compose refuses to start until every required secret is set in .env. The
 # checks live here so the lines that use each value can stay plain references.
-x-required-secrets: "${POSTGRES_PASSWORD:?}${ENCRYPTION_KEY:?}${JWT_SECRET:?}${GRAFANA_ADMIN_PASSWORD:?}"
+x-required-secrets:
+  - "${POSTGRES_PASSWORD:?}"
+  - "${ENCRYPTION_KEY:?}"
+  - "${JWT_SECRET:?}"
+  - "${GRAFANA_ADMIN_PASSWORD:?}"
 
 services:
   crawler-api:
