@@ -4,7 +4,7 @@ import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-
 import { detectCitation, normalizeDomain, CompetitorRef } from './citation/citation-detector';
 
 export interface GeoEngineResult {
-  engine: 'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE';
+  engine: 'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM';
   model: string;
   cited: boolean;
   position: number | null;
@@ -39,7 +39,7 @@ export interface GeoSimulationResult {
 
 export interface SimulateGeoOptions {
   query: string;
-  engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE'>;
+  engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM'>;
   location?: string;
 }
 
@@ -97,10 +97,10 @@ export class GeoSimulationService {
       );
     }
 
-    const requestedEngines: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE'> =
+    const requestedEngines: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM'> =
       options.engines && options.engines.length > 0
         ? options.engines
-        : ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE'];
+        : ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE', 'SARVAM'];
 
     this.logger.log(`Running GEO simulation for "${query}" on ${domain} across ${requestedEngines.join(', ')}`);
 
@@ -184,7 +184,7 @@ export class GeoSimulationService {
   }
 
   private async evaluateEngine(
-    engine: 'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE',
+    engine: 'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM',
     query: string,
     organizationId: string,
     ownDomains: string[],
@@ -206,7 +206,7 @@ export class GeoSimulationService {
     } else if (engine === 'PERPLEXITY') {
       provider = AiProvider.GROQ;
       modelName = 'Perplexity Sonar Web Grounding';
-    } else if ((engine as string) === 'SARVAM') {
+    } else if (engine === 'SARVAM') {
       provider = AiProvider.SARVAM;
       modelName = 'Sarvam AI (Indus)';
     }
@@ -220,7 +220,7 @@ export class GeoSimulationService {
     const locationPrompt = location ? ` Context location: ${location}.` : '';
 
     const systemInstruction =
-      provider === AiProvider.SARVAM && (engine as string) !== 'SARVAM'
+      provider === AiProvider.SARVAM && engine !== 'SARVAM'
         ? `You are an AI search assistant simulating ${engine} answering an organic search query from a business buyer.${locationPrompt} Recommend the best, most reputable software platforms, tools, and services. Name specific brands and websites clearly.`
         : 'You are a helpful, neutral AI search assistant answering an organic search query from a business buyer.' +
           locationPrompt +

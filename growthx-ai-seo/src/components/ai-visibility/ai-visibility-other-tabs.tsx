@@ -216,7 +216,8 @@ export function CitationsTabContent({
                   <th className="py-2.5 font-medium">Est. Volume</th>
                   <th className="py-2.5 font-medium">ChatGPT</th>
                   <th className="py-2.5 font-medium">Claude</th>
-                  <th className="py-2.5 pr-2 font-medium">Gemini</th>
+                  <th className="py-2.5 font-medium">Gemini</th>
+                  <th className="py-2.5 pr-2 font-medium">Sarvam</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/70">
@@ -231,7 +232,7 @@ export function CitationsTabContent({
                     <td className="py-3 font-mono text-slate-500">
                       {row.estimatedVolume ? row.estimatedVolume.toLocaleString() : "—"}
                     </td>
-                    {(["CHATGPT", "CLAUDE", "GEMINI"] as const).map((assistant) => {
+                    {(["CHATGPT", "CLAUDE", "GEMINI", "SARVAM"] as const).map((assistant) => {
                       const check = row.latestChecks?.find((c) => c.assistant === assistant);
                       return (
                         <td key={assistant} className="py-3">

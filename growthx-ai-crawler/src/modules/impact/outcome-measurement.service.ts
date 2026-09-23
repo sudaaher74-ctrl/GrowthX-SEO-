@@ -65,6 +65,7 @@ export class OutcomeMeasurementService {
       AiAssistant.CLAUDE,
       AiAssistant.PERPLEXITY,
       AiAssistant.GEMINI,
+      AiAssistant.SARVAM,
     ];
 
     for (const intervention of dueInterventions) {

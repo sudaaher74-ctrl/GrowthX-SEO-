@@ -1061,10 +1061,11 @@ enum Role {
 
 /// Assistants we report citation share for.
 ///
-/// Only CHATGPT, CLAUDE, and GEMINI can be queried directly through a vendor
-/// API. PERPLEXITY, AI_OVERVIEWS, and COPILOT are defined so the dashboard can
-/// display them, but no check runs against them until an adapter exists —
-/// `PromptCheck.error` records that rather than reporting a fabricated zero.
+/// Only CHATGPT, CLAUDE, GEMINI, and SARVAM can be queried directly through a
+/// vendor API. PERPLEXITY, AI_OVERVIEWS, and COPILOT are defined so the
+/// dashboard can display them, but no check runs against them until an adapter
+/// exists — `PromptCheck.error` records that rather than reporting a fabricated
+/// zero.
 enum AiAssistant {
   CHATGPT
   CLAUDE
@@ -1072,6 +1073,9 @@ enum AiAssistant {
   PERPLEXITY
   AI_OVERVIEWS
   COPILOT
+  /// Sarvam's own assistant (sarvam-105b). Measured as itself — a Sarvam answer
+  /// is never recorded under another assistant's name.
+  SARVAM
 }
 
 /// What a searcher is trying to do, used to cluster prompts in reporting.

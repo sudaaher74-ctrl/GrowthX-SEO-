@@ -11,6 +11,7 @@ surface sits behind `Feature.AI_VISIBILITY`.
 | ChatGPT | ✅ | OpenAI API |
 | Claude | ✅ | Anthropic API |
 | Gemini | ✅ | Google GenAI API |
+| Sarvam (Indus) | ✅ | Sarvam API (`SARVAM_API_KEY`, `sarvam-105b`) |
 | Perplexity | ❌ | No adapter yet — has an API, not wired |
 | Google AI Overviews | ❌ | No public API |
 | Copilot | ❌ | No public API |
@@ -22,6 +23,11 @@ recommended", and conflating them would understate a customer's real position.
 
 Adding Perplexity later means one entry in `ASSISTANT_PROVIDER` and a provider in the
 router — nothing else changes.
+
+Each assistant is answered only by its own vendor. A deployment that has only a
+Sarvam key measures Sarvam and lists ChatGPT, Claude and Gemini under
+`skippedAssistants` — it never asks Sarvam and files the answer as "ChatGPT". The
+dashboard's `measurableAssistants` lists what this deployment can actually ask.
 
 > **Framing for sales:** this measures and tracks citation share. It does not
 > guarantee placement. Nobody can promise a ranking inside someone else's model.
@@ -48,7 +54,7 @@ share-of-voice.
 `sweepProject` verifies `AI_VISIBILITY_CHECKS` for the whole batch **before** running
 anything, then records usage only for checks that succeeded — a provider outage costs
 the customer nothing. Pro includes 3,000 checks/month; with 3 assistants that is
-~33 prompts checked daily.
+~33 prompts checked daily (fewer when more assistants are configured).
 
 ## Endpoints
 

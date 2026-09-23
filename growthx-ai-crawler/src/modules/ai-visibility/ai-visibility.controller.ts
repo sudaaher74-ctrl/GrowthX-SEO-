@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } fro
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AiAssistant, SearchIntent } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AiVisibilityService, SUPPORTED_ASSISTANTS } from './ai-visibility.service';
+import { AiVisibilityService } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 import { GeoSimulationService } from './geo-simulation.service';
 
@@ -69,8 +69,8 @@ export class AiVisibilityController {
     return {
       ...report,
       // Stated explicitly so the dashboard never implies we measured an
-      // assistant we cannot actually query.
-      measurableAssistants: SUPPORTED_ASSISTANTS,
+      // assistant we cannot actually query on this deployment.
+      measurableAssistants: this.visibility.measurableAssistants(),
     };
   }
 
@@ -230,7 +230,7 @@ export class AiVisibilityController {
       type: 'object',
       properties: {
         query: { type: 'string', example: 'best ai seo automation tools for ecommerce' },
-        engines: { type: 'array', items: { type: 'string', enum: ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE'] } },
+        engines: { type: 'array', items: { type: 'string', enum: ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE', 'SARVAM'] } },
         location: { type: 'string', example: 'United States' },
       },
       required: ['query'],
@@ -239,7 +239,7 @@ export class AiVisibilityController {
   async simulateQuery(
     @Req() req: any,
     @Param('projectId') projectId: string,
-    @Body() body: { query: string; engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE'>; location?: string },
+    @Body() body: { query: string; engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM'>; location?: string },
   ) {
     const orgId = req.organizationId || 'default-org';
     return this.geoSimulation.simulateQuery(orgId, projectId, body);

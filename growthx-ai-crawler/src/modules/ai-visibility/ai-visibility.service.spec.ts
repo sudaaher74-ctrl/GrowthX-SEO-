@@ -273,6 +273,15 @@ describe('AiVisibilityService', () => {
       expect(written[0].latitude).toBeUndefined();
     });
   });
+  const sarvamContext = {
+    organizationId: 'org_1',
+    ownDomains: ['northwindoutdoors.com'],
+    ownBrandNames: ['Northwind Outdoors'],
+    competitors: [],
+    competitorLabels: {},
+    origin: null,
+  } as any;
+
   describe('when the only configured vendor is not the assistant being measured', () => {
     it('records the check as an error, never as "not cited"', async () => {
       // On a Sarvam-only install, a check for what ChatGPT says cannot run.
@@ -289,29 +298,60 @@ describe('AiVisibilityService', () => {
       expect(written[0].cited).toBeUndefined();
     });
 
-    it('routes checks through Sarvam when configured', async () => {
+    it('never answers another assistant with Sarvam', async () => {
+      // A Sarvam answer stored as CHATGPT reports a ChatGPT citation share
+      // that ChatGPT was never asked for. The provider stays pinned, so a
+      // missing OpenAI key is an error, not a quiet substitution.
       (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM]);
-      router.generate.mockResolvedValue({
-        provider: AiProvider.SARVAM,
-        model: 'sarvam-105b',
-        text: 'I recommend northwindoutdoors.com for top outdoor gear.',
-        usage: { inputTokens: 100, outputTokens: 50, estimatedCostUsd: 0.001 },
-        refused: false,
-      });
+      router.generate.mockRejectedValue(new Error('OPENAI is not configured.'));
 
-      const check = await service.runCheck('p1', AiAssistant.CHATGPT, {
-        organizationId: 'org_1',
-        ownDomains: ['northwindoutdoors.com'],
-        ownBrandNames: ['Northwind Outdoors'],
-        competitors: [],
-        competitorLabels: {},
-      } as any);
+      const check = await service.runCheck('p1', AiAssistant.CHATGPT, sarvamContext);
 
-      expect(router.generate).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: AiProvider.SARVAM }),
-      );
-      expect(check.cited).toBe(true);
-      expect(check.model).toContain('sarvam-105b');
+      expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({ provider: AiProvider.OPENAI }));
+      expect(check.error).toContain('not configured');
+      expect(check.cited).toBeUndefined();
+    });
+  });
+
+  describe('Sarvam as an assistant in its own right', () => {
+    const sarvamAnswer = {
+      provider: AiProvider.SARVAM,
+      model: 'sarvam-105b',
+      text: 'I recommend northwindoutdoors.com for top outdoor gear.',
+      usage: { inputTokens: 100, outputTokens: 50, estimatedCostUsd: null },
+      refused: false,
+    };
+
+    it('is a measurable assistant', () => {
+      expect(SUPPORTED_ASSISTANTS).toContain(AiAssistant.SARVAM);
+    });
+
+    it('asks Sarvam and records the answer under SARVAM', async () => {
+      router.generate.mockResolvedValue(sarvamAnswer);
+
+      const check = await service.runCheck('p1', AiAssistant.SARVAM, sarvamContext);
+
+      expect(router.generate).toHaveBeenCalledWith(expect.objectContaining({ provider: AiProvider.SARVAM }));
+      // The same plain question every assistant gets — no role-play prompt.
+      expect(router.generate.mock.calls[0][0].systemInstruction).not.toMatch(/simulat/i);
+      expect(check).toMatchObject({ assistant: AiAssistant.SARVAM, model: 'sarvam-105b', cited: true });
+    });
+
+    it('on a Sarvam-only install, measures Sarvam and reports the rest as skipped', async () => {
+      (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM]);
+      router.generate.mockResolvedValue(sarvamAnswer);
+
+      const result = await service.sweepProject('proj_1');
+
+      const written = prisma.promptCheck.create.mock.calls.map((c: any) => c[0].data);
+      expect(written.map((row: any) => row.assistant)).toEqual([AiAssistant.SARVAM]);
+      expect(result.checksRun).toBe(1);
+      expect(result.skippedAssistants).toEqual([AiAssistant.CHATGPT, AiAssistant.CLAUDE, AiAssistant.GEMINI]);
+    });
+
+    it('lists only the assistants whose vendor is configured as measurable', () => {
+      (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM, AiProvider.ANTHROPIC]);
+      expect(service.measurableAssistants()).toEqual([AiAssistant.CLAUDE, AiAssistant.SARVAM]);
     });
   });
 });
