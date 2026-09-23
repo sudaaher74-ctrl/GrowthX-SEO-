@@ -334,124 +334,36 @@ export interface VisibilityReport {
   measurableAssistants: string[];
 }
 
-export interface CouncilSpeaker {
-  id: "claude" | "chatgpt" | "gemini";
-  name: string;
-  provider: string;
-  avatarTone: "amber" | "emerald" | "blue";
-  roleTitle: string;
-  corePhilosophy: string;
-}
+export type InsightLevel = "HIGH" | "MEDIUM" | "LOW";
 
-export interface CouncilDialogueTurn {
-  id: string;
-  speaker: "claude" | "chatgpt" | "gemini";
-  speakerName: string;
-  phase: "initial_assessment" | "honest_debate" | "collaborative_plan";
-  message: string;
-  targetedInsight?: string;
-  referencedMetric?: string;
-}
-
-export interface CouncilActionPillar {
-  step: number;
-  title: string;
-  leadSpeaker: "claude" | "chatgpt" | "gemini";
-  leadSpeakerName: string;
-  objective: string;
-  whyItMatters: string;
-  impactScore: number;
-  timeframe: string;
-  actionHref: string;
-}
-
-export interface CouncilDiscussionReport {
+/** AI-written analysis of measured citation data. Never generated before a sweep. */
+export interface VisibilityInsights {
   projectId: string;
-  businessName: string;
-  domain: string;
+  status: "READY" | "NO_DATA";
   generatedAt: string;
-  topic?: string;
-  consensusScorePct: number;
-  participants: CouncilSpeaker[];
-  dialogue: CouncilDialogueTurn[];
-  collaborativePlan: CouncilActionPillar[];
-  executiveSummary: string;
-}
-
-export interface ClaudeSectorDemographic {
-  sector: string;
-  subArea: string;
-  affluenceLevel: "High" | "Upper-Middle" | "Moderate" | "Emerging";
-  avgHouseholdIncome: string;
-  populationProfile: string;
-  recommendedProductTier: string;
-  conversionChannel: string;
-  demandIndex: number;
-}
-
-export interface ClaudeMarketIntelligence {
-  engine: "claude";
-  targetRegion: string;
-  businessName: string;
-  domain: string;
-  sectorBreakdown: ClaudeSectorDemographic[];
-  macroCatalysts: {
-    title: string;
-    description: string;
-    impactOnBusiness: string;
-    source: string;
-  }[];
-  demographicInsight: string;
-  strategicTakeaways: string[];
-}
-
-export interface OpenAiCommercialIntelligence {
-  engine: "openai";
-  businessName: string;
-  domain: string;
-  highIntentQueries: {
-    prompt: string;
-    intentType: "Commercial Investigation" | "High Purchase Intent" | "Alternative Seeking";
-    searchVolumeEstimate: string;
-    citationDifficulty: "Low" | "Medium" | "High";
-    winningSnippetAngle: string;
-  }[];
-  competitorConquesting: {
-    competitor: string;
-    displacementPrompt: string;
-    counterArgument: string;
-    targetFeatureHook: string;
-  }[];
-  conversionHooks: string[];
-}
-
-export interface GeminiEcosystemIntelligence {
-  engine: "gemini";
-  businessName: string;
-  domain: string;
-  aiOverviewsTriggers: {
-    query: string;
-    aioProbability: number;
-    requiredSchema: string;
-    snippetExtractionStrategy: string;
-  }[];
-  knowledgeGraphEntity: {
-    entityConfidenceScore: number;
-    schemaCompletenessPct: number;
-    recommendedSameAsLinks: string[];
-    missingAttributes: string[];
+  model: string | null;
+  question: string | null;
+  basedOn: {
+    periodDays: number;
+    checks: number;
+    cited: number;
+    failedChecks: number;
+    prompts: number;
+    competitors: number;
+    crawlIssues: number;
   };
-  localPackDominance: {
-    pillar: string;
-    status: "OPTIMIZED" | "ACTION_REQUIRED" | "CRITICAL_GAP";
-    recommendation: string;
+  summary: string | null;
+  answer: string | null;
+  findings: { title: string; detail: string; evidence: string }[];
+  recommendations: {
+    title: string;
+    category: "CONTENT" | "TECHNICAL" | "AUTHORITY" | "ON_PAGE";
+    priority: InsightLevel;
+    effort: InsightLevel;
+    rationale: string;
+    evidence: string;
   }[];
 }
-
-export type SpecializedAiIntelligence =
-  | ClaudeMarketIntelligence
-  | OpenAiCommercialIntelligence
-  | GeminiEcosystemIntelligence;
 
 export interface TrackedPromptRow {
   id: string;
@@ -468,6 +380,8 @@ export interface TrackedPromptRow {
     citedUrl: string | null;
     competitorsCited: string[];
     error: string | null;
+    model: string | null;
+    answerExcerpt: string | null;
   }[];
 }
 
@@ -1838,16 +1752,19 @@ export interface VerificationCertificate {
   items: VerificationCertificateItem[];
 }
 
+export type GeoEngine = "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM";
+
 export interface GeoEngineResult {
-  engine: "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM";
-  model: string;
+  engine: GeoEngine;
+  /** The model that actually answered; null when the engine was not asked. */
+  model: string | null;
+  /** Why there is no answer. When set, every measurement is empty. */
+  error: string | null;
   cited: boolean;
   position: number | null;
   citedUrl: string | null;
-  sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
   competitorsCited: string[];
-  hallucinationRisk: "LOW" | "MEDIUM" | "HIGH";
-  answerExcerpt: string;
+  answerExcerpt: string | null;
   latencyMs: number;
 }
 
@@ -1860,21 +1777,23 @@ export interface GeoDisplacementPatch {
   faqSchema: string;
   category: string;
   priority: "CRITICAL" | "HIGH" | "MEDIUM";
+  draftedBy: string;
 }
 
 export interface GeoSimulationResult {
   query: string;
   domain: string;
   brandName: string;
-  overallCitationRate: number;
-  overallShareOfVoice: number;
+  enginesAnswered: number;
+  overallCitationRate: number | null;
+  overallShareOfVoice: number | null;
   engines: GeoEngineResult[];
-  displacementPatch: GeoDisplacementPatch;
+  displacementPatch: GeoDisplacementPatch | null;
 }
 
 export interface SimulateGeoBody {
   query: string;
-  engines?: Array<"PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM">;
+  engines?: GeoEngine[];
   location?: string;
 }
 
@@ -3314,31 +3233,10 @@ export const api = {
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
-  getCouncilDiscussion: (projectId: string, topic?: string) =>
-    get<CouncilDiscussionReport>(
-      `/api/projects/${projectId}/ai-visibility/council${topic ? `?topic=${encodeURIComponent(topic)}` : ""}`,
-    ),
-  askCouncil: (projectId: string, topic: string) =>
-    post<CouncilDiscussionReport>(`/api/projects/${projectId}/ai-visibility/council`, { topic }),
-  getSpecializedAi: (
-    projectId: string,
-    engine: "claude" | "openai" | "gemini" = "claude",
-    location?: string,
-  ) =>
-    get<SpecializedAiIntelligence>(
-      `/api/projects/${projectId}/ai-visibility/specialized?engine=${engine}${
-        location ? `&location=${encodeURIComponent(location)}` : ""
-      }`,
-    ),
-  querySpecializedAi: (
-    projectId: string,
-    engine: "claude" | "openai" | "gemini",
-    location?: string,
-  ) =>
-    post<SpecializedAiIntelligence>(`/api/projects/${projectId}/ai-visibility/specialized`, {
-      engine,
-      location,
-    }),
+  getVisibilityInsights: (projectId: string, question?: string) =>
+    question
+      ? post<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`, { question })
+      : get<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`),
   /**
    * Returns the stored CompetitorDomain row, not the enriched shape
    * `listCompetitors` builds — the scores and crawl state on that one are

@@ -66,6 +66,8 @@ the customer nothing. Pro includes 3,000 checks/month; with 3 assistants that is
 | `POST` | `/api/projects/:projectId/ai-visibility/competitors` | Track a rival (set `label`!) |
 | `POST` | `/api/projects/:projectId/ai-visibility/sweep` | Run all checks now |
 | `GET` | `/api/projects/:projectId/ai-visibility/aeo` | On-page answer-engine readiness |
+| `GET`/`POST` | `/api/projects/:projectId/ai-visibility/insights` | AI-written analysis + recommendations from measured checks (`question` to ask something specific) |
+| `POST` | `/api/projects/:projectId/ai-visibility/simulate` | Ask one query live to each enabled engine, plus a drafted answer section |
 
 A daily sweep runs at 06:00 UTC (`AI_VISIBILITY_SWEEP_ENABLED=false` to disable). It
 skips orgs whose plan lapsed or whose allowance is spent, and one failing project

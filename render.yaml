@@ -92,6 +92,11 @@ services:
       # sized for the answer alone comes back empty. See .env.example.
       - key: SARVAM_API_KEY
         sync: false
+      # Every AI task runs on Sarvam only. Other vendor keys below stay
+      # unused while this is set; add a vendor here (comma-separated) to
+      # let the router reach it again.
+      - key: AI_PROVIDERS
+        value: SARVAM
       - key: SARVAM_MODEL
         value: sarvam-105b
       # Sarvam's Starter plan caps output at 4096 tokens; raise to your plan's

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AiVisibilityService } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 import { GeoSimulationService } from './geo-simulation.service';
+import { VisibilityInsightsService } from './visibility-insights.service';
 
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -57,6 +58,7 @@ export class AiVisibilityController {
     private readonly visibility: AiVisibilityService,
     private readonly aeo: AeoAnalysisService,
     private readonly geoSimulation: GeoSimulationService,
+    private readonly insights: VisibilityInsightsService,
   ) {}
 
   @Get()
@@ -165,65 +167,32 @@ export class AiVisibilityController {
     return this.aeo.analyzeWebsiteAeo(projectId);
   }
 
-  @Get('council')
-  @ApiOperation({ summary: 'Tri-engine AI council discussion between Claude, ChatGPT, and Gemini' })
+  @Get('insights')
+  @ApiOperation({ summary: 'AI-written analysis of the measured citation data, with recommendations' })
   @ApiParam({ name: 'projectId' })
-  @ApiQuery({ name: 'topic', required: false, example: 'How to increase enterprise conversions' })
-  getCouncil(@Param('projectId') projectId: string, @Query('topic') topic?: string) {
-    return this.visibility.getCouncilDiscussion(projectId, topic);
+  @ApiQuery({ name: 'question', required: false, example: 'Why are competitors cited instead of us?' })
+  getInsights(@Param('projectId') projectId: string, @Query('question') question?: string) {
+    return this.insights.getInsights(projectId, question);
   }
 
-  @Post('council')
-  @ApiOperation({ summary: 'Ask custom question to the Tri-engine AI council' })
+  @Post('insights')
+  @ApiOperation({ summary: 'Ask a question about the measured citation data' })
   @ApiParam({ name: 'projectId' })
   @ApiBody({
     required: false,
     schema: {
       type: 'object',
       properties: {
-        topic: { type: 'string', example: 'How do we beat our biggest competitor?' },
+        question: { type: 'string', example: 'How do we get cited for our main service?' },
       },
     },
   })
-  askCouncil(@Param('projectId') projectId: string, @Body() body?: { topic?: string }) {
-    return this.visibility.getCouncilDiscussion(projectId, body?.topic);
-  }
-
-  @Get('specialized')
-  @ApiOperation({ summary: 'Specialized deep AI intelligence appointed to Claude (Market/Demographics), OpenAI (Commercial/Conquesting), or Gemini (Google Ecosystem/AIO)' })
-  @ApiParam({ name: 'projectId' })
-  @ApiQuery({ name: 'engine', required: false, enum: ['CLAUDE', 'OPENAI', 'GEMINI'] })
-  @ApiQuery({ name: 'location', required: false, example: 'Pune, India' })
-  getSpecialized(
-    @Param('projectId') projectId: string,
-    @Query('engine') engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI',
-    @Query('location') location?: string,
-  ) {
-    return this.visibility.getSpecializedAiIntelligence(projectId, engine, location);
-  }
-
-  @Post('specialized')
-  @ApiOperation({ summary: 'Query specialized deep AI intelligence with target location or parameters' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    required: false,
-    schema: {
-      type: 'object',
-      properties: {
-        engine: { type: 'string', enum: ['CLAUDE', 'OPENAI', 'GEMINI'] },
-        location: { type: 'string', example: 'Pune, India' },
-      },
-    },
-  })
-  querySpecialized(
-    @Param('projectId') projectId: string,
-    @Body() body?: { engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI'; location?: string },
-  ) {
-    return this.visibility.getSpecializedAiIntelligence(projectId, body?.engine, body?.location);
+  askInsights(@Param('projectId') projectId: string, @Body() body?: { question?: string }) {
+    return this.insights.getInsights(projectId, body?.question);
   }
 
   @Post('simulate')
-  @ApiOperation({ summary: 'Simulate search query across Perplexity, ChatGPT, Gemini, and Claude with displacement patch' })
+  @ApiOperation({ summary: 'Ask a search query live to each enabled AI engine and draft content for it' })
   @ApiParam({ name: 'projectId' })
   @ApiBody({
     schema: {

@@ -511,4 +511,29 @@ describe('MultiAiRouterService', () => {
       expect(result.usage.estimatedCostUsd).toBeNull();
     });
   });
+
+  describe('AI_PROVIDERS allowlist', () => {
+    it('restricts every task to the listed vendors even when other keys are set', async () => {
+      const { service } = build({ SARVAM_API_KEY: 'sv-real', AI_PROVIDERS: 'sarvam' });
+
+      expect(service.configuredProviders()).toEqual([AiProvider.SARVAM]);
+      for (const task of Object.values(AiTask)) {
+        expect(service.chainFor(task)).toEqual([AiProvider.SARVAM]);
+      }
+      // A caller pinning another vendor is refused, not quietly served.
+      await expect(service.generate({ prompt: 'x', provider: AiProvider.OPENAI })).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('leaves every keyed vendor available when unset', () => {
+      const { service } = build({ SARVAM_API_KEY: 'sv-real' });
+      expect(service.configuredProviders()).toEqual([
+        AiProvider.SARVAM,
+        AiProvider.GEMINI,
+        AiProvider.OPENAI,
+        AiProvider.ANTHROPIC,
+      ]);
+    });
+  });
 });

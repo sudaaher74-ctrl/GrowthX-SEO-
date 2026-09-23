@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
 import type { VisibilityReport, TrackedCompetitor } from "@/lib/api-client";
+import { assistantList } from "@/lib/ai-assistants";
 
 export interface AiVisibilityCompetitorsTabProps {
   report?: VisibilityReport | null;
@@ -59,31 +60,17 @@ export function AiVisibilityCompetitorsTab({
 
   // Real Competitor Benchmarking Rows
   const comparisonRows = useMemo(() => {
-    if (shareOfVoice.length === 0) {
-      if (domain) {
-        return [
-          {
-            rank: 1,
-            name: domain,
-            domain: domain,
-            isYou: true,
-            sharePct: report?.summary?.citationSharePct ?? 0,
-            mentions: report?.summary?.cited ?? 0,
-            sentiment: "Positive",
-          },
-        ];
-      }
-      return [];
-    }
+    // Nothing measured means nothing to benchmark — never a 0% row for the customer.
+    if (shareOfVoice.length === 0) return [];
 
+    // The report marks the customer's own row with a null domain.
     return shareOfVoice.map((item, idx) => ({
       rank: idx + 1,
       name: item.label || item.domain || "Competitor",
-      domain: item.domain || item.label || "",
-      isYou: item.domain === domain,
+      domain: item.domain ?? (domain || item.label || ""),
+      isYou: item.domain === null,
       sharePct: item.sharePct,
       mentions: item.mentions,
-      sentiment: item.sharePct >= 20 ? "Positive" : "Neutral",
     }));
   }, [shareOfVoice, domain, report?.summary]);
 
@@ -101,7 +88,8 @@ export function AiVisibilityCompetitorsTab({
   }, [comparisonRows]);
 
   // Derived Real KPIs
-  const yourShare = report?.summary?.citationSharePct ?? 0;
+  const yourShare = comparisonRows.find((r) => r.isYou)?.sharePct ?? 0;
+  const assistantsAsked = assistantList(report?.measurableAssistants);
   const competitorsCitedMore = comparisonRows.filter((r) => !r.isYou && r.sharePct > yourShare).length;
   const topRival = comparisonRows.find((r) => !r.isYou) || null;
   const totalChecked = report?.summary?.checked ?? 0;
@@ -115,7 +103,7 @@ export function AiVisibilityCompetitorsTab({
         <AiKpiCard
           label="Your Citation Share"
           value={`${yourShare}%`}
-          subtext="Proportion of total LLM recommendations"
+          subtext="Your share of all brand mentions"
           icon={<Users size={16} />}
           iconBgColor="bg-slate-100 text-slate-900"
           colorScheme="default"
@@ -155,7 +143,7 @@ export function AiVisibilityCompetitorsTab({
         <AiKpiCard
           label="Queries Evaluated"
           value={totalChecked.toString()}
-          subtext="Across ChatGPT, Claude, and Gemini"
+          subtext={`Answers from ${assistantsAsked}`}
           icon={<Target size={16} />}
           iconBgColor="bg-blue-50 text-blue-600"
           colorScheme="blue"
@@ -295,7 +283,7 @@ export function AiVisibilityCompetitorsTab({
           <div>
             <h3 className="text-base font-bold text-slate-900">LLM Benchmarking Leaderboard</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Measured share of voice across ChatGPT, Claude, and Gemini
+              Measured share of voice across {assistantsAsked}
             </p>
           </div>
           <span className="text-xs text-slate-400 font-semibold">
@@ -320,7 +308,6 @@ export function AiVisibilityCompetitorsTab({
                   <th className="p-3.5 font-bold">Domain / Brand</th>
                   <th className="p-3.5 font-bold">Recommendation Share</th>
                   <th className="p-3.5 font-bold">Total Mentions</th>
-                  <th className="p-3.5 font-bold">Perceived Sentiment</th>
                   <th className="p-3.5 font-bold text-center">Status</th>
                 </tr>
               </thead>
@@ -353,17 +340,6 @@ export function AiVisibilityCompetitorsTab({
                       </div>
                     </td>
                     <td className="p-3.5 font-mono text-slate-700">{row.mentions.toLocaleString()}</td>
-                    <td className="p-3.5">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          row.sentiment === "Positive"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {row.sentiment}
-                      </span>
-                    </td>
                     <td className="p-3.5 text-center">
                       <span className="text-[11px] font-medium text-slate-500">
                         {row.isYou ? "Primary Site" : "Competitor"}

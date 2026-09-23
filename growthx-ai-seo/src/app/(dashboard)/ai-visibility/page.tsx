@@ -16,6 +16,7 @@ import {
   Building2,
   Globe,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   useWorkspace,
@@ -34,12 +35,13 @@ import { AiPipelineBanner } from "@/components/ai-visibility/ai-pipeline-banner"
 import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibility-overview-tab";
 import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
 import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
+import { AiInsightsTab } from "@/components/ai-visibility/ai-visibility-insights-tab";
 import { GeoSimulationSandbox } from "@/components/ai-visibility/geo-simulation-sandbox";
 import {
-  AiInsightsTabContent,
   CitationsTabContent,
   ContentGapsTabContent,
 } from "@/components/ai-visibility/ai-visibility-other-tabs";
+import { assistantList } from "@/lib/ai-assistants";
 
 export default function AiVisibilityPage() {
   return (
@@ -87,7 +89,7 @@ function AiVisibilityClient() {
   const [showAddCompModal, setShowAddCompModal] = useState(false);
   const [newQueryText, setNewQueryText] = useState("");
   const [newCompDomain, setNewCompDomain] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   // Pages crawled count
   const pagesCrawled = crawlQuery.data?.pagesCrawled;
@@ -99,9 +101,20 @@ function AiVisibilityClient() {
       const res = await sweep.mutateAsync();
       await prompts.refetch();
       await visibility.refetch();
-      setStatusMessage(`AI Visibility sweep completed! Probed model citations across ChatGPT, Claude and Gemini.`);
+      // Report exactly what ran — never "completed" for a sweep where every
+      // check failed.
+      const parts = [
+        `${res.checksRun} answer${res.checksRun === 1 ? "" : "s"} checked`,
+        `cited in ${res.citations}`,
+      ];
+      if (res.checksFailed > 0) parts.push(`${res.checksFailed} could not run`);
+      if (res.skippedAssistants.length > 0) parts.push(`${assistantList(res.skippedAssistants)} not enabled`);
+      setStatusMessage({
+        text: res.checksRun > 0 ? `Sweep finished: ${parts.join(", ")}.` : `No answers were measured: ${parts.join(", ")}.`,
+        ok: res.checksRun > 0,
+      });
     } catch (err) {
-      setStatusMessage(errorMessage(err));
+      setStatusMessage({ text: errorMessage(err), ok: false });
     }
   };
 
@@ -137,6 +150,7 @@ function AiVisibilityClient() {
   const report = visibility.data;
   const promptList = prompts.data ?? [];
   const competitorsList = competitorsQuery.data ?? [];
+  const assistantsAsked = assistantList(report?.measurableAssistants);
 
   return (
     <div className="space-y-6 pb-16">
@@ -152,12 +166,12 @@ function AiVisibilityClient() {
             </h1>
             <p className="mt-1.5 text-[12.5px] text-slate-500 max-w-2xl leading-relaxed">
               {activeTab === "sandbox"
-                ? "Simulate multi-model queries across Perplexity, ChatGPT, Gemini, and Claude in real time. Track brand share of voice and stage autonomous citation displacement patches."
+                ? `Ask ${assistantsAsked} any search question live, see whether your brand is cited, and get a draft section to answer it.`
                 : activeTab === "competitors"
-                ? "See how your brand compares against competitors across ChatGPT, Claude and Gemini, and find opportunities to increase your AI visibility."
+                ? `See how often ${assistantsAsked} names your brand versus your tracked competitors.`
                 : activeTab === "recommendations"
-                ? "Actionable recommendations to improve your brand's visibility in ChatGPT, Claude and Gemini."
-                : "See how AI models perceive your brand, track citations, and get actionable insights to improve your presence in ChatGPT, Claude and Gemini."}
+                ? `Recommendations drawn from what ${assistantsAsked} actually said about your market.`
+                : `Track whether ${assistantsAsked} cites your brand when buyers ask your questions.`}
             </p>
           </div>
         </div>
@@ -246,13 +260,21 @@ function AiVisibilityClient() {
 
       {/* Status banner if sweep finished */}
       {statusMessage && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-2.5 text-[12.5px] font-medium text-emerald-800">
-          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-          <span>{statusMessage}</span>
+        <div
+          className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[12.5px] font-medium ${
+            statusMessage.ok ? "bg-success-50 text-success-700" : "bg-warning-50 text-warning-700"
+          }`}
+        >
+          {statusMessage.ok ? (
+            <CheckCircle2 size={15} className="text-success-600 shrink-0" />
+          ) : (
+            <AlertTriangle size={15} className="text-warning-600 shrink-0" />
+          )}
+          <span>{statusMessage.text}</span>
           <button
             type="button"
             onClick={() => setStatusMessage(null)}
-            className="ml-auto text-emerald-600 hover:text-emerald-900"
+            className="ml-auto opacity-70 hover:opacity-100"
           >
             <X size={14} />
           </button>
@@ -271,9 +293,9 @@ function AiVisibilityClient() {
         domain={domain}
         crawledPages={pagesCrawled}
         competitorsCount={competitorsList.length}
-        onViewDiscussion={() => setActiveTab("insights")}
+        report={report}
+        onViewInsights={() => setActiveTab("insights")}
         onViewCrawlDetails={() => window.location.assign("/website")}
-        onViewSummary={() => setActiveTab("insights")}
         isAnalyzing={sweep.isPending}
       />
 
@@ -331,8 +353,8 @@ function AiVisibilityClient() {
       {activeTab === "sandbox" && (
         <GeoSimulationSandbox
           projectId={projectId}
-          domain={domain}
-          businessName={businessName}
+          availableEngines={report?.measurableAssistants}
+          suggestions={promptList.map((p) => p.text)}
         />
       )}
 
@@ -347,11 +369,7 @@ function AiVisibilityClient() {
       )}
 
       {activeTab === "insights" && (
-        <AiInsightsTabContent
-          projectId={projectId || ""}
-          domain={domain}
-          businessName={businessName}
-        />
+        <AiInsightsTab projectId={projectId} onRunSweep={handleRunSweep} />
       )}
 
       {activeTab === "citations" && (
@@ -363,11 +381,11 @@ function AiVisibilityClient() {
       )}
 
       {activeTab === "gaps" && (
-        <ContentGapsTabContent onAddQuery={() => setShowAddQueryModal(true)} />
+        <ContentGapsTabContent promptList={promptList} onAddQuery={() => setShowAddQueryModal(true)} />
       )}
 
       {activeTab === "recommendations" && (
-        <AiVisibilityRecommendationsTab domain={domain} />
+        <AiVisibilityRecommendationsTab projectId={projectId} onRunSweep={handleRunSweep} />
       )}
 
       {/* ── MODAL: ADD BRAND QUERY ── */}
@@ -402,7 +420,7 @@ function AiVisibilityClient() {
                   autoFocus
                 />
                 <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                  Our system will probe ChatGPT, Claude, and Gemini to track brand citations and sentiment for this query.
+                  We will ask {assistantsAsked} this question on every sweep and record whether your brand is cited.
                 </p>
               </div>
 
