@@ -33,6 +33,7 @@ import {
 import { api, type TrackedCompetitor, type CrawlIssue } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages, useCrawlIssues, useVisibility, useTrackedPrompts } from "@/hooks/use-growthx";
 import { errorMessage } from "@/lib/error-message";
+import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
 /* ──────────────────────────────────────────────────────────────────────────
    1. COMPETITORS DISCOVERY TAB
@@ -631,10 +632,10 @@ export function CompetitorAiVisibilityTab({
   const report = visibilityQuery.data;
   const prompts = trackedPromptsQuery.data || [];
 
-  const byAssistant = report?.byAssistant || [];
-  const chatgptShare = byAssistant.find((a) => a.assistant.toLowerCase().includes("chatgpt") || a.assistant.toLowerCase().includes("openai"))?.citationSharePct ?? 0;
-  const claudeShare = byAssistant.find((a) => a.assistant.toLowerCase().includes("claude") || a.assistant.toLowerCase().includes("anthropic"))?.citationSharePct ?? 0;
-  const geminiShare = byAssistant.find((a) => a.assistant.toLowerCase().includes("gemini") || a.assistant.toLowerCase().includes("google"))?.citationSharePct ?? 0;
+  // One tile per assistant this deployment actually asks. An assistant that
+  // has not been asked reads "Not measured yet", never 0%.
+  const assistants = report?.measurableAssistants ?? [];
+  const assistantsAsked = assistantList(assistants);
 
   return (
     <div className="space-y-6">
@@ -642,13 +643,15 @@ export function CompetitorAiVisibilityTab({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-900 shadow-2xs">
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AI &amp; LLM Visibility Benchmarks</h1>
-              <p className="text-sm text-slate-500">
-                Track real brand mentions and citations across ChatGPT, Claude, and Gemini.
+              <h1 className="text-2xl font-bold text-brand-950 tracking-tight">AI &amp; LLM Visibility Benchmarks</h1>
+              <p className="text-sm text-brand-500">
+                {assistants.length > 0
+                  ? `Real brand mentions and citations in answers from ${assistantsAsked}.`
+                  : "No AI assistant is enabled on this deployment, so citations cannot be measured yet."}
               </p>
             </div>
           </div>
@@ -656,117 +659,109 @@ export function CompetitorAiVisibilityTab({
 
         <button
           type="button"
-          onClick={() => onAddToFixPlan?.(prompts.length || 5, "AI Citation Engine Tasks")}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+          onClick={() => onAddToFixPlan?.(prompts.length, "AI Citation Engine Tasks")}
+          disabled={prompts.length === 0}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Stage AI Visibility Tasks to Fix Plan</span>
         </button>
       </div>
 
-      {/* Model Share Cards (Real Data) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700">ChatGPT (OpenAI)</span>
-            <span className="text-xs font-bold text-slate-900">
-              {chatgptShare > 0 ? `${chatgptShare}% Share` : "Pending Sweep"}
-            </span>
-          </div>
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-slate-950 rounded-full" style={{ width: `${Math.max(4, chatgptShare)}%` }} />
-          </div>
-          <p className="text-[11px] text-slate-500 mt-2">
-            Measured from synthetic buyer queries
-          </p>
+      {/* Per-assistant share (real data) */}
+      {assistants.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          {assistants.map((assistant) => {
+            const row = report?.byAssistant?.find((a) => a.assistant === assistant);
+            const measured = Boolean(row && row.checked > 0);
+            return (
+              <div key={assistant} className="rounded-2xl border bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-brand-700">{assistantLabel(assistant)}</span>
+                  <span className="text-xs font-bold text-brand-950">
+                    {measured ? `${row!.citationSharePct}% cited` : "Not measured yet"}
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-brand-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-brand-950 rounded-full"
+                    style={{ width: `${measured ? Math.max(4, row!.citationSharePct) : 0}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-brand-500 mt-2">
+                  {measured
+                    ? `Cited in ${row!.cited} of ${row!.checked} answers to your tracked questions (last 28 days)`
+                    : "Run AI Visibility to ask your tracked questions"}
+                </p>
+              </div>
+            );
+          })}
         </div>
-
-        <div className="rounded-2xl border border-blue-200/80 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700">Claude (Anthropic)</span>
-            <span className="text-xs font-bold text-blue-600">
-              {claudeShare > 0 ? `${claudeShare}% Share` : "Pending Sweep"}
-            </span>
-          </div>
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.max(4, claudeShare)}%` }} />
-          </div>
-          <p className="text-[11px] text-slate-500 mt-2">
-            Measured from research and comparison queries
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-200/80 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700">Gemini (Google)</span>
-            <span className="text-xs font-bold text-emerald-600">
-              {geminiShare > 0 ? `${geminiShare}% Share` : "Pending Sweep"}
-            </span>
-          </div>
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.max(4, geminiShare)}%` }} />
-          </div>
-          <p className="text-[11px] text-slate-500 mt-2">
-            Measured from Google AI Overviews &amp; Gemini responses
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* Prompts Head-to-Head Table */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
-        <h2 className="text-base font-bold text-slate-900">Synthetic Prompt Evaluation Audit</h2>
+      <div className="rounded-2xl border bg-white p-6 shadow-xs space-y-4">
+        <h2 className="text-base font-bold text-brand-950">Tracked Question Results</h2>
         {prompts.length === 0 ? (
-          <div className="p-8 text-center space-y-2 border rounded-xl border-slate-100 bg-slate-50/50">
-            <p className="text-xs font-bold text-slate-800">No Tracked AI Prompts Yet</p>
-            <p className="text-[11px] text-slate-500">
-              Prompts will appear here after your first AI visibility sweep runs.
-            </p>
+          <div className="p-8 text-center space-y-2 border rounded-xl bg-brand-50/50">
+            <p className="text-xs font-bold text-brand-900">No Tracked AI Prompts Yet</p>
+            <p className="text-[11px] text-brand-500">Add questions in AI Visibility, then run a check.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-[11px] font-bold text-slate-600 border-b border-slate-200 uppercase tracking-wider">
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-left text-xs text-brand-600">
+              <thead className="bg-brand-50 text-[11px] font-bold text-brand-600 border-b uppercase tracking-wider">
                 <tr>
-                  <th className="p-3.5 font-bold">Tested User Query / Prompt</th>
+                  <th className="p-3.5 font-bold">Tracked Question</th>
                   <th className="p-3.5 font-bold">Category</th>
                   <th className="p-3.5 font-bold">Status</th>
-                  <th className="p-3.5 font-bold">Citations</th>
+                  <th className="p-3.5 font-bold">Competitors Named</th>
                   <th className="p-3.5 font-bold text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y">
                 {prompts.map((p) => {
-                  const isCited = p.latestChecks?.some((c) => c.cited);
-                  const citedCompetitors = Array.from(new Set(p.latestChecks?.flatMap((c) => c.competitorsCited || []) || []));
+                  const answered = (p.latestChecks ?? []).filter((c) => !c.error);
+                  const failed = (p.latestChecks ?? []).length > 0 && answered.length === 0;
+                  const isCited = answered.some((c) => c.cited);
+                  const citedCompetitors = Array.from(new Set(answered.flatMap((c) => c.competitorsCited || [])));
+                  const status =
+                    answered.length > 0
+                      ? isCited
+                        ? { label: "Cited by AI", tone: "bg-success-50 text-success-700" }
+                        : { label: "Not cited", tone: "bg-error-50 text-error-700" }
+                      : failed
+                        ? { label: "Check failed", tone: "bg-warning-50 text-warning-700" }
+                        : { label: "Not checked yet", tone: "bg-brand-100 text-brand-600" };
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="p-3.5 font-semibold text-slate-900 max-w-sm">
-                        &ldquo;{p.text}&rdquo;
+                    <tr key={p.id} className="hover:bg-brand-50/80 transition-colors">
+                      <td className="p-3.5 font-semibold text-brand-950 max-w-sm">&ldquo;{p.text}&rdquo;</td>
+                      <td className="p-3.5">
+                        {p.intent || p.cluster ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-100 text-brand-700 capitalize">
+                            {p.intent || p.cluster}
+                          </span>
+                        ) : (
+                          <span className="text-brand-400">—</span>
+                        )}
                       </td>
                       <td className="p-3.5">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
-                          {p.intent || p.cluster || "Evaluation"}
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${status.tone}`}>
+                          {status.label}
                         </span>
                       </td>
-                      <td className="p-3.5">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            isCited
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-rose-50 text-rose-700 border border-rose-200"
-                          }`}
-                        >
-                          {isCited ? "Cited by AI" : "Uncited"}
-                        </span>
-                      </td>
-                      <td className="p-3.5 font-mono text-slate-700">
-                        {citedCompetitors.length} competitors cited
+                      <td className="p-3.5 text-brand-700">
+                        {answered.length === 0
+                          ? "—"
+                          : citedCompetitors.length > 0
+                            ? citedCompetitors.join(", ")
+                            : "None"}
                       </td>
                       <td className="p-3.5 text-center">
                         <button
                           type="button"
                           onClick={() => onAddToFixPlan?.(1, `AEO: ${p.text}`)}
-                          className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 text-[11px] font-bold transition-colors"
+                          className="px-2.5 py-1 rounded-lg border text-brand-900 hover:bg-brand-50 text-[11px] font-bold transition-colors"
                         >
                           Stage
                         </button>

@@ -9,6 +9,7 @@ import { useWorkspace, useTrackedPrompts, useAddPrompts, useRunSweep, useGeoGrid
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { stagingEngine } from "@/lib/staging-engine";
+import { assistantLabel } from "@/lib/ai-assistants";
 
 interface GridNode {
   id: string;
@@ -417,13 +418,13 @@ export default function GeoTrackingPage() {
                               <div key={check.assistant} className="flex items-center gap-1.5">
                                 <span
                                   className={`flex h-5 w-5 items-center justify-center rounded-full text-white text-[8px] font-bold ${
-                                    check.cited ? "bg-emerald-500" : "bg-rose-400"
+                                    check.error ? "bg-warning-500" : check.cited ? "bg-success-500" : "bg-error-400"
                                   }`}
-                                  title={`${check.assistant}: ${check.cited ? "Cited" : "Not cited"} on ${new Date(check.checkedAt).toLocaleDateString()}`}
+                                  title={`${assistantLabel(check.assistant)}: ${check.error ? `could not ask (${check.error})` : check.cited ? "Cited" : "Not cited"} on ${new Date(check.checkedAt).toLocaleDateString()}`}
                                 >
-                                  {check.cited ? "✓" : "✕"}
+                                  {check.error ? "!" : check.cited ? "✓" : "✕"}
                                 </span>
-                                <span className="text-[10px] text-brand-500">{check.assistant.replace(/_/g, " ")}</span>
+                                <span className="text-[10px] text-brand-500">{assistantLabel(check.assistant)}</span>
                               </div>
                             ))}
                           </div>

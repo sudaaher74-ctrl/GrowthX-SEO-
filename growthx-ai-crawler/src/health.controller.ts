@@ -1,6 +1,8 @@
 import { Controller, Get, Logger, OnApplicationBootstrap, Optional } from '@nestjs/common';
 import { AiTask, MultiAiRouterService } from './modules/ai-search/multi-ai-router/multi-ai-router.service';
 import { QueueService } from './modules/queue/queue.service';
+import { ConfigService } from '@nestjs/config';
+import { isProviderAllowed, readProviderAllowlist } from './modules/ai-engine/utils/ai-provider-allowlist.util';
 import { CrawlerProcessor } from './modules/crawler/crawler.processor';
 
 /**
@@ -129,9 +131,15 @@ export class HealthController implements OnApplicationBootstrap {
   }
 
   private capabilityList(): Capability[] {
-    const groq = realKey(process.env.GROQ_API_KEY);
-    const openrouter = realKey(process.env.OPENROUTER_API_KEY);
-    const openai = realKey(process.env.OPENAI_API_KEY);
+    // A key the AI_PROVIDERS allowlist rules out is as good as absent: the
+    // routers will not call that vendor.
+    const allowlist = readProviderAllowlist({ get: (key: string) => process.env[key] } as unknown as ConfigService);
+    const usable = (provider: string, envVar: string) =>
+      isProviderAllowed(allowlist, provider) && realKey(process.env[envVar]);
+    const sarvam = usable('sarvam', 'SARVAM_API_KEY');
+    const groq = usable('groq', 'GROQ_API_KEY');
+    const openrouter = usable('openrouter', 'OPENROUTER_API_KEY');
+    const openai = usable('openai', 'OPENAI_API_KEY');
 
     // The *effective* provider, resolved the same way ModelRouterService does.
     // Reading MARKET_RESEARCH_PROVIDER alone is wrong: left unset it
@@ -139,13 +147,15 @@ export class HealthController implements OnApplicationBootstrap {
     // available on a deployment that had auto-selected Groq, which has none.
     const configured = (process.env.MARKET_RESEARCH_PROVIDER || '').toLowerCase();
     const marketProvider =
-      configured === 'openai' || configured === 'openrouter' || configured === 'groq'
+      configured === 'sarvam' || configured === 'openai' || configured === 'openrouter' || configured === 'groq'
         ? configured
-        : groq
-          ? 'groq'
-          : openrouter
-            ? 'openrouter'
-            : 'openai';
+        : sarvam
+          ? 'sarvam'
+          : groq
+            ? 'groq'
+            : openrouter
+              ? 'openrouter'
+              : 'openai';
 
     return [
       {
@@ -161,8 +171,8 @@ export class HealthController implements OnApplicationBootstrap {
       },
       {
         name: 'Market research models',
-        envVar: 'GROQ_API_KEY / OPENROUTER_API_KEY / OPENAI_API_KEY',
-        configured: groq || openrouter || openai,
+        envVar: 'SARVAM_API_KEY / GROQ_API_KEY / OPENROUTER_API_KEY / OPENAI_API_KEY',
+        configured: sarvam || groq || openrouter || openai,
         consequence: 'Market Research cannot run at all without one of these.',
       },
       {

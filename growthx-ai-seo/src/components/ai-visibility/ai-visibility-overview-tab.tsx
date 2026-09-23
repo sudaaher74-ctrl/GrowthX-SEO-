@@ -19,6 +19,7 @@ import {
 import { AiKpiCard } from "./ai-kpi-card";
 import { AiVisibilityGauge } from "./ai-visibility-gauge";
 import type { VisibilityReport } from "@/lib/api-client";
+import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
 export interface AiVisibilityOverviewTabProps {
   report?: VisibilityReport | null;
@@ -41,18 +42,20 @@ export function AiVisibilityOverviewTab({
   onViewRecommendationsTab,
   onGenerateRecommendations,
 }: AiVisibilityOverviewTabProps) {
-  // Real measurements from the AI Visibility engine
-  const mentionRate =
-    report?.summary?.checked && report.summary.checked > 0
-      ? `${Math.round((report.summary.cited / report.summary.checked) * 100)}%`
-      : "0%";
+  // Real measurements from the AI Visibility engine. Before the first sweep
+  // nothing has been measured, which reads as "—", not as 0%.
+  const measured = (report?.summary?.checked ?? 0) > 0;
+  const assistantsAsked = assistantList(report?.measurableAssistants);
+
+  const mentionRate = measured ? `${report!.summary.citationSharePct}%` : "—";
 
   const totalCitations = report?.summary?.cited ?? 0;
 
-  const shareOfVoice =
-    report?.summary?.citationSharePct != null
-      ? `${report.summary.citationSharePct}%`
-      : "0%";
+  // The customer's own share of every brand mention (the report marks the
+  // customer's row with a null domain).
+  const ownVoice = report?.shareOfVoice?.find((row) => row.domain === null);
+  const shareOfVoice = measured && ownVoice ? `${ownVoice.sharePct}%` : "—";
+  const mentionTrend = (report?.trend ?? []).filter((t) => t.checked > 0).map((t) => t.citationSharePct);
 
   const trackedQueries = trackedPromptsCount;
 
@@ -78,7 +81,7 @@ export function AiVisibilityOverviewTab({
       accumulatedOffset -= dashLength;
 
       return {
-        label: asst.assistant,
+        label: assistantLabel(asst.assistant),
         pct,
         color: colors[idx % colors.length],
         strokeDash: `${dashLength} ${totalCircumference}`,
@@ -90,28 +93,16 @@ export function AiVisibilityOverviewTab({
   // Derive top competitors from real shareOfVoice
   const topCompetitors = useMemo(() => {
     const sov = report?.shareOfVoice || [];
-    if (sov.length === 0) {
-      if (domain) {
-        return [
-          {
-            rank: 1,
-            domain: domain,
-            sharePct: report?.summary?.citationSharePct ?? 0,
-            barColor: "bg-emerald-500",
-            isYou: true,
-          },
-        ];
-      }
-      return [];
-    }
+    // Nothing measured means nothing to rank — never a 0% row for the customer.
+    if (sov.length === 0) return [];
 
     const barColors = ["bg-slate-700", "bg-slate-500", "bg-slate-400", "bg-slate-300", "bg-slate-200"];
     return sov.slice(0, 5).map((item, idx) => ({
       rank: idx + 1,
-      domain: item.domain || item.label,
+      domain: item.domain ?? (domain || item.label),
       sharePct: item.sharePct,
-      barColor: item.domain === domain ? "bg-emerald-500" : barColors[idx % barColors.length],
-      isYou: item.domain === domain,
+      barColor: item.domain === null ? "bg-emerald-500" : barColors[idx % barColors.length],
+      isYou: item.domain === null,
     }));
   }, [report?.shareOfVoice, domain, report?.summary?.citationSharePct]);
 
@@ -127,18 +118,19 @@ export function AiVisibilityOverviewTab({
           icon={<Radio size={16} />}
           iconBgColor="bg-emerald-50 text-emerald-600"
           colorScheme="emerald"
-          infoTooltip="Percentage of buyer queries in which your domain or product was cited by ChatGPT, Claude, or Gemini."
+          infoTooltip={`Share of measured answers from ${assistantsAsked} that cited your domain or brand, last 28 days.`}
+          sparkline={mentionTrend}
         />
 
         {/* Card 2: Total Citations */}
         <AiKpiCard
           label="Total Citations"
           value={totalCitations.toLocaleString()}
-          subtext="Citations across ChatGPT, Claude and Gemini."
+          subtext={`Answers from ${assistantsAsked} that cited you.`}
           icon={<Link2 size={16} />}
           iconBgColor="bg-blue-50 text-blue-600"
           colorScheme="blue"
-          infoTooltip="Aggregated citations detected across all multi-turn conversational sweeps."
+          infoTooltip="Measured answers in the last 28 days that named your domain or brand."
         />
 
         {/* Card 3: Share of Voice */}
@@ -149,7 +141,7 @@ export function AiVisibilityOverviewTab({
           icon={<PieChart size={16} />}
           iconBgColor="bg-slate-100 text-slate-900"
           colorScheme="default"
-          infoTooltip="Your proportion of total brand recommendations vs. rival domains."
+          infoTooltip="Your mentions as a share of all brand mentions (you plus tracked competitors) in measured answers."
         />
 
         {/* Card 4: Tracked Queries */}
@@ -160,14 +152,14 @@ export function AiVisibilityOverviewTab({
           icon={<Search size={16} />}
           iconBgColor="bg-amber-50 text-amber-600"
           colorScheme="orange"
-          infoTooltip="Active queries evaluated across AI models for brand citations."
+          infoTooltip="Questions asked of each enabled AI assistant on every sweep."
         />
 
         {/* Card 5: AI Visibility Score Gauge */}
         <AiVisibilityGauge
-          score={report?.summary?.citationSharePct ?? 0}
-          statusLabel={report?.summary?.citationSharePct != null ? (report.summary.citationSharePct > 50 ? "Strong" : "Growing") : "Pending"}
-          subtext="Composite citation & prominence index"
+          score={measured ? report!.summary.citationSharePct : 0}
+          statusLabel={measured ? (report!.summary.citationSharePct > 50 ? "Strong" : "Growing") : "Not measured"}
+          subtext={measured ? "Share of measured answers that cite you" : "Run AI Visibility to measure"}
         />
       </div>
 
@@ -233,7 +225,7 @@ export function AiVisibilityOverviewTab({
             onClick={onViewInsightsTab}
             className="mt-5 w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs font-bold hover:bg-slate-100 transition flex items-center justify-center gap-1.5"
           >
-            <span>View AI Council Analysis</span>
+            <span>View AI Insights</span>
             <ArrowRight size={13} />
           </button>
         </div>
@@ -297,7 +289,7 @@ export function AiVisibilityOverviewTab({
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-            <span>Aggregated across ChatGPT, Claude, and Gemini</span>
+            <span>Measured across {assistantsAsked}</span>
             <span className="text-slate-900 font-semibold cursor-pointer hover:underline" onClick={onViewCompetitorsTab}>
               Deep Dive →
             </span>

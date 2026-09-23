@@ -591,48 +591,17 @@ export function useAddPrompts(projectId: string | null) {
   });
 }
 
-export function useAiCouncil(projectId: string | null, topic?: string) {
+/**
+ * AI-written analysis of the measured citation data. Keyed on the report, so
+ * it refreshes after a sweep. `question` asks something specific of the data.
+ */
+export function useVisibilityInsights(projectId: string | null, question?: string) {
   return useQuery({
-    queryKey: ["ai-council", projectId, topic],
-    queryFn: () => api.getCouncilDiscussion(projectId!, topic),
+    queryKey: ["visibility-insights", projectId, question ?? ""],
+    queryFn: () => api.getVisibilityInsights(projectId!, question),
     enabled: Boolean(projectId),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
     retry: false,
-  });
-}
-
-export function useAskCouncil(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (topic: string) => api.askCouncil(projectId!, topic),
-    onSuccess: (data) => {
-      qc.setQueryData(["ai-council", projectId, data.topic], data);
-    },
-  });
-}
-
-export function useSpecializedAi(
-  projectId: string | null,
-  engine: "claude" | "openai" | "gemini" = "claude",
-  location?: string,
-) {
-  return useQuery({
-    queryKey: ["specialized-ai", projectId, engine, location],
-    queryFn: () => api.getSpecializedAi(projectId!, engine, location),
-    enabled: Boolean(projectId),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-}
-
-export function useQuerySpecializedAi(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ engine, location }: { engine: "claude" | "openai" | "gemini"; location?: string }) =>
-      api.querySpecializedAi(projectId!, engine, location),
-    onSuccess: (data, variables) => {
-      qc.setQueryData(["specialized-ai", projectId, variables.engine, variables.location], data);
-    },
   });
 }
 
@@ -946,6 +915,7 @@ export function useRunSweep(projectId: string | null) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["visibility", projectId] });
       qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
+      qc.invalidateQueries({ queryKey: ["visibility-insights", projectId] });
     },
   });
 }

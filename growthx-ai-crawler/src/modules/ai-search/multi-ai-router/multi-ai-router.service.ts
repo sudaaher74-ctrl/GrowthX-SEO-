@@ -15,6 +15,7 @@ import {
   resolveSarvamModel,
   resolveSarvamReasoningEffort,
 } from '../../ai-engine/utils/sarvam-request.util';
+import { isProviderAllowed, readProviderAllowlist } from '../../ai-engine/utils/ai-provider-allowlist.util';
 import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { AiUsageService } from './ai-usage.service';
 import {
@@ -214,6 +215,9 @@ export class MultiAiRouterService {
    */
   private serverSideFallbackEnabled: boolean;
 
+  /** `AI_PROVIDERS`: vendors outside it are never called, key or no key. */
+  private readonly providerAllowlist: ReadonlySet<string> | null;
+
   constructor(
     private readonly config: ConfigService,
     /**
@@ -242,6 +246,7 @@ export class MultiAiRouterService {
     this.sarvamKey = this.config.get<string>('SARVAM_API_KEY');
     this.sarvamReasoningEffort = resolveSarvamReasoningEffort(this.config);
     this.serverSideFallbackEnabled = this.config.get<string>('ANTHROPIC_SERVER_SIDE_FALLBACK') !== 'false';
+    this.providerAllowlist = readProviderAllowlist(this.config);
 
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
     if (this.isRealKey(anthropicKey)) this.anthropic = new Anthropic({ apiKey: anthropicKey });
@@ -296,7 +301,7 @@ export class MultiAiRouterService {
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
     if (this.groq) configured.push(AiProvider.GROQ);
     if (this.openrouter) configured.push(AiProvider.OPENROUTER);
-    return configured;
+    return configured.filter((p) => isProviderAllowed(this.providerAllowlist, p));
   }
 
   /**

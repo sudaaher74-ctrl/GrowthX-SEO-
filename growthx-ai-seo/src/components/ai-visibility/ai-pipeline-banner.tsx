@@ -1,236 +1,79 @@
 "use client";
 
 import React from "react";
-import { Globe, CheckCircle2, ArrowRight, MessageSquare, Bot, Sparkles, FileText, Check, Target, TrendingUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Globe, ArrowRight, Sparkles, Loader2, AlertTriangle, CircleDashed, CheckCircle2 } from "lucide-react";
+import type { VisibilityReport } from "@/lib/api-client";
+import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
 export interface AiPipelineBannerProps {
   mode?: "overview" | "competitors" | "recommendations";
   domain?: string;
   crawledPages?: number | null;
   competitorsCount?: number;
-  onViewDiscussion?: () => void;
+  report?: VisibilityReport | null;
+  onViewInsights?: () => void;
   onViewCrawlDetails?: () => void;
-  onViewSummary?: () => void;
   isAnalyzing?: boolean;
 }
 
+const HEADINGS: Record<NonNullable<AiPipelineBannerProps["mode"]>, string> = {
+  overview: "AI answer tracking",
+  competitors: "Competitor citations",
+  recommendations: "Recommendations",
+};
+
+/**
+ * What has actually been measured, and by which assistant.
+ *
+ * Every figure here comes from the visibility report. Before the first sweep
+ * it says so instead of showing a finished analysis.
+ */
 export function AiPipelineBanner({
   mode = "overview",
   domain = "",
   crawledPages = null,
   competitorsCount = 0,
-  onViewDiscussion,
+  report,
+  onViewInsights,
   onViewCrawlDetails,
-  onViewSummary,
   isAnalyzing = false,
 }: AiPipelineBannerProps) {
-  if (mode === "recommendations") {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          {/* Left: AI-Powered Recommendations */}
-          <div className="lg:col-span-4 flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
-              <Target size={22} className="text-slate-900" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
-                AI-Powered Recommendations
-              </h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-                Based on insights from ChatGPT, Claude and Gemini, here are the most impactful actions to improve your AI visibility.
-              </p>
-            </div>
-          </div>
+  const assistants = report?.measurableAssistants ?? [];
+  const checked = report?.summary?.checked ?? 0;
+  const cited = report?.summary?.cited ?? 0;
+  const failed = report?.summary?.failedChecks ?? 0;
+  const measured = checked > 0;
 
-          {/* Middle: 3 Model Cards */}
-          <div className="lg:col-span-5 flex items-center justify-center py-2 px-2">
-            <div className="flex flex-wrap items-center justify-center gap-5">
-              {/* ChatGPT */}
-              <div className="flex flex-col items-center text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-2xs">
-                  <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" strokeWidth="2">
-                    <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2m0 5a5 5 0 0 0-5 5c0 2.76 2.24 5 5 5s5-2.24 5-5a5 5 0 0 0-5-5" />
-                  </svg>
-                </div>
-                <span className="mt-1 text-[11px] font-bold text-slate-800">ChatGPT</span>
-                <span className="text-[10px] text-slate-400">Analyzed 1,248 insights</span>
-              </div>
+  const status = isAnalyzing
+    ? { label: "Asking AI assistants…", tone: "bg-accent-50 text-accent-700", dot: "bg-accent-500" }
+    : measured
+      ? { label: "Measured", tone: "bg-success-50 text-success-700", dot: "bg-success-500" }
+      : { label: "Not measured yet", tone: "bg-brand-100 text-brand-600", dot: "bg-brand-400" };
 
-              {/* Claude */}
-              <div className="flex flex-col items-center text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 shadow-2xs">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" strokeWidth="2" />
-                  </svg>
-                </div>
-                <span className="mt-1 text-[11px] font-bold text-slate-800">Claude</span>
-                <span className="text-[10px] text-slate-400">Evaluated competitors</span>
-              </div>
-
-              {/* Gemini */}
-              <div className="flex flex-col items-center text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600 border border-sky-200/60 shadow-2xs">
-                  <Sparkles size={18} />
-                </div>
-                <span className="mt-1 text-[11px] font-bold text-slate-800">Gemini</span>
-                <span className="text-[10px] text-slate-400">Scanned Knowledge Graph</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Expected Impact Card */}
-          <div className="lg:col-span-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500 text-white">
-                <TrendingUp size={14} />
-              </div>
-              <span className="text-[12px] font-bold text-slate-900">Expected Impact</span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Implementing top recommendations could increase your AI visibility by
-            </p>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-[26px] font-extrabold text-emerald-600 leading-none">
-                +42%
-              </span>
-              {/* Mini sparkline */}
-              <svg width="70" height="26" viewBox="0 0 70 26" className="overflow-visible">
-                <path
-                  d="M0,20 Q15,18 30,12 T50,8 T70,4"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (mode === "competitors") {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          {/* Left: Competitor Analysis Heading */}
-          <div className="lg:col-span-4 flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-900 border border-slate-200">
-              <FileText size={22} className="text-slate-900" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-slate-900 leading-tight">
-                AI is analyzing your competitors
-              </h3>
-              <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-                Comparing your brand with top competitors to find gaps in AI visibility, content, authority and brand perception.
-              </p>
-            </div>
-          </div>
-
-          {/* Middle: Waveform and Model Nodes */}
-          <div className="lg:col-span-5 flex items-center justify-center py-2 px-4">
-            <div className="flex items-center gap-3">
-              {/* ChatGPT icon */}
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-xs">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2m0 5a5 5 0 0 0-5 5c0 2.76 2.24 5 5 5s5-2.24 5-5a5 5 0 0 0-5-5" />
-                </svg>
-              </div>
-
-              {/* Waveform segment 1 */}
-              <div className="flex items-center gap-0.5 px-2">
-                <div className="h-2 w-1 rounded-full bg-indigo-200 animate-pulse" />
-                <div className="h-4 w-1 rounded-full bg-indigo-400" />
-                <div className="h-6 w-1 rounded-full bg-indigo-500 animate-pulse" />
-                <div className="h-3 w-1 rounded-full bg-indigo-300" />
-                <div className="h-5 w-1 rounded-full bg-indigo-400" />
-              </div>
-
-              {/* Claude icon */}
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706]/10 border border-[#d97706]/30 text-[#d97706] shadow-xs">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </div>
-
-              {/* Waveform segment 2 */}
-              <div className="flex items-center gap-0.5 px-2">
-                <div className="h-3 w-1 rounded-full bg-blue-300" />
-                <div className="h-6 w-1 rounded-full bg-blue-500 animate-pulse" />
-                <div className="h-4 w-1 rounded-full bg-blue-400" />
-                <div className="h-2 w-1 rounded-full bg-blue-200 animate-pulse" />
-              </div>
-
-              {/* Gemini icon */}
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-xs">
-                <Sparkles size={18} />
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Status card */}
-          <div className="lg:col-span-3 rounded-xl border border-slate-200/70 bg-slate-50/50 p-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
-                <Check size={14} strokeWidth={3} />
-              </div>
-              <span className="text-[13px] font-bold text-slate-900">
-                {competitorsCount} Competitor{competitorsCount === 1 ? "" : "s"} Analyzed
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Latest data from ChatGPT, Claude and Gemini
-            </p>
-            {/* Progress line */}
-            <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-              <div className="h-full w-full rounded-full bg-slate-950" />
-            </div>
-            <button
-              type="button"
-              onClick={onViewSummary}
-              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
-            >
-              <span>View AI Summary</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Default: Overview pipeline banner
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+    <div className="relative overflow-hidden rounded-2xl border bg-white p-5 shadow-xs">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        {/* Left: Domain & Crawl Details */}
-        <div className="lg:col-span-3 flex items-start gap-3.5 border-b lg:border-b-0 lg:border-r border-slate-100 pb-4 lg:pb-0 lg:pr-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+        {/* Left: the site being measured */}
+        <div className="lg:col-span-3 flex items-start gap-3.5 border-b lg:border-b-0 lg:border-r pb-4 lg:pb-0 lg:pr-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600 border">
             <Globe size={22} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[14px] font-bold text-slate-900 truncate">
-                {domain}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 border border-emerald-200/50">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Analysis Complete
+              <span className="text-[14px] font-bold text-brand-950 truncate">{domain || "No project selected"}</span>
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${status.tone}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                {status.label}
               </span>
             </div>
-            <p className="mt-1 text-[11.5px] text-slate-500">
+            <p className="mt-1 text-[11.5px] text-brand-500">
               {crawledPages != null ? `Crawled ${crawledPages.toLocaleString()} pages` : "No crawl yet"}
+              {mode === "competitors" && ` · ${competitorsCount} competitor${competitorsCount === 1 ? "" : "s"} tracked`}
             </p>
             <button
               type="button"
               onClick={onViewCrawlDetails}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-indigo-600 hover:text-indigo-700"
+              className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-accent-600 hover:text-accent-700"
             >
               <span>View crawl details</span>
               <ArrowRight size={12} />
@@ -238,88 +81,83 @@ export function AiPipelineBanner({
           </div>
         </div>
 
-        {/* Center: AI Discussion & Model Connected Flow */}
-        <div className="lg:col-span-5 flex items-center justify-center px-2">
-          <div className="flex items-center gap-3 relative w-full justify-between max-w-md">
-            {/* ChatGPT Node */}
-            <div className="flex flex-col items-center text-center z-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white border-2 border-slate-200 shadow-2xs">
-                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-900">
-                  <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2m0 5a5 5 0 0 0-5 5c0 2.76 2.24 5 5 5s5-2.24 5-5a5 5 0 0 0-5-5" />
-                </svg>
-              </div>
-              <span className="mt-1.5 text-[11.5px] font-bold text-slate-800">ChatGPT</span>
-              <span className="text-[10px] text-slate-400">Analyzing...</span>
+        {/* Center: the assistants this deployment asks, with what each returned */}
+        <div className="lg:col-span-5 px-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">{HEADINGS[mode]}</p>
+          {assistants.length === 0 ? (
+            <p className="mt-2 text-[12px] text-brand-500">
+              No AI assistant is enabled on this deployment, so nothing can be measured yet.
+            </p>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-3">
+              {assistants.map((assistant) => {
+                const row = report?.byAssistant?.find((a) => a.assistant === assistant);
+                return (
+                  <div
+                    key={assistant}
+                    className="flex items-center gap-2.5 rounded-xl border bg-brand-50/60 px-3 py-2"
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-950 text-white">
+                      {isAnalyzing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                    </div>
+                    <div>
+                      <span className="block text-[12px] font-bold text-brand-950">{assistantLabel(assistant)}</span>
+                      <span className="block text-[10.5px] text-brand-500">
+                        {isAnalyzing
+                          ? "Asking your tracked questions…"
+                          : row && row.checked > 0
+                            ? `Cited in ${row.cited} of ${row.checked} answers`
+                            : "Not asked yet"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            {/* Connecting curve 1 */}
-            <div className="flex-1 h-0.5 border-t-2 border-dashed border-indigo-200 relative -mt-4 mx-1" />
-
-            {/* AI Discussion Node (Centerpiece) */}
-            <div className="flex flex-col items-center text-center z-10">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm ring-4 ring-slate-100">
-                <Sparkles size={20} className="text-white" />
-              </div>
-              <span className="mt-1.5 text-[11.5px] font-bold text-slate-900">Sarvam AI</span>
-              <span className="text-[9.5px] text-slate-400 max-w-[110px] leading-tight">
-                Orchestrating model simulation
-              </span>
-            </div>
-
-            {/* Connecting curve 2 */}
-            <div className="flex-1 h-0.5 border-t-2 border-dashed border-indigo-200 relative -mt-4 mx-1" />
-
-            {/* Claude Node */}
-            <div className="flex flex-col items-center text-center z-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fef3c7] border-2 border-amber-200/80 shadow-2xs">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-[#d97706]">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </div>
-              <span className="mt-1.5 text-[11.5px] font-bold text-slate-800">Claude</span>
-              <span className="text-[10px] text-slate-400">Analyzing...</span>
-            </div>
-
-            {/* Connecting curve 3 */}
-            <div className="flex-1 h-0.5 border-t-2 border-dashed border-indigo-200 relative -mt-4 mx-1" />
-
-            {/* Gemini Node */}
-            <div className="flex flex-col items-center text-center z-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-50 border-2 border-sky-200/80 shadow-2xs">
-                <Sparkles size={20} className="text-sky-600" />
-              </div>
-              <span className="mt-1.5 text-[11.5px] font-bold text-slate-800">Gemini</span>
-              <span className="text-[10px] text-slate-400">Analyzing...</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Right: AI Analysis Complete Box */}
-        <div className="lg:col-span-4 rounded-xl border border-slate-200/70 bg-slate-50/50 p-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
-              <Check size={14} strokeWidth={3} />
-            </div>
-            <span className="text-[13px] font-bold text-slate-900">
-              AI Analysis Complete!
-            </span>
-          </div>
-          <p className="mt-1 text-[11.5px] text-slate-500">
-            All models have analyzed your website, business, and competitors.
-          </p>
-          {/* Progress bar */}
-          <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-            <div className="h-full w-full rounded-full bg-slate-950" />
-          </div>
-          <button
-            type="button"
-            onClick={onViewDiscussion}
-            className="mt-3 flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-[12px] font-semibold text-slate-800 hover:bg-slate-50 transition-colors shadow-2xs"
-          >
-            <span>View AI Discussion</span>
-            <ArrowRight size={13} />
-          </button>
+        {/* Right: what the numbers so far amount to */}
+        <div className="lg:col-span-4 rounded-xl border bg-brand-50/50 p-4">
+          {measured ? (
+            <>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-success-600" />
+                <span className="text-[13px] font-bold text-brand-950">
+                  {checked} answer{checked === 1 ? "" : "s"} checked
+                </span>
+              </div>
+              <p className="mt-1 text-[11.5px] text-brand-500">
+                Your brand was cited in {cited} of them over the last 28 days, across {assistantList(report?.byAssistant?.map((a) => a.assistant))}.
+              </p>
+              {failed > 0 && (
+                <p className="mt-1.5 flex items-center gap-1 text-[11px] text-warning-700">
+                  <AlertTriangle size={12} />
+                  {failed} check{failed === 1 ? "" : "s"} could not run and {failed === 1 ? "is" : "are"} left out of every rate.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={onViewInsights}
+                className="mt-3 flex w-full items-center justify-between rounded-lg border bg-white py-1.5 px-3 text-[12px] font-semibold text-brand-950 hover:bg-brand-50 transition-colors shadow-2xs"
+              >
+                <span>View AI Insights</span>
+                <ArrowRight size={13} />
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <CircleDashed size={16} className="text-brand-400" />
+                <span className="text-[13px] font-bold text-brand-950">No AI answers measured yet</span>
+              </div>
+              <p className="mt-1 text-[11.5px] text-brand-500">
+                {failed > 0
+                  ? `${failed} check${failed === 1 ? "" : "s"} failed to run. Check the AI provider key and run AI Visibility again.`
+                  : `Run AI Visibility to ask ${assistantList(assistants)} your tracked questions and see whether your brand is cited.`}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

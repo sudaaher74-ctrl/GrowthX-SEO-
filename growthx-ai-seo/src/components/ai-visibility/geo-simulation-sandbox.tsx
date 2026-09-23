@@ -6,101 +6,76 @@ import {
   Sparkles,
   Bot,
   Search,
-  Globe,
   CheckCircle2,
   AlertCircle,
-  Clock,
+  AlertTriangle,
   ArrowRight,
   Zap,
-  TrendingUp,
-  ShieldAlert,
   FileCode,
   Check,
   Loader2,
-  RefreshCw,
   Plus,
   Flame,
-  Award,
 } from "lucide-react";
 import { useSimulateGeo } from "@/hooks/use-growthx";
 import { stagingEngine } from "@/lib/staging-engine";
-import type { GeoSimulationResult, GeoEngineResult, GeoDisplacementPatch } from "@/lib/api-client";
+import { errorMessage } from "@/lib/error-message";
+import { assistantLabel, assistantList } from "@/lib/ai-assistants";
+import type { GeoEngine, GeoSimulationResult, GeoDisplacementPatch } from "@/lib/api-client";
 
 interface GeoSimulationSandboxProps {
   projectId?: string | null;
-  domain?: string;
-  businessName?: string;
+  /** Engines this deployment can actually ask (the report's measurableAssistants). */
+  availableEngines?: string[];
+  /** The customer's own tracked questions, offered as one-click queries. */
+  suggestions?: string[];
 }
 
-const DEFAULT_SUGGESTIONS = [
-  "Best AI SEO automation tools 2026",
-  "How to optimize website for LLM search engines",
-  "Top enterprise alternatives to legacy SEO suites",
-  "Autonomous website audit and verified code remediation",
-];
+const ALL_ENGINES: GeoEngine[] = ["SARVAM", "CHATGPT", "CLAUDE", "GEMINI", "PERPLEXITY"];
 
-export type EngineId = "PERPLEXITY" | "CHATGPT" | "GEMINI" | "CLAUDE" | "SARVAM";
-
-const ENGINES_CONFIG = [
-  { id: "PERPLEXITY" as const, name: "Perplexity", model: "Sonar Web Grounding", color: "from-cyan-500 to-teal-600", border: "border-cyan-200" },
-  { id: "CHATGPT" as const, name: "ChatGPT Search", model: "GPT-4o (or Sarvam)", color: "from-emerald-500 to-green-600", border: "border-emerald-200" },
-  { id: "GEMINI" as const, name: "Google Gemini", model: "Gemini 2.0 (or Sarvam)", color: "from-blue-500 to-indigo-600", border: "border-blue-200" },
-  { id: "CLAUDE" as const, name: "Claude", model: "Claude 3.5 (or Sarvam)", color: "from-amber-500 to-orange-600", border: "border-amber-200" },
-  { id: "SARVAM" as const, name: "Sarvam AI", model: "Sarvam-105b (Indus)", color: "from-slate-700 to-slate-800", border: "border-slate-200" },
-];
-
-export function GeoSimulationSandbox({
-  projectId,
-  domain = "yourdomain.com",
-  businessName = "Your Brand",
-}: GeoSimulationSandboxProps) {
-  const [query, setQuery] = useState("Best AI SEO automation tools 2026");
-  const [selectedEngines, setSelectedEngines] = useState<EngineId[]>([
-    "PERPLEXITY",
-    "CHATGPT",
-    "GEMINI",
-    "CLAUDE",
-    "SARVAM",
-  ]);
+export function GeoSimulationSandbox({ projectId, availableEngines = [], suggestions = [] }: GeoSimulationSandboxProps) {
+  const [query, setQuery] = useState("");
+  // Every engine this deployment can ask is selected unless turned off.
+  const [deselected, setDeselected] = useState<GeoEngine[]>([]);
   const [result, setResult] = useState<GeoSimulationResult | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const [stagedSuccess, setStagedSuccess] = useState(false);
 
   const simulateMutation = useSimulateGeo(projectId);
+  const enabled = ALL_ENGINES.filter((e) => availableEngines.includes(e));
+  const selectedEngines = enabled.filter((e) => !deselected.includes(e));
 
-  const toggleEngine = (engine: EngineId) => {
-    if (selectedEngines.includes(engine)) {
-      if (selectedEngines.length > 1) {
-        setSelectedEngines(selectedEngines.filter((e) => e !== engine));
-      }
-    } else {
-      setSelectedEngines([...selectedEngines, engine]);
+  const toggleEngine = (engine: GeoEngine) => {
+    if (!enabled.includes(engine)) return;
+    if (deselected.includes(engine)) {
+      setDeselected(deselected.filter((e) => e !== engine));
+    } else if (selectedEngines.length > 1) {
+      setDeselected([...deselected, engine]);
     }
   };
 
   const handleRunSimulation = async (queryToRun = query) => {
-    if (!queryToRun.trim()) return;
+    if (!queryToRun.trim() || selectedEngines.length === 0) return;
     setStagedSuccess(false);
+    setRunError(null);
     try {
-      const res = await simulateMutation.mutateAsync({
-        query: queryToRun.trim(),
-        engines: selectedEngines,
-      });
+      const res = await simulateMutation.mutateAsync({ query: queryToRun.trim(), engines: selectedEngines });
       setResult(res);
     } catch (err) {
-      console.error("GEO Simulation failed:", err);
+      setRunError(errorMessage(err));
     }
   };
 
   const handleStageDisplacement = (patch: GeoDisplacementPatch) => {
-    if (!projectId) return;
+    if (!projectId || !result) return;
     stagingEngine.stage(projectId, {
       title: patch.targetTitle,
       category: "AI_SEARCH",
       source: "AI_VISIBILITY",
       priority: patch.priority,
-      impact: `Displaces competitor citations for "${query.slice(0, 30)}"`,
+      impact: `Answers "${result.query.slice(0, 40)}" directly on your site`,
       effortHours: 2,
-      deliverable: "LLM Citation Paragraph & JSON-LD FAQ Schema",
+      deliverable: "Draft answer section & JSON-LD FAQ schema (review placeholders before publishing)",
       evidence: patch.reasoning,
       affectedUrl: patch.targetUrl,
     });
@@ -108,365 +83,289 @@ export function GeoSimulationSandbox({
     setTimeout(() => setStagedSuccess(false), 4000);
   };
 
+  const answered = result?.engines.filter((e) => !e.error) ?? [];
+
   return (
     <div className="space-y-6">
-      {/* ── HEADER BANNER ── */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-6 shadow-md relative overflow-hidden">
-        <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/5 blur-3xl pointer-events-none" />
-        <div className="relative z-10 space-y-2 max-w-3xl">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wider uppercase bg-white/10 text-slate-400 border border-white/20">
-              <Sparkles className="h-3 w-3 text-slate-400" />
-              Generative Engine Optimization (GEO)
-            </span>
-            <span className="text-[11px] text-slate-400">Multi-Model Live Simulation</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Live AI Search &amp; Citation Simulation Sandbox
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300/80 leading-relaxed">
-            Directly test how Perplexity, ChatGPT Search, Google Gemini, and Claude evaluate your brand vs. competitors for target buyer queries. When competitors are cited, generate instant LLM displacement patches.
+      {/* ── HEADER ── */}
+      <div className="rounded-2xl border bg-brand-950 text-white p-6 shadow-md">
+        <div className="space-y-2 max-w-3xl">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wider uppercase bg-white/10 text-brand-300 border border-white/20">
+            <Sparkles className="h-3 w-3" />
+            Generative Engine Optimization (GEO)
+          </span>
+          <h2 className="text-2xl font-bold tracking-tight">Live AI Search Sandbox</h2>
+          <p className="text-xs sm:text-sm text-brand-300 leading-relaxed">
+            {`Ask ${assistantList(enabled)} a buyer's question right now and see whether your brand is cited and who is named instead. Each engine is asked directly — nothing is simulated or written on its behalf.`}
           </p>
         </div>
       </div>
 
-      {/* ── INTERACTIVE QUERY INPUT BAR ── */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs space-y-4">
+      {/* ── QUERY INPUT ── */}
+      <div className="rounded-2xl border bg-white p-6 shadow-xs space-y-4">
         <div>
-          <label htmlFor="geo-query-input" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            Enter Buyer Search Query or Organic Prompt
+          <label htmlFor="geo-query-input" className="block text-xs font-bold text-brand-700 uppercase tracking-wider mb-2">
+            Buyer search question
           </label>
           <div className="flex flex-col sm:flex-row items-stretch gap-2.5">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-400" />
               <input
                 id="geo-query-input"
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleRunSimulation()}
-                placeholder="e.g. Best AI SEO automation tools for ecommerce..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent text-xs font-medium text-slate-900 bg-slate-50/50 placeholder:text-slate-400 transition"
+                placeholder="e.g. best organic food exporter in India"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-brand-950/20 text-xs font-medium text-brand-950 bg-brand-50/50 placeholder:text-brand-400 transition"
               />
             </div>
-
             <button
               type="button"
               onClick={() => handleRunSimulation()}
-              disabled={simulateMutation.isPending || !query.trim()}
-              className="px-6 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-slate-900/10 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+              disabled={simulateMutation.isPending || !query.trim() || selectedEngines.length === 0}
+              className="px-6 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-2 shrink-0"
             >
               {simulateMutation.isPending ? (
                 <>
                   <Loader2 size={13} className="animate-spin" />
-                  <span>Probing 4 AI Models...</span>
+                  <span>Asking {assistantList(selectedEngines)}…</span>
                 </>
               ) : (
                 <>
                   <Zap size={13} />
-                  <span>Run Multi-Model Simulation</span>
+                  <span>Ask now</span>
                 </>
               )}
             </button>
           </div>
         </div>
 
-        {/* Suggestion Chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <span className="text-[11px] font-semibold text-slate-400">Suggested:</span>
-          {DEFAULT_SUGGESTIONS.map((s, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => {
-                setQuery(s);
-                handleRunSimulation(s);
-              }}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-50 hover:text-slate-800 text-slate-600 transition cursor-pointer border border-slate-200/60"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[11px] font-semibold text-brand-400">Your tracked questions:</span>
+            {suggestions.slice(0, 4).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  setQuery(s);
+                  handleRunSimulation(s);
+                }}
+                className="text-[11px] px-2.5 py-1 rounded-lg border bg-brand-100 hover:bg-brand-50 text-brand-600 hover:text-brand-950 transition"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Engine Toggle Toggles */}
-        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div className="pt-3 border-t flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 mr-1">Active Evaluators:</span>
-            {ENGINES_CONFIG.map((eng) => {
-              const isSelected = selectedEngines.includes(eng.id);
+            <span className="text-xs font-bold text-brand-700 mr-1">Engines:</span>
+            {ALL_ENGINES.map((engine) => {
+              const isEnabled = enabled.includes(engine);
+              const isSelected = selectedEngines.includes(engine);
               return (
                 <button
-                  key={eng.id}
+                  key={engine}
                   type="button"
-                  onClick={() => toggleEngine(eng.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
+                  onClick={() => toggleEngine(engine)}
+                  disabled={!isEnabled}
+                  title={isEnabled ? undefined : "Not enabled on this deployment"}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border ${
                     isSelected
-                      ? "bg-slate-50 border-slate-300 text-slate-900 shadow-2xs"
-                      : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50"
+                      ? "bg-brand-50 text-brand-950 shadow-2xs"
+                      : isEnabled
+                        ? "bg-white text-brand-400 hover:bg-brand-50"
+                        : "bg-white text-brand-300 cursor-not-allowed"
                   }`}
                 >
-                  <Bot size={13} className={isSelected ? "text-slate-900" : "text-slate-400"} />
-                  <span>{eng.name}</span>
-                  <span className="text-[10px] text-slate-400">({eng.model.split(" ")[0]})</span>
+                  <Bot size={13} />
+                  <span>{assistantLabel(engine)}</span>
+                  {!isEnabled && <span className="text-[10px]">· not enabled</span>}
                 </button>
               );
             })}
           </div>
-
-          <span className="text-[11px] text-slate-400">
-            Simulates unbiased user prompts with zero brand priming
-          </span>
+          <span className="text-[11px] text-brand-400">Asked as a member of the public would, with no brand priming</span>
         </div>
       </div>
 
-      {/* ── SIMULATION RESULTS DISPLAY ── */}
+      {runError && (
+        <div className="flex items-start gap-2 rounded-xl border bg-error-50 px-4 py-3 text-[12px] text-error-700">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{runError}</span>
+        </div>
+      )}
+
+      {/* ── RESULTS ── */}
       {result && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Scoreboard Cards */}
+        <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Citation Rate</span>
-              <div className="text-2xl font-bold text-slate-900 mt-1 flex items-center gap-2">
-                <span>{result.overallCitationRate}%</span>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                    result.overallCitationRate >= 75
-                      ? "bg-emerald-50 text-emerald-700"
-                      : result.overallCitationRate >= 50
-                      ? "bg-blue-50 text-blue-700"
-                      : "bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  {result.overallCitationRate >= 75 ? "Dominant" : result.overallCitationRate >= 50 ? "Competitive" : "Displaced"}
-                </span>
+            <div className="p-4 rounded-2xl bg-white border shadow-xs">
+              <span className="text-[11px] font-bold text-brand-400 uppercase tracking-wider block">Citation Rate</span>
+              <div className="text-2xl font-bold text-brand-950 mt-1">
+                {result.overallCitationRate != null ? `${result.overallCitationRate}%` : "—"}
               </div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">
-                {result.engines.filter((e) => e.cited).length} of {result.engines.length} models recommend {result.brandName}
+              <span className="text-[11px] text-brand-500 mt-0.5 block">
+                {result.enginesAnswered > 0
+                  ? `${answered.filter((e) => e.cited).length} of ${result.enginesAnswered} answers cited ${result.brandName}`
+                  : "No engine answered"}
               </span>
             </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Share of Voice</span>
-              <div className="text-2xl font-bold text-slate-800 mt-1">{result.overallShareOfVoice}%</div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Relative to competitor brand mentions</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Competitor Mentions</span>
-              <div className="text-2xl font-bold text-slate-900 mt-1">
-                {result.engines.reduce((acc, e) => acc + e.competitorsCited.length, 0)}
+            <div className="p-4 rounded-2xl bg-white border shadow-xs">
+              <span className="text-[11px] font-bold text-brand-400 uppercase tracking-wider block">Share of Voice</span>
+              <div className="text-2xl font-bold text-brand-950 mt-1">
+                {result.overallShareOfVoice != null ? `${result.overallShareOfVoice}%` : "—"}
               </div>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Rivals named in generated answers</span>
+              <span className="text-[11px] text-brand-500 mt-0.5 block">Your mentions vs. tracked competitors</span>
             </div>
-
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Average Latency</span>
-              <div className="text-2xl font-bold text-slate-900 mt-1">
-                {Math.round(result.engines.reduce((acc, e) => acc + e.latencyMs, 0) / result.engines.length)} ms
+            <div className="p-4 rounded-2xl bg-white border shadow-xs">
+              <span className="text-[11px] font-bold text-brand-400 uppercase tracking-wider block">Competitor Mentions</span>
+              <div className="text-2xl font-bold text-brand-950 mt-1">
+                {answered.reduce((acc, e) => acc + e.competitorsCited.length, 0)}
               </div>
-              <span className="text-[11px] text-emerald-600 mt-0.5 block">Real-time model response</span>
+              <span className="text-[11px] text-brand-500 mt-0.5 block">Tracked rivals named in the answers</span>
+            </div>
+            <div className="p-4 rounded-2xl bg-white border shadow-xs">
+              <span className="text-[11px] font-bold text-brand-400 uppercase tracking-wider block">Response Time</span>
+              <div className="text-2xl font-bold text-brand-950 mt-1">
+                {answered.length > 0
+                  ? `${Math.round(answered.reduce((acc, e) => acc + e.latencyMs, 0) / answered.length)} ms`
+                  : "—"}
+              </div>
+              <span className="text-[11px] text-brand-500 mt-0.5 block">Average over engines that answered</span>
             </div>
           </div>
 
-          {/* Side-by-Side Model Comparison Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {result.engines.map((eng) => {
-              const cfg = ENGINES_CONFIG.find((c) => c.id === eng.engine) || ENGINES_CONFIG[0];
-              return (
-                <div
-                  key={eng.engine}
-                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-200 transition"
-                >
-                  <div className="space-y-3">
-                    {/* Model Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">{cfg.name}</h4>
-                        <span className="text-[10.5px] font-mono text-slate-400">{eng.model}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-400">{eng.latencyMs}ms</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {result.engines.map((eng) => (
+              <div key={eng.engine} className="rounded-2xl border bg-white p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b">
+                  <div>
+                    <h4 className="text-sm font-bold text-brand-950">{assistantLabel(eng.engine)}</h4>
+                    <span className="text-[10.5px] font-mono text-brand-400">{eng.model ?? "not asked"}</span>
+                  </div>
+                  {!eng.error && <span className="text-[10px] font-mono text-brand-400">{eng.latencyMs}ms</span>}
+                </div>
+
+                {eng.error ? (
+                  <div className="flex items-start gap-2 rounded-xl bg-warning-50 p-3 text-[11.5px] text-warning-700">
+                    <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                    <span>{eng.error}</span>
+                  </div>
+                ) : (
+                  <>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                        eng.cited ? "bg-success-50 text-success-700" : "bg-error-50 text-error-700"
+                      }`}
+                    >
+                      {eng.cited ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                      <span>{eng.cited ? `Cited${eng.position ? ` #${eng.position}` : ""}` : "Not cited"}</span>
+                    </span>
+                    <div className="p-3 rounded-xl bg-brand-50 border text-[11.5px] text-brand-700 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-line">
+                      {eng.answerExcerpt}
                     </div>
-
-                    {/* Citation Status Pill */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-                          eng.cited
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                            : "bg-rose-50 text-rose-700 border border-rose-200/60"
-                        }`}
-                      >
-                        {eng.cited ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                        <span>{eng.cited ? `Cited #${eng.position || 1}` : "Not Cited"}</span>
-                      </span>
-
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          eng.sentiment === "POSITIVE"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : eng.sentiment === "NEGATIVE"
-                            ? "bg-rose-100 text-rose-800"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {eng.sentiment}
-                      </span>
-                    </div>
-
-                    {/* Answer Excerpt with highlighted keywords */}
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100/80 text-[11.5px] text-slate-700 leading-relaxed max-h-48 overflow-y-auto">
-                      <p className="italic">
-                        &quot;{eng.answerExcerpt}&quot;
-                      </p>
-                    </div>
-
-                    {/* Competitors Mentioned */}
                     {eng.competitorsCited.length > 0 && (
                       <div className="space-y-1">
-                        <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wider block">
-                          Competitors Named:
+                        <span className="text-[10.5px] font-semibold text-brand-400 uppercase tracking-wider block">
+                          Competitors named
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          {eng.competitorsCited.map((comp, cIdx) => (
-                            <span
-                              key={cIdx}
-                              className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200/60"
-                            >
+                          {eng.competitorsCited.map((comp) => (
+                            <span key={comp} className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-warning-50 text-warning-700">
                               {comp}
                             </span>
                           ))}
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* Hallucination Risk Badge */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10.5px]">
-                    <span className="text-slate-400">Hallucination Risk:</span>
-                    <span
-                      className={`font-semibold ${
-                        eng.hallucinationRisk === "LOW"
-                          ? "text-emerald-600"
-                          : eng.hallucinationRisk === "MEDIUM"
-                          ? "text-amber-600"
-                          : "text-rose-600"
-                      }`}
-                    >
-                      {eng.hallucinationRisk}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                  </>
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* ── AUTONOMOUS CITATION DISPLACEMENT PATCH CARD ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0">
-                  <Flame className="h-6 w-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900">
-                      Targeted AI Citation Displacement Patch
-                    </h3>
-                    <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
-                      Priority: {result.displacementPatch.priority}
-                    </span>
+          {result.displacementPatch ? (
+            <div className="rounded-2xl border bg-white p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-xl bg-brand-950 text-white flex items-center justify-center shrink-0">
+                    <Flame className="h-6 w-6" />
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {result.displacementPatch.reasoning}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-brand-950">Draft section to answer this question</h3>
+                      <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-brand-100 text-brand-950">
+                        Priority: {result.displacementPatch.priority}
+                      </span>
+                    </div>
+                    <p className="text-xs text-brand-500 mt-0.5">{result.displacementPatch.reasoning}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleStageDisplacement(result.displacementPatch!)}
+                    className="px-5 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 text-white text-xs font-bold transition flex items-center gap-2"
+                  >
+                    {stagedSuccess ? (
+                      <>
+                        <Check size={14} className="text-success-400" />
+                        <span>Staged in Fix Engine</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={14} />
+                        <span>Stage in Fix Engine</span>
+                      </>
+                    )}
+                  </button>
+                  <Link
+                    href="/action-queue"
+                    className="px-4 py-2.5 rounded-xl border bg-white hover:bg-brand-50 text-brand-700 text-xs font-semibold transition flex items-center gap-1.5"
+                  >
+                    <span>Go to Action Queue</span>
+                    <ArrowRight size={13} />
+                  </Link>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-brand-400">
+                Drafted by {result.displacementPatch.draftedBy} from the answers above. Replace every [bracketed] placeholder
+                with a real fact before publishing.
+              </p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-xl bg-white border space-y-2">
+                  <span className="font-bold text-brand-950 text-xs flex items-center gap-1.5">
+                    <FileCode size={13} />
+                    Answer section — {result.displacementPatch.targetTitle}
+                  </span>
+                  <p className="text-xs text-brand-600 leading-relaxed bg-brand-50 p-3 rounded-lg border whitespace-pre-line">
+                    {result.displacementPatch.displacementContent}
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleStageDisplacement(result.displacementPatch)}
-                  className="px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 active:scale-[0.98] flex items-center gap-2 cursor-pointer"
-                >
-                  {stagedSuccess ? (
-                    <>
-                      <Check size={14} className="text-emerald-300" />
-                      <span>Staged into Fix Engine!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={14} />
-                      <span>Stage Displacement Patch in Fix Engine</span>
-                    </>
-                  )}
-                </button>
-
-                <Link
-                  href="/action-queue"
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5"
-                >
-                  <span>Go to Action Queue</span>
-                  <ArrowRight size={13} />
-                </Link>
+                <div className="p-4 rounded-xl bg-white border space-y-2">
+                  <span className="font-bold text-brand-950 text-xs flex items-center gap-1.5">
+                    <FileCode size={13} />
+                    JSON-LD FAQ schema
+                  </span>
+                  <pre className="text-[11px] bg-brand-950 text-brand-100 p-3 rounded-lg overflow-x-auto max-h-36 font-mono leading-relaxed">
+                    {result.displacementPatch.faqSchema}
+                  </pre>
+                </div>
               </div>
             </div>
-
-            {/* Content & Schema Preview Tabs */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <FileCode size={13} className="text-slate-900" />
-                    LLM RAG Citation Paragraph
-                  </span>
-                  <span className="text-[10.5px] font-mono text-slate-900 bg-slate-50 px-2 py-0.5 rounded">
-                    Entity-Anchored
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 font-mono">
-                  {result.displacementPatch.displacementContent}
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <CodeIcon className="h-3.5 w-3.5 text-emerald-600" />
-                    JSON-LD FAQ Schema Structured Data
-                  </span>
-                  <span className="text-[10.5px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                    Schema.org/FAQPage
-                  </span>
-                </div>
-                <pre className="text-[11px] text-slate-700 bg-slate-900 text-slate-100 p-3 rounded-lg overflow-x-auto max-h-36 font-mono leading-relaxed">
-                  {result.displacementPatch.faqSchema}
-                </pre>
-              </div>
-            </div>
-          </div>
+          ) : (
+            result.enginesAnswered > 0 && (
+              <p className="text-[11.5px] text-brand-500">A draft section could not be written for this query.</p>
+            )
+          )}
         </div>
       )}
     </div>
-  );
-}
-
-function CodeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="16 18 22 12 16 6" />
-      <polyline points="8 6 2 12 8 18" />
-    </svg>
   );
 }

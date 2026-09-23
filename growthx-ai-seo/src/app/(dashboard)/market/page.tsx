@@ -25,6 +25,7 @@ import {
   useGenerateMarket,
   useTrackedPrompts,
 } from "@/hooks/use-growthx";
+import { assistantLabel } from "@/lib/ai-assistants";
 
 /**
  * Every figure on this page comes from the active project's own records:
@@ -308,7 +309,7 @@ export default function MarketPage() {
                         {byAssistant.map((item) => (
                           <div key={item.assistant} className="p-4 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)] space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-[var(--text-primary)]">{item.assistant}</span>
+                              <span className="text-xs font-semibold text-[var(--text-primary)]">{assistantLabel(item.assistant)}</span>
                               {item.cited > 0 && <CheckCircle2 size={15} className="text-emerald-500" />}
                             </div>
                             <span className="text-xl font-bold text-[var(--text-primary)] block">

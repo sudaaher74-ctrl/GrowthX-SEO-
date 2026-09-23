@@ -9,6 +9,7 @@ import {
   resolveSarvamModel,
   resolveSarvamReasoningEffort,
 } from '../ai-engine/utils/sarvam-request.util';
+import { isProviderAllowed, readProviderAllowlist } from '../ai-engine/utils/ai-provider-allowlist.util';
 
 /**
  * The role a call plays, rather than the model that serves it.
@@ -154,10 +155,16 @@ export class ModelRouterService {
       return configured;
     }
 
-    // Sarvam first: it is the platform's primary AI provider.
-    if (this.realKey(this.config.get<string>('SARVAM_API_KEY'))) return 'sarvam';
-    if (this.realKey(this.config.get<string>('GROQ_API_KEY'))) return 'groq';
-    if (this.realKey(this.config.get<string>('OPENROUTER_API_KEY'))) return 'openrouter';
+    // Sarvam first: it is the platform's primary AI provider. AI_PROVIDERS
+    // narrows the candidates, so an allowlisted Sarvam-only install never
+    // falls through to another vendor just because its key is set.
+    const allowlist = readProviderAllowlist(this.config);
+    const usable = (name: ResearchProvider, key: string) =>
+      isProviderAllowed(allowlist, name) && this.realKey(this.config.get<string>(key));
+    if (usable('sarvam', 'SARVAM_API_KEY')) return 'sarvam';
+    if (usable('groq', 'GROQ_API_KEY')) return 'groq';
+    if (usable('openrouter', 'OPENROUTER_API_KEY')) return 'openrouter';
+    if (allowlist && !isProviderAllowed(allowlist, 'openai')) return 'sarvam';
     return 'openai';
   }
 
@@ -190,7 +197,8 @@ export class ModelRouterService {
   supportsEmbeddings(): boolean {
     if (this.provider() === 'openai') return this.isConfigured();
     // Sarvam, Groq and OpenRouter don't serve embeddings; an OpenAI key
-    // alongside them still can.
+    // alongside them still can, unless AI_PROVIDERS rules OpenAI out.
+    if (!isProviderAllowed(readProviderAllowlist(this.config), 'openai')) return false;
     return this.realKey(this.config.get<string>('OPENAI_API_KEY'));
   }
 
@@ -261,7 +269,7 @@ export class ModelRouterService {
     if (this.provider() === 'openai') return this.openai();
 
     const openaiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (!this.realKey(openaiKey)) {
+    if (!isProviderAllowed(readProviderAllowlist(this.config), 'openai') || !this.realKey(openaiKey)) {
       throw new ServiceUnavailableException(
         `No embedding model available: ${this.provider()} serves none, and OPENAI_API_KEY is not set.`,
       );

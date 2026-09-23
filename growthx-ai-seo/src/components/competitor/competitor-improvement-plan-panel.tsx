@@ -267,7 +267,7 @@ export function CompetitorImprovementPlanPanel({
       weekLabel: "Week 1: Days 1–7",
       title: "Add FAQ Accordion Modules with FAQPage Schema",
       description:
-        "Incorporate 4-5 high-intent pre-purchase Q&A pairs directly onto your main solutions pages to capture voice search and AI search citations (ChatGPT, Gemini, Google Overviews).",
+        "Incorporate 4-5 high-intent pre-purchase Q&A pairs directly onto your main solutions pages so AI assistants and voice search have direct answers to quote.",
       priority: "P3_QUICK_WIN",
       category: "TECHNICAL",
       estimatedHours: 2,
