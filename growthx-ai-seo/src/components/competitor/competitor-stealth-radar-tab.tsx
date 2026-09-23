@@ -66,7 +66,7 @@ export function CompetitorStealthRadarTab({
       const title = raw.title || raw.headline || "Stealth Radar Alert";
       const detectedAt = raw.detectedAt || "Recently";
       const targetUrl = raw.targetUrl || raw.competitorUrl || `https://${competitorDomain}`;
-      const impactScore = Number(raw.impactScore ?? 75);
+      const impactScore = typeof raw.impactScore === "number" ? raw.impactScore : Number(raw.impactScore || 0);
       const urgency = raw.urgency || (raw.severity === "CRITICAL" ? "HIGH" : raw.severity) || "MEDIUM";
       const summary = raw.summary || raw.description || "Identified competitive discrepancy.";
       const counterTactic = raw.counterTactic || raw.counterAction?.actionableSummary || "Implement verified counter strategy.";
