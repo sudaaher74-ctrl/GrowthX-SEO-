@@ -81,25 +81,18 @@ export function CompetitorOverviewTab({
     const compProfiles = buildKeywordProfiles(compPagesQuery.data || []);
     const gaps: Array<{
       keyword: string;
-      yourPos: string;
       topComp: string;
-      compPos: number;
-      vol: string;
       opp: "High" | "Medium";
     }> = [];
 
-    const compDomain = primaryComp?.domain || "competitor.com";
+    const compDomain = primaryComp?.domain ?? "";
 
     compProfiles.forEach((prof, kw) => {
       if (gaps.length >= 5) return;
       if (!ourProfiles.has(kw)) {
-        const estVol = (prof.totalOccurrences * 400 + prof.placements.inH1 * 800).toLocaleString();
         gaps.push({
           keyword: titleCase(kw),
-          yourPos: "—",
           topComp: compDomain,
-          compPos: prof.placements.inH1 > 0 ? 3 : 5,
-          vol: estVol,
           opp: prof.searchIntent === "COMMERCIAL" ? "High" : "Medium",
         });
       }
@@ -112,7 +105,7 @@ export function CompetitorOverviewTab({
   const previewContentGaps = useMemo(() => {
     const ourPages = ourPagesQuery.data?.data || [];
     const compPages = compPagesQuery.data || [];
-    const compDomain = primaryComp?.domain || "competitor.com";
+    const compDomain = primaryComp?.domain ?? "";
     const ourTexts = ourPages.map((p) => `${p.title || ""} ${p.url || ""}`.toLowerCase());
 
     const gaps: Array<{ topic: string; topComp: string; opp: "High" | "Medium" }> = [];
@@ -367,6 +360,9 @@ export function CompetitorOverviewTab({
               {competitors.map((comp, idx) => {
                 const pagesVal = comp.pagesCrawled ?? 0;
                 const healthVal = comp.healthScore ?? 0;
+                // Null means no prompt check has run for this rival yet, which
+                // is not the same claim as a measured 0%.
+                const aiMeasured = comp.aiCitationSharePct != null;
                 const aiVal = comp.aiCitationSharePct ?? 0;
 
                 const displayVal =
@@ -376,14 +372,18 @@ export function CompetitorOverviewTab({
                     ? healthVal > 0
                       ? `${healthVal} / 100`
                       : "Pending crawl"
-                    : `${aiVal}%`;
+                    : aiMeasured
+                    ? `${aiVal}%`
+                    : "Not measured";
 
                 const pct =
                   metricTab === "pages"
                     ? Math.min(100, Math.max(10, (pagesVal / 200) * 100))
-                    : metricTab === "health" && healthVal > 0
+                    : metricTab === "health"
                     ? healthVal
-                    : 35;
+                    : aiMeasured
+                    ? Math.min(100, aiVal)
+                    : 0;
 
                 return (
                   <div key={comp.id}>

@@ -17,9 +17,9 @@ export interface AiPipelineBannerProps {
 
 export function AiPipelineBanner({
   mode = "overview",
-  domain = "aivaenterprises.com",
-  crawledPages = 1248,
-  competitorsCount = 5,
+  domain = "",
+  crawledPages = null,
+  competitorsCount = 0,
   onViewDiscussion,
   onViewCrawlDetails,
   onViewSummary,
@@ -181,7 +181,7 @@ export function AiPipelineBanner({
                 <Check size={14} strokeWidth={3} />
               </div>
               <span className="text-[13px] font-bold text-slate-900">
-                {competitorsCount} Competitors Analyzed
+                {competitorsCount} Competitor{competitorsCount === 1 ? "" : "s"} Analyzed
               </span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
@@ -225,7 +225,7 @@ export function AiPipelineBanner({
               </span>
             </div>
             <p className="mt-1 text-[11.5px] text-slate-500">
-              Crawled {crawledPages != null ? crawledPages.toLocaleString() : "1,248"} pages
+              {crawledPages != null ? `Crawled ${crawledPages.toLocaleString()} pages` : "No crawl yet"}
             </p>
             <button
               type="button"

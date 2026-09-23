@@ -83,18 +83,17 @@ const CONTENT_PATH = /\/(blog|news|article|articles|press|stories|wiki|forum|hel
 /**
  * Finds competitors by searching what the client's own customers search for.
  *
- * The curated market list this supplements covers six industries in three
- * regions. That is the right answer for a Nashik fruit exporter and no answer
- * at all for a dentist in São Paulo, a textile mill in Tirupur or a law firm
- * in Leeds — and the platform is sold to all of them. Asking a model to recall
- * competitors has the opposite failure: it knows the famous names in every
- * market and invents the rest.
+ * The platform is sold to a Nashik fruit exporter, a dentist in São Paulo, a
+ * textile mill in Tirupur and a law firm in Leeds alike, so no built-in list
+ * of names can answer for all of them. Asking a model to recall competitors
+ * fails differently: it knows the famous names in every market and invents
+ * the rest.
  *
  * Searching the client's own buyer keywords has neither problem. Whoever ranks
  * for the phrases this client's customers type is, by the only definition that
  * matters to an SEO product, their competitor — in any industry, any country
  * and any language, with the SERP itself as the evidence. Nothing here is
- * curated, so nothing here goes stale.
+ * hardcoded, so nothing here goes stale.
  */
 @Injectable()
 export class CompetitorDiscoveryService {

@@ -242,7 +242,7 @@ model Issue {
   ///
   /// Nullable on the same terms as fingerprint: filled by the write path from
   /// here on and by the backfill for existing rows.
-  groupKey         String?
+  groupKey String?
 
   /// Incremented when a fingerprint is re-detected after having been resolved.
   /// A regression is a different conversation with the client than a new
@@ -1792,7 +1792,8 @@ model ContentClassification {
   language          String?           @default("en")
   visualStyle       String?
   contentObjective  String?
-  confidence        Int?              @default(90)
+  /// Null unless the classifier reported one.
+  confidence        Int?
   /// Overall creative style score 0-10
   creativityScore   Float?
   classifiedByModel String?
@@ -1854,12 +1855,12 @@ model ContentGap {
   description             String
   competitionLevel        String                @default("MEDIUM") /// LOW | MEDIUM | HIGH
   opportunityScore        Int                   @default(50)
-  businessRelevanceScore  Int?                  @default(85)
-  searchOpportunityScore  Int?                  @default(80)
-  competitorEvidenceScore Int?                  @default(85)
-  contentGapScore         Int?                  @default(90)
-  confidenceScore         Int?                  @default(88)
-  effortLevel             String?               @default("MEDIUM") /// LOW | MEDIUM | HIGH
+  businessRelevanceScore  Int?
+  searchOpportunityScore  Int?
+  competitorEvidenceScore Int?
+  contentGapScore         Int?
+  confidenceScore         Int?
+  effortLevel             String? /// LOW | MEDIUM | HIGH. Null until something estimates it.
   relatedKeywords         String[]              @default([])
   platforms               String[]              @default([])
   suggestedFormats        String[]              @default([])
@@ -2349,17 +2350,17 @@ model GrowthOpportunity {
 
   /// Task 3 extensions
   fixClass      String  @default("MANUAL") // AUTO | APPROVAL | MANUAL
-  impact        Float   @default(0)        // 0-100 composite
-  detailType    String?                    // ISSUE_GROUP | GBP_PROPOSAL | etc.
-  detailRef     String?                    // Issue.groupKey, GbpFixProposal.id, etc.
+  impact        Float   @default(0) // 0-100 composite
+  detailType    String? // ISSUE_GROUP | GBP_PROPOSAL | etc.
+  detailRef     String? // Issue.groupKey, GbpFixProposal.id, etc.
   affectedCount Int     @default(0)
 
   resolvedAt DateTime?
-  detectedAt DateTime @default(now())
+  detectedAt DateTime  @default(now())
   /// Refreshed each time detection still finds it. A row whose lastSeenAt has
   /// stopped moving is a finding that resolved itself, which is worth being
   /// able to tell from one nobody has looked at.
-  lastSeenAt DateTime @default(now())
+  lastSeenAt DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -2523,17 +2524,17 @@ enum ActionStatus {
 
 /// One unified lifecycle for all findings across all detectors
 enum FindingLifecycle {
-  DETECTED    // written by an adapter, not yet shown
-  QUEUED      // visible, waiting on a human
-  SNOOZED     // returns on snoozeUntil
-  DISMISSED   // user said no; never auto-reopens
-  APPROVED    // user said go, not started
-  APPLYING    // fix in flight
-  VERIFYING   // applied, re-crawl in progress
-  VERIFIED    // confirmed live
-  MEASURED    // outcome recorded at +7/+30d
-  FAILED      // attempt failed, needs a human
-  RESOLVED    // detector stopped seeing it; no fix of ours
+  DETECTED // written by an adapter, not yet shown
+  QUEUED // visible, waiting on a human
+  SNOOZED // returns on snoozeUntil
+  DISMISSED // user said no; never auto-reopens
+  APPROVED // user said go, not started
+  APPLYING // fix in flight
+  VERIFYING // applied, re-crawl in progress
+  VERIFIED // confirmed live
+  MEASURED // outcome recorded at +7/+30d
+  FAILED // attempt failed, needs a human
+  RESOLVED // detector stopped seeing it; no fix of ours
 }
 
 /// One observed signal, with everything needed to check it.

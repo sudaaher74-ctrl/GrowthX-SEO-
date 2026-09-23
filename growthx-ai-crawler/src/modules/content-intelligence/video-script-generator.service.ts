@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
@@ -27,7 +27,8 @@ export interface VideoBriefAndScript {
   visualChecklist: string[];
   caption: string;
   hashtags: string[];
-  originalityGuarantee: string;
+  /** Not asserted by the server: nothing checks a script for originality. */
+  originalityGuarantee?: string;
 }
 
 const SCRIPT_SCHEMA = {
@@ -61,7 +62,6 @@ const SCRIPT_SCHEMA = {
     visualChecklist: { type: 'array', items: { type: 'string' } },
     caption: { type: 'string' },
     hashtags: { type: 'array', items: { type: 'string' } },
-    originalityGuarantee: { type: 'string' },
   },
   required: ['title', 'hook', 'targetAudience', 'coreProblem', 'solutionSummary', 'callToAction', 'scenes', 'caption', 'hashtags'],
   additionalProperties: false,
@@ -109,21 +109,27 @@ export class VideoScriptGeneratorService {
       }),
     ]);
 
-    const brandName = project?.name || 'Our Brand';
-    const city = project?.locations?.[0]?.address ? project.locations[0].address.split(',')[0].trim() : 'Our City';
-    const industry = config?.industrySkill || 'General B2B & Commercial';
+    if (!project) {
+      throw new NotFoundException('Project not found.');
+    }
+    const brandName = project.name;
+    const city = project.locations?.[0]?.address?.split(',')[0]?.trim() || null;
+    const industry = config?.industrySkill || null;
 
-    const prompt = `
-Brand: ${brandName}
-Target Market / City: ${city}
-Industry: ${industry}
-Target Platform: ${platform}
-Topic / Opportunity: ${topic}
-${opportunityContext ? `Competitive Context & Evidence: ${opportunityContext}` : ''}
-
-Generate a complete, production-ready video script with scene breakdowns, visual cues, on-screen text, caption, and hashtags.
-Make it 100% original and tailored to ${brandName} in ${industry}.
-`.trim();
+    const prompt = [
+      `Brand: ${brandName}`,
+      city ? `Target Market / City: ${city}` : null,
+      industry ? `Industry: ${industry}` : null,
+      `Target Platform: ${platform}`,
+      `Topic / Opportunity: ${topic}`,
+      opportunityContext ? `Competitive Context & Evidence: ${opportunityContext}` : null,
+      '',
+      'Generate a complete, production-ready video script with scene breakdowns, visual cues, on-screen text, caption, and hashtags.',
+      `Make it 100% original and tailored to ${brandName}${industry ? ` in ${industry}` : ''}.`,
+    ]
+      .filter((line) => line !== null)
+      .join('\n')
+      .trim();
 
     const result = await this.router.generate({
       prompt,
@@ -134,21 +140,34 @@ Make it 100% original and tailored to ${brandName} in ${industry}.
       maxTokens: 4000,
     });
 
+    // No template script stands in for a failed generation: a stock script
+    // with the brand's name dropped in reads as one written for it.
     if (!result.text?.trim()) {
-      return this.buildFallbackScript(topic, brandName, city);
+      throw new ServiceUnavailableException('The AI provider returned no script. Try generating it again.');
     }
 
+    let parsed: any;
     try {
-      const parsed: any = parseModelJson(result.text, 'VideoScript');
-      return {
-        ...this.buildFallbackScript(topic, brandName, city),
-        ...parsed,
-        originalityGuarantee: 'Verified 100% Original AI Generation — Engineered from strategic pattern recognition, not scraped copy.',
-      };
+      parsed = parseModelJson(result.text, 'VideoScript');
     } catch (err: any) {
-      this.logger.warn(`Failed to parse script JSON: ${err.message}. Using fallback.`);
-      return this.buildFallbackScript(topic, brandName, city);
+      this.logger.warn(`Failed to parse script JSON: ${err.message}`);
+      throw new ServiceUnavailableException('The AI provider returned an unreadable script. Try generating it again.');
     }
+    if (!Array.isArray(parsed.scenes) || parsed.scenes.length === 0) {
+      throw new ServiceUnavailableException('The AI provider returned a script with no scenes. Try generating it again.');
+    }
+
+    // The model is asked for no originality claim, and one it volunteers is
+    // dropped: nothing here verifies it.
+    const { originalityGuarantee: _unverified, ...script } = parsed;
+    return {
+      ...script,
+      platform: parsed.platform || platform,
+      targetDuration: parsed.targetDuration || '',
+      contentPillar: parsed.contentPillar || '',
+      visualChecklist: Array.isArray(parsed.visualChecklist) ? parsed.visualChecklist : [],
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+    };
   }
 
   /**
@@ -187,82 +206,5 @@ Make it 100% original and tailored to ${brandName} in ${industry}.
     });
 
     return item;
-  }
-
-  private buildFallbackScript(topic: string, brandName: string, city: string): VideoBriefAndScript {
-    const safeTopic = topic || 'Quality Standards & Best Practices';
-    const topicTag = safeTopic.replace(/[^a-zA-Z0-9]/g, '');
-    const brandTag = brandName.replace(/[^a-zA-Z0-9]/g, '');
-
-    return {
-      title: `${safeTopic}: Industry Standards & Key Insights`,
-      hook: `If you are evaluating options for ${safeTopic.toLowerCase()}, here are 3 critical factors you cannot afford to ignore.`,
-      platform: 'INSTAGRAM_REEL',
-      targetDuration: '60 seconds',
-      contentPillar: 'EDUCATIONAL',
-      targetAudience: `Decision makers, buyers, and partners looking for reliable quality in ${city}`,
-      coreProblem: `Lack of transparency and inconsistent quality standards often lead to costly inefficiencies when selecting ${safeTopic.toLowerCase()}.`,
-      solutionSummary: `A proven, step-by-step quality framework from ${brandName} ensuring maximum reliability and verified specifications.`,
-      callToAction: `Visit our website or message ${brandName} directly to learn more — link in bio.`,
-      scenes: [
-        {
-          sceneNumber: 1,
-          timeRange: '0–3s',
-          sectionName: 'HOOK',
-          spokenScript: `Before you finalize your requirements for ${safeTopic.toLowerCase()}, check these 3 vital criteria.`,
-          visualDirection: 'Presenter looking directly into camera with high-energy presentation and bold headline overlay.',
-          onScreenText: `CRITICAL CHECKLIST 🚨`,
-        },
-        {
-          sceneNumber: 2,
-          timeRange: '3–12s',
-          sectionName: 'PROBLEM',
-          spokenScript: `Many buyers face delays and quality variances because key product and process standards weren't validated upfront.`,
-          visualDirection: 'Cut to detailed process or product footage with comparison graphics.',
-          onScreenText: `MISTAKE #1: UNVERIFIED SPECS`,
-        },
-        {
-          sceneNumber: 3,
-          timeRange: '12–26s',
-          sectionName: 'POINT_1',
-          spokenScript: `Rule number one is to always verify processing standards, grade certifications, and storage integrity before committing.`,
-          visualDirection: 'Visual inspection proof showing verified quality benchmarks.',
-          onScreenText: `STANDARDS & CERTIFICATION CHECK`,
-        },
-        {
-          sceneNumber: 4,
-          timeRange: '26–42s',
-          sectionName: 'POINT_2',
-          spokenScript: `Rule number two: Ensure end-to-end supply chain and packaging compliance for consistent, reliable outcomes.`,
-          visualDirection: 'Demonstration of packaging and delivery logistics workflow.',
-          onScreenText: `SUPPLY CHAIN RELIABILITY`,
-        },
-        {
-          sceneNumber: 5,
-          timeRange: '42–54s',
-          sectionName: 'SOLUTION',
-          spokenScript: `At ${brandName}, we maintain stringent quality control, transparent documentation, and verified client satisfaction.`,
-          visualDirection: 'Presenter in facility showing certified operations and satisfied customer results.',
-          onScreenText: `VERIFIED QUALITY WITH ${brandName.toUpperCase()}`,
-        },
-        {
-          sceneNumber: 6,
-          timeRange: '54–60s',
-          sectionName: 'CTA',
-          spokenScript: `Reach out to ${brandName} today or click the link in our bio for complete specifications and quotes!`,
-          visualDirection: 'Animated CTA screen with brand logo, contact details, and arrow pointing to profile link.',
-          onScreenText: `GET IN TOUCH 📲`,
-        },
-      ],
-      visualChecklist: [
-        'Shoot in well-lit professional setting or facility',
-        'Record with clear microphone audio',
-        'Use high-contrast bold subtitles in the lower third',
-        'Use smooth cuts on key data points',
-      ],
-      caption: `Looking for reliable solutions in ${safeTopic}? 🚀 \n\nEnsure top standards and avoid common procurement bottlenecks. Connect with ${brandName} today or tap the link in bio for full details! ✨`,
-      hashtags: [`#${topicTag || 'Business'}`, `#${brandTag || 'Industry'}`, '#QualityStandards', '#IndustryInsights', '#B2BGrowth'],
-      originalityGuarantee: 'Verified 100% Original AI Generation — Engineered from strategic pattern recognition, not scraped copy.',
-    };
   }
 }

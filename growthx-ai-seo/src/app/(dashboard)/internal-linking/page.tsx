@@ -67,7 +67,8 @@ export default function InternalLinkingPage() {
   const { orgId, projectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
-  const domain = client?.domain || "aivaenterprises.com";
+  // Empty until a client is selected; never another business's domain.
+  const domain = client?.domain ?? "";
 
   const [activeTab, setActiveTab] = useState<string>("mesh");
 
@@ -237,7 +238,7 @@ export default function InternalLinkingPage() {
                         <Globe size={14} className="text-slate-400" />
                       </div>
                       <input
-                        placeholder={`https://${domain}/solutions/ai-automation`}
+                        placeholder={domain ? `https://${domain}/your-page` : "https://your-site.com/your-page"}
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
                         onKeyDown={(e) => {

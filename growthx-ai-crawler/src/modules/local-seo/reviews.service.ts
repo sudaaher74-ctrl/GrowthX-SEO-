@@ -100,7 +100,8 @@ export class ReviewsService {
       
       Guidelines:
       - If it's a 5-star review, thank them sincerely and mention the specific service or product they praised (for SEO).
-      - If it's a negative review (1-3 stars), apologize, remain professional, do not argue, and offer a way to resolve it offline (e.g., "Please contact us at support@example.com so we can make this right.").
+      - If it's a negative review (1-3 stars), apologize, remain professional, do not argue, and invite them to get in touch with the business directly so it can be put right.
+      - Never write an email address, phone number or URL. You have not been given the business's contact details, and an invented one would be published under its name.
       - Keep it under 4 sentences.
       - Do not include any JSON wrapping, just the raw text of the reply.
     `;

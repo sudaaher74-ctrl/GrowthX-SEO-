@@ -193,7 +193,7 @@ export class AiVisibilityController {
   @ApiOperation({ summary: 'Specialized deep AI intelligence appointed to Claude (Market/Demographics), OpenAI (Commercial/Conquesting), or Gemini (Google Ecosystem/AIO)' })
   @ApiParam({ name: 'projectId' })
   @ApiQuery({ name: 'engine', required: false, enum: ['CLAUDE', 'OPENAI', 'GEMINI'] })
-  @ApiQuery({ name: 'location', required: false, example: 'Navi Mumbai' })
+  @ApiQuery({ name: 'location', required: false, example: 'Pune, India' })
   getSpecialized(
     @Param('projectId') projectId: string,
     @Query('engine') engine?: 'CLAUDE' | 'OPENAI' | 'GEMINI',
@@ -211,7 +211,7 @@ export class AiVisibilityController {
       type: 'object',
       properties: {
         engine: { type: 'string', enum: ['CLAUDE', 'OPENAI', 'GEMINI'] },
-        location: { type: 'string', example: 'Navi Mumbai' },
+        location: { type: 'string', example: 'Pune, India' },
       },
     },
   })

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
@@ -307,7 +307,7 @@ export class SocialDiscoveryService {
     }
 
     if (!domain) {
-      domain = 'competitor.com';
+      throw new BadRequestException('A valid competitor website is required.');
     }
 
     // Fallback organizationId from project if missing
@@ -337,35 +337,15 @@ export class SocialDiscoveryService {
       },
     });
 
-    // Ensure profiles array has items
-    if (!data.profiles || data.profiles.length === 0) {
-      const rootDomain = domain.split('.')[0] || 'competitor';
-      data.profiles = [
-        {
-          platform: 'INSTAGRAM',
-          handle: `@${rootDomain}`,
-          profileUrl: `https://instagram.com/${rootDomain}`,
-          displayName: data.businessName || domain,
-          matchConfidence: 85,
-          discoverySource: 'WEBSITE_CRAWL',
-          verificationStatus: 'VERIFIED',
-        },
-        {
-          platform: 'YOUTUBE',
-          handle: `@${rootDomain}`,
-          profileUrl: `https://youtube.com/@${rootDomain}`,
-          displayName: data.businessName || domain,
-          matchConfidence: 85,
-          discoverySource: 'WEBSITE_CRAWL',
-          verificationStatus: 'VERIFIED',
-        },
-      ];
-    }
+    // Only profiles that were actually found. Guessing @<domain> on Instagram
+    // and YouTube and badging the guess VERIFIED attached strangers' accounts
+    // to a competitor; with nothing found, the competitor simply has none yet.
+    const profiles = data.profiles ?? [];
 
     const createdAccounts = [];
 
     // 2. Create CompetitorAccount records for each discovered profile
-    for (const profile of data.profiles) {
+    for (const profile of profiles) {
       try {
         const account = await this.prisma.competitorAccount.upsert({
           where: {
@@ -408,44 +388,6 @@ export class SocialDiscoveryService {
         });
 
         createdAccounts.push(account);
-
-        // 3. Create initial baseline competitor content for this account so the feed and matrix have real content
-        const existingContentCount = await this.prisma.competitorContent.count({
-          where: { accountId: account.id },
-        });
-
-        if (existingContentCount === 0) {
-          const sampleTopic = data.industry && data.industry !== 'General'
-            ? `${data.industry} Standards & Products`
-            : `${data.businessName || domain} Product Overview`;
-
-          await this.prisma.competitorContent.create({
-            data: {
-              organizationId: orgId,
-              projectId,
-              accountId: account.id,
-              platform: account.platform === 'YOUTUBE' ? 'YOUTUBE' : 'INSTAGRAM',
-              contentType: account.platform === 'YOUTUBE' ? 'VIDEO' : 'REEL',
-              title: `${data.businessName || domain}: Quality Standards & Production Tour`,
-              caption: `Official overview of products, quality standards, and processing capabilities at ${data.businessName || domain}.`,
-              viewsCount: 14500,
-              likesCount: 620,
-              commentsCount: 34,
-              engagementAvailable: true,
-              publishedAt: new Date(),
-              whyItWorks: `Highlights product specifications, quality certifications, and processing integrity to build strong buyer confidence.`,
-              classification: {
-                create: {
-                  topic: sampleTopic,
-                  contentPillar: 'PROJECT_SHOWCASE',
-                  hookType: 'CURIOSITY',
-                  funnelStage: 'CONSIDERATION',
-                  ctaType: 'VISIT_WEBSITE',
-                },
-              },
-            },
-          });
-        }
       } catch (err: any) {
         this.logger.warn(`Could not upsert account ${profile.handle}: ${err.message}`);
       }

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { api, type TrackedCompetitor, type CrawlPage } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages } from "@/hooks/use-growthx";
-import { extractPhrasesFromText, titleCase } from "@/lib/keyword-extractor";
+import { titleCase } from "@/lib/keyword-extractor";
 
 export interface CompetitorContentGapsTabProps {
   projectId?: string;
@@ -41,7 +41,8 @@ export interface ContentGapItem {
   competitors: Array<{ initial: string; bg: string; name: string }>;
   moreCompetitorsCount: number;
   yourCoverage: "Missing" | "Partial" | "Weak";
-  searchVolume: number;
+  /** Words on the rival's page, as crawled. There is no search volume: a crawl does not measure one. */
+  competitorWordCount: number;
   aiPotential: "High" | "Medium";
   opportunity: "High" | "Medium" | "Low";
   sourceUrl?: string;
@@ -83,7 +84,7 @@ export function CompetitorContentGapsTab({
   const [selectedCoverage, setSelectedCoverage] = useState("all");
   const [selectedAiPotential, setSelectedAiPotential] = useState("all");
   const [selectedOpportunity, setSelectedOpportunity] = useState("all");
-  const [sortBy, setSortBy] = useState<"opp-desc" | "vol-desc">("opp-desc");
+  const [sortBy, setSortBy] = useState<"opp-desc" | "depth-desc">("opp-desc");
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -116,7 +117,7 @@ export function CompetitorContentGapsTab({
   const realContentGaps = useMemo<ContentGapItem[]>(() => {
     const ourPages = ourPagesQuery.data?.data || [];
     const compPages = competitorPagesQuery.data || [];
-    const compDomain = activeCompetitor?.domain || "competitor.com";
+    const compDomain = activeCompetitor?.domain ?? "";
 
     // Build customer title & path search index
     const ourTitlesAndUrls = ourPages.map((p) => `${p.title || ""} ${p.url || ""}`.toLowerCase());
@@ -155,9 +156,6 @@ export function CompetitorContentGapsTab({
         coverage = sameType ? "Weak" : "Partial";
       }
 
-      // Estimate search volume and AI potential
-      const phrases = extractPhrasesFromText(topic);
-      const searchVolume = 1200 + phrases.length * 650 + (contentType === "Comparison" ? 1800 : 0);
       const aiPotential: "High" | "Medium" = contentType === "Comparison" || contentType === "Guide" ? "High" : "Medium";
 
       let opportunity: "High" | "Medium" | "Low" = "Medium";
@@ -178,9 +176,10 @@ export function CompetitorContentGapsTab({
             name: compDomain,
           },
         ],
-        moreCompetitorsCount: Math.max(0, competitors.length - 1),
+        // Only this rival's page was compared, so no others are claimed.
+        moreCompetitorsCount: 0,
         yourCoverage: coverage,
-        searchVolume,
+        competitorWordCount: page.wordCount ?? 0,
         aiPotential,
         opportunity,
         sourceUrl: page.url,
@@ -215,7 +214,7 @@ export function CompetitorContentGapsTab({
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "vol-desc") return b.searchVolume - a.searchVolume;
+        if (sortBy === "depth-desc") return b.competitorWordCount - a.competitorWordCount;
         const weight = { High: 3, Medium: 2, Low: 1 };
         return weight[b.opportunity] - weight[a.opportunity];
       });
@@ -620,7 +619,7 @@ export function CompetitorContentGapsTab({
                 className="appearance-none pl-2.5 pr-7 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none"
               >
                 <option value="opp-desc">Opportunity (High → Low)</option>
-                <option value="vol-desc">Estimated Reach (High → Low)</option>
+                <option value="depth-desc">Rival Page Depth (High → Low)</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
             </div>
@@ -663,7 +662,7 @@ export function CompetitorContentGapsTab({
                   <th className="p-3.5 font-bold">Archetype</th>
                   <th className="p-3.5 font-bold">Rival Domain</th>
                   <th className="p-3.5 font-bold">Your Coverage</th>
-                  <th className="p-3.5 font-bold">Est. Reach</th>
+                  <th className="p-3.5 font-bold">Rival Page Depth</th>
                   <th className="p-3.5 font-bold">AI Citation Potential</th>
                   <th className="p-3.5 font-bold">Opportunity</th>
                   <th className="p-3.5 font-bold text-center">Actions</th>
@@ -723,7 +722,7 @@ export function CompetitorContentGapsTab({
                         </span>
                       </td>
                       <td className="p-3.5 font-medium text-slate-700">
-                        {item.searchVolume.toLocaleString()}
+                        {item.competitorWordCount > 0 ? `${item.competitorWordCount.toLocaleString()} words` : "—"}
                       </td>
                       <td className="p-3.5">
                         <span

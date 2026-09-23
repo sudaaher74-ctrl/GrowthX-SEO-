@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { buildFormatEvidence, describeFormats, FormatPost } from './format-evidence';
@@ -358,155 +358,22 @@ export class ContentStrategyService {
         usedModel = result.model || 'ai-router';
       }
     } catch (err: any) {
-      this.logger.warn(`AI Router strategy generation notice: ${err.message}. Using high-conviction industry strategy generator.`);
+      this.logger.warn(`AI strategy generation failed for project ${projectId}: ${err.message}`);
+      // A plan limit or budget ceiling already says what went wrong.
+      if (err instanceof HttpException) throw err;
+      throw new ServiceUnavailableException(
+        'The content strategy could not be generated because no AI provider answered. Check the AI configuration in Settings and try again.',
+      );
     }
 
-    // Build intelligent industry strategy fallback if AI returned empty or failed
-    if (!parsed || !parsed.contentPillars || parsed.contentPillars.length === 0) {
-      const isFoodOrExport = domains.some((d: string) => d.includes('aiva') || d.includes('fruit') || d.includes('frozen') || d.includes('pulp')) ||
-        competitorDomains.some((c: any) => c.domain?.includes('frozen') || c.domain?.includes('pulp') || c.domain?.includes('food') || c.domain?.includes('fruit'));
-
-      if (isFoodOrExport) {
-        parsed = {
-          executiveSummary: `${project.name} possesses a high-margin opportunity to dominate B2B search and video discovery by publishing technical manufacturing integrity, optical sorting, and unbroken cold chain audits that competitors currently omit.`,
-          contentPillars: [
-            {
-              pillar: 'Technical Cold Chain & Quality Verification',
-              percentage: 35,
-              rationale: 'Addresses overseas importer risks by proving zero temperature deviation and multi-point microbial testing.',
-              topics: ['IQF Blast Freezing (-40°C)', 'Reefer Container Datalogging', 'Optical Sorter Foreign Material Detection'],
-            },
-            {
-              pillar: 'Product Specifications & Processing Tours',
-              percentage: 30,
-              rationale: 'Demonstrates physical facility hygiene and commercial volume capacity to secure direct buyer inquiries.',
-              topics: ['Aseptic 215kg Drum Packaging', 'Brix Ratio & Color Consistency', 'APEDA & FSSAI Export Compliance'],
-            },
-            {
-              pillar: 'Buyer Guides & Incoterms Clarity',
-              percentage: 20,
-              rationale: 'Captures high-intent commercial search queries from international purchasing managers.',
-              topics: ['FOB vs CIF Cost Breakdown', 'Seasonal Crop Harvest Calendars', 'Ambient vs Frozen Shelf Life'],
-            },
-            {
-              pillar: 'Customer Proof & Shipment Dispatches',
-              percentage: 15,
-              rationale: 'Provides social proof of recurring global container shipments to build immediate credibility.',
-              topics: ['Port Container Stuffing Walkthroughs', 'Client Destination Showcases'],
-            },
-          ],
-          platformFrequency: [
-            { platform: 'INSTAGRAM', postsPerWeek: 5 },
-            { platform: 'YOUTUBE', postsPerWeek: 2 },
-            { platform: 'LINKEDIN', postsPerWeek: 3 },
-          ],
-          campaignIdeas: [
-            {
-              title: 'Zero Temperature Deviation Masterclass',
-              concept: 'Live-action proof of how temperature dataloggers monitor IQF pallets from factory floor to seaport loading.',
-              goal: 'Position the brand as the most reliable cold chain export partner.',
-              targetPlatforms: ['Instagram Reels', 'YouTube Shorts', 'LinkedIn'],
-              suggestedPillars: ['Technical Cold Chain & Quality Verification'],
-              estimatedReach: '60,000+ targeted B2B trade views',
-            },
-            {
-              title: 'Aseptic vs Frozen: The Importer Specification Series',
-              concept: 'Detailed side-by-side comparison of 215kg aseptic bag-in-drum vs frozen puree for industrial food manufacturers.',
-              goal: 'Drive high-ticket contract inquiries from beverage, dairy, and confectionery processors.',
-              targetPlatforms: ['YouTube Long-Form', 'LinkedIn Carousel'],
-              suggestedPillars: ['Product Specifications & Processing Tours'],
-              estimatedReach: '35,000+ industrial buyer views',
-            },
-          ],
-          hooks: [
-            {
-              hookText: 'Most international food importers lose 15% to improper cold chains. Here is how we guarantee -18°C in-transit.',
-              hookType: 'PROBLEM',
-              suggestedPillar: 'Technical Cold Chain & Quality Verification',
-              whyItWorks: 'Directly triggers the largest financial pain point in perishables import.',
-            },
-            {
-              hookText: 'Why 215kg aseptic bag-in-drum packaging preserves natural mango aroma for 24 months with zero preservatives.',
-              hookType: 'CURIOSITY',
-              suggestedPillar: 'Product Specifications & Processing Tours',
-              whyItWorks: 'Demystifies commercial sterilization for international food technologists.',
-            },
-          ],
-          platformStrategy: {
-            instagram: 'Prioritize short-form 30-45s vertical Reels featuring optical sorting machines, fluidised bed blast freezing, and packaging lines.',
-            youtube: 'Publish 3-5 minute technical teardowns walking through lab Certificate of Analysis (COA) testing and plant audits.',
-            linkedin: 'Post weekly trade analysis, crop harvest updates, and export shipment verification photos targeting procurement officers.',
-          },
-          roadmap30Day: [
-            'Audit and publish 8 IQF processing & aseptic packaging Reels',
-            'Publish 2 full facility tour videos on YouTube covering quality grading',
-            'Connect competitor monitoring to track Pal Frozen Foods & Indian Fruit Pulp publishing surges',
-          ],
-          roadmap60Day: [
-            'Launch the Zero Temperature Deviation technical campaign across LinkedIn and YouTube',
-            'Target long-tail commercial buyer search terms with video schema integration',
-            'A/B test B2B lead generation forms linked in video descriptions',
-          ],
-          roadmap90Day: [
-            'Scale weekly production to 6 multi-platform assets per week',
-            'Review cross-competitor matrix to capture newly vacated search and video topics',
-            'Deploy full buyer testimonial & international port container dispatch series',
-          ],
-          avoidList: [
-            'Avoid generic stock photography or superficial marketing claims with no real factory footage',
-            'Avoid hiding product specifications, Brix ratings, or packaging sizes',
-          ],
-          testList: [
-            'Test split-screen quality comparisons of hand sorting vs optical sorting',
-            'Test live Q&A webinars addressing seasonal crop pricing and reefer shipping rates',
-          ],
-          scaleList: [
-            'Scale high-performing facility walkthrough formats with multi-language captions (Arabic, Spanish, English)',
-            'Scale drum packaging and container stuffing time-lapses',
-          ],
-        };
-      } else {
-        parsed = {
-          executiveSummary: `${project.name} has a clear path to win search and social market share by establishing transparent product authority and addressing technical customer questions directly.`,
-          contentPillars: [
-            { pillar: 'Educational & Problem Solving', percentage: 40, rationale: 'Drives top-of-funnel organic search demand.' },
-            { pillar: 'Product Capabilities & Proof', percentage: 35, rationale: 'Converts consideration traffic into qualified sales inquiries.' },
-            { pillar: 'Customer Results & Case Studies', percentage: 25, rationale: 'Reinforces trust and minimizes purchase friction.' },
-          ],
-          platformFrequency: [
-            { platform: 'INSTAGRAM', postsPerWeek: 4 },
-            { platform: 'YOUTUBE', postsPerWeek: 2 },
-            { platform: 'LINKEDIN', postsPerWeek: 3 },
-          ],
-          campaignIdeas: [
-            {
-              title: `${project.name} Authority Series`,
-              concept: 'Step-by-step breakdowns solving the core challenges faced by your target market.',
-              goal: 'Establish market leadership and capture organic search volume.',
-              targetPlatforms: ['Instagram Reels', 'YouTube', 'LinkedIn'],
-            },
-          ],
-          hooks: [
-            {
-              hookText: `The #1 mistake most buyers make when choosing a provider in our industry.`,
-              hookType: 'WARNING',
-              suggestedPillar: 'Educational & Problem Solving',
-              whyItWorks: 'Creates urgent curiosity and positions the brand as an honest advisor.',
-            },
-          ],
-          platformStrategy: {
-            instagram: 'Focus on short, dynamic vertical videos that demonstrate tangible product value in the first 3 seconds.',
-            youtube: 'Publish structured educational guides and feature teardowns.',
-            linkedin: 'Share data-backed industry insights and operational milestones.',
-          },
-          roadmap30Day: ['Establish foundational content pillars', 'Film initial 8 product capability videos', 'Track competitor shifts'],
-          roadmap60Day: ['Launch core problem-solving campaign', 'Optimize video descriptions for target keyword clusters'],
-          roadmap90Day: ['Scale high-converting formats', 'Review 6D opportunity scores to double down on winning pillars'],
-          avoidList: ['Generic unbranded promotional posts without tangible value'],
-          testList: ['Side-by-side comparison hooks', 'Customer case study interviews'],
-          scaleList: ['High-retention tutorial walkthroughs and product demos'],
-        };
-      }
+    // No stock strategy is substituted when the model returns nothing usable:
+    // a canned plan saved under this brand's name reads exactly like one
+    // written for it, and this one used to hand every food business the same
+    // fruit-pulp export playbook.
+    if (!parsed || !Array.isArray(parsed.contentPillars) || parsed.contentPillars.length === 0) {
+      throw new ServiceUnavailableException(
+        'The AI provider returned an incomplete strategy. Nothing was saved — try generating it again.',
+      );
     }
 
     const contentPillars = this.normalizePillars(parsed.contentPillars, projectId);

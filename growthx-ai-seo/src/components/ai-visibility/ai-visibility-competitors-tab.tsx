@@ -79,7 +79,7 @@ export function AiVisibilityCompetitorsTab({
     return shareOfVoice.map((item, idx) => ({
       rank: idx + 1,
       name: item.label || item.domain || "Competitor",
-      domain: item.domain || item.label || "competitor.com",
+      domain: item.domain || item.label || "",
       isYou: item.domain === domain,
       sharePct: item.sharePct,
       mentions: item.mentions,

@@ -139,7 +139,6 @@ const FOOTER_COLUMNS: FooterColumn[] = [
         { label: "Technical SEO Crawler", href: "/website" },
         { label: "Competitor Intelligence", href: "/competitor-intelligence" },
         { label: "AI Copy & Content Writer", href: "/content-intelligence" },
-        { label: "Fix Engine Auto-Deployer", href: "/fix-engine" },
         { label: "Local Search & GBP Agent", href: "/google-business-profile" },
       ],
     },

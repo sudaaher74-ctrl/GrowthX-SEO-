@@ -259,7 +259,7 @@ export function AiCitationMatrixPanel({
             <span>Pillar 1: Quotable Definition Blocks</span>
           </div>
           <p className="text-xs text-brand-600 leading-relaxed">
-            AI search engines ingest content through RAG chunking (typically 300–500 tokens). Pages with a clear 40–55 word direct definition right under the main H2 get extracted 3.8x more frequently into Google AI Overviews.
+            AI search engines ingest content through RAG chunking (typically 300–500 tokens). A clear 40–55 word direct definition right under the main H2 gives them a self-contained passage to quote.
           </p>
           <div className="rounded-lg bg-blue-50/60 border border-blue-200 p-2.5 text-[11px] font-mono text-blue-900 font-medium">
             Target: 45 words max · Bold core entity · Direct declarative syntax

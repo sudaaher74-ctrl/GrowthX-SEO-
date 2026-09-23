@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GrowthX SEO
 
-## Getting Started
+AI-assisted SEO for real businesses. Three products are in production:
 
-First, run the development server:
+- **Website Audit** — crawls a site, raises technical and on-page issues, groups
+  them into a prioritised queue, re-checks fixes, and exports a client-ready PDF.
+- **Competitor Intelligence** — finds real competitors from live search results,
+  crawls them, and compares their pages, structure and weaknesses with yours.
+- **Google Business Profile** — connects a listing through Google, audits it,
+  tracks local rankings on a geo grid, and drafts review replies.
+
+Every figure the product shows comes from a crawl, a Google API, or a model
+call made for that customer. When something has not been measured, the screen
+says so — there is no demo or placeholder data, and `npm run check:data`
+(frontend) and `src/no-fabricated-data.spec.ts` (backend) fail the build if a
+placeholder dataset is added.
+
+## Repository layout
+
+| Path | What it is |
+| --- | --- |
+| `growthx-ai-crawler/` | NestJS API and crawl worker (PostgreSQL via Prisma, Redis/BullMQ, Playwright) |
+| `growthx-ai-seo/` | Next.js dashboard and marketing site |
+| `render.yaml` | Render blueprint for the API, database and Redis |
+| `vercel.json` | Vercel settings for the dashboard |
+| `docker-compose.yml` | Whole stack on one machine |
+
+## Run it with Docker Compose
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
+# Fill in the REQUIRED block (openssl rand -hex 32 for each secret),
+# plus at least one AI key and your Google OAuth credentials.
+docker compose up --build -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Dashboard: http://localhost:3001
+- API: http://localhost:3000 (health check at `/health`)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Compose will not start while `POSTGRES_PASSWORD`, `ENCRYPTION_KEY` or
+`JWT_SECRET` is empty. That is deliberate: no working secret is committed to
+this repository.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy
 
-## Learn More
+**API (Render).** `render.yaml` defines the API service, PostgreSQL and Redis.
+Every secret is `sync: false`, so Render asks for it on first deploy. Migrations
+run on boot from `growthx-ai-crawler/docker-entrypoint.sh`.
 
-To learn more about Next.js, take a look at the following resources:
+**Dashboard (Vercel).** Set `NEXT_PUBLIC_API_URL` to the API's public URL
+before building — `NEXT_PUBLIC_*` values are baked in at build time.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Configuration
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The full list, with explanations, is in `growthx-ai-crawler/.env.example`. The
+ones each product depends on:
 
-## Deploy on Vercel
+| Setting | Needed for |
+| --- | --- |
+| `ENCRYPTION_KEY`, `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL` | Everything (the API will not boot without them) |
+| `CORS_ALLOWED_ORIGINS` | The dashboard's origin, in production |
+| One of `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MAMMOUTH_API_KEY` | AI explanations, competitor suggestions, review replies |
+| `TAVILY_API_KEY` | Finding competitors from live search results (without it, only model suggestions are verified and shown) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` | Google sign-in, Business Profile, Search Console |
+| `GOOGLE_PLACES_API_KEY` | Geo-grid local rankings |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+A feature whose provider is not configured reports itself as unavailable; it
+does not fall back to sample output.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Development
+
+```bash
+# API
+cd growthx-ai-crawler
+npm ci && npx prisma generate
+npm run start:dev          # needs Postgres and Redis; see .env.example
+npm test                   # unit tests
+npx tsc --noEmit
+
+# Dashboard
+cd growthx-ai-seo
+npm ci
+npm run dev
+npm run typecheck && npm run lint
+```
+
+`growthx-ai-crawler/README.md` covers the crawler's architecture, migrations
+and test setup in more depth.

@@ -403,10 +403,10 @@ export function GeoSimulationSandbox({
                 </button>
 
                 <Link
-                  href="/fix-engine?tab=implementation"
+                  href="/action-queue"
                   className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5"
                 >
-                  <span>Go to Fix Engine</span>
+                  <span>Go to Action Queue</span>
                   <ArrowRight size={13} />
                 </Link>
               </div>

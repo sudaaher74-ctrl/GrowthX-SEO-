@@ -79,6 +79,22 @@ describe('ContentStrategyService', () => {
     service = module.get(ContentStrategyService);
   });
 
+  // The fallback this replaces saved a fruit-pulp export playbook under any
+  // brand whose domain mentioned food, and a generic one for everyone else.
+  it('saves nothing when the model fails, rather than a stock strategy', async () => {
+    router.generate.mockRejectedValueOnce(new Error('all providers down'));
+
+    await expect(service.generateStrategy(PROJ, ORG)).rejects.toThrow(/could not be generated/);
+    expect(prisma.contentStrategy.create).not.toHaveBeenCalled();
+  });
+
+  it('saves nothing when the model answers without any pillars', async () => {
+    router.generate.mockResolvedValueOnce({ text: JSON.stringify({ ...modelAnswer, contentPillars: [] }), model: 'm' });
+
+    await expect(service.generateStrategy(PROJ, ORG)).rejects.toThrow(/incomplete strategy/);
+    expect(prisma.contentStrategy.create).not.toHaveBeenCalled();
+  });
+
   it('sends a schema every provider can accept', async () => {
     await service.generateStrategy(PROJ, ORG);
 

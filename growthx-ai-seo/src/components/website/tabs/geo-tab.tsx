@@ -230,7 +230,7 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
             <span>Information Gain & Data Density</span>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-            Generative search engines penalize generic copy. Pages with proprietary benchmarks, comparison tables, and statistics earn 4x more citations.
+            Generative search engines penalize generic copy. Pages with original data, comparison tables and cited statistics give them more to quote.
           </p>
           <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5 text-[11px] text-slate-700 dark:text-slate-300">
             <b>Depth Metric:</b> Average of <b>{avgWordDepth} words/page</b>. Include quantitative tables and verified performance specs.

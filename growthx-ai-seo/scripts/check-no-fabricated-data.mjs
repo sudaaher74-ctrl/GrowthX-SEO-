@@ -87,6 +87,77 @@ const RULES = [
     pattern: /(Search Demand:\s*Moderate|Competitive Velocity:\s*High)/,
   },
   {
+    name: 'another business as a default',
+    why:
+      'A real domain used as a fallback shows one customer another ' +
+      "business's name, and every figure next to it reads as theirs. This " +
+      'fallback put aivaenterprises.com and milquufresh.in on new accounts. ' +
+      'Render empty, or say nothing is selected.',
+    pattern: /(\|\||\?\?|=)\s*["'`](https?:\/\/)?(www\.)?[a-z0-9-]+\.(in|com|co|io|ai|net|org)["'`]/,
+    // Links out to real sites and greyed input hints are not client data, and
+    // an obviously generic stand-in like yourdomain.com cannot be mistaken for
+    // anyone's business.
+    except: /\b(href|placeholder)=|\byour-?(domain|website|site)\.com\b/,
+    allow: [
+      {
+        file: 'lib/api-client.ts',
+        line: 'const ORG_KEY',
+        reason: 'A localStorage key that happens to end in ".org", not a domain.',
+      },
+    ],
+  },
+  {
+    name: 'unsourced performance multiplier',
+    why:
+      '"3.8x more citations" and "3.2x organic visibility" shipped as copy with ' +
+      'nothing behind them. A figure the reader will quote needs a measurement ' +
+      'or a named source; otherwise describe the effect without a number.',
+    pattern: /\b\d+(\.\d+)?x (more|higher|faster|increase|lift|boost|better)\b/i,
+    allow: [
+      {
+        file: 'components/social/social-market-trends-panel.tsx',
+        reason:
+          'KNOWN, NOT YET FIXED: the Social module is outside the current ' +
+          'audit (website, competitors, GBP). Its "market trends" are a ' +
+          'static list. Remove this entry when that panel is rebuilt.',
+      },
+    ],
+  },
+  {
+    name: 'demo business content',
+    why:
+      'These are the businesses the product was built against. Their names, ' +
+      'cities and figures hardcoded into a screen are demo content that every ' +
+      'customer sees.',
+    pattern: /milquu|miquu|aivaenterprises|navi mumbai|vashi|kharghar|cidco/i,
+    // Comments recording why a fabricator was removed are the point of them.
+    except: /^\s*(\/\/|\*|\/\*)/,
+    allow: [
+      {
+        file: 'components/marketing/trust-section.tsx',
+        line: '"Milquu Fresh"',
+        reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
+      },
+      {
+        file: 'components/marketing/workflow-steps.tsx',
+        line: '"Milquu Fresh"',
+        reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
+      },
+      {
+        file: 'app/login/page.tsx',
+        line: '"Milquu Fresh"',
+        reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
+      },
+      {
+        file: 'components/ai-visibility/specialized-engines-panel.tsx',
+        reason:
+          'KNOWN, NOT YET FIXED: AI Visibility is outside the current audit. ' +
+          'This panel renders a templated Navi Mumbai demographic report. ' +
+          'Remove this entry when it is rebuilt on a real model call.',
+      },
+    ],
+  },
+  {
     name: 'unconditional bypass',
     why:
       'A check switched off "for now" is how billing ended up disabled in ' +

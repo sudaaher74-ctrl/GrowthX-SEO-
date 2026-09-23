@@ -259,6 +259,18 @@ describe('ReviewsService', () => {
       expect(callArgs.prompt).toContain('Adopt an empathetic, reassuring, solution-oriented tone');
     });
 
+    // Drafts can be published to Google under the business's name. The prompt
+    // used to show the model "support@example.com" as the contact to offer.
+    it('never gives the model a contact address to copy into a public reply', async () => {
+      const { service, routerGenerate } = buildService({ review: { ...mockReview, rating: 1 } });
+
+      await service.draftReply(projectId, reviewId);
+
+      const { prompt } = routerGenerate.mock.calls[0][0];
+      expect(prompt).not.toMatch(/@|example\.com/);
+      expect(prompt).toContain('Never write an email address, phone number or URL');
+    });
+
     it('falls back to "our business" when no localLocation record is found', async () => {
       const { service, routerGenerate } = buildService({ location: null });
 

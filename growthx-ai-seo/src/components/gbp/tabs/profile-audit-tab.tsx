@@ -395,7 +395,7 @@ export function ProfileAuditTab({
               </a>
             </div>
 
-            {/* Mock Header Visual / Photos */}
+            {/* Illustrative header: the listing's photos are not fetched here */}
             <div className="relative h-24 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 flex items-center justify-center text-white">
               <span className="font-semibold text-xs tracking-wider opacity-80">Storefront Visual</span>
               <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -414,13 +414,17 @@ export function ProfileAuditTab({
                   <div className="flex items-center gap-1 text-xs">
                     <span className="font-bold text-brand-950">{rating}</span>
                     <div className="flex text-amber-500">
+                      {/* Filled to the real rating; five full stars for a 3.2 is a claim. */}
                       {[...Array(5)].map((_, i) => (
-                        <Star key={i} size={10} className="fill-amber-500" />
+                        <Star
+                          key={i}
+                          size={10}
+                          className={localSeo?.rating && i < Math.round(localSeo.rating) ? "fill-amber-500" : ""}
+                        />
                       ))}
                     </div>
                     <span className="text-brand-400 text-[10px]">({reviewCount})</span>
                   </div>
-                  <p className="text-[11px] text-brand-500">Local Business</p>
                 </div>
               </div>
 

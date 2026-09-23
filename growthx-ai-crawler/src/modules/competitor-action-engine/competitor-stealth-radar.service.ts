@@ -18,24 +18,13 @@ export interface RadarCounterAction {
 export interface StealthRadarEvent {
   id: string;
   type: RadarEventType;
-  competitorDomain: string;
-  title: string;
-  detectedAt: string;
-  targetUrl: string;
-  impactScore: number;
-  urgency: 'HIGH' | 'MEDIUM' | 'LOW';
-  summary: string;
-  counterTactic: string;
-  copyableDeliverable: {
-    label: string;
-    snippet: string;
-  };
-
-  // Backwards compatibility aliases
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  competitorDomain: string;
   competitorUrl: string;
   headline: string;
   description: string;
+  detectedAt: string;
+  impactScore: number;
   counterAction: RadarCounterAction;
 }
 
@@ -47,15 +36,8 @@ export interface StealthRadarScoreboard {
 }
 
 export interface StealthRadarResponse {
-  totalEvents: number;
-  highPriorityAlerts: number;
-  brokenLinkHijacks: number;
-  schemaVulnerabilities: number;
-  aiPoachOpportunities: number;
-  events: StealthRadarEvent[];
-
-  // Backwards compatibility alias
   scoreboard: StealthRadarScoreboard;
+  events: StealthRadarEvent[];
 }
 
 @Injectable()
@@ -104,35 +86,21 @@ export class CompetitorStealthRadarService {
 
       for (const p of brokenPages) {
         const path = this.safePath(p.url);
-        const title = `Broken Asset Hijack: ${compDomain}${path} (HTTP 404)`;
-        const summary = `Competitor URL returned a verified 404 Not Found error during recent crawl. Any existing referring links and residual search traffic can be reclaimed.`;
-        const tactic = `Deploy replacement guide on ${customerDomain} and reach out to reclaim referring backlinks.`;
-        const snippet = `Subject: Broken link to ${compDomain}'s resource on your guide\n\nHi [Editor Name],\n\nI noticed your article links to ${compDomain}${path}, which is currently returning a 404 error.\n\nWe maintain an active, verified resource on this topic at https://${customerDomain}${path}. If helpful, you can update the link to point to this active resource for your readers.\n\nBest,\n[Your Name]`;
-
         events.push({
           id: `radar_vamp_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
           type: 'BACKLINK_VAMPIRE',
-          urgency: 'HIGH',
           severity: 'CRITICAL',
           competitorDomain: compDomain,
-          targetUrl: p.url,
           competitorUrl: p.url,
-          title,
-          headline: title,
-          summary,
-          description: summary,
+          headline: `Broken Asset Hijack: ${compDomain}${path} (HTTP 404)`,
+          description: `Competitor URL returned a verified 404 Not Found error during recent crawl. Any existing referring links and residual search traffic can be reclaimed.`,
           detectedAt: this.formatTimeAgo(p.crawledAt),
           impactScore: 92,
-          counterTactic: tactic,
-          copyableDeliverable: {
-            label: 'Deploy Replacement Resource & Claim Traffic',
-            snippet,
-          },
           counterAction: {
             label: 'Deploy Replacement Resource & Claim Traffic',
             deliverableType: 'OUTREACH_PITCH',
-            codeSnippet: snippet,
-            actionableSummary: tactic,
+            codeSnippet: `Subject: Broken link to ${compDomain}'s resource on your guide\n\nHi [Editor Name],\n\nI noticed your article links to ${compDomain}${path}, which is currently returning a 404 error.\n\nWe maintain an active resource on this topic at [URL of your replacement page]. If helpful, you can update the link to point to it for your readers.\n\nBest,\n[Your Name]`,
+            actionableSummary: `Deploy replacement guide on ${customerDomain} and reach out to reclaim referring backlinks.`,
           },
         });
       }
@@ -150,35 +118,21 @@ export class CompetitorStealthRadarService {
 
       for (const p of schemaGapPages) {
         const path = this.safePath(p.url);
-        const title = `Zero Structured Data on ${compDomain}${path}`;
-        const summary = `Competitor page lacks any Schema.org JSON-LD structured data. Search engines and AI models cannot extract rich badges or structured answers from this page.`;
-        const tactic = `Inject JSON-LD Product & FAQPage schemas to secure rich SERP results over competitor.`;
-        const snippet = `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "${customerDomain} Offering",\n  "description": "Comprehensive, verified solution with rich attributes.",\n  "offers": {\n    "@type": "Offer",\n    "priceCurrency": "USD",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>`;
-
         events.push({
           id: `radar_schema_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
           type: 'SCHEMA_GAP',
-          urgency: 'HIGH',
           severity: 'HIGH',
           competitorDomain: compDomain,
-          targetUrl: p.url,
           competitorUrl: p.url,
-          title,
-          headline: title,
-          summary,
-          description: summary,
+          headline: `Zero Structured Data on ${compDomain}${path}`,
+          description: `Competitor page lacks any Schema.org JSON-LD structured data. Search engines and AI models cannot extract rich badges or structured answers from this page.`,
           detectedAt: this.formatTimeAgo(p.crawledAt),
           impactScore: 86,
-          counterTactic: tactic,
-          copyableDeliverable: {
-            label: 'Deploy Validated Schema Entity',
-            snippet,
-          },
           counterAction: {
             label: 'Deploy Validated Schema Entity',
             deliverableType: 'JSON_LD',
-            codeSnippet: snippet,
-            actionableSummary: tactic,
+            codeSnippet: `<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "Product",\n  "name": "${customerDomain} Offering",\n  "description": "Comprehensive, verified solution with rich attributes.",\n  "offers": {\n    "@type": "Offer",\n    "priceCurrency": "USD",\n    "availability": "https://schema.org/InStock"\n  }\n}\n</script>`,
+            actionableSummary: `Inject JSON-LD Product & FAQPage schemas to secure rich SERP results over competitor.`,
           },
         });
       }
@@ -196,35 +150,23 @@ export class CompetitorStealthRadarService {
 
       for (const p of thinPages) {
         const path = this.safePath(p.url);
-        const title = `Thin Content Deficit: ${compDomain}${path} (${p.wordCount} words)`;
-        const summary = `Competitor URL provides surface-level content (${p.wordCount} words), making it easily displaceable in Perplexity, Claude, and ChatGPT search citations with a deep comparison matrix.`;
-        const tactic = `Deploy structured Markdown comparison table to capture LLM citations.`;
-        const snippet = `| Capability | ${customerDomain} | ${compName} |\n| :--- | :--- | :--- |\n| Deep Technical Specifications | Verified & Documented | Surface Level (${p.wordCount} words) |\n| Latency & Performance | Sub-second Edge Cached | Legacy Hosting |\n| Code Remediations | Automated | None |`;
-
         events.push({
           id: `radar_ai_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
           type: 'AI_CITATION_POACH',
-          urgency: 'HIGH',
           severity: 'HIGH',
           competitorDomain: compDomain,
-          targetUrl: p.url,
           competitorUrl: p.url,
-          title,
-          headline: title,
-          summary,
-          description: summary,
+          headline: `Thin Content Deficit: ${compDomain}${path} (${p.wordCount} words)`,
+          description: `Competitor URL provides surface-level content (${p.wordCount} words), making it easily displaceable in Perplexity, Claude, and ChatGPT search citations with a deep comparison matrix.`,
           detectedAt: this.formatTimeAgo(p.crawledAt),
           impactScore: 80,
-          counterTactic: tactic,
-          copyableDeliverable: {
-            label: 'Inject Structured Comparison Matrix',
-            snippet,
-          },
           counterAction: {
             label: 'Inject Structured Comparison Matrix',
             deliverableType: 'CITATION_BAIT',
-            codeSnippet: snippet,
-            actionableSummary: tactic,
+            // Only the competitor's measured figure is filled in. Claims about
+            // the customer's side are theirs to make, so they are left blank.
+            codeSnippet: `| Capability | ${customerDomain} | ${compName} |\n| :--- | :--- | :--- |\n| Depth of coverage | [your page's word count] | ${p.wordCount} words (measured) |\n| [capability] | [your answer] | [their answer] |`,
+            actionableSummary: `Deploy structured Markdown comparison table to capture LLM citations.`,
           },
         });
       }
@@ -242,59 +184,38 @@ export class CompetitorStealthRadarService {
 
       for (const p of slowPages) {
         const path = this.safePath(p.url);
-        const title = `Severe TTFB Latency: ${p.responseTimeMs}ms on ${compDomain}${path}`;
-        const summary = `Competitor page suffers from slow server response (${p.responseTimeMs}ms), failing Core Web Vitals standards and impairing search crawl frequency.`;
-        const tactic = `Outperform competitor's sluggish ${p.responseTimeMs}ms latency with edge-cached sub-800ms page.`;
-        const snippet = `<!-- Edge Cached Counter Asset -->\n<link rel="preconnect" href="https://fonts.googleapis.com" />\n<meta http-equiv="x-dns-prefetch-control" content="on" />`;
-
         events.push({
           id: `radar_speed_${comp.id}_${Buffer.from(p.url).toString('hex').slice(0, 8)}`,
           type: 'SPEED_DEFECT',
-          urgency: 'MEDIUM',
           severity: 'MEDIUM',
           competitorDomain: compDomain,
-          targetUrl: p.url,
           competitorUrl: p.url,
-          title,
-          headline: title,
-          summary,
-          description: summary,
+          headline: `Severe TTFB Latency: ${p.responseTimeMs}ms on ${compDomain}${path}`,
+          description: `Competitor page suffers from slow server response (${p.responseTimeMs}ms), failing Core Web Vitals standards and impairing search crawl frequency.`,
           detectedAt: this.formatTimeAgo(p.crawledAt),
           impactScore: 74,
-          counterTactic: tactic,
-          copyableDeliverable: {
-            label: 'Deploy High-Speed Counter Resource',
-            snippet,
-          },
           counterAction: {
             label: 'Deploy High-Speed Counter Resource',
             deliverableType: 'HTML_SNIPPET',
-            codeSnippet: snippet,
-            actionableSummary: tactic,
+            codeSnippet: `<!-- Edge Cached Counter Asset -->\n<link rel="preconnect" href="https://fonts.googleapis.com" />\n<meta http-equiv="x-dns-prefetch-control" content="on" />`,
+            actionableSummary: `Competitor responded in ${p.responseTimeMs}ms (measured). Publish a faster page on the same topic.`,
           },
         });
       }
     }
 
-    const totalEvents = events.length;
-    const highPriorityAlerts = events.filter((e) => e.urgency === 'HIGH' || e.severity === 'CRITICAL').length;
-    const brokenLinkHijacks = events.filter((e) => e.type === 'BACKLINK_VAMPIRE').length;
-    const schemaVulnerabilities = events.filter((e) => e.type === 'SCHEMA_GAP').length;
-    const aiPoachOpportunities = events.filter((e) => e.type === 'AI_CITATION_POACH').length;
+    const criticalCount = events.filter((e) => e.severity === 'CRITICAL').length;
+    const backlinkCount = events.filter((e) => e.type === 'BACKLINK_VAMPIRE').length;
+    const aiCount = events.filter((e) => e.type === 'AI_CITATION_POACH').length;
 
     return {
-      totalEvents,
-      highPriorityAlerts,
-      brokenLinkHijacks,
-      schemaVulnerabilities,
-      aiPoachOpportunities,
-      events,
       scoreboard: {
-        activeEventsCount: totalEvents,
-        criticalVulnerabilities: highPriorityAlerts,
-        backlinkOpportunities: brokenLinkHijacks,
-        aiCitationDeficits: aiPoachOpportunities,
+        activeEventsCount: events.length,
+        criticalVulnerabilities: criticalCount,
+        backlinkOpportunities: backlinkCount,
+        aiCitationDeficits: aiCount,
       },
+      events,
     };
   }
 

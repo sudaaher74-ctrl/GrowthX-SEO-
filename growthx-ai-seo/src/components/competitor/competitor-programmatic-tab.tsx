@@ -46,8 +46,7 @@ export function CompetitorProgrammaticTab({
 }: CompetitorProgrammaticTabProps) {
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string>("all");
   const [activeCluster, setActiveCluster] = useState<ProgrammaticCluster | null>(null);
-  const [copiedH2, setCopiedH2] = useState(false);
-  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
   const [dispatchedIds, setDispatchedIds] = useState<Set<string>>(new Set());
 
   const { data, isLoading } = useProgrammaticMatrix(
@@ -58,93 +57,36 @@ export function CompetitorProgrammaticTab({
   const dispatchMutation = useDispatchFindingToQueue(projectId);
 
   const scoreboard = data?.scoreboard;
-  const rawClusters = data?.clusters || [];
+  const clusters = data?.clusters || [];
 
-  // Defensive normalization to support both snake_case, legacy keys, or partial payloads safely
-  const clusters: ProgrammaticCluster[] = rawClusters.map((raw: any, index: number) => {
-    const patternId = raw.patternId || raw.id || `cluster_${index}`;
-    const formula = raw.formula || raw.urlPattern || "Pattern";
-    const patternType = raw.patternType || raw.category || "COMPARISON";
-    const competitorDomain = raw.competitorDomain || "Competitor";
-    const sampleUrls = Array.isArray(raw.sampleUrls) ? raw.sampleUrls : [];
-    const totalDetectedPages = Number(raw.totalDetectedPages ?? raw.pageCount ?? 0);
-    const estimatedMonthlyVisits = Number(raw.estimatedMonthlyVisits ?? 0);
-
-    const extractedVariables = Array.isArray(raw.extractedVariables)
-      ? raw.extractedVariables
-      : Array.isArray(raw.variables)
-      ? raw.variables.map((v: any) => (typeof v === "string" ? v : v?.name || String(v)))
-      : [];
-
-    const sampleVariables = (raw.sampleVariables && typeof raw.sampleVariables === "object")
-      ? raw.sampleVariables
-      : {};
-
-    const rawBp = raw.counterBlueprint || raw.counterStrategy || {};
-    const counterBlueprint = {
-      counterPattern: rawBp.counterPattern || rawBp.recommendedUrlPattern || `https://${customerDomain}/counter`,
-      targetArchitecture: rawBp.targetArchitecture || rawBp.recommendedUrlPattern || "/counter-architecture",
-      recommendedSchemaType: rawBp.recommendedSchemaType || "WebPage",
-      semanticH2Outlines: Array.isArray(rawBp.semanticH2Outlines) ? rawBp.semanticH2Outlines : [],
-      differentiationAngle: rawBp.differentiationAngle || rawBp.differentiatorAngle || "Verified, high-depth alternative.",
-      sampleCopyablePrompt: rawBp.sampleCopyablePrompt || rawBp.sampleDeliverableTemplate || "",
-      targetSlugExample: rawBp.targetSlugExample || "/example-route",
-    };
-
-    return {
-      patternId,
-      formula,
-      patternType,
-      competitorDomain,
-      sampleUrls,
-      totalDetectedPages,
-      extractedVariables,
-      sampleVariables,
-      estimatedMonthlyVisits,
-      counterBlueprint,
-    };
-  });
-
-  const totalPatterns = scoreboard?.totalPatternsDetected ?? (scoreboard as any)?.totalProgrammaticClusters ?? clusters.length;
-  const totalPages = scoreboard?.totalProgrammaticPages ?? (scoreboard as any)?.totalCompetitorPagesIndexed ?? 0;
-  const totalTraffic = scoreboard?.estimatedTrafficCaptured ?? (scoreboard as any)?.estimatedTotalTrafficCaptured ?? 0;
-  const dominantFormula = scoreboard?.dominantFormulaType ?? (scoreboard as any)?.topPatternCategory ?? (clusters[0]?.patternType || "Analyzing");
-  const readyBlueprints = scoreboard?.highPriorityCounterAttacks ?? (scoreboard as any)?.readyToCounterCount ?? clusters.length;
-
-  const handleCopy = (text: string, type: "h2" | "prompt") => {
+  const handleCopyTemplate = (text: string) => {
     navigator.clipboard.writeText(text);
-    if (type === "h2") {
-      setCopiedH2(true);
-      setTimeout(() => setCopiedH2(false), 2000);
-    } else {
-      setCopiedPrompt(true);
-      setTimeout(() => setCopiedPrompt(false), 2000);
-    }
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2000);
   };
 
   const handleDispatchCluster = async (cluster: ProgrammaticCluster) => {
-    const bp = cluster.counterBlueprint;
+    const plan = cluster.counterStrategy;
     try {
       await dispatchMutation.mutateAsync({
-        title: `Programmatic Counter-Architecture: Counter ${cluster.formula}`,
-        summary: `Competitor ${cluster.competitorDomain} captured ${cluster.totalDetectedPages} pages with pattern ${cluster.formula}. Estimated traffic: ~${cluster.estimatedMonthlyVisits.toLocaleString()}/mo.`,
-        recommendedAction: `Deploy counter-pattern architecture: ${bp.counterPattern} targeting ${bp.targetArchitecture}. Differentiation angle: ${bp.differentiationAngle}`,
+        title: `Programmatic Counter-Architecture: Counter ${cluster.urlPattern}`,
+        summary: `Competitor ${cluster.competitorDomain} publishes ${cluster.pageCount} crawled pages matching ${cluster.urlPattern}.`,
+        recommendedAction: `Publish pages at ${plan.recommendedUrlPattern} (${plan.contentDepthBenchmark}). ${plan.differentiatorAngle}`,
         potential: "HIGH",
         effort: "MEDIUM",
         category: "COMPETITOR",
         source: "COMPETITOR",
         evidence: [
-          { label: "Formula", value: cluster.formula, source: "PATTERN_DECOMPILER" },
-          { label: "Competitor Pages", value: String(cluster.totalDetectedPages), source: "CRAWLER" },
-          { label: "Est. Traffic", value: `~${cluster.estimatedMonthlyVisits.toLocaleString()}/mo`, source: "SEO_SCOREBOARD" },
-          { label: "Target Schema", value: bp.recommendedSchemaType, source: "SCHEMA_SUITE" },
+          { label: "Formula", value: cluster.urlPattern, source: "PATTERN_DECOMPILER" },
+          { label: "Competitor Pages", value: String(cluster.pageCount), source: "CRAWLER" },
+          { label: "Target Schema", value: plan.recommendedSchemaType, source: "SCHEMA_SUITE" },
         ],
         affectedPages: cluster.sampleUrls.slice(0, 5),
       });
 
-      setDispatchedIds((prev) => new Set([...prev, cluster.patternId]));
+      setDispatchedIds((prev) => new Set([...prev, cluster.id]));
       if (onAddToFixPlan) {
-        onAddToFixPlan(1, `Programmatic Counter: ${cluster.formula}`);
+        onAddToFixPlan(1, `Programmatic Counter: ${cluster.urlPattern}`);
       }
     } catch (err) {
       console.error("Failed to dispatch programmatic blueprint to Action Queue", err);
@@ -166,7 +108,7 @@ export function CompetitorProgrammaticTab({
               Decompile Competitor Directory Formulas
             </h2>
             <p className="text-[13px] leading-relaxed text-brand-300/90">
-              Scans your competitors' crawl topology to reverse-engineer their programmatic URL structures (`/vs/*`, `/integrations/*`, `/templates/*`), template variables, and page counts. Instantly generates counter-architectures ready for your engineering team.
+              Scans your competitors&apos; crawl topology to reverse-engineer their programmatic URL structures (`/vs/*`, `/integrations/*`, `/templates/*`), template variables, and page counts. Instantly generates counter-architectures ready for your engineering team.
             </p>
           </div>
 
@@ -189,35 +131,29 @@ export function CompetitorProgrammaticTab({
         </div>
 
         {/* ── SCOREBOARD METRICS ── */}
-        <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 sm:grid-cols-5">
+        <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 sm:grid-cols-4">
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Formulas Discovered</div>
             <div className="text-2xl font-black text-white">
-              {totalPatterns}
+              {scoreboard?.totalProgrammaticClusters ?? 0}
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-[11px] font-medium text-brand-400">Competitor Programmatic Pages</div>
+            <div className="text-[11px] font-medium text-brand-400">Competitor Pages Audited</div>
             <div className="text-2xl font-black text-white">
-              {totalPages ? totalPages.toLocaleString() : "0"}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-[11px] font-medium text-brand-400">Captured Traffic Est.</div>
-            <div className="text-2xl font-black text-success-400">
-              ~{totalTraffic ? totalTraffic.toLocaleString() : "0"}/mo
+              {(scoreboard?.totalCompetitorPagesIndexed ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Dominant Formula</div>
             <div className="text-sm font-bold text-brand-200 truncate">
-              {dominantFormula}
+              {scoreboard?.topPatternCategory ?? "None"}
             </div>
           </div>
           <div className="space-y-1">
             <div className="text-[11px] font-medium text-brand-400">Ready Blueprints</div>
             <div className="text-2xl font-black text-white">
-              {readyBlueprints}
+              {scoreboard?.readyToCounterCount ?? 0}
             </div>
           </div>
         </div>
@@ -235,16 +171,16 @@ export function CompetitorProgrammaticTab({
           <Database className="mx-auto h-12 w-12 text-brand-300" />
           <h3 className="mt-4 text-base font-bold text-brand-950">No Programmatic Directories Detected Yet</h3>
           <p className="mt-1 text-xs text-brand-500 max-w-md mx-auto">
-            Once your competitors' crawl data includes repeated directory paths (e.g., `/vs/*`, `/integrations/*`, `/templates/*`), they will appear here with reverse-engineered templates.
+            Once your competitors&apos; crawl data includes repeated directory paths (e.g., `/vs/*`, `/integrations/*`, `/templates/*`), they will appear here with reverse-engineered templates.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {clusters.map((cluster) => {
-            const isDispatched = dispatchedIds.has(cluster.patternId);
+            const isDispatched = dispatchedIds.has(cluster.id);
             return (
               <div
-                key={cluster.patternId}
+                key={cluster.id}
                 className="flex flex-col justify-between rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md"
               >
                 <div className="space-y-4">
@@ -252,7 +188,7 @@ export function CompetitorProgrammaticTab({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide text-brand-700">
-                        {cluster.patternType}
+                        {cluster.category}
                       </span>
                       <span className="text-xs font-semibold text-brand-500">
                         {cluster.competitorDomain}
@@ -260,7 +196,7 @@ export function CompetitorProgrammaticTab({
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-black text-brand-950">
-                        {cluster.totalDetectedPages.toLocaleString()} pages
+                        {cluster.pageCount.toLocaleString()} pages
                       </span>
                     </div>
                   </div>
@@ -269,22 +205,23 @@ export function CompetitorProgrammaticTab({
                   <div>
                     <div className="text-[11px] font-medium text-brand-500 mb-1">Decompiled Directory Formula:</div>
                     <div className="rounded-xl border bg-brand-900 p-3 font-mono text-xs font-bold text-success-400">
-                      <code>{cluster.formula}</code>
+                      <code>{cluster.urlPattern}</code>
                     </div>
                   </div>
 
                   {/* Extracted Variables */}
-                  {cluster.extractedVariables.length > 0 && (
+                  {cluster.variables.length > 0 && (
                     <div>
                       <div className="text-[11px] font-medium text-brand-500 mb-1.5">Identified Template Variables:</div>
                       <div className="flex flex-wrap gap-1.5">
-                        {cluster.extractedVariables.map((v) => (
+                        {cluster.variables.map((v) => (
                           <span
-                            key={v}
+                            key={v.name}
+                            title={v.exampleValues.length ? `Seen in their URLs: ${v.exampleValues.join(", ")}` : v.description}
                             className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-brand-700"
                           >
                             <GitBranch size={10} className="text-brand-400" />
-                            {v}
+                            {v.name}
                           </span>
                         ))}
                       </div>
@@ -298,10 +235,10 @@ export function CompetitorProgrammaticTab({
                       <span>Counter-Architecture Proposal</span>
                     </div>
                     <p className="text-xs text-brand-700">
-                      Target: <span className="font-mono font-bold text-brand-950">{cluster.counterBlueprint?.targetArchitecture || "Standard Route"}</span>
+                      Target: <span className="font-mono font-bold text-brand-950">{cluster.counterStrategy.recommendedUrlPattern}</span>
                     </p>
                     <p className="text-[11px] text-brand-600 line-clamp-2">
-                      Angle: {cluster.counterBlueprint?.differentiationAngle || "Technical optimization."}
+                      Angle: {cluster.counterStrategy.differentiatorAngle}
                     </p>
                   </div>
                 </div>
@@ -309,7 +246,7 @@ export function CompetitorProgrammaticTab({
                 {/* Footer Controls */}
                 <div className="mt-5 flex items-center justify-between border-t pt-4">
                   <div className="text-xs font-semibold text-brand-500">
-                    Est. Traffic: <span className="font-bold text-brand-950">~{cluster.estimatedMonthlyVisits.toLocaleString()}/mo</span>
+                    Intent: <span className="font-bold text-brand-950">{cluster.commercialIntent}</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -358,7 +295,7 @@ export function CompetitorProgrammaticTab({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-bold text-brand-800">
-                    {activeCluster.patternType}
+                    {activeCluster.category}
                   </span>
                   <span className="text-xs text-brand-500">{activeCluster.competitorDomain}</span>
                 </div>
@@ -366,7 +303,7 @@ export function CompetitorProgrammaticTab({
                   Programmatic Counter-Architecture
                 </h3>
                 <p className="text-xs text-brand-500 font-mono mt-0.5">
-                  Formula: {activeCluster.formula}
+                  Formula: {activeCluster.urlPattern}
                 </p>
               </div>
               <button
@@ -384,9 +321,10 @@ export function CompetitorProgrammaticTab({
                 Recommended URL Route & Slug Structure
               </h4>
               <div className="rounded-xl border bg-brand-900 p-4 font-mono text-xs text-white space-y-1">
-                <div>Route: <span className="text-success-400 font-bold">{activeCluster.counterBlueprint?.targetArchitecture || "Direct"}</span></div>
-                <div>Slug Example: <span className="text-brand-300">https://{customerDomain}{activeCluster.counterBlueprint?.targetSlugExample || "/example"}</span></div>
-                <div>JSON-LD Schema Type: <span className="text-warning-400 font-bold">{activeCluster.counterBlueprint?.recommendedSchemaType || "WebPage"}</span></div>
+                <div>Route: <span className="text-success-400 font-bold">{activeCluster.counterStrategy.recommendedUrlPattern}</span></div>
+                <div>H1 Formula: <span className="text-brand-300">{activeCluster.counterStrategy.targetH1Formula}</span></div>
+                <div>JSON-LD Schema Type: <span className="text-warning-400 font-bold">{activeCluster.counterStrategy.recommendedSchemaType}</span></div>
+                <div>Depth: <span className="text-brand-300">{activeCluster.counterStrategy.contentDepthBenchmark}</span></div>
               </div>
             </div>
 
@@ -396,60 +334,46 @@ export function CompetitorProgrammaticTab({
                 AI & Organic Differentiation Thesis
               </h4>
               <div className="rounded-xl border bg-brand-50 p-4 text-xs leading-relaxed text-brand-800">
-                {activeCluster.counterBlueprint?.differentiationAngle || "Comprehensive high-fidelity counter strategy."}
+                {activeCluster.counterStrategy.differentiatorAngle}
               </div>
             </div>
 
-            {/* Semantic H2 Outlines */}
-            {activeCluster.counterBlueprint?.semanticH2Outlines && activeCluster.counterBlueprint.semanticH2Outlines.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
-                    Semantic Heading Hierarchy (H2 Specifications)
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(activeCluster.counterBlueprint.semanticH2Outlines.join("\n"), "h2")}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
-                  >
-                    {copiedH2 ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedH2 ? "Copied" : "Copy Outlines"}</span>
-                  </button>
-                </div>
-                <ul className="rounded-xl border bg-white divide-y">
-                  {activeCluster.counterBlueprint.semanticH2Outlines.map((h2, idx) => (
-                    <li key={idx} className="flex items-center gap-3 p-3 text-xs text-brand-800">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-600">
-                        {idx + 1}
-                      </span>
-                      <span className="font-semibold">{h2}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Evidence: the competitor pages this pattern was read from */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                Crawled Competitor Pages ({activeCluster.pageCount})
+              </h4>
+              <ul className="rounded-xl border bg-white divide-y">
+                {activeCluster.sampleUrls.map((url) => (
+                  <li key={url} className="flex items-center gap-2 p-3 text-xs text-brand-800">
+                    <ExternalLink size={12} className="shrink-0 text-brand-400" />
+                    <a href={url} target="_blank" rel="noreferrer" className="truncate font-mono hover:underline">
+                      {url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-            {/* Generation Prompt */}
-            {activeCluster.counterBlueprint?.sampleCopyablePrompt && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
-                    Copyable LLM Prompt Template for Content Matrix
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(activeCluster.counterBlueprint.sampleCopyablePrompt, "prompt")}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
-                  >
-                    {copiedPrompt ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedPrompt ? "Copied" : "Copy Prompt"}</span>
-                  </button>
-                </div>
-                <pre className="max-h-48 overflow-y-auto rounded-xl border bg-brand-900 p-4 font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
-                  {activeCluster.counterBlueprint.sampleCopyablePrompt}
-                </pre>
+            {/* Page scaffold */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-brand-500">
+                  Page Scaffold (fill in the [brackets])
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => handleCopyTemplate(activeCluster.counterStrategy.sampleDeliverableTemplate)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-950 hover:underline"
+                >
+                  {copiedTemplate ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copiedTemplate ? "Copied" : "Copy Scaffold"}</span>
+                </button>
               </div>
-            )}
+              <pre className="max-h-48 overflow-y-auto rounded-xl border bg-brand-900 p-4 font-mono text-[11px] leading-relaxed text-brand-200 whitespace-pre-wrap">
+                {activeCluster.counterStrategy.sampleDeliverableTemplate}
+              </pre>
+            </div>
 
             {/* Drawer Footer */}
             <div className="flex items-center justify-between border-t pt-4">
@@ -470,7 +394,7 @@ export function CompetitorProgrammaticTab({
                   Close
                 </button>
 
-                {dispatchedIds.has(activeCluster.patternId) ? (
+                {dispatchedIds.has(activeCluster.id) ? (
                   <button
                     type="button"
                     disabled

@@ -34,7 +34,7 @@ export interface RecommendationRow {
 }
 
 export function AiVisibilityRecommendationsTab({
-  domain = "aivaenterprises.com",
+  domain = "",
   onImplementWithAi,
 }: {
   domain?: string;
