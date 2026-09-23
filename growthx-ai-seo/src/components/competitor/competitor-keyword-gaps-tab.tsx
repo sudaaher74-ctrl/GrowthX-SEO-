@@ -48,16 +48,35 @@ export interface KeywordOpportunity {
   id: string;
   keyword: string;
   intent: "Commercial" | "Informational" | "Transactional";
-  volume: number;
-  kd: number;
+  /** How often the rival uses the phrase across its crawled pages. */
+  mentions: number;
+  /** How many of the rival's crawled pages carry it. */
+  competitorPages: number;
   topCompetitor: string;
   competitorColor: string;
-  theirRank: number;
-  yourRank: number | null;
+  /** Where the rival places it — measured, not a search ranking. */
+  theirPlacement: Placement;
+  /** Where your pages place it; null when none of them use it. */
+  yourPlacement: Placement | null;
   gapType: "Missing" | "Weak";
   opportunity: "High" | "Medium" | "Low";
   targetUrl?: string;
 }
+
+type Placement = "H1" | "Title" | "Body";
+
+/**
+ * The strongest place a phrase appears. Search volume, difficulty and ranking
+ * position are not measured by a crawl, so this tab shows none of them: it
+ * used to derive all three from how often a word appeared on the page.
+ */
+function placementOf(profile: ExtractedKeywordProfile): Placement {
+  if (profile.placements.inH1 > 0) return "H1";
+  if (profile.placements.inTitle > 0) return "Title";
+  return "Body";
+}
+
+const PLACEMENT_LABEL: Record<Placement, string> = { H1: "In H1", Title: "In title", Body: "In body copy" };
 
 const COMPETITOR_COLORS = [
   "bg-slate-950",
@@ -84,11 +103,9 @@ export function CompetitorKeywordGapsTab({
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIntent, setSelectedIntent] = useState("all");
-  const [selectedVolume, setSelectedVolume] = useState("all");
-  const [selectedDifficulty, setSelectedDifficulty] = useState("all");
   const [selectedGapType, setSelectedGapType] = useState("all");
   const [selectedOpportunity, setSelectedOpportunity] = useState("all");
-  const [sortBy, setSortBy] = useState<"opp-desc" | "vol-desc" | "kd-asc">("opp-desc");
+  const [sortBy, setSortBy] = useState<"opp-desc" | "mentions-desc">("opp-desc");
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -132,7 +149,7 @@ export function CompetitorKeywordGapsTab({
   // 4. Construct Real Keyword Opportunities from Live Crawler
   const realOpportunities = useMemo<KeywordOpportunity[]>(() => {
     const items: KeywordOpportunity[] = [];
-    const compDomain = activeCompetitor?.domain || "competitor.com";
+    const compDomain = activeCompetitor?.domain ?? "";
     const compColor = COMPETITOR_COLORS[0];
 
     compProfiles.forEach((compProf, keyword) => {
@@ -153,33 +170,24 @@ export function CompetitorKeywordGapsTab({
           ? "Transactional"
           : "Informational";
 
-      // Difficulty derived from keyword token length & frequency
-      const kd = Math.min(95, Math.max(15, 20 + compProf.tokensCount * 12 + compProf.totalOccurrences * 4));
-
-      // Volume derived from actual prominence and occurrences across site
-      const volume = compProf.totalOccurrences * 450 + compProf.placements.inH1 * 1200 + compProf.placements.inTitle * 800;
-
-      // Opportunity priority
+      // Opportunity priority, from what the crawl observed
       let opportunity: "High" | "Medium" | "Low" = "Low";
-      if (gapType === "Missing" && (intent === "Commercial" || intent === "Transactional") && kd < 75) {
+      if (gapType === "Missing" && (intent === "Commercial" || intent === "Transactional")) {
         opportunity = "High";
       } else if (compProf.totalOccurrences >= 2 || intent === "Commercial") {
         opportunity = "Medium";
       }
 
-      const theirRank = compProf.placements.inH1 > 0 ? 3 : compProf.placements.inTitle > 0 ? 5 : 8;
-      const yourRank = isWeak ? (ourProf?.placements.inTitle ? 24 : 45) : null;
-
       items.push({
         id: `kw-${keyword.replace(/\s+/g, "-")}`,
         keyword,
         intent,
-        volume,
-        kd,
+        mentions: compProf.totalOccurrences,
+        competitorPages: compProf.pages.length,
         topCompetitor: compDomain,
         competitorColor: compColor,
-        theirRank,
-        yourRank,
+        theirPlacement: placementOf(compProf),
+        yourPlacement: ourProf && ourProf.totalOccurrences > 0 ? placementOf(ourProf) : null,
         gapType,
         opportunity,
         targetUrl: compProf.pages[0]?.url,
@@ -211,21 +219,10 @@ export function CompetitorKeywordGapsTab({
         if (selectedOpportunity !== "all" && item.opportunity !== selectedOpportunity) {
           return false;
         }
-        if (selectedDifficulty !== "all") {
-          if (selectedDifficulty === "easy" && item.kd >= 40) return false;
-          if (selectedDifficulty === "medium" && (item.kd < 40 || item.kd > 60)) return false;
-          if (selectedDifficulty === "hard" && item.kd <= 60) return false;
-        }
-        if (selectedVolume !== "all") {
-          if (selectedVolume === "10k" && item.volume < 10000) return false;
-          if (selectedVolume === "5k-10k" && (item.volume < 5000 || item.volume >= 10000)) return false;
-          if (selectedVolume === "1k-5k" && (item.volume < 1000 || item.volume >= 5000)) return false;
-        }
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "vol-desc") return b.volume - a.volume;
-        if (sortBy === "kd-asc") return a.kd - b.kd;
+        if (sortBy === "mentions-desc") return b.mentions - a.mentions;
         const weight = { High: 3, Medium: 2, Low: 1 };
         return weight[b.opportunity] - weight[a.opportunity];
       });
@@ -234,8 +231,6 @@ export function CompetitorKeywordGapsTab({
     searchQuery,
     selectedCompetitorDomain,
     selectedIntent,
-    selectedVolume,
-    selectedDifficulty,
     selectedGapType,
     selectedOpportunity,
     sortBy,
@@ -246,7 +241,8 @@ export function CompetitorKeywordGapsTab({
   const youRankForCount = ourProfiles.size;
   const missingCount = realOpportunities.filter((o) => o.gapType === "Missing").length;
   const highValueCount = realOpportunities.filter((o) => o.opportunity === "High").length;
-  const quickWinCount = realOpportunities.filter((o) => o.gapType === "Missing" && o.kd < 45).length;
+  // Phrases the rival puts in a heading or title that your pages never use.
+  const headlineGapCount = realOpportunities.filter((o) => o.gapType === "Missing" && o.theirPlacement !== "Body").length;
 
   // Venn numbers
   const sharedKeywordsCount = useMemo(() => {
@@ -285,8 +281,6 @@ export function CompetitorKeywordGapsTab({
     setSearchQuery("");
     setSelectedCompetitorDomain("all");
     setSelectedIntent("all");
-    setSelectedVolume("all");
-    setSelectedDifficulty("all");
     setSelectedGapType("all");
     setSelectedOpportunity("all");
     setSortBy("opp-desc");
@@ -443,13 +437,13 @@ export function CompetitorKeywordGapsTab({
             </div>
             <div>
               <div className="text-2xl font-bold text-slate-900 tracking-tight">
-                {quickWinCount.toLocaleString()}
+                {headlineGapCount.toLocaleString()}
               </div>
-              <div className="text-[12px] font-medium text-slate-500">Quick-Win Keywords</div>
+              <div className="text-[12px] font-medium text-slate-500">Rival Headline Terms</div>
             </div>
           </div>
           <div className="mt-3 text-[11px] font-medium text-amber-600">
-            Low difficulty (&lt; 45 KD)
+            In their H1 or title, absent from yours
           </div>
         </div>
       </div>
@@ -583,7 +577,7 @@ export function CompetitorKeywordGapsTab({
                 </div>
                 <p className="text-slate-600 leading-relaxed text-[11.5px]">
                   {highValueCount > 0
-                    ? `${highValueCount} keywords contain commercial comparison or purchasing terms. Prioritize these in your Fix Engine 30-day plan.`
+                    ? `${highValueCount} missing keywords carry commercial or purchasing intent. Prioritize these first.`
                     : `No critical commercial keyword gaps detected for this rival.`}
                 </p>
               </div>
@@ -595,7 +589,7 @@ export function CompetitorKeywordGapsTab({
             onClick={handleAddSelected}
             className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
           >
-            <span>Stage All Gaps to Fix Engine</span>
+            <span>Add All Gaps to Fix Plan</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -706,8 +700,7 @@ export function CompetitorKeywordGapsTab({
                 className="appearance-none pl-2.5 pr-7 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none"
               >
                 <option value="opp-desc">Opportunity (High → Low)</option>
-                <option value="vol-desc">Estimated Reach (High → Low)</option>
-                <option value="kd-asc">Difficulty (Low → High)</option>
+                <option value="mentions-desc">Rival Mentions (High → Low)</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
             </div>
@@ -748,8 +741,8 @@ export function CompetitorKeywordGapsTab({
                   </th>
                   <th className="p-3.5 font-bold">Keyword</th>
                   <th className="p-3.5 font-bold">Intent</th>
-                  <th className="p-3.5 font-bold">Est. Reach</th>
-                  <th className="p-3.5 font-bold">KD</th>
+                  <th className="p-3.5 font-bold">Rival Mentions</th>
+                  <th className="p-3.5 font-bold">Rival Pages</th>
                   <th className="p-3.5 font-bold">Rival Domain</th>
                   <th className="p-3.5 font-bold">Rival Presence</th>
                   <th className="p-3.5 font-bold">Your Status</th>
@@ -793,20 +786,10 @@ export function CompetitorKeywordGapsTab({
                         </span>
                       </td>
                       <td className="p-3.5 font-medium text-slate-700">
-                        {item.volume.toLocaleString()}
+                        {item.mentions.toLocaleString()}
                       </td>
-                      <td className="p-3.5">
-                        <span
-                          className={`inline-flex items-center justify-center font-bold text-xs ${
-                            item.kd > 60
-                              ? "text-rose-600"
-                              : item.kd >= 40
-                              ? "text-amber-600"
-                              : "text-emerald-600"
-                          }`}
-                        >
-                          {item.kd}
-                        </span>
+                      <td className="p-3.5 font-medium text-slate-700">
+                        {item.competitorPages.toLocaleString()}
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-2">
@@ -815,13 +798,13 @@ export function CompetitorKeywordGapsTab({
                         </div>
                       </td>
                       <td className="p-3.5 font-semibold text-slate-900">
-                        Top {item.theirRank}
+                        {PLACEMENT_LABEL[item.theirPlacement]}
                       </td>
                       <td className="p-3.5">
-                        {item.yourRank !== null ? (
-                          <span className="font-semibold text-slate-700">#{item.yourRank}</span>
+                        {item.yourPlacement !== null ? (
+                          <span className="font-semibold text-slate-700">{PLACEMENT_LABEL[item.yourPlacement]}</span>
                         ) : (
-                          <span className="text-slate-400 font-bold">—</span>
+                          <span className="text-slate-400 font-bold">Not found</span>
                         )}
                       </td>
                       <td className="p-3.5">

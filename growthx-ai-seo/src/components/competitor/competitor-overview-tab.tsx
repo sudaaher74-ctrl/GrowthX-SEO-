@@ -81,25 +81,18 @@ export function CompetitorOverviewTab({
     const compProfiles = buildKeywordProfiles(compPagesQuery.data || []);
     const gaps: Array<{
       keyword: string;
-      yourPos: string;
       topComp: string;
-      compPos: number;
-      vol: string;
       opp: "High" | "Medium";
     }> = [];
 
-    const compDomain = primaryComp?.domain || "competitor.com";
+    const compDomain = primaryComp?.domain ?? "";
 
     compProfiles.forEach((prof, kw) => {
       if (gaps.length >= 5) return;
       if (!ourProfiles.has(kw)) {
-        const estVol = (prof.totalOccurrences * 400 + prof.placements.inH1 * 800).toLocaleString();
         gaps.push({
           keyword: titleCase(kw),
-          yourPos: "—",
           topComp: compDomain,
-          compPos: prof.placements.inH1 > 0 ? 3 : 5,
-          vol: estVol,
           opp: prof.searchIntent === "COMMERCIAL" ? "High" : "Medium",
         });
       }
@@ -112,7 +105,7 @@ export function CompetitorOverviewTab({
   const previewContentGaps = useMemo(() => {
     const ourPages = ourPagesQuery.data?.data || [];
     const compPages = compPagesQuery.data || [];
-    const compDomain = primaryComp?.domain || "competitor.com";
+    const compDomain = primaryComp?.domain ?? "";
     const ourTexts = ourPages.map((p) => `${p.title || ""} ${p.url || ""}`.toLowerCase());
 
     const gaps: Array<{ topic: string; topComp: string; opp: "High" | "Medium" }> = [];

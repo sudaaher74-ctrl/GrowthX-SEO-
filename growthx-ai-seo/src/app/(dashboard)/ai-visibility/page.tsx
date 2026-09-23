@@ -64,8 +64,9 @@ function AiVisibilityClient() {
   const qc = useQueryClient();
   
   const currentProject = projects?.find(p => p.id === projectId);
-  const domain = currentProject?.name || "aivaenterprises.com";
-  const businessName = domain.split('.')[0] || "Aiva";
+  // Empty until a project is selected; never another business's domain.
+  const domain = currentProject?.name ?? "";
+  const businessName = domain.split('.')[0] || "your business";
 
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
@@ -269,9 +270,9 @@ function AiVisibilityClient() {
         }
         domain={domain}
         crawledPages={pagesCrawled}
-        competitorsCount={competitorsList.length > 0 ? competitorsList.length : 5}
+        competitorsCount={competitorsList.length}
         onViewDiscussion={() => setActiveTab("insights")}
-        onViewCrawlDetails={() => window.location.assign("/website-audit")}
+        onViewCrawlDetails={() => window.location.assign("/website")}
         onViewSummary={() => setActiveTab("insights")}
         isAnalyzing={sweep.isPending}
       />

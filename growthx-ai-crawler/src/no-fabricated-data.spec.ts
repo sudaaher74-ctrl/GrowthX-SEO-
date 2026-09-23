@@ -79,4 +79,35 @@ describe('no fabricated client data', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  // A failed model call used to be answered with plausible content: a stock
+  // video transcript, a template script with the brand name dropped in, a
+  // fruit-pulp export strategy, twelve invented pages for an uncrawled site, a
+  // built-in competitor table. Each was named buildFallback*/generateFallback*
+  // or ensureBaseline*, so the name alone is enough to stop the next one.
+  it('has no canned fallback generator standing in for a failed call', () => {
+    const offenders = grep('(buildFallback|generateFallback|ensureBaseline)[A-Z][A-Za-z]*');
+
+    expect(offenders).toEqual([]);
+  });
+
+  // The businesses the product was built against, hardcoded into strings a
+  // customer would read. Comments recording past incidents are fine; test
+  // fixtures are fine. A string literal is not.
+  it('has no demo business content in customer-facing strings', () => {
+    const KNOWN_UNFIXED = [
+      // AI Visibility is outside the current audit (website, competitors, GBP).
+      // buildSpecializedIntelligence returns a templated Navi Mumbai
+      // demographic report. Remove this entry when it is rebuilt.
+      'ai-visibility/ai-visibility.service.ts',
+    ];
+    // Matched on the term alone (a backtick in the pattern would be run as a
+    // command by the shell grep goes through), then comment lines dropped.
+    const offenders = grep('(Navi Mumbai|Vashi|Kharghar|CIDCO|MiQuu|milquufresh|aivaenterprises)')
+      .filter((line) => !/:\d+:\s*(\/\/|\*|\/\*)/.test(line))
+      .filter((line) => !line.includes('/testing/'))
+      .filter((line) => !KNOWN_UNFIXED.some((file) => line.includes(file)));
+
+    expect(offenders).toEqual([]);
+  });
 });

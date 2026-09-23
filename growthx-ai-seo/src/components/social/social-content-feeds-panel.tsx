@@ -56,7 +56,7 @@ export function SocialContentFeedsPanel({
         hookType: c.hookType,
         whyItWorks: c.whyItWorks,
         competitorName: c.competitorName || "Competitor",
-        domain: competitors[0]?.domain || "competitor.com",
+        domain: competitors[0]?.domain ?? "",
         hashtags: ["#industry", "#quality", "#b2b", "#manufacturing"],
       }));
     }
