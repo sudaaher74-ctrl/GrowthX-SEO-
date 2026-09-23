@@ -1,4 +1,4 @@
-import { ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaClient } from '@prisma/client';
@@ -30,7 +30,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (process.env.NODE_ENV !== 'production') {
+    // Signs every unauthenticated request in as the seeded dev user. Opt-in
+    // only: keying it off NODE_ENV alone meant any server started without
+    // NODE_ENV=production accepted requests with no token at all.
+    if (process.env.AUTH_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
       const request = context.switchToHttp().getRequest();
       try {
         const user = await prisma.user.findUnique({ where: { email: 'dev@growthx.ai' } });
@@ -39,6 +42,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           if (membership) {
             request.user = { userId: user.id, email: user.email, organizationId: membership.organizationId };
             request.organizationId = membership.organizationId;
+            await this.assertProjectScope(request);
             return true;
           }
         }
@@ -68,7 +72,44 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       );
     }
 
+    await this.assertProjectScope(request);
     return true;
+  }
+
+  /**
+   * Every `/api/projects/:projectId/...` route acts on one project, and most
+   * services load it by id alone. Without this, any signed-in user of any
+   * organization could read or change another customer's project by its id.
+   *
+   * Checked once here, for every such route, against the caller's actual
+   * memberships. A project the caller cannot see answers 404 rather than 403,
+   * so its existence is not confirmed either. The request is then scoped to
+   * the project's own organization, which is also right for a member of
+   * several organizations acting outside their default one.
+   */
+  private async assertProjectScope(request: any): Promise<void> {
+    const projectId = request.params?.projectId;
+    if (!projectId) return;
+
+    const userId = request.user?.userId;
+    const project = await prisma.project.findUnique({
+      where: { id: String(projectId) },
+      select: { organizationId: true },
+    });
+    const membership =
+      project && userId
+        ? await prisma.organizationMember.findUnique({
+            where: { userId_organizationId: { userId, organizationId: project.organizationId } },
+            select: { id: true },
+          })
+        : null;
+
+    if (!project || !membership) {
+      throw new NotFoundException('Project not found');
+    }
+
+    request.organizationId = project.organizationId;
+    if (request.user) request.user.organizationId = project.organizationId;
   }
 
   /** Routes an account must be able to reach before it belongs anywhere. */

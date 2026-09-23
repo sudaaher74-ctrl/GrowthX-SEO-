@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PlatformAdminGuard } from '../admin/platform-admin.guard';
 import {
   MammouthSeoService,
   WebsiteAuditInput,
@@ -77,7 +78,10 @@ export class MammouthSeoController {
   }
 
   @Post('config')
-  @ApiOperation({ summary: 'Update default model or active SEO feature toggles' })
+  // This config is process-wide and shared by every customer, so changing it
+  // is an operator action, not something any signed-in account may do.
+  @UseGuards(PlatformAdminGuard)
+  @ApiOperation({ summary: 'Update default model or active SEO feature toggles (platform admins only)' })
   async updateConfig(@Body() body: Partial<MammouthRuntimeConfig>) {
     if (body.defaultModel && MAMMOUTH_MODELS[body.defaultModel]) {
       this.runtimeConfig.defaultModel = body.defaultModel;

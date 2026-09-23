@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { YoutubeService } from './youtube.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Response } from 'express';
@@ -9,11 +9,11 @@ export class YoutubeController {
 
   @Get('auth')
   @UseGuards(JwtAuthGuard)
-  getAuthUrl(@Query('projectId') projectId: string) {
+  async getAuthUrl(@Req() req: any, @Query('projectId') projectId: string) {
     if (!projectId) {
       throw new BadRequestException('projectId is required');
     }
-    const url = this.youtubeService.getAuthUrl(projectId);
+    const url = await this.youtubeService.getAuthUrl(projectId, req.user?.userId);
     return { url };
   }
 

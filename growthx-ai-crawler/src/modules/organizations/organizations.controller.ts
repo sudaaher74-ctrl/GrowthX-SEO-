@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Request, UseGuards }
 import { OrganizationsService } from './organizations.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AllowWithoutOrganization } from '../auth/allow-without-organization.decorator';
-import { Prisma, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 
 // Every route here is scoped by the caller's user id rather than by a current
 // workspace, and an account with no membership yet has to reach them — it is
@@ -14,7 +14,7 @@ export class OrganizationsController {
   constructor(private organizationsService: OrganizationsService) {}
 
   @Post()
-  async createOrganization(@Request() req: any, @Body() body: Prisma.OrganizationCreateInput) {
+  async createOrganization(@Request() req: any, @Body() body: { name?: string; slug?: string }) {
     return this.organizationsService.createOrganization(req.user.userId, body);
   }
 
@@ -24,8 +24,8 @@ export class OrganizationsController {
   }
 
   @Get(':id/members')
-  async listMembers(@Param('id') id: string) {
-    return this.organizationsService.listMembers(id);
+  async listMembers(@Request() req: any, @Param('id') id: string) {
+    return this.organizationsService.listMembers(id, req.user.userId);
   }
 
   @Post(':id/members')

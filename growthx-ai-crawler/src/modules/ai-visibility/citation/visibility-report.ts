@@ -132,7 +132,9 @@ export function buildVisibilityReport(
       competitorCounts.set(domain, (competitorCounts.get(domain) ?? 0) + 1);
     }
   }
-  const shareOfVoice: ShareOfVoiceRow[] = [
+  // Nothing asked means nothing to rank: an empty list, never a "You 0%" row
+  // that reads as a measured result.
+  const shareOfVoice: ShareOfVoiceRow[] = ran.length === 0 ? [] : [
     { domain: null, label: 'You', mentions: cited.length, sharePct: pct(cited.length, ran.length) },
     ...[...competitorCounts.entries()].map(([domain, mentions]) => ({
       domain,

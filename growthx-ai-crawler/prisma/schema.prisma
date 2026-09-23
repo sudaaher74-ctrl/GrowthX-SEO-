@@ -172,6 +172,8 @@ model Page {
   @@unique([crawlJobId, url])
   @@index([crawlJobId, statusCode])
   @@index([crawlJobId, pageType])
+  @@index([crawlJobId, indexability])
+  @@index([crawlJobId, jsRequired])
   @@index([url])
   @@index([contentHash])
 }
