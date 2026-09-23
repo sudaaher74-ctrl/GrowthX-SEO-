@@ -2023,8 +2023,8 @@ export interface DispatchFindingBody {
   effort?: string;
   category?: string;
   source?: string;
-  evidence?: any;
-  actionPayload?: any;
+  evidence?: Array<{ label: string; value: string; source?: string }>;
+  actionPayload?: Record<string, unknown>;
   affectedPages?: string[];
 }
 

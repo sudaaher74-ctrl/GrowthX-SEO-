@@ -108,7 +108,7 @@ export function CompetitorProgrammaticTab({
               Decompile Competitor Directory Formulas
             </h2>
             <p className="text-[13px] leading-relaxed text-brand-300/90">
-              Scans your competitors' crawl topology to reverse-engineer their programmatic URL structures (`/vs/*`, `/integrations/*`, `/templates/*`), template variables, and page counts. Instantly generates counter-architectures ready for your engineering team.
+              Scans your competitors&apos; crawl topology to reverse-engineer their programmatic URL structures (`/vs/*`, `/integrations/*`, `/templates/*`), template variables, and page counts. Instantly generates counter-architectures ready for your engineering team.
             </p>
           </div>
 
@@ -171,7 +171,7 @@ export function CompetitorProgrammaticTab({
           <Database className="mx-auto h-12 w-12 text-brand-300" />
           <h3 className="mt-4 text-base font-bold text-brand-950">No Programmatic Directories Detected Yet</h3>
           <p className="mt-1 text-xs text-brand-500 max-w-md mx-auto">
-            Once your competitors' crawl data includes repeated directory paths (e.g., `/vs/*`, `/integrations/*`, `/templates/*`), they will appear here with reverse-engineered templates.
+            Once your competitors&apos; crawl data includes repeated directory paths (e.g., `/vs/*`, `/integrations/*`, `/templates/*`), they will appear here with reverse-engineered templates.
           </p>
         </div>
       ) : (
