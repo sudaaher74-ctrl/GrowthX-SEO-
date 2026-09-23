@@ -24,6 +24,7 @@ import {
   Layers,
   Bot,
 } from "lucide-react";
+import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 import { AiKpiCard } from "@/components/ai-visibility/ai-kpi-card";
 import { api, type TrackedCompetitor, type CrawlIssue } from "@/lib/api-client";
 import { useLatestCrawl, useCrawlPages, useCrawlIssues, useVisibility } from "@/hooks/use-growthx";
@@ -166,18 +167,20 @@ export function CompetitorOverviewTab({
     }
 
     // AI Visibility
-    const citedPct = visibilityQuery.data?.summary?.citationSharePct;
-    if (citedPct !== undefined) {
+    // Only a measured share is quoted; before the first sweep it is unknown, not 0%.
+    const summary = visibilityQuery.data?.summary;
+    const assistantsAsked = assistantList(visibilityQuery.data?.measurableAssistants);
+    if (summary && summary.checked > 0) {
       items.push({
         id: 4,
-        title: `Improve LLM citation share (Currently ${citedPct}%)`,
-        desc: "Deploy Article & FAQPage JSON-LD schemas to win direct ChatGPT, Claude, and Gemini citations.",
+        title: `Improve AI citation share (currently ${summary.citationSharePct}%)`,
+        desc: `Add direct answers and FAQPage JSON-LD to the pages behind your tracked questions to earn citations from ${assistantsAsked}.`,
       });
     } else {
       items.push({
         id: 4,
         title: "Run initial AI Visibility sweep",
-        desc: "Measure your brand's citation presence in ChatGPT, Claude, and Gemini against competitors.",
+        desc: `Measure whether ${assistantsAsked} cites your brand or your competitors.`,
       });
     }
 
@@ -186,7 +189,7 @@ export function CompetitorOverviewTab({
       items.push({
         id: 5,
         title: `Benchmark architecture against ${primaryComp.domain}`,
-        desc: `Rival has ${primaryComp.pagesCrawled ?? 0} pages indexed. Bridge structure & internal link gaps.`,
+        desc: `We crawled ${primaryComp.pagesCrawled ?? 0} pages on the rival's site. Bridge structure & internal link gaps.`,
       });
     }
 
@@ -428,7 +431,7 @@ export function CompetitorOverviewTab({
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-[14px] font-bold text-slate-900">AI Platform Citations</h3>
               <span className="text-[11px] text-slate-800 font-semibold bg-slate-50 px-2 py-0.5 rounded-md">
-                Verified LLMs
+                Measured
               </span>
             </div>
 
@@ -437,7 +440,7 @@ export function CompetitorOverviewTab({
                 visibilityQuery.data.byAssistant.map((asst) => (
                   <div key={asst.assistant} className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-800">{asst.assistant}</span>
+                      <span className="text-brand-900">{assistantLabel(asst.assistant)}</span>
                       <span className="text-slate-800 font-bold">{asst.citationSharePct}% citation share</span>
                     </div>
                     <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -447,7 +450,7 @@ export function CompetitorOverviewTab({
                       />
                     </div>
                     <div className="text-[10.5px] text-slate-400">
-                      Cited {asst.cited} times of {asst.checked} checked queries
+                      Cited in {asst.cited} of {asst.checked} answers
                     </div>
                   </div>
                 ))
@@ -456,7 +459,7 @@ export function CompetitorOverviewTab({
                   <Bot className="h-6 w-6 text-slate-900 mx-auto" />
                   <p className="text-xs font-bold text-slate-800">No AI Sweep Run Yet</p>
                   <p className="text-[11px] text-slate-500">
-                    Run an AI Visibility sweep to measure citations in ChatGPT, Claude, and Gemini.
+                    Run an AI Visibility sweep to measure citations in {assistantList(visibilityQuery.data?.measurableAssistants)}.
                   </p>
                 </div>
               )}
@@ -464,7 +467,7 @@ export function CompetitorOverviewTab({
           </div>
 
           <p className="text-center text-[10.5px] text-slate-400 pt-3 border-t border-slate-100 mt-4">
-            Direct citation share measured from synthetic test queries
+            Citation share measured from answers to your tracked questions
           </p>
         </div>
       </div>

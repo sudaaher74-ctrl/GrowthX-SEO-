@@ -81,4 +81,21 @@ describe('HealthController', () => {
     expect(JSON.stringify(ai)).not.toContain('gsk_a_real_looking_key');
     restore();
   });
+
+  it('counts Sarvam for Market Research and ignores keys outside AI_PROVIDERS', async () => {
+    const { controller, restore } = await build({
+      AI_PROVIDERS: 'SARVAM',
+      SARVAM_API_KEY: 'sk_sarvam_a_real_looking_key_1234567890',
+      OPENAI_API_KEY: 'sk-openai-a-real-looking-key-1234567890',
+      GROQ_API_KEY: undefined,
+      OPENROUTER_API_KEY: undefined,
+      MARKET_RESEARCH_PROVIDER: undefined,
+    });
+
+    const body = controller.capabilities() as any;
+    expect(body.configured).toContain('Market research models');
+    // OpenAI has a key but is not allowed, so embeddings are reported missing.
+    expect(body.missing.map((m: any) => m.name)).toContain('Semantic retrieval (embeddings)');
+    restore();
+  });
 });

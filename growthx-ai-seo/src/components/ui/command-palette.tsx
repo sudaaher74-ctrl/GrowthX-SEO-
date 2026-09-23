@@ -44,7 +44,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-dash", title: "Dashboard", category: "Navigation", icon: BarChart3, href: "/dashboard", subtitle: "Unified overview & executive KPIs" },
     { id: "nav-audit", title: "Website Audit", category: "Navigation", icon: Zap, href: "/website", subtitle: "Technical crawler, issue deduplication & site health" },
     { id: "nav-comp", title: "Competitor Intelligence", category: "Navigation", icon: Target, href: "/competitor-intelligence", subtitle: "Benchmarks, competitor crawl diff & market gaps" },
-    { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in ChatGPT, Claude & Gemini" },
+    { id: "nav-ai-vis", title: "AI Visibility", category: "Navigation", icon: Sparkles, href: "/ai-visibility", subtitle: "Brand citations in AI assistant answers" },
     { id: "nav-social", title: "Social Media", category: "Navigation", icon: Share2, href: "/social-media", subtitle: "Viral hooks, cross-platform cadence & social intelligence" },
 
     // Extended Workspace & Tools

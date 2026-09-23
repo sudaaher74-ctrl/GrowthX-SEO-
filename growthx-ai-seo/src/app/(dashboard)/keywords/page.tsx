@@ -19,6 +19,7 @@ import {
 import { api } from "@/lib/api-client";
 import { useTrackedPrompts, useVisibility, useWorkspace } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
+import { assistantLabel } from "@/lib/ai-assistants";
 
 type Tab = "prompts" | "competitors" | "ranks";
 
@@ -96,7 +97,7 @@ export default function SearchPage() {
           error={prompts.error}
           isEmpty={!prompts.data?.length}
           emptyTitle="No prompts tracked"
-          emptyBody="Add the questions your client's buyers type into ChatGPT or Gemini."
+          emptyBody="Add the questions your client's buyers ask AI assistants."
         >
           <Panel title="Tracked prompts" subtitle={`${prompts.data?.length ?? 0} active`}>
             <Table minWidth={760}>
@@ -117,7 +118,7 @@ export default function SearchPage() {
                         {p.latestChecks.length === 0 && <Pill>not checked</Pill>}
                         {p.latestChecks.map((c, i) => (
                           <Pill key={i} tone={c.error ? "default" : c.cited ? "good" : "bad"}>
-                            {c.assistant}{c.error ? " n/a" : c.cited ? ` #${c.position ?? "?"}` : " miss"}
+                            {assistantLabel(c.assistant)}{c.error ? " n/a" : c.cited ? ` #${c.position ?? "?"}` : " miss"}
                           </Pill>
                         ))}
                       </div>

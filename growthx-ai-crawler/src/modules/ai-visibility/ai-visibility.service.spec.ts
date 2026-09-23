@@ -207,6 +207,30 @@ describe('AiVisibilityService', () => {
     });
   });
 
+  describe('listPrompts', () => {
+    it('returns the latest check per assistant, not the latest rows overall', async () => {
+      const at = (d: string) => new Date(`2026-09-${d}T06:00:00Z`);
+      prisma.trackedPrompt.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          text: 'best jacket',
+          checks: [
+            { assistant: AiAssistant.SARVAM, checkedAt: at('22'), cited: true },
+            { assistant: AiAssistant.SARVAM, checkedAt: at('21'), cited: false },
+            { assistant: AiAssistant.CLAUDE, checkedAt: at('20'), cited: false },
+          ],
+        },
+      ]);
+
+      const [row] = await service.listPrompts('proj_1');
+
+      expect(row.latestChecks.map((c: any) => [c.assistant, c.cited])).toEqual([
+        [AiAssistant.SARVAM, true],
+        [AiAssistant.CLAUDE, false],
+      ]);
+    });
+  });
+
   describe('addCompetitor', () => {
     it('normalizes the domain before storing it', async () => {
       await service.addCompetitor('proj_1', 'https://WWW.TrailheadCo.com/shop', 'Trailhead Co');

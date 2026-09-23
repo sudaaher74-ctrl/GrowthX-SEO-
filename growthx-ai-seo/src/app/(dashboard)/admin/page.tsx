@@ -459,10 +459,9 @@ export default function AdminPage() {
                     </span>
                     <Pill tone="good">ROUTING</Pill>
                   </div>
-                  <p className="text-xs text-[var(--text-muted)]">Automatic fallback between Gemini 2.5 and Groq.</p>
-                  <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-semibold block pt-1">
-                    Primary: Gemini 2.5 Flash
-                  </span>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Routes each AI task to the vendors allowed by AI_PROVIDERS that have a key. See /health/capabilities for the live chain.
+                  </p>
                 </div>
               </div>
             </Panel>

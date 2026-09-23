@@ -318,7 +318,9 @@ export class AiVisibilityService {
   async listPrompts(projectId: string) {
     const prompts = await this.prisma.trackedPrompt.findMany({
       where: { projectId },
-      include: { checks: { orderBy: { checkedAt: 'desc' }, take: SUPPORTED_ASSISTANTS.length } },
+      // Enough recent rows to hold one per assistant even when a single
+      // assistant has been swept several times since the others.
+      include: { checks: { orderBy: { checkedAt: 'desc' }, take: SUPPORTED_ASSISTANTS.length * 10 } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -329,17 +331,21 @@ export class AiVisibilityService {
       cluster: prompt.cluster,
       estimatedVolume: prompt.estimatedVolume,
       isActive: prompt.isActive,
-      latestChecks: prompt.checks.map((check) => ({
-        assistant: check.assistant,
-        checkedAt: check.checkedAt,
-        cited: check.cited,
-        position: check.position,
-        citedUrl: check.citedUrl,
-        competitorsCited: check.competitorsCited,
-        error: check.error,
-        model: check.model,
-        answerExcerpt: check.answerExcerpt,
-      })),
+      // The latest result per assistant, not the latest N rows overall: on a
+      // one-assistant install those are N sweeps of the same assistant.
+      latestChecks: prompt.checks
+        .filter((check, i, all) => all.findIndex((c) => c.assistant === check.assistant) === i)
+        .map((check) => ({
+          assistant: check.assistant,
+          checkedAt: check.checkedAt,
+          cited: check.cited,
+          position: check.position,
+          citedUrl: check.citedUrl,
+          competitorsCited: check.competitorsCited,
+          error: check.error,
+          model: check.model,
+          answerExcerpt: check.answerExcerpt,
+        })),
     }));
   }
 
