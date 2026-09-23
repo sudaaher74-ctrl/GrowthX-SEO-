@@ -136,7 +136,7 @@
   "components/website/gauge-score.tsx": 40,
   "components/website/tabs/content-tab.tsx": 117,
   "components/website/tabs/geo-tab.tsx": 143,
-  "components/website/tabs/issues-tab.tsx": 97,
+  "components/website/tabs/issues-tab.tsx": 92,
   "components/website/tabs/overview-tab.tsx": 83,
   "components/website/tabs/pages-tab.tsx": 312,
   "components/website/tabs/performance-tab.tsx": 157,

@@ -299,7 +299,7 @@ function WebsiteAuditClient() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-colors"
               >
                 <Zap size={13} />
-                <span>View in Fix Plan →</span>
+                <span>Open Fix Engine →</span>
               </Link>
             </div>
           </div>

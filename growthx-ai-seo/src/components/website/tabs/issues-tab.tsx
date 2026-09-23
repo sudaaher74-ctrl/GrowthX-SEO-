@@ -29,7 +29,6 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -145,44 +144,15 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setToastMessage(`Added ${filtered.length} audit issues to your 30-Day Fix Plan!`);
-                setTimeout(() => setToastMessage(null), 8000);
-              }}
+            <Link
+              href="/fix-engine"
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
             >
               <Zap size={12} />
-              <span>Add {filtered.length} Issues to Fix Plan</span>
-            </button>
+              <span>Review in Fix Engine ({filtered.length}) →</span>
+            </Link>
           </div>
         </div>
-
-        {/* Fix Plan Staging Toast */}
-        {toastMessage && (
-          <div className="m-3 p-3 rounded-xl bg-slate-950 text-white text-xs flex items-center justify-between gap-3 shadow-md animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <Zap size={14} className="text-slate-400 shrink-0" />
-              <span>{toastMessage} Consolidated for single-approval 30-day execution.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/fix-engine"
-                className="px-2.5 py-1 rounded-md bg-white text-slate-950 font-bold text-[11px] hover:bg-slate-50 transition"
-              >
-                View in Fix Engine →
-              </Link>
-              <button
-                type="button"
-                onClick={() => setToastMessage(null)}
-                className="text-slate-400 hover:text-white p-0.5"
-              >
-                <X size={13} />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Issue Rows */}
         {filtered.length === 0 ? (
@@ -235,15 +205,11 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          onFixIssue(issue);
-                          setToastMessage(`Added "${issue.issueType.replace(/_/g, " ")}" to your 30-Day Fix Plan!`);
-                          setTimeout(() => setToastMessage(null), 8000);
-                        }}
+                        onClick={() => onFixIssue(issue)}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 hover:bg-black text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
                       >
                         <Zap size={12} />
-                        <span>Add to Fix Plan</span>
+                        <span>Fix with AI</span>
                       </button>
 
                       {issue.recommendation && (

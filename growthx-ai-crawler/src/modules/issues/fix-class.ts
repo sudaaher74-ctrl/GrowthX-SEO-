@@ -41,6 +41,7 @@ export const FIX_CLASS: Readonly<Record<string, FixClass>> = {
   MIXED_CONTENT: 'APPROVAL',
   LARGE_HTML: 'APPROVAL',
   URL_STRUCTURE_ISSUE: 'APPROVAL',
+  ORPHAN_PAGE: 'APPROVAL',
 
   // Lives outside the site's code, or needs words in the owner's own voice.
   REDIRECT_LOOP: 'MANUAL',

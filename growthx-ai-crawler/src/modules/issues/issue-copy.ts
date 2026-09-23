@@ -196,6 +196,27 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     fixClass: FIX_CLASS.URL_STRUCTURE_ISSUE ?? 'APPROVAL',
     technical: 'URL contains excessive query parameters, uppercase characters, or non-descriptive numeric tokens.',
   },
+  ORPHAN_PAGE: {
+    title: '{n} pages have no links pointing to them from your site',
+    cost: 'Visitors and search engines cannot find these pages through your navigation, leaving them stranded and unranked',
+    action: "We'll connect these pages by adding navigation and context links from your main content",
+    fixClass: FIX_CLASS.ORPHAN_PAGE ?? 'APPROVAL',
+    technical: 'Page has zero internal incoming links.',
+  },
+  SCHEMA_PRODUCT_OFFERS: {
+    title: '{n} product pages are missing price and stock details in search',
+    cost: 'Google cannot show price tags, in-stock badges, or buying options directly in search results',
+    action: "We'll add structured price and inventory details so Google displays your products with rich badges",
+    fixClass: FIX_CLASS.SCHEMA_PRODUCT_OFFERS ?? 'AUTO',
+    technical: 'Missing Product Offer structured data (price, availability, priceCurrency).',
+  },
+  SCHEMA_PRODUCT_AGGREGATERATING: {
+    title: '{n} product pages are missing star ratings in search',
+    cost: 'Search results show plain links without gold review stars, which reduces shopper clicks and trust',
+    action: "We'll format your verified review ratings so Google displays star ratings beside your products",
+    fixClass: FIX_CLASS.SCHEMA_PRODUCT_AGGREGATERATING ?? 'AUTO',
+    technical: 'Missing Product AggregateRating structured data (ratingValue, reviewCount).',
+  },
 };
 
 /**
@@ -204,6 +225,7 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
  */
 const SINGULAR_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\{n\}\s+pages\s+have\b/gi, '1 page has'],
+  [/\{n\}\s+product\s+pages\s+are\b/gi, '1 product page is'],
   [/\{n\}\s+page\s+titles\s+get\b/gi, '1 page title gets'],
   [/\{n\}\s+page\s+titles\s+are\b/gi, '1 page title is'],
   [/\{n\}\s+pages\s+share\b/gi, '1 page shares'],

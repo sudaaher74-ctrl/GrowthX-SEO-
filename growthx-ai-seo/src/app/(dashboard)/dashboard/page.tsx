@@ -113,7 +113,7 @@ export default function UnifiedDashboardPage() {
           <div className="flex items-center gap-2">
             <Link href="/fix-engine">
               <ActionButton variant="primary" icon={<Zap size={12} className="fill-white" />}>
-                View Current Fix Plan
+                Open Fix Engine
               </ActionButton>
             </Link>
             <ActionButton
