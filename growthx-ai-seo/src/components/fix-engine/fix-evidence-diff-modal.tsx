@@ -14,8 +14,22 @@ import {
   Terminal,
   Layers,
   ArrowRight,
+  GitMerge,
+  Zap,
+  TrendingUp,
 } from "lucide-react";
 import { Pill } from "@/components/ui/console";
+
+export interface LinkBridgeData {
+  donorUrl: string;
+  donorTitle: string;
+  donorPageRank: number;
+  orphanUrl: string;
+  orphanTitle: string;
+  anchorText: string;
+  equityTransfer: number;
+  injectedHtml: string;
+}
 
 export interface FixEvidenceDiffModalProps {
   isOpen: boolean;
@@ -30,6 +44,8 @@ export interface FixEvidenceDiffModalProps {
   prNumber?: number;
   commitSha?: string;
   checks?: Array<{ name: string; status: "PASSED" | "VERIFIED" | "IN_PROGRESS"; detail: string }>;
+  /** Populated for ORPHAN_PAGE / LINK fixes — renders the Link Bridge Card */
+  linkBridge?: LinkBridgeData;
 }
 
 export function FixEvidenceDiffModal({
@@ -50,8 +66,10 @@ export function FixEvidenceDiffModal({
     { name: "Schema.org Validator", status: "VERIFIED", detail: "Valid JSON-LD schema with zero missing required fields" },
     { name: "Core Web Vitals Regression Check", status: "PASSED", detail: "Zero CLS or LCP layout regression on mobile/desktop" },
   ],
+  linkBridge,
 }: FixEvidenceDiffModalProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedBridge, setCopiedBridge] = useState(false);
   const [viewMode, setViewMode] = useState<"split" | "unified">("split");
 
   if (!isOpen) return null;
@@ -68,6 +86,18 @@ export function FixEvidenceDiffModal({
     navigator.clipboard.writeText(defaultRemediated);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyBridge = () => {
+    if (linkBridge) {
+      navigator.clipboard.writeText(linkBridge.injectedHtml);
+      setCopiedBridge(true);
+      setTimeout(() => setCopiedBridge(false), 2000);
+    }
+  };
+
+  const safePathname = (url: string) => {
+    try { return new URL(url).pathname; } catch { return url; }
   };
 
   return (
@@ -104,6 +134,79 @@ export function FixEvidenceDiffModal({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          {/* ── LINK BRIDGE CARD (Model B: Neural Link Sculptor) ── */}
+          {linkBridge && (
+            <div className="rounded-2xl border bg-brand-50/60 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500/10 text-accent-600">
+                    <GitMerge size={16} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-brand-950 uppercase tracking-wider">Neural Link Bridge</span>
+                    <p className="text-[10.5px] text-brand-500 font-medium">PageRank Equity Flow Visualization</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyBridge}
+                  className="flex items-center gap-1.5 rounded-lg bg-brand-950 hover:bg-brand-900 text-white px-3 py-1.5 text-[11px] font-semibold transition"
+                >
+                  {copiedBridge ? <Check size={11} className="text-success-500" /> : <Copy size={11} />}
+                  <span>{copiedBridge ? "Copied!" : "Copy HTML Paragraph"}</span>
+                </button>
+              </div>
+
+              {/* Equity Flow: Donor → Anchor → Target */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                {/* Donor */}
+                <div className="flex-1 rounded-xl border bg-white p-3.5 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-brand-500 tracking-widest">Donor Page</span>
+                    <span className="rounded-md bg-accent-500/10 text-accent-600 px-1.5 py-0.5 text-[10px] font-bold">
+                      PR {linkBridge.donorPageRank}/100
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-brand-950 leading-tight line-clamp-2">{linkBridge.donorTitle}</p>
+                  <span className="text-[10.5px] font-mono text-brand-400 break-all">{safePathname(linkBridge.donorUrl)}</span>
+                </div>
+
+                {/* Arrow + Anchor */}
+                <div className="flex flex-col items-center gap-1 shrink-0 px-2">
+                  <div className="flex items-center gap-1">
+                    <Zap size={12} className="text-warning-500" />
+                    <span className="text-[10px] font-bold text-warning-600">+{linkBridge.equityTransfer} PR pts</span>
+                  </div>
+                  <ArrowRight size={20} className="text-brand-400" />
+                  <div className="rounded-lg bg-brand-950 text-white px-2.5 py-1 text-[10.5px] font-bold text-center max-w-[120px] truncate" title={linkBridge.anchorText}>
+                    "{linkBridge.anchorText}"
+                  </div>
+                </div>
+
+                {/* Target */}
+                <div className="flex-1 rounded-xl border border-error-500/30 bg-white p-3.5 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-error-600 tracking-widest">Orphan Target</span>
+                    <span className="rounded-md bg-error-500/10 text-error-600 px-1.5 py-0.5 text-[10px] font-bold">
+                      Was: 0 links
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-brand-950 leading-tight line-clamp-2">{linkBridge.orphanTitle}</p>
+                  <span className="text-[10.5px] font-mono text-brand-400 break-all">{safePathname(linkBridge.orphanUrl)}</span>
+                </div>
+              </div>
+
+              {/* Impact Statement */}
+              <div className="flex items-center gap-2 rounded-xl bg-success-500/10 border border-success-500/20 px-3.5 py-2.5">
+                <TrendingUp size={14} className="text-success-600 shrink-0" />
+                <p className="text-[11.5px] text-success-600 font-medium leading-snug">
+                  This contextual sentence injects <strong className="text-brand-950 font-bold">{linkBridge.equityTransfer} PageRank points</strong> into the orphan page, making it crawlable via Googlebot traversal and eligible for organic indexing.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Git Branch & Verification Banner */}
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">

@@ -25,8 +25,9 @@ import {
   Clock,
   AlertTriangle,
   Play,
+  GitMerge,
 } from "lucide-react";
-import { useWorkspace, usePortfolio, useIssueCounts, useIssueGroups, useIssueGroupPages } from "@/hooks/use-growthx";
+import { useWorkspace, usePortfolio, useIssueCounts, useIssueGroups, useIssueGroupPages, useInternalLinkingMesh } from "@/hooks/use-growthx";
 import type { IssueGroup, FixClass } from "@/lib/api-client";
 import { FixEvidenceDiffModal } from "@/components/fix-engine/fix-evidence-diff-modal";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ export default function FixEnginePage() {
 }
 
 type TabType = "PENDING" | "APPLIED";
-type CategoryFilter = "ALL" | "SCHEMA" | "METADATA" | "HEADINGS" | "TECHNICAL" | "OTHER";
+type CategoryFilter = "ALL" | "SCHEMA" | "METADATA" | "HEADINGS" | "TECHNICAL" | "LINKING" | "OTHER";
 
 interface AppliedFixRecord {
   groupKey: string;
@@ -51,6 +52,17 @@ interface AppliedFixRecord {
   deliverable: string;
   diffBefore: string;
   diffAfter: string;
+  // Link Bridge metadata (populated for ORPHAN_PAGE / LINK fixes)
+  linkBridge?: {
+    donorUrl: string;
+    donorTitle: string;
+    donorPageRank: number;
+    orphanUrl: string;
+    orphanTitle: string;
+    anchorText: string;
+    equityTransfer: number;
+    injectedHtml: string;
+  };
 }
 
 function FixEngineClient() {
@@ -61,10 +73,15 @@ function FixEngineClient() {
 
   const countsQuery = useIssueCounts(projectId);
   const groupsQuery = useIssueGroups(projectId, {});
+  const meshQuery = useInternalLinkingMesh(projectId);
 
   const counts = countsQuery.data;
   const allGroups = groupsQuery.data?.groups ?? [];
   const autoFixableCount = counts?.autoFixable ?? allGroups.filter((g) => g.fixClass === "AUTO").length;
+
+  // Live link mesh data from the Neural Link Sculptor
+  const sculptingOpportunities = meshQuery.data?.sculptingOpportunities ?? [];
+  const meshScoreboard = meshQuery.data?.scoreboard ?? null;
 
   const searchParams = useSearchParams();
   const requestedTab = (searchParams.get("tab") || searchParams.get("view") || "").toUpperCase();
@@ -97,12 +114,59 @@ function FixEngineClient() {
     if (type.includes("META") || type.includes("TITLE") || type.includes("DESCRIPTION")) return "METADATA";
     if (type.includes("H1") || type.includes("HEADING")) return "HEADINGS";
     if (type.includes("CANONICAL") || type.includes("ROBOTS") || type.includes("REDIRECT") || type.includes("INDEX")) return "TECHNICAL";
+    if (type.includes("ORPHAN") || type.includes("LINK") || cat.includes("LINK")) return "LINKING";
     return "OTHER";
   };
 
   // Generate realistic code diff for any issue group
   const generateDiffForGroup = (group: IssueGroup, targetUrl: string) => {
     const type = (group.issueType || "").toUpperCase();
+
+    // ── MODEL B: Neural Link Sculptor ── ORPHAN_PAGE & LINK issues
+    if (type.includes("ORPHAN") || type.includes("LINK")) {
+      // Match the orphan target URL with a sculpting opportunity from the live mesh
+      const opp = sculptingOpportunities.find(
+        (o) => o.targetUrl === targetUrl || o.targetIsOrphan
+      ) ?? sculptingOpportunities[0];
+
+      if (opp) {
+        const donorPath = (() => { try { return new URL(opp.sourceUrl).pathname; } catch { return opp.sourceUrl; } })();
+        const targetPath = (() => { try { return new URL(opp.targetUrl).pathname; } catch { return opp.targetUrl; } })();
+        return {
+          deliverable: `Internal Link Bridge injection: ${donorPath} (PageRank ${opp.sourcePageRank}/100) → ${targetPath}`,
+          originalCode: opp.codeDiff.before,
+          remediatedCode: opp.codeDiff.after,
+          _linkBridge: {
+            donorUrl: opp.sourceUrl,
+            donorTitle: opp.sourceTitle,
+            donorPageRank: opp.sourcePageRank,
+            orphanUrl: opp.targetUrl,
+            orphanTitle: opp.targetTitle,
+            anchorText: opp.recommendedAnchorText,
+            equityTransfer: opp.equityTransferEstimate,
+            injectedHtml: opp.codeDiff.after,
+          },
+        };
+      }
+
+      // Fallback when mesh is still loading
+      return {
+        deliverable: `Internal Link Bridge injection to eliminate orphan status for ${targetUrl}`,
+        originalCode: `<!-- Donor Page (High-Authority Hub) -->
+<p>
+  When scaling operational search architecture, modern enterprises
+  depend on manual engineering to establish authoritative topical
+  authority and eliminate crawl bottlenecks.
+</p>`,
+        remediatedCode: `<!-- GrowthX Neural Link Sculptor — Orphan Crawl Bridge -->
+<!-- Donor Page injects contextual link to orphan target -->
+<p>
+  When scaling operational search architecture, modern enterprises
+  depend on <a href="${targetUrl}" title="${group.title}">${group.title}</a> to establish
+  authoritative topical authority and eliminate crawl bottlenecks.
+</p>`,
+      };
+    }
 
     if (type.includes("H1")) {
       return {
@@ -163,6 +227,7 @@ function FixEngineClient() {
 
     const targetUrl = group.sampleUrls[0] || `https://${activeDomain}/`;
     const diff = generateDiffForGroup(group, targetUrl);
+    const linkBridge = (diff as any)._linkBridge as AppliedFixRecord["linkBridge"] | undefined;
 
     // Simulate safe automated application & snapshot
     await new Promise((r) => setTimeout(r, 700));
@@ -178,6 +243,7 @@ function FixEngineClient() {
         deliverable: diff.deliverable,
         diffBefore: diff.originalCode,
         diffAfter: diff.remediatedCode,
+        ...(linkBridge ? { linkBridge } : {}),
       },
     }));
 
@@ -187,7 +253,12 @@ function FixEngineClient() {
       return next;
     });
 
-    setStatusMessage(`Applied fix: "${group.title}". Verified live on ${targetUrl}`);
+    const isLinkFix = (group.issueType || "").toUpperCase().includes("ORPHAN") || (group.issueType || "").toUpperCase().includes("LINK");
+    setStatusMessage(
+      isLinkFix && linkBridge
+        ? `Link Bridge applied: "${linkBridge.anchorText}" now connects ${new URL(linkBridge.donorUrl).pathname} → ${new URL(linkBridge.orphanUrl).pathname}. PageRank equity: +${linkBridge.equityTransfer} pts.`
+        : `Applied fix: "${group.title}". Verified live on ${targetUrl}`
+    );
   };
 
   // Apply all safe fixes
@@ -202,9 +273,12 @@ function FixEngineClient() {
     await new Promise((r) => setTimeout(r, 1200));
 
     const newRecords: Record<string, AppliedFixRecord> = { ...appliedRecords };
+    let linkBridgesApplied = 0;
     for (const group of safePending) {
       const targetUrl = group.sampleUrls[0] || `https://${activeDomain}/`;
       const diff = generateDiffForGroup(group, targetUrl);
+      const linkBridge = (diff as any)._linkBridge as AppliedFixRecord["linkBridge"] | undefined;
+      if (linkBridge) linkBridgesApplied++;
       newRecords[group.groupKey] = {
         groupKey: group.groupKey,
         title: group.title,
@@ -214,12 +288,17 @@ function FixEngineClient() {
         deliverable: diff.deliverable,
         diffBefore: diff.originalCode,
         diffAfter: diff.remediatedCode,
+        ...(linkBridge ? { linkBridge } : {}),
       };
     }
 
     setAppliedRecords(newRecords);
     setApplyingKeys({});
-    setStatusMessage(`Successfully executed ${safePending.length} verified safe fixes across your site.`);
+    setStatusMessage(
+      linkBridgesApplied > 0
+        ? `Successfully executed ${safePending.length} fixes — including ${linkBridgesApplied} Neural Link Bridge${linkBridgesApplied > 1 ? "s" : ""} to eliminate orphan pages.`
+        : `Successfully executed ${safePending.length} verified safe fixes across your site.`
+    );
   };
 
   // Rollback a fix
@@ -382,6 +461,7 @@ function FixEngineClient() {
                 { id: "METADATA", label: "Metadata" },
                 { id: "HEADINGS", label: "Headings" },
                 { id: "TECHNICAL", label: "Technical" },
+                { id: "LINKING", label: "Link Mesh" },
               ] as const
             ).map((cat) => (
               <button
@@ -391,11 +471,25 @@ function FixEngineClient() {
                 className={cn(
                   "px-2.5 py-1 rounded-md border transition-colors cursor-pointer",
                   categoryFilter === cat.id
-                    ? "bg-brand-950 text-white border-brand-950 dark:bg-white dark:text-brand-950"
+                    ? cat.id === "LINKING"
+                      ? "bg-accent-600 text-white border-accent-600"
+                      : "bg-brand-950 text-white border-brand-950 dark:bg-white dark:text-brand-950"
                     : "border-transparent text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
                 )}
               >
-                {cat.label}
+                {cat.id === "LINKING" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <GitMerge size={10} />
+                    {cat.label}
+                    {meshScoreboard && meshScoreboard.orphanPagesCount > 0 && (
+                      <span className="rounded-full bg-error-500 text-white text-[9px] font-black px-1 min-w-[14px] text-center">
+                        {meshScoreboard.orphanPagesCount}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  cat.label
+                )}
               </button>
             ))}
           </div>
@@ -658,6 +752,7 @@ function FixEngineClient() {
           originalCode={diffModalState.originalCode}
           remediatedCode={diffModalState.remediatedCode}
           deliverable={diffModalState.deliverable}
+          linkBridge={(diffModalState as any).linkBridge}
         />
       )}
     </div>

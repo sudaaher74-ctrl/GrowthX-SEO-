@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,8 +14,8 @@ import {
   Check,
   Code2,
   FileCode,
+  GitMerge,
 } from "lucide-react";
-import { stagingEngine } from "@/lib/staging-engine";
 import type { LinkMeshNode } from "@/lib/api-client";
 
 interface OrphanRemediationPanelProps {
@@ -30,42 +31,22 @@ export function OrphanRemediationPanel({
   projectId,
   onViewSculpting,
 }: OrphanRemediationPanelProps) {
-  const [stagedOrphanIds, setStagedOrphanIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
+  // Track which orphan IDs we've navigated to Fix Engine for (for UI feedback)
+  const [remediatedIds, setRemediatedIds] = useState<Set<string>>(new Set());
 
-  const handleStageOrphanRemediation = (orphan: LinkMeshNode) => {
-    const slug = orphan.url.split("/").filter(Boolean).pop() || "page";
-    const cleanAnchor = orphan.title && orphan.title.length < 40 ? orphan.title : slug.replace(/[-_]+/g, " ");
-
-    const deliverableHtml = `<!-- GrowthX Orphan Crawl Bridge Patch -->
-<!-- Target Orphan URL: ${orphan.url} -->
-<!-- Remediation: Injected into primary pillar/hub content to eliminate crawl isolation -->
-
-<p>
-  For specialized architectural guidance, consult our in-depth resource on 
-  <a href="${orphan.url}">${cleanAnchor}</a>.
-</p>`;
-
-    stagingEngine.stage(projectId, {
-      title: `Remediate Orphan Page: Link to "${cleanAnchor}"`,
-      category: "INTERNAL_LINKING",
-      source: "INTERNAL_LINK",
-      priority: "HIGH",
-      impact: `Eliminates orphan page status for ${orphan.url} by establishing an internal HTML crawl bridge from high-authority donor pages.`,
-      effortHours: 1.5,
-      deliverable: deliverableHtml,
-      evidence: `Page has 0 inbound internal links (${orphan.inboundCount} links), rendering it isolated from standard Googlebot page traversal paths.`,
-      affectedUrl: orphan.url,
-    });
-
-    setStagedOrphanIds((prev) => new Set([...prev, orphan.id]));
+  const handleRemediateOrphan = (orphan: LinkMeshNode) => {
+    // Mark as dispatched to Fix Engine
+    setRemediatedIds((prev) => new Set([...prev, orphan.id]));
+    // Navigate to Fix Engine filtered on Link Mesh issues
+    router.push("/fix-engine?filter=LINKING");
   };
 
-  const handleStageAllOrphans = () => {
-    for (const orphan of orphans) {
-      if (!stagedOrphanIds.has(orphan.id)) {
-        handleStageOrphanRemediation(orphan);
-      }
-    }
+  const handleRemediateAll = () => {
+    const ids = orphans.map((o) => o.id);
+    setRemediatedIds(new Set(ids));
+    // Navigate to Fix Engine filtered on Link Mesh — all orphans handled together
+    router.push("/fix-engine?filter=LINKING");
   };
 
   return (
@@ -81,17 +62,17 @@ export function OrphanRemediationPanel({
               Why Orphan Pages Harm Organic Indexing &amp; Crawl Budget
             </h3>
             <p className="text-xs text-rose-900/90 leading-relaxed max-w-3xl">
-              Orphan pages have <strong>zero inbound internal links</strong> from other pages on your domain. Because search engines discover and evaluate pages via internal link graphs, orphan URLs receive minimal link equity (PageRank) and frequently drop out of Google&rsquo;s primary index. Connecting them with contextual anchor links restores crawl accessibility.
+              Orphan pages have <strong>zero inbound internal links</strong> from other pages on your domain. Because search engines discover and evaluate pages via internal link graphs, orphan URLs receive minimal link equity (PageRank) and frequently drop out of Google&rsquo;s primary index. GrowthX&rsquo;s Neural Link Sculptor automatically pairs each orphan with a high-authority donor page and injects a contextual HTML bridge sentence.
             </p>
           </div>
           {orphans.length > 0 && (
             <button
               type="button"
-              onClick={handleStageAllOrphans}
-              className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
+              onClick={handleRemediateAll}
+              className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
             >
-              <Sparkles size={13} />
-              <span>Remediate All ({orphans.length})</span>
+              <GitMerge size={13} />
+              <span>Remediate All in Fix Engine ({orphans.length})</span>
             </button>
           )}
         </div>
@@ -117,13 +98,13 @@ export function OrphanRemediationPanel({
 
           <div className="grid grid-cols-1 gap-3">
             {orphans.map((orphan) => {
-              const isStaged = stagedOrphanIds.has(orphan.id);
+              const isRemediated = remediatedIds.has(orphan.id);
               const slug = orphan.url.replace(/^https?:\/\/[^/]+/, "") || "/";
 
               return (
                 <div
                   key={orphan.id}
-                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:border-slate-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:border-indigo-200 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="space-y-1.5 max-w-2xl">
                     <div className="flex items-center gap-2">
@@ -155,19 +136,19 @@ export function OrphanRemediationPanel({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {isStaged ? (
-                      <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 border border-emerald-200">
-                        <Check size={14} className="text-emerald-600" />
-                        <span>Bridge Staged</span>
+                    {isRemediated ? (
+                      <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-700 border border-indigo-200">
+                        <Check size={14} className="text-indigo-600" />
+                        <span>Sent to Fix Engine</span>
                       </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleStageOrphanRemediation(orphan)}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
+                        onClick={() => handleRemediateOrphan(orphan)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold px-4 py-2 shadow-sm transition active:scale-95"
                       >
-                        <Sparkles size={13} />
-                        <span>Stage Crawl Bridge</span>
+                        <GitMerge size={13} />
+                        <span>Fix with Neural Link Sculptor</span>
                       </button>
                     )}
                   </div>

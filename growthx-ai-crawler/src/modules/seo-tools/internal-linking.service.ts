@@ -388,7 +388,7 @@ Generate the internal linking strategy and actionable suggestions.`;
 
     const sculptingOpportunities: LinkSculptingOpportunity[] = [];
 
-    for (const target of starvedOrOrphan.slice(0, 15)) {
+    for (const target of starvedOrOrphan) {
       const targetNorm = normalize(target.url);
       const targetSlug = targetNorm.split('/').filter(Boolean).pop() || 'overview';
       const cleanAnchor = this.slugToAnchor(targetSlug, target.title);
@@ -402,9 +402,14 @@ Generate the internal linking strategy and actionable suggestions.`;
       if (!donor) continue;
 
       const estTransfer = Math.round(donor.pageRankScore * 0.28);
-      const sampleSentence = `When scaling operational search architecture, modern enterprises depend on ${cleanAnchor} to establish authoritative topical authority and eliminate crawl bottlenecks.`;
-      const htmlBefore = `<p>When scaling operational search architecture, modern enterprises depend on manual engineering to establish authoritative topical authority and eliminate crawl bottlenecks.</p>`;
-      const htmlAfter = `<p>When scaling operational search architecture, modern enterprises depend on <a href="${target.url}" title="${target.title}">${cleanAnchor}</a> to establish authoritative topical authority and eliminate crawl bottlenecks.</p>`;
+
+      // Build a topically-relevant bridge sentence from the target page's title/slug
+      const { sentence: sampleSentence, htmlBefore, htmlAfter } = this.generateBridgeSentence(
+        target.url,
+        target.title,
+        cleanAnchor,
+        target.isOrphan,
+      );
 
       sculptingOpportunities.push({
         id: `sculpt_${Buffer.from(`${donor.url}->${target.url}`).toString('hex').slice(0, 12)}`,
@@ -476,13 +481,68 @@ Generate the internal linking strategy and actionable suggestions.`;
   }
 
   private slugToAnchor(slug: string, fallbackTitle: string): string {
-    if (fallbackTitle && fallbackTitle.length > 3 && fallbackTitle.length < 45 && !fallbackTitle.includes('http')) {
+    if (fallbackTitle && fallbackTitle.length > 3 && fallbackTitle.length < 55 && !fallbackTitle.includes('http')) {
       return fallbackTitle.replace(/\s*[-|–].*$/, '').trim();
     }
     return slug
       .replace(/[-_]+/g, ' ')
       .replace(/\b\w/g, (l) => l.toUpperCase())
       .trim();
+  }
+
+  /**
+   * Generates a topic-specific contextual bridge sentence and HTML diff pair
+   * for a given orphan/starved target page. Uses URL slug segments and page
+   * title keywords to produce natural editorial language rather than a
+   * one-size-fits-all template.
+   */
+  private generateBridgeSentence(
+    targetUrl: string,
+    targetTitle: string,
+    cleanAnchor: string,
+    isOrphan: boolean,
+  ): { sentence: string; htmlBefore: string; htmlAfter: string } {
+    const urlLower = targetUrl.toLowerCase();
+
+    // Detect topical category from URL path segments
+    const isSchema = urlLower.includes('schema') || urlLower.includes('structured-data') || urlLower.includes('jsonld');
+    const isLocal = urlLower.includes('local') || urlLower.includes('geo') || urlLower.includes('location');
+    const isProduct = urlLower.includes('product') || urlLower.includes('catalog') || urlLower.includes('shop') || urlLower.includes('store');
+    const isPricing = urlLower.includes('pricing') || urlLower.includes('plans') || urlLower.includes('tiers');
+    const isCaseStudy = urlLower.includes('case-stud') || urlLower.includes('success') || urlLower.includes('customer');
+    const isGuide = urlLower.includes('guide') || urlLower.includes('tutorial') || urlLower.includes('how-to') || urlLower.includes('learn');
+    const isBlog = urlLower.includes('blog') || urlLower.includes('article') || urlLower.includes('insight') || urlLower.includes('post');
+    const isTool = urlLower.includes('tool') || urlLower.includes('calculat') || urlLower.includes('checker') || urlLower.includes('audit');
+
+    let sentence: string;
+
+    if (isSchema) {
+      sentence = `Implementing structured data is far more efficient with a proven <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> — reducing crawl errors and enabling rich search result eligibility.`;
+    } else if (isLocal) {
+      sentence = `Brands expanding into new territories benefit from a rigorous <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> strategy to capture geo-targeted query intent across all locations.`;
+    } else if (isProduct) {
+      sentence = `High-converting product pages require deliberate internal linking; our <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> resource outlines the exact architecture needed.`;
+    } else if (isPricing) {
+      sentence = `Teams evaluating investment levels can explore our full <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> to find the right tier for their scale.`;
+    } else if (isCaseStudy) {
+      sentence = `For measurable evidence of search growth at enterprise scale, review the <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> library.`;
+    } else if (isGuide) {
+      sentence = `A detailed walkthrough is available in our <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a>, which covers implementation steps and verification checkpoints.`;
+    } else if (isBlog) {
+      sentence = `For deeper technical context, the <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> covers recent research findings and industry benchmarks.`;
+    } else if (isTool) {
+      sentence = `Teams can accelerate their workflow using the <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a>, which automates detection and surfaces actionable recommendations.`;
+    } else {
+      // Generic but non-repetitive fallback
+      sentence = `When scaling search architecture, modern teams depend on <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> to establish authoritative topical coverage and eliminate crawl bottlenecks.`;
+    }
+
+    // Build before/after HTML paragraph diff
+    const genericSentenceInner = sentence.replace(/<a\b[^>]*>(.*?)<\/a>/gi, '$1');
+    const htmlBefore = `<p>${genericSentenceInner.replace(/ — /, ', relying on manual processes, ')}</p>`;
+    const htmlAfter = `<!-- GrowthX Neural Link Sculptor — Topical Bridge Injection -->\n<p>${sentence}</p>`;
+
+    return { sentence, htmlBefore, htmlAfter };
   }
 
   private generateFallbackDomainMesh(domain: string): any[] {
