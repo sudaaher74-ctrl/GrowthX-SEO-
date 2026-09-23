@@ -1,3 +1,7 @@
+# Compose refuses to start until every required secret is set in .env. The
+# checks live here so the lines that use each value can stay plain references.
+x-required-secrets: "${POSTGRES_PASSWORD:?}${ENCRYPTION_KEY:?}${JWT_SECRET:?}${GRAFANA_ADMIN_PASSWORD:?}"
+
 services:
   crawler-api:
     build:
@@ -11,7 +15,7 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://growthx:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/growthx_crawler?schema=public
+      - DATABASE_URL=postgresql://growthx:${POSTGRES_PASSWORD}@postgres:5432/growthx_crawler?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - STORAGE_PROVIDER=local
@@ -34,7 +38,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: growthx
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: growthx_crawler
     ports:
       - "5432:5432"
@@ -79,7 +83,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:

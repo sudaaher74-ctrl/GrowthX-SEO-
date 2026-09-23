@@ -1,3 +1,8 @@
+# Compose refuses to start until every required secret is set in .env (see
+# .env.example). The checks live here so the lines that use each value can
+# stay plain references.
+x-required-secrets: "${POSTGRES_PASSWORD:?}${ENCRYPTION_KEY:?}${JWT_SECRET:?}"
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -5,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: growthx_crawler
       POSTGRES_USER: growthx
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
