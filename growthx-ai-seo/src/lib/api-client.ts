@@ -948,6 +948,69 @@ export interface SiteHealth {
   source: string;
 }
 
+/**
+ * The website audit's findings, counted once.
+ *
+ * Every screen showing how many things are wrong reads this. The dashboard,
+ * the audit and the Fix Engine each used to count for themselves, which is how
+ * one crawl came to read as 100, 156 and 100 at once.
+ */
+export type IssueSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type FixClass = "AUTO" | "APPROVAL" | "MANUAL";
+
+export interface IssueCounts {
+  /** Distinct findings still open. The headline number. */
+  openFindings: number;
+  /** Distinct problems with at least one open finding. The queue's length. */
+  openGroups: number;
+  /** Sums to openFindings, always. */
+  bySeverity: Record<IssueSeverity, number>;
+  /** Drives "Fix all safe (n)". */
+  autoFixable: number;
+  resolvedThisPeriod: number;
+  regressedThisPeriod: number;
+  pagesCrawled: number;
+  /** Null when no crawl has produced one — not zero. */
+  healthScore: number | null;
+  crawledAt: string | null;
+}
+
+export interface IssueGroup {
+  groupKey: string;
+  issueType: string;
+  category: string | null;
+  severity: IssueSeverity;
+  confidence: "CONFIRMED" | "LIKELY" | "ADVISORY";
+  affectedCount: number;
+  sampleUrls: string[];
+  aiFixAvailable: boolean;
+  fixClass: FixClass;
+  impact: number;
+  reachAvailable: boolean;
+  firstDetectedAt: string;
+  regressionCount: number;
+  title: string;
+  summary: string;
+  action: string;
+}
+
+export interface IssueGroupList {
+  groups: IssueGroup[];
+  /** False means the order is not traffic-weighted, and the UI must say so. */
+  reachAvailable: boolean;
+}
+
+export interface IssueGroupPages {
+  items: Array<{ url: string; severity: IssueSeverity; firstDetectedAt: string; regressionCount: number }>;
+  nextCursor: string | null;
+  total: number;
+}
+
+export interface IssueGroupFilters {
+  severity?: IssueSeverity;
+  limit?: number;
+}
+
 export interface ExecutiveSummary {
   range: { days: number };
   connections: { searchConsole: boolean; analytics: boolean; businessProfile: boolean };
@@ -3427,6 +3490,25 @@ export const api = {
 
   executiveSummary: (projectId: string, days = 28) =>
     get<ExecutiveSummary>(`/api/projects/${projectId}/opportunities/executive-summary?days=${days}`),
+
+  issueCounts: (projectId: string, days = 28) =>
+    get<IssueCounts>(`/api/projects/${projectId}/issues/counts?days=${days}`),
+
+  issueGroups: (projectId: string, filters: IssueGroupFilters = {}, days = 28) => {
+    const qs = new URLSearchParams({ status: "OPEN", days: String(days) });
+    if (filters.severity) qs.set("severity", filters.severity);
+    if (filters.limit) qs.set("limit", String(filters.limit));
+    return get<IssueGroupList>(`/api/projects/${projectId}/issues/groups?${qs}`);
+  },
+
+  issueGroupPages: (projectId: string, groupKey: string, limit = 100, cursor?: string) => {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (cursor) qs.set("cursor", cursor);
+    // groupKey carries "::" separators, so it is encoded as a path segment.
+    return get<IssueGroupPages>(
+      `/api/projects/${projectId}/issues/groups/${encodeURIComponent(groupKey)}/pages?${qs}`,
+    );
+  },
 
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>

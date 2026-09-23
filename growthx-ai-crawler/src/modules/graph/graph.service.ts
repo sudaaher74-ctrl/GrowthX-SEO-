@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { fingerprintFor, fingerprintScope } from '../issues/fingerprint.util';
+import { fingerprintFor, fingerprintScope, issueGroupKey } from '../issues/fingerprint.util';
 
 export interface GraphNode {
   url: string;
@@ -234,6 +234,7 @@ export class GraphService {
               crawlJobId,
               projectId: graphProjectId,
               fingerprint: fingerprintFor(graphScope, 'ORPHAN_PAGE', orphan.url),
+              groupKey: issueGroupKey(graphScope, 'ORPHAN_PAGE'),
               pageId: orphan.pageId,
               issueType: 'ORPHAN_PAGE',
               severity: orphan.severity,
@@ -276,6 +277,7 @@ export class GraphService {
                 crawlJobId,
                 projectId: graphProjectId,
                 fingerprint: fingerprintFor(graphScope, 'EXCESSIVE_CRAWL_DEPTH', deepUrl),
+                groupKey: issueGroupKey(graphScope, 'EXCESSIVE_CRAWL_DEPTH'),
                 pageId: pObj.id,
                 issueType: 'EXCESSIVE_CRAWL_DEPTH',
                 severity: 'LOW',

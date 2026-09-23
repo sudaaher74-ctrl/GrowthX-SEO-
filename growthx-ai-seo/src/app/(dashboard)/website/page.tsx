@@ -31,6 +31,7 @@ import {
   useCrawlHistory,
   useCrawlIssues,
   useCrawlPages,
+  useIssueCounts,
   useLatestCrawl,
   usePortfolio,
   useRepository,
@@ -70,6 +71,12 @@ function WebsiteAuditClient() {
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
   const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
   const history = useCrawlHistory(client?.domain ?? null, 12);
+  // Counts come from the one endpoint every screen shares. The lists below are
+  // fetched a page at a time — 100 rows — so their length is a page size, not a
+  // count. Reading it as one is how this screen said 100 issues while the
+  // dashboard, reading the real total, said 156.
+  const issueCounts = useIssueCounts(projectId);
+  const counts = issueCounts.data ?? null;
 
   const [activeTab, setActiveTab] = useState<TabId>(tabParam || "technical-seo");
   const [crawling, setCrawling] = useState(false);
@@ -152,14 +159,18 @@ function WebsiteAuditClient() {
     {
       id: "technical-seo",
       label: "Technical SEO",
-      badge: allIssues.length > 0 ? allIssues.length : undefined,
+      // The number of distinct problems, labelled as such. A bare "100" beside
+      // a heading reads as a score out of 100, which it never was.
+      badge: counts && counts.openGroups > 0
+        ? `${counts.openGroups} problem${counts.openGroups === 1 ? "" : "s"}`
+        : undefined,
       badgeTone: "danger",
     },
     { id: "performance", label: "Performance" },
     {
       id: "pages",
       label: "Pages",
-      badge: allPages.length > 0 ? allPages.length : undefined,
+      badge: counts && counts.pagesCrawled > 0 ? counts.pagesCrawled : undefined,
       badgeTone: "info",
     },
     { id: "content", label: "Content & On-Page" },
@@ -237,9 +248,13 @@ function WebsiteAuditClient() {
               <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 hidden lg:block">
                 <span>Last crawl: {formatRelativeTime(crawl.data.finishedAt)}</span>
                 <span className="mx-1.5">·</span>
-                <span>{allPages.length} pages</span>
+                <span>{counts?.pagesCrawled ?? allPages.length} pages</span>
                 <span className="mx-1.5">·</span>
-                <span>{allIssues.length} issues</span>
+                <span>
+                  {counts
+                    ? `${counts.openFindings} findings in ${counts.openGroups} problems`
+                    : "counting…"}
+                </span>
                 {crawlDuration && (
                   <>
                     <span className="mx-1.5">·</span>

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { fingerprintFor, fingerprintScope } from '../issues/fingerprint.util';
+import { fingerprintFor, fingerprintScope, issueGroupKey } from '../issues/fingerprint.util';
 import { StorageService } from '../../storage/storage.service';
 import * as cheerio from 'cheerio';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
@@ -1164,11 +1164,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const dedupKey = `${affectedUrl}::${issue.issueType}`;
     const projectId = await this.resolveProjectId(websiteId);
-    const fingerprint = fingerprintFor(
-      fingerprintScope(projectId, websiteId),
-      issue.issueType,
-      affectedUrl,
-    );
+    const scope = fingerprintScope(projectId, websiteId);
+    const fingerprint = fingerprintFor(scope, issue.issueType, affectedUrl);
+    const groupKey = issueGroupKey(scope, issue.issueType);
     try {
       const existing = await this.prisma.issue.findFirst({ where: { crawlJobId, dedupKey } });
       if (existing) return;
@@ -1177,6 +1175,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           crawlJobId,
           projectId,
           fingerprint,
+          groupKey,
           pageId: pageId ?? undefined,
           issueType: issue.issueType,
           severity: issue.severity as never,

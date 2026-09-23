@@ -1,5 +1,5 @@
 /**
- * Backfills `projectId` and `fingerprint` onto existing `Issue` rows.
+ * Backfills `projectId`, `fingerprint` and `groupKey` onto existing `Issue` rows.
  *
  * Run once after the additive migration
  * (20260922093000_issue_project_and_fingerprint) and before the follow-up that
@@ -22,7 +22,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fingerprintFor, fingerprintScope } from '../fingerprint.util';
+import { fingerprintFor, fingerprintScope, issueGroupKey } from '../fingerprint.util';
 
 const BATCH_SIZE = 1000;
 const PROGRESS_FILE =
@@ -170,7 +170,14 @@ export async function backfillIssueIdentity(
     // finding. Where every row is unique it costs nothing.
     const writeGroups = new Map<
       string,
-      { ids: string[]; projectId: string | null; fingerprint: string; first: Date; last: Date }
+      {
+        ids: string[];
+        projectId: string | null;
+        fingerprint: string;
+        groupKey: string;
+        first: Date;
+        last: Date;
+      }
     >();
 
     for (const row of rows) {
@@ -198,6 +205,7 @@ export async function backfillIssueIdentity(
           ids: [row.id],
           projectId,
           fingerprint,
+          groupKey: issueGroupKey(scope, row.issueType),
           first: dates?.first ?? row.createdAt,
           last: dates?.last ?? row.createdAt,
         });
@@ -211,6 +219,7 @@ export async function backfillIssueIdentity(
         data: {
           projectId: group.projectId,
           fingerprint: group.fingerprint,
+          groupKey: group.groupKey,
           firstDetectedAt: group.first,
           lastSeenAt: group.last,
         },

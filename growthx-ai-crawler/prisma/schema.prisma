@@ -237,6 +237,13 @@ model Issue {
   /// Set when a crawl no longer finds a fingerprint that was previously open.
   resolvedAt DateTime?
 
+  /// scope::issueType — the unit the queue is displayed in. One row per
+  /// problem, not per affected page.
+  ///
+  /// Nullable on the same terms as fingerprint: filled by the write path from
+  /// here on and by the backfill for existing rows.
+  groupKey         String?
+
   /// Incremented when a fingerprint is re-detected after having been resolved.
   /// A regression is a different conversation with the client than a new
   /// finding, and the report must be able to tell them apart.
@@ -257,6 +264,7 @@ model Issue {
   @@index([projectId, status, severity])
   @@index([projectId, fingerprint])
   @@index([projectId, issueType, status])
+  @@index([projectId, groupKey, status])
 }
 
 model Image {

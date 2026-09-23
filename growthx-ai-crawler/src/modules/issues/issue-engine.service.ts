@@ -7,7 +7,7 @@ import { ExtractedImage } from '../analyzer/image-analyzer.service';
 import { LinkAnalysisResult } from '../analyzer/link-analyzer.service';
 import { ContentMetrics } from '../analyzer/content-analyzer.service';
 import { ValidatedSchema } from '../analyzer/schema-validator.service';
-import { fingerprintFor, fingerprintScope } from './fingerprint.util';
+import { fingerprintFor, fingerprintScope, issueGroupKey } from './fingerprint.util';
 
 export interface DetectedIssueInput {
   issueType: string;
@@ -589,6 +589,7 @@ export class IssueEngineService {
       seenInBatch.add(issue.dedupKey);
 
       const fingerprint = fingerprintFor(scope, issue.issueType, issue.affectedUrl);
+      const groupKey = issueGroupKey(scope, issue.issueType);
 
       try {
         const existing = await this.prisma.issue.findFirst({
@@ -601,6 +602,7 @@ export class IssueEngineService {
               crawlJobId,
               projectId,
               fingerprint,
+              groupKey,
               pageId,
               issueType: issue.issueType,
               severity: issue.severity,
