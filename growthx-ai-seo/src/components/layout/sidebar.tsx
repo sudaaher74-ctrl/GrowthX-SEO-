@@ -58,9 +58,10 @@ export function Sidebar({
   // Core Navigation Tabs strictly following Master Product Specification
   const mainNav: NavItem[] = [
     {
-      label: "Action Queue",
+      label: "SEO Roadmap",
       href: "/action-queue",
       icon: ListTodo,
+      aliases: ["/roadmap"],
       tag: needsYouCount > 0 ? String(needsYouCount) : undefined,
       tagTone: criticalCount > 0 ? "danger" : "default",
     },

@@ -278,7 +278,7 @@ export function CompetitorProgrammaticTab({
                         className="inline-flex items-center gap-1 rounded-xl bg-success-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm"
                       >
                         <Check size={13} />
-                        <span>Queued</span>
+                        <span>In Roadmap</span>
                       </button>
                     ) : (
                       <button
@@ -287,7 +287,7 @@ export function CompetitorProgrammaticTab({
                         className="inline-flex items-center gap-1 rounded-xl bg-brand-950 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-brand-800 transition active:scale-95"
                       >
                         <Zap size={12} className="text-warning-400" />
-                        <span>Queue Action</span>
+                        <span>Add to Roadmap</span>
                       </button>
                     )}
                   </div>
@@ -402,7 +402,7 @@ export function CompetitorProgrammaticTab({
                 href="/action-queue"
                 className="text-xs font-semibold text-brand-950 hover:underline flex items-center gap-1"
               >
-                <span>View Action Queue</span>
+                <span>View SEO Roadmap</span>
                 <ArrowRight size={13} />
               </Link>
 
@@ -422,7 +422,7 @@ export function CompetitorProgrammaticTab({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-success-500 px-5 py-2 text-xs font-bold text-white shadow-sm"
                   >
                     <Check size={14} />
-                    <span>Dispatched to Action Queue</span>
+                    <span>Added to SEO Roadmap</span>
                   </button>
                 ) : (
                   <button
@@ -431,7 +431,7 @@ export function CompetitorProgrammaticTab({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-900 transition active:scale-95"
                   >
                     <Sparkles size={13} />
-                    <span>Dispatch Blueprint to Action Queue</span>
+                    <span>Add Blueprint to SEO Roadmap</span>
                   </button>
                 )}
               </div>

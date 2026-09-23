@@ -320,7 +320,7 @@ export function CompetitorStealthRadarTab({
                         className="inline-flex items-center gap-1.5 rounded-xl bg-success-500 px-4 py-2 text-xs font-bold text-white shadow-sm"
                       >
                         <Check size={13} />
-                        <span>Queued in Action Queue</span>
+                        <span>Added to SEO Roadmap</span>
                       </button>
                     ) : (
                       <button
@@ -329,7 +329,7 @@ export function CompetitorStealthRadarTab({
                         className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-brand-900 transition active:scale-95"
                       >
                         <Sparkles size={13} />
-                        <span>Dispatch to Action Queue</span>
+                        <span>Add to SEO Roadmap</span>
                       </button>
                     )}
                   </div>

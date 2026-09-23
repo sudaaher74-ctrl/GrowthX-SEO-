@@ -644,7 +644,7 @@ export function CompetitorInterceptEngine({
                 href="/action-queue"
                 className="text-xs font-semibold text-brand hover:underline transition flex items-center gap-1"
               >
-                <span>View in Action Queue</span>
+                <span>View in SEO Roadmap</span>
                 <ArrowRight size={13} />
               </Link>
 
@@ -664,7 +664,7 @@ export function CompetitorInterceptEngine({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-success px-5 py-2 text-xs font-bold text-white shadow-sm"
                   >
                     <Check size={14} />
-                    <span>Dispatched to Action Queue</span>
+                    <span>Added to SEO Roadmap</span>
                   </button>
                 ) : (
                   <button
@@ -673,7 +673,7 @@ export function CompetitorInterceptEngine({
                     className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-slate-900 transition active:scale-95"
                   >
                     <Sparkles size={13} />
-                    <span>Dispatch to Action Queue</span>
+                    <span>Add to SEO Roadmap</span>
                   </button>
                 )}
               </div>

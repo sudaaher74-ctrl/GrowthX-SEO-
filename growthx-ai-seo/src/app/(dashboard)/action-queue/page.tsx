@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   NotConnected,
   PageHeader,
@@ -20,9 +21,20 @@ import {
   Clock,
   CheckCircle2,
   CheckCircle,
-  GitPullRequest,
-  UserCheck,
-  Ban,
+  Copy,
+  Download,
+  FileText,
+  AlertTriangle,
+  Code2,
+  MapPin,
+  Flame,
+  ArrowRight,
+  ListTodo,
+  Layers,
+  Globe,
+  Bot,
+  Swords,
+  ShieldCheck,
 } from "lucide-react";
 import {
   useWorkspace,
@@ -32,151 +44,181 @@ import {
 } from "@/hooks/use-growthx";
 import type { IssueGroup, FixClass } from "@/lib/api-client";
 
-type QueueTab = "NEEDS_YOU" | "IN_PROGRESS" | "DONE";
+type RoadmapTab = "TO_DO" | "IN_PROGRESS" | "DONE";
 type SourceFilter = "ALL" | "WEBSITE" | "AIVIS" | "GBP" | "COMPETITOR";
-type ClassFilter = "ALL" | FixClass;
+type SeverityFilter = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
-export default function ActionQueuePage() {
+export default function ActionRoadmapPage() {
   const { projectId } = useWorkspace();
-  const [tab, setTab] = useState<QueueTab>("NEEDS_YOU");
+  const [tab, setTab] = useState<RoadmapTab>("TO_DO");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("ALL");
-  const [classFilter, setClassFilter] = useState<ClassFilter>("ALL");
-  const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [technicalOpenId, setTechnicalOpenId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [dismissReasonModal, setDismissReasonModal] = useState<{ id: string; title: string } | null>(null);
-  const [dismissReason, setDismissReason] = useState("");
-  const [snoozedIds, setSnoozedIds] = useState<Record<string, { duration: string; until: string }>>({});
-  const [actionedIds, setActionedIds] = useState<Record<string, "FIXED" | "DISMISSED" | "PR" | "ASSIGNED">>({});
+  const [copiedBriefId, setCopiedBriefId] = useState<string | null>(null);
+  const [copiedRoadmap, setCopiedRoadmap] = useState(false);
+
+  // Local state tracking for roadmap task completion
+  const [taskStatusMap, setTaskStatusMap] = useState<Record<string, "TO_DO" | "IN_PROGRESS" | "DONE">>({});
 
   const countsQuery = useIssueCounts(projectId);
   const groupsQuery = useIssueGroups(projectId, {});
 
-  const counts = countsQuery.data;
   const allGroups = groupsQuery.data?.groups ?? [];
-  const autoFixableCount = counts?.autoFixable ?? allGroups.filter((g) => g.fixClass === "AUTO").length;
-  const needsYouCount = counts?.openGroups ?? allGroups.length;
+
+  // Filter groups according to tab and filters
+  const visibleGroups = useMemo(() => {
+    return allGroups.filter((group) => {
+      const currentStatus = taskStatusMap[group.groupKey] || "TO_DO";
+      if (tab !== currentStatus) return false;
+
+      if (sourceFilter !== "ALL") {
+        const match =
+          (sourceFilter === "WEBSITE" && (!group.category || group.category === "SEO" || group.category === "TECHNICAL")) ||
+          (sourceFilter === "AIVIS" && group.category === "AI_VISIBILITY") ||
+          (sourceFilter === "GBP" && group.category === "LOCAL") ||
+          (sourceFilter === "COMPETITOR" && group.category === "COMPETITOR");
+        if (!match) return false;
+      }
+
+      if (severityFilter !== "ALL" && group.severity !== severityFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [allGroups, taskStatusMap, tab, sourceFilter, severityFilter]);
+
+  // Counts for tabs
+  const todoCount = allGroups.filter((g) => (taskStatusMap[g.groupKey] || "TO_DO") === "TO_DO").length;
+  const inProgressCount = allGroups.filter((g) => taskStatusMap[g.groupKey] === "IN_PROGRESS").length;
+  const doneCount = allGroups.filter((g) => taskStatusMap[g.groupKey] === "DONE").length;
 
   const tabs = [
-    { id: "NEEDS_YOU" as const, label: `Needs you (${needsYouCount})` },
-    { id: "IN_PROGRESS" as const, label: "We're on it" },
-    { id: "DONE" as const, label: "Done" },
+    { id: "TO_DO" as const, label: `To Do (${todoCount})` },
+    { id: "IN_PROGRESS" as const, label: `In Progress (${inProgressCount})` },
+    { id: "DONE" as const, label: `Completed (${doneCount})` },
   ];
 
-  // Filter groups
-  const visibleGroups = allGroups.filter((group) => {
-    // If snoozed or actioned, exclude from NEEDS_YOU
-    const isSnoozed = Boolean(snoozedIds[group.groupKey]);
-    const isActioned = Boolean(actionedIds[group.groupKey]);
-
-    if (tab === "NEEDS_YOU") {
-      if (isSnoozed || isActioned) return false;
-    } else if (tab === "IN_PROGRESS") {
-      // In progress includes items fixed or approved this session
-      if (!isActioned || actionedIds[group.groupKey] === "DISMISSED") return false;
-    } else if (tab === "DONE") {
-      // Done includes dismissed or resolved items
-      if (actionedIds[group.groupKey] !== "DISMISSED") return false;
-    }
-
-    if (sourceFilter !== "ALL") {
-      const match =
-        (sourceFilter === "WEBSITE" && (!group.category || group.category === "SEO" || group.category === "TECHNICAL")) ||
-        (sourceFilter === "AIVIS" && group.category === "AI_VISIBILITY") ||
-        (sourceFilter === "GBP" && group.category === "LOCAL") ||
-        (sourceFilter === "COMPETITOR" && group.category === "COMPETITOR");
-      if (!match) return false;
-    }
-
-    if (classFilter !== "ALL" && group.fixClass !== classFilter) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const handleFixAllSafe = () => {
-    const safeGroups = allGroups.filter((g) => g.fixClass === "AUTO" && !actionedIds[g.groupKey]);
-    if (safeGroups.length === 0) {
-      setStatusMessage("No automated fixes pending approval.");
-      return;
-    }
-    const newActioned = { ...actionedIds };
-    for (const g of safeGroups) {
-      newActioned[g.groupKey] = "FIXED";
-    }
-    setActionedIds(newActioned);
-    setStatusMessage(`Approved and queued all ${safeGroups.length} automated, low-risk fixes.`);
+  const handleSetStatus = (groupKey: string, newStatus: "TO_DO" | "IN_PROGRESS" | "DONE") => {
+    setTaskStatusMap((prev) => ({ ...prev, [groupKey]: newStatus }));
+    const label = newStatus === "DONE" ? "Completed" : newStatus === "IN_PROGRESS" ? "In Progress" : "To Do";
+    setStatusMessage(`Task marked as ${label}.`);
   };
 
-  const handleFixIt = (groupKey: string) => {
-    setActionedIds((prev) => ({ ...prev, [groupKey]: "FIXED" }));
-    setStatusMessage("Fix approved! Remediation job queued with rollback snapshot.");
+  const generateTaskBrief = (group: IssueGroup) => {
+    return `### [SEO Fix Brief] ${group.title}
+**Severity**: ${group.severity} | **Impact Score**: ${group.impact}/100
+**Category**: ${group.category || "Website Audit"} | **Pages Affected**: ${group.affectedCount}
+
+#### 1. What's Wrong
+${group.title}
+Confidence: ${group.confidence}
+
+#### 2. Why It Matters
+${group.summary || "This issue reduces organic search performance and negatively impacts user experience."}
+
+#### 3. How to Fix (Step-by-Step)
+- ${group.action || "Inspect affected URLs and deploy the recommended markup/code correction."}
+- Check Core Web Vitals and ensure status 200 responses.
+- Re-crawl or request re-indexing via Google Search Console once deployed.
+
+#### 4. Sample Affected URLs
+${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
+`;
   };
 
-  const handleSnooze = (groupKey: string, duration: string) => {
-    const now = new Date();
-    let until = "next crawl";
-    if (duration === "1 week") {
-      until = new Date(now.getTime() + 7 * 86400000).toLocaleDateString();
-    } else if (duration === "1 month") {
-      until = new Date(now.getTime() + 30 * 86400000).toLocaleDateString();
-    } else if (duration === "until it gets worse") {
-      until = "until severity increases";
-    }
-    setSnoozedIds((prev) => ({ ...prev, [groupKey]: { duration, until } }));
-    setSnoozeOpenId(null);
-    setStatusMessage(`Snoozed for ${duration}. It will return on ${until}.`);
+  const handleCopyTaskBrief = (group: IssueGroup) => {
+    const brief = generateTaskBrief(group);
+    navigator.clipboard.writeText(brief);
+    setCopiedBriefId(group.groupKey);
+    setTimeout(() => setCopiedBriefId(null), 2000);
   };
 
-  const handleDismissSubmit = () => {
-    if (!dismissReasonModal) return;
-    if (!dismissReason.trim()) {
-      setStatusMessage("A non-empty reason is required to dismiss a finding.");
-      return;
-    }
-    setActionedIds((prev) => ({ ...prev, [dismissReasonModal.id]: "DISMISSED" }));
-    setStatusMessage(`Finding dismissed: "${dismissReason.trim()}"`);
-    setDismissReasonModal(null);
-    setDismissReason("");
+  const handleExportRoadmapMarkdown = () => {
+    let md = `# SEO Implementation Roadmap\nGenerated on ${new Date().toLocaleDateString()}\n\n`;
+    md += `## 1. High Priority & Critical Fixes\n`;
+    allGroups.forEach((g, idx) => {
+      const status = taskStatusMap[g.groupKey] || "TO_DO";
+      md += `\n### ${idx + 1}. [${status}] ${g.title}\n`;
+      md += `- **Severity**: ${g.severity} (Impact: ${g.impact}/100)\n`;
+      md += `- **Pages Affected**: ${g.affectedCount}\n`;
+      md += `- **Remediation Action**: ${g.action}\n`;
+      md += `- **Sample URLs**:\n${(g.sampleUrls || []).slice(0, 3).map((u) => `  * ${u}`).join("\n")}\n`;
+    });
+
+    navigator.clipboard.writeText(md);
+    setCopiedRoadmap(true);
+    setStatusMessage("Roadmap copied to clipboard in Markdown format!");
+    setTimeout(() => setCopiedRoadmap(false), 2500);
   };
 
   return (
     <div className="space-y-6">
+      {/* ── HEADER BANNER ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <PageHeader
-          title="Action Queue"
-          subtitle="Ranked queue of prioritized issues with proof-led outcomes. Nothing here ships until you say so."
-        />
-        {projectId && autoFixableCount > 0 && (
-          <Button
-            onClick={handleFixAllSafe}
-            className="flex items-center gap-2 bg-success-600 hover:bg-success-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-xs transition"
-          >
-            <Sparkles size={14} />
-            <span>Fix all safe ({autoFixableCount})</span>
-          </Button>
+        <div>
+          <PageHeader
+            title="SEO Action Roadmap"
+            subtitle="Prioritized, step-by-step implementation guide for your engineering and content teams. Follow the verified instructions to drive measurable organic rankings."
+          />
+        </div>
+
+        {projectId && allGroups.length > 0 && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              onClick={handleExportRoadmapMarkdown}
+              variant="outline"
+              className="flex items-center gap-2 border text-brand-700 hover:bg-brand-50 font-bold text-xs px-3.5 py-2 rounded-xl transition"
+            >
+              {copiedRoadmap ? <Check size={14} className="text-success-600" /> : <Copy size={14} />}
+              <span>{copiedRoadmap ? "Roadmap Copied!" : "Export Roadmap (Markdown)"}</span>
+            </Button>
+          </div>
         )}
       </div>
 
       {!projectId ? (
         <NotConnected
           title="No client selected"
-          what="The Action Queue is scoped to one client so approvals never cross projects."
+          what="The Action Roadmap is scoped to one client so roadmap directives never cross projects."
           needs={["An active organization", "A selected client project"]}
         />
       ) : (
         <>
+          {/* ── ROADMAP SCOREBOARD ── */}
+          <div className="grid grid-cols-2 gap-4 rounded-2xl border bg-brand-950 p-6 text-white shadow-md sm:grid-cols-4">
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-brand-400">Total Roadmap Directives</div>
+              <div className="text-2xl font-black text-white">{allGroups.length}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-brand-400">Critical & High Priority</div>
+              <div className="text-2xl font-black text-error-400">
+                {allGroups.filter((g) => g.severity === "CRITICAL" || g.severity === "HIGH").length}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-brand-400">In Progress</div>
+              <div className="text-2xl font-black text-warning-400">{inProgressCount}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-[11px] font-medium text-brand-400">Completed Directives</div>
+              <div className="text-2xl font-black text-success-400">{doneCount}</div>
+            </div>
+          </div>
+
+          {/* ── TABS AND FILTERS ── */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-3">
             <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
             {/* Filter chips */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-[var(--text-muted)] font-medium text-[11px] uppercase tracking-wider">
+              <span className="text-brand-500 font-medium text-[11px] uppercase tracking-wider">
                 Filter:
               </span>
-              <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-lg border">
+              <div className="flex items-center gap-1 bg-brand-50 p-1 rounded-lg border">
                 {(["ALL", "WEBSITE", "AIVIS", "GBP", "COMPETITOR"] as SourceFilter[]).map((src) => (
                   <button
                     key={src}
@@ -184,8 +226,8 @@ export default function ActionQueuePage() {
                     onClick={() => setSourceFilter(src)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
                       sourceFilter === src
-                        ? "bg-brand-950 text-white dark:bg-white dark:text-brand-950 shadow-2xs"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        ? "bg-brand-950 text-white shadow-2xs"
+                        : "text-brand-600 hover:text-brand-950"
                     }`}
                   >
                     {src === "ALL"
@@ -201,25 +243,19 @@ export default function ActionQueuePage() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-lg border">
-                {(["ALL", "AUTO", "APPROVAL", "MANUAL"] as ClassFilter[]).map((fc) => (
+              <div className="flex items-center gap-1 bg-brand-50 p-1 rounded-lg border">
+                {(["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as SeverityFilter[]).map((sev) => (
                   <button
-                    key={fc}
+                    key={sev}
                     type="button"
-                    onClick={() => setClassFilter(fc)}
+                    onClick={() => setSeverityFilter(sev)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
-                      classFilter === fc
-                        ? "bg-brand-950 text-white dark:bg-white dark:text-brand-950 shadow-2xs"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      severityFilter === sev
+                        ? "bg-brand-950 text-white shadow-2xs"
+                        : "text-brand-600 hover:text-brand-950"
                     }`}
                   >
-                    {fc === "ALL"
-                      ? "All Classes"
-                      : fc === "AUTO"
-                        ? "Auto Fix"
-                        : fc === "APPROVAL"
-                          ? "Review"
-                          : "Manual"}
+                    {sev === "ALL" ? "All Severities" : sev}
                   </button>
                 ))}
               </div>
@@ -227,7 +263,7 @@ export default function ActionQueuePage() {
           </div>
 
           {statusMessage && (
-            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-brand-950 border border-brand-800 text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-brand-950 border text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-success-400 shrink-0" />
                 <span>{statusMessage}</span>
@@ -243,39 +279,38 @@ export default function ActionQueuePage() {
           )}
 
           {groupsQuery.isLoading ? (
-            <Panel title="Loading Action Queue">
+            <Panel title="Loading SEO Action Roadmap">
               <div className="flex items-center justify-center py-16">
-                <Loader2 size={28} className="animate-spin text-brand-200" />
+                <Loader2 size={28} className="animate-spin text-brand-950" />
               </div>
             </Panel>
           ) : visibleGroups.length === 0 ? (
             <Panel title="All clear">
-              <div className="p-12 text-center text-xs text-[var(--text-muted)] space-y-2">
+              <div className="p-12 text-center text-xs text-brand-500 space-y-2">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-success-500/10 text-success-500 mb-2">
                   <CheckCircle size={24} />
                 </div>
-                <p className="font-semibold text-sm text-[var(--text-primary)]">
-                  {tab === "NEEDS_YOU"
-                    ? "No actions require your attention right now."
+                <p className="font-semibold text-sm text-brand-950">
+                  {tab === "TO_DO"
+                    ? "No pending directives in your roadmap."
                     : tab === "IN_PROGRESS"
-                      ? "No work currently in flight."
-                      : "No completed or dismissed actions recorded."}
+                      ? "No directives currently in flight."
+                      : "No completed directives yet."}
                 </p>
-                <p className="text-[12px] max-w-md mx-auto text-[var(--text-muted)]">
-                  {tab === "NEEDS_YOU"
-                    ? "New findings will appear here automatically following site crawls, competitor sweeps, or Google Business Profile syncs."
-                    : "Work in progress is automatically verified and measured for causal lift."}
+                <p className="text-[12px] max-w-md mx-auto text-brand-500">
+                  {tab === "TO_DO"
+                    ? "Auditing and competitor crawls continuously add newly detected gaps and blueprints here."
+                    : "Track directives here as your engineering and content teams complete them."}
                 </p>
               </div>
             </Panel>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {visibleGroups.map((group) => {
                 const isExpanded = expandedId === group.groupKey;
-                const isTechnicalOpen = technicalOpenId === group.groupKey;
-                const isSnoozeOpen = snoozeOpenId === group.groupKey;
+                const isBriefCopied = copiedBriefId === group.groupKey;
+                const currentStatus = taskStatusMap[group.groupKey] || "TO_DO";
 
-                // Severity border style
                 const severityStripe =
                   group.severity === "CRITICAL"
                     ? "border-l-4 border-l-error-500"
@@ -288,212 +323,171 @@ export default function ActionQueuePage() {
                 return (
                   <div
                     key={group.groupKey}
-                    className={`rounded-xl border bg-[var(--surface-1)] transition-all shadow-2xs overflow-hidden ${severityStripe}`}
+                    className={`rounded-2xl border bg-white transition-all shadow-xs overflow-hidden ${severityStripe}`}
                   >
-                    {/* Collapsed row bar */}
-                    <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1.5 flex-1 min-w-0">
+                    {/* Collapsed Card Header */}
+                    <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-2 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Pill
-                            tone={
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
                               group.severity === "CRITICAL"
-                                ? "bad"
+                                ? "bg-error-50 text-error-700"
                                 : group.severity === "HIGH"
-                                  ? "warn"
-                                  : "default"
-                            }
+                                  ? "bg-warning-50 text-warning-700"
+                                  : "bg-brand-100 text-brand-700"
+                            }`}
                           >
                             {group.severity}
-                          </Pill>
-                          <Pill tone="default">
-                            {group.category ? group.category.replace(/_/g, " ") : "Website Audit"}
-                          </Pill>
-                          <span className="text-[11.5px] font-semibold text-[var(--text-muted)]">
-                            {group.affectedCount === 1 ? "1 page" : `${group.affectedCount} pages`}
                           </span>
-                          <span className="text-[11.5px] font-bold text-brand-700 dark:text-brand-300">
-                            Impact {group.impact}
+                          <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
+                            {group.category ? group.category.replace(/_/g, " ") : "Website Audit"}
+                          </span>
+                          <span className="text-[11.5px] font-semibold text-brand-500">
+                            {group.affectedCount === 1 ? "1 page affected" : `${group.affectedCount} pages affected`}
+                          </span>
+                          <span className="text-[11.5px] font-black text-brand-900">
+                            Impact: {group.impact}/100
                           </span>
                         </div>
 
-                        {/* Plain language title */}
-                        <h3 className="text-[14.5px] font-bold text-[var(--text-primary)] leading-snug">
+                        <h3 className="text-base font-bold text-brand-950 leading-snug">
                           {group.title}
                         </h3>
                       </div>
 
-                      {/* Three primary controls: Fix it / Not now / Why? */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* 1. Fix it */}
-                        <Button
-                          onClick={() => handleFixIt(group.groupKey)}
-                          className="bg-brand-950 hover:bg-brand-800 text-white dark:bg-white dark:text-brand-950 font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition"
-                        >
-                          Fix it
-                        </Button>
+                      {/* Workflow Controls: Mark as Done / In Progress / Copy Brief / How To Fix */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {currentStatus !== "DONE" ? (
+                          <Button
+                            onClick={() => handleSetStatus(group.groupKey, "DONE")}
+                            className="bg-brand-950 hover:bg-brand-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-2xs transition flex items-center gap-1.5"
+                          >
+                            <Check size={13} />
+                            <span>Mark as Done</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleSetStatus(group.groupKey, "TO_DO")}
+                            variant="outline"
+                            className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-600 hover:bg-brand-50"
+                          >
+                            <span>Reopen Task</span>
+                          </Button>
+                        )}
 
-                        {/* 2. Not now (snooze menu) */}
-                        <div className="relative">
+                        {currentStatus === "TO_DO" && (
                           <Button
                             variant="outline"
-                            onClick={() => setSnoozeOpenId(isSnoozeOpen ? null : group.groupKey)}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
+                            onClick={() => handleSetStatus(group.groupKey, "IN_PROGRESS")}
+                            className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-700 hover:bg-brand-50"
                           >
-                            <Clock size={13} className="mr-1.5" />
-                            <span>Not now</span>
-                            <ChevronDown size={12} className="ml-1 opacity-70" />
+                            <span>Start Work</span>
                           </Button>
+                        )}
 
-                          {isSnoozeOpen && (
-                            <div className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border bg-[var(--surface-1)] p-1.5 shadow-lg z-20 space-y-1">
-                              <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                                Snooze finding
-                              </p>
-                              {[
-                                { label: "1 week", value: "1 week" },
-                                { label: "1 month", value: "1 month" },
-                                { label: "Until it gets worse", value: "until it gets worse" },
-                              ].map((opt) => (
-                                <button
-                                  key={opt.value}
-                                  type="button"
-                                  onClick={() => handleSnooze(group.groupKey, opt.value)}
-                                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition"
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleCopyTaskBrief(group)}
+                          className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-600 hover:bg-brand-50 flex items-center gap-1"
+                        >
+                          {isBriefCopied ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+                          <span>{isBriefCopied ? "Copied Brief" : "Copy Brief"}</span>
+                        </Button>
 
-                        {/* 3. Why? (in-place expander) */}
                         <Button
                           variant="ghost"
                           onClick={() => setExpandedId(isExpanded ? null : group.groupKey)}
-                          className="text-xs font-bold px-3 py-1.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition"
+                          className="text-xs font-bold px-3 py-2 rounded-xl text-brand-950 hover:bg-brand-100 transition flex items-center gap-1"
                         >
-                          <span>Why?</span>
-                          {isExpanded ? (
-                            <ChevronUp size={14} className="ml-1" />
-                          ) : (
-                            <ChevronDown size={14} className="ml-1" />
-                          )}
+                          <span>{isExpanded ? "Hide Steps" : "How to Fix"}</span>
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </Button>
                       </div>
                     </div>
 
-                    {/* In-place expander: 4 blocks strictly in order */}
+                    {/* Step-by-Step Implementation Guide Expander */}
                     {isExpanded && (
-                      <div className="border-t bg-[var(--surface-2)] p-5 sm:p-6 space-y-5 animate-in fade-in duration-150">
+                      <div className="border-t bg-brand-50 p-6 space-y-5 animate-in fade-in duration-150">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                           {/* Block 1: What's wrong */}
-                          <div className="space-y-1.5 rounded-xl border bg-[var(--surface-1)] p-4 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-error-600 dark:text-error-400">
-                              1 · What&apos;s wrong
+                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-error-600">
+                              1 · What&apos;s Wrong
                             </span>
-                            <p className="text-[13px] font-medium text-[var(--text-primary)] leading-relaxed">
+                            <p className="text-[13px] font-semibold text-brand-950 leading-relaxed">
                               {group.title}
                             </p>
-                            <p className="text-[11.5px] text-[var(--text-muted)] mt-1">
-                              Confidence: {group.confidence} · {group.regressionCount > 0 ? `Regressed ${group.regressionCount}x` : "First occurrence"}
+                            <p className="text-[11.5px] text-brand-500">
+                              Confidence: {group.confidence} &bull; {group.regressionCount > 0 ? `Regressed ${group.regressionCount}x` : "Fresh detection"}
                             </p>
                           </div>
 
-                          {/* Block 2: What it matters */}
-                          <div className="space-y-1.5 rounded-xl border bg-[var(--surface-1)] p-4 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-warning-600 dark:text-warning-400">
-                              2 · What it matters
+                          {/* Block 2: Why it matters */}
+                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-warning-600">
+                              2 · Why It Matters
                             </span>
-                            <p className="text-[13px] font-medium text-[var(--text-primary)] leading-relaxed">
-                              {group.summary || (group.reachAvailable
-                                ? "This defect is hurting search visibility and visitor experience on key pages."
-                                : "We can't measure how much traffic this affects until Search Console is connected.")}
+                            <p className="text-[13px] font-medium text-brand-800 leading-relaxed">
+                              {group.summary || "This issue depresses crawl equity, hurts search click-through rate, and diminishes conversion trust on affected pages."}
                             </p>
                           </div>
 
-                          {/* Block 3: The fix */}
-                          <div className="space-y-1.5 rounded-xl border bg-[var(--surface-1)] p-4 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-success-600 dark:text-success-400">
-                              3 · The fix
+                          {/* Block 3: How to fix */}
+                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-success-600">
+                              3 · The Fix Directive
                             </span>
-                            <p className="text-[13px] font-medium text-[var(--text-primary)] leading-relaxed">
-                              {group.action || "Propose optimized correction with pre-flight safety validation."}
+                            <p className="text-[13px] font-medium text-brand-800 leading-relaxed">
+                              {group.action || "Deploy recommended code or metadata correction to restore compliance."}
                             </p>
-                            <span className="inline-block mt-2 text-[11px] text-[var(--text-muted)]">
-                              {group.fixClass === "AUTO"
-                                ? "Automated & fully reversible. Page content stays untouched."
-                                : group.fixClass === "APPROVAL"
-                                  ? "Visible modification requiring preview approval."
-                                  : "Manual adjustment via site hosting or content editor."}
-                            </span>
                           </div>
                         </div>
 
-                        {/* Block 4: Apply controls */}
-                        <div className="rounded-xl border bg-[var(--surface-1)] p-4 flex flex-wrap items-center justify-between gap-3">
-                          <span className="text-[11.5px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                            4 · Apply
-                          </span>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              onClick={() => handleFixIt(group.groupKey)}
-                              className="bg-success-600 hover:bg-success-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-2xs transition"
-                            >
-                              <Check size={13} className="mr-1.5" />
-                              Apply Fix
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setActionedIds((prev) => ({ ...prev, [group.groupKey]: "PR" }));
-                                setStatusMessage("Pull Request generated with diff preview.");
-                              }}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                            >
-                              <GitPullRequest size={13} className="mr-1.5" />
-                              Create PR
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setActionedIds((prev) => ({ ...prev, [group.groupKey]: "ASSIGNED" }));
-                                setStatusMessage("Task assigned to engineering team.");
-                              }}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                            >
-                              <UserCheck size={13} className="mr-1.5" />
-                              Assign
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                setDismissReasonModal({
-                                  id: group.groupKey,
-                                  title: group.title,
-                                })
-                              }
-                              className="text-xs font-semibold px-3 py-1.5 rounded-lg text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-950/20"
-                            >
-                              <Ban size={13} className="mr-1.5" />
-                              Dismiss
-                            </Button>
+                        {/* Step-by-Step Guidance Box */}
+                        <div className="rounded-2xl border bg-white p-5 space-y-3 shadow-2xs">
+                          <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
+                            <Code2 size={15} className="text-brand-950" />
+                            <span>Developer Implementation Instructions</span>
                           </div>
-                        </div>
 
-                        {/* Technical details expander */}
-                        <div className="border rounded-xl bg-[var(--surface-1)] overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => setTechnicalOpenId(isTechnicalOpen ? null : group.groupKey)}
-                            className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
-                          >
-                            <span>Technical Details &amp; Affected URLs</span>
-                            {isTechnicalOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                          </button>
+                          <ol className="list-decimal list-inside space-y-2 text-xs text-brand-700 leading-relaxed">
+                            <li>
+                              Open the code repository or CMS editor for the affected URLs listed below.
+                            </li>
+                            <li>
+                              Implement the required change: <span className="font-semibold text-brand-950">{group.action}</span>.
+                            </li>
+                            <li>
+                              Validate locally using browser developer tools, Lighthouse, or Schema Markup Validator.
+                            </li>
+                            <li>
+                              Deploy changes to production and trigger a crawl re-check to confirm resolution.
+                            </li>
+                          </ol>
 
-                          {isTechnicalOpen && (
-                            <TechnicalDetailsBlock projectId={projectId!} group={group} />
+                          {/* Sample URLs */}
+                          {group.sampleUrls && group.sampleUrls.length > 0 && (
+                            <div className="mt-4 pt-4 border-t space-y-2">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-500">
+                                Example Affected URLs:
+                              </span>
+                              <div className="space-y-1">
+                                {group.sampleUrls.slice(0, 5).map((url, i) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs">
+                                    <ExternalLink size={12} className="text-brand-400 shrink-0" />
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-mono text-brand-800 hover:underline truncate"
+                                    >
+                                      {url}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -505,120 +499,6 @@ export default function ActionQueuePage() {
           )}
         </>
       )}
-
-      {/* Dismiss Reason Modal */}
-      {dismissReasonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md rounded-2xl border bg-[var(--surface-1)] p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-[var(--text-primary)]">
-              Dismiss Finding
-            </h3>
-            <p className="text-xs text-[var(--text-muted)]">
-              A reason is strictly required to dismiss an action so future audits respect the decision:
-            </p>
-            <div className="p-2.5 rounded-lg bg-[var(--surface-2)] text-xs font-medium text-[var(--text-primary)]">
-              {dismissReasonModal.title}
-            </div>
-            <textarea
-              value={dismissReason}
-              onChange={(e) => setDismissReason(e.target.value)}
-              placeholder="e.g. Deliberately unindexed staging path, or managed via external CDN rule..."
-              rows={3}
-              className="w-full rounded-xl border bg-[var(--surface-2)] p-3 text-xs text-[var(--text-primary)] focus:outline-hidden focus:ring-2 focus:ring-brand-900"
-            />
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setDismissReasonModal(null);
-                  setDismissReason("");
-                }}
-                className="text-xs font-medium"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDismissSubmit}
-                disabled={!dismissReason.trim()}
-                className="bg-error-600 hover:bg-error-700 text-white text-xs font-bold px-4 py-2 rounded-xl disabled:opacity-50"
-              >
-                Dismiss Finding
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TechnicalDetailsBlock({
-  projectId,
-  group,
-}: {
-  projectId: string;
-  group: IssueGroup;
-}) {
-  const pagesQuery = useIssueGroupPages(projectId, group.groupKey);
-  const pages = pagesQuery.data?.items ?? [];
-  const displayPages = pages.length > 0 ? pages.map((p) => p.url) : group.sampleUrls;
-
-  return (
-    <div className="p-4 border-t bg-[var(--surface-2)] space-y-3 text-xs">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11.5px]">
-        <div>
-          <span className="text-[var(--text-muted)]">Issue Type:</span>{" "}
-          <code className="text-brand-800 dark:text-brand-200 font-mono font-bold">
-            {group.issueType}
-          </code>
-        </div>
-        <div>
-          <span className="text-[var(--text-muted)]">Fix Class:</span>{" "}
-          <span className="font-semibold text-brand-800 dark:text-brand-200">
-            {group.fixClass}
-          </span>
-        </div>
-        <div>
-          <span className="text-[var(--text-muted)]">First Detected:</span>{" "}
-          <span className="text-brand-800 dark:text-brand-200">
-            {new Date(group.firstDetectedAt).toLocaleDateString()}
-          </span>
-        </div>
-        <div>
-          <span className="text-[var(--text-muted)]">Group Key:</span>{" "}
-          <span className="font-mono text-[10px] text-brand-600 dark:text-brand-400 truncate block">
-            {group.groupKey}
-          </span>
-        </div>
-      </div>
-
-      <div className="space-y-1.5 pt-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-          Affected URLs ({group.affectedCount})
-        </span>
-        <div className="max-h-48 overflow-y-auto rounded-lg border bg-[var(--surface-1)] p-2 space-y-1">
-          {displayPages.length === 0 ? (
-            <p className="text-[11px] text-[var(--text-muted)] p-2">No individual URLs listed.</p>
-          ) : (
-            displayPages.map((url, idx) => (
-              <div
-                key={`${url}-${idx}`}
-                className="flex items-center justify-between text-[11.5px] p-1.5 hover:bg-[var(--surface-2)] rounded font-mono text-brand-700 dark:text-brand-300"
-              >
-                <span className="truncate pr-2">{url}</span>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-brand-400 hover:text-brand-600 dark:hover:text-white shrink-0"
-                >
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
     </div>
   );
 }
