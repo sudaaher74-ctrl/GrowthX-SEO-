@@ -1,5 +1,17 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+
+// The guard holds its own Prisma client; these tests stand in for the rows it reads.
+const mockPrisma = {
+  project: { findUnique: jest.fn() },
+  organizationMember: { findUnique: jest.fn() },
+  user: { findUnique: jest.fn() },
+};
+jest.mock('@prisma/client', () => ({
+  ...jest.requireActual('@prisma/client'),
+  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
+}));
+
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorator';
 
@@ -28,8 +40,8 @@ describe('JwtAuthGuard — organization resolution', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  function contextFor(user: unknown) {
-    const request: any = { user, method: 'POST', url: '/api/projects/p1/content-intelligence/strategy/generate' };
+  function contextFor(user: unknown, params: Record<string, string> = {}) {
+    const request: any = { user, params, method: 'POST', url: '/api/projects/p1/content-intelligence/strategy/generate' };
     return {
       request,
       context: {
@@ -72,5 +84,56 @@ describe('JwtAuthGuard — organization resolution', () => {
     const { context } = contextFor(undefined);
 
     await expect(guardWith(false).canActivate(context)).resolves.toBe(false);
+  });
+
+  describe('project scope', () => {
+    const user = () => ({ userId: 'u1', email: 'a@b.c', organizationId: 'org_1' });
+
+    it("refuses another organization's project, without confirming it exists", async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ organizationId: 'org_other' });
+      mockPrisma.organizationMember.findUnique.mockResolvedValue(null);
+      const { context } = contextFor(user(), { projectId: 'p_other' });
+
+      await expect(guardWith(false).canActivate(context)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('refuses a project that does not exist the same way', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue(null);
+      const { context } = contextFor(user(), { projectId: 'missing' });
+
+      await expect(guardWith(false).canActivate(context)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("scopes the request to the project's organization for a member", async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ organizationId: 'org_2' });
+      mockPrisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+      const { context, request } = contextFor(user(), { projectId: 'p2' });
+
+      await expect(guardWith(false).canActivate(context)).resolves.toBe(true);
+      expect(mockPrisma.organizationMember.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId_organizationId: { userId: 'u1', organizationId: 'org_2' } } }),
+      );
+      expect(request.organizationId).toBe('org_2');
+    });
+
+    it('leaves routes without a project untouched', async () => {
+      mockPrisma.project.findUnique.mockClear();
+      const { context } = contextFor(user());
+
+      await expect(guardWith(false).canActivate(context)).resolves.toBe(true);
+      expect(mockPrisma.project.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  it('never signs a tokenless request in as the dev user unless explicitly enabled', async () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.AUTH_DEV_BYPASS;
+    mockPrisma.user.findUnique.mockClear();
+    jest.spyOn(parentPrototype, 'canActivate').mockResolvedValue(false);
+    const { context } = contextFor(undefined);
+
+    await expect(guardWith(false).canActivate(context)).resolves.toBe(false);
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    process.env.NODE_ENV = 'production';
   });
 });

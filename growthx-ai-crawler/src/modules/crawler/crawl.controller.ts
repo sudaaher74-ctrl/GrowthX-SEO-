@@ -82,14 +82,33 @@ export class CrawlController {
     return job;
   }
 
+  /**
+   * Same, for an issue traced back through its crawl job. The issue routes
+   * below loaded the issue by id alone, so any signed-in user could run a paid
+   * analysis on, preview the repository behind, or approve a fix for another
+   * customer's issue.
+   */
+  private async issueForCaller(req: any, issueId: string) {
+    const issue = await this.prisma.issue.findUnique({ where: { id: issueId }, select: { crawlJobId: true } });
+    if (!issue) throw new NotFoundException('Issue not found');
+    await this.crawlJobForCaller(req, issue.crawlJobId);
+  }
+
   @Post('websites')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Register a new customer website for SEO auditing' })
   @ApiBody({ schema: { type: 'object', properties: { url: { type: 'string', example: 'https://growthx.ai' }, domain: { type: 'string', example: 'growthx.ai' }, projectId: { type: 'string' } } } })
   async registerWebsiteRoute(@Req() req: any, @Body() body: { url: string; domain: string; projectId?: string }) {
-    const organizationId = req.organizationId || "default-org";
+    const organizationId: string = req.organizationId;
+    // The same normalisation `registerWebsite` saves under. Checking ownership
+    // against the raw input let "Example.com" or "https://example.com" miss
+    // the existing row here, then overwrite it there — moving another
+    // tenant's site and its crawl history into the caller's project.
+    const domain = normalizeWebsiteDomain(body.domain || body.url);
+    if (!domain) throw new BadRequestException('URL or domain is required.');
+
     const existing = await this.prisma.website.findUnique({
-      where: { domain: body.domain },
+      where: { domain },
       select: { id: true, project: { select: { organizationId: true } } },
     });
 
@@ -100,12 +119,8 @@ export class CrawlController {
     const owner = existing?.project?.organizationId;
     if (owner && owner !== organizationId) {
       throw new ForbiddenException(
-        `${body.domain} is already registered to another organization. If you own this domain, ask them to remove it first.`,
+        `${domain} is already registered to another organization. If you own this domain, ask them to remove it first.`,
       );
-    }
-
-    // Only a genuinely new site counts against the plan's site allowance.
-    if (!existing) {
     }
 
     // A project the caller does not belong to would park the site outside their
@@ -116,9 +131,13 @@ export class CrawlController {
         select: { organizationId: true },
       });
       if (!project) throw new NotFoundException('Project not found');
-          }
+      await this.orgContext.assertMembership(req.user?.userId, project.organizationId);
+      if (owner && owner !== project.organizationId) {
+        throw new ForbiddenException(`${domain} is already registered to another organization.`);
+      }
+    }
 
-    return this.registerWebsite(body);
+    return this.registerWebsite({ ...body, domain });
   }
 
   /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
@@ -126,7 +145,7 @@ export class CrawlController {
     if (!body.url && !body.domain) {
       throw new BadRequestException('URL or domain is required.');
     }
-    let domain = (body.domain || body.url).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const domain = normalizeWebsiteDomain(body.domain || body.url);
     let formattedUrl = (body.url || body.domain).trim();
     if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
       formattedUrl = `https://${formattedUrl}`;
@@ -555,6 +574,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Trigger AI explanation (Why it matters, SEO/Business impact, Priority)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async analyzeIssue(@Req() req: any, @Param('id') id: string) {
+    await this.issueForCaller(req, id);
     const result = await this.aiService.analyzeIssue(id, req.organizationId);
     // Charged only once the analysis actually came back.
     return result;
@@ -565,6 +585,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Generate code snippet / text patch for an automated fix (Pro plan)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async generateAutoFix(@Req() req: any, @Param('id') id: string) {
+    await this.issueForCaller(req, id);
     const result = await this.autoFixService.generateFixPatch(id, req.organizationId);
     return result;
   }
@@ -580,6 +601,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Real before/after, file location and evidence type for an issue fix' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async fixPreview(@Req() req: any, @Param('id') id: string) {
+    await this.issueForCaller(req, id);
     return this.fixPreviewService.buildPreview(id, req.organizationId);
   }
 
@@ -588,8 +610,11 @@ export class CrawlController {
   @ApiOperation({ summary: 'Approve an AI patch and ship it to the customer repo (Pro plan)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   @ApiBody({ schema: { type: 'object', properties: { userId: { type: 'string', example: 'user_123' } } } })
-  async approveFix(@Req() req: any, @Param('id') id: string, @Body() body: { userId?: string }) {
-    return this.autoFixService.approveAndExecuteFix(id, body.userId || req.user?.userId || 'admin_user');
+  async approveFix(@Req() req: any, @Param('id') id: string) {
+    await this.issueForCaller(req, id);
+    // The approver is whoever is signed in — never a user id from the body,
+    // which let a caller record the approval under someone else's name.
+    return this.autoFixService.approveAndExecuteFix(id, req.user.userId);
   }
 
   @Post('webhooks/crawl-trigger')
@@ -601,6 +626,9 @@ export class CrawlController {
   }
 
   @Post('projects/:projectId/verification/run')
+  // Had no guard at all, and the membership check below swallowed its own
+  // failure: anyone could run or read verification for any project.
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Run live re-crawl verification pipeline and generate signed certificate' })
   @ApiParam({ name: 'projectId', description: 'Project ID' })
   async runVerification(
@@ -615,14 +643,15 @@ export class CrawlController {
     if (!project) throw new NotFoundException('Project not found');
 
     const orgId = project.organizationId;
-    if (req.user?.userId) {
-      await this.orgContext.assertMembership(req.user.userId, orgId).catch(() => {});
-    }
+    await this.orgContext.assertMembership(req.user?.userId, orgId);
 
     return this.verificationEngine.runVerification(orgId, projectId, body);
   }
 
   @Get('projects/:projectId/verification/latest')
+  // Had no guard at all, and the membership check below swallowed its own
+  // failure: anyone could run or read verification for any project.
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get latest verification certificate for project' })
   @ApiParam({ name: 'projectId', description: 'Project ID' })
   async getLatestVerification(@Req() req: any, @Param('projectId') projectId: string) {
@@ -633,10 +662,13 @@ export class CrawlController {
     if (!project) throw new NotFoundException('Project not found');
 
     const orgId = project.organizationId;
-    if (req.user?.userId) {
-      await this.orgContext.assertMembership(req.user.userId, orgId).catch(() => {});
-    }
+    await this.orgContext.assertMembership(req.user?.userId, orgId);
 
     return this.verificationEngine.getLatestCertificate(orgId, projectId);
   }
+}
+
+/** The form a website's domain is stored and looked up under. */
+function normalizeWebsiteDomain(input?: string): string {
+  return (input ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '');
 }

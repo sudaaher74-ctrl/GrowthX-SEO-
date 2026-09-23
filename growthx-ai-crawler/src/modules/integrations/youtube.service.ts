@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { decodeState, encodeState } from './google/oauth-state';
 import { PrismaService } from '../../database/prisma.service';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from './google/google-apis';
@@ -16,8 +17,23 @@ export class YoutubeService {
     );
   }
 
-  getAuthUrl(projectId: string): string {
-    const state = Buffer.from(JSON.stringify({ projectId })).toString('base64');
+  /**
+   * The connect link for a project the caller belongs to.
+   *
+   * The state is signed (shared with the Google flow): it used to be plain
+   * base64 of the project id, so anyone could hand the callback a state naming
+   * another customer's project and attach their own YouTube account to it.
+   */
+  async getAuthUrl(projectId: string, userId: string): Promise<string> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } });
+    const member =
+      project &&
+      (await this.prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId, organizationId: project.organizationId } },
+        select: { id: true },
+      }));
+    if (!project || !member) throw new NotFoundException('Project not found');
+    const state = encodeState({ projectId, organizationId: project.organizationId, provider: 'youtube' });
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
@@ -28,7 +44,9 @@ export class YoutubeService {
 
   async handleCallback(code: string, state: string): Promise<void> {
     try {
-      const decodedState = JSON.parse(Buffer.from(state, 'base64').toString('ascii'));
+      // Refuses any state this server did not sign, or one issued for another provider.
+      const decodedState = decodeState(state);
+      if (decodedState.provider !== 'youtube') throw new Error('OAuth state was issued for another provider.');
       const projectId = decodedState.projectId;
 
       const { tokens } = await this.oauth2Client.getToken(code);

@@ -147,7 +147,12 @@ describe('buildVisibilityReport', () => {
       expect(result.shareOfVoice.find((r) => r.domain === 'rival.com')?.label).toBe('rival.com');
     });
 
-    it('always includes the customer row, even at zero', () => {
+    it('is empty when nothing ran, rather than a measured-looking zero', () => {
+      expect(report([]).shareOfVoice).toEqual([]);
+      expect(report([check({ error: 'OPENAI is not configured.' })]).shareOfVoice).toEqual([]);
+    });
+
+    it('always includes the customer row once checks ran, even at zero', () => {
       const result = report([check({ cited: false })]);
       expect(result.shareOfVoice[0]).toEqual({ domain: null, label: 'You', mentions: 0, sharePct: 0 });
     });

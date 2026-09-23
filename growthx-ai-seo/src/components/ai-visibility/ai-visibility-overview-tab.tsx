@@ -51,10 +51,14 @@ export function AiVisibilityOverviewTab({
 
   const totalCitations = report?.summary?.cited ?? 0;
 
-  // The customer's own share of every brand mention (the report marks the
-  // customer's row with a null domain).
-  const ownVoice = report?.shareOfVoice?.find((row) => row.domain === null);
-  const shareOfVoice = measured && ownVoice ? `${ownVoice.sharePct}%` : "—";
+  // Your mentions as a share of every brand mention (you plus tracked
+  // competitors). The report's per-row sharePct is the share of answers that
+  // name each brand, which for you is the mention rate above, so it is not
+  // reused here. The report marks your row with a null domain.
+  const voiceRows = report?.shareOfVoice ?? [];
+  const ownMentions = voiceRows.find((row) => row.domain === null)?.mentions ?? 0;
+  const allMentions = voiceRows.reduce((sum, row) => sum + row.mentions, 0);
+  const shareOfVoice = measured && allMentions > 0 ? `${Math.round((ownMentions / allMentions) * 100)}%` : "—";
   const mentionTrend = (report?.trend ?? []).filter((t) => t.checked > 0).map((t) => t.citationSharePct);
 
   const trackedQueries = trackedPromptsCount;

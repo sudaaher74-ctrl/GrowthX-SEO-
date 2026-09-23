@@ -103,7 +103,7 @@ export function AiVisibilityCompetitorsTab({
         <AiKpiCard
           label="Your Citation Share"
           value={`${yourShare}%`}
-          subtext="Your share of all brand mentions"
+          subtext="Share of measured answers that name you"
           icon={<Users size={16} />}
           iconBgColor="bg-slate-100 text-slate-900"
           colorScheme="default"
