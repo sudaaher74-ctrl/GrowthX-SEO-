@@ -182,16 +182,15 @@ describe('IssueGroupService.groupsForProject', () => {
     expect(groups.map((g) => g.issueType)).toEqual(['MISSING_TITLE']);
   });
 
-  it('carries the engine own words until the plain-language layer replaces them', async () => {
+  it('uses the plain-language copy layer for title, summary and action', async () => {
     const svc = service([
       issue({ issueType: 'MISSING_META_DESCRIPTION', affectedUrl: 'https://x.com/a', description: 'No meta description.', recommendation: 'Add one.' }),
     ]);
 
     const [group] = (await svc.groupsForProject('proj_1')).groups;
 
-    expect(group.title).toBe('Missing meta description');
-    expect(group.summary).toBe('No meta description.');
-    expect(group.action).toBe('Add one.');
+    expect(group.title).toBe('1 page lets Google write their own description — usually badly');
+    expect(group.action).toContain("We'll write a short description for each page");
   });
 });
 

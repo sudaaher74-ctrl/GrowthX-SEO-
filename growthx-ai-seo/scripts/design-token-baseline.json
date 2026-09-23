@@ -1,7 +1,6 @@
 {
   "app/(dashboard)/action-engine/competitor-setup.tsx": 10,
   "app/(dashboard)/action-engine/page.tsx": 29,
-  "app/(dashboard)/action-queue/page.tsx": 16,
   "app/(dashboard)/admin/page.tsx": 50,
   "app/(dashboard)/ai-assistant/page.tsx": 11,
   "app/(dashboard)/ai-visibility/page.tsx": 81,
@@ -19,7 +18,7 @@
   "app/(dashboard)/content-velocity/page.tsx": 97,
   "app/(dashboard)/dashboard/page.tsx": 38,
   "app/(dashboard)/error.tsx": 12,
-  "app/(dashboard)/fix-engine/page.tsx": 31,
+  "app/(dashboard)/fix-engine/page.tsx": 26,
   "app/(dashboard)/geo-tracking/page.tsx": 101,
   "app/(dashboard)/help/page.tsx": 9,
   "app/(dashboard)/image-seo/page.tsx": 30,

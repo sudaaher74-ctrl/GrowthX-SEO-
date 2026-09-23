@@ -1,5 +1,5 @@
 import { ChangeClass } from '@prisma/client';
-import { changeClassForFixType } from './change-class';
+import { changeClassForFixType, changeClassForIssueType } from './change-class';
 
 describe('changeClassForFixType', () => {
   it('files both metadata patches under one class', () => {
@@ -49,5 +49,19 @@ describe('changeClassForFixType', () => {
     for (const fixType of patcherFixTypes) {
       expect(changeClassForFixType(fixType)).not.toBe(ChangeClass.OTHER);
     }
+  });
+});
+
+describe('changeClassForIssueType', () => {
+  it('maps issueTypes correctly to their structural change class', () => {
+    expect(changeClassForIssueType('MISSING_TITLE')).toBe(ChangeClass.METADATA);
+    expect(changeClassForIssueType('MISSING_CANONICAL')).toBe(ChangeClass.CANONICAL_CONSOLIDATION);
+    expect(changeClassForIssueType('MISSING_ALT_TEXT')).toBe(ChangeClass.MEDIA_ALT);
+    expect(changeClassForIssueType('MISSING_H1')).toBe(ChangeClass.HEADING_STRUCTURE);
+    expect(changeClassForIssueType('BROKEN_LINK_4XX')).toBe(ChangeClass.INTERNAL_LINKS);
+    expect(changeClassForIssueType('LARGE_HTML')).toBe(ChangeClass.PAGE_SPEED);
+    expect(changeClassForIssueType('THIN_CONTENT')).toBe(ChangeClass.FRESHNESS_UPDATE);
+    expect(changeClassForIssueType('SCHEMA_PRODUCT_OFFERS')).toBe(ChangeClass.SCHEMA_MARKUP);
+    expect(changeClassForIssueType('UNKNOWN_ISSUE')).toBe(ChangeClass.OTHER);
   });
 });

@@ -2336,10 +2336,25 @@ model GrowthOpportunity {
   /// Pages this concerns, where it concerns specific pages.
   affectedPages String[] @default([])
 
-  /// OPEN | ACTIONED | DISMISSED
+  /// OPEN | ACTIONED | DISMISSED (legacy dual-write alongside lifecycle)
   status      String    @default("OPEN")
   dismissedAt DateTime?
 
+  /// Single unified finding lifecycle
+  lifecycle        FindingLifecycle @default(DETECTED)
+  snoozeUntil      DateTime?
+  dismissReason    String?
+  lastTransitionAt DateTime         @default(now())
+  transitions      Json             @default("[]")
+
+  /// Task 3 extensions
+  fixClass      String  @default("MANUAL") // AUTO | APPROVAL | MANUAL
+  impact        Float   @default(0)        // 0-100 composite
+  detailType    String?                    // ISSUE_GROUP | GBP_PROPOSAL | etc.
+  detailRef     String?                    // Issue.groupKey, GbpFixProposal.id, etc.
+  affectedCount Int     @default(0)
+
+  resolvedAt DateTime?
   detectedAt DateTime @default(now())
   /// Refreshed each time detection still finds it. A row whose lastSeenAt has
   /// stopped moving is a finding that resolved itself, which is worth being
@@ -2352,6 +2367,9 @@ model GrowthOpportunity {
   @@index([projectId, status, priority])
   @@index([projectId, source])
   @@index([organizationId, projectId])
+  @@index([projectId, lifecycle, impact])
+  @@index([projectId, status, impact])
+  @@index([projectId, fixClass, status])
 }
 
 /// One row of Google Analytics 4 data.
@@ -2501,6 +2519,21 @@ enum ActionStatus {
   NOT_STARTED
   IN_PROGRESS
   DONE
+}
+
+/// One unified lifecycle for all findings across all detectors
+enum FindingLifecycle {
+  DETECTED    // written by an adapter, not yet shown
+  QUEUED      // visible, waiting on a human
+  SNOOZED     // returns on snoozeUntil
+  DISMISSED   // user said no; never auto-reopens
+  APPROVED    // user said go, not started
+  APPLYING    // fix in flight
+  VERIFYING   // applied, re-crawl in progress
+  VERIFIED    // confirmed live
+  MEASURED    // outcome recorded at +7/+30d
+  FAILED      // attempt failed, needs a human
+  RESOLVED    // detector stopped seeing it; no fix of ours
 }
 
 /// One observed signal, with everything needed to check it.

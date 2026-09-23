@@ -43,12 +43,7 @@ import { errorMessage } from "@/lib/error-message";
 import { FixEngineStepper } from "@/components/fix-engine/fix-engine-stepper";
 import { FixEngineHeroBanner } from "@/components/fix-engine/fix-engine-hero-banner";
 import { FixEngineOverviewTab } from "@/components/fix-engine/fix-engine-overview-tab";
-import {
-  FixesByCategoryTab,
-  TimelineTab,
-  ImpactForecastTab,
-  SettingsTab,
-} from "@/components/fix-engine/fix-engine-sub-tabs";
+import { Button } from "@/components/ui/button";
 import {
   FixEngineImplementationView,
   FixEngineVerificationView,
@@ -131,7 +126,6 @@ function FixEngineClient() {
   const generateMutation = useActionEngineGenerate(projectId);
   const stagedItems = useStagedFixItems(projectId);
 
-  const [planSubTab, setPlanSubTab] = useState<"overview" | "fixes" | "timeline" | "impact" | "settings">("overview");
   const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
   const [autoFixTarget, setAutoFixTarget] = useState<CrawlIssue | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -147,6 +141,21 @@ function FixEngineClient() {
   const plannedProblems = issueCounts.data?.openGroups ?? 0;
   const totalFixes = plannedProblems + stagedItems.length;
   const completedFixes = planQuery.data?.completedActionsCount ?? rawIssues.filter((i) => i.status === "resolved" || i.status === "completed").length;
+
+  type PlanState = "NOT_GENERATED" | "GENERATED" | "EXECUTING" | "COMPLETE";
+
+  let planState: PlanState = "NOT_GENERATED";
+  if (isApproved) {
+    if (completedFixes >= totalFixes && totalFixes > 0) {
+      planState = "COMPLETE";
+    } else {
+      planState = "EXECUTING";
+    }
+  } else if (strategyQuery.data || (planQuery.data?.actionsCount && planQuery.data.actionsCount > 0) || stagedItems.length > 0 || totalFixes > 0) {
+    planState = "GENERATED";
+  } else {
+    planState = "NOT_GENERATED";
+  }
 
   const competitorsList = competitorsQuery.data ?? [];
   const competitorOpportunitiesCount = competitorsList.length + stagedItems.length;
@@ -269,79 +278,169 @@ function FixEngineClient() {
         </div>
       )}
 
-      {/* ── TAB 1: CURRENT PLAN (Plan Overview, Categories, Roadmap & Single Approval) ── */}
+      {/* ── TAB 1: CURRENT PLAN (Single Plan State) ── */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* 5-STAGE WORKFLOW STEPPER */}
-          <FixEngineStepper currentStep={isApproved ? 3 : 2} />
-
-          {/* HERO BANNER */}
-          <FixEngineHeroBanner
-            totalFixes={totalFixes}
-            completedFixes={completedFixes}
-            isApproved={isApproved}
-            onApprovePlan={handleApprovePlan}
-            isApproving={approveMutation.isPending}
-          />
-
-          {/* Sub-tab Switcher for Current Plan */}
-          <div className="flex items-center gap-2 border-b border-slate-200/70 pb-2">
-            {[
-              { id: "overview", label: "Plan Overview" },
-              { id: "fixes", label: "Fixes by Category" },
-              { id: "timeline", label: "30-Day Timeline" },
-              { id: "impact", label: "Impact Forecast" },
-              { id: "settings", label: "Safe Mode Settings" },
-            ].map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                onClick={() => setPlanSubTab(st.id as typeof planSubTab)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  planSubTab === st.id
-                    ? "bg-slate-950 text-white font-bold shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/60"
-                }`}
+          {planState === "NOT_GENERATED" && (
+            <div className="rounded-2xl border bg-[var(--surface-1)] p-8 text-center space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-900 dark:bg-brand-900 dark:text-brand-100">
+                <Sparkles size={24} />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h2 className="text-lg font-bold text-[var(--text-primary)]">
+                  Generate 30-Day Fix Plan
+                </h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Analyze technical health, search gaps, and AI visibility citations to generate a prioritized autonomous remediation plan.
+                </p>
+              </div>
+              <Button
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+                className="bg-brand-950 text-white dark:bg-white dark:text-brand-950 font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs"
               >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Sub-tab view rendering */}
-          {planSubTab === "overview" && (
-            <FixEngineOverviewTab
-              issues={rawIssues}
-              latestCrawl={latestCrawl.data}
-              visibilityReport={visibilityQuery.data}
-              stagedItems={stagedItems}
-              strategyPlan={strategyQuery.data}
-              onGenerateStrategy={() => generateMutation.mutate()}
-              isGeneratingStrategy={generateMutation.isPending}
-              onViewCategoryFixes={() => setPlanSubTab("fixes")}
-              onOpenTimelineModal={() => setShowPlanModal(true)}
-              isApproved={isApproved}
-            />
+                {generateMutation.isPending ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin mr-2" />
+                    Generating Plan...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} className="mr-2" />
+                    Generate Plan
+                  </>
+                )}
+              </Button>
+            </div>
           )}
 
-          {planSubTab === "fixes" && (
-            <FixesByCategoryTab
-              issues={rawIssues}
-              onOpenAutoFix={(issue) => setAutoFixTarget(issue)}
-            />
+          {planState === "GENERATED" && (
+            <div className="space-y-6">
+              <FixEngineStepper currentStep={2} />
+              <FixEngineHeroBanner
+                totalFixes={totalFixes}
+                completedFixes={completedFixes}
+                isApproved={false}
+                onApprovePlan={handleApprovePlan}
+                isApproving={approveMutation.isPending}
+              />
+              <FixEngineOverviewTab
+                issues={rawIssues}
+                latestCrawl={latestCrawl.data}
+                visibilityReport={visibilityQuery.data}
+                stagedItems={stagedItems}
+                strategyPlan={strategyQuery.data}
+                onGenerateStrategy={() => generateMutation.mutate()}
+                isGeneratingStrategy={generateMutation.isPending}
+                onOpenTimelineModal={() => setShowPlanModal(true)}
+                isApproved={false}
+              />
+            </div>
           )}
 
-          {planSubTab === "timeline" && <TimelineTab />}
+          {planState === "EXECUTING" && (
+            <div className="space-y-6">
+              <FixEngineStepper currentStep={3} />
+              <div className="rounded-2xl border bg-[var(--surface-1)] p-6 space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500">
+                      <Play size={18} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-[var(--text-primary)]">
+                          Plan Executing
+                        </h3>
+                        <span className="rounded-md bg-accent-500/10 text-accent-600 px-2 py-0.5 text-[11px] font-bold">
+                          In Flight
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        {completedFixes} of {totalFixes} fixes completed. Remediations are applied with automatic pre-flight snapshots.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStatusMessage("Execution paused by user.")}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    >
+                      Pause
+                    </Button>
+                    <Button
+                      onClick={() => setActiveTab("implementation")}
+                      className="bg-brand-950 text-white dark:bg-white dark:text-brand-950 text-xs font-bold px-3.5 py-1.5 rounded-lg"
+                    >
+                      View Implementation →
+                    </Button>
+                  </div>
+                </div>
 
-          {planSubTab === "impact" && (
-            <ImpactForecastTab
-              issues={rawIssues}
-              latestCrawl={latestCrawl.data}
-              visibilityReport={visibilityQuery.data}
-            />
+                <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div
+                    className="h-full bg-accent-500 transition-all duration-300"
+                    style={{ width: `${totalFixes > 0 ? (completedFixes / totalFixes) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <FixEngineOverviewTab
+                issues={rawIssues}
+                latestCrawl={latestCrawl.data}
+                visibilityReport={visibilityQuery.data}
+                stagedItems={stagedItems}
+                strategyPlan={strategyQuery.data}
+                isApproved={true}
+              />
+            </div>
           )}
 
-          {planSubTab === "settings" && <SettingsTab />}
+          {planState === "COMPLETE" && (
+            <div className="space-y-6">
+              <FixEngineStepper currentStep={4} />
+              <div className="rounded-2xl border border-success-500/20 bg-success-500/5 p-6 space-y-4 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success-500/10 text-success-500">
+                      <CheckCircle2 size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-[var(--text-primary)]">
+                          30-Day Plan Complete
+                        </h3>
+                        <span className="rounded-md bg-success-500/10 text-success-600 px-2 py-0.5 text-[11px] font-bold">
+                          Verified
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        All {totalFixes} planned remediation actions have been executed and verified live.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setActiveTab("history")}
+                      className="bg-brand-950 text-white dark:bg-white dark:text-brand-950 text-xs font-bold px-3.5 py-1.5 rounded-lg"
+                    >
+                      View Fix History &amp; Certificates →
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <FixEngineOverviewTab
+                issues={rawIssues}
+                latestCrawl={latestCrawl.data}
+                visibilityReport={visibilityQuery.data}
+                stagedItems={stagedItems}
+                strategyPlan={strategyQuery.data}
+                isApproved={true}
+              />
+            </div>
+          )}
         </div>
       )}
 

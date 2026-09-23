@@ -4,6 +4,7 @@ import { normaliseUrl } from './fingerprint.util';
 import { FixClass, fixClassFor } from './fix-class';
 import { impactScore } from './impact-score.util';
 import { IssueCountService, OpenFinding, Severity } from './issue-count.service';
+import { renderCopy } from './issue-copy';
 
 /**
  * One problem on one site, however many pages it touches.
@@ -265,6 +266,8 @@ function summarise(
   const { impact, reachAvailable } = impactScore({ severity, confidence, fixClass, reach });
   const urls = [...new Set(findings.map((f) => f.affectedUrl))].sort();
 
+  const copy = renderCopy(first.issueType, { n: findings.length, traffic: reach });
+
   return {
     groupKey,
     issueType: first.issueType,
@@ -279,9 +282,9 @@ function summarise(
     reachAvailable,
     firstDetectedAt: firstDetectedAt.toISOString(),
     regressionCount,
-    title: readableType(first.issueType),
-    summary: text?.summary ?? '',
-    action: text?.action ?? '',
+    title: copy.title || readableType(first.issueType),
+    summary: copy.cost || text?.summary || '',
+    action: copy.action || text?.action || '',
   };
 }
 

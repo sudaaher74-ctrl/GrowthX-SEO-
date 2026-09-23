@@ -3,11 +3,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
+import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, ListTodo, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import { useEntitlements, usePortfolio, useWorkspace, useProfile } from "@/hooks/use-growthx";
+import { useEntitlements, usePortfolio, useWorkspace, useProfile, useIssueCounts } from "@/hooks/use-growthx";
 
 /**
  * Agency console sidebar.
@@ -50,9 +50,19 @@ export function Sidebar({
 
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
+  const issueCounts = useIssueCounts(projectId);
+  const needsYouCount = issueCounts.data?.openGroups ?? 0;
+  const criticalCount = issueCounts.data?.bySeverity?.CRITICAL ?? 0;
 
-  // Core Navigation Tabs strictly following Master Product Specification Section 26
+  // Core Navigation Tabs strictly following Master Product Specification
   const mainNav: NavItem[] = [
+    {
+      label: "Action Queue",
+      href: "/action-queue",
+      icon: ListTodo,
+      tag: needsYouCount > 0 ? String(needsYouCount) : undefined,
+      tagTone: criticalCount > 0 ? "danger" : "default",
+    },
     {
       label: "Dashboard",
       href: "/dashboard",
@@ -84,7 +94,7 @@ export function Sidebar({
       icon: Wrench,
       tag: "Auto",
       tagTone: "success",
-      aliases: ["/engineer", "/action-engine"],
+      aliases: ["/engineer"],
       children: [
         { label: "Current Plan", href: "/fix-engine?tab=overview", id: "overview" },
         { label: "Implementation", href: "/fix-engine?tab=implementation", id: "implementation" },

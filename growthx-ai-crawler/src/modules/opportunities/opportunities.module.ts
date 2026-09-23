@@ -10,6 +10,13 @@ import { GrowthContextService } from './growth-context.service';
 import { GrowthConsultantService } from './growth-consultant.service';
 import { GrowthConsultantController } from './growth-consultant.controller';
 import { AiSearchModule } from '../ai-search/ai-search.module';
+import { LifecycleService } from './lifecycle.service';
+import { FindingsController } from './findings.controller';
+import { FindingSyncService } from './finding-sync.service';
+import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
+import { GbpAdapter } from '../local-seo/gbp.adapter';
+import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
+import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
 
 /**
  * The unified opportunity surface.
@@ -28,8 +35,29 @@ import { AiSearchModule } from '../ai-search/ai-search.module';
     ExecutiveSummaryService,
     GrowthContextService,
     GrowthConsultantService,
+    LifecycleService,
+    WebsiteAuditAdapter,
+    GbpAdapter,
+    CompetitorAdapter,
+    AiVisibilityAdapter,
+    FindingSyncService,
   ],
-  controllers: [OpportunitiesController, GrowthConsultantController],
-  exports: [OpportunitiesService, OpportunityDetectionService, ExecutiveSummaryService, GrowthContextService],
+  controllers: [
+    OpportunitiesController,
+    GrowthConsultantController,
+    FindingsController,
+  ],
+  exports: [
+    OpportunitiesService,
+    OpportunityDetectionService,
+    ExecutiveSummaryService,
+    GrowthContextService,
+    LifecycleService,
+    FindingSyncService,
+    WebsiteAuditAdapter,
+    GbpAdapter,
+    CompetitorAdapter,
+    AiVisibilityAdapter,
+  ],
 })
 export class OpportunitiesModule {}

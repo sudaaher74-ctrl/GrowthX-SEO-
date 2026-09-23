@@ -37,3 +37,30 @@ const FIX_TYPE_TO_CHANGE_CLASS: Readonly<Record<string, ChangeClass>> = {
 export function changeClassForFixType(fixType: string): ChangeClass {
   return FIX_TYPE_TO_CHANGE_CLASS[fixType?.toUpperCase?.() ?? ''] ?? ChangeClass.OTHER;
 }
+
+const ISSUE_TYPE_TO_CHANGE_CLASS: Readonly<Record<string, ChangeClass>> = {
+  MISSING_TITLE: ChangeClass.METADATA,
+  LONG_TITLE: ChangeClass.METADATA,
+  SHORT_TITLE: ChangeClass.METADATA,
+  DUPLICATE_TITLE: ChangeClass.METADATA,
+  MISSING_META_DESCRIPTION: ChangeClass.METADATA,
+  LONG_META_DESCRIPTION: ChangeClass.METADATA,
+  MISSING_CANONICAL: ChangeClass.CANONICAL_CONSOLIDATION,
+  BROKEN_CANONICAL: ChangeClass.CANONICAL_CONSOLIDATION,
+  CANONICAL_CROSS_DOMAIN: ChangeClass.CANONICAL_CONSOLIDATION,
+  MISSING_ALT_TEXT: ChangeClass.MEDIA_ALT,
+  BROKEN_IMAGE: ChangeClass.MEDIA_ALT,
+  MISSING_H1: ChangeClass.HEADING_STRUCTURE,
+  MULTIPLE_H1: ChangeClass.HEADING_STRUCTURE,
+  BROKEN_LINK_4XX: ChangeClass.INTERNAL_LINKS,
+  REDIRECT_CHAIN: ChangeClass.INTERNAL_LINKS,
+  REDIRECT_LOOP: ChangeClass.INTERNAL_LINKS,
+  LARGE_HTML: ChangeClass.PAGE_SPEED,
+  THIN_CONTENT: ChangeClass.FRESHNESS_UPDATE,
+};
+
+export function changeClassForIssueType(issueType: string): ChangeClass {
+  const norm = issueType?.toUpperCase?.() ?? '';
+  if (norm.startsWith('SCHEMA_')) return ChangeClass.SCHEMA_MARKUP;
+  return ISSUE_TYPE_TO_CHANGE_CLASS[norm] ?? ChangeClass.OTHER;
+}

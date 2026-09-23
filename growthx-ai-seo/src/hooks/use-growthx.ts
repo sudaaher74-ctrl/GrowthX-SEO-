@@ -1471,6 +1471,71 @@ export function useIssueGroupPages(
   });
 }
 
+/** Unified ranked findings across all detector modules. */
+export function useFindings(
+  projectId: string | null,
+  filters: {
+    status?: string;
+    lifecycle?: string;
+    source?: string;
+    fixClass?: string;
+    category?: string;
+    limit?: number;
+    cursor?: string;
+  } = {},
+) {
+  return useQuery({
+    queryKey: [
+      "findings",
+      projectId,
+      filters.status ?? null,
+      filters.lifecycle ?? null,
+      filters.source ?? null,
+      filters.fixClass ?? null,
+      filters.category ?? null,
+      filters.limit ?? null,
+      filters.cursor ?? null,
+    ],
+    queryFn: () => api.findings(projectId!, filters),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useSyncFindings(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.syncFindings(projectId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["findings", projectId] });
+      qc.invalidateQueries({ queryKey: ["issue-groups", projectId] });
+      qc.invalidateQueries({ queryKey: ["issue-counts", projectId] });
+    },
+  });
+}
+
+export function useTransitionFinding(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      to,
+      reason,
+      snoozeUntil,
+    }: {
+      id: string;
+      to: string;
+      reason?: string;
+      snoozeUntil?: string;
+    }) => api.transitionFinding(projectId!, id, { to, reason, snoozeUntil }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["findings", projectId] });
+      qc.invalidateQueries({ queryKey: ["issue-groups", projectId] });
+      qc.invalidateQueries({ queryKey: ["issue-counts", projectId] });
+    },
+  });
+}
+
 export function useCreators(projectId: string | null) {
   return useQuery({
     queryKey: ["creators", projectId],

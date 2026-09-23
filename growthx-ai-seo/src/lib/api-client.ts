@@ -849,6 +849,8 @@ export interface OpportunityEvidence {
 
 export interface GrowthOpportunity {
   id: string;
+  projectId?: string;
+  fingerprint?: string;
   source: "SEARCH_CONSOLE" | "COMPETITOR" | "WEBSITE" | "ANALYTICS" | "LOCAL" | "MARKET";
   category: "SEO" | "CONTENT" | "LOCAL" | "TECHNICAL" | "MARKETING" | "BUSINESS" | "COMPETITOR";
   title: string;
@@ -861,9 +863,40 @@ export interface GrowthOpportunity {
   confidence: number;
   priority: number;
   affectedPages: string[];
-  status: "OPEN" | "ACTIONED" | "DISMISSED";
+  status: "OPEN" | "ACTIONED" | "DISMISSED" | "RESOLVED";
+  lifecycle?:
+    | "DETECTED"
+    | "QUEUED"
+    | "SNOOZED"
+    | "DISMISSED"
+    | "APPROVED"
+    | "APPLYING"
+    | "VERIFYING"
+    | "VERIFIED"
+    | "MEASURED"
+    | "FAILED"
+    | "RESOLVED";
+  snoozeUntil?: string | null;
+  dismissReason?: string | null;
+  lastTransitionAt?: string;
+  transitions?: Array<{ from: string; to: string; at: string; actor: { type: string; id?: string }; reason?: string | null }>;
+  fixClass?: "AUTO" | "APPROVAL" | "MANUAL";
+  impact?: number;
+  detailType?: string | null;
+  detailRef?: string | null;
+  affectedCount?: number;
   detectedAt: string;
   lastSeenAt: string;
+}
+
+export interface FindingListResponse {
+  items: GrowthOpportunity[];
+  nextCursor: string | null;
+  counts: {
+    bySource: Record<string, number>;
+    byFixClass: Record<string, number>;
+    total: number;
+  };
 }
 
 export interface OpportunityList {
@@ -3500,6 +3533,48 @@ export const api = {
     if (filters.limit) qs.set("limit", String(filters.limit));
     return get<IssueGroupList>(`/api/projects/${projectId}/issues/groups?${qs}`);
   },
+
+  findings: (
+    projectId: string,
+    filters: {
+      status?: string;
+      lifecycle?: string;
+      source?: string;
+      fixClass?: string;
+      category?: string;
+      limit?: number;
+      cursor?: string;
+    } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters.status) qs.set("status", filters.status);
+    if (filters.lifecycle) qs.set("lifecycle", filters.lifecycle);
+    if (filters.source) qs.set("source", filters.source);
+    if (filters.fixClass) qs.set("fixClass", filters.fixClass);
+    if (filters.category) qs.set("category", filters.category);
+    if (filters.limit) qs.set("limit", String(filters.limit));
+    if (filters.cursor) qs.set("cursor", filters.cursor);
+    return get<FindingListResponse>(`/api/projects/${projectId}/findings?${qs}`);
+  },
+
+  syncFindings: (projectId: string) =>
+    post<{ created: number; updated: number; resolved: number }>(
+      `/api/projects/${projectId}/findings/sync`,
+      {},
+    ),
+
+  getFinding: (projectId: string, id: string) =>
+    get<GrowthOpportunity>(`/api/projects/${projectId}/findings/${id}`),
+
+  transitionFinding: (
+    projectId: string,
+    id: string,
+    body: { to: string; reason?: string; snoozeUntil?: string },
+  ) =>
+    post<GrowthOpportunity>(
+      `/api/projects/${projectId}/findings/${id}/transition`,
+      body,
+    ),
 
   issueGroupPages: (projectId: string, groupKey: string, limit = 100, cursor?: string) => {
     const qs = new URLSearchParams({ limit: String(limit) });

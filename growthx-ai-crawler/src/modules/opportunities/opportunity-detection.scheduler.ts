@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
 import { OpportunityDetectionService } from './opportunity-detection.service';
+import { FindingSyncService } from './finding-sync.service';
+import { LifecycleService } from './lifecycle.service';
 
 /**
  * Re-runs detection daily so the list reflects the newest data.
@@ -22,6 +24,8 @@ export class OpportunityDetectionScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly detection: OpportunityDetectionService,
+    private readonly syncService?: FindingSyncService,
+    private readonly lifecycleService?: LifecycleService,
   ) {}
 
   @Cron('0 5 * * *')
@@ -55,13 +59,26 @@ export class OpportunityDetectionScheduler {
           if (result.failedDetectors.length > 0) {
             this.logger.warn(`[${project.id}] detectors failed: ${result.failedDetectors.join(', ')}`);
           }
+
+          if (this.syncService) {
+            await this.syncService.syncProject(project.id).catch((err) => {
+              this.logger.error(`[${project.id}] finding sync failed: ${err.message}`);
+            });
+          }
         } catch (error: any) {
           // One project's failure must not stop the rest.
           this.logger.error(`[${project.id}] opportunity detection failed: ${error.message}`);
         }
+      }
+
+      if (this.lifecycleService) {
+        await this.lifecycleService.wakeSnoozedFindings().catch((err) => {
+          this.logger.error(`wakeSnoozedFindings failed: ${err.message}`);
+        });
       }
     } finally {
       this.running = false;
     }
   }
 }
+
