@@ -26,6 +26,7 @@ import {
   useAddPrompts,
   useAddCompetitor,
   useLatestCrawl,
+  usePortfolio,
 } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -63,19 +64,22 @@ const TABS = [
 
 function AiVisibilityClient() {
   const { orgId, projectId, projects } = useWorkspace();
-  const qc = useQueryClient();
-  
+  const portfolio = usePortfolio(orgId);
+
   const currentProject = projects?.find(p => p.id === projectId);
-  // Empty until a project is selected; never another business's domain.
-  const domain = currentProject?.name ?? "";
-  const businessName = domain.split('.')[0] || "your business";
+  // The project's own website, as every other page resolves it. This used to
+  // be the project *name* ("Aiva"), so the crawl lookup always missed and the
+  // banner said "No crawl yet" for a site that had been audited.
+  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const domain = clientRow?.domain ?? "";
+  const businessName = currentProject?.name || "your business";
 
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
   const addPrompts = useAddPrompts(projectId);
   const addCompetitor = useAddCompetitor(projectId);
-  const crawlQuery = useLatestCrawl(domain);
+  const crawlQuery = useLatestCrawl(domain || null);
 
   // Competitor list query
   const competitorsQuery = useQuery({

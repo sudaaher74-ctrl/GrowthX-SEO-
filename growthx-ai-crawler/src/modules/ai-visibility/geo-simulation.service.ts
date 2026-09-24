@@ -4,7 +4,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { detectCitation, normalizeDomain, CompetitorRef } from './citation/citation-detector';
-import { ASSISTANT_PROVIDER } from './ai-visibility.service';
+import { ASSISTANT_PROVIDER } from './assistants';
 
 export type GeoEngine = 'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM';
 

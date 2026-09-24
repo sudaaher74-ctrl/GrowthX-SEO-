@@ -3,29 +3,14 @@ import { AiAssistant, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { CompetitorRef, detectCitation, normalizeDomain } from './citation/citation-detector';
+import { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS, measurableAssistantsFor } from './assistants';
+import { brandTerms, questionGroup } from './questions/question-group';
+import { QuestionAnalysisService } from './questions/question-analysis.service';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 
-/**
- * Which assistants we can genuinely query.
- *
- * Perplexity, Google AI Overviews, and Copilot have no API we can drive, so a
- * check against them records an explicit error instead of a fabricated result.
- * Wiring one up later means adding an entry here and nothing else.
- *
- * Each assistant is only ever answered by its own vendor. A Sarvam answer
- * stored as CHATGPT would report a ChatGPT citation share that ChatGPT was
- * never asked for, so Sarvam is measured as itself.
- */
-export const ASSISTANT_PROVIDER: Readonly<Partial<Record<AiAssistant, AiProvider>>> = {
-  [AiAssistant.CHATGPT]: AiProvider.OPENAI,
-  [AiAssistant.CLAUDE]: AiProvider.ANTHROPIC,
-  [AiAssistant.GEMINI]: AiProvider.GEMINI,
-  [AiAssistant.SARVAM]: AiProvider.SARVAM,
-};
-
-export const SUPPORTED_ASSISTANTS = Object.keys(ASSISTANT_PROVIDER) as AiAssistant[];
+export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
 
 const UNSUPPORTED_REASON =
   'No public API is available for this assistant, so its citation share cannot be measured directly.';
@@ -65,6 +50,7 @@ export class AiVisibilityService {
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
     @Optional() private readonly competitorCrawl?: CompetitorCrawlService,
+    @Optional() private readonly questions?: QuestionAnalysisService,
   ) {}
 
   /** Resolves everything a citation check needs to know about the customer. */
@@ -221,11 +207,18 @@ export class AiVisibilityService {
 
       // Starter questions so a first sweep has something to ask. No search
       // volume is attached: nothing here measured one.
+      // Two reputation questions, which never count toward citation share,
+      // and buyer questions drawn from the customer's own pages, rivals'
+      // pages and open content gaps. A question that names the brand is
+      // answered by repeating the brand, so on its own it measures nothing.
+      const suggested = this.questions ? (await this.questions.suggestions(projectId)).suggestions : [];
       const defaultQueries = [
-        { text: `what is ${brandName} and what do they offer`, cluster: 'brand intent' },
         { text: `is ${brandName} legitimate and reliable`, cluster: 'reputation' },
-        { text: `top alternatives to ${brandName}`, cluster: 'commercial' },
-        { text: `reviews of ${primaryDomain}`, cluster: 'reputation' },
+        { text: `top alternatives to ${brandName}`, cluster: 'reputation' },
+        ...suggested.slice(0, 5).map((q) => ({
+          text: q.text,
+          cluster: q.source === 'OWN_PAGE' ? 'buyer · your page' : q.source === 'RIVAL_PAGE' ? 'buyer · rival topic' : 'buyer · content gap',
+        })),
       ];
 
       await this.addPrompts(projectId, defaultQueries);
@@ -282,20 +275,21 @@ export class AiVisibilityService {
    * as a per-check error instead.
    */
   measurableAssistants(): AiAssistant[] {
-    const configured = this.router.configuredProviders?.();
-    if (!configured) return SUPPORTED_ASSISTANTS;
-    return SUPPORTED_ASSISTANTS.filter((a) => configured.includes(ASSISTANT_PROVIDER[a]!));
+    return measurableAssistantsFor(this.router);
   }
 
   /** The AI Visibility dashboard payload for a project. */
-  async getReport(projectId: string, days = 28): Promise<VisibilityReport> {
+  async getReport(
+    projectId: string,
+    days = 28,
+  ): Promise<VisibilityReport & { reputation: { checked: number; cited: number } }> {
     const context = await this.loadContext(projectId);
     const periodEnd = new Date();
     const periodStart = new Date(periodEnd.getTime() - days * 24 * 60 * 60 * 1000);
     // Reach back two windows so the period-over-period delta needs no second query.
     const since = new Date(periodStart.getTime() - days * 24 * 60 * 60 * 1000);
 
-    const checks = await this.prisma.promptCheck.findMany({
+    const rows = await this.prisma.promptCheck.findMany({
       where: { trackedPrompt: { projectId }, checkedAt: { gte: since } },
       select: {
         assistant: true,
@@ -304,14 +298,42 @@ export class AiVisibilityService {
         position: true,
         competitorsCited: true,
         error: true,
+        trackedPrompt: { select: { text: true } },
       },
     });
 
-    return buildVisibilityReport(checks as ReportableCheck[], {
-      periodStart,
-      periodEnd,
-      competitorLabels: context.competitorLabels,
-    });
+    // A failed check against an assistant this deployment no longer asks is
+    // history, not a current problem: those made "72 checks could not run"
+    // appear on a Sarvam-only install that had nothing wrong with it.
+    const measurable = new Set(this.measurableAssistants());
+    const current = rows.filter((c) => !c.error || measurable.has(c.assistant));
+
+    // Citation share is about buyers who have not heard of the brand. A
+    // question that names the brand is answered by repeating it, so those are
+    // reported apart and never counted toward the share.
+    const brand = brandTerms(context.ownBrandNames[0], context.ownDomains);
+    const buyer: ReportableCheck[] = [];
+    const reputation = { checked: 0, cited: 0 };
+    for (const row of current) {
+      const { trackedPrompt, ...check } = row;
+      if (questionGroup(trackedPrompt.text, brand) === 'REPUTATION') {
+        if (!check.error && check.checkedAt >= periodStart) {
+          reputation.checked += 1;
+          if (check.cited) reputation.cited += 1;
+        }
+        continue;
+      }
+      buyer.push(check as ReportableCheck);
+    }
+
+    return {
+      ...buildVisibilityReport(buyer, {
+        periodStart,
+        periodEnd,
+        competitorLabels: context.competitorLabels,
+      }),
+      reputation,
+    };
   }
 
   /** The prompt table beneath the dashboard: latest result per prompt/assistant. */
@@ -324,9 +346,11 @@ export class AiVisibilityService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const brand = this.questions ? await this.questions.brandFor(projectId) : [];
     return prompts.map((prompt) => ({
       id: prompt.id,
       text: prompt.text,
+      group: questionGroup(prompt.text, brand),
       intent: prompt.intent,
       cluster: prompt.cluster,
       estimatedVolume: prompt.estimatedVolume,
@@ -394,6 +418,8 @@ export class AiVisibilityService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const mentions = await this.competitorMentions(projectId);
 
     const enriched = await Promise.all(
       competitors.map(async (c) => {
@@ -463,11 +489,52 @@ export class AiVisibilityService {
           rating: c.localRating ?? null,
           reviewCount: c.localReviewCount ?? null,
           createdAt: c.createdAt,
+          // How often the assistants named this rival in their latest answers.
+          // Null until anything has been asked — not measured is not 0%.
+          aiMentions: mentions.answers > 0 ? { named: mentions.byDomain.get(normalizeDomain(c.domain)) ?? 0, answers: mentions.answers } : null,
+          aiCitationSharePct:
+            mentions.answers > 0
+              ? Math.round(((mentions.byDomain.get(normalizeDomain(c.domain)) ?? 0) / mentions.answers) * 1000) / 10
+              : null,
         };
       }),
     );
 
     return enriched;
+  }
+
+  /**
+   * The latest successful answer per question and assistant, and how many of
+   * them named each rival. Latest only, so a rival named in thirty stale
+   * sweeps of one question does not outweigh a rival named across the board.
+   */
+  async competitorMentions(projectId: string): Promise<{ answers: number; byDomain: Map<string, number> }> {
+    const measurable = new Set(this.measurableAssistants());
+    const prompts = await this.prisma.trackedPrompt.findMany({
+      where: { projectId, isActive: true },
+      select: {
+        checks: {
+          where: { error: null },
+          orderBy: { checkedAt: 'desc' },
+          take: 40,
+          select: { assistant: true, competitorsCited: true },
+        },
+      },
+    });
+    const byDomain = new Map<string, number>();
+    let answers = 0;
+    for (const prompt of prompts) {
+      const seen = new Set<string>();
+      for (const check of prompt.checks) {
+        if (!measurable.has(check.assistant) || seen.has(check.assistant)) continue;
+        seen.add(check.assistant);
+        answers += 1;
+        for (const domain of new Set(check.competitorsCited.map(normalizeDomain))) {
+          byDomain.set(domain, (byDomain.get(domain) ?? 0) + 1);
+        }
+      }
+    }
+    return { answers, byDomain };
   }
 
   async removeCompetitor(projectId: string, competitorId: string) {

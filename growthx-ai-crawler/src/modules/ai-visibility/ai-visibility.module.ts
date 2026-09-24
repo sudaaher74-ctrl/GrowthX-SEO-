@@ -3,6 +3,7 @@ import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 import { AiVisibilityService } from './ai-visibility.service';
 import { GeoSimulationService } from './geo-simulation.service';
 import { VisibilityInsightsService } from './visibility-insights.service';
+import { QuestionAnalysisService } from './questions/question-analysis.service';
 import { AiVisibilityController } from './ai-visibility.controller';
 import { AiVisibilityScheduler } from './ai-visibility.scheduler';
 import { DatabaseModule } from '../../database/database.module';
@@ -12,7 +13,14 @@ import { ContentIntelligenceModule } from '../content-intelligence/content-intel
 @Module({
   imports: [DatabaseModule, AiSearchModule, ContentIntelligenceModule],
   controllers: [AiVisibilityController],
-  providers: [AeoAnalysisService, AiVisibilityService, GeoSimulationService, VisibilityInsightsService, AiVisibilityScheduler],
-  exports: [AeoAnalysisService, AiVisibilityService, GeoSimulationService],
+  providers: [
+    AeoAnalysisService,
+    AiVisibilityService,
+    GeoSimulationService,
+    VisibilityInsightsService,
+    QuestionAnalysisService,
+    AiVisibilityScheduler,
+  ],
+  exports: [AeoAnalysisService, AiVisibilityService, GeoSimulationService, QuestionAnalysisService],
 })
 export class AiVisibilityModule {}
