@@ -327,6 +327,7 @@ export class AiVisibilityService {
         periodStart,
         periodEnd,
         competitorLabels: context.competitorLabels,
+        trackedCompetitors: context.competitors.map((c) => c.domain),
       }),
       reputation,
     };
@@ -503,11 +504,25 @@ export class AiVisibilityService {
    * The latest successful answer per question and assistant, and how many of
    * them named each rival. Latest only, so a rival named in thirty stale
    * sweeps of one question does not outweigh a rival named across the board.
+   *
+   * Buyer questions only, like citation share: a question that names the
+   * brand says nothing about who a buyer is pointed to. Counting those here
+   * made Competitor Intelligence say "0 of 5 answers" for the same sweep AI
+   * Visibility reported as one answer.
    */
   async competitorMentions(projectId: string): Promise<{ answers: number; byDomain: Map<string, number> }> {
-    const prompts = await this.prisma.trackedPrompt.findMany({
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true, websites: { select: { domain: true } } },
+    });
+    const brand = brandTerms(
+      project?.name,
+      (project?.websites ?? []).map((w) => normalizeDomain(w.domain)).filter(Boolean),
+    );
+    const allPrompts = await this.prisma.trackedPrompt.findMany({
       where: { projectId, isActive: true },
       select: {
+        text: true,
         checks: {
           where: { error: null },
           orderBy: { checkedAt: 'desc' },
@@ -516,6 +531,7 @@ export class AiVisibilityService {
         },
       },
     });
+    const prompts = allPrompts.filter((p) => questionGroup(p.text, brand) === 'BUYER');
     const byDomain = new Map<string, number>();
     let answers = 0;
     for (const prompt of prompts) {

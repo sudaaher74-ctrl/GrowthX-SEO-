@@ -157,6 +157,73 @@ describe('URL inventory reconciliation', () => {
   });
 });
 
+// K. One page, however the site spells it.
+describe('pages rather than spellings', () => {
+  const queued = { state: 'PENDING', reason: 'queued', httpStatus: null, indexability: null, crawledAt: null } as const;
+
+  it('K. counts a page listed as www in the sitemap and linked without www once, as crawled', () => {
+    // aivaenterprises.com: the sitemap spells every page with www, the site's
+    // own links spell it without, and the crawler fetched each page once.
+    const pages = ['', 'about', 'products', 'products/vegetables'];
+    const rows = [
+      ...pages.map((p) => row({ url: `https://www.aivaenterprises.com/${p}` })),
+      ...pages.map((p) =>
+        row({ url: `https://aivaenterprises.com/${p}`, sources: ['internal_link'], discoverySource: 'internal_link', ...queued }),
+      ),
+    ];
+
+    const m = summariseInventory(rows);
+    expect(m.urlsDiscovered).toBe(4);
+    expect(m.urlsCrawled).toBe(4);
+    expect(m.notCrawled).toBe(0);
+    expect(m.discoveredNotCrawled).toEqual([]);
+    expect(m.duplicates).toBe(4);
+    expect(m.bySource).toEqual({ sitemap: 4, internal_link: 4 });
+    expect(m.multiSourceUrls).toBe(4);
+  });
+
+  it('K. still reports a page no spelling of which was crawled', () => {
+    const rows = [
+      row({ url: 'https://s.in/a' }),
+      row({ url: 'https://www.s.in/missing', ...queued }),
+      row({ url: 'https://s.in/missing', ...queued }),
+    ];
+    const m = summariseInventory(rows);
+    expect(m.urlsDiscovered).toBe(2);
+    expect(m.notCrawled).toBe(1);
+    expect(m.notCrawledReasons).toEqual({ queued: 1 });
+  });
+
+  it('K. explains an uncrawled page with the most specific reason any spelling carries', () => {
+    const rows = [
+      row({ url: 'https://www.s.in/admin', ...queued }),
+      row({ url: 'https://s.in/admin', ...queued, state: 'SKIPPED', reason: 'robots_blocked' }),
+    ];
+    const m = summariseInventory(rows);
+    expect(m.notCrawledReasons).toEqual({ robots_blocked: 1 });
+    expect(m.excluded).toBe(1);
+  });
+
+  it('K. reports linked files apart instead of as pages left uncrawled', () => {
+    const rows = [
+      row({ url: 'https://s.in/a' }),
+      row({ url: 'https://s.in/assets/brochure.pdf', sources: ['internal_link'], ...queued }),
+      row({ url: 'https://www.s.in/assets/brochure.pdf', sources: ['internal_link'], ...queued }),
+      row({ url: 'https://s.in/download', ...queued, state: 'SKIPPED', reason: 'unsupported_content_type' }),
+    ];
+    const m = summariseInventory(rows);
+    expect(m.urlsDiscovered).toBe(1);
+    expect(m.notCrawled).toBe(0);
+    expect(m.filesLinked).toBe(2);
+    expect(m.linkedFiles.map((f) => f.url)).toEqual(['https://s.in/assets/brochure.pdf', 'https://s.in/download']);
+  });
+
+  it('K. does not call a canonical to another spelling of the same page a canonicalization', () => {
+    const rows = [row({ url: 'https://www.s.in/about', canonicalUrl: 'https://s.in/about' })];
+    expect(summariseInventory(rows).canonicalized).toBe(0);
+  });
+});
+
 // H, I, J: normalization is the inventory's dedup key, so these are the rules
 // that decide whether two spellings are one row.
 describe('normalization as the inventory key', () => {

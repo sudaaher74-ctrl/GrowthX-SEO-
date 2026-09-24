@@ -94,8 +94,10 @@ export class WeeklyDeltaService {
           measured: true,
           note: null,
         };
+        // Tracked rivals appear with zero mentions too; only the ones an
+        // answer actually named count as cited here.
         competitors = report.shareOfVoice
-          .filter((s) => s.domain)
+          .filter((s) => s.domain && s.mentions > 0)
           .map((s) => ({ domain: s.domain!, label: s.label, sharePct: s.sharePct }));
       } catch (error) {
         this.logger.warn(`Weekly visibility unavailable for ${projectId}: ${String(error)}`);

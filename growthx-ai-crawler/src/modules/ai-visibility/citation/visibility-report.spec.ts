@@ -3,6 +3,7 @@ import { buildVisibilityReport, ReportableCheck } from './visibility-report';
 
 const PERIOD_END = new Date('2026-08-04T00:00:00Z');
 const PERIOD_START = new Date('2026-07-07T00:00:00Z'); // 28 days
+const WINDOW = { periodStart: PERIOD_START, periodEnd: PERIOD_END };
 
 function check(overrides: Partial<ReportableCheck> = {}): ReportableCheck {
   return {
@@ -150,6 +151,22 @@ describe('buildVisibilityReport', () => {
     it('is empty when nothing ran, rather than a measured-looking zero', () => {
       expect(report([]).shareOfVoice).toEqual([]);
       expect(report([check({ error: 'OPENAI is not configured.' })]).shareOfVoice).toEqual([]);
+    });
+
+    it('lists every tracked rival once checks ran, named or not', () => {
+      const result = buildVisibilityReport(
+        [check({ cited: false, competitorsCited: ['summitgrove.com'] })],
+        { ...WINDOW, trackedCompetitors: ['trailheadco.com'], competitorLabels: { 'trailheadco.com': 'Trailhead Co' } },
+      );
+      expect(result.shareOfVoice).toEqual([
+        { domain: 'summitgrove.com', label: 'summitgrove.com', mentions: 1, sharePct: 100 },
+        { domain: null, label: 'You', mentions: 0, sharePct: 0 },
+        { domain: 'trailheadco.com', label: 'Trailhead Co', mentions: 0, sharePct: 0 },
+      ]);
+    });
+
+    it('lists no tracked rival when nothing ran', () => {
+      expect(buildVisibilityReport([], { ...WINDOW, trackedCompetitors: ['trailheadco.com'] }).shareOfVoice).toEqual([]);
     });
 
     it('always includes the customer row once checks ran, even at zero', () => {

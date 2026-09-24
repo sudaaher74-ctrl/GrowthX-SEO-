@@ -180,6 +180,62 @@ describe('CrawlerService', () => {
     });
   });
 
+  describe('link enqueueing', () => {
+    function serviceWithQueue() {
+      const inventory = {
+        record: jest.fn(async () => ({ added: 0, merged: 0, invalid: 0 })),
+        markQueued: jest.fn(async () => undefined),
+        markExcluded: jest.fn(async () => undefined),
+      };
+      const service = makeService({
+        prisma: { link: { create: jest.fn(() => Promise.resolve()) } },
+        queue: { getRedisClient: () => null, pageFetchQueue: null },
+        inventory,
+      });
+      (service as any).bumpJobStat = jest.fn(async () => undefined);
+      (service as any).localJobQueues.set('job1', []);
+      return { service: service as any, inventory };
+    }
+
+    const payload = {
+      jobId: 'job1',
+      websiteId: 'w1',
+      domain: 'aivaenterprises.com',
+      targetUrl: 'https://www.aivaenterprises.com/about',
+      depth: 0,
+      maxDepth: 5,
+      rateLimitDelayMs: 0,
+    };
+
+    it('does not enqueue another spelling of a page this crawl already claimed', async () => {
+      const { service, inventory } = serviceWithQueue();
+      // The sitemap's www spelling was fetched; the page links the bare domain.
+      await service.markUrlVisited('job1', 'https://www.aivaenterprises.com/products');
+
+      await service.discoverInternalLinksAndEnqueue(
+        payload,
+        [{ targetUrl: 'https://aivaenterprises.com/products' }, { targetUrl: 'https://aivaenterprises.com/contact' }],
+        'page1',
+      );
+
+      const queued = service.localJobQueues.get('job1').map((t: any) => t.targetUrl);
+      expect(queued).toEqual(['https://aivaenterprises.com/contact']);
+      expect(inventory.markExcluded).toHaveBeenCalledWith('job1', 'https://aivaenterprises.com/products', 'duplicate');
+    });
+
+    it('enqueues a page linked twice on one page only once', async () => {
+      const { service } = serviceWithQueue();
+
+      await service.discoverInternalLinksAndEnqueue(
+        payload,
+        [{ targetUrl: 'https://aivaenterprises.com/contact' }, { targetUrl: 'https://www.aivaenterprises.com/contact/' }],
+        'page1',
+      );
+
+      expect(service.localJobQueues.get('job1')).toHaveLength(1);
+    });
+  });
+
   describe('depth and robots limits', () => {
     function serviceForPageFetch(overrides: Partial<Record<string, any>> = {}) {
       // Page fetches go through FetchService now; `fetchPage` keeps its name
