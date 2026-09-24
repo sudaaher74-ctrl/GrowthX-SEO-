@@ -12,6 +12,7 @@ export interface AiPipelineBannerProps {
   competitorsCount?: number;
   report?: VisibilityReport | null;
   onViewInsights?: () => void;
+  onViewQuestions?: () => void;
   onViewCrawlDetails?: () => void;
   isAnalyzing?: boolean;
 }
@@ -35,6 +36,7 @@ export function AiPipelineBanner({
   competitorsCount = 0,
   report,
   onViewInsights,
+  onViewQuestions,
   onViewCrawlDetails,
   isAnalyzing = false,
 }: AiPipelineBannerProps) {
@@ -43,6 +45,13 @@ export function AiPipelineBanner({
   const cited = report?.summary?.cited ?? 0;
   const failed = report?.summary?.failedChecks ?? 0;
   const measured = checked > 0;
+  const reputation = report?.reputation;
+  const reputationNote =
+    reputation && reputation.checked > 0 ? (
+      <p className="mt-1.5 text-[11px] text-brand-500">
+        Reputation questions (they name your brand): cited in {reputation.cited} of {reputation.checked}. Not counted in citation share.
+      </p>
+    ) : null;
 
   const status = isAnalyzing
     ? { label: "Asking AI assistants…", tone: "bg-accent-50 text-accent-700", dot: "bg-accent-500" }
@@ -124,12 +133,13 @@ export function AiPipelineBanner({
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-success-600" />
                 <span className="text-[13px] font-bold text-brand-950">
-                  {checked} answer{checked === 1 ? "" : "s"} checked
+                  {checked} buyer answer{checked === 1 ? "" : "s"} checked
                 </span>
               </div>
               <p className="mt-1 text-[11.5px] text-brand-500">
                 Your brand was cited in {cited} of them over the last 28 days, across {assistantList(report?.byAssistant?.map((a) => a.assistant))}.
               </p>
+              {reputationNote}
               {failed > 0 && (
                 <p className="mt-1.5 flex items-center gap-1 text-[11px] text-warning-700">
                   <AlertTriangle size={12} />
@@ -149,13 +159,24 @@ export function AiPipelineBanner({
             <>
               <div className="flex items-center gap-2">
                 <CircleDashed size={16} className="text-brand-400" />
-                <span className="text-[13px] font-bold text-brand-950">No AI answers measured yet</span>
+                <span className="text-[13px] font-bold text-brand-950">No buyer answers measured yet</span>
               </div>
               <p className="mt-1 text-[11.5px] text-brand-500">
                 {failed > 0
                   ? `${failed} check${failed === 1 ? "" : "s"} failed to run. Check the AI provider key and run AI Visibility again.`
-                  : `Run AI Visibility to ask ${assistantList(assistants)} your tracked questions and see whether your brand is cited.`}
+                  : `Track buyer questions — ones that don't name your brand — then run AI Visibility to see whether ${assistantList(assistants)} recommends you.`}
               </p>
+              {reputationNote}
+              {onViewQuestions && (
+                <button
+                  type="button"
+                  onClick={onViewQuestions}
+                  className="mt-3 flex w-full items-center justify-between rounded-lg border bg-white py-1.5 px-3 text-[12px] font-semibold text-brand-950 hover:bg-brand-50 transition-colors shadow-2xs"
+                >
+                  <span>Pick buyer questions</span>
+                  <ArrowRight size={13} />
+                </button>
+              )}
             </>
           )}
         </div>

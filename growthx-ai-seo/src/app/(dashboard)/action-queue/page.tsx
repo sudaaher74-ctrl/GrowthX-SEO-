@@ -41,6 +41,7 @@ import {
   useIssueCounts,
   useIssueGroups,
   useIssueGroupPages,
+  useAiVisibilityRoadmapTasks,
 } from "@/hooks/use-growthx";
 import type { IssueGroup, FixClass } from "@/lib/api-client";
 
@@ -64,8 +65,18 @@ export default function ActionRoadmapPage() {
 
   const countsQuery = useIssueCounts(projectId);
   const groupsQuery = useIssueGroups(projectId, {});
+  // AI Visibility findings, one task per buyer question the latest answer did
+  // not cite you for, tied to the page that should answer it. Same shape and
+  // same list as the audit's issues, ranked together by impact.
+  const aiTasksQuery = useAiVisibilityRoadmapTasks(projectId);
 
-  const allGroups = groupsQuery.data?.groups ?? [];
+  const allGroups = useMemo(
+    () =>
+      [...(groupsQuery.data?.groups ?? []), ...(aiTasksQuery.data?.groups ?? [])].sort(
+        (a, b) => b.impact - a.impact,
+      ),
+    [groupsQuery.data?.groups, aiTasksQuery.data?.groups],
+  );
 
   // Filter groups according to tab and filters
   const visibleGroups = useMemo(() => {
@@ -344,7 +355,11 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
                             {group.category ? group.category.replace(/_/g, " ") : "Website Audit"}
                           </span>
                           <span className="text-[11.5px] font-semibold text-brand-500">
-                            {group.affectedCount === 1 ? "1 page affected" : `${group.affectedCount} pages affected`}
+                            {group.affectedCount === 0 && group.category === "AI_VISIBILITY"
+                              ? "New page needed"
+                              : group.affectedCount === 1
+                                ? "1 page affected"
+                                : `${group.affectedCount} pages affected`}
                           </span>
                           <span className="text-[11.5px] font-black text-brand-900">
                             Impact: {group.impact}/100

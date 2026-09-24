@@ -48,7 +48,8 @@ export interface SignalComparison {
   rivalAhead: boolean;
 }
 
-export type PageVerdict = 'CONTENT_GAP' | 'PAGE_HAS_ISSUES' | 'PAGE_FOUND';
+/** NOT_APPLICABLE: a reputation question, which the brand's name answers, not a page. */
+export type PageVerdict = 'CONTENT_GAP' | 'PAGE_HAS_ISSUES' | 'PAGE_FOUND' | 'NOT_APPLICABLE';
 export type AnswerOutcome = 'NOT_MEASURED' | 'FAILED' | 'CITED' | 'NOT_CITED';
 
 export interface QuestionAnalysis {
@@ -122,10 +123,15 @@ export class QuestionAnalysisService {
 
     // Choose pages first, then load the heavy HTML only for the chosen ones.
     const drafts = prompts.map((prompt) => {
-      const checks = prompt.checks.filter((c) => measurable.has(c.assistant));
-      const success = checks.find((c) => !c.error) ?? null;
-      const failure = success ? null : (checks.find((c) => c.error) ?? null);
-      const own = bestPage(prompt.text, ctx.ownPages);
+      // A real answer counts whichever assistant gave it; only a failure from
+      // an assistant this deployment no longer asks is stale. Same rule as the
+      // report, so the two never disagree about what was measured.
+      const success = prompt.checks.find((c) => !c.error) ?? null;
+      const failure = success ? null : (prompt.checks.find((c) => c.error && measurable.has(c.assistant)) ?? null);
+      const group = questionGroup(prompt.text, ctx.brand);
+      // A reputation question is answered by the brand's name, not by a page:
+      // matching it would pick whichever page has the brand in its title.
+      const own = group === 'BUYER' ? bestPage(prompt.text, ctx.ownPages) : null;
       const rivalDomains = success ? success.competitorsCited : [];
       const rivals = rivalDomains.map((domain) => {
         const competitor = ctx.competitors.find((c) => c.domain === normalizeDomain(domain));
@@ -137,7 +143,7 @@ export class QuestionAnalysisService {
           match: pages ? bestPage(prompt.text, pages) : null,
         };
       });
-      return { prompt, success, failure, own, rivals };
+      return { prompt, group, success, failure, own, rivals };
     });
 
     const pageIds = new Set<string>();
@@ -148,7 +154,7 @@ export class QuestionAnalysisService {
     const detail = await this.pageDetail([...pageIds]);
     const issues = await this.issuesFor(ctx.ownCrawlIds, drafts.flatMap((d) => (d.own ? [d.own.page] : [])));
 
-    const questions: QuestionAnalysis[] = drafts.map(({ prompt, success, failure, own, rivals }) => {
+    const questions: QuestionAnalysis[] = drafts.map(({ prompt, group, success, failure, own, rivals }) => {
       const signalsFor = (page: CandidatePage) => {
         const extra = detail.get(page.id);
         return pageSignals(prompt.text, page, extra?.html ?? null, extra?.schemaTypes ?? []);
@@ -182,7 +188,7 @@ export class QuestionAnalysisService {
         id: prompt.id,
         text: prompt.text,
         cluster: prompt.cluster,
-        group: questionGroup(prompt.text, ctx.brand),
+        group,
         outcome: success ? (success.cited ? 'CITED' : 'NOT_CITED') : failure ? 'FAILED' : 'NOT_MEASURED',
         answer: success
           ? {
@@ -196,7 +202,14 @@ export class QuestionAnalysisService {
             }
           : null,
         failure: failure?.error ?? null,
-        verdict: !ownPage ? 'CONTENT_GAP' : ownPage.issues.length > 0 ? 'PAGE_HAS_ISSUES' : 'PAGE_FOUND',
+        verdict:
+          group === 'REPUTATION'
+            ? 'NOT_APPLICABLE'
+            : !ownPage
+              ? 'CONTENT_GAP'
+              : ownPage.issues.length > 0
+                ? 'PAGE_HAS_ISSUES'
+                : 'PAGE_FOUND',
         ownPage,
         rivals: rivalEvidence,
         comparison: compareSignals(ownPage?.signals ?? null, rivalEvidence),

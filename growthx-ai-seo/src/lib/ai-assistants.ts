@@ -15,11 +15,13 @@ export function assistantLabel(assistant: string): string {
 
 /**
  * "Sarvam", "Sarvam and ChatGPT", "Sarvam, ChatGPT and Claude" — for copy that
- * names what was actually asked. Empty input reads as "no AI assistant".
+ * names what was actually asked. With none known it reads "AI assistants",
+ * which fits every sentence this is used in; "no AI assistant" did not
+ * ("earn citations from no AI assistant").
  */
 export function assistantList(assistants: string[] | undefined): string {
   const names = (assistants ?? []).map(assistantLabel);
-  if (names.length === 0) return "no AI assistant";
+  if (names.length === 0) return "AI assistants";
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }

@@ -332,6 +332,8 @@ export interface VisibilityReport {
   shareOfVoice: { domain: string | null; label: string; mentions: number; sharePct: number }[];
   trend: { weekStart: string; checked: number; citationSharePct: number }[];
   measurableAssistants: string[];
+  /** Questions that name the brand. Reported apart; never part of citation share. */
+  reputation?: { checked: number; cited: number };
 }
 
 export type InsightLevel = "HIGH" | "MEDIUM" | "LOW";
@@ -365,9 +367,82 @@ export interface VisibilityInsights {
   }[];
 }
 
+export type QuestionGroup = "BUYER" | "REPUTATION";
+
+export interface PageSignals {
+  directAnswer: boolean;
+  directAnswerText: string | null;
+  faq: boolean;
+  faqSource: "SCHEMA" | "HEADINGS" | null;
+  schemaTypes: string[];
+  termCoverage: number;
+  missingTerms: string[];
+  wordCount: number;
+  htmlAvailable: boolean;
+}
+
+/** One tracked question joined to the Website Audit and Competitor Intelligence. */
+export interface QuestionAnalysis {
+  id: string;
+  text: string;
+  cluster: string | null;
+  group: QuestionGroup;
+  outcome: "NOT_MEASURED" | "FAILED" | "CITED" | "NOT_CITED";
+  answer: {
+    assistant: string;
+    model: string | null;
+    checkedAt: string;
+    cited: boolean;
+    position: number | null;
+    competitorsCited: string[];
+    answerExcerpt: string | null;
+  } | null;
+  failure: string | null;
+  verdict: "CONTENT_GAP" | "PAGE_HAS_ISSUES" | "PAGE_FOUND" | "NOT_APPLICABLE";
+  ownPage: {
+    url: string;
+    title: string | null;
+    matchScore: number;
+    signals: PageSignals;
+    issues: { issueType: string; severity: string; description: string }[];
+  } | null;
+  rivals: {
+    domain: string;
+    label: string;
+    crawled: boolean;
+    page: { url: string; title: string | null; matchScore: number; signals: PageSignals } | null;
+  }[];
+  comparison: {
+    signal: "DIRECT_ANSWER" | "FAQ" | "SCHEMA" | "TERM_COVERAGE";
+    label: string;
+    you: string;
+    rival: string;
+    rivalDomain: string;
+    rivalAhead: boolean;
+  }[];
+}
+
+export interface QuestionAnalysisReport {
+  projectId: string;
+  auditAvailable: boolean;
+  auditedPages: number;
+  competitorsTracked: number;
+  competitorsCrawled: number;
+  questions: QuestionAnalysis[];
+}
+
+export interface QuestionSuggestion {
+  text: string;
+  source: "OWN_PAGE" | "RIVAL_PAGE" | "CONTENT_GAP";
+  evidenceUrl: string | null;
+  evidence: string;
+  competitorDomain: string | null;
+}
+
 export interface TrackedPromptRow {
   id: string;
   text: string;
+  group?: QuestionGroup;
   intent: string | null;
   cluster: string | null;
   estimatedVolume: number | null;
@@ -1681,6 +1756,8 @@ export interface TrackedCompetitor {
   rating?: number | null;
   reviewCount?: number | null;
   aiCitationSharePct?: number | null;
+  /** Named in this many of the latest AI answers. Null until anything has been asked. */
+  aiMentions?: { named: number; answers: number } | null;
   socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
 }
 
@@ -3233,6 +3310,15 @@ export const api = {
     get<TrackedPromptRow[]>(`/api/projects/${projectId}/ai-visibility/prompts`),
   addTrackedPrompts: (projectId: string, prompts: { text: string; cluster?: string }[]) =>
     post(`/api/projects/${projectId}/ai-visibility/prompts`, { prompts }),
+  getQuestionAnalysis: (projectId: string) =>
+    get<QuestionAnalysisReport>(`/api/projects/${projectId}/ai-visibility/questions`),
+  getQuestionSuggestions: (projectId: string) =>
+    get<{
+      suggestions: QuestionSuggestion[];
+      basedOn: { ownPages: number; rivalPages: number; contentGaps: number };
+    }>(`/api/projects/${projectId}/ai-visibility/questions/suggestions`),
+  getAiVisibilityRoadmapTasks: (projectId: string) =>
+    get<{ groups: IssueGroup[] }>(`/api/projects/${projectId}/ai-visibility/roadmap-tasks`),
   getVisibilityInsights: (projectId: string, question?: string) =>
     question
       ? post<VisibilityInsights>(`/api/projects/${projectId}/ai-visibility/insights`, { question })

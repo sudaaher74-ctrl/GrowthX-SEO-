@@ -249,10 +249,6 @@ export class AiVisibilityService {
       }
     }
 
-    // Only successful calls are billed — a provider outage costs the customer nothing.
-    if (checksRun > 0) {
-    }
-
     this.logger.log(
       `Swept ${prompts.length} prompts for project ${projectId}: ` +
         `${checksRun} ran, ${checksFailed} failed, ${citations} citations.`,
@@ -509,7 +505,6 @@ export class AiVisibilityService {
    * sweeps of one question does not outweigh a rival named across the board.
    */
   async competitorMentions(projectId: string): Promise<{ answers: number; byDomain: Map<string, number> }> {
-    const measurable = new Set(this.measurableAssistants());
     const prompts = await this.prisma.trackedPrompt.findMany({
       where: { projectId, isActive: true },
       select: {
@@ -526,7 +521,8 @@ export class AiVisibilityService {
     for (const prompt of prompts) {
       const seen = new Set<string>();
       for (const check of prompt.checks) {
-        if (!measurable.has(check.assistant) || seen.has(check.assistant)) continue;
+        // Every real answer counts, whichever assistant gave it.
+        if (seen.has(check.assistant)) continue;
         seen.add(check.assistant);
         answers += 1;
         for (const domain of new Set(check.competitorsCited.map(normalizeDomain))) {

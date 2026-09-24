@@ -37,6 +37,7 @@ import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibilit
 import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
 import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
 import { AiInsightsTab } from "@/components/ai-visibility/ai-visibility-insights-tab";
+import { AiVisibilityQuestionsTab } from "@/components/ai-visibility/ai-visibility-questions-tab";
 import { GeoSimulationSandbox } from "@/components/ai-visibility/geo-simulation-sandbox";
 import {
   CitationsTabContent,
@@ -54,6 +55,7 @@ export default function AiVisibilityPage() {
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "questions", label: "Questions" },
   { id: "sandbox", label: "GEO Sandbox & Simulation" },
   { id: "insights", label: "AI Insights" },
   { id: "citations", label: "Citations" },
@@ -173,6 +175,8 @@ function AiVisibilityClient() {
                 ? `Ask ${assistantsAsked} any search question live, see whether your brand is cited, and get a draft section to answer it.`
                 : activeTab === "competitors"
                 ? `See how often ${assistantsAsked} names your brand versus your tracked competitors.`
+                : activeTab === "questions"
+                ? `Each question joined to your Website Audit and Competitor Intelligence: the page that should answer it, and why a rival was named instead.`
                 : activeTab === "recommendations"
                 ? `Recommendations drawn from what ${assistantsAsked} actually said about your market.`
                 : `Track whether ${assistantsAsked} cites your brand when buyers ask your questions.`}
@@ -299,6 +303,7 @@ function AiVisibilityClient() {
         competitorsCount={competitorsList.length}
         report={report}
         onViewInsights={() => setActiveTab("insights")}
+        onViewQuestions={() => setActiveTab("questions")}
         onViewCrawlDetails={() => window.location.assign("/website")}
         isAnalyzing={sweep.isPending}
       />
@@ -353,6 +358,8 @@ function AiVisibilityClient() {
           onGenerateRecommendations={() => setActiveTab("recommendations")}
         />
       )}
+
+      {activeTab === "questions" && <AiVisibilityQuestionsTab projectId={projectId} />}
 
       {activeTab === "sandbox" && (
         <GeoSimulationSandbox

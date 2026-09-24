@@ -224,6 +224,17 @@ export function CompetitorOverviewTab({
               className={`h-2.5 w-2.5 rounded-full ${COMPETITOR_DOT_COLORS[idx % COMPETITOR_DOT_COLORS.length]} shrink-0`}
             />
             <span className="truncate">{comp.name ? `${comp.name} (${comp.domain})` : comp.domain}</span>
+            {/* From AI Visibility: how often the assistants named this rival. */}
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
+                comp.aiMentions && comp.aiMentions.named > 0 ? "bg-error-50 text-error-700" : "bg-brand-100 text-brand-600"
+              }`}
+              title="From AI Visibility: the latest answer to each tracked question"
+            >
+              {comp.aiMentions
+                ? `Named in ${comp.aiMentions.named} of ${comp.aiMentions.answers} AI answers`
+                : "Not measured in AI answers yet"}
+            </span>
           </div>
         ))}
 
