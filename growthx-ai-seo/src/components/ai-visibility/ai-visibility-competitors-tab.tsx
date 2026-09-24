@@ -8,8 +8,6 @@ import {
   FileText,
   Search,
   MoreVertical,
-  BarChart3,
-  LineChart,
   ArrowRight,
   ShieldCheck,
   Target,
@@ -24,12 +22,15 @@ import {
   Bot,
 } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
-import type { VisibilityReport, TrackedCompetitor } from "@/lib/api-client";
+import type { VisibilityReport, TrackedCompetitor, CrawlJob } from "@/lib/api-client";
 import { assistantList } from "@/lib/ai-assistants";
 
 export interface AiVisibilityCompetitorsTabProps {
   report?: VisibilityReport | null;
+  /** The rivals tracked in Competitor Intelligence, with their crawl results. */
   competitors?: TrackedCompetitor[];
+  /** The customer's latest Website Audit crawl. */
+  ownCrawl?: CrawlJob | null;
   domain?: string;
   onAddCompetitor?: () => void;
   onViewAllGaps?: () => void;
@@ -44,56 +45,187 @@ const BAR_COLORS = [
   "bg-slate-700",
 ];
 
+type ChartMetric = "ai" | "pages" | "health";
+
+interface BenchmarkRow {
+  key: string;
+  name: string;
+  domain: string;
+  isYou: boolean;
+  /** Tracked in Competitor Intelligence; false for a domain an answer named on its own. */
+  tracked: boolean;
+  /** Null when nothing has been asked yet — not measured is not 0%. */
+  sharePct: number | null;
+  mentions: number | null;
+  pagesCrawled: number | null;
+  healthScore: number | null;
+  crawlStatus: string | null;
+}
+
+function normalizeDomain(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split(/[/?#]/)[0];
+}
+
+function isCrawling(status: string | null): boolean {
+  return status === "PENDING" || status === "RUNNING" || status === "QUEUED";
+}
+
 export function AiVisibilityCompetitorsTab({
   report,
   competitors = [],
+  ownCrawl = null,
   domain = "",
   onAddCompetitor,
   onViewAllGaps,
 }: AiVisibilityCompetitorsTabProps) {
-  const [chartMode, setChartMode] = useState<"bar" | "trend">("bar");
+  const [pickedMetric, setChartMetric] = useState<ChartMetric | null>(null);
 
-  // Real Share of Voice from AI Visibility Report
-  const shareOfVoice = useMemo(() => {
-    return report?.shareOfVoice || [];
-  }, [report?.shareOfVoice]);
-
-  // Real Competitor Benchmarking Rows
-  const comparisonRows = useMemo(() => {
-    // Nothing measured means nothing to benchmark — never a 0% row for the customer.
-    if (shareOfVoice.length === 0) return [];
-
-    // The report marks the customer's own row with a null domain.
-    return shareOfVoice.map((item, idx) => ({
-      rank: idx + 1,
-      name: item.label || item.domain || "Competitor",
-      domain: item.domain ?? (domain || item.label || ""),
-      isYou: item.domain === null,
-      sharePct: item.sharePct,
-      mentions: item.mentions,
-    }));
-  }, [shareOfVoice, domain, report?.summary]);
-
-  // Real Bar Chart Items
-  const barChartItems = useMemo(() => {
-    if (comparisonRows.length === 0) return [];
-    const maxShare = Math.max(1, ...comparisonRows.map((r) => r.sharePct));
-
-    return comparisonRows.slice(0, 6).map((r, idx) => ({
-      name: r.isYou ? `${r.domain}\n(You)` : r.domain,
-      sharePct: r.sharePct,
-      color: r.isYou ? "bg-slate-950" : BAR_COLORS[(idx + 1) % BAR_COLORS.length],
-      heightPct: Math.max(10, Math.min(100, Math.round((r.sharePct / maxShare) * 90))),
-    }));
-  }, [comparisonRows]);
-
-  // Derived Real KPIs
-  const yourShare = comparisonRows.find((r) => r.isYou)?.sharePct ?? 0;
-  const assistantsAsked = assistantList(report?.measurableAssistants);
-  const competitorsCitedMore = comparisonRows.filter((r) => !r.isYou && r.sharePct > yourShare).length;
-  const topRival = comparisonRows.find((r) => !r.isYou) || null;
+  // An empty share of voice means no answer ran in the window.
+  const shareOfVoice = useMemo(() => report?.shareOfVoice ?? [], [report?.shareOfVoice]);
+  const measured = shareOfVoice.length > 0;
   const totalChecked = report?.summary?.checked ?? 0;
   const totalCitations = report?.summary?.cited ?? 0;
+
+  // One row per brand, joining three sources: the AI answers (share of voice),
+  // the Website Audit crawl for the customer, and Competitor Intelligence for
+  // each tracked rival. A tracked rival shows up here even when no answer
+  // named it or no sweep has run, so this tab and Competitor Intelligence
+  // always list the same rivals.
+  const rows = useMemo<BenchmarkRow[]>(() => {
+    const voiceByDomain = new Map<string, (typeof shareOfVoice)[number]>();
+    for (const row of shareOfVoice) {
+      if (row.domain !== null) voiceByDomain.set(normalizeDomain(row.domain), row);
+    }
+    const ownVoice = shareOfVoice.find((row) => row.domain === null) ?? null;
+    const ownCrawlDone = ownCrawl?.status === "COMPLETED";
+
+    const result: BenchmarkRow[] = [
+      {
+        key: "__you__",
+        name: domain || "Your website",
+        domain,
+        isYou: true,
+        tracked: true,
+        sharePct: measured ? ownVoice?.sharePct ?? 0 : null,
+        mentions: measured ? ownVoice?.mentions ?? 0 : null,
+        pagesCrawled: ownCrawl ? ownCrawl.pagesCrawled : null,
+        healthScore: ownCrawlDone ? ownCrawl?.healthScore ?? null : null,
+        crawlStatus: ownCrawl?.status ?? null,
+      },
+    ];
+
+    const seen = new Set<string>();
+    for (const c of competitors) {
+      const key = normalizeDomain(c.domain);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const voice = voiceByDomain.get(key);
+      const crawlDone = c.crawlStatus === "COMPLETED" || c.status === "ANALYZED";
+      result.push({
+        key,
+        name: c.label || c.name || c.domain,
+        domain: c.domain,
+        isYou: false,
+        tracked: true,
+        sharePct: measured ? voice?.sharePct ?? 0 : null,
+        mentions: measured ? voice?.mentions ?? 0 : null,
+        pagesCrawled: crawlDone || (c.pagesCrawled ?? 0) > 0 ? c.pagesCrawled ?? 0 : null,
+        healthScore: crawlDone ? c.healthScore ?? null : null,
+        crawlStatus: c.crawlStatus ?? c.status ?? null,
+      });
+    }
+
+    // Domains an answer named that nobody is tracking yet.
+    for (const [key, voice] of voiceByDomain) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        key,
+        name: voice.label || voice.domain || key,
+        domain: voice.domain ?? key,
+        isYou: false,
+        tracked: false,
+        sharePct: voice.sharePct,
+        mentions: voice.mentions,
+        pagesCrawled: null,
+        healthScore: null,
+        crawlStatus: null,
+      });
+    }
+
+    const you = result[0];
+    const rivals = result
+      .slice(1)
+      .sort(
+        (a, b) =>
+          (b.sharePct ?? -1) - (a.sharePct ?? -1) ||
+          Number(b.tracked) - Number(a.tracked) ||
+          (b.pagesCrawled ?? -1) - (a.pagesCrawled ?? -1),
+      );
+    return [you, ...rivals].sort((a, b) => (b.sharePct ?? -1) - (a.sharePct ?? -1));
+  }, [shareOfVoice, measured, competitors, ownCrawl, domain]);
+
+  const rivals = rows.filter((r) => !r.isYou);
+  const trackedRivals = rivals.filter((r) => r.tracked);
+  const you = rows.find((r) => r.isYou) ?? null;
+  const yourShare = you?.sharePct ?? null;
+  const assistantsAsked = assistantList(report?.measurableAssistants);
+
+  const rivalsOutranking = yourShare === null ? 0 : rivals.filter((r) => (r.sharePct ?? 0) > yourShare).length;
+  const namedRivals = rivals.filter((r) => (r.sharePct ?? 0) > 0);
+  const topRival = namedRivals[0] ?? null;
+  // Until someone picks a metric, open on AI share once any brand was named,
+  // and on the crawl comparison while every share is still zero.
+  const chartMetric: ChartMetric =
+    pickedMetric ?? (rows.some((r) => (r.sharePct ?? 0) > 0) ? "ai" : "pages");
+
+  const leading = topRival
+    ? { value: topRival.domain, subtext: `${topRival.sharePct}% citation share, ${topRival.mentions} of ${totalChecked} answers` }
+    : trackedRivals.length > 0
+    ? {
+        value: measured ? "None named" : "Not measured",
+        subtext: measured
+          ? `${trackedRivals.length} tracked rival${trackedRivals.length === 1 ? "" : "s"} named in 0 of ${totalChecked} answers`
+          : "Run AI Analysis to measure your tracked rivals",
+      }
+    : { value: "None", subtext: "Add rivals to benchmark" };
+
+  const chartItems = useMemo(() => {
+    const valueOf = (r: BenchmarkRow) =>
+      chartMetric === "ai" ? r.sharePct : chartMetric === "pages" ? r.pagesCrawled : r.healthScore;
+    const plotted = rows.filter((r) => r.isYou || r.tracked).slice(0, 6);
+    if (plotted.every((r) => valueOf(r) === null)) return [];
+    const max = Math.max(1, ...plotted.map((r) => valueOf(r) ?? 0));
+    return plotted.map((r, idx) => {
+      const value = valueOf(r);
+      return {
+        key: r.key,
+        name: r.isYou ? `${r.domain || "Your website"}\n(You)` : r.domain,
+        label:
+          value === null
+            ? isCrawling(r.crawlStatus) && chartMetric !== "ai"
+              ? "Crawling"
+              : "—"
+            : chartMetric === "ai"
+            ? `${value}%`
+            : chartMetric === "pages"
+            ? `${value}`
+            : `${value}/100`,
+        color: r.isYou ? "bg-slate-950" : BAR_COLORS[(idx % (BAR_COLORS.length - 1)) + 1],
+        heightPct: value === null || value === 0 ? 0 : Math.max(6, Math.min(100, Math.round((value / max) * 90))),
+      };
+    });
+  }, [rows, chartMetric]);
+
+  const chartEmptyText =
+    chartMetric === "ai"
+      ? "No answers measured yet. Run AI Analysis to compare citation share."
+      : "No crawl results yet. Run the Website Audit and add rivals in Competitor Intelligence.";
 
   return (
     <div className="space-y-6">
@@ -102,7 +234,7 @@ export function AiVisibilityCompetitorsTab({
         {/* KPI 1: AI Citation Share */}
         <AiKpiCard
           label="Your Citation Share"
-          value={`${yourShare}%`}
+          value={yourShare === null ? "—" : `${yourShare}%`}
           subtext="Share of measured answers that name you"
           icon={<Users size={16} />}
           iconBgColor="bg-slate-100 text-slate-900"
@@ -112,8 +244,12 @@ export function AiVisibilityCompetitorsTab({
         {/* KPI 2: Competitors Cited More */}
         <AiKpiCard
           label="Rivals Outranking You"
-          value={`${competitorsCitedMore} / ${Math.max(1, comparisonRows.length - 1)}`}
-          subtext="Competitors with higher recommendation share"
+          value={rivals.length === 0 || yourShare === null ? "—" : `${rivalsOutranking} / ${rivals.length}`}
+          subtext={
+            rivals.length === 0
+              ? "No rivals tracked in Competitor Intelligence"
+              : "Competitors with higher recommendation share"
+          }
           icon={<Trophy size={16} />}
           iconBgColor="bg-rose-50 text-rose-600"
           colorScheme="coral"
@@ -122,8 +258,8 @@ export function AiVisibilityCompetitorsTab({
         {/* KPI 3: Top Competitor */}
         <AiKpiCard
           label="Leading Competitor"
-          value={topRival ? topRival.domain : "None"}
-          subtext={topRival ? `${topRival.sharePct}% citation share` : "Add rivals to benchmark"}
+          value={leading.value}
+          subtext={leading.subtext}
           icon={<Crown size={16} />}
           iconBgColor="bg-amber-50 text-amber-600"
           colorScheme="yellow"
@@ -157,40 +293,44 @@ export function AiVisibilityCompetitorsTab({
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-bold text-slate-900">AI Citation Share Comparison</h3>
+                <h3 className="text-base font-bold text-slate-900">You vs Tracked Rivals</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Comparative share of brand citations across large language models
+                  {chartMetric === "ai"
+                    ? `Share of ${assistantsAsked} answers that name each brand`
+                    : chartMetric === "pages"
+                    ? "Pages crawled by Website Audit and Competitor Intelligence"
+                    : "SEO health score from the latest crawl"}
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 p-0.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setChartMode("bar")}
-                  className={`p-1.5 rounded-md ${chartMode === "bar" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"}`}
-                >
-                  <BarChart3 size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartMode("trend")}
-                  className={`p-1.5 rounded-md ${chartMode === "trend" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"}`}
-                >
-                  <LineChart size={14} />
-                </button>
+              <div className="flex items-center gap-1 p-0.5 rounded-lg border bg-brand-50 text-[11px] font-semibold">
+                {(
+                  [
+                    { id: "ai", label: "AI Share" },
+                    { id: "pages", label: "Pages" },
+                    { id: "health", label: "SEO Health" },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setChartMetric(m.id)}
+                    className={`px-2 py-1 rounded-md ${chartMetric === m.id ? "bg-white text-brand-950 shadow-2xs" : "text-brand-500"}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Bars */}
             <div className="my-6 min-h-52 flex items-end justify-around gap-4 px-4 pb-2 border-b border-slate-100">
-              {barChartItems.length === 0 ? (
-                <div className="w-full text-center py-12 text-slate-400 text-xs">
-                  No citation data available yet. Run an AI visibility sweep to plot benchmark bars.
-                </div>
+              {chartItems.length === 0 ? (
+                <div className="w-full text-center py-12 text-brand-400 text-xs">{chartEmptyText}</div>
               ) : (
-                barChartItems.map((bar, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-2 flex-1 max-w-[80px]">
-                    <span className="text-xs font-bold text-slate-700">{bar.sharePct}%</span>
+                chartItems.map((bar) => (
+                  <div key={bar.key} className="flex flex-col items-center gap-2 flex-1 max-w-[80px]">
+                    <span className="text-xs font-bold text-slate-700">{bar.label}</span>
                     <div className="w-full h-36 flex items-end justify-center bg-slate-50 rounded-lg p-1">
                       <div
                         className={`w-full ${bar.color} rounded-t-md transition-all duration-500`}
@@ -207,7 +347,9 @@ export function AiVisibilityCompetitorsTab({
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
-            <span>Data updated with every automated sweep</span>
+            <span>
+              {trackedRivals.length} rival{trackedRivals.length === 1 ? "" : "s"} from Competitor Intelligence
+            </span>
             <button
               type="button"
               onClick={onAddCompetitor}
@@ -283,20 +425,20 @@ export function AiVisibilityCompetitorsTab({
           <div>
             <h3 className="text-base font-bold text-slate-900">LLM Benchmarking Leaderboard</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Measured share of voice across {assistantsAsked}
+              AI share of voice across {assistantsAsked}, joined to Website Audit and Competitor Intelligence crawls
             </p>
           </div>
           <span className="text-xs text-slate-400 font-semibold">
-            {comparisonRows.length} domains analyzed
+            {rows.length} domains analyzed
           </span>
         </div>
 
-        {comparisonRows.length === 0 ? (
+        {rivals.length === 0 && !measured ? (
           <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
             <Bot className="h-6 w-6 text-slate-400 mx-auto" />
             <p className="text-xs font-bold text-slate-800">No Benchmarked Competitors Yet</p>
             <p className="text-[11px] text-slate-500">
-              Add competitors to compare citations and model recommendation share.
+              Add rivals here or in Competitor Intelligence to compare citations, pages crawled and SEO health.
             </p>
           </div>
         ) : (
@@ -307,20 +449,27 @@ export function AiVisibilityCompetitorsTab({
                   <th className="p-3.5 w-14 font-bold">Rank</th>
                   <th className="p-3.5 font-bold">Domain / Brand</th>
                   <th className="p-3.5 font-bold">Recommendation Share</th>
-                  <th className="p-3.5 font-bold">Total Mentions</th>
+                  <th className="p-3.5 font-bold">AI Mentions</th>
+                  <th className="p-3.5 font-bold">Pages Crawled</th>
+                  <th className="p-3.5 font-bold">SEO Health</th>
                   <th className="p-3.5 font-bold text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {comparisonRows.map((row) => (
+                {rows.map((row, idx) => (
                   <tr
-                    key={row.domain}
+                    key={row.key}
                     className={`hover:bg-slate-50/80 transition-colors ${row.isYou ? "bg-slate-50" : ""}`}
                   >
-                    <td className="p-3.5 font-bold text-slate-900">#{row.rank}</td>
+                    <td className="p-3.5 font-bold text-slate-900">#{idx + 1}</td>
                     <td className="p-3.5 font-semibold text-slate-900">
                       <div className="flex items-center gap-2">
-                        <span>{row.domain}</span>
+                        <div className="flex flex-col">
+                          <span>{row.isYou ? row.domain || "Your website" : row.name}</span>
+                          {!row.isYou && row.name !== row.domain && (
+                            <span className="text-[10.5px] font-normal text-brand-400">{row.domain}</span>
+                          )}
+                        </div>
                         {row.isYou && (
                           <span className="bg-slate-100 text-slate-900 text-[10px] px-2 py-0.5 rounded-full font-bold">
                             Your Domain
@@ -330,19 +479,33 @@ export function AiVisibilityCompetitorsTab({
                     </td>
                     <td className="p-3.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 w-10">{row.sharePct}%</span>
+                        <span className="font-bold text-slate-900 w-10">
+                          {row.sharePct === null ? "—" : `${row.sharePct}%`}
+                        </span>
                         <div className="h-2 w-24 bg-slate-100 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${row.isYou ? "bg-slate-950" : "bg-slate-400"} rounded-full`}
-                            style={{ width: `${Math.max(4, row.sharePct)}%` }}
+                            style={{ width: `${row.sharePct ?? 0}%` }}
                           />
                         </div>
                       </div>
                     </td>
-                    <td className="p-3.5 font-mono text-slate-700">{row.mentions.toLocaleString()}</td>
+                    <td className="p-3.5 font-mono text-slate-700">
+                      {row.mentions === null ? "—" : `${row.mentions} of ${totalChecked}`}
+                    </td>
+                    <td className="p-3.5 font-mono text-brand-700">
+                      {row.pagesCrawled !== null
+                        ? row.pagesCrawled.toLocaleString()
+                        : isCrawling(row.crawlStatus)
+                        ? "Crawling…"
+                        : "—"}
+                    </td>
+                    <td className="p-3.5 font-mono text-brand-700">
+                      {row.healthScore !== null ? `${row.healthScore}/100` : "—"}
+                    </td>
                     <td className="p-3.5 text-center">
                       <span className="text-[11px] font-medium text-slate-500">
-                        {row.isYou ? "Primary Site" : "Competitor"}
+                        {row.isYou ? "Primary Site" : row.tracked ? "Tracked Rival" : "Named by AI, not tracked"}
                       </span>
                     </td>
                   </tr>

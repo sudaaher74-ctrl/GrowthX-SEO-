@@ -76,7 +76,18 @@ function weekStart(date: Date): Date {
  */
 export function buildVisibilityReport(
   checks: ReportableCheck[],
-  options: { periodStart: Date; periodEnd: Date; competitorLabels?: Record<string, string> },
+  options: {
+    periodStart: Date;
+    periodEnd: Date;
+    competitorLabels?: Record<string, string>;
+    /**
+     * Every rival the customer tracks. Each answer is searched for all of them,
+     * so a tracked rival no answer named is a measured zero and gets a row —
+     * otherwise it vanished from the AI Visibility benchmark while Competitor
+     * Intelligence was still showing it.
+     */
+    trackedCompetitors?: string[];
+  },
 ): VisibilityReport {
   const { periodStart, periodEnd } = options;
   const windowMs = periodEnd.getTime() - periodStart.getTime();
@@ -127,6 +138,9 @@ export function buildVisibilityReport(
 
   // ---- share of voice: how often each brand appears across the same answers
   const competitorCounts = new Map<string, number>();
+  for (const domain of options.trackedCompetitors ?? []) {
+    if (domain) competitorCounts.set(domain, 0);
+  }
   for (const check of ran) {
     for (const domain of check.competitorsCited) {
       competitorCounts.set(domain, (competitorCounts.get(domain) ?? 0) + 1);

@@ -301,6 +301,7 @@ function AiVisibilityClient() {
         domain={domain}
         crawledPages={pagesCrawled}
         competitorsCount={competitorsList.length}
+        competitors={competitorsList}
         report={report}
         onViewInsights={() => setActiveTab("insights")}
         onViewQuestions={() => setActiveTab("questions")}
@@ -373,6 +374,7 @@ function AiVisibilityClient() {
         <AiVisibilityCompetitorsTab
           report={report}
           competitors={competitorsList}
+          ownCrawl={crawlQuery.data ?? null}
           domain={domain}
           onAddCompetitor={() => setShowAddCompModal(true)}
           onViewAllGaps={() => setActiveTab("gaps")}

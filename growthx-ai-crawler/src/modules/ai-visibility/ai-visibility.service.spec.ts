@@ -233,6 +233,19 @@ describe('AiVisibilityService', () => {
       expect(report.reputation).toEqual({ checked: 2, cited: 2 });
     });
 
+    it('lists a tracked rival no answer named as a measured zero', async () => {
+      prisma.promptCheck.findMany.mockResolvedValue([
+        row('best insulated jacket', { cited: false, position: null }),
+      ]);
+
+      const report = await service.getReport('proj_1');
+
+      expect(report.shareOfVoice).toEqual([
+        { domain: null, label: 'You', mentions: 0, sharePct: 0 },
+        { domain: 'trailheadco.com', label: 'Trailhead Co', mentions: 0, sharePct: 0 },
+      ]);
+    });
+
     it('drops failed checks from assistants this deployment no longer asks', async () => {
       (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM]);
       prisma.promptCheck.findMany.mockResolvedValue([
@@ -251,19 +264,35 @@ describe('AiVisibilityService', () => {
     it("counts each question's latest answer per assistant once", async () => {
       prisma.trackedPrompt.findMany.mockResolvedValue([
         {
+          text: 'best insulated jacket',
           checks: [
             { assistant: AiAssistant.SARVAM, competitorsCited: ['trailheadco.com'] },
             // An older Sarvam answer to the same question: not counted again.
             { assistant: AiAssistant.SARVAM, competitorsCited: ['trailheadco.com'] },
           ],
         },
-        { checks: [{ assistant: AiAssistant.SARVAM, competitorsCited: [] }] },
+        { text: 'warmest hiking boots', checks: [{ assistant: AiAssistant.SARVAM, competitorsCited: [] }] },
       ]);
 
       const mentions = await service.competitorMentions('proj_1');
 
       expect(mentions.answers).toBe(2);
       expect(mentions.byDomain.get('trailheadco.com')).toBe(1);
+    });
+
+    it('leaves out questions that name the brand, as citation share does', async () => {
+      prisma.trackedPrompt.findMany.mockResolvedValue([
+        { text: 'best insulated jacket', checks: [{ assistant: AiAssistant.SARVAM, competitorsCited: [] }] },
+        {
+          text: 'is Northwind Outdoors better than Trailhead Co',
+          checks: [{ assistant: AiAssistant.SARVAM, competitorsCited: ['trailheadco.com'] }],
+        },
+      ]);
+
+      const mentions = await service.competitorMentions('proj_1');
+
+      expect(mentions.answers).toBe(1);
+      expect(mentions.byDomain.get('trailheadco.com')).toBeUndefined();
     });
   });
 

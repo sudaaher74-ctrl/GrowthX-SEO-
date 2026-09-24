@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Globe, ArrowRight, Sparkles, Loader2, AlertTriangle, CircleDashed, CheckCircle2 } from "lucide-react";
-import type { VisibilityReport } from "@/lib/api-client";
+import type { TrackedCompetitor, VisibilityReport } from "@/lib/api-client";
 import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
 export interface AiPipelineBannerProps {
@@ -10,6 +10,8 @@ export interface AiPipelineBannerProps {
   domain?: string;
   crawledPages?: number | null;
   competitorsCount?: number;
+  /** Rivals tracked in Competitor Intelligence; listed in competitors mode. */
+  competitors?: TrackedCompetitor[];
   report?: VisibilityReport | null;
   onViewInsights?: () => void;
   onViewQuestions?: () => void;
@@ -34,6 +36,7 @@ export function AiPipelineBanner({
   domain = "",
   crawledPages = null,
   competitorsCount = 0,
+  competitors = [],
   report,
   onViewInsights,
   onViewQuestions,
@@ -90,10 +93,49 @@ export function AiPipelineBanner({
           </div>
         </div>
 
-        {/* Center: the assistants this deployment asks, with what each returned */}
+        {/* Center: the assistants this deployment asks, with what each returned.
+            On the Competitors tab, the tracked rivals and how often answers named them. */}
         <div className="lg:col-span-5 px-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-brand-400">{HEADINGS[mode]}</p>
-          {assistants.length === 0 ? (
+          {mode === "competitors" ? (
+            competitors.length === 0 ? (
+              <p className="mt-2 text-[12px] text-brand-500">
+                No rivals tracked yet. Add one here or in Competitor Intelligence.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-3">
+                {competitors.slice(0, 4).map((c) => {
+                  const key = c.domain.toLowerCase().replace(/^www\./, "");
+                  const voice = report?.shareOfVoice?.find(
+                    (row) => row.domain !== null && row.domain.toLowerCase().replace(/^www\./, "") === key,
+                  );
+                  return (
+                    <div key={c.id} className="flex items-center gap-2.5 rounded-xl border bg-brand-50/60 px-3 py-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-950 text-white">
+                        {isAnalyzing ? <Loader2 size={15} className="animate-spin" /> : <Globe size={15} />}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block max-w-[180px] truncate text-[12px] font-bold text-brand-950">
+                          {c.label || c.name || c.domain}
+                        </span>
+                        <span className="block text-[10.5px] text-brand-500">
+                          {isAnalyzing
+                            ? "Checking answers…"
+                            : measured
+                              ? `Named in ${voice?.mentions ?? 0} of ${checked} answers`
+                              : "Not measured yet"}
+                          {c.pagesCrawled ? ` · ${c.pagesCrawled} pages` : ""}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {competitors.length > 4 && (
+                  <span className="self-center text-[11px] text-brand-500">+{competitors.length - 4} more</span>
+                )}
+              </div>
+            )
+          ) : assistants.length === 0 ? (
             <p className="mt-2 text-[12px] text-brand-500">
               No AI assistant is enabled on this deployment, so nothing can be measured yet.
             </p>

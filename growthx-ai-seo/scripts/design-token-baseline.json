@@ -40,7 +40,7 @@
   "app/login/page.tsx": 8,
   "app/register/page.tsx": 4,
   "components/ai-visibility/ai-kpi-card.tsx": 35,
-  "components/ai-visibility/ai-visibility-competitors-tab.tsx": 84,
+  "components/ai-visibility/ai-visibility-competitors-tab.tsx": 77,
   "components/ai-visibility/ai-visibility-gauge.tsx": 15,
   "components/ai-visibility/ai-visibility-overview-tab.tsx": 58,
   "components/auth/auth-illustration.tsx": 24,
