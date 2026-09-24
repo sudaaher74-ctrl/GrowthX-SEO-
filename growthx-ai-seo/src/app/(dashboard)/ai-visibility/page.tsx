@@ -26,6 +26,7 @@ import {
   useAddPrompts,
   useAddCompetitor,
   useLatestCrawl,
+  usePortfolio,
 } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -36,6 +37,7 @@ import { AiVisibilityOverviewTab } from "@/components/ai-visibility/ai-visibilit
 import { AiVisibilityCompetitorsTab } from "@/components/ai-visibility/ai-visibility-competitors-tab";
 import { AiVisibilityRecommendationsTab } from "@/components/ai-visibility/ai-visibility-recommendations-tab";
 import { AiInsightsTab } from "@/components/ai-visibility/ai-visibility-insights-tab";
+import { AiVisibilityQuestionsTab } from "@/components/ai-visibility/ai-visibility-questions-tab";
 import { GeoSimulationSandbox } from "@/components/ai-visibility/geo-simulation-sandbox";
 import {
   CitationsTabContent,
@@ -53,6 +55,7 @@ export default function AiVisibilityPage() {
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "questions", label: "Questions" },
   { id: "sandbox", label: "GEO Sandbox & Simulation" },
   { id: "insights", label: "AI Insights" },
   { id: "citations", label: "Citations" },
@@ -63,19 +66,22 @@ const TABS = [
 
 function AiVisibilityClient() {
   const { orgId, projectId, projects } = useWorkspace();
-  const qc = useQueryClient();
-  
+  const portfolio = usePortfolio(orgId);
+
   const currentProject = projects?.find(p => p.id === projectId);
-  // Empty until a project is selected; never another business's domain.
-  const domain = currentProject?.name ?? "";
-  const businessName = domain.split('.')[0] || "your business";
+  // The project's own website, as every other page resolves it. This used to
+  // be the project *name* ("Aiva"), so the crawl lookup always missed and the
+  // banner said "No crawl yet" for a site that had been audited.
+  const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
+  const domain = clientRow?.domain ?? "";
+  const businessName = currentProject?.name || "your business";
 
   const visibility = useVisibility(projectId, 28);
   const prompts = useTrackedPrompts(projectId);
   const sweep = useRunSweep(projectId);
   const addPrompts = useAddPrompts(projectId);
   const addCompetitor = useAddCompetitor(projectId);
-  const crawlQuery = useLatestCrawl(domain);
+  const crawlQuery = useLatestCrawl(domain || null);
 
   // Competitor list query
   const competitorsQuery = useQuery({
@@ -169,6 +175,8 @@ function AiVisibilityClient() {
                 ? `Ask ${assistantsAsked} any search question live, see whether your brand is cited, and get a draft section to answer it.`
                 : activeTab === "competitors"
                 ? `See how often ${assistantsAsked} names your brand versus your tracked competitors.`
+                : activeTab === "questions"
+                ? `Each question joined to your Website Audit and Competitor Intelligence: the page that should answer it, and why a rival was named instead.`
                 : activeTab === "recommendations"
                 ? `Recommendations drawn from what ${assistantsAsked} actually said about your market.`
                 : `Track whether ${assistantsAsked} cites your brand when buyers ask your questions.`}
@@ -295,6 +303,7 @@ function AiVisibilityClient() {
         competitorsCount={competitorsList.length}
         report={report}
         onViewInsights={() => setActiveTab("insights")}
+        onViewQuestions={() => setActiveTab("questions")}
         onViewCrawlDetails={() => window.location.assign("/website")}
         isAnalyzing={sweep.isPending}
       />
@@ -349,6 +358,8 @@ function AiVisibilityClient() {
           onGenerateRecommendations={() => setActiveTab("recommendations")}
         />
       )}
+
+      {activeTab === "questions" && <AiVisibilityQuestionsTab projectId={projectId} />}
 
       {activeTab === "sandbox" && (
         <GeoSimulationSandbox

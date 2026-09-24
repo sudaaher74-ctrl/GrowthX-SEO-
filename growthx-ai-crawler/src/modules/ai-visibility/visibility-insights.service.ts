@@ -4,6 +4,7 @@ import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { AiVisibilityService } from './ai-visibility.service';
 import { normalizeDomain } from './citation/citation-detector';
+import { brandTerms, questionGroup } from './questions/question-group';
 
 export type InsightCategory = 'CONTENT' | 'TECHNICAL' | 'AUTHORITY' | 'ON_PAGE';
 export type InsightLevel = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -181,6 +182,7 @@ export class VisibilityInsightsService {
 
     const domain = normalizeDomain(project.websites[0]?.domain ?? '');
     const brand = project.name || domain;
+    const brandSpellings = brandTerms(project.name, project.websites.map((w) => normalizeDomain(w.domain)));
     const data = {
       business: { name: brand, domain },
       periodDays: PERIOD_DAYS,
@@ -192,6 +194,9 @@ export class VisibilityInsightsService {
         const check = p.checks[0];
         return {
           prompt: p.text,
+          // REPUTATION questions name the brand, so an answer repeating it is
+          // not a citation win; only BUYER questions count toward share.
+          group: questionGroup(p.text, brandSpellings),
           assistant: check?.assistant ?? null,
           businessCited: check ? check.cited : null,
           position: check?.position ?? null,
@@ -212,7 +217,9 @@ export class VisibilityInsightsService {
         "and issues found on the business's website. Use ONLY this data. Never invent numbers, percentages, " +
         'search volumes, projected gains, rankings or facts about the business or its competitors. Every finding ' +
         'and recommendation must name the specific evidence it rests on (a prompt, a competitor, an answer, an issue). ' +
-        'If the data cannot support a conclusion, say so plainly. Return only JSON.',
+        'If the data cannot support a conclusion, say so plainly. Questions marked REPUTATION name the business, ' +
+        'so being cited in their answers is expected and is not evidence of visibility; judge visibility on BUYER ' +
+        'questions. Return only JSON.',
       prompt:
         `Measured AI visibility data:\n${JSON.stringify(data, null, 1)}\n\n` +
         (question

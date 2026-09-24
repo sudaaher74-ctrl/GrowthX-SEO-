@@ -587,7 +587,39 @@ export function useAddPrompts(projectId: string | null) {
       api.addTrackedPrompts(projectId!, prompts),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-suggestions", projectId] });
     },
+  });
+}
+
+/** Each tracked question joined to the Website Audit and Competitor Intelligence. */
+export function useQuestionAnalysis(projectId: string | null) {
+  return useQuery({
+    queryKey: ["question-analysis", projectId],
+    queryFn: () => api.getQuestionAnalysis(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/** Buyer questions drawn from your pages, rivals' pages and open content gaps. */
+export function useQuestionSuggestions(projectId: string | null) {
+  return useQuery({
+    queryKey: ["question-suggestions", projectId],
+    queryFn: () => api.getQuestionSuggestions(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+/** AI Visibility findings as SEO Roadmap tasks. */
+export function useAiVisibilityRoadmapTasks(projectId: string | null) {
+  return useQuery({
+    queryKey: ["aivis-roadmap", projectId],
+    queryFn: () => api.getAiVisibilityRoadmapTasks(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
   });
 }
 
@@ -916,6 +948,8 @@ export function useRunSweep(projectId: string | null) {
       qc.invalidateQueries({ queryKey: ["visibility", projectId] });
       qc.invalidateQueries({ queryKey: ["tracked-prompts", projectId] });
       qc.invalidateQueries({ queryKey: ["visibility-insights", projectId] });
+      qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
+      qc.invalidateQueries({ queryKey: ["aivis-roadmap", projectId] });
     },
   });
 }

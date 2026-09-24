@@ -2,12 +2,20 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Crosshair, Globe, LayoutGrid, ListTodo, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, ListTodo, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import { useEntitlements, usePortfolio, useWorkspace, useProfile, useIssueCounts } from "@/hooks/use-growthx";
+import {
+  useAiVisibilityRoadmapTasks,
+  useEntitlements,
+  usePortfolio,
+  useWorkspace,
+  useProfile,
+  useIssueCounts,
+  useVisibility,
+} from "@/hooks/use-growthx";
 
 /**
  * Agency console sidebar.
@@ -26,6 +34,8 @@ interface NavItem {
   tagTone?: "default" | "danger" | "success";
   disabled?: boolean;
   children?: { label: string; href: string; id: string }[];
+  /** A step of the guided workflow, ticked once it has really been done. */
+  step?: { n: number; done: boolean; hint: string };
 }
 
 export function Sidebar({
@@ -52,8 +62,26 @@ export function Sidebar({
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
   const issueCounts = useIssueCounts(projectId);
-  const needsYouCount = issueCounts.data?.openGroups ?? 0;
+  // The roadmap lists audit issues and AI Visibility tasks together, so the
+  // badge counts both.
+  const aiTasks = useAiVisibilityRoadmapTasks(projectId);
+  const needsYouCount = (issueCounts.data?.openGroups ?? 0) + (aiTasks.data?.groups.length ?? 0);
   const criticalCount = issueCounts.data?.bySeverity?.CRITICAL ?? 0;
+
+  // The guided order: audit your own site, add the rivals, then ask the AI
+  // assistants — each step feeds the next (AI Visibility matches questions to
+  // audited pages and explains a rival's win from its crawled page). Every
+  // tick is read from real state, never from having visited the page.
+  const competitorsQuery = useQuery({
+    queryKey: ["action-engine-competitors", projectId],
+    queryFn: () => api.actionEngineCompetitors(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+  const visibility = useVisibility(projectId);
+  const auditDone = Boolean(issueCounts.data?.crawledAt);
+  const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
+  const aiDone = (visibility.data?.summary.checked ?? 0) > 0;
 
   // Core Navigation Tabs strictly following Master Product Specification
   const mainNav: NavItem[] = [
@@ -77,18 +105,21 @@ export function Sidebar({
       aliases: ["/technical-seo"],
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
-    },
-    {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Sparkles,
-      aliases: ["/geo-tracking", "/search"],
+      step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
     },
     {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
+      step: { n: 2, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
+    },
+    {
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Sparkles,
+      aliases: ["/geo-tracking", "/search"],
+      step: { n: 3, done: aiDone, hint: aiDone ? "Buyer answers measured" : "Ask the AI assistants your buyer questions" },
     },
     {
       label: "Fix Engine",
@@ -369,6 +400,22 @@ function NavLink({
         >
           <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
           <span className="flex-1 truncate">{item.label}</span>
+          {item.step && (
+            <span
+              title={`Step ${item.step.n}: ${item.step.hint}`}
+              aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold",
+                item.step.done
+                  ? "bg-success-500 text-white"
+                  : active
+                    ? "border border-white/50 text-white"
+                    : "border text-brand-500",
+              )}
+            >
+              {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
+            </span>
+          )}
           {item.tag && (
             <span
               className={cn(

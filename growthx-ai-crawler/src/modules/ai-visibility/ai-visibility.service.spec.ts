@@ -207,6 +207,66 @@ describe('AiVisibilityService', () => {
     });
   });
 
+  describe('report', () => {
+    const row = (text: string, over: any = {}) => ({
+      assistant: AiAssistant.SARVAM,
+      // An hour ago: the report's window ends at "now", exclusive.
+      checkedAt: new Date(Date.now() - 60 * 60 * 1000),
+      cited: true,
+      position: 1,
+      competitorsCited: [],
+      error: null,
+      trackedPrompt: { text },
+      ...over,
+    });
+
+    it('keeps questions that name the brand out of citation share, and reports them apart', async () => {
+      prisma.promptCheck.findMany.mockResolvedValue([
+        row('is Northwind Outdoors legitimate'),
+        row('reviews of northwindoutdoors.com'),
+        row('best insulated jacket', { cited: false, position: null, competitorsCited: ['trailheadco.com'] }),
+      ]);
+
+      const report = await service.getReport('proj_1');
+
+      expect(report.summary).toMatchObject({ checked: 1, cited: 0 });
+      expect(report.reputation).toEqual({ checked: 2, cited: 2 });
+    });
+
+    it('drops failed checks from assistants this deployment no longer asks', async () => {
+      (router as any).configuredProviders = jest.fn().mockReturnValue([AiProvider.SARVAM]);
+      prisma.promptCheck.findMany.mockResolvedValue([
+        row('best insulated jacket', { assistant: AiAssistant.CHATGPT, cited: false, error: 'OPENAI is not configured.' }),
+        row('best insulated jacket', { assistant: AiAssistant.SARVAM, cited: false, error: 'Sarvam API failed (HTTP 500)' }),
+      ]);
+
+      const report = await service.getReport('proj_1');
+
+      // The Sarvam outage is a current problem; the old ChatGPT failure is not.
+      expect(report.summary.failedChecks).toBe(1);
+    });
+  });
+
+  describe('competitor mentions', () => {
+    it("counts each question's latest answer per assistant once", async () => {
+      prisma.trackedPrompt.findMany.mockResolvedValue([
+        {
+          checks: [
+            { assistant: AiAssistant.SARVAM, competitorsCited: ['trailheadco.com'] },
+            // An older Sarvam answer to the same question: not counted again.
+            { assistant: AiAssistant.SARVAM, competitorsCited: ['trailheadco.com'] },
+          ],
+        },
+        { checks: [{ assistant: AiAssistant.SARVAM, competitorsCited: [] }] },
+      ]);
+
+      const mentions = await service.competitorMentions('proj_1');
+
+      expect(mentions.answers).toBe(2);
+      expect(mentions.byDomain.get('trailheadco.com')).toBe(1);
+    });
+  });
+
   describe('listPrompts', () => {
     it('returns the latest check per assistant, not the latest rows overall', async () => {
       const at = (d: string) => new Date(`2026-09-${d}T06:00:00Z`);

@@ -6,6 +6,8 @@ import { AiVisibilityService } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 import { GeoSimulationService } from './geo-simulation.service';
 import { VisibilityInsightsService } from './visibility-insights.service';
+import { QuestionAnalysisService } from './questions/question-analysis.service';
+import { roadmapTasks } from './questions/roadmap-tasks';
 
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -59,6 +61,7 @@ export class AiVisibilityController {
     private readonly aeo: AeoAnalysisService,
     private readonly geoSimulation: GeoSimulationService,
     private readonly insights: VisibilityInsightsService,
+    private readonly questions: QuestionAnalysisService,
   ) {}
 
   @Get()
@@ -165,6 +168,33 @@ export class AiVisibilityController {
   @ApiParam({ name: 'projectId' })
   getAeo(@Param('projectId') projectId: string) {
     return this.aeo.analyzeWebsiteAeo(projectId);
+  }
+
+  @Get('questions')
+  @ApiOperation({
+    summary: 'Each tracked question joined to the Website Audit and Competitor Intelligence',
+    description:
+      'The latest answer, the page on your site that should answer it (or none: a content gap) with its ' +
+      "audit issues, and each named rival's page compared on direct answer, FAQ, schema and term coverage.",
+  })
+  @ApiParam({ name: 'projectId' })
+  analyzeQuestions(@Param('projectId') projectId: string) {
+    return this.questions.analyze(projectId);
+  }
+
+  @Get('questions/suggestions')
+  @ApiOperation({ summary: "Buyer questions drawn from your pages, rivals' pages and open content gaps" })
+  @ApiParam({ name: 'projectId' })
+  suggestQuestions(@Param('projectId') projectId: string) {
+    return this.questions.suggestions(projectId);
+  }
+
+  @Get('roadmap-tasks')
+  @ApiOperation({ summary: 'AI Visibility findings as SEO Roadmap tasks, one per uncited buyer question' })
+  @ApiParam({ name: 'projectId' })
+  async roadmap(@Param('projectId') projectId: string) {
+    const report = await this.questions.analyze(projectId);
+    return { groups: roadmapTasks(report.questions) };
   }
 
   @Get('insights')
