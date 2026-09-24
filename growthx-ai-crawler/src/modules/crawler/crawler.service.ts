@@ -1295,6 +1295,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // the seed URL loop: a worker that finishes between two enqueue calls can
     // drop the pending counter to 0 and trigger completeJob prematurely.
     const newPayloads: PageFetchPayload[] = [];
+    // Links to a page this crawl already has, under another spelling or the
+    // same one. Not enqueued: the fetch would only discover the claim and drop
+    // the task. On aivaenterprises.com, whose sitemap says www and whose links
+    // do not, that was a second task for every page on the site.
+    const alreadyClaimed: string[] = [];
+    const batchKeys = new Set<string>();
 
     for (const link of internalLinks) {
       const targetClean = this.normalizeUrl(link.targetUrl);
@@ -1316,6 +1322,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // nothing about their weight, and 74 images is a great deal heavier than
       // the HTML the limit was meant to protect.
       if (!isCrawlablePage(targetClean)) continue;
+
+      const key = this.visitKey(targetClean);
+      if (batchKeys.has(key)) continue;
+      batchKeys.add(key);
+      if (await this.isUrlClaimed(payload.jobId, targetClean)) {
+        alreadyClaimed.push(targetClean);
+        continue;
+      }
 
       if (payload.depth + 1 <= payload.maxDepth) {
         newPayloads.push({
@@ -1352,6 +1366,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           }),
         )
         .catch(() => undefined);
+    }
+
+    // Recorded after the inventory rows exist, so each spelling reads as the
+    // page it is rather than as a URL still waiting in the queue.
+    for (const claimedUrl of alreadyClaimed) {
+      await this.inventory.markExcluded(payload.jobId, claimedUrl, 'duplicate').catch(() => undefined);
     }
 
     if (newPayloads.length === 0) return;
@@ -1625,6 +1645,26 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
     visitedSet.add(member);
     return { alreadyVisited: false, limitReached: false };
+  }
+
+  /**
+   * Whether this crawl has already claimed the page a URL names, in any
+   * spelling. Read-only: the claim itself is still taken by markUrlVisited at
+   * fetch time. A failed lookup answers "no", so the link is enqueued and the
+   * fetch-time check decides, exactly as before this existed.
+   */
+  private async isUrlClaimed(jobId: string, targetUrl: string): Promise<boolean> {
+    const member = this.visitKey(targetUrl);
+    const redisClient = this.queue.getRedisClient?.();
+    if (redisClient) {
+      if (typeof redisClient.sismember !== 'function') return false;
+      try {
+        return (await redisClient.sismember(`job:${jobId}:visited`, member)) === 1;
+      } catch {
+        return false;
+      }
+    }
+    return this.localVisited.get(jobId)?.has(member) ?? false;
   }
 
   /**

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { normalizeUrl, TrailingSlashPolicy } from '../url/url-normalizer';
+import { canonicalUrl } from '../canonical-url';
+import { isCrawlablePage } from '../crawlable';
 
 /**
  * Why a discovered URL was not fetched.
@@ -42,13 +44,17 @@ export interface CrawlOutcome {
 }
 
 export interface InventoryMetrics {
-  /** Unique normalized URLs known to this crawl. */
+  /**
+   * Unique pages known to this crawl: one per page however many ways the site
+   * spells its URL, and never a linked file.
+   */
   urlsDiscovered: number;
   urlsQueued: number;
   urlsCrawled: number;
   notCrawled: number;
   failed: number;
   excluded: number;
+  /** Extra spellings of a page (www/apex, http/https, trailing slash) folded into it. */
   duplicates: number;
   canonicalized: number;
   redirects: number;
@@ -67,6 +73,13 @@ export interface InventoryMetrics {
    * the dashboard against the rows behind it.
    */
   discoveredNotCrawled: Array<{ url: string; reason: string; sources: string[]; depth?: number }>;
+  /**
+   * Links to files — PDFs, images, documents. Recorded because the site links
+   * them, but a file is not a page, so it is neither crawled nor counted as
+   * a page that was missed.
+   */
+  filesLinked: number;
+  linkedFiles: Array<{ url: string; sources: string[] }>;
 }
 
 /**
@@ -273,12 +286,24 @@ export interface InventoryRow {
  *
  * Pure, so the reconciliation it produces can be tested without a database and
  * asserted to balance: crawled + notCrawled == discovered, always.
+ *
+ * Counted per page, not per spelling. The inventory keeps one row per
+ * normalized URL, and a site routinely spells one page several ways: the
+ * sitemap of aivaenterprises.com lists www.aivaenterprises.com/about while
+ * every link on the site points at aivaenterprises.com/about. The crawler
+ * already fetches such a page once (its visit key drops the www), so counting
+ * rows reported 72 "discovered" URLs and 37 "not crawled" for a 35-page site
+ * whose 35 pages had all been crawled — the other spelling of each page, and
+ * a brochure PDF, left sitting as "queued". Rows are grouped by the same page
+ * identity the crawler deduplicates with, and linked files are reported apart.
  */
 export function summariseInventory(rows: InventoryRow[]): InventoryMetrics {
   const bySource: Record<string, number> = {};
   const notCrawledReasons: Record<string, number> = {};
   const discoveredNotCrawled: Array<{ url: string; reason: string; sources: string[] }> = [];
+  const linkedFiles: Array<{ url: string; sources: string[] }> = [];
 
+  let urlsDiscovered = 0;
   let urlsQueued = 0;
   let urlsCrawled = 0;
   let failed = 0;
@@ -290,23 +315,47 @@ export function summariseInventory(rows: InventoryRow[]): InventoryMetrics {
   let nonIndexable = 0;
   let renderedPages = 0;
   let multiSourceUrls = 0;
+  let filesLinked = 0;
 
   const statusBuckets = { ok: 0, redirect: 0, clientError: 0, serverError: 0, noResponse: 0 };
 
+  // Grouped in first-seen order, so lists read in the order URLs were found.
+  const groups = new Map<string, InventoryRow[]>();
   for (const row of rows) {
+    const key = canonicalUrl(row.normalizedUrl);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const wasCrawled = (row: InventoryRow) => row.state === 'DONE' || row.crawledAt !== null;
+
+  for (const group of groups.values()) {
     // A row written before `sources` existed still has its original source.
-    const sources = row.sources.length > 0 ? row.sources : [row.discoverySource];
-    const unique = [...new Set(sources)];
+    const unique = [...new Set(group.flatMap((row) => (row.sources.length > 0 ? row.sources : [row.discoverySource])))];
+    const crawled = group.find(wasCrawled);
+
+    // A file the site links to. Never fetched on purpose (see crawlable.ts),
+    // or fetched and found not to be HTML; either way not a page.
+    const isFile =
+      !crawled &&
+      group.every((row) => !isCrawlablePage(row.normalizedUrl) || row.reason === 'unsupported_content_type');
+    if (isFile) {
+      filesLinked++;
+      if (linkedFiles.length < 500) linkedFiles.push({ url: group[0].url, sources: unique });
+      continue;
+    }
+
+    urlsDiscovered++;
+    duplicates += group.length - 1;
     for (const source of unique) bySource[source] = (bySource[source] || 0) + 1;
     if (unique.length > 1) multiSourceUrls++;
+    if (group.some((row) => row.queuedAt)) urlsQueued++;
 
-    if (row.queuedAt) urlsQueued++;
-    if (row.rendered) renderedPages++;
-
-    const wasCrawled = row.state === 'DONE' || row.crawledAt !== null;
-    if (wasCrawled) {
+    if (crawled) {
       urlsCrawled++;
-      const status = row.httpStatus;
+      if (group.some((row) => row.rendered)) renderedPages++;
+      const status = crawled.httpStatus;
       if (status === null || status === undefined || status === 0) statusBuckets.noResponse++;
       else if (status >= 500) statusBuckets.serverError++;
       else if (status >= 400) statusBuckets.clientError++;
@@ -315,29 +364,35 @@ export function summariseInventory(rows: InventoryRow[]): InventoryMetrics {
         redirects++;
       } else statusBuckets.ok++;
 
-      if (row.indexability === 'INDEXABLE') indexable++;
-      else if (row.indexability === 'NOT_INDEXABLE') nonIndexable++;
+      if (crawled.indexability === 'INDEXABLE') indexable++;
+      else if (crawled.indexability === 'NOT_INDEXABLE') nonIndexable++;
 
-      // A canonical that points somewhere else is recorded against the URL
-      // that declared it. The URL itself is never removed.
-      if (row.canonicalUrl && row.canonicalUrl !== row.normalizedUrl) canonicalized++;
+      // A canonical that points to another page is recorded against the URL
+      // that declared it. The URL itself is never removed. One that points at
+      // another spelling of the same page is not a canonicalization.
+      if (crawled.canonicalUrl && canonicalUrl(crawled.canonicalUrl) !== canonicalUrl(crawled.normalizedUrl)) {
+        canonicalized++;
+      }
       continue;
     }
 
-    // Everything below is discovered-and-not-crawled, and every one of them
-    // carries a reason. `queued` is the honest answer for a URL the crawl
-    // simply never got to.
-    const reason = row.reason || 'queued';
+    // Everything below is a page discovered and not crawled, and every one of
+    // them carries a reason. The most specific one any spelling carries wins:
+    // "robots_blocked" on one spelling explains the page better than
+    // "queued" on another. `queued` is the honest answer for a page the
+    // crawl simply never got to.
+    const explained =
+      group.find((row) => row.reason && row.reason !== 'queued' && row.reason !== 'duplicate') ??
+      group.find((row) => row.reason === 'duplicate') ??
+      group[0];
+    const reason = explained.reason || 'queued';
     notCrawledReasons[reason] = (notCrawledReasons[reason] || 0) + 1;
-    if (discoveredNotCrawled.length < 500) discoveredNotCrawled.push({ url: row.url, reason, sources: unique });
+    if (discoveredNotCrawled.length < 500) discoveredNotCrawled.push({ url: explained.url, reason, sources: unique });
 
-    if (row.state === 'FAILED') failed++;
-    else if (row.state === 'SKIPPED') excluded++;
-    if (reason === 'duplicate') duplicates++;
+    if (explained.state === 'FAILED') failed++;
+    else if (explained.state === 'SKIPPED') excluded++;
     if (reason === 'canonicalized') canonicalized++;
   }
-
-  const urlsDiscovered = rows.length;
 
   return {
     urlsDiscovered,
@@ -357,5 +412,7 @@ export function summariseInventory(rows: InventoryRow[]): InventoryMetrics {
     multiSourceUrls,
     notCrawledReasons,
     discoveredNotCrawled,
+    filesLinked,
+    linkedFiles,
   };
 }

@@ -284,6 +284,24 @@ export class CrawlController {
       } catch (err) {}
     }
 
+    // The URL reconciliation stored with a finished crawl is a snapshot of how
+    // it was counted then. Counting changed — one page per page rather than one
+    // per spelling, files apart — so it is re-read from the crawl's own URL
+    // rows, which do not change once the crawl is done. Otherwise a crawl run
+    // before the change would keep reporting "72 discovered, 37 not crawled"
+    // for a 35-page site it had crawled in full, until someone re-ran it.
+    const diagnostics = latest?.qualityDiagnostics as Record<string, unknown> | null | undefined;
+    if (latest && latest.status === 'COMPLETED' && diagnostics && typeof diagnostics === 'object' && diagnostics.inventory) {
+      try {
+        const inventory = await this.urlInventory.metrics(latest.id);
+        if (inventory.urlsDiscovered > 0) {
+          latest.qualityDiagnostics = { ...diagnostics, inventory } as any;
+        }
+      } catch {
+        // The stored snapshot is still a valid answer.
+      }
+    }
+
     return latest ?? null;
   }
 

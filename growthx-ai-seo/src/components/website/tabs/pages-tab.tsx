@@ -54,6 +54,8 @@ interface CrawlInventoryMetrics {
   multiSourceUrls: number;
   notCrawledReasons: Record<string, number>;
   discoveredNotCrawled: Array<{ url: string; reason: string }>;
+  /** Links to PDFs, images and other files: recorded, never counted as pages. */
+  filesLinked?: number;
 }
 
 interface CrawlQualityDiagnostics {
@@ -512,7 +514,9 @@ export function PagesTab({
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Identified across sitemaps, DOM & links.
+              Unique pages identified across sitemaps, DOM & links.
+              {(inventory?.filesLinked ?? 0) > 0 &&
+                ` ${inventory!.filesLinked} linked file${inventory!.filesLinked === 1 ? "" : "s"} (PDF, images) not counted as pages.`}
             </p>
           </div>
 
