@@ -17,7 +17,6 @@ import {
   type InterceptBlueprint,
   type GenerateBlueprintBody,
   type ProgrammaticMatrixResponse,
-  type StealthRadarResponse,
   type DispatchFindingBody,
   type InternalLinkingMeshResponse,
   type GenerateLinkPatchBody,
@@ -796,15 +795,6 @@ export function useProgrammaticMatrix(projectId?: string | null, competitorId?: 
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
     queryFn: () => api.getProgrammaticMatrix(projectId!, competitorId),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useCompetitorStealthRadar(projectId?: string | null) {
-  return useQuery<StealthRadarResponse>({
-    queryKey: ["competitor-stealth-radar", projectId],
-    queryFn: () => api.getStealthRadar(projectId!),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
   });

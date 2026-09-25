@@ -67,11 +67,11 @@ export function buildMetrics(you: YouInput, rivals: RivalInput[]): Metric[] {
     rivals.map((r) => ({ id: r.id, name: r.name, value: pick(r) }));
 
   return [
-    { key: "pages", label: "Content coverage", source: "Crawled", you: you.pagesCrawled, rivals: side((r) => r.pagesCrawled), format: (n) => `${count(n)} pages`, short: count },
-    { key: "health", label: "Tech health", source: "Crawled", you: you.healthScore, rivals: side((r) => r.healthScore), format: (n) => `${Math.round(n)}/100`, short: (n) => String(Math.round(n)) },
+    { key: "pages", label: "Pages on the website", source: "Crawled", you: you.pagesCrawled, rivals: side((r) => r.pagesCrawled), format: (n) => `${count(n)} pages`, short: count },
+    { key: "health", label: "Website health score", source: "Crawled", you: you.healthScore, rivals: side((r) => r.healthScore), format: (n) => `${Math.round(n)}/100`, short: (n) => String(Math.round(n)) },
     {
       key: "ai",
-      label: "AI answer share",
+      label: "Named by AI assistants",
       source: "AI sampled",
       you: you.aiChecked ? you.aiSharePct : null,
       rivals: side((r) => aiPct(r.aiNamed, r.aiAnswers)),
@@ -79,7 +79,7 @@ export function buildMetrics(you: YouInput, rivals: RivalInput[]): Metric[] {
       format: pct,
       short: pct,
     },
-    { key: "rating", label: "Local rating", source: "Google Places", you: you.rating, rivals: side((r) => r.rating), format: (n) => `${n.toFixed(1)}★`, short: (n) => n.toFixed(1) },
+    { key: "rating", label: "Google rating", source: "Google Places", you: you.rating, rivals: side((r) => r.rating), format: (n) => `${n.toFixed(1)}★`, short: (n) => n.toFixed(1) },
     { key: "reviews", label: "Google reviews", source: "Google Places", you: you.reviewCount, rivals: side((r) => r.reviewCount), format: count, short: count },
   ];
 }
@@ -160,11 +160,26 @@ function safePath(url: string): string {
 }
 
 const METRIC_COPY: Record<MetricKey, (rival: string, them: string, you: string) => { title: string; detail: string }> = {
-  pages: (r, t, y) => ({ title: `${r} covers more ground`, detail: `${r} has ${t} crawled; you have ${y}. More pages means more questions they can answer.` }),
-  health: (r, t, y) => ({ title: `${r}'s site is technically healthier`, detail: `Tech health ${t} vs your ${y}. Fixing your top issues closes this fastest.` }),
-  ai: (r, t, y) => ({ title: `${r} is named more often by AI assistants`, detail: `Named in ${t} of sampled AI answers vs your ${y} citation share.` }),
-  rating: (r, t, y) => ({ title: `${r} is rated higher on Google`, detail: `${t} on Google vs your ${y}.` }),
-  reviews: (r, t, y) => ({ title: `${r} has more Google reviews`, detail: `${t} reviews vs your ${y}.` }),
+  pages: (r, t, y) => ({
+    title: `${r} has more pages than you`,
+    detail: `${r} has ${t}; you have ${y}. Every useful page is another way for customers to find them. The Gaps tab shows which topics they cover.`,
+  }),
+  health: (r, t, y) => ({
+    title: `${r}'s website has fewer technical problems`,
+    detail: `Their website health score is ${t}; yours is ${y}. Fixing the problems on your own website (listed in Website Audit) makes it easier for Google to show your pages.`,
+  }),
+  ai: (r, t, y) => ({
+    title: `AI assistants mention ${r} more often`,
+    detail: `When we asked AI assistants like ChatGPT the questions your customers ask, they named ${r} in ${t} of answers and you in ${y}.`,
+  }),
+  rating: (r, t, y) => ({
+    title: `${r} has a better Google rating`,
+    detail: `${t} on Google against your ${y}. People often choose the business with better stars.`,
+  }),
+  reviews: (r, t, y) => ({
+    title: `${r} has more Google reviews`,
+    detail: `${t} reviews against your ${y}. More reviews make people trust a business and help it show up on Google Maps.`,
+  }),
 };
 
 /**
@@ -191,7 +206,7 @@ export function buildMoves(
       rival: best.name,
       ...copy,
       source: m.source,
-      confidence: lowSample ? `Low sample (n=${m.sample ?? 0})` : "Measured",
+      confidence: lowSample ? `Based on only ${m.sample ?? 0} AI answers` : "Measured",
       weight: (best.value - m.you) / Math.max(best.value, 1),
       context: { you: m.format(m.you), them: m.format(best.value), metric: m.label },
     });
@@ -204,8 +219,8 @@ export function buildMoves(
       id: `content-gap:${content.topic.toLowerCase()}`,
       kind: "content-gap",
       rival: content.rival,
-      title: `No page of yours covers "${content.topic}"`,
-      detail: `${content.rival} has a dedicated page for it${content.url ? ` (${safePath(content.url)})` : ""}. Your crawl found nothing matching.`,
+      title: `They have a page about "${content.topic}" and you don't`,
+      detail: `${content.rival} has a page on this${content.url ? ` (${safePath(content.url)})` : ""}. We found nothing on your website about it, so people searching for it find them, not you.`,
       source: "Crawled",
       confidence: "Measured",
       weight: 0.5,
@@ -218,8 +233,8 @@ export function buildMoves(
       id: `keyword-gap:${keyword.topic.toLowerCase()}`,
       kind: "keyword-gap",
       rival: keyword.rival,
-      title: `"${keyword.topic}" appears on ${keyword.rival}'s pages, not yours`,
-      detail: `Found in their titles and headings. This is what their pages say, not a ranking: rankings need a search data source.`,
+      title: `${keyword.rival} uses the words "${keyword.topic}" in their headlines, and you don't`,
+      detail: `People searching for these words are more likely to find ${keyword.rival}. Using them on your matching page helps you show up too.`,
       source: "Crawled",
       confidence: "Measured",
       weight: 0.4,
@@ -270,54 +285,98 @@ export function buildThreats(metrics: Metric[], rivals: RivalInput[]): Threat[] 
     .sort((a, b) => order[a.level] - order[b.level] || b.ahead.length - a.ahead.length);
 }
 
-// ─── Counter brief ───────────────────────────────────────────────────────────
+// ─── Plan ────────────────────────────────────────────────────────────────────
 
-/**
- * The fix, written out for a person to apply. Nothing here touches the
- * client's site: the Fix Engine is not enabled on this deployment, so a
- * counter-move is a brief to copy, hand over, or paste into the CMS.
- */
-export function buildCounterBrief(move: Move, you: { domain: string; brand: string }): string {
-  const header = `# Counter-move: ${move.title}\n\nRival: ${move.rival}\nSource: ${move.source} · ${move.confidence}\n\n`;
+/** Why a move matters and what to do, in plain steps. */
+export function movePlan(move: Move, you: { domain: string; brand: string }): { why: string; steps: string[] } {
   const topic = String(move.context.topic ?? "");
   const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
   switch (move.kind) {
     case "content-gap":
-      return (
-        header +
-        `## Page to create\n- URL: https://${you.domain}/${slug}\n- Title (50–60 chars): ${topic} | ${you.brand}\n- H1: ${topic}\n\n` +
-        `## Outline\n1. Direct answer in the first 60 words: what ${topic} is and who it is for.\n2. Details: specifications, process or options.\n3. Why ${you.brand}: proof, certifications, delivery areas.\n4. FAQ: 4–6 questions buyers actually ask.\n5. Call to action: enquiry or order.\n\n` +
-        `## FAQ schema (fill in the answers)\n\`\`\`html\n<script type="application/ld+json">\n{\n  "@context": "https://schema.org",\n  "@type": "FAQPage",\n  "mainEntity": [\n    { "@type": "Question", "name": "What is ${topic}?", "acceptedAnswer": { "@type": "Answer", "text": "…" } }\n  ]\n}\n</script>\n\`\`\`\n\n` +
-        `## Internal links\n- Link to the new page from your homepage and from 2 related product or service pages.\n\n` +
-        `## Rival reference\n${move.context.url || move.context.rivalDomain}\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          `Create a new page about "${topic}", for example at https://${you.domain}/${slug}.`,
+          `Give it a clear title, such as "${topic} | ${you.brand}", and use the same words as the main headline on the page.`,
+          `Start with a short, direct answer: what ${topic} is and who it's for. Then add the details: options, prices, how it works, areas you serve.`,
+          `Add 4-6 questions customers really ask about ${topic}, each with a short answer.`,
+          "End with a clear next step: call, WhatsApp or order.",
+          "Link to the new page from your homepage and from 2 related pages.",
+          ...(move.context.url ? [`For reference, their page: ${move.context.url}`] : []),
+        ],
+      };
     case "keyword-gap":
-      return (
-        header +
-        `## Where to use "${topic}"\n- Pick the one existing page closest to this term, or create one.\n- Title: ${topic} | ${you.brand}\n- Meta description (150–160 chars): start with ${topic}, say who it is for, end with a reason to click.\n- Use the exact phrase once in the H1 or an H2, and once in the first paragraph.\n\n` +
-        `## Check before publishing\n- One page per term: do not add it to several pages that then compete with each other.\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          `Pick the one page on your website that is closest to "${topic}", or create one.`,
+          `Put "${topic}" in that page's title (the blue link people see in Google) and in its main headline.`,
+          "Use the words once more in the first paragraph, naturally.",
+          "Use them on one page only, so your own pages don't compete with each other.",
+        ],
+      };
     case "health":
-      return (
-        header +
-        `## Close the gap: ${move.context.them} vs your ${move.context.you}\n1. Open Website Audit → Issues and sort by impact.\n2. Fix high-severity issues first: duplicate titles, missing canonicals, broken links.\n3. Re-crawl from Website Audit to confirm the score moved.\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          "Open Website Audit. It lists your website's problems, most important first.",
+          "Fix the top problems first, or send the list to whoever looks after your website.",
+          "Run the audit again to check your score went up.",
+        ],
+      };
     case "pages":
-      return (
-        header +
-        `## Close the gap: ${move.context.them} vs your ${move.context.you}\n1. Open Gaps to see the topics they cover that you do not.\n2. Plan one page per real buyer question, not thin copies of each other.\n3. Publish in batches of 3–5 and re-crawl to confirm they are found.\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          "Open the Gaps tab to see the exact topics they have pages for and you don't.",
+          "Pick the topics that match what you sell, and write one helpful page for each.",
+          "Don't make lots of near-identical pages; each page should answer a real customer question.",
+          "Publish 3-5 at a time, then run Website Audit again so they're picked up.",
+        ],
+      };
     case "ai":
-      return (
-        header +
-        `## Earn AI citations\n1. On the pages behind your tracked questions, add a 45–60 word direct answer at the top.\n2. Add FAQPage JSON-LD for the questions on the page.\n3. Keep facts current: dates, prices, delivery areas.\n4. Re-run the AI Visibility sweep to measure the change.\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          "On your main pages, answer the questions customers ask in 2-3 plain sentences near the top.",
+          "Add a short questions-and-answers section to those pages.",
+          "Keep facts up to date: prices, delivery areas, timings.",
+          "Get mentioned on trusted websites: local directories, review sites, news or blogs.",
+          "Check the AI Answers tab in a week or two to see if you're named more often.",
+        ],
+      };
     case "rating":
     case "reviews":
-      return (
-        header +
-        `## Grow reviews: ${move.context.them} vs your ${move.context.you}\n1. Ask every happy customer for a review, with a direct link, within 24 hours of delivery.\n2. Reply to every review, good or bad, within 2 days.\n3. Never offer incentives for reviews; Google removes them.\n`
-      );
+      return {
+        why: move.detail,
+        steps: [
+          "Ask every happy customer for a Google review, with a direct link, within a day of delivery.",
+          "Reply to every review, good or bad, within 2 days.",
+          "Never offer gifts or discounts for reviews; Google removes them.",
+        ],
+      };
   }
+}
+
+/**
+ * The plan written out for a person to apply. Nothing here touches the
+ * client's site: it is a plan to copy, hand over, or follow.
+ */
+export function buildCounterBrief(move: Move, you: { domain: string; brand: string }): string {
+  const { why, steps } = movePlan(move, you);
+  return (
+    `# Plan: ${move.title}
+
+Competitor: ${move.rival}
+Your website: ${you.domain}
+
+` +
+    `## Why this matters
+${why}
+
+## What to do
+${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+`
+  );
 }

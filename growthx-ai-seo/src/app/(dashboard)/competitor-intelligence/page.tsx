@@ -31,21 +31,19 @@ import {
 } from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
 import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
-import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
 import { GapsTab } from "@/components/competitor/gaps-tab";
-import { CompetitorStealthRadarTab } from "@/components/competitor/competitor-stealth-radar-tab";
+import { RivalRadarTab } from "@/components/competitor/rival-radar-tab";
 
 const TABS = [
   { id: "battleground", label: "Battleground" },
   { id: "gaps", label: "Gaps" },
   { id: "radar", label: "Rival Radar" },
   { id: "ai-answers", label: "AI Answers" },
-  { id: "counter-moves", label: "Counter-Moves" },
+  { id: "counter-moves", label: "Your Plans" },
   { id: "report", label: "Full Report" },
 ];
 
@@ -95,7 +93,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
         </span>
         <Radar size={14} className="text-slate-900" />
         <span className="text-[12px] font-bold text-slate-900">
-          Auditing {crawling.length} competitor{crawling.length > 1 ? "s" : ""} — inspecting pages, tech health, keywords &amp; schema
+          Reading {crawling.length} competitor website{crawling.length > 1 ? "s" : ""}. This usually takes a few minutes.
         </span>
         <Loader2 size={13} className="animate-spin text-slate-900 ml-auto" />
       </div>
@@ -114,10 +112,10 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
               <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
               <p className="text-[10.5px] text-slate-500">
                 {c.crawlStatus === "QUEUED" || c.status === "PENDING"
-                  ? "Queued — starting crawler..."
+                  ? "Waiting to start…"
                   : c.pagesCrawled !== undefined && c.pagesCrawled !== null && c.pagesCrawled > 0
-                  ? `${c.pagesCrawled.toLocaleString()} pages indexed`
-                  : "Scanning site hierarchy & backlinks..."}
+                  ? `${c.pagesCrawled.toLocaleString()} pages read so far`
+                  : "Reading their pages…"}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -137,9 +135,11 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
             <div className="flex-1 min-w-0">
               <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
               <p className="text-[10.5px] text-emerald-700">
-                {c.pagesCrawled !== undefined && c.pagesCrawled !== null
-                  ? `${c.pagesCrawled.toLocaleString()} pages — crawl complete`
-                  : "Crawl complete"}
+                {c.pagesCrawled === 0
+                  ? "Couldn't read any pages. Their website may be blocking us."
+                  : c.pagesCrawled !== undefined && c.pagesCrawled !== null
+                    ? `Done: ${c.pagesCrawled.toLocaleString()} pages read`
+                    : "Done"}
               </p>
             </div>
           </div>
@@ -147,7 +147,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
       </div>
 
       <p className="mt-2.5 text-[10.5px] text-slate-400">
-        Automatic background sync runs continuously. Results appear in your gap analysis once site scans complete.
+        We re-check every competitor automatically. Results appear in each tab as soon as a website has been read.
       </p>
     </div>
   );
@@ -209,46 +209,6 @@ function CompetitorIntelligenceClient() {
     }
   };
 
-  // Fix Plan Toast state
-  const [fixPlanToast, setFixPlanToast] = useState<{
-    count: number;
-    label: string;
-  } | null>(null);
-
-  const handleAddToFixPlan = (count: number, label?: string) => {
-    const resolvedLabel = label || `${count} Items`;
-    if (projectId) {
-      const itemsToStage = Array.from({ length: Math.max(1, count) }).map((_, idx) => ({
-        title: count === 1 ? resolvedLabel : `${resolvedLabel} #${idx + 1}`,
-        category:
-          activeTab === "keywords"
-            ? "Content & Keyword Gaps"
-            : activeTab === "content"
-              ? "Content Strategy"
-              : activeTab === "technical"
-                ? "Technical SEO"
-                : "Competitor Intelligence",
-        source: (activeTab === "keywords"
-          ? "COMPETITOR_KEYWORD"
-          : activeTab === "content"
-            ? "COMPETITOR_CONTENT"
-            : activeTab === "ai-visibility"
-              ? "AI_VISIBILITY"
-              : "COMPETITOR_CONTENT") as StagedSourceType,
-        priority: (idx === 0 ? "CRITICAL" : idx < 3 ? "HIGH" : "MEDIUM") as "CRITICAL" | "HIGH" | "MEDIUM",
-        impact: "Target competitor search volume and bridge coverage gap",
-        effortHours: 3,
-        deliverable: "Targeted landing page brief & schema patch",
-        evidence: `Discovered during competitor intelligence analysis for ${customerDomain || "target domain"}`,
-      }));
-      stagingEngine.stageBatch(projectId, itemsToStage);
-    }
-    setFixPlanToast({ count, label: resolvedLabel });
-    // Clear toast automatically after 8 seconds
-    setTimeout(() => {
-      setFixPlanToast(null);
-    }, 8000);
-  };
 
   // Add Competitor modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -376,45 +336,6 @@ function CompetitorIntelligenceClient() {
         </div>
       </div>
 
-      {/* ── FIX PLAN INTEGRATION TOAST NOTIFICATION ── */}
-      {fixPlanToast && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950 text-white shadow-xl shadow-slate-950/20 animate-in fade-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-slate-950 flex items-center justify-center text-white shrink-0 shadow-2xs">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white flex items-center gap-2">
-                <span>Saved to Counter-Moves</span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Saved <strong>{fixPlanToast.count} items ({fixPlanToast.label})</strong> as drafts in this browser. Nothing is changed on your site.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-            <button
-              type="button"
-              onClick={() => {
-                setFixPlanToast(null);
-                setActiveTab("counter-moves");
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition shadow-2xs"
-            >
-              <span>View drafts</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setFixPlanToast(null)}
-              className="p-1 text-slate-400 hover:text-white rounded-lg transition"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip competitors={competitorsList} />
@@ -440,11 +361,10 @@ function CompetitorIntelligenceClient() {
       )}
 
       {activeTab === "radar" && (
-        <CompetitorStealthRadarTab
+        <RivalRadarTab
           projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
+          domain={customerDomain}
+          onOpenCounterMoves={() => setActiveTab("counter-moves")}
         />
       )}
 
@@ -457,15 +377,7 @@ function CompetitorIntelligenceClient() {
       )}
 
       {activeTab === "counter-moves" && (
-        <div className="space-y-6">
-          <CounterMoveDrafts projectId={projectId || ""} />
-          <CompetitorInterceptEngine
-            projectId={projectId || ""}
-            customerDomain={customerDomain}
-            competitors={competitorsList}
-            onAddToFixPlan={handleAddToFixPlan}
-          />
-        </div>
+        <CounterMoveDrafts projectId={projectId || ""} onOpenTab={(tab) => setActiveTab(tab)} />
       )}
 
       {activeTab === "report" && <CompetitorReportTab projectId={projectId || ""} rivalCount={competitorsList.length} />}

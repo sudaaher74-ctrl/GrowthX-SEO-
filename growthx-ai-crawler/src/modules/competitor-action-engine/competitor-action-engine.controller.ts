@@ -12,7 +12,7 @@ import { CompetitorSeoReportService } from './competitor-seo-report.service';
 import { CompetitorIntelReportService } from './competitor-intel-report.service';
 import { CompetitorInterceptService } from './competitor-intercept.service';
 import { ProgrammaticDecompilerService } from './programmatic-decompiler.service';
-import { CompetitorStealthRadarService } from './competitor-stealth-radar.service';
+import { RivalMovesService } from './rival-moves.service';
 import { PrismaService } from '../../database/prisma.service';
 
 export class UpdateActionDto {
@@ -153,7 +153,7 @@ export class CompetitorActionEngineController {
     private readonly seoReport: CompetitorSeoReportService,
     private readonly interceptService: CompetitorInterceptService,
     private readonly decompiler: ProgrammaticDecompilerService,
-    private readonly radar: CompetitorStealthRadarService,
+    private readonly movesFeed: RivalMovesService,
     private readonly prisma: PrismaService,
     private readonly intelReport: CompetitorIntelReportService,
   ) {}
@@ -379,12 +379,15 @@ export class CompetitorActionEngineController {
     return this.decompiler.getProgrammaticMatrix(projectId, competitorId);
   }
 
-  @Get('stealth-radar')
-  @ApiOperation({ summary: 'Real-time stealth radar detecting competitor DOM/Schema changes, title pivots, and broken 404 links' })
-  getStealthRadar(
-    @Param('projectId') projectId: string,
-  ) {
-    return this.radar.getStealthRadarEvents(projectId);
+  @Get('rival-moves')
+  @ApiOperation({
+    summary: 'What competitors changed recently',
+    description:
+      'New pages, expanded pages, changed headlines, new structured data and removed pages, from the daily page ' +
+      'check and the last two crawls, plus AI answers that named a competitor and not you. Last 30 days.',
+  })
+  rivalMoves(@Param('projectId') projectId: string) {
+    return this.movesFeed.feed(projectId);
   }
 
   @Post('dispatch-to-queue')

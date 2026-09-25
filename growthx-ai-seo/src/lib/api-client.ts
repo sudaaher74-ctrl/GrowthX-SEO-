@@ -2038,34 +2038,28 @@ export interface ProgrammaticMatrixResponse {
   clusters: ProgrammaticCluster[];
 }
 
-/** Mirrors StealthRadarEvent in growthx-ai-crawler competitor-stealth-radar.service.ts. */
-export interface StealthRadarEvent {
+/** Mirrors RivalMove in growthx-ai-crawler rival-moves.ts. */
+export interface RivalMove {
   id: string;
-  type: "SCHEMA_GAP" | "BACKLINK_VAMPIRE" | "TITLE_PIVOT" | "AI_CITATION_POACH" | "SPEED_DEFECT";
-  severity: "CRITICAL" | "HIGH" | "MEDIUM";
-  competitorDomain: string;
-  competitorUrl: string;
-  headline: string;
-  description: string;
-  detectedAt: string;
-  /** A fixed weight per event type, used to rank alerts — not a measurement. */
-  impactScore: number;
-  counterAction: {
-    label: string;
-    deliverableType: "JSON_LD" | "HTML_SNIPPET" | "CITATION_BAIT" | "OUTREACH_PITCH";
-    codeSnippet: string;
-    actionableSummary: string;
-  };
+  kind: "NEW_PAGE" | "EXPANDED" | "RETITLED" | "SCHEMA_ADDED" | "PAGE_GONE" | "AI_NAMED";
+  rival: string;
+  rivalDomain: string;
+  url: string | null;
+  title: string | null;
+  at: string;
+  source: "daily-check" | "crawl" | "ai-answers";
+  from?: string | null;
+  to?: string | null;
+  added?: string[];
+  words?: { from: number; to: number };
+  count?: number;
+  questions?: string[];
 }
 
-export interface StealthRadarResponse {
-  scoreboard: {
-    activeEventsCount: number;
-    criticalVulnerabilities: number;
-    backlinkOpportunities: number;
-    aiCitationDeficits: number;
-  };
-  events: StealthRadarEvent[];
+export interface RivalMovesResponse {
+  moves: RivalMove[];
+  windowDays: number;
+  watching: Array<{ name: string; domain: string; lastCheckedAt: string | null }>;
 }
 
 export interface DispatchFindingBody {
@@ -3592,8 +3586,8 @@ export const api = {
       `/api/projects/${projectId}/action-engine/programmatic-matrix${competitorId ? `?competitorId=${encodeURIComponent(competitorId)}` : ""}`,
     ),
 
-  getStealthRadar: (projectId: string) =>
-    get<StealthRadarResponse>(`/api/projects/${projectId}/action-engine/stealth-radar`),
+  getRivalMoves: (projectId: string) =>
+    get<RivalMovesResponse>(`/api/projects/${projectId}/action-engine/rival-moves`),
 
   dispatchFindingToQueue: (projectId: string, body: DispatchFindingBody) =>
     post<{ success: boolean; message: string; opportunityId: string; fingerprint: string }>(
