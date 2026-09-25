@@ -3,12 +3,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, ListTodo, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, FileBarChart, Zap, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import {
-  useAiVisibilityRoadmapTasks,
   useEntitlements,
   usePortfolio,
   useWorkspace,
@@ -62,11 +61,6 @@ export function Sidebar({
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
   const issueCounts = useIssueCounts(projectId);
-  // The roadmap lists audit issues and AI Visibility tasks together, so the
-  // badge counts both.
-  const aiTasks = useAiVisibilityRoadmapTasks(projectId);
-  const needsYouCount = (issueCounts.data?.openGroups ?? 0) + (aiTasks.data?.groups.length ?? 0);
-  const criticalCount = issueCounts.data?.bySeverity?.CRITICAL ?? 0;
 
   // The guided order: audit your own site, add the rivals, then ask the AI
   // assistants — each step feeds the next (AI Visibility matches questions to
@@ -85,14 +79,6 @@ export function Sidebar({
 
   // Core Navigation Tabs strictly following Master Product Specification
   const mainNav: NavItem[] = [
-    {
-      label: "SEO Roadmap",
-      href: "/action-queue",
-      icon: ListTodo,
-      aliases: ["/roadmap"],
-      tag: needsYouCount > 0 ? String(needsYouCount) : undefined,
-      tagTone: criticalCount > 0 ? "danger" : "default",
-    },
     {
       label: "Dashboard",
       href: "/dashboard",
