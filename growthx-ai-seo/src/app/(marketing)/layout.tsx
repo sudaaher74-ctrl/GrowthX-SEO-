@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "GrowthX — AI-Powered SEO & GEO Automation Platform",
+  title: "GrowthX – AI SEO & Google Business Profile Automation",
   description:
-    "GrowthX analyzes your website, competitors, and AI platforms, creates a prioritized 30-day plan, and automatically implements the improvements for you.",
+    "Audit your site, track rivals and AI search, and let GrowthX ship the fixes. Built for Indian brands and agencies. Free audit, plans from ₹2,999/month.",
+  openGraph: {
+    title: "Find it. Fix it. Prove it. — GrowthX",
+    description:
+      "Audit your site, track rivals and AI search, and let GrowthX ship the fixes. Built for Indian brands and agencies.",
+  },
 };
 
 export default function MarketingLayout({

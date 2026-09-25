@@ -134,14 +134,14 @@ const RULES = [
     except: /^\s*(\/\/|\*|\/\*)/,
     allow: [
       {
-        file: 'components/marketing/trust-section.tsx',
-        line: '"Milquu Fresh"',
+        file: 'components/marketing/proof-strip.tsx',
+        line: '"MilQuu Fresh"',
         reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
       },
       {
-        file: 'components/marketing/workflow-steps.tsx',
-        line: '"Milquu Fresh"',
-        reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
+        file: 'components/marketing/landing-footer.tsx',
+        line: 'Navi Mumbai',
+        reason: 'Official registered company contact address in the footer.',
       },
       {
         file: 'app/login/page.tsx',

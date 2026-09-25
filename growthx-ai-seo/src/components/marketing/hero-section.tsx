@@ -1,356 +1,225 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import {
   ArrowRight,
-  Check,
-  FileText,
-  BarChart3,
-  Sparkles,
-  Settings,
-  Bell,
-  ChevronDown,
-  Calendar,
-  Search,
   Zap,
-  RotateCcw,
-  Target,
-  Wrench,
-  FileSpreadsheet,
-  Home,
+  Globe,
+  Swords,
 } from "lucide-react";
+import { auth } from "@/lib/api-client";
 
-function DashboardMockup() {
+function BattlegroundMockup() {
+  const [countered, setCountered] = useState(false);
+
   return (
-    <div className="relative select-none w-full max-w-[510px] mx-auto lg:mr-4">
-      {/* Top Floating Badge: SEO Health Score — completely above the card */}
-      <div className="absolute bottom-[calc(100%+16px)] left-6 sm:left-10 z-20 bg-brand-900 rounded-2xl shadow-xl border border-brand-800 p-2.5 sm:p-3 w-40 animate-float hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
-          <div className="w-5 h-5 rounded-lg bg-success-500/10 text-success-400 flex items-center justify-center">
-            <Sparkles size={11} />
-          </div>
-          <p className="text-[10px] font-bold text-white">SEO Health Score</p>
-        </div>
-        <div className="flex items-end justify-between mt-0.5">
-          <div>
-            <p className="text-xl font-black text-white leading-none">78</p>
-            <p className="text-[9px] font-bold text-success-400 mt-0.5">↑ 22%</p>
-          </div>
-          <svg className="w-10 h-5 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 16 Q 14 6, 26 12 T 48 3" />
-          </svg>
-        </div>
-      </div>
+    <div className="relative select-none w-full max-w-[530px] mx-auto lg:mr-2">
+      {/* Background ambient glow */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-series-6/30 via-series-6/20 to-accent-500/30 rounded-3xl blur-xl opacity-70 pointer-events-none" />
 
-      {/* Main Dashboard Card */}
-      <div className="relative mt-6 bg-brand-900 rounded-3xl shadow-2xl border border-brand-800 overflow-hidden">
-        {/* Container with Sidebar + Main Workspace */}
-        <div className="flex">
-          {/* Sidebar */}
-          <div className="w-28 sm:w-32 bg-brand-950 p-3 shrink-0 flex flex-col justify-between border-r border-brand-900">
+      {/* Main Container */}
+      <div className="relative bg-brand-900/90 border border-brand-800 rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-xl text-white space-y-4">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-brand-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-series-6/20 border border-series-6/40 flex items-center justify-center text-series-400">
+              <Swords size={16} />
+            </div>
             <div>
-              {/* Logo */}
-              <div className="mb-3.5 pl-1">
-                <span className="text-sm font-black tracking-tight text-white">
-                  Growth<span className="text-series-6">X</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-300">Live Battleground</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-success-500/10 text-success-400 border border-success-500/30">
+                  Updated today
                 </span>
               </div>
-
-              {/* Sidebar Menu */}
-              <div className="space-y-0.5">
-                {[
-                  { icon: Home, label: "Dashboard", active: true },
-                  { icon: RotateCcw, label: "Website Audit" },
-                  { icon: Target, label: "Competitor Intel" },
-                  { icon: Sparkles, label: "AI Visibility" },
-                  { icon: Wrench, label: "Fix Engine" },
-                  { icon: FileSpreadsheet, label: "Reports" },
-                  { icon: Settings, label: "Settings" },
-                ].map((item) => {
-                  const ItemIcon = item.icon;
-                  return (
-                    <div
-                      key={item.label}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
-                        item.active
-                          ? "bg-series-6/30 text-white border border-series-6/40 shadow-xs"
-                          : "text-brand-400 hover:text-white"
-                      }`}
-                    >
-                      <ItemIcon size={12} className={item.active ? "text-series-6" : "text-brand-400"} />
-                      <span className="truncate">{item.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <p className="text-[11px] text-brand-400 font-mono mt-0.5">yoursite.com vs competitor.com</p>
             </div>
           </div>
+          <span className="text-[11px] text-brand-400 font-semibold hidden sm:inline">Active match</span>
+        </div>
 
-          {/* Right Main Content */}
-          <div className="flex-1 min-w-0 flex flex-col bg-brand-950">
-            {/* Top Bar */}
-            <div className="flex items-center justify-between px-3.5 py-2 border-b border-brand-900 bg-brand-900/40">
-              {/* Search placeholder */}
-              <div className="w-32 sm:w-44 h-6 bg-brand-900 rounded-lg border border-brand-800/80" />
+        {/* Head-to-Head Comparison Grid */}
+        <div className="grid grid-cols-3 gap-2.5">
+          {/* SEO Health */}
+          <div className="bg-brand-950/70 border border-brand-800/80 rounded-2xl p-3 text-center space-y-1">
+            <p className="text-[10px] uppercase font-bold text-brand-400">SEO Health</p>
+            <div className="flex items-baseline justify-center gap-1.5">
+              <span className="text-lg font-black text-success-400">78%</span>
+              <span className="text-xs text-brand-500">vs</span>
+              <span className="text-sm font-semibold text-brand-400">64%</span>
+            </div>
+            <p className="text-[10px] font-medium text-success-400/90">+14% edge</p>
+          </div>
 
-              {/* Right Profile / Bell controls */}
+          {/* AI Answer Share */}
+          <div className="bg-brand-950/70 border border-brand-800/80 rounded-2xl p-3 text-center space-y-1">
+            <p className="text-[10px] uppercase font-bold text-brand-400">AI Answer Share</p>
+            <div className="flex items-baseline justify-center gap-1.5">
+              <span className="text-lg font-black text-series-400">42%</span>
+              <span className="text-xs text-brand-500">vs</span>
+              <span className="text-sm font-semibold text-brand-400">28%</span>
+            </div>
+            <p className="text-[10px] font-medium text-series-400/90">+14% citations</p>
+          </div>
+
+          {/* Open Issues */}
+          <div className="bg-brand-950/70 border border-brand-800/80 rounded-2xl p-3 text-center space-y-1">
+            <p className="text-[10px] uppercase font-bold text-brand-400">Open Issues</p>
+            <div className="flex items-baseline justify-center gap-1.5">
+              <span className="text-lg font-black text-white">14</span>
+              <span className="text-xs text-brand-500">vs</span>
+              <span className="text-sm font-semibold text-error-400">31</span>
+            </div>
+            <p className="text-[10px] font-medium text-success-400/90">55% cleaner</p>
+          </div>
+        </div>
+
+        {/* This Week's Move Card */}
+        <div className="bg-gradient-to-br from-brand-950 via-brand-950/90 to-brand-900 border border-series-6/30 rounded-2xl p-4 space-y-3 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Bell size={13} className="text-brand-400" />
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-warning-500" />
-                </div>
-                <div className="flex items-center gap-1 pl-1.5 border-l border-brand-850">
-                  <div className="w-5 h-5 rounded-full bg-series-6 text-white font-extrabold text-[9px] flex items-center justify-center">
-                    S
-                  </div>
-                  <ChevronDown size={10} className="text-brand-400" />
-                </div>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-warning-400 bg-warning-500/10 px-2 py-0.5 rounded-full border border-warning-500/20">
+                  <Zap size={11} className="fill-warning-400 text-warning-400" />
+                  This week&apos;s move
+                </span>
+                <span className="text-[10px] text-brand-400 font-medium">3 days ago</span>
               </div>
+              <p className="text-xs sm:text-[13px] font-semibold text-white leading-snug">
+                Rival added 3 product schema pages for &ldquo;A2 Desi Cow Ghee&rdquo;
+              </p>
             </div>
-
-            {/* Dashboard Workspace */}
-            <div className="p-3.5 space-y-3">
-              {/* Overview Header & Filter Pills */}
-              <div className="flex flex-wrap items-center justify-between gap-1.5">
-                <h3 className="text-xs font-black text-white tracking-tight">
-                  Website Overview
-                </h3>
-
-                <div className="flex items-center gap-1.5">
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-900 hover:bg-brand-850 rounded-md text-[9px] font-semibold text-brand-300 border border-brand-800 cursor-pointer">
-                    <Search size={9} className="text-brand-400" />
-                    <span>yourwebsite.com</span>
-                    <ChevronDown size={9} className="text-brand-400" />
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-900 hover:bg-brand-850 rounded-md text-[9px] font-semibold text-brand-300 border border-brand-800 cursor-pointer">
-                    <Calendar size={9} className="text-brand-400" />
-                    <span>Last 30 days</span>
-                    <ChevronDown size={9} className="text-brand-400" />
-                  </div>
-                </div>
-              </div>
-
-              {/* 4 KPI Cards with Wavy Sparklines */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {/* 1: SEO Health */}
-                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-brand-400">SEO Health</p>
-                  <div className="flex items-end justify-between mt-1">
-                    <div>
-                      <p className="text-sm sm:text-base font-black text-white leading-none">68</p>
-                      <p className="text-[8px] font-bold text-success-400 mt-0.5">↑ 12%</p>
-                    </div>
-                    <svg className="w-8 sm:w-10 h-4 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 16 Q 14 6, 26 12 T 48 3" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* 2: AI Visibility */}
-                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-brand-400">AI Visibility</p>
-                  <div className="flex items-end justify-between mt-1">
-                    <div>
-                      <p className="text-sm sm:text-base font-black text-white leading-none">52</p>
-                      <p className="text-[8px] font-bold text-series-6 mt-0.5">↑ 28%</p>
-                    </div>
-                    <svg className="w-8 sm:w-10 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 17 Q 14 10, 26 13 T 48 4" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* 3: Organic Traffic */}
-                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-brand-400">Organic Traffic</p>
-                  <div className="flex items-end justify-between mt-1">
-                    <div>
-                      <p className="text-sm sm:text-base font-black text-white leading-none">12.4K</p>
-                      <p className="text-[8px] font-bold text-accent-400 mt-0.5">↑ 22%</p>
-                    </div>
-                    <svg className="w-8 sm:w-10 h-4 text-accent-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 18 Q 14 14, 26 10 T 48 2" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* 4: Ranking Keywords */}
-                <div className="bg-brand-900/60 rounded-xl p-2 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <p className="text-[8px] font-bold text-brand-400">Ranking Keywords</p>
-                  <div className="flex items-end justify-between mt-1">
-                    <div>
-                      <p className="text-sm sm:text-base font-black text-white leading-none">1,240</p>
-                      <p className="text-[8px] font-bold text-series-6 mt-0.5">↑ 18%</p>
-                    </div>
-                    <svg className="w-8 sm:w-10 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 16 Q 14 14, 26 9 T 48 4" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom 2 Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-                {/* Current 30-Day Plan */}
-                <div className="bg-brand-900/60 rounded-xl p-3 border border-brand-800/80 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
-                        <Calendar size={12} />
-                      </div>
-                      <div>
-                        <h4 className="text-[11px] font-extrabold text-white leading-tight">
-                          Current 30-Day Plan
-                        </h4>
-                        <p className="text-[9px] text-brand-400">
-                          12 of 38 actions completed
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 my-2">
-                      <div className="flex-1 bg-brand-950 rounded-full h-1.5 overflow-hidden border border-brand-850">
-                        <div className="bg-series-6 h-1.5 rounded-full" style={{ width: "32%" }} />
-                      </div>
-                      <span className="text-[9px] font-bold text-brand-300">32%</span>
-                    </div>
-                  </div>
-
-                  <button className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
-                    <span>View Plan</span>
-                    <ArrowRight size={9} />
-                  </button>
-                </div>
-
-                {/* Let GrowthX do the work */}
-                <div className="bg-brand-900/40 rounded-xl p-3 border border-brand-800 shadow-xs flex items-start gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
-                    <Zap size={14} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-extrabold text-white leading-tight">
-                      Let GrowthX do the work
-                    </h4>
-                    <p className="text-[10px] text-brand-400 leading-relaxed mt-0.5">
-                      From insights to execution, all in one place.
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <div className="text-right shrink-0">
+              <span className="text-xs font-bold text-success-400 bg-success-500/10 px-2.5 py-1 rounded-lg border border-success-500/20 block">
+                +₹18,500/mo
+              </span>
+              <span className="text-[10px] text-brand-400 block mt-0.5">Est. value</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Bottom Floating Badge: AI Visibility — completely below the card */}
-      <div className="absolute top-[calc(100%+16px)] right-6 sm:right-10 z-20 bg-brand-900 rounded-2xl shadow-xl border border-brand-800 p-2.5 sm:p-3 w-40 animate-float-slow hidden sm:block">
-        <div className="flex items-center gap-1.5 mb-1 text-brand-400">
-          <div className="w-5 h-5 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center">
-            <Sparkles size={11} />
+          {/* Action Row */}
+          <div className="flex items-center justify-between pt-1 border-t border-brand-800/60">
+            <span className="text-[11px] text-brand-300">
+              {countered
+                ? "✓ Counter-strategy drafted and ready in Fix Engine"
+                : "Counter-play ready to deploy: Product Schema + FAQ"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCountered(true)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                countered
+                  ? "bg-success-600 text-white cursor-default"
+                  : "bg-series-6 hover:bg-series-6/90 text-white cursor-pointer active:scale-95"
+              }`}
+            >
+              {countered ? "Countered" : "Counter"}
+              {!countered && <ArrowRight size={12} />}
+            </button>
           </div>
-          <p className="text-[10px] font-bold text-white">AI Visibility</p>
         </div>
-        <div className="flex items-end justify-between mt-0.5">
-          <div>
-            <p className="text-xl font-black text-white leading-none">52</p>
-            <p className="text-[9px] font-bold text-series-6 mt-0.5">↑ 28%</p>
-          </div>
-          <svg className="w-10 h-5 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 17 Q 14 10, 26 13 T 48 4" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Cursive annotation with arrow at bottom right */}
-      <div className="absolute -bottom-14 right-4 sm:right-8 z-20 flex flex-col items-center text-series-6">
-        <svg
-          className="w-6 h-6 text-series-6 transform rotate-45 -translate-x-2 translate-y-1"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-        </svg>
-        <p
-          className="font-bold text-xs sm:text-sm whitespace-nowrap text-series-6"
-          style={{ fontFamily: "cursive", transform: "rotate(-4deg)" }}
-        >
-          From insights<br className="sm:hidden" /> to real growth
-        </p>
       </div>
     </div>
   );
 }
 
 export function HeroSection() {
-  const signedIn = useSyncExternalStore(
-    subscribeToAuthChange,
-    () => auth.isAuthenticated(),
-    () => false,
-  );
+  const router = useRouter();
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = url.trim();
+    setLoading(true);
+    const destination = auth.isAuthenticated() ? "/dashboard" : "/register";
+    if (trimmed) {
+      const clean = trimmed.replace(/^https?:\/\//i, "");
+      router.push(`${destination}?url=${encodeURIComponent(clean)}`);
+    } else {
+      router.push(destination);
+    }
+  };
 
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-brand-950 pt-20 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-900 overflow-hidden">
-      {/* Soft background ambient glow */}
+    <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-brand-950 pt-24 pb-16 lg:pt-32 lg:pb-24 border-b border-brand-900 overflow-hidden">
+      {/* Background ambient lighting */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-series-6/10 blur-[130px]" />
-        <div className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full bg-accent-600/10 blur-[120px]" />
+        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-series-6/15 blur-[140px]" />
+        <div className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full bg-accent-600/10 blur-[130px]" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-4">
-        <div className="grid lg:grid-cols-[46%_54%] gap-8 lg:gap-10 items-center">
-          {/* LEFT COLUMN */}
-          <div className="space-y-5 lg:space-y-6">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-brand-900/80 border border-brand-800 text-brand-300 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full backdrop-blur-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-series-6 animate-pulse" />
-              AI Powered SEO &amp; GEO Automation
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="grid lg:grid-cols-[50%_50%] gap-10 lg:gap-12 items-center">
+          {/* LEFT COLUMN: Copy & Primary CTA */}
+          <div className="space-y-6">
+            {/* Eyebrow */}
+            <div className="inline-flex items-center gap-2 bg-brand-900/90 border border-brand-800 text-brand-300 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full backdrop-blur-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-series-6 animate-pulse" />
+              AI SEO + GOOGLE BUSINESS PROFILE, ON AUTOPILOT
             </div>
 
             {/* Headline */}
-            <div>
-              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold text-white leading-[1.1] tracking-tight">
-                Everything you need to<br />
-                grow in the
-              </h1>
-              <h1 className="text-4xl sm:text-5xl lg:text-[48px] font-extrabold leading-[1.1] tracking-tight bg-gradient-to-r from-series-6 via-violet-400 to-accent-400 bg-clip-text text-transparent mt-1">
-                age of AI search.
-              </h1>
-            </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-extrabold text-white leading-[1.12] tracking-tight">
+              Find what&apos;s costing you customers.{" "}
+              <span className="bg-gradient-to-r from-series-6 to-accent-400 bg-clip-text text-transparent">
+                Fix it before your competitors do.
+              </span>
+            </h1>
 
-            {/* Subtitle */}
+            {/* Subhead */}
             <p className="text-base sm:text-lg text-brand-400 leading-relaxed max-w-xl">
-              GrowthX brings together technical SEO, competitor intelligence, and AI visibility—and turns insights into automatic execution.
+              GrowthX crawls your website, tracks your rivals and checks how AI assistants talk about you.
+              Then it writes and ships the fixes, and proves they worked.
             </p>
 
-            {/* CTAs */}
-            <div className="flex flex-wrap items-center gap-3.5 pt-1">
-              <Link
-                href={signedIn ? "/dashboard" : "/login"}
-                className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm sm:text-[15px] px-6 py-3.5 rounded-2xl transition-all shadow-lg cursor-pointer"
-              >
-                <span>Go to Dashboard</span>
-                <ArrowRight size={16} />
-              </Link>
-            </div>
-
-            {/* Trust signals */}
-            <div className="flex flex-wrap items-center gap-5 pt-1 text-xs sm:text-[13px] text-brand-400 font-semibold">
-              {["No credit card required", "Instant site crawl", "Setup in minutes"].map((item) => (
-                <div key={item} className="flex items-center gap-1.5">
-                  <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
-                  <span>{item}</span>
+            {/* Primary CTA: URL Audit Box */}
+            <div className="space-y-2.5 max-w-xl">
+              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch gap-2 bg-brand-900/90 border border-brand-800 rounded-2xl p-2 shadow-2xl focus-within:border-series-6 transition-colors">
+                <div className="flex items-center gap-2.5 px-3 py-2 flex-1">
+                  <Globe size={18} className="text-brand-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="yourwebsite.com"
+                    className="bg-transparent text-white placeholder-brand-500 text-sm font-medium w-full focus:outline-none"
+                  />
                 </div>
-              ))}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm px-6 py-3.5 rounded-xl transition-all shadow-lg shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    <span>Opening…</span>
+                  ) : (
+                    <>
+                      <span>Run free audit</span>
+                      <ArrowRight size={15} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Microcopy & Secondary link */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-brand-400">
+                <span className="font-medium">Free · No card needed · Results in about 60 seconds</span>
+                <Link
+                  href="/login"
+                  className="font-semibold text-series-400 hover:text-series-300 transition-colors inline-flex items-center gap-1"
+                >
+                  Already a customer? Log in →
+                </Link>
+              </div>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Dashboard mockup */}
-          <div className="relative flex justify-center lg:justify-end pr-2 sm:pr-4">
-            <DashboardMockup />
+          {/* RIGHT COLUMN: Hero Battleground Visual */}
+          <div className="relative flex justify-center lg:justify-end">
+            <BattlegroundMockup />
           </div>
         </div>
       </div>
