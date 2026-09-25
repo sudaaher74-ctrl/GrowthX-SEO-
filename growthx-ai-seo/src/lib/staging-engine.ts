@@ -168,6 +168,18 @@ export const stagingEngine = {
     notify(projectId);
   },
 
+  /** Moves an item between to-do and done. */
+  setStatus(projectId: string | null | undefined, id: string, status: StagedFixItem["status"]) {
+    if (!projectId) return;
+    const current = this.getStaged(projectId);
+    if (!current.some((c) => c.id === id && c.status !== status)) return;
+    writeToStorage(
+      projectId,
+      current.map((c) => (c.id === id ? { ...c, status } : c)),
+    );
+    notify(projectId);
+  },
+
   clear(projectId: string | null | undefined) {
     if (!projectId) return;
     memoryStore.set(projectId, EMPTY_STAGED_ITEMS);

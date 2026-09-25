@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, Plus, Swords, X } from "lucide-react";
+import { ClipboardList, Plus, Swords } from "lucide-react";
+import { PlanModal } from "@/components/competitor/plan-modal";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { useCrawlPages, useLatestCrawl, useLocalSeo, useVisibility } from "@/hooks/use-growthx";
@@ -12,6 +13,7 @@ import {
   LOW_SAMPLE,
   bestRival,
   buildCounterBrief,
+  movePlan,
   buildMetrics,
   buildMoves,
   buildThreats,
@@ -58,9 +60,21 @@ function EmptyNote({ title, message }: { title: string; message: string }) {
 
 function SourceBadge({ metric }: { metric: Pick<Metric, "source" | "sample" | "key"> }) {
   const low = metric.key === "ai" && (metric.sample ?? 0) < LOW_SAMPLE;
-  const label = metric.key === "ai" && metric.sample != null ? `AI sampled n=${metric.sample}` : metric.source;
+  const label =
+    metric.key === "ai" && metric.sample != null
+      ? low
+        ? `Based on only ${metric.sample} AI answers`
+        : `From ${metric.sample} AI answers`
+      : SOURCE_LABEL[metric.source] ?? metric.source;
   return <Pill tone={low ? "warn" : "info"}>{label}</Pill>;
 }
+
+/** Where a number came from, in words. */
+const SOURCE_LABEL: Record<string, string> = {
+  Crawled: "From their website",
+  "AI sampled": "From AI answers",
+  "Google Places": "From Google",
+};
 
 const THREAT_TONE: Record<ThreatLevel, "bad" | "warn" | "good" | "default"> = {
   High: "bad",
@@ -191,7 +205,7 @@ export function BattlegroundTab({
     return (
       <Panel padded>
         <EmptyNote
-          title="No rivals tracked yet"
+          title="No competitors added yet"
           message="Add a competitor to see who you are winning and losing against, and what to do about it."
         />
         <div className="mt-3 flex justify-center">
@@ -219,7 +233,7 @@ export function BattlegroundTab({
               type="button"
               onClick={() => toggleRival(c.id)}
               disabled={full}
-              title={full ? `Compare up to ${MAX_RIVALS} rivals at once` : undefined}
+              title={full ? `Compare up to ${MAX_RIVALS} competitors at once` : undefined}
               className={`rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40 ${
                 on ? "bg-white text-brand-950" : "bg-brand-50 text-brand-400 line-through"
               }`}
@@ -229,10 +243,10 @@ export function BattlegroundTab({
           );
         })}
         <ActionButton variant="secondary" icon={<Plus size={13} />} onClick={onAddCompetitor}>
-          Add rival
+          Add competitor
         </ActionButton>
         <span className="ml-auto text-[11px] text-brand-400">
-          Your last crawl: {ourCrawl.data?.finishedAt ? relativeTime(ourCrawl.data.finishedAt) : "not yet"}
+          We last read your website: {ourCrawl.data?.finishedAt ? relativeTime(ourCrawl.data.finishedAt) : "not yet"}
         </span>
       </div>
 
@@ -247,15 +261,15 @@ export function BattlegroundTab({
               label={m.label}
               value={m.you != null ? m.short(m.you) : "—"}
               delta={delta}
-              deltaSuffix={m.key === "ai" ? "pt" : ""}
+              deltaSuffix={m.key === "ai" ? "%" : ""}
               sub={
                 <span className="flex flex-col items-start gap-1.5">
                   <span>
                     {m.you == null
-                      ? "Not measured for you yet"
+                      ? "No data for you yet"
                       : best?.value != null
-                        ? `Best rival: ${best.name}, ${m.key === "ai" ? `named in ${m.format(best.value)}` : m.format(best.value)}`
-                        : "No rival measured yet"}
+                        ? `Best competitor: ${best.name}, ${m.key === "ai" ? `named in ${m.format(best.value)} of answers` : m.format(best.value)}`
+                        : "No competitor data yet"}
                   </span>
                   <SourceBadge metric={m} />
                 </span>
@@ -265,30 +279,29 @@ export function BattlegroundTab({
         })}
       </div>
       <p className="text-[11px] text-brand-400">
-        Organic visibility and local grid share are not shown: they need a search-ranking data source, which is not
-        connected yet.
+        Your Google ranking positions aren&apos;t shown yet: connect Google Search Console in Integrations to add them.
       </p>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* This week's moves */}
         <div className="lg:col-span-2">
           <Panel
-            title="This week's moves"
-            subtitle="Where a rival is measurably ahead, and what they have that you do not"
+            title="What to do this week"
+            subtitle="Where a competitor is ahead of you, and what to do about it. Most important first."
             actions={
               <ActionButton variant="secondary" onClick={onOpenCounterMoves}>
-                Saved counter-moves
+                Saved plans
               </ActionButton>
             }
             padded
           >
             {moves.length === 0 ? (
               <EmptyNote
-                title="No moves to make yet"
+                title="Nothing to do right now"
                 message={
                   rivalInputs.some((r) => r.pagesCrawled)
-                    ? "You are level with or ahead of every measured rival. Moves appear here when a rival pulls ahead."
-                    : "Rivals appear here once they have been crawled. Crawls start when a competitor is added."
+                    ? "You're level with or ahead of every competitor we could measure. New to-dos appear here when a competitor pulls ahead."
+                    : "We're still reading your competitors' websites. This starts as soon as a competitor is added."
                 }
               />
             ) : (
@@ -298,11 +311,8 @@ export function BattlegroundTab({
                     <div className="flex flex-wrap items-center gap-2">
                       <Swords size={14} className="text-brand-400" />
                       <span className="text-[12px] font-semibold text-brand-950">{move.rival}</span>
-                      <Pill tone="info">{move.source}</Pill>
+                      <Pill tone="info">{SOURCE_LABEL[move.source] ?? move.source}</Pill>
                       <Pill tone={move.confidence === "Measured" ? "good" : "warn"}>{move.confidence}</Pill>
-                      <span className="ml-auto text-[11px] text-brand-400" title="Needs GSC and GA4 revenue data">
-                        ₹ value: needs GSC + GA4
-                      </span>
                     </div>
                     <p className="mt-2 text-[13px] font-semibold text-brand-950">{move.title}</p>
                     <p className="mt-1 text-[12px] leading-relaxed text-brand-600">{move.detail}</p>
@@ -312,9 +322,11 @@ export function BattlegroundTab({
                         onClick={() => ignore(move.id)}
                         className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-brand-500 hover:bg-brand-100"
                       >
-                        Ignore
+                        Not relevant
                       </button>
-                      <ActionButton variant="primary" onClick={() => setBriefFor(move)}>Counter</ActionButton>
+                      <ActionButton variant="primary" icon={<ClipboardList size={13} />} onClick={() => setBriefFor(move)}>
+                        Get a plan
+                      </ActionButton>
                     </div>
                   </li>
                 ))}
@@ -324,7 +336,7 @@ export function BattlegroundTab({
         </div>
 
         {/* Threat per rival */}
-        <Panel title="Threat level" subtitle="How many measures each rival leads you on" padded>
+        <Panel title="How big a threat is each competitor" subtitle="Based on how many things they beat you on" padded>
           <ul className="space-y-2.5">
             {threats.map((t) => (
               <li key={t.id} className="flex items-start justify-between gap-3">
@@ -332,10 +344,10 @@ export function BattlegroundTab({
                   <p className="truncate text-[12px] font-semibold text-brand-950">{t.name}</p>
                   <p className="text-[11px] text-brand-400">
                     {t.measured === 0
-                      ? "Not crawled or sampled yet"
+                      ? "Still reading their website"
                       : t.ahead.length === 0
-                        ? `Behind you on all ${t.measured} measured`
-                        : `Ahead on ${t.ahead.join(", ")}`}
+                        ? `You beat them on all ${t.measured} things we measured`
+                        : `Beats you on: ${t.ahead.join(", ")}`}
                   </p>
                 </div>
                 <Pill tone={THREAT_TONE[t.level]}>{t.level}</Pill>
@@ -343,25 +355,25 @@ export function BattlegroundTab({
             ))}
           </ul>
           <p className="mt-4 border-t pt-3 text-[11px] text-brand-400">
-            Rival pages are snapshotted daily at 03:00 UTC, so changes can be tracked over time.
+            We check your competitors&apos; websites every day. See what they changed in Rival Radar.
           </p>
         </Panel>
       </div>
 
       {/* Benchmark: every column filled for at least one rival, or hidden */}
       <Panel
-        title="Benchmark"
-        subtitle={hiddenColumns.length ? `Hidden until measured for a rival: ${hiddenColumns.join(", ")}` : undefined}
+        title="Side by side"
+        subtitle={`You and each competitor on the same measures.${hiddenColumns.length ? ` Not shown until we have data: ${hiddenColumns.join(", ").toLowerCase()}.` : ""}`}
       >
         {columns.length === 0 ? (
           <div className="p-4">
-            <EmptyNote title="Nothing measured for rivals yet" message="Crawl results and AI samples appear here as they arrive." />
+            <EmptyNote title="No competitor data yet" message="Numbers appear here as soon as we finish reading their websites." />
           </div>
         ) : (
           <Table minWidth={640}>
             <thead>
               <tr>
-                <Th>Site</Th>
+                <Th>Website</Th>
                 {columns.map((m) => (
                   <Th key={m.key} align="right">
                     {m.label}
@@ -374,7 +386,7 @@ export function BattlegroundTab({
                 <Td className="font-semibold text-brand-950">You · {domain}</Td>
                 {columns.map((m) => (
                   <Td key={m.key} align="right">
-                    {m.you != null ? m.format(m.you) : <span className="text-brand-400">not measured</span>}
+                    {m.you != null ? m.format(m.you) : <span className="text-brand-400">no data yet</span>}
                   </Td>
                 ))}
               </Tr>
@@ -385,7 +397,7 @@ export function BattlegroundTab({
                     const v = m.rivals.find((x) => x.id === r.id)?.value ?? null;
                     return (
                       <Td key={m.key} align="right">
-                        {v != null ? m.format(v) : <span className="text-brand-400">not measured</span>}
+                        {v != null ? m.format(v) : <span className="text-brand-400">no data yet</span>}
                       </Td>
                     );
                   })}
@@ -397,9 +409,11 @@ export function BattlegroundTab({
       </Panel>
 
       {briefFor && (
-        <CounterBriefModal
-          move={briefFor}
-          brief={buildCounterBrief(briefFor, { domain, brand: brand || domain })}
+        <PlanModal
+          subtitle={`${briefFor.rival} · ${briefFor.title}`}
+          why={movePlan(briefFor, { domain, brand: brand || domain }).why}
+          steps={movePlan(briefFor, { domain, brand: brand || domain }).steps}
+          plan={buildCounterBrief(briefFor, { domain, brand: brand || domain })}
           onClose={() => setBriefFor(null)}
           onSave={(brief) => {
             stagingEngine.stage(projectId, {
@@ -410,74 +424,13 @@ export function BattlegroundTab({
               impact: briefFor.detail,
               effortHours: 2,
               deliverable: brief,
-              evidence: `${briefFor.source} · ${briefFor.confidence}`,
+              evidence: `${SOURCE_LABEL[briefFor.source] ?? briefFor.source} · ${briefFor.confidence}`,
             });
             setBriefFor(null);
             onOpenCounterMoves();
           }}
         />
       )}
-    </div>
-  );
-}
-
-function CounterBriefModal({
-  move,
-  brief,
-  onClose,
-  onSave,
-}: {
-  move: Move;
-  brief: string;
-  onClose: () => void;
-  onSave: (brief: string) => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(brief);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Counter-move brief"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/40 p-4"
-      onClick={onClose}
-    >
-      <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        <Panel
-          title="Counter-move brief"
-          subtitle={`${move.rival} · ${move.title}`}
-          actions={
-            <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-brand-400 hover:bg-brand-100">
-              <X size={16} />
-            </button>
-          }
-          padded
-        >
-          <p className="mb-2 text-[11px] text-brand-500">
-            Ready to copy and hand over. Nothing is changed on your site: apply it in your CMS, or send it to whoever
-            edits the site.
-          </p>
-          <pre className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-brand-50 p-3 font-mono text-[11.5px] leading-relaxed text-brand-950">
-            {brief}
-          </pre>
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-            <ActionButton variant="secondary" icon={copied ? <Check size={13} /> : <Copy size={13} />} onClick={copy}>
-              {copied ? "Copied" : "Copy brief"}
-            </ActionButton>
-            <ActionButton variant="primary" onClick={() => onSave(brief)}>Save to Counter-Moves</ActionButton>
-          </div>
-        </Panel>
-      </div>
     </div>
   );
 }
