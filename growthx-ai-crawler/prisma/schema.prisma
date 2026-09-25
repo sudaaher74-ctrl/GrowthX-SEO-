@@ -3512,3 +3512,13 @@ model CompetitorReportSnapshot {
 
   @@index([projectId, createdAt])
 }
+
+/// A Website Audit report as it was generated, so it can be read again later.
+model AuditReportSnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  report    Json
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

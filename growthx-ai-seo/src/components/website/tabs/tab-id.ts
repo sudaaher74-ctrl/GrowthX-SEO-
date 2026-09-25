@@ -13,4 +13,5 @@ export type WebsiteTabId =
   | "pages"
   | "content"
   | "geo"
-  | "issues";
+  | "issues"
+  | "report";

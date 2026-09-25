@@ -167,7 +167,12 @@ export function themeColours(): PrintColours {
 
 /** Minimal Markdown → HTML for the print view. Everything is escaped first. */
 export function toPrintableHtml(report: CompetitorIntelReport, colours: PrintColours): string {
-  const lines = escapeHtml(toMarkdown(report)).split("\n");
+  return markdownToPrintableHtml(toMarkdown(report), reportFilename(report, "pdf"), colours);
+}
+
+/** Any report's Markdown as a printable page. Shared by every downloadable report. */
+export function markdownToPrintableHtml(markdown: string, title: string, colours: PrintColours): string {
+  const lines = escapeHtml(markdown).split("\n");
   const body: string[] = [];
   let list: "ul" | "ol" | null = null;
   const close = () => {
@@ -200,7 +205,7 @@ export function toPrintableHtml(report: CompetitorIntelReport, colours: PrintCol
     }
   }
   close();
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(reportFilename(report, "pdf"))}</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>body{font:13px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:${colours.text};max-width:820px;margin:32px auto;padding:0 20px}
 h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-bottom:1px solid ${colours.rule};padding-bottom:4px}h3{font-size:14px;margin-top:18px}
 .row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;border-bottom:1px solid ${colours.faint};padding:3px 0}

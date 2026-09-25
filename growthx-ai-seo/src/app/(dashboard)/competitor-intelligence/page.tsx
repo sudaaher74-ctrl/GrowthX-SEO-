@@ -32,7 +32,6 @@ import {
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
-import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
 import { GapsTab } from "@/components/competitor/gaps-tab";
@@ -42,7 +41,6 @@ const TABS = [
   { id: "battleground", label: "Battleground" },
   { id: "gaps", label: "Gaps" },
   { id: "radar", label: "Rival Radar" },
-  { id: "ai-answers", label: "AI Answers" },
   { id: "counter-moves", label: "Your Plans" },
   { id: "report", label: "Full Report" },
 ];
@@ -63,7 +61,9 @@ const LEGACY_TAB_MAP: Record<string, string> = {
   intercept: "counter-moves",
   opportunities: "counter-moves",
   technical: "radar",
-  "ai-visibility": "ai-answers",
+  // AI Visibility is switched off for now, and its tab with it.
+  "ai-visibility": "battleground",
+  "ai-answers": "battleground",
 };
 
 /**
@@ -368,13 +368,6 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {activeTab === "ai-answers" && (
-        <AiCitationMatrixPanel
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-        />
-      )}
 
       {activeTab === "counter-moves" && (
         <CounterMoveDrafts projectId={projectId || ""} onOpenTab={(tab) => setActiveTab(tab)} />

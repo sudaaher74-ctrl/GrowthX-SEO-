@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { IssueCountService } from '../issues/issue-count.service';
+import { IssueGroupService } from '../issues/issue-group.service';
 import { AutopilotModule } from './autopilot.module';
 import { AutopilotScheduler } from './autopilot.scheduler';
 import { AutopilotService } from './autopilot.service';
@@ -79,6 +81,7 @@ function setup(modelJson: string) {
   const router = { generate: jest.fn().mockResolvedValue({ text: modelJson, refused: false }) };
   const competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j' }) };
   const report = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null, snapshotId: 'snap1' }) };
+  const auditReport = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null }) };
   const orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined) };
   const service = new AutopilotService(
     prisma as any,
@@ -88,8 +91,9 @@ function setup(modelJson: string) {
     router as any,
     competitorCrawl as any,
     report as any,
+    auditReport as any,
   );
-  return { service, prisma, crawler, fetcher, router, competitorCrawl, report };
+  return { service, prisma, crawler, fetcher, router, competitorCrawl, report, auditReport };
 }
 
 const MODEL = JSON.stringify({
@@ -126,7 +130,7 @@ describe('AutopilotService', () => {
   });
 
   it('adds and crawls the confirmed competitors, then writes the report once every crawl is done', async () => {
-    const { service, prisma, competitorCrawl, report } = setup(MODEL);
+    const { service, prisma, competitorCrawl, report, auditReport } = setup(MODEL);
     const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
     await service.discover(view.id);
 
@@ -144,9 +148,11 @@ describe('AutopilotService', () => {
     prisma.jobs['teabox.com'] = { status: 'FAILED', pagesCrawled: 0 };
     await service.tick();
     expect(report.generate).toHaveBeenCalledWith(view.projectId, 'o1');
+    expect(auditReport.generate).toHaveBeenCalledWith(view.projectId, 'o1');
     const done = await service.get(view.id, 'u1');
     expect(done).toMatchObject({ status: 'DONE', reportReady: true });
     expect(done.log.map((l) => l.message).join(' ')).toContain("Couldn't read Teabox's website");
+    expect(done.log.map((l) => l.message).join(' ')).toContain('Your website audit report is ready.');
   });
 
   it('writes the report anyway when a crawl never finishes', async () => {
@@ -180,8 +186,10 @@ describe('competitor-finder', () => {
     { provide: CrawlerService, useValue: {} },
     { provide: FetcherService, useValue: {} },
     { provide: ConfigService, useValue: { get: () => undefined } },
+    { provide: IssueCountService, useValue: {} },
+    { provide: IssueGroupService, useValue: {} },
   ],
-  exports: [CrawlerService, FetcherService, ConfigService],
+  exports: [CrawlerService, FetcherService, ConfigService, IssueCountService, IssueGroupService],
 })
 class FakeCrawlerModule {}
 

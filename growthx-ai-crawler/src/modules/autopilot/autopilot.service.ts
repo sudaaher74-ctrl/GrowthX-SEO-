@@ -9,6 +9,7 @@ import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 import { CompetitorIntelReportService } from '../competitor-action-engine/competitor-intel-report.service';
 import { MAX_COMPETITORS } from '../competitor-action-engine/competitor-setup.service';
+import { AuditReportService } from '../audit-report/audit-report.service';
 import {
   CompetitorSuggestion,
   buildFinderPrompt,
@@ -92,6 +93,7 @@ export class AutopilotService {
     private readonly router: MultiAiRouterService,
     private readonly competitorCrawl: CompetitorCrawlService,
     private readonly report: CompetitorIntelReportService,
+    private readonly auditReport: AuditReportService,
   ) {}
 
   // ─── Start ──────────────────────────────────────────────────────────────────
@@ -400,6 +402,15 @@ export class AutopilotService {
       });
 
       const report = await this.report.generate(run.projectId, run.organizationId);
+      // The website's own audit, in the same plain words, so a new customer
+      // ends with both reports. A failure here never holds the run back.
+      let auditNote = 'Your website audit report is ready.';
+      try {
+        const audit = await this.auditReport.generate(run.projectId, run.organizationId);
+        if (!audit.analysis) auditNote = `Your website audit report is ready with the measured facts: ${audit.analysisError ?? ''}`.trim();
+      } catch (err) {
+        auditNote = `The website audit report couldn't be written: ${(err as Error).message}`;
+      }
       const latest = await this.prisma.autopilotRun.findUnique({ where: { id: run.id } });
       await this.prisma.autopilotRun.update({
         where: { id: run.id },
@@ -413,6 +424,7 @@ export class AutopilotService {
             report.analysis
               ? 'Your competitor report is ready.'
               : `Your report is ready with the measured facts. The written analysis couldn't be made: ${report.analysisError ?? 'unknown reason'}`,
+            auditNote,
           ),
         },
       });

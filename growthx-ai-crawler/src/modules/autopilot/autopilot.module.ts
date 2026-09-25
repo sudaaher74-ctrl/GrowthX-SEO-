@@ -4,13 +4,14 @@ import { AiSearchModule } from '../ai-search/ai-search.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
 import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
+import { AuditReportModule } from '../audit-report/audit-report.module';
 import { AutopilotController } from './autopilot.controller';
 import { AutopilotService } from './autopilot.service';
 import { AutopilotScheduler } from './autopilot.scheduler';
 
 // CrawlerService and FetcherService come from the global CrawlerModule.
 @Module({
-  imports: [DatabaseModule, AiSearchModule, OrganizationsModule, ContentIntelligenceModule, CompetitorActionEngineModule],
+  imports: [DatabaseModule, AiSearchModule, OrganizationsModule, ContentIntelligenceModule, CompetitorActionEngineModule, AuditReportModule],
   controllers: [AutopilotController],
   providers: [AutopilotService, AutopilotScheduler],
   exports: [AutopilotService],

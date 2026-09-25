@@ -233,16 +233,10 @@ export default function UnifiedDashboardPage() {
                 ? `${visibility.data.summary.citationSharePct}%`
                 : null
           }
-          sub="Mentions across LLM engines"
-          state={
-            client?.aiCitationSharePct != null || visibility.data?.summary != null
-              ? "MEASURED"
-              : "NOT_CONFIGURED"
-          }
+          sub="AI Visibility is disabled for now"
+          state="UNAVAILABLE"
           source="AI Engine Sweep"
           dateRange="Recent 7 Days"
-          actionHref="/ai-visibility"
-          actionLabel="Run a visibility sweep →"
         />
 
         {/* Local SEO Reputation */}

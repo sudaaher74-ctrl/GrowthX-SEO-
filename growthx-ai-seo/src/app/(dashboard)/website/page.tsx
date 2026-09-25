@@ -40,6 +40,7 @@ import {
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
 import { SeoAuditReportModal } from "@/components/website/audit-report-pdf/seo-audit-report-modal";
+import { AuditReportTab } from "@/components/website/tabs/audit-report-tab";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
 import { PerformanceTab } from "@/components/website/tabs/performance-tab";
@@ -158,7 +159,7 @@ function WebsiteAuditClient() {
     { id: "overview", label: "Overview" },
     {
       id: "technical-seo",
-      label: "Technical SEO",
+      label: "Technical health",
       // The number of distinct problems, labelled as such. A bare "100" beside
       // a heading reads as a score out of 100, which it never was.
       badge: counts && counts.openGroups > 0
@@ -166,52 +167,57 @@ function WebsiteAuditClient() {
         : undefined,
       badgeTone: "danger",
     },
-    { id: "performance", label: "Performance" },
+    { id: "performance", label: "Speed" },
     {
       id: "pages",
       label: "Pages",
       badge: counts && counts.pagesCrawled > 0 ? counts.pagesCrawled : undefined,
       badgeTone: "info",
     },
-    { id: "content", label: "Content & On-Page" },
+    { id: "content", label: "Content" },
     {
       id: "geo",
-      label: "GEO & AI Overviews",
+      label: "Ready for AI answers",
       badge: allPages.length > 0 ? `${allPages.filter(p => p.wordCount >= 350).length}/${allPages.length}` : undefined,
       badgeTone: "default",
     },
-    { id: "issues", label: "Issues" },
+    { id: "issues", label: "Problems to fix" },
+    { id: "report", label: "Full Report" },
   ];
 
   // Dynamic Header Titles and Subtitles based on Active Tab
   const headerContent = {
     overview: {
-      title: "Website Audit Overview",
-      subtitle: "High-level summary of your website's technical health, performance, indexability and opportunities.",
+      title: "Your website at a glance",
+      subtitle: "How healthy your website is, what's wrong and what to do first.",
     },
     "technical-seo": {
-      title: "Technical SEO",
-      subtitle: "Find and fix technical issues to improve your website's performance, indexability and search visibility.",
+      title: "Technical health",
+      subtitle: "Problems that stop Google from finding, reading or showing your pages, and how to fix each one.",
     },
     performance: {
-      title: "Performance",
-      subtitle: "Analyze your website's speed, Core Web Vitals, real user experience and get AI-powered optimization recommendations.",
+      title: "Speed",
+      subtitle: "How fast your pages load for visitors, and what slows them down.",
     },
     pages: {
       title: "Pages",
-      subtitle: "Explore all crawled pages, their status, indexability and SEO opportunities. Find which pages drive traffic and which need improvement.",
+      subtitle: "Every page we read on your website, whether Google can show it, and which ones need work.",
     },
     content: {
-      title: "Content & On-Page",
-      subtitle: "Audit title tags, meta descriptions, content depth, heading structures and on-page optimization.",
+      title: "Content",
+      subtitle: "Your page titles, the descriptions Google shows, headlines, and how much useful text each page has.",
     },
     geo: {
-      title: "GEO & AI Overviews",
-      subtitle: "Optimize your pages for citation in Google AI Overviews, Perplexity, ChatGPT and generative search engines.",
+      title: "Ready for AI answers",
+      subtitle: "Whether your pages are written so ChatGPT, Google's AI answers and other assistants can quote them.",
     },
     issues: {
-      title: "All Audit Issues",
-      subtitle: "Complete repository of identified technical, performance, and structural crawl issues with automated AI fixes.",
+      title: "Problems to fix",
+      subtitle: "Every problem the audit found, with what to do about each one and who can do it.",
+    },
+    report: {
+      title: "Full report",
+      subtitle: "Everything the audit found in one plain-language report you can download, print or share.",
     },
   }[activeTab];
 
@@ -244,14 +250,14 @@ function WebsiteAuditClient() {
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-brand-500 pt-0.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" />
                 <span className="font-medium text-brand-700 dark:text-brand-300">
-                  Last crawl: {formatRelativeTime(crawl.data.finishedAt)}
+                  Last checked: {formatRelativeTime(crawl.data.finishedAt)}
                 </span>
                 <span className="text-brand-300 dark:text-brand-700">·</span>
                 <span>{counts?.pagesCrawled ?? allPages.length} pages</span>
                 <span className="text-brand-300 dark:text-brand-700">·</span>
                 <span>
                   {counts
-                    ? `${counts.openFindings} findings in ${counts.openGroups} problems`
+                    ? `${counts.openGroups} problem${counts.openGroups === 1 ? "" : "s"} found`
                     : "counting…"}
                 </span>
                 {crawlDuration && (
@@ -293,7 +299,7 @@ function WebsiteAuditClient() {
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-900 active:scale-95 disabled:opacity-50 transition-all dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
             >
               <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
-              <span>{crawling ? "Crawling…" : activeTab === "performance" ? "Re-run Audit" : "Re-crawl Website"}</span>
+              <span>{crawling ? "Checking…" : "Check my website again"}</span>
             </button>
 
             <Link
@@ -418,6 +424,8 @@ function WebsiteAuditClient() {
             issues={allIssues}
           />
         )}
+
+        {activeTab === "report" && <AuditReportTab projectId={projectId || ""} />}
 
         {activeTab === "issues" && (
           <IssuesTab
