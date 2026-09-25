@@ -165,7 +165,7 @@ export class CompetitorSeoReportService {
    * pages has one problem to fix, not 180 to read. The page count is what says
    * how big it is, and a few example URLs are what let someone check it.
    */
-  private async issuesFor(websiteId: string): Promise<IssueGroup[]> {
+  async issuesFor(websiteId: string): Promise<IssueGroup[]> {
     const job = await this.prisma.crawlJob.findFirst({
       where: { websiteId, status: 'COMPLETED' },
       orderBy: { finishedAt: 'desc' },

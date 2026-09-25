@@ -9,6 +9,7 @@ import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
 import { WebsiteComparisonService } from './website-comparison.service';
 import { CompetitorSeoReportService } from './competitor-seo-report.service';
+import { CompetitorIntelReportService } from './competitor-intel-report.service';
 import { CompetitorInterceptService } from './competitor-intercept.service';
 import { ProgrammaticDecompilerService } from './programmatic-decompiler.service';
 import { CompetitorStealthRadarService } from './competitor-stealth-radar.service';
@@ -154,6 +155,7 @@ export class CompetitorActionEngineController {
     private readonly decompiler: ProgrammaticDecompilerService,
     private readonly radar: CompetitorStealthRadarService,
     private readonly prisma: PrismaService,
+    private readonly intelReport: CompetitorIntelReportService,
   ) {}
 
   @Get('website-comparison')
@@ -165,6 +167,17 @@ export class CompetitorActionEngineController {
   })
   websiteComparison(@Param('projectId') projectId: string) {
     return this.comparison.compare(projectId);
+  }
+
+  @Post('competitor-report')
+  @ApiOperation({
+    summary: 'Full competitor report: crawl facts for you and each rival, analysed by Sarvam',
+    description:
+      'A POST because it spends model tokens. The facts are returned even when the analysis fails, ' +
+      'with analysisError saying why, so the data can still be downloaded.',
+  })
+  competitorReport(@Param('projectId') projectId: string, @Req() req: any) {
+    return this.intelReport.generate(projectId, req.organizationId);
   }
 
   @Get('competitors/:competitorId/seo-report')
