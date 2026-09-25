@@ -28,22 +28,69 @@ const ALLOWED_TOOLS = new Set<string>(Object.keys(VOICE_TOOLS));
 const NAVIGATE_ROUTES: Record<string, string> = {
   overview: '/dashboard',
   dashboard: '/dashboard',
+  home: '/dashboard',
   website: '/website',
-  competitors: '/competitors',
-  opportunities: '/opportunities',
-  'content intelligence': '/content-intelligence',
-  'content gaps': '/content-intelligence',
+  'website audit': '/website',
+  'site audit': '/website',
+  'seo audit': '/website',
+  audit: '/website',
+  'technical seo': '/website?tab=technical-seo',
+  performance: '/website?tab=performance',
+  pages: '/website?tab=pages',
+  'content and on-page': '/website?tab=content',
+  'geo and ai overviews': '/website?tab=geo',
+  issues: '/website?tab=issues',
+  'competitor intelligence': '/competitor-intelligence',
+  competitors: '/competitor-intelligence',
+  competitor: '/competitor-intelligence',
+  'ai visibility': '/ai-visibility',
+  visibility: '/ai-visibility',
+  'google business profile': '/google-business-profile',
+  'business profile': '/google-business-profile',
+  gbp: '/google-business-profile',
+  'local seo': '/google-business-profile',
+  'fix engine': '/fix-engine',
+  'design studio': '/design-studio',
+  opportunities: '/content-opportunities',
+  'content opportunities': '/content-opportunities',
+  'content intelligence': '/content-opportunities?tab=keyword-gaps',
+  'content gaps': '/content-opportunities?tab=keyword-gaps',
+  keywords: '/keywords',
+  'search performance': '/search-performance',
+  analytics: '/search-performance?tab=traffic',
   reports: '/reports',
+  report: '/reports',
   'ai agent': '/engineer',
   engineer: '/engineer',
   monitoring: '/monitoring',
-  search: '/search',
-  analytics: '/analytics',
-  settings: '/settings',
-  integrations: '/integrations',
   'market research': '/market-research',
   strategy: '/strategy',
+  integrations: '/integrations',
+  settings: '/settings',
 };
+
+// Longest first, so "website audit" wins over "website" and "audit".
+const NAVIGATE_KEYS = Object.keys(NAVIGATE_ROUTES).sort((a, b) => b.length - a.length);
+
+const NAVIGATE_VERB =
+  /\b(open|opening|go to|goto|go back to|take me to|bring me to|navigate to|switch to|jump to|visit|bring up|pull up)\b/;
+
+/**
+ * Resolves "open website audit", "can you take me to reports" and the like to
+ * a route without asking the model. Without this, "open website audit" was
+ * classified as runSeoAudit and the user was asked to confirm an audit.
+ */
+export function matchNavigation(text: string): { destination: string; route: string } | null {
+  const lower = text.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9\s-]/g, ' ');
+  if (!NAVIGATE_VERB.test(lower)) return null;
+  const spoken = ` ${lower.replace(/\s+/g, ' ').trim()} `;
+  for (const key of NAVIGATE_KEYS) {
+    if (spoken.includes(` ${key} `)) {
+      return { destination: key, route: NAVIGATE_ROUTES[key] };
+    }
+  }
+  return null;
+}
 
 @Injectable()
 export class VoiceAgentService {
@@ -106,8 +153,10 @@ export class VoiceAgentService {
     if (req.confirmed && req.pendingTool && ALLOWED_TOOLS.has(req.pendingTool)) {
       result = await this.executeTool(req.pendingTool, req.pendingParams ?? {}, req.projectId, userId, orgId);
     } else {
-      // Classify intent
-      const intent = await this.classifyIntent(req.text, req.projectId, req.context?.path, historyPrompt);
+      const nav = matchNavigation(req.text);
+      const intent: VoiceIntent = nav
+        ? { tool: 'navigate', params: { destination: nav.destination }, confidence: 1 }
+        : await this.classifyIntent(req.text, req.projectId, req.context?.path, historyPrompt);
       result = await this.handleIntent(intent, req.projectId, userId, orgId);
     }
 
@@ -150,6 +199,7 @@ Classify this into one of these exact tool names: ${allowedTools}
 Navigation keywords map to: ${navRoutes}
 
 For navigation, set tool="navigate" and params={"destination":"<keyword>"}
+If the user asks to open, go to, view or show a page or section (e.g. "open website audit", "go to reports"), ALWAYS use navigate — never run a tool. Only use runSeoAudit or crawlWebsite when the user explicitly asks to run, start or do an audit or crawl.
 For competitor commands, extract domain from user text and set params={"domain":"<domain>"}
 For crawl commands, set params={}
 For addCompetitor: params={"domain":"<competitor domain>"}
