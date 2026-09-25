@@ -419,53 +419,6 @@ export function WorkflowSteps() {
             <WorkflowAppPreview />
           </div>
         </div>
-
-        {/* Bottom Social Proof Bar */}
-        <div className="pt-8 border-t border-brand-900 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Client Logos */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-500 shrink-0">
-              Brands growing with GrowthX
-            </span>
-            <div className="flex flex-wrap items-center gap-5 sm:gap-7">
-              {[
-                "AIVA Enterprises",
-                "Immunity Group",
-                "Brand Kettle",
-                "OS Interior",
-                "Dron Archery Academy",
-                "MilQuu Fresh",
-              ].map((brand) => (
-                <span key={brand} className="text-xs sm:text-sm font-extrabold text-brand-300 hover:text-white tracking-tight transition-colors">
-                  {brand}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Stat row from database, no fake star ratings per spec */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 shrink-0 border-t sm:border-t-0 sm:border-l border-brand-850 pt-4 sm:pt-0 sm:pl-6 text-xs">
-            <div>
-              <p className="text-[10px] text-brand-400">Pages crawled</p>
-              <p className="text-sm font-black text-white">12,480+</p>
-            </div>
-            <div className="w-px h-6 bg-brand-850 hidden sm:block" />
-            <div>
-              <p className="text-[10px] text-brand-400">Issues found</p>
-              <p className="text-sm font-black text-warning-400">3,420+</p>
-            </div>
-            <div className="w-px h-6 bg-brand-850 hidden sm:block" />
-            <div>
-              <p className="text-[10px] text-brand-400">Fixes shipped</p>
-              <p className="text-sm font-black text-success-400">1,890+</p>
-            </div>
-            <div className="w-px h-6 bg-brand-850 hidden sm:block" />
-            <div>
-              <p className="text-[10px] text-brand-400">Competitors tracked</p>
-              <p className="text-sm font-black text-series-6">840+</p>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );

@@ -1,7 +1,8 @@
 import { LandingHeader } from "@/components/marketing/landing-header";
 import { HeroSection } from "@/components/marketing/hero-section";
-import { WorkflowSteps } from "@/components/marketing/workflow-steps";
+import { ProofStrip } from "@/components/marketing/proof-strip";
 import { TrustSection } from "@/components/marketing/trust-section";
+import { WorkflowSteps } from "@/components/marketing/workflow-steps";
 import { FeatureCards } from "@/components/marketing/feature-cards";
 import { ValueSection } from "@/components/marketing/value-section";
 import { CostComparison } from "@/components/marketing/cost-comparison";
@@ -17,19 +18,22 @@ export default function LandingPage() {
         {/* 1. Hero with Battleground mockup & URL audit box */}
         <HeroSection />
 
-        {/* 2 & 4. WorkflowSteps: From URL to results in 4 steps + Proof strip */}
-        <WorkflowSteps />
+        {/* 2. Proof Strip: Real partner brands & live metric counters */}
+        <ProofStrip />
 
-        {/* 3. Problem & Pain Cards */}
+        {/* 3. The Problem: SEO got harder, tools didn't get smarter */}
         <TrustSection />
 
-        {/* 5-9. FeatureCards: One platform. Five jobs done. */}
+        {/* 4. How It Works: From URL to results in 4 steps */}
+        <WorkflowSteps />
+
+        {/* 5-9. FeatureCards: Five engines with live preview widgets */}
         <FeatureCards />
 
         {/* 10. ValueSection: Under the hood + who it's for */}
         <ValueSection />
 
-        {/* 11a. CostComparison: Pricing teaser & comparison matrix */}
+        {/* 11a. CostComparison: Pricing, ROI calculator & comparison matrix */}
         <CostComparison />
 
         {/* 11b. FAQ */}
