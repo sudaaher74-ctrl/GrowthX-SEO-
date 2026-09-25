@@ -7,7 +7,11 @@ import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi
 import { ContentStrategyService } from '../content-intelligence/content-strategy.service';
 import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { CrawlerService } from '../crawler/crawler.service';
 import * as cheerio from 'cheerio';
+
+/** Matches the Website Audit page's Re-crawl button. */
+const OWN_SITE_CRAWL = { maxDepth: 20, maxConcurrency: 10, useSitemap: true };
 
 /** Simple domain validation — no private IPs, valid TLD format. */
 function validateDomain(domain: string): string {
@@ -35,6 +39,7 @@ export class VoiceToolsService {
     private readonly contentStrategy: ContentStrategyService,
     private readonly seoCompetitors: SeoCompetitorsService,
     private readonly fetcher: FetcherService,
+    private readonly crawler: CrawlerService,
   ) {}
 
   // ─── Crawl ───────────────────────────────────────────────────────────────────
@@ -50,23 +55,18 @@ export class VoiceToolsService {
       return { success: false, tool: 'crawlWebsite', data: null, spokenSummary: "I couldn't find a website for this project. Please add one first." };
     }
 
-    // Check for an already-running crawl
-    const running = await this.prisma.crawlJob.findFirst({
-      where: { websiteId: website.id, status: { in: [JobStatus.PENDING, JobStatus.RUNNING] } },
-    });
+    const running = await this.activeCrawl(website.id);
     if (running) {
       return { success: true, tool: 'crawlWebsite', data: { jobId: running.id }, spokenSummary: `A crawl is already in progress for ${website.domain}. I'll keep you updated.` };
     }
 
-    const job = await this.prisma.crawlJob.create({
-      data: { websiteId: website.id, status: JobStatus.PENDING },
-    });
+    const jobId = await this.crawler.startCrawlJob(website.id, OWN_SITE_CRAWL);
 
-    this.logger.log(`Voice-triggered crawl: jobId=${job.id} for ${website.domain}`);
+    this.logger.log(`Voice-triggered crawl: jobId=${jobId} for ${website.domain}`);
     return {
       success: true,
       tool: 'crawlWebsite',
-      data: { jobId: job.id, domain: website.domain },
+      data: { jobId, domain: website.domain },
       spokenSummary: `Started crawling ${website.domain}. I'll let you know when it's done.`,
       navigateTo: '/website',
     };
@@ -194,14 +194,18 @@ export class VoiceToolsService {
       });
     }
 
-    const job = await this.prisma.crawlJob.create({
-      data: { websiteId: website.id, status: JobStatus.PENDING, pageLimit: 200 },
-    });
+    const running = await this.activeCrawl(website.id);
+    if (running) {
+      return { success: true, tool: 'crawlCompetitor', data: { jobId: running.id }, spokenSummary: `${cleanDomain} is already being crawled.` };
+    }
+
+    // A third party's site: bounded, as the competitor crawl elsewhere is.
+    const jobId = await this.crawler.startCrawlJob(website.id, { pageLimit: 200, useSitemap: true });
 
     return {
       success: true,
       tool: 'crawlCompetitor',
-      data: { jobId: job.id, domain: cleanDomain },
+      data: { jobId, domain: cleanDomain },
       spokenSummary: `Started crawling ${cleanDomain}. I'll compare their pages with yours when done.`,
     };
   }
@@ -229,13 +233,15 @@ export class VoiceToolsService {
     if (!website) {
       return { success: false, tool: 'runSeoAudit', data: null, spokenSummary: 'No website found. Please add one first.' };
     }
-    const job = await this.prisma.crawlJob.create({
-      data: { websiteId: website.id, status: JobStatus.PENDING },
-    });
+    const running = await this.activeCrawl(website.id);
+    if (running) {
+      return { success: true, tool: 'runSeoAudit', data: { jobId: running.id }, spokenSummary: `An audit is already running for ${website.domain}. I'll keep you updated.`, navigateTo: '/website' };
+    }
+    const jobId = await this.crawler.startCrawlJob(website.id, OWN_SITE_CRAWL);
     return {
       success: true,
       tool: 'runSeoAudit',
-      data: { jobId: job.id },
+      data: { jobId },
       spokenSummary: `Technical SEO audit started for ${website.domain}. I'll surface the most critical issues when done.`,
       navigateTo: '/website',
     };
@@ -494,6 +500,28 @@ export class VoiceToolsService {
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  /**
+   * The crawl already under way for a site, if any.
+   *
+   * Earlier versions of these tools wrote PENDING rows straight to the table
+   * without dispatching them, so no worker ever picked them up. Real jobs get
+   * `startedAt` when they are dispatched; a PENDING row without it is one of
+   * those orphans, and left alone it reports "already in progress" forever.
+   */
+  private async activeCrawl(websiteId: string) {
+    await this.prisma.crawlJob.updateMany({
+      where: { websiteId, status: JobStatus.PENDING, startedAt: null },
+      data: {
+        status: JobStatus.FAILED,
+        finishedAt: new Date(),
+        errorMessage: 'Never dispatched to a crawler worker.',
+      },
+    });
+    return this.prisma.crawlJob.findFirst({
+      where: { websiteId, status: { in: [JobStatus.PENDING, JobStatus.RUNNING] } },
+    });
+  }
 
   private async assertProjectAccess(projectId: string, userId: string) {
     if (!projectId) throw new BadRequestException('A project must be selected to use voice commands.');

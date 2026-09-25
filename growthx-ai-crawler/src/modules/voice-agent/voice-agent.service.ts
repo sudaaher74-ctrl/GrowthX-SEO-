@@ -75,18 +75,31 @@ const NAVIGATE_KEYS = Object.keys(NAVIGATE_ROUTES).sort((a, b) => b.length - a.l
 const NAVIGATE_VERB =
   /\b(open|opening|go to|goto|go back to|take me to|bring me to|navigate to|switch to|jump to|visit|bring up|pull up)\b/;
 
+/** Words that can surround a page request without asking for anything more. */
+const FILLER = new Set(
+  'can could would will you please pls the a an my our this that page tab section screen and then also after that now me for to on in of it there here again'.split(' '),
+);
+
 /**
  * Resolves "open website audit", "can you take me to reports" and the like to
  * a route without asking the model. Without this, "open website audit" was
  * classified as runSeoAudit and the user was asked to confirm an audit.
+ *
+ * `rest` is whatever else was asked in the same breath ("…and recrawl the
+ * website"), or null when the request was only to open the page.
  */
-export function matchNavigation(text: string): { destination: string; route: string } | null {
+export function matchNavigation(
+  text: string,
+): { destination: string; route: string; rest: string | null } | null {
   const lower = text.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9\s-]/g, ' ');
-  if (!NAVIGATE_VERB.test(lower)) return null;
+  const verb = NAVIGATE_VERB.exec(lower);
+  if (!verb) return null;
   const spoken = ` ${lower.replace(/\s+/g, ' ').trim()} `;
   for (const key of NAVIGATE_KEYS) {
     if (spoken.includes(` ${key} `)) {
-      return { destination: key, route: NAVIGATE_ROUTES[key] };
+      const remainder = spoken.replace(` ${key} `, ' ').replace(verb[0], ' ').replace(/\s+/g, ' ').trim();
+      const meaningful = remainder.split(' ').some((word) => word && !FILLER.has(word));
+      return { destination: key, route: NAVIGATE_ROUTES[key], rest: meaningful ? remainder : null };
     }
   }
   return null;
@@ -154,10 +167,33 @@ export class VoiceAgentService {
       result = await this.executeTool(req.pendingTool, req.pendingParams ?? {}, req.projectId, userId, orgId);
     } else {
       const nav = matchNavigation(req.text);
-      const intent: VoiceIntent = nav
-        ? { tool: 'navigate', params: { destination: nav.destination }, confidence: 1 }
-        : await this.classifyIntent(req.text, req.projectId, req.context?.path, historyPrompt);
-      result = await this.handleIntent(intent, req.projectId, userId, orgId);
+      if (nav) {
+        result = await this.handleIntent(
+          { tool: 'navigate', params: { destination: nav.destination }, confidence: 1 },
+          req.projectId,
+          userId,
+          orgId,
+        );
+        // "Open website audit and recrawl the website": the page is opened
+        // and the rest is run as its own command, on that page.
+        if (nav.rest) {
+          const followUp = await this.classifyIntent(nav.rest, req.projectId, nav.route, historyPrompt);
+          const isRealAction =
+            followUp.tool !== 'navigate' &&
+            !(followUp.tool === 'getTopRecommendations' && followUp.confidence < 0.5);
+          if (isRealAction) {
+            const action = await this.handleIntent(followUp, req.projectId, userId, orgId);
+            result = {
+              ...action,
+              spokenSummary: `${result.spokenSummary} ${action.spokenSummary}`,
+              navigateTo: action.navigateTo ?? nav.route,
+            };
+          }
+        }
+      } else {
+        const intent = await this.classifyIntent(req.text, req.projectId, req.context?.path, historyPrompt);
+        result = await this.handleIntent(intent, req.projectId, userId, orgId);
+      }
     }
 
     // Persist assistant response
