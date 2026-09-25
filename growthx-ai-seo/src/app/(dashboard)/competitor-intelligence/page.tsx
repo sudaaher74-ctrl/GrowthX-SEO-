@@ -37,7 +37,7 @@ import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matri
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
 import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
-import { CompetitorProgrammaticTab } from "@/components/competitor/competitor-programmatic-tab";
+import { GapsTab } from "@/components/competitor/gaps-tab";
 import { CompetitorStealthRadarTab } from "@/components/competitor/competitor-stealth-radar-tab";
 
 const TABS = [
@@ -431,11 +431,11 @@ function CompetitorIntelligenceClient() {
       )}
 
       {activeTab === "gaps" && (
-        <CompetitorProgrammaticTab
+        <GapsTab
           projectId={projectId || ""}
-          customerDomain={customerDomain}
+          domain={customerDomain}
           competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
+          onOpenCounterMoves={() => setActiveTab("counter-moves")}
         />
       )}
 

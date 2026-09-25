@@ -169,6 +169,17 @@ export class CompetitorActionEngineController {
     return this.comparison.compare(projectId);
   }
 
+  @Get('rival-advantages')
+  @ApiOperation({
+    summary: "What each rival's site has that yours does not",
+    description:
+      'Topics, kinds of page, structured data, content depth, question headings, AI mentions and Google ' +
+      'reviews, counted from the latest crawls. The measured half of the competitor report, without the model.',
+  })
+  rivalAdvantages(@Param('projectId') projectId: string) {
+    return this.intelReport.gatherFacts(projectId);
+  }
+
   @Post('competitor-report')
   @ApiOperation({
     summary: 'Full competitor report: crawl facts for you and each rival, analysed by Sarvam',

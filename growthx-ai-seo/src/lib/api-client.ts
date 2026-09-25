@@ -3224,6 +3224,10 @@ export const api = {
 
   // ── Competitor SEO detail
   /** Spends Sarvam tokens, so only on request. The facts come back even if the analysis fails. */
+  /** The measured half of the competitor report: what each rival has that you do not. No model call. */
+  getRivalAdvantages: (projectId: string) =>
+    get<CompetitorIntelReport["facts"]>(`/api/projects/${projectId}/action-engine/rival-advantages`),
+
   generateCompetitorIntelReport: (projectId: string) =>
     post<CompetitorIntelReport>(`/api/projects/${projectId}/action-engine/competitor-report`, {}),
   getCompetitorSeoReport: (projectId: string, competitorId: string) =>
