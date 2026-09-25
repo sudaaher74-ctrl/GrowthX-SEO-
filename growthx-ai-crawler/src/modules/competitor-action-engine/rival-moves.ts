@@ -33,6 +33,8 @@ export interface RivalMove {
   /** AI answers naming them and not you, for AI_NAMED. */
   count?: number;
   questions?: string[];
+  /** For a change seen between two full reads: when the earlier read was. */
+  comparedWith?: string | null;
 }
 
 export interface SnapshotRow {
@@ -135,6 +137,7 @@ export function movesFromCrawls(
   previous: Map<string, CrawlPage>,
   rival: { name: string; domain: string },
   at: Date,
+  previousAt: Date | null = null,
 ): RivalMove[] {
   const moves: RivalMove[] = [];
   const base = (kind: RivalMoveKind, p: CrawlPage): RivalMove => ({
@@ -146,6 +149,7 @@ export function movesFromCrawls(
     title: p.title,
     at: at.toISOString(),
     source: 'crawl',
+    comparedWith: previousAt?.toISOString() ?? null,
   });
   // Two crawls rarely reach exactly the same pages. When a large share of the
   // site appears or disappears at once, that is the crawl reaching further or

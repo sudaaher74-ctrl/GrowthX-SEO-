@@ -2054,12 +2054,20 @@ export interface RivalMove {
   words?: { from: number; to: number };
   count?: number;
   questions?: string[];
+  comparedWith?: string | null;
 }
 
 export interface RivalMovesResponse {
   moves: RivalMove[];
   windowDays: number;
-  watching: Array<{ name: string; domain: string; lastCheckedAt: string | null }>;
+  watching: Array<{
+    name: string;
+    domain: string;
+    lastCheckedAt: string | null;
+    lastCrawlAt?: string | null;
+    pagesRead?: number | null;
+    lastChangeAt?: string | null;
+  }>;
 }
 
 export interface DispatchFindingBody {

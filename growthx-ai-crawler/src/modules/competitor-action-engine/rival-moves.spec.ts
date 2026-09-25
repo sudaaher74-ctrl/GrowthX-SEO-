@@ -101,7 +101,7 @@ describe('RivalMovesService.feed', () => {
     expect(res.moves).toEqual([
       expect.objectContaining({ kind: 'AI_NAMED', rival: 'Country Delight', count: 2, questions: ['best milk delivery in pune'] }),
     ]);
-    expect(res.watching).toEqual([{ name: 'Country Delight', domain: 'countrydelight.in', lastCheckedAt: null }]);
+    expect(res.watching).toEqual([{ name: 'Country Delight', domain: 'countrydelight.in', lastCheckedAt: null, lastCrawlAt: null, pagesRead: null, lastChangeAt: null }]);
     expect(prisma.promptCheck.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ cited: false }) }));
   });
 });
