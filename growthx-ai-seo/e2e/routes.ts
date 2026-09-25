@@ -91,6 +91,6 @@ export const TABBED_ROUTES = [
   "/competitor-intelligence?tab=gaps",
   "/competitor-intelligence?tab=radar",
   "/competitor-intelligence?tab=ai-answers",
-  "/competitor-intelligence?tab=local",
   "/competitor-intelligence?tab=counter-moves",
+  "/competitor-intelligence?tab=report",
 ];

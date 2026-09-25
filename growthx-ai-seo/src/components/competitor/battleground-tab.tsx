@@ -132,7 +132,8 @@ export function BattlegroundTab({
           healthScore: ourCrawl.data?.healthScore ?? null,
           aiSharePct: summary?.citationSharePct ?? null,
           aiChecked: summary?.checked ?? null,
-          rating: localSeo.data?.rating ?? null,
+          // Google gives no rating to a listing without reviews; 0.0 is not a score.
+          rating: localSeo.data?.reviewCount ? localSeo.data.rating : null,
           reviewCount: localSeo.data?.reviewCount ?? null,
         },
         rivalInputs,

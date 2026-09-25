@@ -1761,6 +1761,59 @@ export interface TrackedCompetitor {
   socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
 }
 
+/** Mirrors the backend's CompetitorIntelReport. */
+export interface IntelIssueGroup {
+  issueType: string;
+  severity: string;
+  pages: number;
+  description: string;
+  recommendation: string;
+  exampleUrls: string[];
+}
+
+export interface IntelReportSite {
+  name: string;
+  domain: string;
+  crawledAt: string | null;
+  pagesCrawled: number | null;
+  healthScore: number | null;
+  issues: IntelIssueGroup[];
+  coverage: Array<{ label: string; count: number }>;
+}
+
+export interface IntelReportProblem {
+  title: string;
+  severity: "critical" | "high" | "medium" | "low";
+  where: string;
+  evidence: string;
+  whyItMatters: string;
+  fix: string[];
+  effort: "low" | "medium" | "high";
+}
+
+export interface CompetitorIntelReport {
+  generatedAt: string;
+  facts: {
+    you: IntelReportSite | null;
+    rivals: Array<
+      IntelReportSite & {
+        comparison: Array<{ label: string; them: number | null; you: number | null; leader: "them" | "you" | "level" | "unknown" }>;
+        notes: string[];
+      }
+    >;
+    notIncluded: string[];
+  };
+  analysis: {
+    executiveSummary: string;
+    problems: IntelReportProblem[];
+    competitorInsights: Array<{ competitor: string; theyLead: string[]; youLead: string[]; copyThis: string }>;
+    plan: Array<{ week: string; actions: string[] }>;
+    dataGaps: string[];
+  } | null;
+  model: string | null;
+  analysisError: string | null;
+}
+
 export interface TrackedCompetitorList {
   competitors: TrackedCompetitor[];
   slotsUsed: number;
@@ -3166,6 +3219,9 @@ export const api = {
     post<MarketOutcomeRow>(`/api/projects/${projectId}/market-research/actions/${actionId}/measure`, {}),
 
   // ── Competitor SEO detail
+  /** Spends Sarvam tokens, so only on request. The facts come back even if the analysis fails. */
+  generateCompetitorIntelReport: (projectId: string) =>
+    post<CompetitorIntelReport>(`/api/projects/${projectId}/action-engine/competitor-report`, {}),
   getCompetitorSeoReport: (projectId: string, competitorId: string) =>
     get<CompetitorSeoReport>(
       `/api/projects/${projectId}/action-engine/competitors/${competitorId}/seo-report`,
