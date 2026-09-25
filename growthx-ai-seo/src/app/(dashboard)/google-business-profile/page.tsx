@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, useCallback, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, XCircle } from "lucide-react";
 import {
   useWorkspace,
@@ -42,7 +42,6 @@ type CallbackOutcome = "select" | "scopes" | "cancelled" | "failed" | "invalid";
 
 function GoogleBusinessProfileContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { projectId } = useWorkspace();
 
   const tabParam = searchParams.get("tab") as GbpTabKey | null;
@@ -56,8 +55,11 @@ function GoogleBusinessProfileContent() {
   const [pickerDismissed, setPickerDismissed] = useState(false);
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
 
+  // The native History API, not router.replace: a router transition on this
+  // page never commits, and Next then writes the old URL back, so tab clicks
+  // were silently undone. replaceState still updates useSearchParams.
   const handleTabChange = (newTab: GbpTabKey) => {
-    router.replace(`/google-business-profile?tab=${newTab}`, { scroll: false });
+    window.history.replaceState(null, "", `/google-business-profile?tab=${newTab}`);
   };
 
   // Google's callback lands back here as `?google=…&provider=…`. It is read
@@ -72,8 +74,8 @@ function GoogleBusinessProfileContent() {
   /** Drops the callback params, leaving the customer on the tab they were on. */
   const clearCallback = useCallback(() => {
     setPickerRequested(false);
-    router.replace(`/google-business-profile?tab=${activeTab}`, { scroll: false });
-  }, [router, activeTab]);
+    window.history.replaceState(null, "", `/google-business-profile?tab=${activeTab}`);
+  }, [activeTab]);
 
   const { data: localSeo, isLoading: seoLoading } = useLocalSeo(projectId);
   const { data: proposals = [] } = useGbpProposals(projectId);
