@@ -15,10 +15,9 @@ import type { CrawlIssue, CrawlPage } from "@/lib/api-client";
 interface GeoTabProps {
   pages: CrawlPage[];
   issues: CrawlIssue[];
-  onAutoFix?: (issue: CrawlIssue) => void;
 }
 
-export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
+export function GeoTab({ pages, issues }: GeoTabProps) {
   // GEO & AI Overviews Readiness Metrics
   const schemaIssues = useMemo(
     () =>
@@ -255,7 +254,6 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
                 <th className="p-3">WORD COUNT & DENSITY</th>
                 <th className="p-3">QUOTABILITY STATUS</th>
                 <th className="p-3">SCHEMA GROUNDING</th>
-                <th className="p-3 pr-4 text-right">1-CLICK GEO ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -329,33 +327,6 @@ export function GeoTab({ pages, issues, onAutoFix }: GeoTabProps) {
                       </div>
                     </td>
 
-                    <td className="p-3 pr-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const geoIssue: CrawlIssue = {
-                            id: `geo-fix-${page.id}`,
-                            issueType: "GEO_LLM_ANSWER_BLOCK",
-                            severity: isThin ? "HIGH" : "MEDIUM",
-                            affectedUrl: page.url,
-                            description: isThin
-                              ? `Page has low word depth (${page.wordCount} words) and lacks structured summary answer block for generative AI engines.`
-                              : `Page copy lacks a concise 45-word definition block and embedded FAQ schema for Google AI Overviews and ChatGPT search.`,
-                            recommendation:
-                              "Embed a structured 45-55 word direct answer block with high information gain bullets and Schema.org FAQPage JSON-LD markup.",
-                            status: "OPEN",
-                            aiFixAvailable: true,
-                            confidence: "CONFIRMED",
-                            category: "GEO",
-                          };
-                          onAutoFix?.(geoIssue);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-100 text-slate-800 dark:text-slate-400 hover:bg-slate-100 px-2.5 py-1 text-xs font-semibold transition-colors"
-                      >
-                        <Sparkles size={11} />
-                        <span>Convert to Answer Block</span>
-                      </button>
-                    </td>
                   </tr>
                 );
               })}

@@ -9,6 +9,7 @@ import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
 import { FetcherService } from '../crawler/fetcher.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import * as cheerio from 'cheerio';
+import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 
 /** Matches the Website Audit page's Re-crawl button. */
 const OWN_SITE_CRAWL = { maxDepth: 20, maxConcurrency: 10, useSitemap: true };
@@ -436,7 +437,7 @@ export class VoiceToolsService {
         organizationId: orgId,
       });
 
-      const items = JSON.parse(completion.text);
+      const items = extractAndParseJson(completion.text);
       
       return {
         success: true,
@@ -480,7 +481,7 @@ export class VoiceToolsService {
         organizationId: orgId,
       });
 
-      const items = JSON.parse(completion.text);
+      const items = extractAndParseJson(completion.text);
       
       return {
         success: true,
@@ -575,7 +576,7 @@ Extract the requested information and format it as a clean, concise summary. Ret
         organizationId: orgId,
       });
 
-      const parsed = JSON.parse(res.text);
+      const parsed = extractAndParseJson(res.text);
 
       return {
         success: true,
@@ -638,7 +639,10 @@ Respond ONLY with a JSON array of objects, like this:
 
       let competitors: { domain: string, name: string }[] = [];
       try {
-        competitors = JSON.parse(res.text);
+        // Models wrap JSON in code fences or <think> blocks, and sometimes in
+        // an object ({"competitors": [...]}) despite being asked for an array.
+        const parsed = extractAndParseJson<any>(res.text);
+        competitors = Array.isArray(parsed) ? parsed : parsed?.competitors ?? [];
       } catch (e) {
         throw new Error("Failed to parse AI output into a competitor list.");
       }
@@ -712,7 +716,7 @@ Respond ONLY with a JSON object, like this:
 
       let draftData;
       try {
-        draftData = JSON.parse(res.text);
+        draftData = extractAndParseJson(res.text);
       } catch (e) {
         throw new Error("Failed to parse AI output into a social post.");
       }

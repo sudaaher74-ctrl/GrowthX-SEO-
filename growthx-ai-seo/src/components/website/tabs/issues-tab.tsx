@@ -21,11 +21,10 @@ import type { CrawlIssue } from "@/lib/api-client";
 
 interface IssuesTabProps {
   issues: CrawlIssue[];
-  onFixIssue: (issue: CrawlIssue) => void;
   onExportPdf?: () => void;
 }
 
-export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
+export function IssuesTab({ issues, onExportPdf }: IssuesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -205,15 +204,6 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => onFixIssue(issue)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 hover:bg-black text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
-                      >
-                        <Zap size={12} />
-                        <span>Fix with AI</span>
-                      </button>
-
                       {issue.recommendation && (
                         <button
                           type="button"

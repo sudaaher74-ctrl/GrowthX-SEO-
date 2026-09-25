@@ -27,7 +27,7 @@ import {
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
-import { api, type CrawlIssue, type CrawlPage } from "@/lib/api-client";
+import { api, type CrawlPage } from "@/lib/api-client";
 import {
   useCrawlHistory,
   useCrawlIssues,
@@ -36,11 +36,9 @@ import {
   useIssueGroups,
   useLatestCrawl,
   usePortfolio,
-  useRepository,
   useWorkspace,
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
-import { AutoFixModal } from "@/components/website/auto-fix-modal";
 import { SeoAuditReportModal } from "@/components/website/audit-report-pdf/seo-audit-report-modal";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
@@ -59,7 +57,6 @@ function WebsiteAuditClient() {
   const tabParam = searchParams.get("tab") as TabId | null;
 
   const { orgId, projectId } = useWorkspace();
-  const repo = useRepository(projectId);
   const portfolio = usePortfolio(orgId);
 
   const clients = portfolio.data?.clients ?? [];
@@ -84,7 +81,6 @@ function WebsiteAuditClient() {
 
   const [activeTab, setActiveTab] = useState<TabId>(tabParam || "technical-seo");
   const [crawling, setCrawling] = useState(false);
-  const [selectedFixIssue, setSelectedFixIssue] = useState<CrawlIssue | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
@@ -370,7 +366,6 @@ function WebsiteAuditClient() {
             issues={allIssues}
             pages={allPages}
             onSwitchTab={setActiveTab}
-            onFixIssue={(issue) => setSelectedFixIssue(issue)}
           />
         )}
 
@@ -382,7 +377,6 @@ function WebsiteAuditClient() {
             qualityDiagnostics={qualityDiagnostics}
             historyRuns={historyRuns}
             onSwitchTab={setActiveTab}
-            onFixIssue={(issue) => setSelectedFixIssue(issue)}
             onOpenLogs={() => setShowLogsModal(true)}
             onOpenRecommendations={() => {
               const el = document.getElementById("technical-issues-table");
@@ -396,21 +390,6 @@ function WebsiteAuditClient() {
             crawl={crawl.data ?? null}
             pages={allPages}
             historyRuns={historyRuns}
-            onOptimizePage={(page) => {
-              const perfIssue: CrawlIssue = {
-                id: `perf-fix-${page.id}`,
-                issueType: "PERFORMANCE_LCP_OPTIMIZATION",
-                severity: "HIGH",
-                affectedUrl: page.url,
-                description: `Page response latency is ${page.responseTimeMs}ms with Core Web Vitals needing optimization.`,
-                recommendation: "Optimize hero images, enable WebP compression, defer non-critical CSS/JS, and implement edge caching.",
-                status: "OPEN",
-                aiFixAvailable: true,
-                confidence: "CONFIRMED",
-                category: "PERFORMANCE",
-              };
-              setSelectedFixIssue(perfIssue);
-            }}
           />
         )}
 
@@ -430,21 +409,6 @@ function WebsiteAuditClient() {
           <ContentTab
             pages={allPages}
             issues={allIssues}
-            onOptimizePage={(page) => {
-              const contentIssue: CrawlIssue = {
-                id: `content-fix-${page.id}`,
-                issueType: "ON_PAGE_CONTENT_OPTIMIZATION",
-                severity: page.wordCount < 350 ? "HIGH" : "MEDIUM",
-                affectedUrl: page.url,
-                description: `On-page SEO optimization for ${page.title || "Page"}. Word count: ${page.wordCount}.`,
-                recommendation: "Optimize title tag length (50-60 chars), meta description (150-160 chars), and ensure single H1 hierarchy.",
-                status: "OPEN",
-                aiFixAvailable: true,
-                confidence: "CONFIRMED",
-                category: "CONTENT",
-              };
-              setSelectedFixIssue(contentIssue);
-            }}
           />
         )}
 
@@ -452,14 +416,12 @@ function WebsiteAuditClient() {
           <GeoTab
             pages={allPages}
             issues={allIssues}
-            onAutoFix={(issue) => setSelectedFixIssue(issue)}
           />
         )}
 
         {activeTab === "issues" && (
           <IssuesTab
             issues={allIssues}
-            onFixIssue={(issue) => setSelectedFixIssue(issue)}
             onExportPdf={() => setShowPdfModal(true)}
           />
         )}
@@ -480,16 +442,6 @@ function WebsiteAuditClient() {
         pages={allPages}
         qualityDiagnostics={qualityDiagnostics}
       />
-
-      {/* Auto Fix Modal */}
-      {selectedFixIssue && (
-        <AutoFixModal
-          issue={selectedFixIssue}
-          projectId={projectId}
-          repoConnected={Boolean(repo.data)}
-          onClose={() => setSelectedFixIssue(null)}
-        />
-      )}
 
       {/* Share Report Modal */}
       {showShareModal && (

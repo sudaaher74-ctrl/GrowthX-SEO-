@@ -114,12 +114,12 @@
   "components/website/cwv-benchmark-bar.tsx": 51,
   "components/website/donut-chart.tsx": 14,
   "components/website/gauge-score.tsx": 40,
-  "components/website/tabs/content-tab.tsx": 117,
-  "components/website/tabs/geo-tab.tsx": 143,
-  "components/website/tabs/issues-tab.tsx": 83,
-  "components/website/tabs/overview-tab.tsx": 83,
+  "components/website/tabs/content-tab.tsx": 110,
+  "components/website/tabs/geo-tab.tsx": 136,
+  "components/website/tabs/issues-tab.tsx": 82,
+  "components/website/tabs/overview-tab.tsx": 81,
   "components/website/tabs/pages-tab.tsx": 312,
-  "components/website/tabs/performance-tab.tsx": 157,
-  "components/website/tabs/technical-seo-tab.tsx": 304,
+  "components/website/tabs/performance-tab.tsx": 147,
+  "components/website/tabs/technical-seo-tab.tsx": 299,
   "lib/utils.ts": 6
 }

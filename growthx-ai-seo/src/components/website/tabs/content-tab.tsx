@@ -9,7 +9,6 @@ import {
   Heading,
   Layers,
   Search,
-  Sparkles,
   Type,
   X,
 } from "lucide-react";
@@ -20,10 +19,9 @@ import { DonutChart } from "../donut-chart";
 interface ContentTabProps {
   pages: CrawlPage[];
   issues: CrawlIssue[];
-  onOptimizePage?: (page: CrawlPage) => void;
 }
 
-export function ContentTab({ pages, issues, onOptimizePage }: ContentTabProps) {
+export function ContentTab({ pages, issues }: ContentTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIssueType, setSelectedIssueType] = useState("ALL");
 
@@ -247,7 +245,6 @@ export function ContentTab({ pages, issues, onOptimizePage }: ContentTabProps) {
                 <th className="p-3">META DESCRIPTION</th>
                 <th className="p-3">H1 HEADING</th>
                 <th className="p-3 text-right">WORD COUNT</th>
-                <th className="p-3 pr-4 text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -304,16 +301,6 @@ export function ContentTab({ pages, issues, onOptimizePage }: ContentTabProps) {
                       </span>
                     </td>
 
-                    <td className="p-3 pr-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onOptimizePage?.(page)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 hover:bg-blue-100 px-2.5 py-1 text-xs font-semibold transition-colors"
-                      >
-                        <Sparkles size={11} />
-                        <span>Optimize</span>
-                      </button>
-                    </td>
                   </tr>
                 );
               })}
