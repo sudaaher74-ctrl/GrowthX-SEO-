@@ -190,7 +190,7 @@ describe('IssueGroupService.groupsForProject', () => {
     const [group] = (await svc.groupsForProject('proj_1')).groups;
 
     expect(group.title).toBe('1 page lets Google write their own description — usually badly');
-    expect(group.action).toContain("We'll write a short description for each page");
+    expect(group.action).toContain('Write one or two sentences for each page');
   });
 });
 

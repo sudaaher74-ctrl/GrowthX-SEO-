@@ -1761,6 +1761,51 @@ export interface TrackedCompetitor {
   socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
 }
 
+/** Mirrors WebsiteAuditReport in growthx-ai-crawler audit-report.service.ts. */
+export interface WebsiteAuditReport {
+  generatedAt: string;
+  facts: {
+    site: { name: string; domain: string; crawledAt: string | null; healthScore: number | null } | null;
+    pages: {
+      read: number;
+      broken: number;
+      slow: number;
+      averageResponseMs: number | null;
+      thin: number;
+      medianWords: number | null;
+      missingTitle: number;
+      missingDescription: number;
+      missingHeadline: number;
+      hiddenFromGoogle: number;
+      withGoogleDetails: number;
+    } | null;
+    problemsBySeverity: Record<string, number>;
+    problems: Array<{ title: string; severity: string; pages: number; why: string; action: string; exampleUrls: string[]; issueType: string }>;
+    moreProblems: number;
+  };
+  analysis: {
+    summary: string;
+    scoreExplained: string;
+    fixes: Array<{
+      title: string;
+      priority: "high" | "medium" | "low";
+      whatIsWrong: string;
+      whyItMatters: string;
+      steps: string[];
+      whoCanFix: "you" | "developer";
+      effort: "low" | "medium" | "high";
+      pages: number;
+    }>;
+    quickWins: string[];
+    whatIsGood: string[];
+    plan: Array<{ week: string; actions: string[] }>;
+    dataGaps: string[];
+  } | null;
+  model: string | null;
+  analysisError: string | null;
+  snapshotId?: string | null;
+}
+
 /** Mirrors the backend's CompetitorIntelReport. */
 export type IntelPriority = "high" | "medium" | "low";
 
@@ -3071,6 +3116,9 @@ export const api = {
     confirm: (runId: string, domains: string[]) => post<AutopilotRun>(`/api/autopilot/${runId}/confirm`, { domains }),
     cancel: (runId: string) => post<AutopilotRun>(`/api/autopilot/${runId}/cancel`, {}),
   },
+
+  generateAuditReport: (projectId: string) => post<WebsiteAuditReport>(`/api/projects/${projectId}/audit-report`, {}),
+  getLatestAuditReport: (projectId: string) => get<WebsiteAuditReport | null>(`/api/projects/${projectId}/audit-report/latest`),
 
   /** The most recently generated competitor report, so it survives a reload. */
   getLatestCompetitorReport: (projectId: string) =>
