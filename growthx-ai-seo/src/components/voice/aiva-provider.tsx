@@ -44,6 +44,11 @@ const playSuccessSound = () => {
   playTone(659.25, 'sine', 0.4, 0.1, 0.15); // E5
 };
 
+const MIC_BLOCKED_MESSAGE =
+  'Microphone blocked. Click the icon left of the address bar, set Microphone to Allow, then tap the mic again.';
+const MIC_UNAVAILABLE_MESSAGE =
+  "Can't reach a microphone. Check one is connected and not in use (on Mac: System Settings → Privacy → Microphone → Chrome), then tap the mic again.";
+
 export type AivaState =
   | 'idle'
   | 'listening'
@@ -130,7 +135,8 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   } | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const micDeniedRef = useRef(false);
+  // Set to the message to show while the mic cannot be used; null when it can.
+  const micBlockedRef = useRef<string | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
@@ -165,7 +171,6 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.lang = 'en-US';
 
         let silenceTimeout: NodeJS.Timeout;
-        let micDenied = false;
 
         recognition.onresult = (event: SpeechRecognitionEventLike) => {
           let currentTranscript = '';
@@ -216,12 +221,22 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'network') {
             return; // Ignore routine silences and background aborts
           }
-          if (event.error === 'not-allowed') {
-            micDenied = true;
-            micDeniedRef.current = true;
-            console.error('Microphone access denied.');
+          const blocked =
+            event.error === 'not-allowed' || event.error === 'service-not-allowed'
+              ? MIC_BLOCKED_MESSAGE
+              : event.error === 'audio-capture'
+                ? MIC_UNAVAILABLE_MESSAGE
+                : null;
+          // onend fires right after this, before React re-renders; without
+          // updating the ref here it still reads 'listening', moves to
+          // 'thinking' with an empty transcript and resets to idle, wiping
+          // the message below.
+          stateRef.current = 'error';
+          if (blocked) {
+            micBlockedRef.current = blocked;
+            console.error('Microphone unavailable:', event.error);
             setState('error');
-            setAssistantMessage('Microphone access is blocked. Allow it in your browser\'s site settings, then reload.');
+            setAssistantMessage(blocked);
             return;
           }
           console.error('Speech recognition error', event.error);
@@ -236,9 +251,9 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             setState('thinking');
           }
           // Keep listening for the wake word or a confirmation, unless the
-          // mic is blocked — restarting then would only refire 'not-allowed'
-          // in a silent loop with no way for the user to notice or recover.
-          if (micDenied) return;
+          // mic can't be used — restarting then only refires the same error
+          // every 100ms. A tap on the mic retries (see startListening).
+          if (micBlockedRef.current) return;
           setTimeout(() => {
             try {
               if (recognitionRef.current) recognitionRef.current.start();
@@ -384,11 +399,35 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   });
 
   const startListening = () => {
-    if (micDeniedRef.current) {
-      setAssistantMessage('Microphone access is blocked. Allow it in your browser\'s site settings, then reload.');
-      setState('error');
+    if (!micBlockedRef.current) {
+      beginListening();
       return;
     }
+    // A tap is a user gesture, so this is the moment Chrome will show its
+    // permission prompt again (or pick up an Allow set in site settings).
+    const showBlocked = (message: string) => {
+      micBlockedRef.current = message;
+      setAssistantMessage(message);
+      setState('error');
+    };
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showBlocked(micBlockedRef.current);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(
+      (stream) => {
+        stream.getTracks().forEach((track) => track.stop());
+        micBlockedRef.current = null;
+        beginListening();
+      },
+      (err: unknown) => {
+        const denied = err instanceof DOMException && err.name === 'NotAllowedError';
+        showBlocked(denied ? MIC_BLOCKED_MESSAGE : MIC_UNAVAILABLE_MESSAGE);
+      },
+    );
+  };
+
+  const beginListening = () => {
     if (recognitionRef.current) {
       setTranscript('');
       setProgressMessage(null);
