@@ -13,11 +13,9 @@ import {
   Layers,
   Lightbulb,
   Lock,
-  MoreHorizontal,
   Search,
   Shield,
   Smartphone,
-  Sparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -35,7 +33,6 @@ interface TechnicalSeoTabProps {
   qualityDiagnostics?: CrawlQualityDiagnostics | null;
   historyRuns?: { pagesCrawled: number; issuesFound: number }[];
   onSwitchTab: (tab: WebsiteTabId) => void;
-  onFixIssue: (issue: CrawlIssue) => void;
   onOpenLogs?: () => void;
   onOpenRecommendations?: () => void;
 }
@@ -47,7 +44,6 @@ export function TechnicalSeoTab({
   qualityDiagnostics,
   historyRuns = [],
   onSwitchTab,
-  onFixIssue,
   onOpenLogs,
   onOpenRecommendations,
 }: TechnicalSeoTabProps) {
@@ -937,7 +933,6 @@ export function TechnicalSeoTab({
                   <th className="p-3 text-center">AFFECTED PAGES</th>
                   <th className="p-3">EXAMPLE URL</th>
                   <th className="p-3 text-center">IMPACT</th>
-                  <th className="p-3 pr-4 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1014,25 +1009,6 @@ export function TechnicalSeoTab({
                             ? "Medium"
                             : "Low"}
                         </span>
-                      </td>
-                      <td className="p-3 pr-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onFixIssue(issue)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 text-xs font-semibold shadow-xs transition-colors"
-                          >
-                            <Sparkles size={11} />
-                            <span>Fix with AI</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onFixIssue(issue)}
-                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded"
-                          >
-                            <MoreHorizontal size={14} />
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );

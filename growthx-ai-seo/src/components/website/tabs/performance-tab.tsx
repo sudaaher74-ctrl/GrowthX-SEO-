@@ -12,10 +12,8 @@ import {
   Info,
   Laptop,
   Layers,
-  MoreHorizontal,
   Search,
   Smartphone,
-  Sparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -29,14 +27,12 @@ interface PerformanceTabProps {
   crawl: CrawlJob | null;
   pages: CrawlPage[];
   historyRuns?: { pagesCrawled: number; issuesFound: number; finishedAt?: string | null }[];
-  onOptimizePage: (page: CrawlPage) => void;
 }
 
 export function PerformanceTab({
   crawl,
   pages,
   historyRuns = [],
-  onOptimizePage,
 }: PerformanceTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deviceFilter, setDeviceFilter] = useState<"all" | "mobile" | "desktop">("all");
@@ -528,7 +524,6 @@ export function PerformanceTab({
                   <th className="p-3">CLS</th>
                   <th className="p-3">LOAD TIME</th>
                   <th className="p-3">STATUS</th>
-                  <th className="p-3 pr-4 text-right">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -592,24 +587,6 @@ export function PerformanceTab({
                         >
                           {isSlow ? "Slow" : isNeedsWork ? "Needs Work" : "Good"}
                         </span>
-                      </td>
-                      <td className="p-3 pr-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onOptimizePage(page)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 hover:bg-blue-100 px-2.5 py-1 text-xs font-semibold transition-colors"
-                          >
-                            <Sparkles size={11} />
-                            <span>Optimize with AI</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded"
-                          >
-                            <MoreHorizontal size={14} />
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );

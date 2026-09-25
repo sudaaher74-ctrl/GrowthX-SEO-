@@ -26,7 +26,6 @@ interface OverviewTabProps {
   issues: CrawlIssue[];
   pages: CrawlPage[];
   onSwitchTab: (tab: WebsiteTabId) => void;
-  onFixIssue: (issue: CrawlIssue) => void;
 }
 
 export function OverviewTab({
@@ -34,7 +33,6 @@ export function OverviewTab({
   issues,
   pages,
   onSwitchTab,
-  onFixIssue,
 }: OverviewTabProps) {
   const healthScore = crawl?.healthScore != null ? Math.round(crawl.healthScore) : null;
   const criticalCount = issues.filter((i) => i.severity === "CRITICAL").length;
@@ -231,13 +229,6 @@ export function OverviewTab({
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">{issue.affectedUrl}</div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onFixIssue(issue)}
-                        className="shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 text-xs font-semibold shadow-xs"
-                      >
-                        Fix with AI
-                      </button>
                     </div>
                   ))}
               </div>
