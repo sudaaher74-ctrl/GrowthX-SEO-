@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { google } from './google-apis';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
+import { googleApiClientError } from './google-api-error';
 
 /**
  * Reads Google Analytics 4 into the GrowthX data layer.
@@ -59,7 +60,7 @@ export class AnalyticsService {
       );
     } catch (error) {
       await this.handleApiError(projectId, error);
-      throw error;
+      throw googleApiClientError('Google Analytics Admin API', error);
     }
   }
 
