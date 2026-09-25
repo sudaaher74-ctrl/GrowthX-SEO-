@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, auth, type AivaUiPayload, type VoiceAgentResult } from '@/lib/api-client';
+import { api, auth, getApiBase, type AivaUiPayload, type VoiceAgentResult } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
 import { usePathname } from 'next/navigation';
 
@@ -130,6 +130,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   } | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const micDeniedRef = useRef(false);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
@@ -164,6 +165,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         recognition.lang = 'en-US';
 
         let silenceTimeout: NodeJS.Timeout;
+        let micDenied = false;
 
         recognition.onresult = (event: SpeechRecognitionEventLike) => {
           let currentTranscript = '';
@@ -215,7 +217,11 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             return; // Ignore routine silences and background aborts
           }
           if (event.error === 'not-allowed') {
+            micDenied = true;
+            micDeniedRef.current = true;
             console.error('Microphone access denied.');
+            setState('error');
+            setAssistantMessage('Microphone access is blocked. Allow it in your browser\'s site settings, then reload.');
             return;
           }
           console.error('Speech recognition error', event.error);
@@ -229,7 +235,10 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           if (stateRef.current === 'listening') {
             setState('thinking');
           }
-          // Always keep listening for wake word or confirmation
+          // Keep listening for the wake word or a confirmation, unless the
+          // mic is blocked — restarting then would only refire 'not-allowed'
+          // in a silent loop with no way for the user to notice or recover.
+          if (micDenied) return;
           setTimeout(() => {
             try {
               if (recognitionRef.current) recognitionRef.current.start();
@@ -268,9 +277,9 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         setSessionId(res.sessionId);
 
         // Connect socket for real-time progress
-        const token = localStorage.getItem('growthx_token');
+        const token = auth.getToken();
         if (token) {
-          const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+          const socketUrl = getApiBase();
           socketRef.current = io(socketUrl, {
             auth: { token },
             transports: ['websocket'],
@@ -375,6 +384,11 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   });
 
   const startListening = () => {
+    if (micDeniedRef.current) {
+      setAssistantMessage('Microphone access is blocked. Allow it in your browser\'s site settings, then reload.');
+      setState('error');
+      return;
+    }
     if (recognitionRef.current) {
       setTranscript('');
       setProgressMessage(null);

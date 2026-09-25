@@ -344,6 +344,12 @@ Respond with JSON only, no explanation.`;
           return await this.tools.generateBlogIdeas(projectId!, params.topic, userId, orgId);
         case 'optimizeMetaTags':
           return await this.tools.optimizeMetaTags(projectId!, params.pageUrl, userId, orgId);
+        case 'scrapeCompetitorData':
+          return await this.tools.scrapeCompetitorData(projectId!, userId, orgId, params.url, params.target);
+        case 'discoverCompetitors':
+          return await this.tools.discoverCompetitors(projectId!, userId, orgId);
+        case 'hijackTrend':
+          return await this.tools.hijackTrend(projectId!, userId, orgId);
         case 'navigate': {
           const destination = (params.destination as string)?.toLowerCase() ?? '';
           const route = NAVIGATE_ROUTES[destination] ?? '/dashboard';
