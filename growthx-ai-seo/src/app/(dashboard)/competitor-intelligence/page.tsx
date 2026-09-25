@@ -35,6 +35,7 @@ import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
 import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
+import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
 import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
 import { CompetitorProgrammaticTab } from "@/components/competitor/competitor-programmatic-tab";
 import { CompetitorStealthRadarTab } from "@/components/competitor/competitor-stealth-radar-tab";
@@ -45,6 +46,7 @@ const TABS = [
   { id: "radar", label: "Rival Radar" },
   { id: "ai-answers", label: "AI Answers" },
   { id: "counter-moves", label: "Counter-Moves" },
+  { id: "report", label: "Full Report" },
 ];
 
 // Old links (and the previous tab names) still land somewhere sensible.
@@ -341,6 +343,15 @@ function CompetitorIntelligenceClient() {
           </Link>
           <span>/</span>
           <span className="text-slate-800 font-bold">{currentTabObj.label}</span>
+          {activeTab !== "report" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("report")}
+              className="ml-auto rounded-lg border bg-white px-3 py-1.5 text-[12px] font-medium text-brand-950 hover:bg-brand-50"
+            >
+              Full report ↓
+            </button>
+          )}
         </div>
 
         {/* Global Horizontal Sub-navigation Pill Strip */}
@@ -456,6 +467,8 @@ function CompetitorIntelligenceClient() {
           />
         </div>
       )}
+
+      {activeTab === "report" && <CompetitorReportTab projectId={projectId || ""} rivalCount={competitorsList.length} />}
 
       {/* ── ADD COMPETITOR MODAL ── */}
       {showAddModal && (
