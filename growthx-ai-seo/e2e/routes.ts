@@ -87,4 +87,10 @@ export const TABBED_ROUTES = [
   "/website?tab=pages",
   "/website?tab=issues",
   "/competitor-intelligence?tab=overview",
+  "/competitor-intelligence?tab=battleground",
+  "/competitor-intelligence?tab=gaps",
+  "/competitor-intelligence?tab=radar",
+  "/competitor-intelligence?tab=ai-answers",
+  "/competitor-intelligence?tab=local",
+  "/competitor-intelligence?tab=counter-moves",
 ];
