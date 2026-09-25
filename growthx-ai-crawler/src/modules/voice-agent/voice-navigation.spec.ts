@@ -4,7 +4,7 @@ describe('matchNavigation', () => {
   it.each([
     ['can you open website audit', '/website'],
     ['Open Website Audit', '/website'],
-    ['go to reports', '/reports'],
+    ['go to reports', '/website?tab=report'],
     ['take me to the competitor intelligence page', '/competitor-intelligence'],
     ['open google business profile', '/google-business-profile'],
     ['please navigate to AI visibility', '/ai-visibility'],

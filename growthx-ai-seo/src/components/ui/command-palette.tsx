@@ -52,7 +52,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-research", title: "Market Research", category: "Navigation", icon: Eye, href: "/market-research", subtitle: "Cited answers about this client's market" },
     { id: "nav-search-perf", title: "Search Performance", category: "Navigation", icon: SearchIcon, href: "/search-performance", subtitle: "Google Search Console & GA4 traffic" },
     { id: "nav-content", title: "Content & Opportunities", category: "Navigation", icon: FileText, href: "/content-opportunities", subtitle: "SEO opportunities, keyword gaps & drafting studio" },
-    { id: "nav-reports", title: "Reports", category: "Navigation", icon: FileSpreadsheet, href: "/reports", subtitle: "Executive summaries & white-label exports" },
+    { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
     { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
     { id: "nav-add-biz", title: "Add Business", category: "Navigation", icon: Plus, href: "/projects", subtitle: "Guided 5-step onboarding wizard" },
