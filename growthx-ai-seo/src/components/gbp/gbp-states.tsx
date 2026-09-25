@@ -55,6 +55,7 @@ interface PanelProps {
   body: React.ReactNode;
   detail?: string | null;
   action?: { label: string; onClick: () => void; pending?: boolean };
+  secondaryAction?: { label: string; onClick: () => void };
   compact?: boolean;
 }
 
@@ -73,6 +74,7 @@ export function GbpStatePanel({
   body,
   detail,
   action,
+  secondaryAction,
   compact = false,
 }: PanelProps) {
   return (
@@ -92,16 +94,29 @@ export function GbpStatePanel({
           {detail}
         </p>
       )}
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          disabled={action.pending}
-          className="inline-flex items-center gap-1.5 mt-1 px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
-        >
-          {action.pending && <Loader2 size={12} className="animate-spin" />}
-          {action.label}
-        </button>
+      {(action || secondaryAction) && (
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+          {action && (
+            <button
+              type="button"
+              onClick={action.onClick}
+              disabled={action.pending}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
+            >
+              {action.pending && <Loader2 size={12} className="animate-spin" />}
+              {action.label}
+            </button>
+          )}
+          {secondaryAction && (
+            <button
+              type="button"
+              onClick={secondaryAction.onClick}
+              className="px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-800 hover:bg-brand-50 transition"
+            >
+              {secondaryAction.label}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -188,6 +203,9 @@ export function GbpConnectionNotice({
           }
           action={
             onChooseLocation ? { label: "Choose a location", onClick: onChooseLocation } : undefined
+          }
+          secondaryAction={
+            onConnect ? { label: "Track via Places / Manual Entry", onClick: onConnect } : undefined
           }
         />
       );
