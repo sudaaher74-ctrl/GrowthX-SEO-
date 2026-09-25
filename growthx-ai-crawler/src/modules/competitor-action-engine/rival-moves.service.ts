@@ -7,7 +7,8 @@ import { CrawlPage, RivalMove, mergeMoves, movesFromCrawls, movesFromSnapshots }
 
 /** How far back the feed looks. */
 export const WINDOW_DAYS = 30;
-const FEED_LIMIT = 60;
+/** Per competitor, so one busy site cannot push a quiet one out of the feed. */
+const PER_RIVAL_LIMIT = 40;
 const SNAPSHOT_ROWS_PER_RIVAL = 3000;
 const QUESTIONS_KEPT = 3;
 
@@ -15,7 +16,17 @@ export interface RivalMovesResponse {
   moves: RivalMove[];
   windowDays: number;
   /** When each competitor was last checked, so a quiet feed can be told from an unwatched one. */
-  watching: Array<{ name: string; domain: string; lastCheckedAt: string | null }>;
+  watching: Array<{
+    name: string;
+    domain: string;
+    /** The newer of the two below. */
+    lastCheckedAt: string | null;
+    /** When their whole website was last read, and how many pages. */
+    lastCrawlAt: string | null;
+    pagesRead: number | null;
+    /** When the daily check last saw a page change (it writes nothing when nothing changed). */
+    lastChangeAt: string | null;
+  }>;
 }
 
 /**
@@ -53,28 +64,43 @@ export class RivalMovesService {
       moves.push(...movesFromSnapshots(rows, rival, since));
 
       let lastCrawl: Date | null = null;
+      let pagesRead: number | null = null;
       if (c.websiteId) {
         const jobs = await this.prisma.crawlJob.findMany({
           where: { websiteId: c.websiteId, status: 'COMPLETED' },
           orderBy: { finishedAt: 'desc' },
           take: 2,
-          select: { id: true, finishedAt: true },
+          select: { id: true, finishedAt: true, pagesCrawled: true },
         });
         lastCrawl = jobs[0]?.finishedAt ?? null;
+        pagesRead = jobs[0]?.pagesCrawled ?? null;
         if (jobs.length === 2 && jobs[0].finishedAt && jobs[0].finishedAt >= since) {
           const [latest, previous] = await Promise.all([this.pagesOf(jobs[0].id), this.pagesOf(jobs[1].id)]);
-          moves.push(...movesFromCrawls(latest, previous, rival, jobs[0].finishedAt));
+          moves.push(...movesFromCrawls(latest, previous, rival, jobs[0].finishedAt, jobs[1].finishedAt));
         }
       }
 
       const lastSnapshot = rows[0]?.capturedAt ?? null;
       const last = [lastSnapshot, lastCrawl].filter((d): d is Date => d != null).sort((a, b) => b.getTime() - a.getTime())[0];
-      watching.push({ ...rival, lastCheckedAt: last?.toISOString() ?? null });
+      watching.push({
+        ...rival,
+        lastCheckedAt: last?.toISOString() ?? null,
+        lastCrawlAt: lastCrawl?.toISOString() ?? null,
+        pagesRead,
+        lastChangeAt: lastSnapshot?.toISOString() ?? null,
+      });
     }
 
     moves.push(...(await this.aiMoves(projectId, competitors.map((c) => ({ name: c.name || c.label || normalizeDomain(c.domain), domain: normalizeDomain(c.domain) })), since)));
 
-    return { moves: mergeMoves(moves, FEED_LIMIT), windowDays: WINDOW_DAYS, watching };
+    const merged = mergeMoves(moves, Number.MAX_SAFE_INTEGER);
+    const perRival = new Map<string, number>();
+    const capped = merged.filter((m) => {
+      const n = (perRival.get(m.rivalDomain) ?? 0) + 1;
+      perRival.set(m.rivalDomain, n);
+      return n <= PER_RIVAL_LIMIT;
+    });
+    return { moves: capped, windowDays: WINDOW_DAYS, watching };
   }
 
   private async pagesOf(crawlJobId: string): Promise<Map<string, CrawlPage>> {

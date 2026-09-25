@@ -53,17 +53,27 @@ export function extraName(ldType: string): string {
   return mapped ? googleExtra(mapped).name : ldType.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }
 
-const SEEN_BY: Record<RivalMove["source"], string> = {
-  "daily-check": "Seen in our daily check of their website",
-  crawl: "Seen when we last read their whole website",
-  "ai-answers": "Seen in the AI answer checks",
-};
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+/** Where the change was seen, with the dates, so it can be checked. */
+function seenBy(m: RivalMove): string {
+  switch (m.source) {
+    case "daily-check":
+      return `Seen in our daily check of their website on ${day(m.at)}`;
+    case "crawl":
+      return m.comparedWith
+        ? `Seen by comparing our reads of their website on ${day(m.comparedWith)} and ${day(m.at)}`
+        : `Seen when we read their website on ${day(m.at)}`;
+    case "ai-answers":
+      return `Seen in the AI answer checks, latest on ${day(m.at)}`;
+  }
+}
 
 const quote = (s: string | null | undefined) => (s ? `"${s.split(/\s[|–-]\s/)[0].trim()}"` : "a page");
 
 export function toRadarItem(m: RivalMove): RadarItem {
   const example = m.url && /^https?:\/\//.test(m.url) ? { label: `See ${m.rival}'s page`, url: m.url } : undefined;
-  const common = { id: m.id, kind: m.kind, rival: m.rival, rivalDomain: m.rivalDomain, at: m.at, seenBy: SEEN_BY[m.source], example };
+  const common = { id: m.id, kind: m.kind, rival: m.rival, rivalDomain: m.rivalDomain, at: m.at, seenBy: seenBy(m), example };
 
   switch (m.kind) {
     case "NEW_PAGE":
