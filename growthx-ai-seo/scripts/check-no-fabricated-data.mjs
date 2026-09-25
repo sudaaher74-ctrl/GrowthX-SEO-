@@ -134,7 +134,7 @@ const RULES = [
     except: /^\s*(\/\/|\*|\/\*)/,
     allow: [
       {
-        file: 'components/marketing/proof-strip.tsx',
+        file: 'components/marketing/workflow-steps.tsx',
         line: '"MilQuu Fresh"',
         reason: 'A customer name in the "trusted by" list, with no figures or quotes attached.',
       },

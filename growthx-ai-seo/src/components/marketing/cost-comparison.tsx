@@ -2,199 +2,254 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles, Check } from "lucide-react";
+
+interface ComparisonRow {
+  what: string;
+  usualWay: string;
+  costInr: string;
+  costUsd: string;
+  growthx: string;
+}
+
+const COMPARISON_ROWS: ComparisonRow[] = [
+  {
+    what: "Technical SEO audit + fixes",
+    usualWay: "SEO agency retainer",
+    costInr: "₹40,000–1,00,000",
+    costUsd: "$500–1,200",
+    growthx: "Included, fixes shipped automatically",
+  },
+  {
+    what: "Keyword & competitor research",
+    usualWay: "Semrush or Ahrefs",
+    costInr: "₹11,000+",
+    costUsd: "$130+",
+    growthx: "Included, gaps priced in ₹",
+  },
+  {
+    what: "AI search visibility",
+    usualWay: "Otterly, Peec or Profound",
+    costInr: "₹2,500–8,500",
+    costUsd: "$30–100",
+    growthx: "Included",
+  },
+  {
+    what: "Google Maps rank tracking",
+    usualWay: "Local Falcon or BrightLocal",
+    costInr: "₹2,000–3,500",
+    costUsd: "$25–45",
+    growthx: "Included",
+  },
+  {
+    what: "Someone to actually do the work",
+    usualWay: "Freelancer or in-house hire",
+    costInr: "₹25,000+",
+    costUsd: "$300+",
+    growthx: "Fix Engine",
+  },
+];
 
 export function CostComparison() {
   const [currency, setCurrency] = useState<"INR" | "USD">("INR");
 
-  const isINR = currency === "INR";
+  const badgeText =
+    currency === "INR"
+      ? "An SEO team and four tools, from ₹2,999/mo"
+      : "An SEO team and four tools, from $39/mo";
 
-  const rows = [
-    {
-      need: "Technical SEO audit + fixes",
-      usual: "SEO agency retainer",
-      cost: isINR ? "₹40,000–1,00,000" : "$500–1,200",
-      growthx: "Included, fixes shipped automatically",
-    },
-    {
-      need: "Keyword and competitor research",
-      usual: "Semrush or Ahrefs",
-      cost: isINR ? "₹11,000+" : "$130+",
-      growthx: isINR ? "Included, gaps priced in ₹" : "Included, gaps priced in $",
-    },
-    {
-      need: "AI search visibility",
-      usual: "Otterly, Peec or Profound",
-      cost: isINR ? "₹2,500–8,500" : "$30–100",
-      growthx: "Included",
-    },
-    {
-      need: "Google Maps rank tracking",
-      usual: "Local Falcon or BrightLocal",
-      cost: isINR ? "₹2,000–3,500" : "$25–45",
-      growthx: "Included",
-    },
-    {
-      need: "Someone to actually do the work",
-      usual: "Freelancer or in-house hire",
-      cost: isINR ? "₹25,000+" : "$300+",
-      growthx: "Fix Engine",
-    },
-  ];
-
-  const plans = [
-    {
-      name: "Starter",
-      price: isINR ? "₹2,999" : "$39",
-      target: "1 website",
-      line: "Audit, Fix Engine, 3 competitors, AI visibility basics",
-      badge: null,
-    },
-    {
-      name: "Growth",
-      price: isINR ? "₹7,999" : "$99",
-      target: "Growing brands",
-      line: "5 competitors, Rival Radar, GBP for 1 location, weekly brief",
-      badge: "Popular",
-    },
-    {
-      name: "Agency",
-      price: isINR ? "₹19,999" : "$249",
-      target: "Agencies",
-      line: "Multiple clients, white-label reports, bulk fixes, multi-location GBP",
-      badge: null,
-    },
-  ];
+  const totalWithout = currency === "INR" ? "₹80,000+" : "$955+";
+  const totalWith = currency === "INR" ? "From ₹2,999" : "From $39";
 
   return (
-    <section className="bg-brand-950 py-24 lg:py-32 border-b border-brand-900 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        {/* Header & Currency Switcher */}
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div className="max-w-2xl space-y-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-series-6">
-              Cost &amp; Value Breakdown
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight">
-              An SEO team and four tools, from {isINR ? "₹2,999" : "$39"}/month.
-            </h2>
-            <p className="text-sm sm:text-base text-brand-300 leading-relaxed">
-              Most businesses stitch together an agency and a pile of subscriptions.
-              GrowthX does the same job in one place, and actually ships the work.
-            </p>
+    <section className="bg-brand-950 text-brand-50 py-20 sm:py-28 relative overflow-hidden border-y border-brand-900">
+      {/* Ambient glowing backdrop */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[650px] h-[320px] bg-series-6/10 blur-[130px] rounded-full" />
+        <div className="absolute bottom-0 right-1/4 w-[450px] h-[280px] bg-accent-600/10 blur-[110px] rounded-full" />
+      </div>
+
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        {/* Header container */}
+        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
+          {/* Pill Badge */}
+          <div className="inline-flex items-center gap-2 bg-brand-900/80 border border-brand-800 text-brand-300 text-xs sm:text-sm font-medium px-4 py-1.5 rounded-full mb-5 backdrop-blur-sm shadow-inner">
+            <Sparkles size={13} className="text-series-6" />
+            <span>{badgeText}</span>
           </div>
 
-          {/* Currency Toggle */}
-          <div className="flex items-center gap-1 bg-brand-900 border border-brand-800 p-1 rounded-xl shrink-0 self-start md:self-auto">
+          {/* Headline */}
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] mb-4">
+            An SEO team and four tools, from {currency === "INR" ? "₹2,999" : "$39"}/month.
+          </h2>
+
+          <p className="text-sm sm:text-base text-brand-400 leading-relaxed max-w-2xl mx-auto mb-7">
+            Most businesses stitch together an agency and a pile of subscriptions. GrowthX does the same job in one place, and actually ships the work.
+          </p>
+
+          {/* Currency Switcher */}
+          <div className="inline-flex items-center bg-brand-900/90 p-1 rounded-full border border-brand-800 shadow-inner">
             <button
               type="button"
               onClick={() => setCurrency("INR")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                isINR
-                  ? "bg-series-6 text-white shadow-sm"
-                  : "text-brand-400 hover:text-white"
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                currency === "INR"
+                  ? "bg-series-6 text-white shadow-xs"
+                  : "text-brand-400 hover:text-brand-200"
               }`}
             >
-              ₹ INR
+              INR (₹)
             </button>
             <button
               type="button"
               onClick={() => setCurrency("USD")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                !isINR
-                  ? "bg-series-6 text-white shadow-sm"
-                  : "text-brand-400 hover:text-white"
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                currency === "USD"
+                  ? "bg-series-6 text-white shadow-xs"
+                  : "text-brand-400 hover:text-brand-200"
               }`}
             >
-              $ USD
+              USD ($)
             </button>
           </div>
         </div>
 
         {/* Comparison Table */}
-        <div className="overflow-x-auto rounded-3xl border border-brand-800 bg-brand-900/40 shadow-xl">
-          <table className="w-full text-left text-xs sm:text-sm">
-            <thead>
-              <tr className="border-b border-brand-800 bg-brand-900/80 text-brand-400 font-bold uppercase tracking-wider text-[11px]">
-                <th className="p-4 sm:p-5">What you need</th>
-                <th className="p-4 sm:p-5">The usual way</th>
-                <th className="p-4 sm:p-5">Typical cost/month</th>
-                <th className="p-4 sm:p-5 text-white bg-series-6/10 border-l border-series-6/20">GrowthX</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-800/60">
-              {rows.map((row) => (
-                <tr key={row.need} className="hover:bg-brand-900/30 transition-colors">
-                  <td className="p-4 sm:p-5 font-semibold text-white">{row.need}</td>
-                  <td className="p-4 sm:p-5 text-brand-400">{row.usual}</td>
-                  <td className="p-4 sm:p-5 text-brand-300 font-mono font-medium">{row.cost}</td>
-                  <td className="p-4 sm:p-5 text-series-300 font-semibold bg-series-6/5 border-l border-series-6/20">
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 size={15} className="text-series-400 shrink-0" />
-                      {row.growthx}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {/* Total Row */}
-              <tr className="bg-brand-950/80 font-bold border-t-2 border-brand-800">
-                <td className="p-4 sm:p-5 text-white text-base">Total</td>
-                <td className="p-4 sm:p-5 text-brand-400">Fragmented tools + agency</td>
-                <td className="p-4 sm:p-5 text-error-400 font-mono text-base">
-                  {isINR ? "₹80,000+" : "$1,000+"}/mo
-                </td>
-                <td className="p-4 sm:p-5 text-success-400 text-base font-black bg-series-6/10 border-l border-series-6/20">
-                  From {isINR ? "₹2,999" : "$39"}/mo
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="max-w-4xl mx-auto bg-brand-950/80 border border-brand-800 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-md overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-12 items-center py-4 px-5 sm:px-8 border-b border-brand-800/80 bg-brand-900/40 text-xs sm:text-sm font-semibold text-brand-400">
+            <div className="col-span-5 text-left">
+              What you need
+            </div>
+            <div className="col-span-4 text-left">
+              The usual way
+            </div>
+            <div className="col-span-3 text-right text-success-400 font-bold">
+              GrowthX
+            </div>
+          </div>
+
+          {/* Rows */}
+          <div className="divide-y divide-brand-900">
+            {COMPARISON_ROWS.map((row) => {
+              const cost = currency === "INR" ? row.costInr : row.costUsd;
+
+              return (
+                <div
+                  key={row.what}
+                  className="grid grid-cols-12 items-center py-4 sm:py-4.5 px-5 sm:px-8 hover:bg-brand-900/25 transition-colors"
+                >
+                  <div className="col-span-5 text-left text-xs sm:text-sm text-brand-200 font-normal pr-2">
+                    {row.what}
+                  </div>
+                  <div className="col-span-4 text-left text-xs sm:text-sm text-brand-400 font-normal">
+                    <span>{row.usualWay}</span>
+                    <span className="block text-[11px] text-brand-500 font-mono mt-0.5">{cost}/mo</span>
+                  </div>
+                  <div className="col-span-3 text-right text-xs sm:text-sm font-bold text-success-400">
+                    {row.growthx}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Total Footer Row */}
+          <div className="grid grid-cols-12 items-center py-5 px-5 sm:px-8 bg-brand-900/60 border-t border-brand-800">
+            <div className="col-span-5 text-left text-sm sm:text-base font-bold text-white">
+              Total monthly cost
+            </div>
+            <div className="col-span-4 text-left text-sm sm:text-base font-bold text-error-400">
+              {totalWithout}/mo
+            </div>
+            <div className="col-span-3 text-right text-sm sm:text-base font-bold text-success-400">
+              {totalWith}/mo
+            </div>
+          </div>
         </div>
 
         {/* Pricing Teaser Cards */}
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className="bg-brand-900/60 border border-brand-800 rounded-3xl p-6 sm:p-7 space-y-4 hover:border-brand-700/80 transition-all hover:bg-brand-900/80 relative"
-              >
-                {plan.badge && (
-                  <span className="absolute top-5 right-5 text-[10px] font-bold uppercase tracking-wider text-series-300 bg-series-6/20 border border-series-6/30 px-2.5 py-0.5 rounded-full">
-                    {plan.badge}
-                  </span>
-                )}
-
-                <div className="space-y-1">
-                  <h3 className="text-lg font-bold text-white">{plan.name}</h3>
-                  <p className="text-xs text-brand-400 font-medium">{plan.target}</p>
-                </div>
-
-                <div>
-                  <span className="text-3xl sm:text-4xl font-black text-white">{plan.price}</span>
-                  <span className="text-xs text-brand-400 font-medium"> /month</span>
-                </div>
-
-                <p className="text-xs sm:text-sm text-brand-300 leading-relaxed pt-2 border-t border-brand-800">
-                  {plan.line}
-                </p>
+        <div className="mt-12 max-w-4xl mx-auto grid sm:grid-cols-3 gap-4">
+          <div className="bg-brand-900/40 border border-brand-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-series-400">Starter</span>
+                <span className="text-[11px] text-brand-400">1 website</span>
               </div>
-            ))}
-          </div>
-
-          {/* CTA & Microcopy */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+              <p className="text-2xl font-black text-white mt-1">
+                {currency === "INR" ? "₹2,999" : "$39"}
+                <span className="text-xs font-normal text-brand-400">/mo</span>
+              </p>
+              <p className="text-xs text-brand-300 mt-2">
+                Audit, Fix Engine, 3 competitors, AI visibility basics.
+              </p>
+            </div>
             <Link
               href="/pricing"
-              className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 text-white font-bold text-sm px-6 py-3.5 rounded-xl transition-all shadow-md active:scale-95"
+              className="block text-center py-2 px-3 rounded-xl bg-brand-850 hover:bg-brand-800 text-white text-xs font-bold transition-all border border-brand-700"
             >
-              <span>See all plans</span>
-              <ArrowRight size={15} />
+              Choose Starter
             </Link>
-            <p className="text-xs text-brand-400 font-medium">
-              Free audit. No card needed. Cancel anytime.
-            </p>
           </div>
+
+          <div className="bg-brand-900/70 border border-series-6/50 rounded-2xl p-5 space-y-3 flex flex-col justify-between relative shadow-xl">
+            <span className="absolute -top-2.5 right-4 bg-series-6 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+              Popular
+            </span>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-series-300">Growth</span>
+                <span className="text-[11px] text-brand-400">Growing brands</span>
+              </div>
+              <p className="text-2xl font-black text-white mt-1">
+                {currency === "INR" ? "₹7,999" : "$99"}
+                <span className="text-xs font-normal text-brand-400">/mo</span>
+              </p>
+              <p className="text-xs text-brand-300 mt-2">
+                5 competitors, Rival Radar, GBP for 1 location, weekly brief.
+              </p>
+            </div>
+            <Link
+              href="/pricing"
+              className="block text-center py-2 px-3 rounded-xl bg-series-6 hover:bg-series-6/90 text-white text-xs font-bold transition-all shadow-md"
+            >
+              Choose Growth
+            </Link>
+          </div>
+
+          <div className="bg-brand-900/40 border border-brand-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-series-400">Agency</span>
+                <span className="text-[11px] text-brand-400">Agencies</span>
+              </div>
+              <p className="text-2xl font-black text-white mt-1">
+                {currency === "INR" ? "₹19,999" : "$249"}
+                <span className="text-xs font-normal text-brand-400">/mo</span>
+              </p>
+              <p className="text-xs text-brand-300 mt-2">
+                Multiple clients, white-label reports, bulk fixes, multi-location GBP.
+              </p>
+            </div>
+            <Link
+              href="/pricing"
+              className="block text-center py-2 px-3 rounded-xl bg-brand-850 hover:bg-brand-800 text-white text-xs font-bold transition-all border border-brand-700"
+            >
+              Choose Agency
+            </Link>
+          </div>
+        </div>
+
+        {/* CTA Bar below teaser */}
+        <div className="mt-6 max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-brand-400 px-2">
+          <p>Free audit. No card needed. Cancel anytime.</p>
+          <Link
+            href="/pricing"
+            className="inline-flex items-center gap-1 text-series-400 hover:text-series-300 font-bold transition-colors"
+          >
+            <span>See all plans and features</span>
+            <ArrowRight size={13} />
+          </Link>
         </div>
       </div>
     </section>
