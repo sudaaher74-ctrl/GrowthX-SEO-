@@ -53,7 +53,7 @@ export interface CompetitorSeoReport {
   notes: string[];
 }
 
-const PAGE_TYPE_LABELS: Record<string, string> = {
+export const PAGE_TYPE_LABELS: Record<string, string> = {
   HOME: 'Homepage',
   SERVICE: 'Service pages',
   PRODUCT: 'Product pages',

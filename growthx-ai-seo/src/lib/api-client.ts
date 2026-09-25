@@ -1762,51 +1762,55 @@ export interface TrackedCompetitor {
 }
 
 /** Mirrors the backend's CompetitorIntelReport. */
-export interface IntelIssueGroup {
-  issueType: string;
-  severity: string;
-  pages: number;
-  description: string;
-  recommendation: string;
-  exampleUrls: string[];
+export type IntelPriority = "high" | "medium" | "low";
+
+/** What a rival's site has that yours does not, counted from both crawls. */
+export interface IntelRivalAdvantages {
+  missingTopics: Array<{ title: string; url: string; pageType: string; wordCount: number }>;
+  missingTopicsTotal: number;
+  yourUniqueTopicsTotal: number;
+  pageTypes: Array<{ pageType: string; label: string; you: number; them: number }>;
+  schema: Array<{ type: string; you: number; them: number; exampleUrl: string }>;
+  depth: { yourMedianWords: number | null; theirMedianWords: number | null; yourLongPages: number; theirLongPages: number };
+  questions: { theirs: string[]; theirCount: number; yourCount: number };
 }
 
-export interface IntelReportSite {
+export interface IntelReportRival {
   name: string;
   domain: string;
   crawledAt: string | null;
   pagesCrawled: number | null;
-  healthScore: number | null;
-  issues: IntelIssueGroup[];
-  coverage: Array<{ label: string; count: number }>;
+  aiMentions: number | null;
+  googleRating: number | null;
+  googleReviews: number | null;
+  comparison: Array<{ label: string; them: number | null; you: number | null; leader: "them" | "you" | "level" | "unknown" }>;
+  advantages: IntelRivalAdvantages | null;
+  notes: string[];
 }
 
-export interface IntelReportProblem {
+export interface IntelReportGap {
   title: string;
-  severity: "critical" | "high" | "medium" | "low";
-  where: string;
+  priority: IntelPriority;
+  rivals: string[];
   evidence: string;
-  whyItMatters: string;
-  fix: string[];
+  whyItHelpsThemRank: string;
+  howToBeatIt: string[];
   effort: "low" | "medium" | "high";
 }
 
 export interface CompetitorIntelReport {
   generatedAt: string;
   facts: {
-    you: IntelReportSite | null;
-    rivals: Array<
-      IntelReportSite & {
-        comparison: Array<{ label: string; them: number | null; you: number | null; leader: "them" | "you" | "level" | "unknown" }>;
-        notes: string[];
-      }
-    >;
+    you: { name: string; domain: string; crawledAt: string | null; pagesCrawled: number | null } | null;
+    aiAnswers: { asked: number; namedYou: number };
+    rivals: IntelReportRival[];
     notIncluded: string[];
   };
   analysis: {
     executiveSummary: string;
-    problems: IntelReportProblem[];
-    competitorInsights: Array<{ competitor: string; theyLead: string[]; youLead: string[]; copyThis: string }>;
+    whyTheyRank: Array<{ competitor: string; threat: IntelPriority; reasons: Array<{ factor: string; evidence: string }> }>;
+    gaps: IntelReportGap[];
+    whereYouLead: string[];
     plan: Array<{ week: string; actions: string[] }>;
     dataGaps: string[];
   } | null;

@@ -1,21 +1,26 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, FileSpreadsheet, FileText, Loader2, Printer, Sparkles } from "lucide-react";
+import { ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Printer, Sparkles } from "lucide-react";
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
-import { api, type CompetitorIntelReport, type IntelReportProblem } from "@/lib/api-client";
-import { download, reportFilename, themeColours, toCsv, toMarkdown, toPrintableHtml } from "@/lib/competitor-report";
+import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
+import {
+  aiMentionText,
+  download,
+  reportFilename,
+  reviewText,
+  themeColours,
+  toCsv,
+  toMarkdown,
+  toPrintableHtml,
+} from "@/lib/competitor-report";
 
-const SEVERITY_TONE: Record<IntelReportProblem["severity"], "bad" | "warn" | "info" | "default"> = {
-  critical: "bad",
-  high: "warn",
-  medium: "info",
-  low: "default",
-};
+const PRIORITY_TONE: Record<IntelPriority, "bad" | "warn" | "default"> = { high: "bad", medium: "warn", low: "default" };
 
 /**
- * The end of the Competitor Intelligence flow: one report, written by Sarvam
- * from the crawl facts, that can be read here and taken away.
+ * The end of the Competitor Intelligence flow: why each rival ranks and what
+ * they have that you do not, written by Sarvam from everything the other tabs
+ * measured, to read here and take away.
  */
 export function CompetitorReportTab({ projectId, rivalCount }: { projectId: string; rivalCount: number }) {
   // A query rather than a mutation so the report survives switching tabs.
@@ -43,7 +48,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
     <div className="space-y-4">
       <Panel
         title="Full competitor report"
-        subtitle={`Your site and ${rivalCount} rival${rivalCount === 1 ? "" : "s"}: every problem the crawls found, how to fix it, and a 4-week plan. Written by Sarvam 105B from measured data only.`}
+        subtitle={`Why your ${rivalCount} rival${rivalCount === 1 ? "" : "s"} rank, what they have that you don't (topics, page types, structured data, depth, AI answers, reviews), how to beat them, and a 4-week plan. Written by Sarvam 105B from measured data only.`}
         actions={
           <ActionButton
             variant="primary"
@@ -58,7 +63,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
       >
         {report.isFetching ? (
           <p className="py-6 text-center text-[12px] text-brand-500">
-            Sarvam is reading the crawl results for your site and {rivalCount} rival{rivalCount === 1 ? "" : "s"}. This can take up to a minute.
+            Sarvam is comparing your site with {rivalCount} rival{rivalCount === 1 ? "" : "s"}. This can take up to a minute.
           </p>
         ) : report.error ? (
           <p className="py-4 text-center text-[12px] text-error-600">{(report.error as Error).message}</p>
@@ -90,7 +95,7 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
       {data && !data.analysis && (
         <Panel padded>
           <p className="text-[12px] text-warning-600">
-            {data.analysisError ?? "The analysis could not be written."} The crawl facts below are complete and can still be
+            {data.analysisError ?? "The analysis could not be written."} The measured facts below are complete and can still be
             downloaded.
           </p>
         </Panel>
@@ -102,64 +107,79 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
             <p className="text-[13px] leading-relaxed text-brand-950">{data.analysis.executiveSummary || "No summary returned."}</p>
           </Panel>
 
-          <Panel title={`Problems and how to fix them (${data.analysis.problems.length})`} subtitle="Worst first" padded>
+          {data.analysis.whyTheyRank.length > 0 && (
+            <Panel title="Why they rank" subtitle="Inferred from what each rival's site has; actual positions need Search Console" padded>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {data.analysis.whyTheyRank.map((c) => (
+                  <div key={c.competitor} className="rounded-xl border p-4">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[13px] font-semibold text-brand-950">{c.competitor}</p>
+                      <span className="ml-auto">
+                        <Pill tone={PRIORITY_TONE[c.threat]}>{c.threat} threat</Pill>
+                      </span>
+                    </div>
+                    <ul className="mt-2 space-y-1.5">
+                      {c.reasons.map((x) => (
+                        <li key={x.factor} className="text-[12px] text-brand-600">
+                          <span className="font-semibold text-brand-950">{x.factor}</span>
+                          {x.evidence ? `: ${x.evidence}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
+
+          <Panel title={`What they have that you don't (${data.analysis.gaps.length})`} subtitle="Highest priority first" padded>
+            {data.analysis.gaps.length === 0 && <p className="text-[12px] text-brand-500">No gaps returned.</p>}
             <ol className="space-y-3">
-              {data.analysis.problems.map((p, i) => (
-                <li key={`${p.title}-${i}`} className="rounded-xl border p-4">
+              {data.analysis.gaps.map((g, i) => (
+                <li key={`${g.title}-${i}`} className="rounded-xl border p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[11px] text-brand-400">{i + 1}</span>
-                    <p className="text-[13px] font-semibold text-brand-950">{p.title}</p>
-                    <Pill tone={SEVERITY_TONE[p.severity]}>{p.severity}</Pill>
-                    <Pill>{p.where}</Pill>
-                    <span className="ml-auto text-[11px] text-brand-400">Effort: {p.effort}</span>
+                    <p className="text-[13px] font-semibold text-brand-950">{g.title}</p>
+                    <Pill tone={PRIORITY_TONE[g.priority]}>{g.priority}</Pill>
+                    {g.rivals.map((r) => (
+                      <Pill key={r}>{r}</Pill>
+                    ))}
+                    <span className="ml-auto text-[11px] text-brand-400">Effort: {g.effort}</span>
                   </div>
-                  {p.evidence && (
+                  {g.evidence && (
                     <p className="mt-2 text-[12px] text-brand-600">
                       <span className="font-semibold text-brand-950">Evidence: </span>
-                      {p.evidence}
+                      {g.evidence}
                     </p>
                   )}
-                  {p.whyItMatters && (
+                  {g.whyItHelpsThemRank && (
                     <p className="mt-1 text-[12px] text-brand-600">
-                      <span className="font-semibold text-brand-950">Why it matters: </span>
-                      {p.whyItMatters}
+                      <span className="font-semibold text-brand-950">Why it helps them rank: </span>
+                      {g.whyItHelpsThemRank}
                     </p>
                   )}
-                  {p.fix.length > 0 && (
-                    <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[12px] text-brand-950">
-                      {p.fix.map((f, n) => (
-                        <li key={n}>{f}</li>
-                      ))}
-                    </ol>
+                  {g.howToBeatIt.length > 0 && (
+                    <>
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-brand-400">How to beat it</p>
+                      <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-[12px] text-brand-950">
+                        {g.howToBeatIt.map((f, n) => (
+                          <li key={n}>{f}</li>
+                        ))}
+                      </ol>
+                    </>
                   )}
                 </li>
               ))}
             </ol>
           </Panel>
 
-          {data.analysis.competitorInsights.length > 0 && (
-            <Panel title="Rival by rival" padded>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {data.analysis.competitorInsights.map((c) => (
-                  <div key={c.competitor} className="rounded-xl border p-4">
-                    <p className="text-[13px] font-semibold text-brand-950">{c.competitor}</p>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-brand-400">They lead on</p>
-                    <ul className="mt-1 list-disc pl-5 text-[12px] text-brand-600">
-                      {c.theyLead.length ? c.theyLead.map((t) => <li key={t}>{t}</li>) : <li>Nothing measured</li>}
-                    </ul>
-                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-brand-400">You lead on</p>
-                    <ul className="mt-1 list-disc pl-5 text-[12px] text-brand-600">
-                      {c.youLead.length ? c.youLead.map((t) => <li key={t}>{t}</li>) : <li>Nothing measured</li>}
-                    </ul>
-                    {c.copyThis && (
-                      <p className="mt-2 text-[12px] text-brand-950">
-                        <span className="font-semibold">Worth copying: </span>
-                        {c.copyThis}
-                      </p>
-                    )}
-                  </div>
+          {data.analysis.whereYouLead.length > 0 && (
+            <Panel title="Where you lead" padded>
+              <ul className="list-disc space-y-0.5 pl-5 text-[12px] text-brand-600">
+                {data.analysis.whereYouLead.map((w) => (
+                  <li key={w}>{w}</li>
                 ))}
-              </div>
+              </ul>
             </Panel>
           )}
 
@@ -193,39 +213,108 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
       )}
 
       {data && (
-        <Panel title="Crawl facts behind this report" subtitle="What the analysis was given. Included in both downloads.">
+        <Panel
+          title="What each rival has, measured"
+          subtitle="Counted from both crawls, the AI answer checks and Google listings. Included in both downloads."
+        >
           <div className="divide-y">
-            {[...(data.facts.you ? [{ ...data.facts.you, you: true }] : []), ...data.facts.rivals.map((r) => ({ ...r, you: false }))].map((s) => (
-              <details key={s.domain} className="group px-4 py-3">
-                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
-                  <span className="text-[12.5px] font-semibold text-brand-950">
-                    {s.you ? "You · " : ""}
-                    {s.name}
-                  </span>
-                  <span className="text-[11px] text-brand-400">{s.domain}</span>
-                  <span className="ml-auto text-[11px] text-brand-500">
-                    {s.pagesCrawled != null ? `${s.pagesCrawled} pages` : "not crawled"} ·{" "}
-                    {s.healthScore != null ? `health ${s.healthScore}/100` : "health not measured"} · {s.issues.length} issue types
-                  </span>
-                  <ChevronDown size={13} className="text-brand-400 transition-transform group-open:rotate-180" />
-                </summary>
-                <ul className="mt-2 space-y-1.5">
-                  {s.issues.length === 0 && <li className="text-[12px] text-brand-500">No open issues recorded.</li>}
-                  {s.issues.map((i) => (
-                    <li key={`${i.severity}-${i.issueType}`} className="text-[12px] text-brand-600">
-                      <Pill tone={i.severity === "CRITICAL" ? "bad" : i.severity === "HIGH" ? "warn" : "default"}>
-                        {i.severity.toLowerCase()}
-                      </Pill>{" "}
-                      <span className="font-semibold text-brand-950">{i.issueType.replace(/_/g, " ").toLowerCase()}</span> on {i.pages} page
-                      {i.pages === 1 ? "" : "s"}: {i.recommendation}
-                    </li>
-                  ))}
-                </ul>
-              </details>
+            {data.facts.rivals.map((r) => (
+              <RivalFacts key={r.domain} rival={r} asked={data.facts.aiAnswers.asked} namedYou={data.facts.aiAnswers.namedYou} />
             ))}
+            {data.facts.rivals.length === 0 && <p className="px-4 py-3 text-[12px] text-brand-500">No rivals tracked yet.</p>}
           </div>
         </Panel>
       )}
     </div>
+  );
+}
+
+function Row({ label, you, them }: { label: string; you: React.ReactNode; them: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[2fr_1fr_1fr] gap-2 border-b py-1 text-[12px] last:border-b-0">
+      <span className="text-brand-600">{label}</span>
+      <span className="text-brand-950">{you}</span>
+      <span className="font-semibold text-brand-950">{them}</span>
+    </div>
+  );
+}
+
+function RivalFacts({ rival: r, asked, namedYou }: { rival: IntelReportRival; asked: number; namedYou: number }) {
+  const a = r.advantages;
+  return (
+    <details className="group px-4 py-3">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3">
+        <span className="text-[12.5px] font-semibold text-brand-950">{r.name}</span>
+        <span className="text-[11px] text-brand-400">{r.domain}</span>
+        <span className="ml-auto text-[11px] text-brand-500">
+          {a ? `${a.missingTopicsTotal} topics you don't cover` : "needs a crawl of both sites"} · AI: {aiMentionText(r, asked)}
+        </span>
+        <ChevronDown size={13} className="text-brand-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <div className="grid grid-cols-[2fr_1fr_1fr] gap-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">
+            <span>Measure</span>
+            <span>You</span>
+            <span>Them</span>
+          </div>
+          <Row label="Named in AI answers" you={asked ? `${namedYou} of ${asked}` : "—"} them={r.aiMentions ?? "—"} />
+          <Row label="Google reviews" you="—" them={reviewText(r)} />
+          {a && (
+            <>
+              {a.pageTypes.map((t) => (
+                <Row key={t.pageType} label={t.label} you={t.you} them={t.them} />
+              ))}
+              {a.schema.map((s) => (
+                <Row key={s.type} label={`${s.type.toLowerCase()} structured data`} you={s.you} them={s.them} />
+              ))}
+              <Row label="Median words per page" you={a.depth.yourMedianWords ?? "—"} them={a.depth.theirMedianWords ?? "—"} />
+              <Row label="In-depth pages (1,000+ words)" you={a.depth.yourLongPages} them={a.depth.theirLongPages} />
+              <Row label="Questions answered in headings" you={a.questions.yourCount} them={a.questions.theirCount} />
+              <Row label="Topics only this side covers" you={a.yourUniqueTopicsTotal} them={a.missingTopicsTotal} />
+            </>
+          )}
+          {r.comparison
+            .filter((c) => !a?.pageTypes.some((t) => t.label === c.label))
+            .map((c) => (
+            <Row key={c.label} label={c.label} you={c.you ?? "—"} them={c.them ?? "—"} />
+          ))}
+        </div>
+        <div>
+          <p className="text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">Their pages you have no match for</p>
+          {!a ? (
+            <p className="mt-1 text-[12px] text-brand-500">Crawl both sites to compare pages.</p>
+          ) : a.missingTopics.length === 0 ? (
+            <p className="mt-1 text-[12px] text-brand-500">None found. You cover every topic they have a page for.</p>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {a.missingTopics.map((t) => (
+                <li key={t.url} className="flex items-start gap-2 text-[12px]">
+                  <a href={/^https?:\/\//.test(t.url) ? t.url : undefined} target="_blank" rel="noopener noreferrer" className="text-brand-950 hover:underline">
+                    {t.title}
+                  </a>
+                  <ExternalLink size={11} className="mt-0.5 shrink-0 text-brand-400" />
+                  <span className="ml-auto shrink-0 text-[11px] text-brand-400">{t.wordCount} words</span>
+                </li>
+              ))}
+              {a.missingTopicsTotal > a.missingTopics.length && (
+                <li className="text-[11px] text-brand-400">…and {a.missingTopicsTotal - a.missingTopics.length} more</li>
+              )}
+            </ul>
+          )}
+          {a && a.questions.theirs.length > 0 && (
+            <>
+              <p className="mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">Questions they answer</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[12px] text-brand-600">
+                {a.questions.theirs.map((q) => (
+                  <li key={q}>{q}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {r.notes.length > 0 && <p className="mt-3 text-[11px] text-brand-400">{r.notes.join(" ")}</p>}
+        </div>
+      </div>
+    </details>
   );
 }
