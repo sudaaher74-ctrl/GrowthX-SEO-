@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { google } from './google-apis';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
+import { googleApiClientError } from './google-api-error';
 
 /**
  * Reads Google Search Console into the GrowthX data layer.
@@ -92,7 +93,7 @@ export class SearchConsoleService {
       };
     } catch (error) {
       await this.handleApiError(projectId, error);
-      throw error;
+      throw googleApiClientError('Google Search Console API', error);
     }
   }
 
