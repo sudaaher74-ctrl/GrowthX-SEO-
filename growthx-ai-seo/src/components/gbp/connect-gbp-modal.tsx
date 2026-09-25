@@ -78,6 +78,9 @@ export function ConnectGbpModal({
         address: place.address,
         rating: place.rating,
         reviewCount: place.userRatingsTotal,
+        placeId: place.placeId,
+        latitude: place.latitude,
+        longitude: place.longitude,
       },
       {
         onSuccess: () => {

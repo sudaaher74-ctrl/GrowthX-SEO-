@@ -107,38 +107,38 @@ export function SelectGbpLocation({
           className="rounded-2xl border bg-white p-10 shadow-xs flex flex-col items-center gap-3 text-center"
           style={{ borderColor: "var(--border-color)" }}
         >
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-error-500/10 text-error-500 flex items-center justify-center">
             <AlertCircle size={22} />
           </div>
           <h2 className="text-sm font-bold text-brand-950">Google would not list your locations</h2>
           <p className="text-xs text-brand-500 max-w-md leading-relaxed">{errorMessage(error)}</p>
           <p className="text-[11px] text-brand-400 max-w-md leading-relaxed">
-            If this mentions permission or approval, it is a Google-side decision on this
+            If this mentions permission, quota or approval, it is a Google-side decision on this
             deployment&apos;s API access rather than a problem with your account.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-            <button
-              type="button"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
-            >
-              Try again
-            </button>
             {onTrackAlternative && (
               <button
                 type="button"
                 onClick={onTrackAlternative}
-                className="px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-800 hover:bg-brand-50 transition"
+                className="px-4 py-2 rounded-lg bg-series-6 text-white text-xs font-semibold hover:bg-series-6/90 transition shadow-xs cursor-pointer"
               >
-                Track via Places / Manual Entry
+                Track via Places / Manual Entry →
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="px-3.5 py-2 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-700 hover:bg-brand-50 transition disabled:opacity-50 cursor-pointer"
+            >
+              Try again
+            </button>
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-brand-500 hover:text-brand-800 transition"
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-brand-500 hover:text-brand-800 transition cursor-pointer"
               >
                 Back to Dashboard
               </button>

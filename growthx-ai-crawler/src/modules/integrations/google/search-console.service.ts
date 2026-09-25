@@ -266,6 +266,8 @@ export class SearchConsoleService {
 
       if (rows.length < SearchConsoleService.ROW_LIMIT) break;
       startRow += rows.length;
+      // Gentle pacing delay to prevent Search Console per-property QPM rate limits during paginated syncs
+      await new Promise((res) => setTimeout(res, 250));
     }
 
     return written;

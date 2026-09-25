@@ -198,7 +198,7 @@ export function useSearchLocalBusiness(projectId: string | null) {
 export function useConnectLocalBusiness(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { businessName: string; address: string; rating: number; reviewCount: number }) => 
+    mutationFn: (data: { businessName: string; address: string; rating: number; reviewCount: number; placeId?: string; latitude?: number; longitude?: number }) => 
       api.connectLocalBusiness(projectId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["local-seo", projectId] });

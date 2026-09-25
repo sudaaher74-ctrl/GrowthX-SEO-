@@ -66,7 +66,7 @@
   "components/gbp/gbp-header.tsx": 7,
   "components/gbp/gbp-icons.tsx": 5,
   "components/gbp/gbp-states.tsx": 6,
-  "components/gbp/select-gbp-location.tsx": 11,
+  "components/gbp/select-gbp-location.tsx": 9,
   "components/gbp/tabs/action-plan-tab.tsx": 19,
   "components/gbp/tabs/ai-recommendations-tab.tsx": 19,
   "components/gbp/tabs/categories-tab.tsx": 1,

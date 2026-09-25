@@ -17,6 +17,8 @@ export interface PerformanceMetrics {
 export class PerformanceService {
   private readonly logger = new Logger(PerformanceService.name);
   private readonly apiKey = process.env.PAGESPEED_API_KEY;
+  /** Cooldown timestamp after an HTTP 429 quota exhaustion to avoid hanging worker threads on 60s timeouts */
+  private quotaExhaustedUntil: number | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -24,6 +26,14 @@ export class PerformanceService {
    * Fetches Google PageSpeed Insights Core Web Vitals and Lighthouse scores for a URL
    */
   async fetchPageSpeedMetrics(pageId: string, targetUrl: string, strategy: 'MOBILE' | 'DESKTOP' = 'MOBILE'): Promise<PerformanceMetrics> {
+    if (this.quotaExhaustedUntil && Date.now() < this.quotaExhaustedUntil) {
+      const waitSeconds = Math.round((this.quotaExhaustedUntil - Date.now()) / 1000);
+      this.logger.debug(
+        `PageSpeed quota currently exhausted; skipping external call for ${targetUrl} (cooldown active for ${waitSeconds}s).`,
+      );
+      return {};
+    }
+
     this.logger.log(`Fetching PageSpeed Insights (${strategy}) for: ${targetUrl}`);
 
     let metrics: PerformanceMetrics = {};
@@ -72,10 +82,12 @@ export class PerformanceService {
         // A failed measurement is missing data, not average data.
         const status = error?.response?.status;
         if (status === 429) {
+          // Set 15-minute cooldown to avoid hammering the exhausted pool with 60-second timeouts
+          this.quotaExhaustedUntil = Date.now() + 15 * 60 * 1000;
           this.logger.warn(
             `PageSpeed quota exhausted for ${targetUrl}` +
               (hasKey
-                ? '. Nothing recorded; it resets daily.'
+                ? '. Nothing recorded; cooling down for 15 minutes.'
                 : '. Set PAGESPEED_API_KEY for a private quota — unkeyed calls share one pool with every anonymous caller.'),
           );
         } else {

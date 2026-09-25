@@ -3157,8 +3157,8 @@ export const api = {
 
   // ── Local SEO
   searchLocalBusiness: (projectId: string, query: string) =>
-    post<{ placeId: string; name: string; address: string; rating: number; userRatingsTotal: number }[]>(`/api/projects/${projectId}/local-seo/search`, { query }),
-  connectLocalBusiness: (projectId: string, data: { businessName: string; address: string; rating: number; reviewCount: number }) =>
+    post<{ placeId: string; name: string; address: string; rating: number; userRatingsTotal: number; latitude?: number; longitude?: number }[]>(`/api/projects/${projectId}/local-seo/search`, { query }),
+  connectLocalBusiness: (projectId: string, data: { businessName: string; address: string; rating: number; reviewCount: number; placeId?: string; latitude?: number; longitude?: number }) =>
     post<LocalSeoData>(`/api/projects/${projectId}/local-seo/connect`, data),
   getLocalSeo: (projectId: string) => get<LocalSeoData>(`/api/projects/${projectId}/local-seo`),
   analyzeGbp: (projectId: string) => post<GbpFixSuggestion[]>(`/api/projects/${projectId}/local-seo/gbp/analyze`, {}),
