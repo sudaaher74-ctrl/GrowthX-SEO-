@@ -3446,3 +3446,28 @@ model CrawlFrontier {
   @@index([crawlJobId, state, depth])
   @@index([crawlJobId, discoverySource])
 }
+
+/// One rival page as it looked when fetched, written only when it changed.
+///
+/// Keyed by domain rather than project: two customers tracking the same rival
+/// share one history instead of fetching that third party twice. The history
+/// is the point — a change can only be shown against a snapshot taken before
+/// it, so these start accumulating before any screen reads them.
+model RivalPageSnapshot {
+  id              String   @id @default(uuid())
+  domain          String
+  url             String
+  /// Hash of the fields below, so an unchanged page writes nothing.
+  contentHash     String
+  statusCode      Int
+  title           String?
+  h1              String?
+  metaDescription String?
+  /// schema.org @type values found in JSON-LD on the page.
+  schemaTypes     String[]
+  wordCount       Int
+  capturedAt      DateTime @default(now())
+
+  @@index([domain, url, capturedAt])
+  @@index([domain, capturedAt])
+}

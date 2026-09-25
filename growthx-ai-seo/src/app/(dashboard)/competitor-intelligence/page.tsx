@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Sparkles,
@@ -32,30 +32,38 @@ import {
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
-import { CompetitorOverviewTab } from "@/components/competitor/competitor-overview-tab";
+import { BattlegroundTab } from "@/components/competitor/battleground-tab";
+import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
+import { LocalMapTab } from "@/components/competitor/local-map-tab";
+import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
 import { CompetitorProgrammaticTab } from "@/components/competitor/competitor-programmatic-tab";
 import { CompetitorStealthRadarTab } from "@/components/competitor/competitor-stealth-radar-tab";
 
 const TABS = [
-  { id: "overview", label: "Overview & Battleground" },
-  { id: "intercept", label: "Poaching & Counter-Attack" },
-  { id: "programmatic", label: "Programmatic Decompiler" },
-  { id: "radar", label: "Stealth Radar & AI Poacher" },
+  { id: "battleground", label: "Battleground" },
+  { id: "gaps", label: "Gaps" },
+  { id: "radar", label: "Rival Radar" },
+  { id: "ai-answers", label: "AI Answers" },
+  { id: "local", label: "Local Map" },
+  { id: "counter-moves", label: "Counter-Moves" },
 ];
 
-// Map legacy tab keys if navigated from old links
+// Old links (and the previous tab names) still land somewhere sensible.
 const LEGACY_TAB_MAP: Record<string, string> = {
-  identify: "overview",
-  competitors: "overview",
-  benchmarks: "overview",
-  website: "overview",
-  keywords: "intercept",
-  content: "intercept",
+  overview: "battleground",
+  identify: "battleground",
+  competitors: "battleground",
+  benchmarks: "battleground",
+  website: "battleground",
+  reports: "battleground",
+  programmatic: "gaps",
+  keywords: "gaps",
+  content: "gaps",
+  intercept: "counter-moves",
+  opportunities: "counter-moves",
   technical: "radar",
-  "ai-visibility": "radar",
-  opportunities: "intercept",
-  reports: "overview",
+  "ai-visibility": "ai-answers",
 };
 
 /**
@@ -143,7 +151,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
   );
 }
 
-const DEFAULT_TAB = "overview";
+const DEFAULT_TAB = "battleground";
 
 export default function CompetitorIntelligencePage() {
   return (
@@ -163,7 +171,6 @@ function CompetitorIntelligenceClient() {
   const visibility = useVisibility(projectId, 28);
 
   const searchParams = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
   const rawTab = searchParams.get("tab") || DEFAULT_TAB;
@@ -192,8 +199,9 @@ function CompetitorIntelligenceClient() {
       const params = new URLSearchParams(window.location.search);
       params.set("tab", id);
       const targetUrl = `${pathname}?${params.toString()}`;
+      // Not router.replace: its transition does not commit on this page and
+      // Next then writes the old URL back. replaceState updates useSearchParams.
       window.history.replaceState(null, "", targetUrl);
-      router.replace(targetUrl, { scroll: false });
     } catch {
       // ignore
     }
@@ -366,25 +374,26 @@ function CompetitorIntelligenceClient() {
             </div>
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-2">
-                <span>Added to 30-Day Fix Plan</span>
-                <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                  Fix Engine Ready
-                </span>
+                <span>Saved to Counter-Moves</span>
               </div>
               <p className="text-[11px] text-slate-300 mt-0.5">
-                Staged <strong>{fixPlanToast.count} items ({fixPlanToast.label})</strong>. Fix Engine will consolidate Website Audit, Competitors, and AI Visibility findings into your single-approval 30-day plan.
+                Saved <strong>{fixPlanToast.count} items ({fixPlanToast.label})</strong> as drafts in this browser. Nothing is changed on your site.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-            <Link
-              href="/action-queue"
+            <button
+              type="button"
+              onClick={() => {
+                setFixPlanToast(null);
+                setActiveTab("counter-moves");
+              }}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-950 font-bold text-xs hover:bg-slate-50 transition shadow-2xs"
             >
-              <span>View in Action Queue</span>
+              <span>View drafts</span>
               <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => setFixPlanToast(null)}
@@ -399,32 +408,18 @@ function CompetitorIntelligenceClient() {
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip competitors={competitorsList} />
 
-      {/* ── COCKPIT 1: OVERVIEW & BATTLEGROUND ── */}
-      {activeTab === "overview" && (
-        <CompetitorOverviewTab
+      {activeTab === "battleground" && (
+        <BattlegroundTab
           projectId={projectId || ""}
           domain={customerDomain}
+          brand={clientRow?.name || customerDomain}
           competitors={competitorsList}
           onAddCompetitor={() => setShowAddModal(true)}
-          onGenerateInsights={() => handleAddToFixPlan(10, "Top Opportunities")}
-          onViewAllKeywordGaps={() => setActiveTab("intercept")}
-          onViewAllContentGaps={() => setActiveTab("intercept")}
-          onGenerateReport={() => setActiveTab("overview")}
+          onOpenCounterMoves={() => setActiveTab("counter-moves")}
         />
       )}
 
-      {/* ── COCKPIT 2: POACHING & COUNTER-ATTACK ── */}
-      {activeTab === "intercept" && (
-        <CompetitorInterceptEngine
-          projectId={projectId || ""}
-          customerDomain={customerDomain}
-          competitors={competitorsList}
-          onAddToFixPlan={handleAddToFixPlan}
-        />
-      )}
-
-      {/* ── COCKPIT 3: REVERSE PROGRAMMATIC SEO DECOMPILER ── */}
-      {activeTab === "programmatic" && (
+      {activeTab === "gaps" && (
         <CompetitorProgrammaticTab
           projectId={projectId || ""}
           customerDomain={customerDomain}
@@ -433,7 +428,6 @@ function CompetitorIntelligenceClient() {
         />
       )}
 
-      {/* ── COCKPIT 4: STEALTH CODE & SCHEMA RADAR ── */}
       {activeTab === "radar" && (
         <CompetitorStealthRadarTab
           projectId={projectId || ""}
@@ -441,6 +435,28 @@ function CompetitorIntelligenceClient() {
           competitors={competitorsList}
           onAddToFixPlan={handleAddToFixPlan}
         />
+      )}
+
+      {activeTab === "ai-answers" && (
+        <AiCitationMatrixPanel
+          projectId={projectId || ""}
+          customerDomain={customerDomain}
+          competitors={competitorsList}
+        />
+      )}
+
+      {activeTab === "local" && <LocalMapTab projectId={projectId || ""} competitors={competitorsList} />}
+
+      {activeTab === "counter-moves" && (
+        <div className="space-y-6">
+          <CounterMoveDrafts projectId={projectId || ""} />
+          <CompetitorInterceptEngine
+            projectId={projectId || ""}
+            customerDomain={customerDomain}
+            competitors={competitorsList}
+            onAddToFixPlan={handleAddToFixPlan}
+          />
+        </div>
       )}
 
       {/* ── ADD COMPETITOR MODAL ── */}
