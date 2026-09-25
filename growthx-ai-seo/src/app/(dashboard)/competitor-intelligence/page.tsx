@@ -34,7 +34,6 @@ import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { stagingEngine, type StagedSourceType } from "@/lib/staging-engine";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
 import { AiCitationMatrixPanel } from "@/components/competitor/ai-citation-matrix-panel";
-import { LocalMapTab } from "@/components/competitor/local-map-tab";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorInterceptEngine } from "@/components/competitor/competitor-intercept-engine";
 import { CompetitorProgrammaticTab } from "@/components/competitor/competitor-programmatic-tab";
@@ -45,13 +44,14 @@ const TABS = [
   { id: "gaps", label: "Gaps" },
   { id: "radar", label: "Rival Radar" },
   { id: "ai-answers", label: "AI Answers" },
-  { id: "local", label: "Local Map" },
   { id: "counter-moves", label: "Counter-Moves" },
 ];
 
 // Old links (and the previous tab names) still land somewhere sensible.
 const LEGACY_TAB_MAP: Record<string, string> = {
   overview: "battleground",
+  // Local standing lives on Google Business Profile.
+  local: "battleground",
   identify: "battleground",
   competitors: "battleground",
   benchmarks: "battleground",
@@ -444,8 +444,6 @@ function CompetitorIntelligenceClient() {
           competitors={competitorsList}
         />
       )}
-
-      {activeTab === "local" && <LocalMapTab projectId={projectId || ""} competitors={competitorsList} />}
 
       {activeTab === "counter-moves" && (
         <div className="space-y-6">
