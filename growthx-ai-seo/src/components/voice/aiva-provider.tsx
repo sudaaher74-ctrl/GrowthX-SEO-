@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { api, auth, getApiBase, type AivaUiPayload, type VoiceAgentResult } from '@/lib/api-client';
 import { io, Socket } from 'socket.io-client';
 import { usePathname } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { setActiveProject } from '@/hooks/use-growthx';
 
 // Sound generators using Web Audio API
 const playTone = (frequency: number, type: OscillatorType, duration: number, volume: number, startTime = 0) => {
@@ -116,6 +118,8 @@ interface AivaContextType {
   cancelAction: () => void;
   progressMessage: string | null;
   uiPayload: AivaUiPayload | null;
+  /** Shows and speaks a message, for updates that arrive between commands. */
+  say: (text: string) => void;
 }
 
 const AivaContext = createContext<AivaContextType | undefined>(undefined);
@@ -152,6 +156,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const speakRef = useRef<(text: string, callback?: () => void) => void>(() => {});
   const processTranscriptRef = useRef<() => void | Promise<void>>(() => {});
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   
   useEffect(() => {
     stateRef.current = state;
@@ -332,6 +337,21 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     synthRef.current.speak(utterance);
   };
 
+  /**
+   * The autopilot may set up a new project for the website the user named.
+   * The whole app switches to it, as the project switcher does, and the
+   * progress card picks the run up from there.
+   */
+  const followAutopilot = (res: VoiceAgentResult) => {
+    if (res.uiPayload?.type !== 'autopilot') return;
+    if (res.uiPayload.projectId && res.uiPayload.projectId !== auth.getProjectId()) {
+      setActiveProject(res.uiPayload.projectId);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+    }
+    queryClient.invalidateQueries({ queryKey: ['autopilot'] });
+  };
+
   const processTranscript = async () => {
     const finalTranscript = transcript.trim();
     if (!finalTranscript) {
@@ -352,6 +372,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
 
       setAssistantMessage(res.spokenSummary);
       setUiPayload(res.uiPayload ?? null);
+      followAutopilot(res);
       setState('speaking');
       
       if (res.success && !res.confirmationRequired) {
@@ -496,6 +517,15 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const say = (text: string) => {
+    setAssistantMessage(text);
+    if (!isOpen) return;
+    setState('speaking');
+    speak(text, () => {
+      setState('idle');
+    });
+  };
+
   const cancelAction = () => {
     setPendingConfirmation(null);
     setState('idle');
@@ -533,6 +563,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         cancelAction,
         progressMessage,
         uiPayload,
+        say,
       }}
     >
       {children}

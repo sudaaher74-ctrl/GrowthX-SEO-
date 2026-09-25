@@ -84,6 +84,8 @@ export interface CompetitorIntelReport {
   model: string | null;
   /** Why there is no analysis, when there is none. The facts are still usable. */
   analysisError: string | null;
+  /** The stored copy of this report, when it could be saved. */
+  snapshotId?: string | null;
 }
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
@@ -278,6 +280,35 @@ export class CompetitorIntelReportService {
   }
 
   async generate(projectId: string, organizationId?: string): Promise<CompetitorIntelReport> {
+    const report = await this.write(projectId, organizationId);
+    return { ...report, snapshotId: await this.store(projectId, report) };
+  }
+
+  /** The most recently generated report for a project, or null when none was ever made. */
+  async latest(projectId: string): Promise<CompetitorIntelReport | null> {
+    const row = await this.prisma.competitorReportSnapshot.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, report: true },
+    });
+    return row ? { ...(row.report as unknown as CompetitorIntelReport), snapshotId: row.id } : null;
+  }
+
+  /** Kept so the report can be read again; a failed save never loses the report itself. */
+  private async store(projectId: string, report: CompetitorIntelReport): Promise<string | null> {
+    try {
+      const row = await this.prisma.competitorReportSnapshot.create({
+        data: { projectId, report: report as any },
+        select: { id: true },
+      });
+      return row.id;
+    } catch (err) {
+      this.logger.warn(`[${projectId}] competitor report could not be stored: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private async write(projectId: string, organizationId?: string): Promise<CompetitorIntelReport> {
     const facts = await this.gatherFacts(projectId);
     const base = { generatedAt: new Date().toISOString(), facts };
 

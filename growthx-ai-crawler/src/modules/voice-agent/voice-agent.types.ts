@@ -30,7 +30,8 @@ export type VoiceToolName =
   | 'optimizeMetaTags'
   | 'scrapeCompetitorData'
   | 'discoverCompetitors'
-  | 'hijackTrend';
+  | 'hijackTrend'
+  | 'autopilot';
 
 export interface VoiceTool {
   name: VoiceToolName;
@@ -62,6 +63,8 @@ export const VOICE_TOOLS: Record<VoiceToolName, VoiceTool> = {
   scrapeCompetitorData: { name: 'scrapeCompetitorData', requiresConfirmation: false },
   discoverCompetitors: { name: 'discoverCompetitors', requiresConfirmation: false },
   hijackTrend: { name: 'hijackTrend', requiresConfirmation: false },
+  // Starts the whole setup; the customer confirms the competitors it finds.
+  autopilot: { name: 'autopilot', requiresConfirmation: false },
 };
 
 export interface VoiceIntent {
@@ -98,7 +101,8 @@ export interface VoiceAgentResult {
 export interface VoiceChatRequest {
   text: string;
   sessionId: string;
-  projectId: string;
+  /** Absent for a new account that has no project yet; the autopilot creates one. */
+  projectId?: string;
   /** True when user confirmed a previously requested action. */
   confirmed?: boolean;
   /** Tool + params from the pending confirmation, echoed back by the client. */

@@ -3,6 +3,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { MultiAiRouterService, AiTask, AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VoiceToolsService } from './voice-tools.service';
+import { AutopilotService, AutopilotView } from '../autopilot/autopilot.service';
+import { interpretConfirmation, listNames, matchAutopilotStart } from './autopilot-intent';
 import {
   VoiceChatRequest,
   VoiceAgentResult,
@@ -114,6 +116,7 @@ export class VoiceAgentService {
     private readonly router: MultiAiRouterService,
     private readonly orgContext: OrgContextService,
     private readonly tools: VoiceToolsService,
+    private readonly autopilot: AutopilotService,
   ) {}
 
   // ─── Session management ─────────────────────────────────────────────────────
@@ -162,8 +165,12 @@ export class VoiceAgentService {
     recentMessages.reverse();
     const historyPrompt = recentMessages.map(m => `${m.role === 'user' ? 'User' : 'Nexa'}: ${m.content}`).join('\n');
 
+    const autopilotReply = req.confirmed ? null : await this.autopilotTurn(req, userId, orgId);
+
     // If this is a confirmed continuation, execute directly
-    if (req.confirmed && req.pendingTool && ALLOWED_TOOLS.has(req.pendingTool)) {
+    if (autopilotReply) {
+      result = autopilotReply;
+    } else if (req.confirmed && req.pendingTool && ALLOWED_TOOLS.has(req.pendingTool)) {
       result = await this.executeTool(req.pendingTool, req.pendingParams ?? {}, req.projectId, userId, orgId);
     } else {
       const nav = matchNavigation(req.text);
@@ -250,6 +257,7 @@ For optimizeMetaTags: params={"pageUrl":"<pageUrl or keyword>"}
 For scrapeCompetitorData: params={"url":"<competitor url>", "target":"<what to extract (e.g. pricing, products)>"}
 For discoverCompetitors: params={}
 For hijackTrend: params={}
+For autopilot (the user tells you their own website and wants everything done: competitors found, sites read, report written): params={"domain":"<their website>"}
 For unknown requests: tool="getTopRecommendations", params={}, confidence=0.3
 
 Respond with JSON only, no explanation.`;
@@ -436,6 +444,8 @@ Respond with JSON only, no explanation.`;
           return await this.tools.discoverCompetitors(projectId!, userId, orgId);
         case 'hijackTrend':
           return await this.tools.hijackTrend(projectId!, userId, orgId);
+        case 'autopilot':
+          return await this.startAutopilot(String(params.domain ?? ''), projectId, userId, orgId);
         case 'navigate': {
           const destination = (params.destination as string)?.toLowerCase() ?? '';
           const route = NAVIGATE_ROUTES[destination] ?? '/dashboard';
@@ -462,6 +472,80 @@ Respond with JSON only, no explanation.`;
     }
   }
 
+  // ─── Autopilot ───────────────────────────────────────────────────────────────
+
+  /**
+   * The autopilot's side of a turn: starting it from "my website is …", and
+   * answering its question about competitors. Null when the words are for
+   * the normal command flow.
+   */
+  private async autopilotTurn(req: VoiceChatRequest, userId: string, orgId: string): Promise<VoiceAgentResult | null> {
+    const start = matchAutopilotStart(req.text);
+    if (start) return this.startAutopilot(start.domain, req.projectId, userId, orgId);
+    if (!req.projectId) return null;
+
+    const run = await this.autopilot.activeFor(req.projectId);
+    if (!run) return null;
+    const lower = req.text.toLowerCase();
+
+    if (run.status === 'AWAITING_CONFIRMATION') {
+      const suggestions = ((run.suggestions as any[]) ?? []).map((s) => ({ domain: String(s.domain), name: String(s.name ?? s.domain) }));
+      const reply = interpretConfirmation(req.text, suggestions);
+      if (reply?.action === 'reject') {
+        return this.autopilotResult(
+          await this.autopilot.get(run.id, userId),
+          "No problem. Tell me your competitors' websites, for example: my competitors are one dot in and two dot com.",
+        );
+      }
+      if (reply?.action === 'confirm') {
+        try {
+          const view = await this.autopilot.confirm(run.id, userId, reply.domains);
+          return this.autopilotResult(
+            view,
+            `Done. I've added ${listNames(view.competitors.map((c) => c.name))} and started reading their websites. ` +
+              "This takes a few minutes. I'll write your full report automatically when they're finished, and you can leave this page in the meantime.",
+          );
+        } catch (err) {
+          return this.autopilotResult(await this.autopilot.get(run.id, userId), (err as Error).message);
+        }
+      }
+    }
+
+    if (/\b(status|progress|how('s| is) it going|done yet|ready yet|what('s| is) happening|update)\b/.test(lower)) {
+      const view = await this.autopilot.get(run.id, userId);
+      return this.autopilotResult(view, describeRun(view));
+    }
+    return null;
+  }
+
+  private async startAutopilot(domain: string, projectId: string | undefined, userId: string, orgId: string): Promise<VoiceAgentResult> {
+    if (!domain) {
+      return { success: false, tool: 'autopilot', data: null, spokenSummary: "What's your website address? For example: my website is brandkettle dot co dot in." };
+    }
+    try {
+      const view = await this.autopilot.start({ userId, organizationId: orgId, domain, projectId });
+      const resumed = view.status !== 'DISCOVERING';
+      return this.autopilotResult(
+        view,
+        resumed
+          ? `I'm already working on ${view.domain}. ${describeRun(view)}`
+          : `Great. I've set up ${view.domain} and started reading your website. Now I'm looking for your competitors. I'll show you what I find in a few seconds.`,
+      );
+    } catch (err) {
+      return { success: false, tool: 'autopilot', data: null, spokenSummary: (err as Error).message, error: (err as Error).message };
+    }
+  }
+
+  private autopilotResult(view: AutopilotView, spokenSummary: string): VoiceAgentResult {
+    return {
+      success: true,
+      tool: 'autopilot',
+      data: { runId: view.id, projectId: view.projectId },
+      spokenSummary,
+      uiPayload: { type: 'autopilot', runId: view.id, projectId: view.projectId },
+    };
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   private async persistMessage(sessionId: string, role: 'user' | 'assistant', content: string) {
@@ -470,5 +554,31 @@ Respond with JSON only, no explanation.`;
     } catch (err) {
       this.logger.warn(`Failed to persist voice message: ${err.message}`);
     }
+  }
+}
+
+/** Where a run has got to, in a sentence or two to speak. */
+export function describeRun(view: AutopilotView): string {
+  switch (view.status) {
+    case 'DISCOVERING':
+      return "I'm still looking for your competitors.";
+    case 'AWAITING_CONFIRMATION':
+      return view.suggestions.length
+        ? `I found ${listNames(view.suggestions.map((s) => s.name))}. Are these your competitors? Say yes, or tell me which to remove or add.`
+        : "I couldn't find your competitors on my own. Tell me their websites and I'll carry on.";
+    case 'RUNNING': {
+      const pending = view.sites.filter((s) => s.crawl === 'PENDING' || s.crawl === 'RUNNING');
+      return view.step === 'REPORT'
+        ? "All websites are read. I'm writing your report now."
+        : pending.length
+          ? `I'm still reading ${listNames(pending.map((s) => (s.role === 'you' ? 'your website' : s.name)))}. Your report comes right after.`
+          : "The websites are read. Your report is next.";
+    }
+    case 'DONE':
+      return 'Your competitor report is ready. Open Competitor Intelligence, Full Report to read or download it.';
+    case 'FAILED':
+      return `That run stopped: ${view.error ?? 'something went wrong'}.`;
+    default:
+      return 'That run was stopped.';
   }
 }
