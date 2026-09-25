@@ -33,7 +33,16 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
     gcTime: 60 * 60 * 1000,
     retry: false,
   });
-  const data = report.data;
+  // The last report written, by the autopilot or an earlier Generate, so it
+  // is here after a reload without spending model tokens again.
+  const saved = useQuery({
+    queryKey: ["competitor-report-latest", projectId],
+    queryFn: () => api.getLatestCompetitorReport(projectId),
+    enabled: Boolean(projectId),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+  const data = report.data ?? saved.data ?? undefined;
 
   const printReport = (r: CompetitorIntelReport) => {
     const w = window.open("", "_blank");

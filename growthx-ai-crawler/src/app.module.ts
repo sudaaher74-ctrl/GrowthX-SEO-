@@ -52,6 +52,7 @@ import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { VoiceAgentModule } from './modules/voice-agent/voice-agent.module';
 import { RivalSnapshotsModule } from './modules/rival-snapshots/rival-snapshots.module';
+import { AutopilotModule } from './modules/autopilot/autopilot.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
 
@@ -125,6 +126,7 @@ import { CompetitorActionEngineModule } from './modules/competitor-action-engine
     SeoToolsModule,
     VoiceAgentModule,
     RivalSnapshotsModule,
+    AutopilotModule,
   ],
 
   controllers: [HealthController],

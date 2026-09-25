@@ -4,12 +4,13 @@ import { AiSearchModule } from '../ai-search/ai-search.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
 import { SeoToolsModule } from '../seo-tools/seo-tools.module';
+import { AutopilotModule } from '../autopilot/autopilot.module';
 import { VoiceAgentController } from './voice-agent.controller';
 import { VoiceAgentService } from './voice-agent.service';
 import { VoiceToolsService } from './voice-tools.service';
 
 @Module({
-  imports: [DatabaseModule, AiSearchModule, OrganizationsModule, ContentIntelligenceModule, SeoToolsModule],
+  imports: [DatabaseModule, AiSearchModule, OrganizationsModule, ContentIntelligenceModule, SeoToolsModule, AutopilotModule],
   controllers: [VoiceAgentController],
   providers: [VoiceAgentService, VoiceToolsService],
   exports: [VoiceAgentService],

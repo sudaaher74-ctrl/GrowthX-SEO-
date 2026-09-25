@@ -22,6 +22,7 @@ import {
 } from "@/hooks/use-growthx";
 import { api, type IssueSeverity } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { AutopilotStart } from "@/components/autopilot/autopilot-start";
 import { TruthfulKpiCard, TruthfulState, NotConnectedState, LoadingState } from "@/components/ui/truthful-state";
 
 export default function UnifiedDashboardPage() {
@@ -136,6 +137,11 @@ export default function UnifiedDashboardPage() {
           </div>
         }
       />
+
+      {/* One step to everything: website in, competitors and full report out. */}
+      {(!hasWebsite || (trackedCompetitors.isSuccess && !hasCompetitors)) && (
+        <AutopilotStart projectId={projectId} domain={client?.domain ?? null} />
+      )}
 
       {/* Guided Setup Progress Banner (if project setup is incomplete) */}
       {setupIncomplete && (

@@ -191,6 +191,12 @@ export class CompetitorActionEngineController {
     return this.intelReport.generate(projectId, req.organizationId);
   }
 
+  @Get('competitor-report/latest')
+  @ApiOperation({ summary: 'The most recently generated competitor report, or null' })
+  latestCompetitorReport(@Param('projectId') projectId: string) {
+    return this.intelReport.latest(projectId);
+  }
+
   @Get('competitors/:competitorId/seo-report')
   @ApiOperation({
     summary: "Everything the crawler found on one competitor's site, beside your own",

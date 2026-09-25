@@ -7,6 +7,7 @@ import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
+import { AutopilotCard } from "@/components/autopilot/autopilot-card";
 
 /**
  * Every dashboard route renders inside this shell, so it is where the session
@@ -77,6 +78,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">{children}</div>
         </main>
       </div>
+      <AutopilotCard />
       <AivaPanel />
     </AivaProvider>
   );

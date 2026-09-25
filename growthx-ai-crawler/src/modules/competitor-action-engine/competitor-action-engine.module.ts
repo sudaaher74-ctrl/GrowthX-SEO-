@@ -43,6 +43,7 @@ import { LocalSeoModule } from '../local-seo/local-seo.module';
   ],
   exports: [
     FindingsCollectorService,
+    CompetitorIntelReportService,
     StrategyEngineService,
     StrategyReadService,
     CompetitorSetupService,

@@ -2664,7 +2664,25 @@ export type AivaUiPayload =
   | { type: "blog_ideas"; topic: string; items: string[] }
   | { type: "meta_tags"; targetUrl: string; title: string; description: string }
   | { type: "competitor_scrape_result"; url: string; target: string; extractedData: string }
-  | { type: "social_draft"; trend: string; platform: string; postText: string };
+  | { type: "social_draft"; trend: string; platform: string; postText: string }
+  | { type: "autopilot"; runId: string; projectId: string };
+
+/** Mirrors AutopilotView in growthx-ai-crawler autopilot.service.ts. */
+export interface AutopilotRun {
+  id: string;
+  projectId: string;
+  domain: string;
+  status: "DISCOVERING" | "AWAITING_CONFIRMATION" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
+  step: "SETUP" | "FIND_COMPETITORS" | "CONFIRM" | "CRAWL_SITES" | "REPORT" | "DONE";
+  suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean }>;
+  competitors: Array<{ domain: string; name: string; competitorId: string }>;
+  sites: Array<{ domain: string; name: string; role: "you" | "competitor"; crawl: string; pagesCrawled: number }>;
+  log: Array<{ at: string; message: string }>;
+  error: string | null;
+  reportReady: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+}
 
 export interface VoiceConfirmationRequired {
   message: string;
@@ -3038,6 +3056,18 @@ export const api = {
     post<SeoGapInsights>(`/api/projects/${projectId}/seo-tools/seo-insights`, {}),
 
   // ── Voice Agent
+  autopilot: {
+    start: (domain: string, projectId?: string | null) =>
+      post<AutopilotRun>("/api/autopilot", { domain, projectId: projectId || undefined }),
+    latest: (projectId: string) => get<AutopilotRun | null>(`/api/autopilot/latest?projectId=${encodeURIComponent(projectId)}`),
+    confirm: (runId: string, domains: string[]) => post<AutopilotRun>(`/api/autopilot/${runId}/confirm`, { domains }),
+    cancel: (runId: string) => post<AutopilotRun>(`/api/autopilot/${runId}/cancel`, {}),
+  },
+
+  /** The most recently generated competitor report, so it survives a reload. */
+  getLatestCompetitorReport: (projectId: string) =>
+    get<CompetitorIntelReport | null>(`/api/projects/${projectId}/action-engine/competitor-report/latest`),
+
   voice: {
     createSession: async (projectId?: string) =>
       post<{ sessionId: string; createdAt: string }>('/api/voice/session', { projectId }),

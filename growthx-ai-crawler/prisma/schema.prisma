@@ -3471,3 +3471,44 @@ model RivalPageSnapshot {
   @@index([domain, url, capturedAt])
   @@index([domain, capturedAt])
 }
+
+/// One run of the voice-driven autopilot: set up the site, find competitors,
+/// wait for the customer to confirm them, read every site and write the
+/// report. Kept in the database so a run survives a restart and carries on
+/// while nobody has the page open.
+model AutopilotRun {
+  id             String    @id @default(uuid())
+  projectId      String
+  organizationId String
+  userId         String
+  domain         String
+  /// DISCOVERING | AWAITING_CONFIRMATION | RUNNING | DONE | FAILED | CANCELLED
+  status         String
+  /// SETUP | FIND_COMPETITORS | CONFIRM | CRAWL_SITES | REPORT | DONE
+  step           String
+  /// Competitors found, waiting for the customer: [{ domain, name, reason }].
+  suggestions    Json      @default("[]")
+  /// Competitors the customer confirmed: [{ domain, name, competitorId }].
+  competitors    Json      @default("[]")
+  ownCrawlJobId  String?
+  /// What happened, oldest first: [{ at, message }].
+  log            Json      @default("[]")
+  error          String?
+  reportId       String?
+  startedAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  finishedAt     DateTime?
+
+  @@index([projectId, startedAt])
+  @@index([status])
+}
+
+/// A competitor report as it was generated, so it can be read again later.
+model CompetitorReportSnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  report    Json
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

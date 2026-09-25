@@ -85,7 +85,8 @@ function setActiveOrg(id: string) {
   orgListeners.forEach((l) => l());
 }
 
-function setActiveProject(id: string) {
+/** Switches the whole app to another project, as the sidebar switcher does. */
+export function setActiveProject(id: string) {
   auth.setProjectId(id);
   projectListeners.forEach((l) => l());
 }
