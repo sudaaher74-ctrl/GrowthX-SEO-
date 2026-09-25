@@ -1,4 +1,5 @@
 "use client";
+import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 
 import { Suspense, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -45,7 +46,9 @@ import {
 } from "@/components/ai-visibility/ai-visibility-other-tabs";
 import { assistantList } from "@/lib/ai-assistants";
 
-export default function AiVisibilityPage() {
+// Switched off for now; to re-enable, make this the default export again.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function AiVisibilityPage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading AI Visibility...</div>}>
       <AiVisibilityClient />
@@ -516,4 +519,9 @@ function AiVisibilityClient() {
       )}
     </div>
   );
+}
+
+
+export default function AiVisibilityDisabledPage() {
+  return <AiVisibilityDisabled />;
 }

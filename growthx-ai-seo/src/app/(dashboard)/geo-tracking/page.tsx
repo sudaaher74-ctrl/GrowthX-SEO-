@@ -1,4 +1,5 @@
 "use client";
+import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Sparkles, RefreshCw, Search, Crosshair, Compass, AlertTriangle, Zap, ChevronRight, Star, Plus, History, TrendingUp, X, CheckCircle, Database } from "lucide-react";
@@ -65,7 +66,9 @@ interface GeoGridScanResult {
   model?: string;
 }
 
-export default function GeoTrackingPage() {
+// Switched off for now; to re-enable, make this the default export again.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function GeoTrackingPage() {
   const { projectId } = useWorkspace();
   const qc = useQueryClient();
   // Empty until the user names the search they care about: a pre-filled
@@ -913,4 +916,9 @@ export default function GeoTrackingPage() {
       </div>
     </div>
   );
+}
+
+
+export default function AiVisibilityDisabledPage() {
+  return <AiVisibilityDisabled />;
 }

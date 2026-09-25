@@ -13,7 +13,6 @@ import {
   useWorkspace,
   useProfile,
   useIssueCounts,
-  useVisibility,
 } from "@/hooks/use-growthx";
 
 /**
@@ -72,10 +71,8 @@ export function Sidebar({
     enabled: Boolean(projectId),
     retry: false,
   });
-  const visibility = useVisibility(projectId);
   const auditDone = Boolean(issueCounts.data?.crawledAt);
   const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
-  const aiDone = (visibility.data?.summary.checked ?? 0) > 0;
 
   // Core Navigation Tabs strictly following Master Product Specification
   const mainNav: NavItem[] = [
@@ -105,7 +102,10 @@ export function Sidebar({
       href: "/ai-visibility",
       icon: Sparkles,
       aliases: ["/geo-tracking", "/search"],
-      step: { n: 3, done: aiDone, hint: aiDone ? "Buyer answers measured" : "Ask the AI assistants your buyer questions" },
+      // Switched off for now, like Fix Engine and Design Studio.
+      tag: "Disabled",
+      tagTone: "default",
+      disabled: true,
     },
     {
       label: "Fix Engine",
