@@ -322,7 +322,7 @@ export function AivaPanel() {
                   )}
                 </AnimatePresence>
 
-                <div className="relative flex items-center justify-between p-2 pl-3 gap-4 h-[60px]">
+                <div className="relative flex items-center justify-between p-2 pl-3 gap-4 min-h-[60px]">
                 {/* Left: Aiva Orb */}
                 <div 
                   className="flex-shrink-0 cursor-pointer p-1" 
@@ -340,7 +340,7 @@ export function AivaPanel() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="truncate text-[15px] font-medium text-white"
+                      className="line-clamp-2 text-[15px] font-medium leading-snug text-white"
                     >
                       {state === 'idle' ? 'Say "Hey Nexa" or tap to speak' 
                         : state === 'listening' ? (transcript || 'Listening...')
