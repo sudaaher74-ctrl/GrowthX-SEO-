@@ -196,10 +196,10 @@ export function CostComparison() {
               View All Plans
             </Link>
             <Link
-              href="/analyze"
+              href="/dashboard"
               className="inline-flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md cursor-pointer shrink-0"
             >
-              <span>Start Free Analysis</span>
+              <span>Go to Dashboard</span>
               <ArrowRight size={13} />
             </Link>
           </div>

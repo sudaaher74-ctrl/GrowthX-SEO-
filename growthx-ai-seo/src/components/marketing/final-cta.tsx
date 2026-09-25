@@ -21,25 +21,25 @@ export function FinalCTA() {
                 Ready to See It Yourself?
               </p>
               <h2 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight">
-                Analyze your website<br />
+                Take control of your SEO<br />
                 <span className="text-series-6">today.</span>
               </h2>
               <p className="mt-4 text-lg text-brand-300 leading-relaxed">
-                Get a free AI-powered analysis in just a few minutes. No credit card required.
+                Log in to your dashboard to crawl your website, audit technical SEO, and track rankings.
               </p>
             </div>
 
             {/* Right */}
             <div className="flex flex-col items-start lg:items-end gap-5 shrink-0">
               <Link
-                href="/analyze"
+                href="/dashboard"
                 className="flex items-center gap-2 bg-white hover:bg-brand-100 text-brand-950 font-bold text-base px-7 py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.02]"
               >
-                Analyze Your Website
+                Go to Dashboard
                 <ArrowRight size={16} />
               </Link>
               <div className="flex flex-wrap items-center gap-5">
-                {["Free analysis", "No credit card required", "Setup in minutes"].map((item) => (
+                {["Automated site crawl", "No credit card required", "Setup in minutes"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5 text-[12.5px] text-brand-300">
                     <CheckCircle size={13} className="text-series-6" />
                     {item}

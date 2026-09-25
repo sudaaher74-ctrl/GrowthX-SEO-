@@ -147,10 +147,10 @@ export function ValueSection() {
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <Link
-                href="/analyze"
+                href="/dashboard"
                 className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
               >
-                <span>Analyze Your Website</span>
+                <span>Go to Dashboard</span>
                 <ArrowRight size={15} />
               </Link>
               <button className="inline-flex items-center gap-2 text-brand-300 hover:text-white font-semibold text-sm px-4 py-3 rounded-xl hover:bg-brand-900 transition-all cursor-pointer">

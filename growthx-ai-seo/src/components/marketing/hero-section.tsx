@@ -1,6 +1,8 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
+import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import {
   ArrowRight,
   Check,
@@ -284,6 +286,12 @@ function DashboardMockup() {
 }
 
 export function HeroSection() {
+  const signedIn = useSyncExternalStore(
+    subscribeToAuthChange,
+    () => auth.isAuthenticated(),
+    () => false,
+  );
+
   return (
     <section className="relative min-h-[calc(100vh-4rem)] flex items-center bg-brand-950 pt-20 pb-16 lg:pt-28 lg:pb-20 border-b border-brand-900 overflow-hidden">
       {/* Soft background ambient glow */}
@@ -321,17 +329,17 @@ export function HeroSection() {
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-3.5 pt-1">
               <Link
-                href="/analyze"
+                href={signedIn ? "/dashboard" : "/login"}
                 className="inline-flex items-center gap-2 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-sm sm:text-[15px] px-6 py-3.5 rounded-2xl transition-all shadow-lg cursor-pointer"
               >
-                <span>Analyze Your Website</span>
+                <span>Go to Dashboard</span>
                 <ArrowRight size={16} />
               </Link>
             </div>
 
             {/* Trust signals */}
             <div className="flex flex-wrap items-center gap-5 pt-1 text-xs sm:text-[13px] text-brand-400 font-semibold">
-              {["No credit card required", "Free analysis", "Setup in minutes"].map((item) => (
+              {["No credit card required", "Instant site crawl", "Setup in minutes"].map((item) => (
                 <div key={item} className="flex items-center gap-1.5">
                   <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
                   <span>{item}</span>

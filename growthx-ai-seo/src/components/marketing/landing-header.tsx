@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ChevronDown, ArrowRight } from "lucide-react";
+import { auth, subscribeToAuthChange } from "@/lib/api-client";
 
 export function LandingHeader() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const signedIn = useSyncExternalStore(
+    subscribeToAuthChange,
+    () => auth.isAuthenticated(),
+    () => false,
+  );
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -64,19 +71,31 @@ export function LandingHeader() {
 
           {/* Right */}
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden md:block text-[13.5px] font-medium text-brand-300 hover:text-white transition-colors px-3 py-2"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/analyze"
-              className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
-            >
-              Analyze Your Website
-              <ArrowRight size={14} />
-            </Link>
+            {signedIn ? (
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
+              >
+                Go to Dashboard
+                <ArrowRight size={14} />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden md:block text-[13.5px] font-medium text-brand-300 hover:text-white transition-colors px-3 py-2"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
+                >
+                  Go to Dashboard
+                  <ArrowRight size={14} />
+                </Link>
+              </>
+            )}
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileOpen((o) => !o)}
@@ -110,17 +129,19 @@ export function LandingHeader() {
             Pricing
           </Link>
           <div className="border-t border-brand-900 pt-3 mt-2 space-y-2">
+            {!signedIn && (
+              <Link
+                href="/login"
+                className="block px-3 py-2.5 text-sm font-medium text-brand-300 hover:text-white hover:bg-brand-900/60 rounded-lg transition-colors"
+              >
+                Log in
+              </Link>
+            )}
             <Link
-              href="/login"
-              className="block px-3 py-2.5 text-sm font-medium text-brand-300 hover:text-white hover:bg-brand-900/60 rounded-lg transition-colors"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/analyze"
+              href="/dashboard"
               className="flex items-center justify-center gap-2 bg-series-6 hover:bg-series-6/90 text-white text-sm font-semibold px-4 py-3 rounded-xl"
             >
-              Analyze Your Website <ArrowRight size={14} />
+              Go to Dashboard <ArrowRight size={14} />
             </Link>
           </div>
         </div>

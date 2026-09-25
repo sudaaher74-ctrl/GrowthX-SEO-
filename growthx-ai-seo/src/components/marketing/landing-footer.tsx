@@ -67,9 +67,9 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Tools",
     links: [
-      { label: "Technical Website Audit", href: "/analyze" },
+      { label: "Technical Website Audit", href: "/website" },
       { label: "Meta Description Generator", href: "/meta-optimizer" },
-      { label: "Meta Tag Checker", href: "/analyze" },
+      { label: "Meta Tag Checker", href: "/website" },
       { label: "Robots.txt Generator", href: "/schema-generator" },
       { label: "Sitemap.xml Generator", href: "/website" },
       { label: "UTM Builder", href: "/schema-generator" },
@@ -80,14 +80,14 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Use Cases",
     links: [
-      { label: "SaaS", href: "/analyze" },
-      { label: "Startups", href: "/analyze" },
-      { label: "Ecommerce", href: "/analyze" },
+      { label: "SaaS", href: "/pricing" },
+      { label: "Startups", href: "/pricing" },
+      { label: "Ecommerce", href: "/pricing" },
       { label: "Agencies", href: "/pricing" },
-      { label: "Professional Services", href: "/analyze" },
-      { label: "Real Estate", href: "/analyze" },
-      { label: "Financial Advisors", href: "/analyze" },
-      { label: "Healthcare", href: "/analyze" },
+      { label: "Professional Services", href: "/pricing" },
+      { label: "Real Estate", href: "/pricing" },
+      { label: "Financial Advisors", href: "/pricing" },
+      { label: "Healthcare", href: "/pricing" },
       { label: "Small Business", href: "/pricing" },
       { label: "More Use Cases", href: "/pricing" },
     ],

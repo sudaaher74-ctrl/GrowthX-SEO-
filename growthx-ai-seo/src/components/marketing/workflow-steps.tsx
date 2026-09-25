@@ -395,17 +395,17 @@ export function WorkflowSteps() {
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/analyze"
+                  href="/dashboard"
                   className="inline-flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
                 >
-                  <span>Analyze Your Website</span>
+                  <span>Go to Dashboard</span>
                   <ArrowRight size={14} />
                 </Link>
               </div>
 
               {/* Trust Checkmarks */}
               <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-brand-400 pt-1">
-                {["No credit card required", "Setup in minutes", "Free analysis"].map((item) => (
+                {["No credit card required", "Setup in minutes", "Automated site crawl"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5">
                     <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
                     <span>{item}</span>

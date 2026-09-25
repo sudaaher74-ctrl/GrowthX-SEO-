@@ -58,17 +58,17 @@ export function TrustSection() {
               </p>
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp size={18} className="text-success-400" />
-                <p className="text-lg font-extrabold text-white">A free audit of your website</p>
+                <p className="text-lg font-extrabold text-white">Full audit of your website</p>
               </div>
               <p className="text-[13px] text-brand-300 mb-5 leading-relaxed">
-                We crawl your pages, check technical SEO and on-page content, and show you what to fix first — using
+                Log in to crawl your pages, check technical SEO and on-page content, and see what to fix first — using
                 your site&apos;s real data.
               </p>
               <Link
-                href="/analyze"
+                href="/dashboard"
                 className="w-full block text-center text-[12.5px] font-bold text-white bg-series-6 hover:bg-series-6/90 rounded-xl py-2.5 transition-colors shadow-sm"
               >
-                Analyze your website →
+                Go to Dashboard →
               </Link>
             </div>
           </div>
