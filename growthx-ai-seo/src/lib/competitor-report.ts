@@ -1,8 +1,8 @@
-import type { CompetitorIntelReport, IntelReportSite } from "@/lib/api-client";
+import type { CompetitorIntelReport, IntelPriority, IntelReportRival } from "@/lib/api-client";
 
 /** Downloads for the competitor report: Markdown to read, CSV to work in, HTML to print. */
 
-const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+const PRIORITY_ORDER: IntelPriority[] = ["high", "medium", "low"];
 
 function num(n: number | null | undefined, suffix = ""): string {
   return n == null ? "not measured" : `${n.toLocaleString("en-IN")}${suffix}`;
@@ -19,66 +19,92 @@ export function reportFilename(report: CompetitorIntelReport, ext: string): stri
   return `competitor-report-${domain}-${report.generatedAt.slice(0, 10)}.${ext}`;
 }
 
-function siteMarkdown(site: IntelReportSite): string {
-  const issues = site.issues.length
-    ? site.issues
-        .map(
-          (i) =>
-            `- **${i.severity} · ${i.issueType.replace(/_/g, " ")}** on ${i.pages} page(s). ${i.description}\n  - Fix: ${i.recommendation}\n  - Examples: ${i.exampleUrls.join(", ") || "none"}`,
-        )
-        .join("\n")
-    : "- No open issues recorded.";
-  return (
-    `### ${site.name} (${site.domain})\n` +
-    `Crawled ${date(site.crawledAt)} · ${num(site.pagesCrawled, " pages")} · health ${num(site.healthScore, "/100")}\n\n${issues}\n`
+/** "Named in 3 of 12 AI answers", or why it is not known. */
+export function aiMentionText(rival: IntelReportRival, asked: number): string {
+  return rival.aiMentions == null ? "not measured" : `named in ${rival.aiMentions} of ${asked} AI answers`;
+}
+
+export function reviewText(rival: IntelReportRival): string {
+  return rival.googleReviews == null ? "not measured" : `${rival.googleRating ?? "?"}★ from ${rival.googleReviews.toLocaleString("en-IN")} reviews`;
+}
+
+function rivalMarkdown(r: IntelReportRival, report: CompetitorIntelReport): string {
+  const out: string[] = [`### ${r.name} (${r.domain})`];
+  out.push(
+    `Crawled ${date(r.crawledAt)} · ${num(r.pagesCrawled, " pages")} · AI assistants: ${aiMentionText(r, report.facts.aiAnswers.asked)} · Google: ${reviewText(r)}`,
   );
+  const a = r.advantages;
+  if (!a) {
+    out.push("_Page-level comparison needs a completed crawl of both sites._");
+  } else {
+    out.push(`**Topics they have a page for and you do not (${a.missingTopicsTotal}):**`);
+    out.push(
+      a.missingTopics.length
+        ? a.missingTopics.map((t) => `- ${t.title} (${t.pageType.toLowerCase()}, ${t.wordCount} words): ${t.url}`).join("\n")
+        : "- None found.",
+    );
+    if (a.missingTopicsTotal > a.missingTopics.length) out.push(`_…and ${a.missingTopicsTotal - a.missingTopics.length} more._`);
+    const rows: string[] = [
+      ...a.pageTypes.map((t) => `| ${t.label} | ${t.you} | ${t.them} | them |`),
+      ...a.schema.map((s) => `| ${s.type.toLowerCase()} structured data (pages) | ${s.you} | ${s.them} | them |`),
+      `| Median words per page | ${num(a.depth.yourMedianWords)} | ${num(a.depth.theirMedianWords)} | ${lead(a.depth.yourMedianWords, a.depth.theirMedianWords)} |`,
+      `| In-depth pages (1,000+ words) | ${a.depth.yourLongPages} | ${a.depth.theirLongPages} | ${lead(a.depth.yourLongPages, a.depth.theirLongPages)} |`,
+      `| Questions answered in headings | ${a.questions.yourCount} | ${a.questions.theirCount} | ${lead(a.questions.yourCount, a.questions.theirCount)} |`,
+      `| Topics only one side covers | ${a.yourUniqueTopicsTotal} | ${a.missingTopicsTotal} | ${lead(a.yourUniqueTopicsTotal, a.missingTopicsTotal)} |`,
+      ...r.comparison.filter((c) => !a.pageTypes.some((t) => t.label === c.label)).map((c) => `| ${c.label} | ${num(c.you)} | ${num(c.them)} | ${c.leader} |`),
+    ];
+    out.push(`| What they have | You | ${r.name} | Ahead |\n| --- | --- | --- | --- |\n${rows.join("\n")}`);
+    if (a.questions.theirs.length) out.push(`**Questions they answer:**\n${a.questions.theirs.map((q) => `- ${q}`).join("\n")}`);
+  }
+  if (r.notes.length) out.push(`_${r.notes.join(" ")}_`);
+  return out.join("\n\n");
+}
+
+function lead(you: number | null, them: number | null): string {
+  if (you == null || them == null) return "unknown";
+  return you === them ? "level" : them > you ? "them" : "you";
 }
 
 export function toMarkdown(report: CompetitorIntelReport): string {
   const { facts, analysis } = report;
   const out: string[] = [];
-  out.push(`# Competitor intelligence report: ${facts.you?.domain ?? "your site"}`);
+  out.push(`# Why your competitors rank: ${facts.you?.domain ?? "your site"}`);
   out.push(
-    `Generated ${date(report.generatedAt)}${report.model ? ` · analysis by ${report.model}` : ""} · ${facts.rivals.length} rival(s)`,
+    `Generated ${date(report.generatedAt)}${report.model ? ` · analysis by ${report.model}` : ""} · ${facts.rivals.length} rival(s) · ` +
+      (facts.aiAnswers.asked ? `you were named in ${facts.aiAnswers.namedYou} of ${facts.aiAnswers.asked} AI answers` : "AI answers not measured"),
   );
 
   if (analysis) {
     out.push(`## Summary\n${analysis.executiveSummary || "No summary returned."}`);
-    out.push(`## Problems and how to fix them (${analysis.problems.length})`);
-    analysis.problems.forEach((p, i) => {
-      out.push(
-        `### ${i + 1}. ${p.title}\n**Severity:** ${p.severity} · **Where:** ${p.where} · **Effort:** ${p.effort}\n\n` +
-          `**Evidence:** ${p.evidence || "—"}\n\n**Why it matters:** ${p.whyItMatters || "—"}\n\n` +
-          `**Fix:**\n${p.fix.map((f, n) => `${n + 1}. ${f}`).join("\n") || "—"}`,
-      );
-    });
-    if (analysis.competitorInsights.length) {
-      out.push(`## Rival by rival`);
-      analysis.competitorInsights.forEach((c) => {
+    if (analysis.whyTheyRank.length) {
+      out.push(`## Why they rank`);
+      analysis.whyTheyRank.forEach((c) => {
         out.push(
-          `### ${c.competitor}\n**They lead on:** ${c.theyLead.join("; ") || "—"}\n\n**You lead on:** ${c.youLead.join("; ") || "—"}\n\n**Worth copying:** ${c.copyThis || "—"}`,
+          `### ${c.competitor} · ${c.threat} threat\n${c.reasons.map((x) => `- **${x.factor}**${x.evidence ? `: ${x.evidence}` : ""}`).join("\n") || "- Nothing measured."}`,
         );
       });
     }
+    out.push(`## What they have that you don't (${analysis.gaps.length})`);
+    analysis.gaps.forEach((g, i) => {
+      out.push(
+        `### ${i + 1}. ${g.title}\n**Priority:** ${g.priority} · **Who has it:** ${g.rivals.join(", ") || "—"} · **Effort:** ${g.effort}\n\n` +
+          `**Evidence:** ${g.evidence || "—"}\n\n**Why it helps them rank:** ${g.whyItHelpsThemRank || "—"}\n\n` +
+          `**How to beat it:**\n${g.howToBeatIt.map((f, n) => `${n + 1}. ${f}`).join("\n") || "—"}`,
+      );
+    });
+    if (analysis.whereYouLead.length) out.push(`## Where you lead\n${analysis.whereYouLead.map((w) => `- ${w}`).join("\n")}`);
     if (analysis.plan.length) {
       out.push(`## 4-week plan`);
       analysis.plan.forEach((w) => out.push(`### ${w.week}\n${w.actions.map((a) => `- ${a}`).join("\n")}`));
     }
     if (analysis.dataGaps.length) out.push(`## Not measured yet\n${analysis.dataGaps.map((g) => `- ${g}`).join("\n")}`);
   } else {
-    out.push(`## Analysis\nNot available: ${report.analysisError ?? "unknown reason"}. The crawl facts below are complete.`);
+    out.push(`## Analysis\nNot available: ${report.analysisError ?? "unknown reason"}. The measured facts below are complete.`);
   }
 
-  out.push(`## Crawl facts`);
-  if (facts.you) out.push(siteMarkdown(facts.you));
-  facts.rivals.forEach((r) => {
-    const cmp = r.comparison.map((c) => `| ${c.label} | ${num(c.you)} | ${num(c.them)} | ${c.leader} |`).join("\n");
-    out.push(
-      siteMarkdown(r) +
-        (cmp ? `\n| Measure | You | ${r.name} | Leader |\n| --- | --- | --- | --- |\n${cmp}\n` : "") +
-        (r.notes.length ? `\n_${r.notes.join(" ")}_\n` : ""),
-    );
-  });
+  out.push(`## What each rival has, measured`);
+  if (facts.you) out.push(`Your site: ${facts.you.name} (${facts.you.domain}), crawled ${date(facts.you.crawledAt)}, ${num(facts.you.pagesCrawled, " pages")}.`);
+  facts.rivals.forEach((r) => out.push(rivalMarkdown(r, report)));
   if (facts.notIncluded.length) out.push(`_Not included (limit reached): ${facts.notIncluded.join(", ")}_`);
   return out.join("\n\n") + "\n";
 }
@@ -91,20 +117,28 @@ function csvCell(v: unknown): string {
 }
 
 export function toCsv(report: CompetitorIntelReport): string {
-  const header = ["type", "site", "severity", "title", "pages", "evidence_or_description", "fix", "effort", "example_urls"];
+  const header = ["type", "rival", "item", "you", "them", "priority", "evidence", "how_to_beat_it", "url"];
   const rows: unknown[][] = [];
-  report.analysis?.problems.forEach((p) =>
-    rows.push(["problem", p.where, p.severity, p.title, "", p.evidence, p.fix.join(" | "), p.effort, ""]),
+  const gaps = [...(report.analysis?.gaps ?? [])].sort(
+    (a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority),
   );
-  const sites = [...(report.facts.you ? [report.facts.you] : []), ...report.facts.rivals];
-  sites.forEach((s) =>
-    s.issues.forEach((i) =>
-      rows.push(["crawl_issue", s.domain, i.severity.toLowerCase(), i.issueType, i.pages, i.description, i.recommendation, "", i.exampleUrls.join(" | ")]),
-    ),
+  gaps.forEach((g) => rows.push(["gap", g.rivals.join(" | "), g.title, "", "", g.priority, g.evidence, g.howToBeatIt.join(" | "), ""]));
+  report.analysis?.whyTheyRank.forEach((c) =>
+    c.reasons.forEach((x) => rows.push(["why_they_rank", c.competitor, x.factor, "", "", c.threat, x.evidence, "", ""])),
   );
-  rows.sort((a, b) =>
-    a[0] === b[0] ? SEVERITY_ORDER.indexOf(String(a[2])) - SEVERITY_ORDER.indexOf(String(b[2])) : a[0] === "problem" ? -1 : 1,
-  );
+  const asked = report.facts.aiAnswers.asked;
+  report.facts.rivals.forEach((r) => {
+    if (r.aiMentions != null) rows.push(["ai_answers", r.domain, "Named in AI answers", report.facts.aiAnswers.namedYou, r.aiMentions, "", `of ${asked} answers`, "", ""]);
+    if (r.googleReviews != null) rows.push(["google_reviews", r.domain, "Google reviews", "", r.googleReviews, "", `${r.googleRating ?? "?"} stars`, "", ""]);
+    const a = r.advantages;
+    if (!a) return;
+    a.missingTopics.forEach((t) => rows.push(["missing_topic", r.domain, t.title, 0, 1, "", `${t.pageType.toLowerCase()}, ${t.wordCount} words`, "", t.url]));
+    a.pageTypes.forEach((t) => rows.push(["page_type", r.domain, t.label, t.you, t.them, "", "", "", ""]));
+    a.schema.forEach((s) => rows.push(["structured_data", r.domain, s.type, s.you, s.them, "", "", "", s.exampleUrl]));
+    rows.push(["depth", r.domain, "Median words per page", a.depth.yourMedianWords ?? "", a.depth.theirMedianWords ?? "", "", "", "", ""]);
+    rows.push(["depth", r.domain, "Pages of 1000+ words", a.depth.yourLongPages, a.depth.theirLongPages, "", "", "", ""]);
+    rows.push(["questions", r.domain, "Questions answered in headings", a.questions.yourCount, a.questions.theirCount, "", a.questions.theirs.join(" | "), "", ""]);
+  });
   return [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
 }
 
