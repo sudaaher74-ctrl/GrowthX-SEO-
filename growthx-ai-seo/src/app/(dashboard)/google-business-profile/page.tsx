@@ -53,6 +53,7 @@ function GoogleBusinessProfileContent() {
   const [connectModalMode, setConnectModalMode] = useState<"search" | "manual">("search");
   // The picker can also be opened deliberately, from "Change location".
   const [pickerRequested, setPickerRequested] = useState(false);
+  const [pickerDismissed, setPickerDismissed] = useState(false);
   const [lastSyncNotice, setLastSyncNotice] = useState<string | null>(null);
 
   const handleTabChange = (newTab: GbpTabKey) => {
@@ -152,9 +153,19 @@ function GoogleBusinessProfileContent() {
     ) : null;
 
   // The location picker: reached either from Google's callback or from
-  // "Change location", and shown whenever the connection has no location yet.
+  // "Change location", and opened automatically while the Google connection has
+  // no location yet — unless a Places/manual listing is already tracked, or the
+  // customer has left the picker. Without that escape a connection Google will
+  // not list locations for (e.g. zero API quota) traps the page on this screen.
   const showPicker =
-    pickerRequested || callbackOutcome === "select" || connection?.state === "NEEDS_SELECTION";
+    pickerRequested ||
+    callbackOutcome === "select" ||
+    (connection?.state === "NEEDS_SELECTION" && !localSeo && !pickerDismissed);
+
+  const leavePicker = () => {
+    setPickerDismissed(true);
+    clearCallback();
+  };
 
   if (showPicker) {
     return (
@@ -163,9 +174,9 @@ function GoogleBusinessProfileContent() {
         <SelectGbpLocation
           projectId={projectId}
           onSelected={clearCallback}
-          onCancel={clearCallback}
+          onCancel={leavePicker}
           onTrackAlternative={() => {
-            clearCallback();
+            leavePicker();
             openConnect("search");
           }}
         />
