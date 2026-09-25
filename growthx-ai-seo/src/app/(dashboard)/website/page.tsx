@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Activity,
+  ArrowRight,
   Check,
   ChevronRight,
   Copy,
@@ -235,24 +236,23 @@ function WebsiteAuditClient() {
         </div>
 
         {/* Main Title & Action Buttons Row */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-1">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-1">
+          <div className="space-y-1.5 min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-brand-950 dark:text-white">
               {headerContent.title}
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+            <p className="text-xs text-brand-500 dark:text-brand-400 max-w-2xl leading-relaxed">
               {headerContent.subtitle}
             </p>
-          </div>
-
-          {/* Right side: Crawl metadata & action buttons */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             {crawl.data?.finishedAt && (
-              <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 hidden lg:block">
-                <span>Last crawl: {formatRelativeTime(crawl.data.finishedAt)}</span>
-                <span className="mx-1.5">·</span>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-brand-500 pt-0.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" />
+                <span className="font-medium text-brand-700 dark:text-brand-300">
+                  Last crawl: {formatRelativeTime(crawl.data.finishedAt)}
+                </span>
+                <span className="text-brand-300 dark:text-brand-700">·</span>
                 <span>{counts?.pagesCrawled ?? allPages.length} pages</span>
-                <span className="mx-1.5">·</span>
+                <span className="text-brand-300 dark:text-brand-700">·</span>
                 <span>
                   {counts
                     ? `${counts.openFindings} findings in ${counts.openGroups} problems`
@@ -260,51 +260,54 @@ function WebsiteAuditClient() {
                 </span>
                 {crawlDuration && (
                   <>
-                    <span className="mx-1.5">·</span>
+                    <span className="text-brand-300 dark:text-brand-700">·</span>
                     <span>Completed in {crawlDuration}</span>
                   </>
                 )}
               </div>
             )}
+          </div>
 
-            <div className="flex items-center gap-2">
-              <DesignStudioLink label="Create Visual Preview" />
-              <button
-                type="button"
-                onClick={handleExportPdf}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
-              >
-                <FileDown size={13} />
-                <span>Export PDF</span>
-              </button>
+          {/* Action buttons toolbar */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <DesignStudioLink label="Visual Preview" />
 
-              <button
-                type="button"
-                onClick={() => setShowShareModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
-              >
-                <Share2 size={13} />
-                <span>Share Report</span>
-              </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+            >
+              <FileDown size={13.5} className="text-brand-500" />
+              <span>Export PDF</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={handleReCrawl}
-                disabled={crawling || !client?.domain}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 disabled:opacity-50 transition-colors dark:bg-slate-800 dark:hover:bg-slate-700"
-              >
-                <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
-                <span>{crawling ? "Crawling…" : activeTab === "performance" ? "Re-run Audit" : "Re-crawl Website"}</span>
-              </button>
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+            >
+              <Share2 size={13.5} className="text-brand-500" />
+              <span>Share Report</span>
+            </button>
 
-              <Link
-                href="/action-queue"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-black transition-colors"
-              >
-                <Zap size={13} />
-                <span>View SEO Roadmap →</span>
-              </Link>
-            </div>
+            <button
+              type="button"
+              onClick={handleReCrawl}
+              disabled={crawling || !client?.domain}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-900 active:scale-95 disabled:opacity-50 transition-all dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
+            >
+              <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
+              <span>{crawling ? "Crawling…" : activeTab === "performance" ? "Re-run Audit" : "Re-crawl Website"}</span>
+            </button>
+
+            <Link
+              href="/action-queue"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+            >
+              <Zap size={13} className="text-warning-500 fill-warning-500" />
+              <span>View SEO Roadmap</span>
+              <ArrowRight size={12} className="text-brand-400" />
+            </Link>
           </div>
         </div>
       </div>

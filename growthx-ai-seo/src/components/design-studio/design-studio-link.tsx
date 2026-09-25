@@ -29,12 +29,12 @@ export function DesignStudioLink({
     <Link
       href={href}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[12px] font-medium text-brand-600 transition hover:bg-brand-50",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800",
         className,
       )}
     >
-      <Wand2 size={13} />
-      {label}
+      <Wand2 size={13} className="text-brand-500" />
+      <span>{label}</span>
     </Link>
   );
 }

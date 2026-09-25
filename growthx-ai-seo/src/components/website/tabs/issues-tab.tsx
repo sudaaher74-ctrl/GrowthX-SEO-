@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   ChevronDown,
   ChevronRight,
   ExternalLink,
@@ -131,25 +132,26 @@ export function IssuesTab({ issues, onFixIssue, onExportPdf }: IssuesTabProps) {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {onExportPdf && (
               <button
                 type="button"
                 onClick={onExportPdf}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 text-xs font-semibold transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg border bg-white hover:bg-brand-50 hover:text-brand-950 text-brand-700 dark:bg-brand-900 dark:text-brand-200 text-xs font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
                 title="Download 9-Page PDF Audit Report"
               >
-                <FileDown size={13} className="text-blue-600 dark:text-blue-400" />
+                <FileDown size={13} className="text-accent-600 dark:text-accent-400" />
                 <span>Download PDF</span>
               </button>
             )}
 
             <Link
               href="/action-queue"
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-xs"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-lg border bg-white hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 text-brand-700 dark:bg-brand-900 dark:text-brand-200 text-xs font-semibold transition-all shadow-xs active:scale-95"
             >
-              <Zap size={12} />
-              <span>Review in SEO Roadmap ({filtered.length}) →</span>
+              <Zap size={12} className="text-warning-500 fill-warning-500" />
+              <span>Review in SEO Roadmap ({filtered.length})</span>
+              <ArrowRight size={12} className="text-brand-400" />
             </Link>
           </div>
         </div>
