@@ -62,6 +62,34 @@ export class CompetitorCrawlService {
       },
     });
 
+    // One crawl per site at a time. Several callers ask for one — adding the
+    // competitor, the page's own "crawl" request, the competitor list, the
+    // scheduler, Business — and each used to queue another. The list asks on
+    // every 4-second poll while anything is crawling, so seven competitors
+    // queued seven more crawls every poll: none finished, each new one became
+    // the "latest" so the page showed "Waiting to start" for ever, and the pile
+    // of abandoned jobs was a large share of what the server spent its time on.
+    const active = await this.prisma.crawlJob.findFirst({
+      where: { websiteId: website.id, status: { in: ['PENDING', 'RUNNING'] } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (active) {
+      if (competitor.websiteId !== website.id) {
+        await this.prisma.competitorDomain.update({
+          where: { id: competitor.id },
+          data: { websiteId: website.id, status: 'ANALYZING' },
+        });
+      }
+      return {
+        jobId: active.id,
+        websiteId: website.id,
+        domain,
+        pageLimit: CompetitorCrawlService.PAGE_LIMIT,
+        alreadyRunning: true,
+      };
+    }
+
     let jobId = 'job-' + Date.now();
     try {
       jobId = await this.crawler.startCrawlJob(website.id, {
@@ -84,7 +112,7 @@ export class CompetitorCrawlService {
     }
 
     this.logger.log(`Started competitor crawl ${jobId} for ${domain} (competitor ${competitor.id}).`);
-    return { jobId, websiteId: website.id, domain, pageLimit: CompetitorCrawlService.PAGE_LIMIT };
+    return { jobId, websiteId: website.id, domain, pageLimit: CompetitorCrawlService.PAGE_LIMIT, alreadyRunning: false };
   }
 
   async getCoverage(organizationId: string, projectId: string, competitorId: string) {
@@ -468,3 +496,56 @@ export class CompetitorCrawlService {
   }
 }
 
+
+/**
+ * Cancels the crawls of a competitor's site once no competitor tracks it.
+ *
+ * Called after a competitor is removed. Removing one only deleted its row, so
+ * a crawl already running for its site carried on to the end — the customer
+ * removed a competitor and watched the log keep reading its pages. The
+ * crawler stops fetching a CANCELLED job's queued pages within seconds.
+ *
+ * A competitor's site is shared: the `Website` row is keyed by domain, and
+ * another project may track the same competitor. Its crawls are only stopped
+ * when nothing tracks the site any more, and a project's own site (one with a
+ * projectId) is never stopped from here. Returns how many crawls were stopped.
+ */
+export async function stopUntrackedCompetitorCrawls(
+  prisma: PrismaService,
+  websiteId: string | null,
+  domain: string,
+): Promise<number> {
+  let bare: string | null = null;
+  try {
+    bare = CompetitorCrawlService.normalizeDomain(domain);
+  } catch {
+    bare = null;
+  }
+
+  const website = websiteId
+    ? await prisma.website.findUnique({ where: { id: websiteId }, select: { id: true, projectId: true } })
+    : bare
+      ? await prisma.website.findUnique({ where: { domain: bare }, select: { id: true, projectId: true } })
+      : null;
+  if (!website || website.projectId) return 0;
+
+  const stillTracked = await prisma.competitorDomain.count({
+    where: {
+      OR: [
+        { websiteId: website.id },
+        ...(bare ? [{ domain: { in: [bare, `www.${bare}`] } }] : []),
+      ],
+    },
+  });
+  if (stillTracked > 0) return 0;
+
+  const { count } = await prisma.crawlJob.updateMany({
+    where: { websiteId: website.id, status: { in: ['PENDING', 'RUNNING'] } },
+    data: {
+      status: 'CANCELLED',
+      finishedAt: new Date(),
+      errorMessage: 'Stopped because the competitor was removed.',
+    },
+  });
+  return count;
+}

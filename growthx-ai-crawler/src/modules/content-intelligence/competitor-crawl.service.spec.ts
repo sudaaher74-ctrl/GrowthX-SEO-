@@ -1,4 +1,4 @@
-import { CompetitorCrawlService } from './competitor-crawl.service';
+import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from './competitor-crawl.service';
 
 /**
  * A competitor's site is a third party's server. Two things have to hold or
@@ -48,10 +48,28 @@ describe('CompetitorCrawlService', () => {
           update: jest.fn().mockResolvedValue({}),
         },
         website: { upsert: jest.fn().mockResolvedValue({ id: 'w1', domain: 'acme.com' }) },
+        crawlJob: { findFirst: jest.fn().mockResolvedValue(null) },
       };
       const crawler = { startCrawlJob: jest.fn().mockResolvedValue('job1') };
       return { prisma, crawler, service: new CompetitorCrawlService(prisma as any, crawler as any) };
     };
+
+    it('reuses a crawl already under way instead of queueing another', async () => {
+      // The competitor list asks for a crawl on every 4-second poll. Queueing a
+      // new one each time left dozens of crawls per site, none of which ever
+      // finished, and the page stuck on "Waiting to start".
+      const { prisma, crawler, service } = build();
+      prisma.crawlJob.findFirst.mockResolvedValue({ id: 'running1' });
+
+      const result = await service.startCrawl('org1', 'p1', 'comp1');
+
+      expect(crawler.startCrawlJob).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ jobId: 'running1', alreadyRunning: true });
+      expect(prisma.crawlJob.findFirst.mock.calls[0][0].where).toEqual({
+        websiteId: 'w1',
+        status: { in: ['PENDING', 'RUNNING'] },
+      });
+    });
 
     it('never files a competitor site under the customer project', async () => {
       // This is the whole safety property. Every query that reads a project's
@@ -576,5 +594,54 @@ describe('CompetitorCrawlService — opportunities, found against the real compe
     const urls = result!.opportunities.map((o) => o.url);
     expect(urls).toContain('https://ifp.com/guava-pulp/');
     expect(urls).toContain('https://ifp.com/papaya-pulp/');
+  });
+});
+
+describe('stopUntrackedCompetitorCrawls', () => {
+  function build(website: { id: string; projectId: string | null } | null, stillTracked: number) {
+    return {
+      website: { findUnique: jest.fn().mockResolvedValue(website) },
+      competitorDomain: { count: jest.fn().mockResolvedValue(stillTracked) },
+      crawlJob: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+  }
+
+  it("cancels the removed competitor's active crawls", async () => {
+    const prisma = build({ id: 'w1', projectId: null }, 0);
+
+    const stopped = await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'parsidairyfarm.com');
+
+    expect(stopped).toBe(2);
+    const call = prisma.crawlJob.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ websiteId: 'w1', status: { in: ['PENDING', 'RUNNING'] } });
+    expect(call.data.status).toBe('CANCELLED');
+  });
+
+  it('leaves the crawl alone while another project still tracks the site', async () => {
+    const prisma = build({ id: 'w1', projectId: null }, 1);
+
+    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'parsidairyfarm.com')).toBe(0);
+    expect(prisma.crawlJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("never stops a project's own site", async () => {
+    // A customer's own site can also be someone else's competitor. Removing
+    // the competitor must not cancel the customer's own audit.
+    const prisma = build({ id: 'w1', projectId: 'p9' }, 0);
+
+    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'milquufresh.in')).toBe(0);
+    expect(prisma.crawlJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('finds the site by domain when the competitor never recorded one', async () => {
+    const prisma = build({ id: 'w1', projectId: null }, 0);
+
+    await stopUntrackedCompetitorCrawls(prisma as any, null, 'https://www.ParsiDairyFarm.com/shop');
+
+    expect(prisma.website.findUnique).toHaveBeenCalledWith({
+      where: { domain: 'parsidairyfarm.com' },
+      select: { id: true, projectId: true },
+    });
+    expect(prisma.crawlJob.updateMany).toHaveBeenCalled();
   });
 });
