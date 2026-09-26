@@ -152,6 +152,14 @@ services:
       # this key loses the heat map rather than showing an invented one.
       - key: GOOGLE_PLACES_API_KEY
         sync: false
+      # Speed tab (Core Web Vitals, Lighthouse scores). Unset, PageSpeed is
+      # called without a key and shares Google's anonymous quota with every
+      # other unkeyed caller: it is usually exhausted, the crawl logs "PageSpeed
+      # quota exhausted" and skips measuring for 15 minutes at a time, and
+      # most pages are left with no speed data. PageSpeed Insights API, free,
+      # 25,000 requests/day with a key.
+      - key: PAGESPEED_API_KEY
+        sync: false
       # Instagram competitor ingestion, via Business Discovery. Both are needed
       # together: the token authorizes, the account id is the Instagram
       # Business account the lookup runs *from*. One platform-owned account
