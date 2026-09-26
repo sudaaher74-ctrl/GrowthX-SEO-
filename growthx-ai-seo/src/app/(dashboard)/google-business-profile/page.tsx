@@ -92,6 +92,15 @@ function GoogleBusinessProfileContent() {
     setLastSyncNotice(null);
     syncMutation.mutate(undefined, {
       onSuccess: (result) => {
+        // Business Profile refused, but the public Maps listing was refreshed —
+        // the usual answer while Google's approval is pending.
+        if (result.status === "PLACES_ONLY") {
+          setLastSyncNotice(
+            "Refreshed your public Google Maps listing. Business Profile data (posts, performance " +
+              "insights, review replies) is still locked until Google approves access.",
+          );
+          return;
+        }
         // A partial sync is reported rather than smoothed over: four full tabs
         // and one silently empty one is the failure this replaces.
         if (result.failedSources.length > 0) {
@@ -216,6 +225,7 @@ function GoogleBusinessProfileContent() {
         projectId={projectId}
         connection={connection}
         profile={overview?.profile}
+        dataSource={overview?.dataSource}
         localSeo={localSeo}
         activeTabTitle={currentTabMeta?.label}
         onSync={handleSync}
@@ -274,12 +284,20 @@ function GoogleBusinessProfileContent() {
           <LocalRankingsTab
             localSeo={localSeo}
             projectId={projectId}
-            onEditLocation={() => openConnect("manual")}
+            // Search rather than manual entry: a listing found on Maps brings its
+            // place id and coordinates, which the grid and the public-listing
+            // data both need. The modal still offers manual entry.
+            onEditLocation={() => openConnect("search")}
           />
         )}
 
         {activeTab === "competitors" && (
-          <CompetitorsTab localSeo={localSeo} projectId={projectId} onSelectTab={handleTabChange} />
+          <CompetitorsTab
+            localSeo={localSeo}
+            projectId={projectId}
+            onSelectTab={handleTabChange}
+            onFindListing={() => openConnect("search")}
+          />
         )}
 
         {activeTab === "posts" && <PostsTab projectId={projectId} {...tabHandlers} />}
@@ -300,6 +318,7 @@ function GoogleBusinessProfileContent() {
         connection={connection}
         localSeo={localSeo}
         defaultMode={connectModalMode}
+        suggestedQuery={overview?.places?.suggestedQuery}
       />
     </div>
   );

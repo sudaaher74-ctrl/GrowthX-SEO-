@@ -5,8 +5,10 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   Clock,
+  ExternalLink,
   Loader2,
   Lock,
+  Map as MapIcon,
   RefreshCw,
   Settings2,
   ShieldAlert,
@@ -14,7 +16,7 @@ import {
 } from "lucide-react";
 import { GoogleGLogo } from "./gbp-icons";
 import { errorMessage } from "@/lib/error-message";
-import type { GbpConnection, GbpEnvelope, GbpSource } from "@/lib/api-client";
+import type { GbpConnection, GbpEnvelope, GbpPlacesMeta, GbpSource } from "@/lib/api-client";
 
 /**
  * The honest states, in one place.
@@ -124,6 +126,8 @@ export function GbpStatePanel({
 
 interface ConnectionNoticeProps {
   connection: GbpConnection | null | undefined;
+  /** The public-listing state, so a locked tab can offer the Maps data instead. */
+  places?: GbpPlacesMeta | null;
   onConnect?: () => void;
   onChooseLocation?: () => void;
   onSync?: () => void;
@@ -142,6 +146,7 @@ interface ConnectionNoticeProps {
  */
 export function GbpConnectionNotice({
   connection,
+  places,
   onConnect,
   onChooseLocation,
   onSync,
@@ -235,17 +240,33 @@ export function GbpConnectionNotice({
           icon={Clock}
           tone="warning"
           title="Waiting on Google to approve API access"
-          detail={connection.statusMessage}
+          detail={placesDetail(places) ?? connection.statusMessage}
           body={
             <>
               Your connection is set up correctly. The Business Profile APIs sit behind an application
               review that Google grants per Cloud project, and this one has not been granted yet.
               Approval is decided on Google&apos;s side and typically takes several days to a few weeks
-              — there is nothing wrong with your account or your listing, and nothing further for you
-              to do until it lands. Data will appear on the next sync after Google grants access.
+              — there is nothing wrong with your account or your listing.
+              {places?.state === "NO_PLACE" && (
+                <>
+                  {" "}
+                  Meanwhile, your public Google Maps listing can fill in your rating, reviews, photos,
+                  categories and hours right now — find it once and GrowthX will use it until approval
+                  lands.
+                </>
+              )}
             </>
           }
-          action={onSync ? { label: "Try syncing again", onClick: onSync, pending: isSyncing } : undefined}
+          action={
+            places?.state === "NO_PLACE" && onConnect
+              ? { label: "Use my Google Maps listing now", onClick: onConnect }
+              : onSync
+                ? { label: "Try syncing again", onClick: onSync, pending: isSyncing }
+                : undefined
+          }
+          secondaryAction={
+            places?.state === "NO_PLACE" && onSync ? { label: "Try syncing again", onClick: onSync } : undefined
+          }
         />
       ) : (
         <GbpStatePanel
@@ -372,6 +393,69 @@ export function GbpSourceNotice({
   );
 }
 
+/** Why the public listing could not stand in, when that is the more useful thing to say. */
+function placesDetail(places: GbpPlacesMeta | null | undefined): string | null {
+  if (!places) return null;
+  if (places.state === "FAILED" && places.error) {
+    return `Your public Google Maps listing could not be read either: ${places.error}`;
+  }
+  if (places.state === "NOT_CONFIGURED") {
+    return "Public Google Maps data is unavailable too: GOOGLE_PLACES_API_KEY is not configured on this deployment.";
+  }
+  return null;
+}
+
+/**
+ * The line above a tab filled from the public Google Maps listing.
+ *
+ * Said on every such tab, because the numbers look like the ones Business
+ * Profile would give and are not the same thing: they are what anyone can see
+ * on Maps, and the private parts of the profile are still locked.
+ */
+export function PlacesDataBanner({
+  connection,
+  places,
+  lockedNote,
+}: {
+  connection: GbpConnection | null | undefined;
+  places?: GbpPlacesMeta | null;
+  /** What this particular tab cannot show from public data. */
+  lockedNote?: React.ReactNode;
+}) {
+  const fetched = formatGbpTimestamp(places?.fetchedAt);
+  const awaitingApproval = connection?.state === "ERROR" && connection.requiresGoogleApproval;
+  return (
+    <div
+      className="flex flex-col gap-1.5 rounded-xl border bg-accent-50 px-3.5 py-2.5 text-[11.5px] leading-relaxed text-brand-800 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div className="flex items-start gap-2">
+        <MapIcon size={14} className="mt-0.5 shrink-0 text-accent-600" />
+        <p>
+          <span className="font-semibold">Public Google Maps data</span>
+          {fetched ? ` · read ${fetched}` : ""}.{" "}
+          {awaitingApproval
+            ? "Business Profile access is still waiting on Google's approval, so this is what anyone can see on Maps. "
+            : "This is what anyone can see on Maps, not data from your Business Profile. "}
+          {lockedNote ?? "Posts, performance insights and review replies unlock once Google approves access."}
+          {places?.error && (
+            <span className="block text-warning-700">The last refresh failed: {places.error}</span>
+          )}
+        </p>
+      </div>
+      {places?.googleMapsUri && (
+        <a
+          href={places.googleMapsUri}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 font-semibold text-accent-600 hover:text-accent-700"
+        >
+          View on Maps <ExternalLink size={11} />
+        </a>
+      )}
+    </div>
+  );
+}
+
 /**
  * True when a tab should render its own data rather than a connection notice.
  * NEVER_SYNCED is deliberately excluded: it has no data yet, only a next step.
@@ -384,6 +468,8 @@ interface TabGateProps<T extends GbpEnvelope> {
   query: { data: T | undefined; isLoading: boolean; isError: boolean; error: unknown };
   /** What this tab is loading, for the loading and failure lines. */
   label: string;
+  /** What this tab cannot show when it is filled from the public listing. */
+  placesLockedNote?: React.ReactNode;
   onConnect?: () => void;
   onChooseLocation?: () => void;
   onSync?: () => void;
@@ -402,6 +488,7 @@ interface TabGateProps<T extends GbpEnvelope> {
 export function GbpTabGate<T extends GbpEnvelope>({
   query,
   label,
+  placesLockedNote,
   onConnect,
   onChooseLocation,
   onSync,
@@ -437,9 +524,26 @@ export function GbpTabGate<T extends GbpEnvelope>({
     );
   }
 
+  // Filled from the public Maps listing: Business Profile has not delivered
+  // this source, and the backend says so rather than passing the listing off
+  // as synced data. The connection notice would hide data that is real.
+  if (query.data.dataSource === "places") {
+    return (
+      <div className="space-y-4">
+        <PlacesDataBanner
+          connection={query.data.connection}
+          places={query.data.places}
+          lockedNote={placesLockedNote}
+        />
+        {children(query.data)}
+      </div>
+    );
+  }
+
   const notice = (
     <GbpConnectionNotice
       connection={query.data.connection}
+      places={query.data.places}
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}

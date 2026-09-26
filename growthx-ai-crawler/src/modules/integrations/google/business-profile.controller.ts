@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { BusinessProfileService } from './business-profile.service';
 import { BusinessProfileInsightsService } from './business-profile-insights.service';
+import { PlacesListingService } from './places-listing.service';
 
 /**
  * The Google Business Profile tabs.
@@ -23,6 +24,7 @@ export class BusinessProfileController {
   constructor(
     private readonly gbp: BusinessProfileService,
     private readonly insights: BusinessProfileInsightsService,
+    private readonly places: PlacesListingService,
   ) {}
 
   /** Locations this Google account manages, for the picker. Reads Google live. */
@@ -38,21 +40,49 @@ export class BusinessProfileController {
    * Explicit rather than fire-and-forget so someone pressing Sync gets an
    * answer, including which sources refused. The daily refresh runs on the
    * scheduler, not here.
+   *
+   * The public Google Maps listing is refreshed alongside it. While Business
+   * Profile access waits on Google's approval, that listing is what the tabs
+   * show — so a Business Profile refusal is reported in the result rather than
+   * failing a sync that did refresh something.
    */
   @Post('sync')
   @ApiOperation({ summary: 'Fetch the latest Business Profile data from Google' })
   async sync(@Param('projectId') projectId: string, @Query('days') days?: string) {
-    const result = await this.gbp.sync(projectId, {
-      metricDays: days ? parseInt(days, 10) : undefined,
-    });
-    return {
-      syncedAt: result.syncedAt,
-      counts: result.counts,
-      // Which sources could not be read, so the client can say so rather than
-      // showing four full tabs and one silently empty one.
-      status: result.status,
-      failedSources: result.failedSources,
+    const places = await this.places.refreshOnce(projectId);
+    const placesResult = {
+      state: places.state,
+      fetchedAt: places.fetchedAt,
+      error: places.error,
     };
+    const placesRefreshed = places.state === 'READY' && !places.error;
+
+    try {
+      const result = await this.gbp.sync(projectId, {
+        metricDays: days ? parseInt(days, 10) : undefined,
+      });
+      return {
+        syncedAt: result.syncedAt,
+        counts: result.counts,
+        // Which sources could not be read, so the client can say so rather than
+        // showing four full tabs and one silently empty one.
+        status: result.status,
+        failedSources: result.failedSources,
+        places: placesResult,
+      };
+    } catch (error: any) {
+      if (!placesRefreshed) throw error;
+      return {
+        syncedAt: places.fetchedAt,
+        counts: { reviews: 0, photos: 0, posts: 0, services: 0, metricDays: 0 },
+        status: 'PLACES_ONLY',
+        failedSources: [],
+        // Why Business Profile itself could not be read — usually the pending
+        // approval — in the same words the connection notice uses.
+        businessProfileError: error?.message ?? null,
+        places: placesResult,
+      };
+    }
   }
 
   @Get('overview')

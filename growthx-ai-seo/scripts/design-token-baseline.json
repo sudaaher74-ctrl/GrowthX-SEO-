@@ -70,7 +70,6 @@
   "components/gbp/tabs/action-plan-tab.tsx": 19,
   "components/gbp/tabs/ai-recommendations-tab.tsx": 19,
   "components/gbp/tabs/categories-tab.tsx": 1,
-  "components/gbp/tabs/competitors-tab.tsx": 2,
   "components/gbp/tabs/local-rankings-tab.tsx": 28,
   "components/gbp/tabs/overview-tab.tsx": 45,
   "components/gbp/tabs/photos-tab.tsx": 1,

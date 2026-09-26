@@ -86,7 +86,10 @@ describe('GbpAnalyzerService', () => {
       generate: routerGenerate,
     };
 
-    const service = new GbpAnalyzerService(prisma as any, gbp as any, router as any);
+    // No public listing to fall back on unless a test provides one.
+    const places = { snapshot: jest.fn().mockResolvedValue({ state: 'NO_PLACE', listing: null }) };
+
+    const service = new GbpAnalyzerService(prisma as any, gbp as any, router as any, places as any);
 
     return {
       service,

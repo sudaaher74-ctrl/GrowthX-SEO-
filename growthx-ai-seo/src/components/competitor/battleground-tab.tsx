@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Plus, Swords } from "lucide-react";
+import { ClipboardList, Plus, Swords, X } from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
@@ -33,6 +33,7 @@ interface BattlegroundTabProps {
   brand: string;
   competitors: TrackedCompetitor[];
   onAddCompetitor: () => void;
+  onRemoveCompetitor: (competitor: TrackedCompetitor) => void;
   onOpenCounterMoves: () => void;
 }
 
@@ -89,6 +90,7 @@ export function BattlegroundTab({
   brand,
   competitors,
   onAddCompetitor,
+  onRemoveCompetitor,
   onOpenCounterMoves,
 }: BattlegroundTabProps) {
   const ourCrawl = useLatestCrawl(domain || null);
@@ -227,19 +229,33 @@ export function BattlegroundTab({
         {competitors.map((c) => {
           const on = selectedIds.includes(c.id);
           const full = !on && selectedIds.length >= MAX_RIVALS;
+          const name = c.name || c.label || c.domain;
           return (
-            <button
+            <span
               key={c.id}
-              type="button"
-              onClick={() => toggleRival(c.id)}
-              disabled={full}
-              title={full ? `Compare up to ${MAX_RIVALS} competitors at once` : undefined}
-              className={`rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40 ${
-                on ? "bg-white text-brand-950" : "bg-brand-50 text-brand-400 line-through"
+              className={`inline-flex items-center rounded-lg border text-[12px] font-medium transition-colors ${
+                on ? "bg-white text-brand-950" : "bg-brand-50 text-brand-400"
               }`}
             >
-              {c.name || c.label || c.domain}
-            </button>
+              <button
+                type="button"
+                onClick={() => toggleRival(c.id)}
+                disabled={full}
+                title={full ? `Compare up to ${MAX_RIVALS} competitors at once` : undefined}
+                className={`py-1.5 pl-3 pr-1.5 disabled:opacity-40 ${on ? "" : "line-through"}`}
+              >
+                {name}
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemoveCompetitor(c)}
+                aria-label={`Remove ${name}`}
+                title={`Stop tracking ${name}`}
+                className="mr-1 rounded-md p-1 text-brand-400 hover:bg-error-50 hover:text-error-600"
+              >
+                <X size={12} />
+              </button>
+            </span>
           );
         })}
         <ActionButton variant="secondary" icon={<Plus size={13} />} onClick={onAddCompetitor}>

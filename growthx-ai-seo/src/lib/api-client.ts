@@ -1249,10 +1249,33 @@ export interface GbpSource {
   lastCount: number | null;
 }
 
+/**
+ * Where a tab's data came from. `places` is the public Google Maps listing
+ * (Places API), served while Business Profile has not delivered this source —
+ * usually because Google has not approved the Cloud project yet.
+ */
+export type GbpDataSource = "business_profile" | "places";
+
+/** The public-listing state, reported when a tab could not be filled from it. */
+export interface GbpPlacesMeta {
+  /** NO_PLACE: no Maps listing is attached. NOT_CONFIGURED: no Places key on the deployment. */
+  state: "READY" | "NO_PLACE" | "FAILED" | "NOT_CONFIGURED";
+  placeId: string | null;
+  fetchedAt: string | null;
+  /** Why the last Places read failed, naming the fix. */
+  error: string | null;
+  /** The Business Profile location's name, to prefill a Maps search. */
+  suggestedQuery: string | null;
+  googleMapsUri: string | null;
+}
+
 /** The two envelopes every Business Profile read carries. */
 export interface GbpEnvelope {
   connection: GbpConnection;
   source: GbpSource;
+  /** Absent on endpoints that never fall back, which are Business Profile only. */
+  dataSource?: GbpDataSource;
+  places?: GbpPlacesMeta;
 }
 
 export interface GoogleIntegrationProvider {
@@ -1300,9 +1323,13 @@ export interface GbpSyncResult {
     services: number;
     metricDays: number;
   };
-  status: "SUCCEEDED" | "PARTIAL" | "FAILED" | string;
+  /** PLACES_ONLY: Business Profile refused, but the public Maps listing was refreshed. */
+  status: "SUCCEEDED" | "PARTIAL" | "FAILED" | "PLACES_ONLY" | string;
   /** Sources Google would not give up, by name. */
   failedSources: string[];
+  /** Why Business Profile itself could not be read, when status is PLACES_ONLY. */
+  businessProfileError?: string | null;
+  places?: { state: GbpPlacesMeta["state"]; fetchedAt: string | null; error: string | null };
 }
 
 export interface GbpProfile {
@@ -1326,6 +1353,13 @@ export interface GbpProfile {
   verified: boolean | null;
   hasPendingEdits: boolean | null;
   syncedAt: string | null;
+  /** Public listing only: the Maps rating and total review count. */
+  rating?: number | null;
+  reviewCount?: number | null;
+  /** Public listing only: opening hours as Google words them, one line per day. */
+  hoursText?: string[] | null;
+  /** Public listing only: Google's own summary of the place — not the merchant's description. */
+  editorialSummary?: string | null;
 }
 
 /**
@@ -1381,13 +1415,24 @@ export interface GbpReview {
   googleReply: string | null;
   googleReplyUpdatedAt: string | null;
   aiDraftedReply: string | null;
+  /** UNKNOWN for public-listing reviews: Places does not return the owner's replies. */
   replyStatus: string;
+  /** Public listing only. */
+  relativePublishTime?: string | null;
+  googleMapsUri?: string | null;
+  authorUri?: string | null;
 }
 
 export interface GbpReviews extends GbpEnvelope {
   reviews: GbpReview[];
   /** Averaged only over the reviews Google gave a rating for; null when none were. */
-  summary: { total: number; rated: number; averageRating: number | null };
+  summary: {
+    total: number;
+    rated: number;
+    averageRating: number | null;
+    /** Public listing only: how many reviews Google returned — at most its five most relevant. */
+    shown?: number;
+  };
 }
 
 export interface GbpPhoto {
@@ -1402,6 +1447,8 @@ export interface GbpPhoto {
   height: number | null;
   viewCount: number | null;
   attribution: unknown;
+  /** Public listing only: a link to the photographer, which Places asks to be shown. */
+  attributionUri?: string | null;
   createTime: string | null;
 }
 
@@ -1440,6 +1487,30 @@ export interface GbpService {
 
 export interface GbpServices extends GbpEnvelope {
   services: GbpService[];
+}
+
+export interface PlacesCompetitor {
+  rank: number;
+  placeId: string;
+  name: string;
+  address: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  category: string | null;
+  website: string | null;
+  googleMapsUri: string | null;
+  distanceKm: number | null;
+  isYou: boolean;
+}
+
+export interface PlacesCompetitorSearch {
+  keyword: string;
+  radiusKm: number;
+  center: { lat: number; lng: number };
+  searchedAt: string;
+  /** Null when your listing did not appear in the results at all. */
+  yourRank: number | null;
+  results: PlacesCompetitor[];
 }
 
 export interface GbpCategories extends GbpEnvelope {
@@ -3306,6 +3377,12 @@ export const api = {
     get<GbpServices>(`/api/projects/${projectId}/business-profile/services`),
   getGbpCategories: (projectId: string) =>
     get<GbpCategories>(`/api/projects/${projectId}/business-profile/categories`),
+  /** Who Google Maps shows for a search, around this project's listing. Public Places data. */
+  getPlacesCompetitors: (projectId: string, keyword: string, radiusKm?: number) =>
+    post<PlacesCompetitorSearch>(`/api/projects/${projectId}/local-seo/places/competitors`, {
+      keyword,
+      radiusKm,
+    }),
 
 
   // ── Market research

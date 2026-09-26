@@ -5,6 +5,7 @@ import { GbpAnalyzerService } from './gbp-analyzer.service';
 import { GbpAutofixService } from './gbp-autofix.service';
 import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
 import { ReviewsService } from './reviews.service';
+import { PlacesListingService } from '../integrations/google/places-listing.service';
 
 @Controller('api/projects/:projectId/local-seo')
 @UseGuards(JwtAuthGuard)
@@ -16,6 +17,7 @@ export class LocalSeoController {
     private readonly gbpAutofix: GbpAutofixService,
     private readonly geoGridService: GeoGridService,
     private readonly reviewsService: ReviewsService,
+    private readonly placesListing: PlacesListingService,
   ) {}
 
   @Get()
@@ -41,7 +43,25 @@ export class LocalSeoController {
       longitude?: number;
     }
   ) {
-    return this.localSeoService.connectBusiness(projectId, body);
+    const location = await this.localSeoService.connectBusiness(projectId, body);
+    // Read the public listing now, so the Business Profile tabs have it on the
+    // first render after connecting instead of on some later one.
+    if (location.placeId) {
+      await this.placesListing.refreshOnce(projectId).catch(() => undefined);
+    }
+    return location;
+  }
+
+  /**
+   * Who shows up in Google Maps for a search, around this project's listing.
+   * Public Places data: no Business Profile approval involved.
+   */
+  @Post('places/competitors')
+  async placesCompetitors(
+    @Param('projectId') projectId: string,
+    @Body() body: { keyword: string; radiusKm?: number },
+  ) {
+    return this.placesListing.competitors(projectId, body?.keyword, body?.radiusKm);
   }
 
   /** Every location on the project. Projects may hold many. */

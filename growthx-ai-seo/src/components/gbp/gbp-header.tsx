@@ -14,12 +14,14 @@ import {
 import { GbpStoreIcon, GoogleGLogo } from "./gbp-icons";
 import { formatGbpTimestamp } from "./gbp-states";
 import { useAnalyzeGbp } from "@/hooks/use-growthx";
-import type { GbpConnection, GbpProfile, LocalSeoData } from "@/lib/api-client";
+import type { GbpConnection, GbpDataSource, GbpProfile, LocalSeoData } from "@/lib/api-client";
 
 interface GbpHeaderProps {
   projectId: string | null;
   connection: GbpConnection | null | undefined;
   profile: GbpProfile | null | undefined;
+  /** "places" when the profile shown is the public Google Maps listing. */
+  dataSource?: GbpDataSource;
   localSeo?: LocalSeoData | null;
   activeTabTitle?: string;
   activeTabSubtitle?: string;
@@ -47,6 +49,7 @@ export function GbpHeader({
   projectId,
   connection,
   profile,
+  dataSource,
   localSeo,
   activeTabTitle,
   activeTabSubtitle,
@@ -63,8 +66,11 @@ export function GbpHeader({
   const analyzeMutation = useAnalyzeGbp(projectId);
 
   const lastSynced = formatGbpTimestamp(connection?.lastSyncedAt);
+  const fromPlaces = dataSource === "places";
+  const mapsRead = fromPlaces ? formatGbpTimestamp(profile?.syncedAt) : null;
   const isConnected = Boolean(connection) && connection?.state !== "NOT_CONNECTED";
   const isLocalTracked = !isConnected && Boolean(localSeo?.businessName);
+  const trackedName = profile?.businessName ?? connection?.selectedResourceName ?? localSeo?.businessName;
   const mapsUri =
     profile?.mapsUri ??
     (profile?.businessName
@@ -95,7 +101,11 @@ export function GbpHeader({
             </div>
             <p className="mt-0.5 text-xs text-brand-500 max-w-2xl">
               {activeTabSubtitle ||
-                (connection?.selectedResourceName
+                (fromPlaces && trackedName
+                  ? `Tracking ${trackedName} — public Google Maps data${
+                      connection?.state === "ERROR" ? " until Google approves Business Profile access" : ""
+                    }.`
+                  : connection?.selectedResourceName
                   ? `Tracking ${connection.selectedResourceName} — synced from Google.`
                   : isLocalTracked
                   ? `Tracking ${localSeo!.businessName} — local listing active.`
@@ -110,12 +120,14 @@ export function GbpHeader({
           <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-brand-500">
             <span
               className={`inline-flex rounded-full h-2 w-2 ${
-                lastSynced || isLocalTracked ? "bg-emerald-500" : "bg-brand-300"
+                lastSynced || mapsRead || isLocalTracked ? "bg-emerald-500" : "bg-brand-300"
               }`}
             />
             <span>
               {lastSynced
                 ? `Last synced: ${lastSynced}`
+                : mapsRead
+                ? `Maps data: ${mapsRead}`
                 : isLocalTracked
                 ? "Listing Tracked"
                 : "Never synced"}
@@ -206,6 +218,18 @@ export function GbpHeader({
               </div>
             ) : isLocalTracked ? (
               <div className="flex items-center gap-2">
+                {fromPlaces && onSync && (
+                  <button
+                    type="button"
+                    onClick={onSync}
+                    disabled={isSyncing}
+                    className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 shadow-xs hover:bg-brand-50 transition disabled:opacity-50"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <RefreshCw size={12} className={isSyncing ? "animate-spin" : ""} />
+                    {isSyncing ? "Refreshing…" : "Refresh"}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onEditManual}

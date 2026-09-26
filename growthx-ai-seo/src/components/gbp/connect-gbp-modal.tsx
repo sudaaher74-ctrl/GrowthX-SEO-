@@ -17,6 +17,8 @@ interface ConnectGbpModalProps {
   localSeo?: LocalSeoData | null;
   onConnected?: () => void;
   defaultMode?: "search" | "manual";
+  /** Prefills the Maps search, e.g. with the Business Profile location's name. */
+  suggestedQuery?: string | null;
 }
 
 export function ConnectGbpModal({
@@ -27,6 +29,7 @@ export function ConnectGbpModal({
   localSeo,
   onConnected,
   defaultMode = "search",
+  suggestedQuery,
 }: ConnectGbpModalProps) {
   const [activeMode, setActiveMode] = useState<"search" | "manual">(defaultMode);
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,6 +42,7 @@ export function ConnectGbpModal({
   useEffect(() => {
     if (open) {
       setActiveMode(defaultMode);
+      if (suggestedQuery) setSearchQuery((current) => current || suggestedQuery);
       if (localSeo?.businessName) {
         setManualName(localSeo.businessName);
         setManualAddress(localSeo.address || "");
@@ -46,7 +50,7 @@ export function ConnectGbpModal({
         setManualReviews(localSeo.reviewCount > 0 ? String(localSeo.reviewCount) : "");
       }
     }
-  }, [open, defaultMode, localSeo]);
+  }, [open, defaultMode, localSeo, suggestedQuery]);
 
   const searchMutation = useSearchLocalBusiness(projectId);
   const connectMutation = useConnectLocalBusiness(projectId);

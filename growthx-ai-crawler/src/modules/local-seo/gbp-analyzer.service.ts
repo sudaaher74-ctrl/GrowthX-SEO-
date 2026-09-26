@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { BusinessProfileService } from '../integrations/google/business-profile.service';
+import { PlacesListingService } from '../integrations/google/places-listing.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
 const GBP_ANALYSIS_SCHEMA = {
@@ -40,14 +41,41 @@ export class GbpAnalyzerService {
     private readonly prisma: PrismaService,
     private readonly gbp: BusinessProfileService,
     private readonly router: MultiAiRouterService,
+    private readonly places: PlacesListingService,
   ) {}
+
+  /**
+   * The profile to audit: Business Profile's own copy when Google allows it,
+   * otherwise the public Maps listing, labelled as such so the model does not
+   * report "no description" as a finding when Places simply cannot see one.
+   */
+  private async profileForAudit(projectId: string): Promise<{ label: string; data: unknown }> {
+    try {
+      return { label: 'Current GBP JSON Dump', data: await this.gbp.fetchLocation(projectId) };
+    } catch (error) {
+      const snapshot = await this.places.snapshot(projectId);
+      if (!snapshot.listing) throw error;
+      this.logger.log(`GBP unavailable for ${projectId}; auditing the public Google Maps listing instead`);
+      const { photos, reviews, ...listing } = snapshot.listing;
+      return {
+        label:
+          'Public Google Maps listing (Places API). Business Profile access is pending, so the merchant description, ' +
+          'services and attributes are NOT visible here — do not report them as missing',
+        data: {
+          ...listing,
+          photoCount: photos.length,
+          mostRelevantReviews: reviews.map((review) => ({ rating: review.rating, text: review.text })),
+        },
+      };
+    }
+  }
 
   async analyzeProfile(projectId: string, organizationId: string) {
     try {
       this.logger.log(`Starting GBP analysis for project ${projectId}`);
       
-      // 1. Fetch live GBP data
-      const locationData = await this.gbp.fetchLocation(projectId);
+      // 1. Fetch live GBP data, or the public listing while GBP is locked
+      const profile = await this.profileForAudit(projectId);
 
       // 2. Fetch project context
       const project = await this.prisma.project.findUnique({
@@ -57,8 +85,8 @@ export class GbpAnalyzerService {
 
       const prompt = `
 Please audit the following Google Business Profile data for "${project?.name}".
-Current GBP JSON Dump:
-${JSON.stringify(locationData, null, 2)}
+${profile.label}:
+${JSON.stringify(profile.data, null, 2)}
 
 Identify any missing elements, weakly optimized descriptions, or missing services. Propose concrete changes.
       `.trim();
