@@ -271,7 +271,11 @@ function GoogleBusinessProfileContent() {
         {activeTab === "photos" && <PhotosTab projectId={projectId} {...tabHandlers} />}
 
         {activeTab === "rankings" && (
-          <LocalRankingsTab localSeo={localSeo} projectId={projectId} />
+          <LocalRankingsTab
+            localSeo={localSeo}
+            projectId={projectId}
+            onEditLocation={() => openConnect("manual")}
+          />
         )}
 
         {activeTab === "competitors" && (

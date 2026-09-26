@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 interface LocalRankingsTabProps {
   localSeo: LocalSeoData | null | undefined;
   projectId: string | null;
+  onEditLocation?: () => void;
 }
 
 function getNodeColor(rank: number | null) {
@@ -28,13 +29,20 @@ function getNodeColor(rank: number | null) {
   return "bg-rose-500 text-white";
 }
 
-export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps) {
+export function LocalRankingsTab({ localSeo, projectId, onEditLocation }: LocalRankingsTabProps) {
   const [keyword, setKeyword] = useState("");
+  const [locationQuery, setLocationQuery] = useState(localSeo?.address || "");
   const [radius, setRadius] = useState(5);
   const [gridSize, setGridSize] = useState<3 | 5>(5);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<GeoGridScanResult | null>(null);
   const [selectedHistoryKeyword, setSelectedHistoryKeyword] = useState<string | undefined>(undefined);
+
+  React.useEffect(() => {
+    if (localSeo?.address && !locationQuery) {
+      setLocationQuery(localSeo.address);
+    }
+  }, [localSeo?.address]);
 
   const scanMutation = useRunGeoGridScan(projectId);
   const { data: allHistory = [], refetch: refetchHistory, isLoading: historyLoading } = useGeoGridHistory(projectId);
@@ -51,6 +59,7 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
       {
         keyword: keyword.trim(),
         businessName: localSeo?.businessName,
+        locationQuery: locationQuery.trim() || localSeo?.address || undefined,
         gridSize,
         radiusKm: radius,
       },
@@ -66,19 +75,71 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
   };
 
   const activeRun = lastResult;
+  const hasCoordinates = Boolean(localSeo?.latitude && localSeo?.longitude);
 
   return (
     <div className="space-y-6">
+      {/* ── Location Context Header ─────────────────────────────── */}
+      {localSeo ? (
+        <div
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand-50/70 border border-brand-200 text-xs shadow-xs"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <MapPin size={14} className="text-brand-600 shrink-0" />
+            <span className="font-semibold text-brand-950 truncate">
+              {localSeo.businessName}
+            </span>
+            <span className="text-brand-400">•</span>
+            <span className="text-brand-600 truncate">
+              {localSeo.address || "Address not configured"}
+            </span>
+            {hasCoordinates && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-success-50 text-success-700 border border-success-200 shrink-0">
+                GPS Ready
+              </span>
+            )}
+          </div>
+          {onEditLocation && (
+            <button
+              type="button"
+              onClick={onEditLocation}
+              className="text-[11px] font-semibold text-accent-600 hover:text-accent-700 shrink-0 ml-2"
+            >
+              Change Location
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-warning-50 border border-warning-200 text-xs text-warning-900 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <MapPin size={14} className="text-warning-700 shrink-0" />
+            <span>
+              Storefront location not configured. Enter your storefront city or address below to center the ranking grid.
+            </span>
+          </div>
+          {onEditLocation && (
+            <button
+              type="button"
+              onClick={onEditLocation}
+              className="text-[11px] font-semibold text-warning-900 hover:text-warning-950 underline shrink-0 ml-2"
+            >
+              Set Location Profile
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Run a scan ─────────────────────────────────────────── */}
       <div
         className="rounded-2xl border bg-white p-4 shadow-xs flex flex-wrap items-end gap-3"
         style={{ borderColor: "var(--border-color)" }}
       >
         <form onSubmit={handleRunScan} className="flex flex-wrap items-end gap-3 flex-1">
-          <div className="flex-1 min-w-[220px]">
+          <div className="flex-1 min-w-[200px]">
             <label className="block text-[11px] font-semibold text-brand-600 mb-1">Keyword to track</label>
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" />
               <input
                 type="text"
                 value={keyword}
@@ -88,6 +149,24 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
               />
             </div>
           </div>
+
+          {(!hasCoordinates || !localSeo?.address) && (
+            <div className="flex-1 min-w-[190px]">
+              <label className="block text-[11px] font-semibold text-brand-600 mb-1">
+                Storefront City / Address <span className="text-error-600">*</span>
+              </label>
+              <div className="relative">
+                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-400" />
+                <input
+                  type="text"
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                  placeholder="e.g. Pune, Maharashtra"
+                  className="w-full h-9 pl-8 pr-3 text-xs rounded-lg border border-brand-200 bg-white font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-brand-950"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="w-24">
             <label className="block text-[11px] font-semibold text-brand-600 mb-1">Radius (km)</label>
@@ -116,7 +195,7 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
 
           <button
             type="submit"
-            disabled={scanMutation.isPending || !keyword.trim()}
+            disabled={scanMutation.isPending || !keyword.trim() || (!hasCoordinates && !locationQuery.trim())}
             className="inline-flex items-center gap-1.5 px-4 h-9 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-xs disabled:opacity-50"
           >
             {scanMutation.isPending ? (
@@ -130,9 +209,20 @@ export function LocalRankingsTab({ localSeo, projectId }: LocalRankingsTabProps)
       </div>
 
       {error && (
-        <div className="flex items-start gap-2.5 p-3 rounded-lg bg-error-50 border border-error-200 text-xs text-error-800">
-          <AlertCircle size={15} className="text-error-600 shrink-0 mt-0.5" />
-          <div className="flex-1">{error}</div>
+        <div className="flex items-start justify-between gap-2.5 p-3.5 rounded-lg bg-error-50 border border-error-200 text-xs text-error-800">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={15} className="text-error-600 shrink-0 mt-0.5" />
+            <div className="flex-1 leading-relaxed">{error}</div>
+          </div>
+          {onEditLocation && (
+            <button
+              type="button"
+              onClick={onEditLocation}
+              className="shrink-0 px-2.5 py-1 rounded-md bg-white border border-error-300 text-error-800 font-semibold hover:bg-error-100/50 transition text-[11px]"
+            >
+              Set Business Address
+            </button>
+          )}
         </div>
       )}
 

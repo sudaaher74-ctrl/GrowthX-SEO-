@@ -302,11 +302,14 @@ export function ConnectGbpModal({
                 <input
                   type="text"
                   required
-                  placeholder="Street, City, State, ZIP code"
+                  placeholder="Street, City, State, ZIP code (e.g. Pune, Maharashtra)"
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
                   className="w-full h-9 px-3 text-sm rounded-lg border border-brand-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand-950"
                 />
+                <p className="text-[11px] text-brand-500 mt-1">
+                  Include your city and state so GrowthX can automatically pinpoint your GPS coordinates for the local geo-grid.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

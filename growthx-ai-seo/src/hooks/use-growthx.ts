@@ -218,7 +218,7 @@ export function useGbpProposals(projectId: string | null) {
 
 export function useRunGeoGridScan(projectId: string | null) {
   return useMutation({
-    mutationFn: (body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: 3 | 5; radiusKm?: number }) =>
+    mutationFn: (body: Parameters<typeof api.runGeoGridScan>[1]) =>
       api.runGeoGridScan(projectId!, body),
   });
 }

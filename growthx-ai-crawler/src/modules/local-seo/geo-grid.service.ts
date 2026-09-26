@@ -2,6 +2,7 @@ import { BadGatewayException, Injectable, Logger, ServiceUnavailableException } 
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
+import { geocodeAddress } from './geocoding.util';
 
 export interface GridCompetitor {
   name: string;
@@ -39,6 +40,8 @@ export interface GeoGridScanRequest {
   businessName?: string;
   lat?: number;
   lng?: number;
+  locationQuery?: string;
+  address?: string;
   gridSize?: 3 | 5 | 7 | 9;
   radiusKm?: number;
 }
@@ -155,7 +158,15 @@ export class GeoGridService {
 
     const [location, project] = await Promise.all([
       this.prisma.localLocation.findFirst({ where: { projectId } }),
-      this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+      this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          name: true,
+          businessProfile: {
+            select: { city: true, state: true, country: true },
+          },
+        },
+      }),
     ]);
 
     const businessName = params.businessName?.trim() || location?.businessName || project?.name;
@@ -166,8 +177,68 @@ export class GeoGridService {
       );
     }
 
-    const centerLat = params.lat ?? location?.latitude;
-    const centerLng = params.lng ?? location?.longitude;
+    let centerLat = params.lat ?? location?.latitude;
+    let centerLng = params.lng ?? location?.longitude;
+
+    if (centerLat == null || centerLng == null) {
+      // 1. Try resolving coordinates from explicit locationQuery or address if passed
+      const locationInput = params.locationQuery || params.address;
+      let geocoded = locationInput
+        ? await geocodeAddress(locationInput, businessName, apiKey)
+        : null;
+
+      // 2. If not passed, check if stored location has an address
+      if (!geocoded && location?.address) {
+        geocoded = await geocodeAddress(location.address, businessName, apiKey);
+      }
+
+      // 3. If still not found, check project business profile city/state
+      if (!geocoded && project?.businessProfile?.city) {
+        const profileLocation = [
+          project.businessProfile.city,
+          project.businessProfile.state,
+          project.businessProfile.country,
+        ]
+          .filter(Boolean)
+          .join(', ');
+        geocoded = await geocodeAddress(profileLocation, businessName, apiKey);
+      }
+
+      if (geocoded) {
+        centerLat = geocoded.lat;
+        centerLng = geocoded.lng;
+
+        // Cache the resolved coordinates back to localLocation
+        try {
+          if (location) {
+            await this.prisma.localLocation.update({
+              where: { id: location.id },
+              data: {
+                latitude: centerLat,
+                longitude: centerLng,
+                ...(geocoded.placeId && !location.placeId ? { placeId: geocoded.placeId } : {}),
+              },
+            });
+          } else {
+            await this.prisma.localLocation.create({
+              data: {
+                projectId,
+                businessName,
+                address: geocoded.formattedAddress || locationInput || 'Primary Storefront',
+                placeId: geocoded.placeId ?? '',
+                latitude: centerLat,
+                longitude: centerLng,
+                rating: 0,
+                reviewCount: 0,
+              },
+            });
+          }
+        } catch (saveErr) {
+          this.logger.debug(`Could not cache geocoded coordinates: ${saveErr}`);
+        }
+      }
+    }
+
     if (centerLat == null || centerLng == null) {
       // The previous code defaulted to central Mumbai whenever coordinates were
       // missing, which silently measured a grid around the wrong city.

@@ -1096,6 +1096,9 @@ export interface LocalSeoData {
   projectId: string;
   businessName: string;
   address: string;
+  placeId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   rating: number;
   reviewCount: number;
   citationsCount: number;
@@ -1144,6 +1147,8 @@ export interface GeoGridScanRequest {
   businessName?: string;
   lat?: number;
   lng?: number;
+  locationQuery?: string;
+  address?: string;
   gridSize?: 3 | 5 | 7 | 9;
   radiusKm?: number;
 }
@@ -3165,7 +3170,7 @@ export const api = {
   getGbpProposals: (projectId: string) => get<GbpFixProposal[]>(`/api/projects/${projectId}/local-seo/gbp/proposals`),
   approveGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/approve`, {}),
   rejectGbpFix: (projectId: string, proposalId: string) => post<{ success: boolean }>(`/api/projects/${projectId}/local-seo/gbp/fix/${proposalId}/reject`, {}),
-  runGeoGridScan: (projectId: string, body: { keyword: string; businessName?: string; lat?: number; lng?: number; gridSize?: number; radiusKm?: number }) =>
+  runGeoGridScan: (projectId: string, body: GeoGridScanRequest) =>
     post<GeoGridScanResult>(`/api/projects/${projectId}/local-seo/geo-grid/run`, body),
   getGeoGridHistory: (projectId: string, keyword?: string) =>
     get<GeoGridRunSummary[]>(

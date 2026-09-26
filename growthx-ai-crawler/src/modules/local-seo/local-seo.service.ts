@@ -1,5 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException, BadGatewayException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { geocodeAddress } from './geocoding.util';
 
 /**
  * Turns a Google error body into the sentence that names the actual fix.
@@ -173,25 +174,44 @@ export class LocalSeoService {
       longitude?: number;
     }
   ) {
+    let lat = placeData.latitude;
+    let lng = placeData.longitude;
+    let placeId = placeData.placeId;
+
+    if (lat == null || lng == null) {
+      const geocoded = await geocodeAddress(
+        placeData.address,
+        placeData.businessName,
+        process.env.GOOGLE_PLACES_API_KEY,
+      );
+      if (geocoded) {
+        lat = geocoded.lat;
+        lng = geocoded.lng;
+        if (!placeId && geocoded.placeId) {
+          placeId = geocoded.placeId;
+        }
+      }
+    }
+
     return this.prisma.localLocation.upsert({
-      where: { projectId_placeId: { projectId, placeId: placeData.placeId ?? '' } },
+      where: { projectId_placeId: { projectId, placeId: placeId ?? '' } },
       update: {
         businessName: placeData.businessName,
         address: placeData.address,
         rating: placeData.rating,
         reviewCount: placeData.reviewCount,
-        latitude: placeData.latitude ?? undefined,
-        longitude: placeData.longitude ?? undefined,
+        latitude: lat ?? undefined,
+        longitude: lng ?? undefined,
       },
       create: {
         projectId,
-        placeId: placeData.placeId ?? '',
+        placeId: placeId ?? '',
         businessName: placeData.businessName,
         address: placeData.address,
         rating: placeData.rating,
         reviewCount: placeData.reviewCount,
-        latitude: placeData.latitude ?? null,
-        longitude: placeData.longitude ?? null,
+        latitude: lat ?? null,
+        longitude: lng ?? null,
         // citationsCount is left at its column default of 0. It was previously
         // seeded with `Math.random() * 50 + 10` — a number with no relationship
         // to any citation, stored and then displayed as a measured figure.
@@ -200,3 +220,4 @@ export class LocalSeoService {
     });
   }
 }
+
