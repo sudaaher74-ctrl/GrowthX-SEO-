@@ -82,6 +82,7 @@ function WebsiteAuditClient() {
 
   const [activeTab, setActiveTab] = useState<TabId>(tabParam || "technical-seo");
   const [crawling, setCrawling] = useState(false);
+  const [crawlError, setCrawlError] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
@@ -119,6 +120,7 @@ function WebsiteAuditClient() {
   async function handleReCrawl() {
     if (!client?.domain) return;
     setCrawling(true);
+    setCrawlError(null);
     try {
       await api.startCrawl({
         domain: client.domain,
@@ -126,11 +128,13 @@ function WebsiteAuditClient() {
         maxConcurrency: 10,
         useSitemap: true,
       });
-      setTimeout(() => {
-        crawl.refetch();
-        issues.refetch();
-        pages.refetch();
-      }, 1500);
+      // Wait for the new job's own status before letting go of "Checking…" —
+      // resetting it right after the request resolves left the button back
+      // to normal, with the old crawl still on screen, before there was
+      // anything for the user to see had happened.
+      await Promise.all([crawl.refetch(), issues.refetch(), pages.refetch()]);
+    } catch (err) {
+      setCrawlError(err instanceof Error ? err.message : "Could not start the audit. Please try again.");
     } finally {
       setCrawling(false);
     }
@@ -312,6 +316,13 @@ function WebsiteAuditClient() {
             </Link>
           </div>
         </div>
+
+        {crawlError && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-400">
+            <X size={13} className="shrink-0" />
+            <span>{crawlError}</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation Sub-tabs Bar */}
