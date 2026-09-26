@@ -1826,7 +1826,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
   async completeJob(jobId: string): Promise<void> {
     const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId } });
-    if (!job || job.status === 'COMPLETED') return;
+    // A cancelled crawl stays cancelled. The in-memory worker pool calls this
+    // when its workers drain, and a crawl cancelled mid-flight (its competitor
+    // removed) would otherwise be analysed and re-labelled COMPLETED.
+    if (!job || job.status === 'COMPLETED' || job.status === 'CANCELLED') return;
 
     this.logger.log(`[JOB ${jobId}] Crawl job finished. Running final Graph Link Equity & Orphan analysis...`);
     try {

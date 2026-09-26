@@ -99,6 +99,25 @@ describe('CompetitorSetupService', () => {
     await expect(service.remove('p1', 'other')).rejects.toThrow(NotFoundException);
   });
 
+  it("stops the removed competitor's crawl", async () => {
+    prisma.competitorDomain.findFirst.mockResolvedValue({ id: 'c1', domain: 'acme.com', websiteId: 'w1' });
+    prisma.website = { findUnique: jest.fn().mockResolvedValue({ id: 'w1', projectId: null }) };
+    prisma.crawlJob = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+
+    const result = await service.remove('p1', 'c1');
+
+    expect(prisma.competitorDomain.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
+    expect(result).toEqual({ removed: 'acme.com', crawlsStopped: 1 });
+    expect(prisma.crawlJob.updateMany.mock.calls[0][0].data.status).toBe('CANCELLED');
+  });
+
+  it('still removes the competitor if stopping its crawl fails', async () => {
+    prisma.competitorDomain.findFirst.mockResolvedValue({ id: 'c1', domain: 'acme.com', websiteId: 'w1' });
+    prisma.website = { findUnique: jest.fn().mockRejectedValue(new Error('db down')) };
+
+    await expect(service.remove('p1', 'c1')).resolves.toEqual({ removed: 'acme.com', crawlsStopped: 0 });
+  });
+
   it('registers the handles typed in the form as syncable accounts', async () => {
     // Without this the fields were decorative: content ingestion iterates
     // CompetitorAccount, and nothing turned a hand-entered handle into one.

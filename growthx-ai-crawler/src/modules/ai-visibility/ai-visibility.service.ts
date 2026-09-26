@@ -7,7 +7,7 @@ import { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS, measurableAssistantsFor } fro
 import { brandTerms, questionGroup } from './questions/question-group';
 import { QuestionAnalysisService } from './questions/question-analysis.service';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
-import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
+import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 
 export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
@@ -423,8 +423,12 @@ export class AiVisibilityService {
         let website = c.website;
         let latestCrawl = website?.crawlJobs?.[0];
 
-        // If competitor has no website or crawlJob, auto-crawl!
-        if ((!website || !latestCrawl || latestCrawl.status !== 'COMPLETED') && this.competitorCrawl) {
+        // A competitor that has never been crawled gets one. Only never: this
+        // runs on every poll of the list, and starting a crawl whenever the
+        // latest one was not COMPLETED queued a new crawl on every poll while
+        // one was already running, and would retry a failing site the same
+        // way. Re-crawling on a schedule is the scheduler's job.
+        if ((!website || !latestCrawl) && this.competitorCrawl) {
           try {
             const orgId = c.project?.organizationId || '';
             await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
@@ -552,11 +556,23 @@ export class AiVisibilityService {
   async removeCompetitor(projectId: string, competitorId: string) {
     // Scoped by project as well as id: an id alone would let one project delete
     // another's row.
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: { id: competitorId, projectId },
+      select: { domain: true, websiteId: true },
+    });
     const deleted = await this.prisma.competitorDomain.deleteMany({
       where: { id: competitorId, projectId },
     });
-    if (deleted.count === 0) throw new NotFoundException('Competitor not found for this project.');
-    return { removed: deleted.count };
+    if (deleted.count === 0 || !competitor) throw new NotFoundException('Competitor not found for this project.');
+
+    // Stop the site's crawl too, or it runs to the end for nobody.
+    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, competitor.websiteId, competitor.domain).catch(
+      (error: any) => {
+        this.logger.warn(`Could not stop crawls for removed competitor ${competitor.domain}: ${error.message}`);
+        return 0;
+      },
+    );
+    return { removed: deleted.count, crawlsStopped };
   }
 
   async addCompetitor(projectId: string, domain: string, label?: string) {

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
+import { stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 
 export interface CompetitorInput {
   businessName?: string;
@@ -215,7 +216,7 @@ export class CompetitorSetupService {
   async remove(projectId: string, competitorId: string) {
     const existing = await this.prisma.competitorDomain.findFirst({
       where: { id: competitorId, projectId },
-      select: { id: true, domain: true },
+      select: { id: true, domain: true, websiteId: true },
     });
     if (!existing) throw new NotFoundException('Competitor not found for this project.');
 
@@ -223,7 +224,12 @@ export class CompetitorSetupService {
     // observations that mentioned it rather than rewriting history. The next
     // run replaces them anyway.
     await this.prisma.competitorDomain.delete({ where: { id: existing.id } });
-    return { removed: existing.domain };
+
+    // Stop the site's crawl too, or it runs to the end for nobody.
+    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, existing.websiteId ?? null, existing.domain).catch(
+      () => 0,
+    );
+    return { removed: existing.domain, crawlsStopped };
   }
 }
 
