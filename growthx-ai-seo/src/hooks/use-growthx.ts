@@ -202,8 +202,10 @@ export function useConnectLocalBusiness(projectId: string | null) {
       api.connectLocalBusiness(projectId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
-      qc.invalidateQueries({ queryKey: ["gbp-overview", projectId] });
       qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] });
+      // A newly attached Maps listing fills the Business Profile tabs from its
+      // public data, so every one of them has something new to show.
+      invalidateGbp(qc, projectId);
     },
   });
 }
@@ -409,7 +411,22 @@ export function useSyncBusinessProfile(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (days?: number) => api.syncBusinessProfile(projectId!, days),
-    onSuccess: () => invalidateGbp(qc, projectId),
+    onSuccess: () => {
+      invalidateGbp(qc, projectId);
+      // The public listing refresh also updates the tracked location's rating.
+      qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
+    },
+    // A sync that Business Profile refused still records that refusal on the
+    // connection, which every tab reads.
+    onError: () => invalidateGbp(qc, projectId),
+  });
+}
+
+/** One Maps search from this project's listing. A mutation: each search is a billed Places call. */
+export function usePlacesCompetitors(projectId: string | null) {
+  return useMutation({
+    mutationFn: ({ keyword, radiusKm }: { keyword: string; radiusKm?: number }) =>
+      api.getPlacesCompetitors(projectId!, keyword, radiusKm),
   });
 }
 

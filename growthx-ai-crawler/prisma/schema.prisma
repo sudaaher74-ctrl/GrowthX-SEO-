@@ -477,6 +477,7 @@ model Project {
   contentSuggestions        ContentSuggestion[]
   publishedChanges          PublishedChange[]
   catalogProducts           CatalogProduct[]
+  placesListingSnapshots    PlacesListingSnapshot[]
   marketingSignals          MarketingSignal[]
 
   @@index([organizationId])
@@ -3629,4 +3630,32 @@ model MarketingSignal {
   page           Page?             @relation(fields: [pageId], references: [id], onDelete: SetNull)
 
   @@index([projectId, competitorId])
+}
+
+/// The public Google Maps listing for a project's business, as the Places API
+/// (New) returns it.
+///
+/// This is what fills the Business Profile tabs while the project's Google
+/// Cloud project waits for Business Profile API approval: Places needs no
+/// approval, and returns the listing anyone can see on Maps — rating, review
+/// count, categories, hours, photos, website, phone, and Google's five most
+/// relevant reviews. It is never presented as the merchant's private data, and
+/// the Business Profile sync replaces it as the source once Google approves.
+model PlacesListingSnapshot {
+  id          String    @id @default(uuid())
+  projectId   String
+  placeId     String
+  /// The normalised listing (see PlacesListingService). Null until a read has
+  /// succeeded, so a failed first read still has a row to carry its error.
+  data        Json?
+  fetchedAt   DateTime?
+  /// Why the last read failed, in words that name the fix. Cleared on success.
+  lastError   String?
+  lastErrorAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, placeId])
+  @@index([projectId])
 }

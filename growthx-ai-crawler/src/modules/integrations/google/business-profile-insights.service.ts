@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GBP_DAILY_METRICS, GBP_PROFILE_FIELDS, GbpSourceName } from './business-profile.service';
+import { PlacesListing, PlacesListingService, PlacesSnapshot } from './places-listing.service';
 
 /**
  * Everything the Business Profile tabs read, served from the synced tables.
@@ -17,7 +18,17 @@ import { GBP_DAILY_METRICS, GBP_PROFILE_FIELDS, GbpSourceName } from './business
  * no photos" and "synced but Google will not let this Cloud project read
  * photos" are four different things that all produce zero rows, and a tab that
  * cannot tell them apart will pick one and be wrong three times out of four.
+ *
+ * Where Business Profile has not delivered a source — most often because the
+ * Cloud project is still waiting on Google's approval — the overview, reviews,
+ * photos and categories fall back to the public Google Maps listing from the
+ * Places API. Those responses say so with `dataSource: 'places'`, keep the
+ * connection envelope truthful, and never stand in for private data: services,
+ * posts and performance have no public equivalent and stay locked.
  */
+
+/** Which of the completeness fields a public Maps listing can speak to. */
+const PLACES_PROFILE_FIELDS = ['title', 'address', 'phone', 'website', 'primaryCategory', 'regularHours'] as const;
 
 /** How a tab should read the whole connection. */
 export type GbpConnectionState =
@@ -54,7 +65,51 @@ export class BusinessProfileInsightsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly oauth: GoogleOAuthService,
+    @Optional() private readonly places?: PlacesListingService,
   ) {}
+
+  /**
+   * The public listing, when Business Profile has not delivered this source.
+   *
+   * `delivered` is the caller's own answer to "did Business Profile give us
+   * something to show here". Once it has, Places is never consulted: synced
+   * data always wins, including a synced empty list.
+   */
+  private async placesFallback(
+    projectId: string,
+    connection: { state: GbpConnectionState },
+    delivered: boolean,
+  ): Promise<PlacesSnapshot | null> {
+    if (!this.places || delivered) return null;
+    if (connection.state === 'NEEDS_REAUTH') return null;
+    return this.places.snapshot(projectId);
+  }
+
+  /** What a tab needs to know about the public listing when it could not use one. */
+  private placesMeta(snapshot: PlacesSnapshot | null) {
+    if (!snapshot) return {};
+    return {
+      places: {
+        state: snapshot.state,
+        placeId: snapshot.placeId,
+        fetchedAt: snapshot.fetchedAt,
+        error: snapshot.error,
+        suggestedQuery: snapshot.suggestedQuery,
+        googleMapsUri: snapshot.listing?.googleMapsUri ?? null,
+      },
+    };
+  }
+
+  private placesSource(name: GbpSourceName, snapshot: PlacesSnapshot, count: number) {
+    return {
+      name,
+      state: 'OK',
+      message: null,
+      httpStatus: null,
+      lastSuccessAt: snapshot.fetchedAt,
+      lastCount: count,
+    };
+  }
 
   /**
    * The connection, as every endpoint reports it.
@@ -151,12 +206,15 @@ export class BusinessProfileInsightsService {
       : null;
 
     if (!profile) {
-      return { connection, source, profile: null, completeness: null };
+      const fallback = await this.placesFallback(projectId, connection, false);
+      if (fallback?.listing) return this.overviewFromPlaces(connection, fallback, fallback.listing);
+      return { connection, source, profile: null, completeness: null, ...this.placesMeta(fallback) };
     }
 
     return {
       connection,
       source,
+      dataSource: 'business_profile',
       profile: {
         locationName: profile.locationName,
         businessName: profile.title,
@@ -191,9 +249,71 @@ export class BusinessProfileInsightsService {
       completeness: {
         present: profile.fieldsReturned.length,
         total: GBP_PROFILE_FIELDS.length,
-        fields: GBP_PROFILE_FIELDS.map((field) => ({
+        fields: GBP_PROFILE_FIELDS.map((field): { field: string; present: boolean } => ({
           field,
           present: profile.fieldsReturned.includes(field),
+        })),
+      },
+    };
+  }
+
+  private overviewFromPlaces(connection: any, snapshot: PlacesSnapshot, listing: PlacesListing) {
+    const present = new Set<string>(
+      [
+        listing.name ? 'title' : null,
+        listing.address ? 'address' : null,
+        listing.phone ? 'phone' : null,
+        listing.website ? 'website' : null,
+        listing.primaryTypeDisplayName ? 'primaryCategory' : null,
+        listing.hours?.weekdayDescriptions.length ? 'regularHours' : null,
+      ].filter((field): field is string => field !== null),
+    );
+
+    return {
+      connection,
+      source: this.placesSource('profile', snapshot, 1),
+      dataSource: 'places',
+      ...this.placesMeta(snapshot),
+      profile: {
+        locationName: `places/${listing.placeId}`,
+        businessName: listing.name,
+        address: listing.address,
+        addressDetail: null,
+        phone: listing.phone,
+        additionalPhones: listing.internationalPhone ? [listing.internationalPhone] : [],
+        website: listing.website,
+        // The merchant's own description is not public data. Google's
+        // editorial summary is, and is reported under its own name.
+        description: null,
+        editorialSummary: listing.editorialSummary,
+        primaryCategory: listing.primaryTypeDisplayName,
+        additionalCategories: listing.types
+          .filter((type) => type.type !== listing.primaryType)
+          .map((type) => ({ categoryId: type.type, displayName: type.displayName })),
+        hours: null,
+        hoursText: listing.hours?.weekdayDescriptions ?? null,
+        specialHours: null,
+        serviceArea: null,
+        openStatus: placesOpenStatus(listing.businessStatus),
+        openingDate: null,
+        latitude: listing.latitude,
+        longitude: listing.longitude,
+        placeId: listing.placeId,
+        mapsUri: listing.googleMapsUri,
+        newReviewUri: `https://search.google.com/local/writereview?placeid=${encodeURIComponent(listing.placeId)}`,
+        // Places does not say whether a listing is verified.
+        verified: null,
+        hasPendingEdits: null,
+        rating: listing.rating,
+        reviewCount: listing.userRatingCount,
+        syncedAt: snapshot.fetchedAt,
+      },
+      completeness: {
+        present: present.size,
+        total: PLACES_PROFILE_FIELDS.length,
+        fields: PLACES_PROFILE_FIELDS.map((field): { field: string; present: boolean } => ({
+          field,
+          present: present.has(field),
         })),
       },
     };
@@ -276,6 +396,49 @@ export class BusinessProfileInsightsService {
         })
       : [];
 
+    const fallback = await this.placesFallback(
+      projectId,
+      connection,
+      connection.state === 'SYNCED' && (source.state === 'OK' || reviews.length > 0),
+    );
+    if (fallback?.listing) {
+      const listing = fallback.listing;
+      const sampleRated = listing.reviews.filter((review) => review.rating != null);
+      return {
+        connection,
+        source: this.placesSource('reviews', fallback, listing.reviews.length),
+        dataSource: 'places',
+        ...this.placesMeta(fallback),
+        reviews: listing.reviews.map((review, index) => ({
+          id: review.name || `places-review-${index}`,
+          googleReviewId: null,
+          authorName: review.authorName,
+          authorPhotoUrl: review.authorPhotoUrl,
+          authorUri: review.authorUri,
+          rating: review.rating,
+          text: review.text,
+          createTime: review.publishTime,
+          relativePublishTime: review.relativePublishTime,
+          googleMapsUri: review.googleMapsUri,
+          updateTime: null,
+          // Places does not return the owner's replies, so nothing is claimed
+          // about whether these were answered.
+          googleReply: null,
+          googleReplyUpdatedAt: null,
+          aiDraftedReply: null,
+          replyStatus: 'UNKNOWN',
+        })),
+        // The listing's own totals, not an average of the five shown: Google
+        // picks those five by relevance, so they are not a sample of anything.
+        summary: {
+          total: listing.userRatingCount ?? listing.reviews.length,
+          rated: listing.userRatingCount ?? sampleRated.length,
+          averageRating: listing.rating,
+          shown: listing.reviews.length,
+        },
+      };
+    }
+
     // Averaged over the reviews actually held, and only over those Google gave
     // a star rating for. A review whose rating Google would not state is not
     // counted as anything.
@@ -302,6 +465,8 @@ export class BusinessProfileInsightsService {
         replyStatus: review.replyStatus,
       })),
       summary: { total: reviews.length, rated: rated.length, averageRating },
+      dataSource: 'business_profile',
+      ...this.placesMeta(fallback),
     };
   }
 
@@ -316,6 +481,35 @@ export class BusinessProfileInsightsService {
           orderBy: [{ createTime: 'desc' }, { createdAt: 'desc' }],
         })
       : [];
+
+    const fallback = await this.placesFallback(
+      projectId,
+      connection,
+      connection.state === 'SYNCED' && (source.state === 'OK' || media.length > 0),
+    );
+    if (fallback?.listing) {
+      return {
+        connection,
+        source: this.placesSource('media', fallback, fallback.listing.photos.length),
+        dataSource: 'places',
+        ...this.placesMeta(fallback),
+        photos: fallback.listing.photos.map((photo) => ({
+          id: photo.name,
+          mediaName: photo.name,
+          format: 'PHOTO',
+          category: null,
+          url: photo.url,
+          thumbnailUrl: photo.url,
+          description: null,
+          width: photo.widthPx,
+          height: photo.heightPx,
+          viewCount: null,
+          attribution: photo.attribution,
+          attributionUri: photo.attributionUri,
+          createTime: null,
+        })),
+      };
+    }
 
     return {
       connection,
@@ -334,6 +528,8 @@ export class BusinessProfileInsightsService {
         attribution: item.attribution,
         createTime: item.createTime,
       })),
+      dataSource: 'business_profile',
+      ...this.placesMeta(fallback),
     };
   }
 
@@ -420,9 +616,28 @@ export class BusinessProfileInsightsService {
         })
       : null;
 
+    const fallback = await this.placesFallback(projectId, connection, Boolean(profile));
+    if (fallback?.listing) {
+      const listing = fallback.listing;
+      return {
+        connection,
+        source: this.placesSource('profile', fallback, 1),
+        dataSource: 'places',
+        ...this.placesMeta(fallback),
+        primary: listing.primaryType
+          ? { categoryId: listing.primaryType, displayName: listing.primaryTypeDisplayName ?? listing.primaryType }
+          : null,
+        additional: listing.types
+          .filter((type) => type.type !== listing.primaryType)
+          .map((type) => ({ categoryId: type.type, displayName: type.displayName })),
+      };
+    }
+
     return {
       connection,
       source,
+      dataSource: 'business_profile',
+      ...this.placesMeta(fallback),
       primary: profile?.primaryCategoryName
         ? { categoryId: profile.primaryCategoryId, displayName: profile.primaryCategoryName }
         : null,
@@ -453,6 +668,20 @@ function shape(metrics: Record<string, number>) {
     : null;
 
   return out;
+}
+
+/** Places' businessStatus in the vocabulary Business Profile's openInfo uses. */
+function placesOpenStatus(status: string | null): string | null {
+  switch (status) {
+    case 'OPERATIONAL':
+      return 'OPEN';
+    case 'CLOSED_TEMPORARILY':
+      return 'CLOSED_TEMPORARILY';
+    case 'CLOSED_PERMANENTLY':
+      return 'CLOSED_PERMANENTLY';
+    default:
+      return null;
+  }
 }
 
 function iso(date: Date): string {

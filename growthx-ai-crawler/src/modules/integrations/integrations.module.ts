@@ -13,6 +13,7 @@ import { SearchConsoleController } from './google/search-console.controller';
 import { BusinessProfileService } from './google/business-profile.service';
 import { BusinessProfileInsightsService } from './google/business-profile-insights.service';
 import { BusinessProfileController } from './google/business-profile.controller';
+import { PlacesListingService } from './google/places-listing.service';
 import { GoogleSyncScheduler } from './google/google-sync.scheduler';
 import { AnalyticsService } from './google/analytics.service';
 import { AnalyticsInsightsService } from './google/analytics-insights.service';
@@ -39,6 +40,7 @@ import { DatabaseModule } from '../../database/database.module';
     AnalyticsInsightsService,
     BusinessProfileService,
     BusinessProfileInsightsService,
+    PlacesListingService,
     GoogleSyncScheduler,
     FacebookService,
     YoutubeService,
@@ -66,6 +68,9 @@ import { DatabaseModule } from '../../database/database.module';
     // auditor to read it, the fix pusher to patch it.
     BusinessProfileService,
     BusinessProfileInsightsService,
+    // The public Maps listing: what Local SEO audits and searches from while
+    // Business Profile access waits on Google's approval.
+    PlacesListingService,
     FacebookService,
     YoutubeService,
   ],

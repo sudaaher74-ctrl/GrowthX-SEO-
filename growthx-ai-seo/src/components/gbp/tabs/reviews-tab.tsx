@@ -10,6 +10,8 @@ import {
   MessageSquare,
   ShieldCheck,
   Clock,
+  Lock,
+  ExternalLink,
 } from "lucide-react";
 import { GbpSourceNotice, GbpTabGate, formatGbpTimestamp } from "../gbp-states";
 import {
@@ -41,6 +43,12 @@ export function ReviewsTab({
     <GbpTabGate
       query={query}
       label="Reviews"
+      placesLockedNote={
+        <>
+          Google shares only its 5 most relevant reviews publicly. The full review list and replying
+          unlock once Google approves Business Profile access.
+        </>
+      }
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}
@@ -80,6 +88,9 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
     "PROFESSIONAL",
   );
   const [editingReply, setEditingReply] = useState<{ [reviewId: string]: string }>({});
+  // Public listing reviews: Google's five most relevant, with no owner replies
+  // and no way to post one until Business Profile access is approved.
+  const readOnly = data.dataSource === "places";
 
   const handleDraft = (reviewId: string) => {
     draftMutation.mutate(
@@ -151,7 +162,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
             <span className="text-xs text-brand-400">/ 5.0</span>
           </div>
           <p className="text-[11px] text-brand-400 mt-0.5">
-            Across {data.summary.rated} rated review{data.summary.rated === 1 ? "" : "s"}
+            Across {data.summary.rated.toLocaleString()} rated review{data.summary.rated === 1 ? "" : "s"}
           </p>
         </div>
 
@@ -162,12 +173,36 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold font-mono tracking-tight text-brand-950">
-              {data.summary.total}
+              {data.summary.total.toLocaleString()}
             </span>
           </div>
-          <p className="text-[11px] text-brand-400 mt-0.5">Synced from Google Business Profile</p>
+          <p className="text-[11px] text-brand-400 mt-0.5">
+            {readOnly ? "On your Google Maps listing" : "Synced from Google Business Profile"}
+          </p>
         </div>
 
+        {readOnly ? (
+          <div
+            className="md:col-span-2 rounded-2xl border bg-white p-4 shadow-xs flex items-start gap-3"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="w-8 h-8 shrink-0 rounded-lg bg-brand-50 text-brand-500 flex items-center justify-center">
+              <Lock size={15} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-brand-950">
+                Showing Google&apos;s {data.summary.shown ?? data.reviews.length} most relevant review
+                {(data.summary.shown ?? data.reviews.length) === 1 ? "" : "s"}
+              </p>
+              <p className="text-[11px] text-brand-500 mt-0.5 leading-relaxed">
+                Public listing data can&apos;t show which reviews you&apos;ve answered, and replies
+                can&apos;t be posted from here yet. Both unlock once Google approves Business Profile
+                access. Until then, reply on Google Maps directly.
+              </p>
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="rounded-2xl border bg-white p-4 shadow-xs" style={{ borderColor: "var(--border-color)" }}>
           <div className="flex items-center gap-1.5 text-xs font-medium text-brand-500">
             <ShieldCheck size={14} className="text-emerald-600" />
@@ -195,6 +230,8 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
           </div>
           <p className="text-[11px] text-brand-400 mt-0.5">Draft a response below</p>
         </div>
+        </>
+        )}
       </div>
 
       {/* ── Filter Toolbar ─────────────────────────────────────────── */}
@@ -226,6 +263,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
             <option value={1}>1 Star ★</option>
           </select>
 
+          {!readOnly && (
           <select
             value={filterReplied}
             onChange={(e) => setFilterReplied(e.target.value as "ALL" | "PENDING" | "PUBLISHED")}
@@ -235,6 +273,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
             <option value="PENDING">Needs Reply</option>
             <option value="PUBLISHED">Replied</option>
           </select>
+          )}
         </div>
       </div>
 
@@ -288,13 +327,26 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                           </div>
                         )}
                         <span className="text-[11px] text-brand-400">
-                          {formatGbpTimestamp(review.updateTime ?? review.createTime) ?? "No date from Google"}
+                          {review.relativePublishTime ??
+                            formatGbpTimestamp(review.updateTime ?? review.createTime) ??
+                            "No date from Google"}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {hasReply ? (
+                  {readOnly ? (
+                    review.googleMapsUri ? (
+                      <a
+                        href={review.googleMapsUri}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-accent-600 hover:text-accent-700"
+                      >
+                        View on Maps <ExternalLink size={11} />
+                      </a>
+                    ) : null
+                  ) : hasReply ? (
                     <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                       <CheckCircle2 size={12} /> Replied
                     </span>
@@ -309,7 +361,8 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                   {review.text || <span className="italic text-brand-400">Rating left without comment.</span>}
                 </p>
 
-                {/* Reply section */}
+                {/* Reply section — not for public listing reviews, which cannot be answered from here */}
+                {!readOnly && (
                 <div className="pt-3 border-t border-brand-100 space-y-3">
                   {hasReply ? (
                     <div className="p-3.5 rounded-xl bg-brand-50 border border-brand-200/60 space-y-1">
@@ -387,6 +440,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                     </div>
                   )}
                 </div>
+                )}
               </div>
             );
           })

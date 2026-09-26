@@ -34,6 +34,12 @@ export function PhotosTab({
     <GbpTabGate
       query={query}
       label="Photos"
+      placesLockedNote={
+        <>
+          Google shares up to 10 photos publicly, without view counts. Your full media library unlocks once
+          Google approves Business Profile access.
+        </>
+      }
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}
@@ -61,7 +67,8 @@ export function PhotosTab({
               <div className="flex items-center gap-2">
                 <ImageIcon size={15} className="text-blue-600" />
                 <h3 className="text-sm font-bold text-brand-950">
-                  {data.photos.length} photo{data.photos.length === 1 ? "" : "s"} on this profile
+                  {data.photos.length} photo{data.photos.length === 1 ? "" : "s"}{" "}
+                  {data.dataSource === "places" ? "on your Google Maps listing" : "on this profile"}
                 </h3>
               </div>
               <a
@@ -98,6 +105,32 @@ export function PhotosTab({
                       <ImageIcon size={22} className="text-brand-300" />
                     )}
                   </div>
+                  {data.dataSource === "places" ? (
+                    <div className="p-3">
+                      {/* Places asks for the photographer to be credited wherever the photo is shown. */}
+                      <p className="text-[10px] text-brand-500 truncate">
+                        {typeof photo.attribution === "string" && photo.attribution ? (
+                          <>
+                            Photo by{" "}
+                            {photo.attributionUri ? (
+                              <a
+                                href={photo.attributionUri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-brand-700 hover:underline"
+                              >
+                                {photo.attribution}
+                              </a>
+                            ) : (
+                              <span className="font-semibold text-brand-700">{photo.attribution}</span>
+                            )}
+                          </>
+                        ) : (
+                          "From Google Maps"
+                        )}
+                      </p>
+                    </div>
+                  ) : (
                   <div className="p-3 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700 truncate">
@@ -114,6 +147,7 @@ export function PhotosTab({
                       {formatGbpTimestamp(photo.createTime) ?? "No date from Google"}
                     </p>
                   </div>
+                  )}
                 </div>
               ))}
             </div>

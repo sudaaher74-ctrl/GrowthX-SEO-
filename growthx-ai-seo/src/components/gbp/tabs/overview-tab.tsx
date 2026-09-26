@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Clock,
   Edit3,
+  Lock,
 } from "lucide-react";
 import type { GbpTabKey } from "../gbp-tabs";
 import { GbpTabGate, GbpStatePanel, formatGbpTimestamp, metricValue } from "../gbp-states";
@@ -68,8 +69,16 @@ export function OverviewTab({
 
   // When a local listing is tracked (via manual entry or Places search) but Google OAuth
   // has not been connected yet, show the tracked listing overview rather than a blank gate.
+  // A tracked listing with a Maps place id is served as public listing data
+  // through the gate below, which shows far more than this summary can.
   const isGoogleConnected = query.data?.connection && query.data.connection.state !== "NOT_CONNECTED";
-  if (!isGoogleConnected && localSeo && localSeo.businessName) {
+  if (
+    !query.isLoading &&
+    query.data?.dataSource !== "places" &&
+    !isGoogleConnected &&
+    localSeo &&
+    localSeo.businessName
+  ) {
     return (
       <LocalTrackedOverview
         localSeo={localSeo}
@@ -327,6 +336,8 @@ function OverviewContent({
 
   const profile = data.profile;
   const completeness = data.completeness;
+  // The public Google Maps listing, standing in while Business Profile is locked.
+  const fromPlaces = data.dataSource === "places";
   const metrics = metricsQuery.data;
   const totals = metrics?.totals ?? null;
   const reviews = reviewsQuery.data;
@@ -395,9 +406,19 @@ function OverviewContent({
                 <span>{profile.address ?? "No address on this listing"}</span>
               </p>
             </div>
+            {fromPlaces && profile.rating != null && (
+              <div className="flex shrink-0 items-center gap-1 rounded-lg border border-warning-200 bg-warning-50 px-2.5 py-1">
+                <Star size={14} className="fill-warning-500 text-warning-500" />
+                <span className="text-sm font-bold text-warning-700">{profile.rating.toFixed(1)}</span>
+                {profile.reviewCount != null && (
+                  <span className="text-xs text-warning-600">({profile.reviewCount.toLocaleString()})</span>
+                )}
+              </div>
+            )}
             <span
               className={cn(
                 "shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border",
+                fromPlaces && profile.verified == null && "hidden",
                 profile.verified === true
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : profile.verified === false
@@ -449,6 +470,28 @@ function OverviewContent({
               {profile.description}
             </p>
           )}
+
+          {profile.editorialSummary && (
+            <p className="mt-4 pt-3 border-t border-brand-100 text-xs text-brand-600 leading-relaxed line-clamp-3">
+              <span className="font-semibold text-brand-800">Google&apos;s summary: </span>
+              {profile.editorialSummary}
+            </p>
+          )}
+
+          {profile.hoursText && profile.hoursText.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-brand-100">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-400">
+                <Clock size={11} /> Hours
+              </p>
+              <ul className="mt-1.5 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2">
+                {profile.hoursText.map((line) => (
+                  <li key={line} className="text-xs text-brand-700">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Profile completeness — a count of fields Google returned, not a score. */}
@@ -464,8 +507,9 @@ function OverviewContent({
               </span>
             </div>
             <p className="mt-1 text-[11px] text-brand-400 leading-relaxed">
-              Fields Google returned a value for on the last sync. Not a score — there is no weighting
-              and no target.
+              {fromPlaces
+                ? "Fields visible on your public Google Maps listing. Your description and services aren't public, so they're checked once Business Profile access is approved."
+                : "Fields Google returned a value for on the last sync. Not a score — there is no weighting and no target."}
             </p>
 
             {completeness && (
@@ -502,7 +546,7 @@ function OverviewContent({
               <ArrowRight size={13} />
             </button>
             <span className="text-[10px] text-brand-400">
-              Synced {formatGbpTimestamp(profile.syncedAt) ?? "—"}
+              {fromPlaces ? "Read from Maps" : "Synced"} {formatGbpTimestamp(profile.syncedAt) ?? "—"}
             </span>
           </div>
         </div>
@@ -517,7 +561,7 @@ function OverviewContent({
           </div>
           {/* How many days of the requested window Google actually reported — a
               28-day request answered with 11 days is a fact the tab states. */}
-          {metrics && rangeLabel && (
+          {metrics && rangeLabel && !fromPlaces && (
             <span className="text-[11px] text-brand-400">
               {rangeLabel} · Google reported {metrics.coveredDays} day
               {metrics.coveredDays === 1 ? "" : "s"}
@@ -525,7 +569,21 @@ function OverviewContent({
           )}
         </div>
 
-        {metricsQuery.isLoading ? (
+        {fromPlaces && totals == null ? (
+          <GbpStatePanel
+            compact
+            icon={Lock}
+            tone="neutral"
+            title="Performance insights unlock with Business Profile access"
+            body={
+              <>
+                Views, calls, direction requests and website clicks are private to the business owner and
+                are not part of the public Maps listing. They appear here on the first sync after Google
+                approves Business Profile API access.
+              </>
+            }
+          />
+        ) : metricsQuery.isLoading ? (
           <div
             className="rounded-2xl border bg-white p-8 shadow-xs text-center text-xs text-brand-500"
             style={{ borderColor: "var(--border-color)" }}
@@ -620,7 +678,7 @@ function OverviewContent({
               <div className="text-2xl font-bold font-mono text-brand-950">
                 {reviews ? reviews.summary.total : "—"}
               </div>
-              <p className="text-[11px] text-brand-400">Synced reviews</p>
+              <p className="text-[11px] text-brand-400">{fromPlaces ? "Reviews on Google" : "Synced reviews"}</p>
             </div>
           </div>
 
@@ -642,7 +700,9 @@ function OverviewContent({
                         {review.authorName}
                       </span>
                       <span className="text-[10px] text-brand-400">
-                        {formatGbpTimestamp(review.updateTime ?? review.createTime) ?? "—"}
+                        {review.relativePublishTime ??
+                          formatGbpTimestamp(review.updateTime ?? review.createTime) ??
+                          "—"}
                       </span>
                     </div>
                     {review.rating != null && (
@@ -776,7 +836,9 @@ function OverviewContent({
           style={{ borderColor: "var(--border-color)" }}
         >
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-brand-950">Fields Google returned nothing for</h3>
+            <h3 className="text-sm font-bold text-brand-950">
+              {fromPlaces ? "Missing from your Maps listing" : "Fields Google returned nothing for"}
+            </h3>
             <button
               type="button"
               onClick={() => onSelectTab("audit")}
@@ -801,7 +863,9 @@ function OverviewContent({
                       {FIELD_LABELS[field.field] ?? field.field}
                     </p>
                     <p className="text-[11px] text-brand-500 truncate">
-                      Google returned no value for this on the last sync
+                      {fromPlaces
+                        ? "Not on your public Google Maps listing"
+                        : "Google returned no value for this on the last sync"}
                     </p>
                   </div>
                   <ChevronRight size={14} className="text-brand-400 shrink-0" />

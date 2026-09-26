@@ -34,6 +34,13 @@ export function CategoriesTab({
     <GbpTabGate
       query={query}
       label="Categories"
+      placesLockedNote={
+        <>
+          These are the place types Google Maps shows for your listing. They follow your Business Profile
+          categories closely but use Maps&apos; own wording; the exact categories unlock with Business
+          Profile access.
+        </>
+      }
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}
@@ -82,7 +89,9 @@ export function CategoriesTab({
                 style={{ borderColor: "var(--border-color)" }}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-brand-950">Additional categories</h3>
+                  <h3 className="text-sm font-bold text-brand-950">
+                    {data.dataSource === "places" ? "Other place types on Maps" : "Additional categories"}
+                  </h3>
                   <span className="font-mono text-xs font-bold text-brand-600">
                     {data.additional.length}
                   </span>
