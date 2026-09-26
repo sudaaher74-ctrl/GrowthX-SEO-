@@ -251,7 +251,7 @@ export function BattlegroundTab({
                 onClick={() => onRemoveCompetitor(c)}
                 aria-label={`Remove ${name}`}
                 title={`Stop tracking ${name}`}
-                className="mr-1 rounded-md p-1 text-brand-400 hover:bg-rose-50 hover:text-rose-600"
+                className="mr-1 rounded-md p-1 text-brand-400 hover:bg-error-50 hover:text-error-600"
               >
                 <X size={12} />
               </button>

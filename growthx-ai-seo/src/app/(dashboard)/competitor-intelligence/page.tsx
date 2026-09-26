@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
+import { StatusNote } from "@/components/ui/console";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
@@ -176,7 +177,7 @@ function RemoveCompetitorButton({
       onClick={() => onRemove(competitor)}
       aria-label={`Remove ${name}`}
       title={`Stop tracking ${name}`}
-      className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+      className="rounded-md p-1 text-brand-400 hover:bg-error-50 hover:text-error-600"
     >
       <Trash2 size={12} />
     </button>
@@ -507,11 +508,7 @@ function CompetitorIntelligenceClient() {
               Stop tracking <strong>{competitorToDelete.name}</strong>? They&apos;ll be removed from every tab
               here. You can add them again later.
             </p>
-            {deleteError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-                {deleteError}
-              </div>
-            )}
+            {deleteError && <StatusNote tone="bad">{deleteError}</StatusNote>}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
