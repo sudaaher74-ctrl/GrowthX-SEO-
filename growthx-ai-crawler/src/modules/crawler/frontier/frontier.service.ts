@@ -66,7 +66,7 @@ export class FrontierService {
     if (additions.length === 0) return result;
 
     const seenInBatch = new Set<string>();
-    let known = await this.prisma.crawlFrontier.count({ where: { crawlJobId } });
+    const candidates: Array<{ normalized: string; addition: FrontierAddition }> = [];
 
     for (const addition of additions) {
       if (addition.depth > limits.maxDepth) {
@@ -78,11 +78,38 @@ export class FrontierService {
         result.duplicates++;
         continue;
       }
-      if (known >= limits.maxPages) {
+      seenInBatch.add(normalized);
+      candidates.push({ normalized, addition });
+    }
+    if (candidates.length === 0) return result;
+
+    // Every page on a site typically relinks the same nav/footer URLs, so most
+    // of a batch is usually already known. Filtering those out with one query
+    // up front, instead of letting each one fail against the unique
+    // constraint, is the difference between a handful of DB round trips and
+    // one per relinked URL per page — the latter was flooding both the
+    // connection pool and the logs (Prisma logs every error to stdout even
+    // when the caller catches it) during a crawl of any real size.
+    const known = new Set(
+      (
+        await this.prisma.crawlFrontier.findMany({
+          where: { crawlJobId, normalizedUrl: { in: candidates.map((c) => c.normalized) } },
+          select: { normalizedUrl: true },
+        })
+      ).map((row) => row.normalizedUrl),
+    );
+
+    let knownCount = await this.prisma.crawlFrontier.count({ where: { crawlJobId } });
+
+    for (const { normalized, addition } of candidates) {
+      if (known.has(normalized)) {
+        result.duplicates++;
+        continue;
+      }
+      if (knownCount >= limits.maxPages) {
         result.atCapacity++;
         continue;
       }
-      seenInBatch.add(normalized);
 
       try {
         await this.prisma.crawlFrontier.create({
@@ -97,10 +124,12 @@ export class FrontierService {
           },
         });
         result.added++;
-        known++;
+        knownCount++;
+        known.add(normalized);
       } catch (err) {
-        // A unique-constraint conflict is the expected outcome for a URL
-        // another worker already claimed, and is not an error.
+        // A unique-constraint conflict is still possible here — another
+        // worker's call to `add` can win the race between the lookup above
+        // and this insert — and is still not an error.
         if ((err as { code?: string }).code === 'P2002') {
           result.duplicates++;
           continue;
