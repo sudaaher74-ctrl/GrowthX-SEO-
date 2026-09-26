@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { DiscoverySource } from '../discovery/discovery.service';
@@ -66,8 +67,7 @@ export class FrontierService {
     if (additions.length === 0) return result;
 
     const seenInBatch = new Set<string>();
-    let known = await this.prisma.crawlFrontier.count({ where: { crawlJobId } });
-
+    const candidates: { normalized: string; addition: FrontierAddition }[] = [];
     for (const addition of additions) {
       if (addition.depth > limits.maxDepth) {
         result.beyondDepth++;
@@ -78,35 +78,55 @@ export class FrontierService {
         result.duplicates++;
         continue;
       }
-      if (known >= limits.maxPages) {
+      seenInBatch.add(normalized);
+      candidates.push({ normalized, addition });
+    }
+    if (candidates.length === 0) return result;
+
+    // Known URLs are filtered with one read, not discovered one failed insert
+    // at a time. Every page of a site links to the same navigation, so nearly
+    // every addition is a duplicate; a per-URL insert against the unique
+    // constraint cost a round trip and a logged `prisma:error` each, which on
+    // a small instance was enough to starve the health check.
+    const existing = await this.prisma.crawlFrontier.findMany({
+      where: { crawlJobId, normalizedUrl: { in: candidates.map((c) => c.normalized) } },
+      select: { normalizedUrl: true },
+    });
+    const known = new Set(existing.map((row) => row.normalizedUrl));
+
+    let rows = await this.prisma.crawlFrontier.count({ where: { crawlJobId } });
+    const toInsert: Prisma.CrawlFrontierCreateManyInput[] = [];
+    for (const { normalized, addition } of candidates) {
+      if (known.has(normalized)) {
+        result.duplicates++;
+        continue;
+      }
+      if (rows >= limits.maxPages) {
         result.atCapacity++;
         continue;
       }
-      seenInBatch.add(normalized);
+      rows++;
+      toInsert.push({
+        crawlJobId,
+        normalizedUrl: normalized,
+        url: addition.url,
+        depth: addition.depth,
+        discoverySource: addition.source,
+        sourceUrl: addition.sourceUrl,
+        state: 'PENDING',
+      });
+    }
+    if (toInsert.length === 0) return result;
 
-      try {
-        await this.prisma.crawlFrontier.create({
-          data: {
-            crawlJobId,
-            normalizedUrl: normalized,
-            url: addition.url,
-            depth: addition.depth,
-            discoverySource: addition.source,
-            sourceUrl: addition.sourceUrl,
-            state: 'PENDING',
-          },
-        });
-        result.added++;
-        known++;
-      } catch (err) {
-        // A unique-constraint conflict is the expected outcome for a URL
-        // another worker already claimed, and is not an error.
-        if ((err as { code?: string }).code === 'P2002') {
-          result.duplicates++;
-          continue;
-        }
-        this.logger.warn(`Could not add ${normalized} to the frontier: ${(err as Error).message}`);
-      }
+    try {
+      // Claiming is still settled by the unique constraint: a URL another
+      // worker inserted since the read above is skipped by the database, not
+      // raised as an error.
+      const { count } = await this.prisma.crawlFrontier.createMany({ data: toInsert, skipDuplicates: true });
+      result.added = count;
+      result.duplicates += toInsert.length - count;
+    } catch (err) {
+      this.logger.warn(`Could not add ${toInsert.length} URLs to the frontier: ${(err as Error).message}`);
     }
 
     return result;
