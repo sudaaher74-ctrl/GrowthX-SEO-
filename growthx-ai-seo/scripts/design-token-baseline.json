@@ -5,7 +5,7 @@
   "app/(dashboard)/ai-assistant/page.tsx": 11,
   "app/(dashboard)/ai-visibility/page.tsx": 75,
   "app/(dashboard)/billing/page.tsx": 10,
-  "app/(dashboard)/competitor-intelligence/page.tsx": 60,
+  "app/(dashboard)/competitor-intelligence/page.tsx": 50,
   "app/(dashboard)/competitors/coverage-comparison.tsx": 1,
   "app/(dashboard)/content-intelligence/calendar/page.tsx": 1,
   "app/(dashboard)/content-intelligence/campaigns/page.tsx": 1,

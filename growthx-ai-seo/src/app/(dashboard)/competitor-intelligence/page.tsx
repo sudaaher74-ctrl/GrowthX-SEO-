@@ -28,6 +28,7 @@ import {
   X,
   SlidersHorizontal,
   Home,
+  FileText,
 } from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
@@ -38,11 +39,11 @@ import { GapsTab } from "@/components/competitor/gaps-tab";
 import { RivalRadarTab } from "@/components/competitor/rival-radar-tab";
 
 const TABS = [
-  { id: "battleground", label: "Battleground" },
-  { id: "gaps", label: "Gaps" },
-  { id: "radar", label: "Rival Radar" },
-  { id: "counter-moves", label: "Your Plans" },
-  { id: "report", label: "Full Report" },
+  { id: "battleground", label: "Battleground", icon: Swords },
+  { id: "gaps", label: "Gaps", icon: Layers },
+  { id: "radar", label: "Rival Radar", icon: Radar },
+  { id: "counter-moves", label: "Your Plans", icon: Zap },
+  { id: "report", label: "Full Report", icon: FileText },
 ];
 
 // Old links (and the previous tab names) still land somewhere sensible.
@@ -292,44 +293,47 @@ function CompetitorIntelligenceClient() {
       {/* ── BREADCRUMB & SUB-NAVIGATION BAR ── */}
       <div className="space-y-4">
         {/* Breadcrumb row */}
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-          <Link href="/dashboard" className="flex items-center gap-1 hover:text-slate-800 transition">
+        <div className="flex items-center gap-2 text-xs font-semibold text-brand-500">
+          <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
             <Home className="h-3.5 w-3.5" />
             <span>Dashboard</span>
           </Link>
           <span>/</span>
-          <Link href="/competitor-intelligence" className="hover:text-slate-800 transition">
+          <Link href="/competitor-intelligence" className="hover:text-brand-950 transition">
             Competitor Intelligence
           </Link>
           <span>/</span>
-          <span className="text-slate-800 font-bold">{currentTabObj.label}</span>
+          <span className="text-brand-950 font-bold">{currentTabObj.label}</span>
           {activeTab !== "report" && (
             <button
               type="button"
               onClick={() => setActiveTab("report")}
-              className="ml-auto rounded-lg border bg-white px-3 py-1.5 text-[12px] font-medium text-brand-950 hover:bg-brand-50"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-accent-200 bg-accent-50/70 px-3 py-1.5 text-[12px] font-semibold text-accent-700 hover:bg-accent-100 transition-colors shadow-2xs"
             >
-              Full report ↓
+              <span>Full report</span>
+              <span className="text-accent-500">↓</span>
             </button>
           )}
         </div>
 
         {/* Global Horizontal Sub-navigation Pill Strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200/80">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-line">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
-                    ? "bg-slate-950 text-white shadow-sm shadow-slate-900/10"
-                    : "text-slate-600 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
+                    ? "bg-accent-600 text-white shadow-xs"
+                    : "text-brand-600 hover:text-brand-950 hover:bg-brand-100 font-semibold"
                 }`}
               >
-                {tab.label}
+                <Icon size={14} className={isActive ? "text-white" : "text-brand-400"} />
+                <span>{tab.label}</span>
               </button>
             );
           })}
