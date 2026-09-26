@@ -25,6 +25,23 @@ function fakePrisma() {
         rows.push(row);
         return row;
       },
+      // INSERT ... ON CONFLICT DO NOTHING: rows that would break the unique
+      // constraint are skipped, and the count is of rows actually written.
+      createMany: async ({ data, skipDuplicates }: any) => {
+        let count = 0;
+        for (const item of data) {
+          const clash = rows.some((r) => r.crawlJobId === item.crawlJobId && r.normalizedUrl === item.normalizedUrl);
+          if (clash) {
+            if (skipDuplicates) continue;
+            const err: any = new Error('Unique constraint failed');
+            err.code = 'P2002';
+            throw err;
+          }
+          rows.push({ id: `f${nextId++}`, attempts: 0, claimedAt: null, reason: null, createdAt: new Date(Date.now() + nextId), ...item });
+          count++;
+        }
+        return { count };
+      },
       findMany: async ({ where, orderBy, take }: any) => {
         let found = rows.filter((r) => match(r, where));
         const orders = Array.isArray(orderBy) ? orderBy : [orderBy].filter(Boolean);
@@ -69,6 +86,7 @@ function fakePrisma() {
     if (!where) return true;
     return Object.entries(where).every(([key, value]: [string, any]) => {
       if (value && typeof value === 'object' && 'lt' in value) return row[key] !== null && row[key] < value.lt;
+      if (value && typeof value === 'object' && 'in' in value) return value.in.includes(row[key]);
       return row[key] === value;
     });
   }
@@ -93,6 +111,44 @@ describe('FrontierService', () => {
 
     expect(result.added).toBe(1);
     expect(result.duplicates).toBe(2);
+  });
+
+  it('adds a batch without a failing insert per duplicate', async () => {
+    // Every page links to the same navigation, so almost every addition is a
+    // URL the frontier already holds. Those used to be found out by inserting
+    // each one and catching the unique-constraint error, one round trip and
+    // one logged prisma:error per link.
+    const prisma = fakePrisma();
+    const create = jest.spyOn(prisma.crawlFrontier, 'create');
+    const frontier = new FrontierService(prisma);
+    const nav = ['/', '/about', '/shop', '/contact'].map((path) => ({
+      url: `https://example.com${path}`,
+      source: 'link' as const,
+      depth: 1,
+    }));
+
+    await frontier.add('job1', nav, limits);
+    const again = await frontier.add('job1', [...nav, { url: 'https://example.com/new', source: 'link', depth: 1 }], limits);
+
+    expect(again).toMatchObject({ added: 1, duplicates: 4 });
+    expect(prisma.rows).toHaveLength(5);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('counts a URL another worker inserted meanwhile as a duplicate, not an error', async () => {
+    const prisma = fakePrisma();
+    const frontier = new FrontierService(prisma);
+    const findMany = prisma.crawlFrontier.findMany;
+    // The other worker wins the race between the read and the insert.
+    prisma.crawlFrontier.findMany = async (args: any) => {
+      const result = await findMany(args);
+      prisma.rows.push({ id: 'other', crawlJobId: 'job1', normalizedUrl: 'https://example.com/raced', state: 'PENDING' });
+      return result;
+    };
+
+    const result = await frontier.add('job1', [{ url: 'https://example.com/raced', source: 'link', depth: 1 }], limits);
+
+    expect(result).toMatchObject({ added: 0, duplicates: 1 });
   });
 
   it('stops an infinite calendar trap at the depth limit', async () => {

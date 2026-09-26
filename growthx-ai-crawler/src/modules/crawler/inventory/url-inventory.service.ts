@@ -118,6 +118,11 @@ export class UrlInventoryService {
   ): Promise<{ added: number; merged: number; invalid: number }> {
     const result = { added: 0, merged: 0, invalid: 0 };
 
+    // The first sighting of a URL in the batch is the one recorded; any later
+    // sighting only credits its source, as a conflicting insert used to.
+    const first = new Map<string, InventoryAddition>();
+    const bySource = new Map<string, Set<string>>();
+    let valid = 0;
     for (const addition of additions) {
       const normalized = normalizeUrl(addition.url, { trailingSlash: options.trailingSlash });
       if (!normalized) {
@@ -126,40 +131,53 @@ export class UrlInventoryService {
         result.invalid++;
         continue;
       }
+      valid++;
+      if (!first.has(normalized)) first.set(normalized, addition);
+      const urls = bySource.get(addition.source) ?? new Set<string>();
+      urls.add(normalized);
+      bySource.set(addition.source, urls);
+    }
+    if (first.size === 0) return result;
 
-      try {
-        await this.prisma.crawlFrontier.create({
-          data: {
-            crawlJobId,
-            normalizedUrl: normalized,
-            url: addition.url,
-            depth: addition.depth ?? 0,
-            discoverySource: addition.source,
-            sources: [addition.source],
-            sourceUrl: addition.sourceUrl,
-            state: 'PENDING',
-            reason: 'queued',
-          },
-        });
-        result.added++;
-      } catch (err) {
-        if ((err as { code?: string }).code !== 'P2002') {
-          this.logger.warn(`Could not record ${normalized}: ${(err as Error).message}`);
-          continue;
-        }
-        // Already known. Append the source unless it is already credited —
-        // `array_append` guarded by `NOT ... = ANY` keeps this idempotent under
-        // concurrent workers without a read-then-write race.
-        await this.prisma
-          .$executeRaw`UPDATE "CrawlFrontier"
-             SET "sources" = array_append("sources", ${addition.source}),
-                 "updatedAt" = NOW()
-             WHERE "crawlJobId" = ${crawlJobId}
-               AND "normalizedUrl" = ${normalized}
-               AND NOT (${addition.source} = ANY("sources"))`
-          .catch(() => 0);
-        result.merged++;
-      }
+    // One insert for the batch, skipping URLs already known. It used to be one
+    // insert per URL, failing on the unique constraint for every duplicate —
+    // nearly all of them, since every page links to the same navigation — and
+    // each failure was a round trip plus a multi-line `prisma:error` in the
+    // log, enough to starve the health check on a small instance.
+    try {
+      const { count } = await this.prisma.crawlFrontier.createMany({
+        data: [...first.entries()].map(([normalized, addition]) => ({
+          crawlJobId,
+          normalizedUrl: normalized,
+          url: addition.url,
+          depth: addition.depth ?? 0,
+          discoverySource: addition.source,
+          sources: [addition.source],
+          sourceUrl: addition.sourceUrl,
+          state: 'PENDING',
+          reason: 'queued',
+        })),
+        skipDuplicates: true,
+      });
+      result.added = count;
+      result.merged = valid - count;
+    } catch (err) {
+      this.logger.warn(`Could not record ${first.size} URLs: ${(err as Error).message}`);
+      return result;
+    }
+
+    // Credit each source on the URLs that already existed. The guard makes it
+    // a no-op for rows just created (they carry their source already) and
+    // idempotent under concurrent workers, without a read-then-write race.
+    for (const [source, urls] of bySource) {
+      await this.prisma
+        .$executeRaw`UPDATE "CrawlFrontier"
+           SET "sources" = array_append("sources", ${source}),
+               "updatedAt" = NOW()
+           WHERE "crawlJobId" = ${crawlJobId}
+             AND "normalizedUrl" = ANY(${[...urls]})
+             AND NOT (${source} = ANY("sources"))`
+        .catch(() => 0);
     }
 
     return result;

@@ -70,3 +70,55 @@ describe('UrlInventoryService.markExcluded', () => {
     expect(call.data.crawledAt).toBeInstanceOf(Date);
   });
 });
+
+/**
+ * Recording what a page links to. Nearly every link is to a URL already known
+ * (every page repeats the navigation), so the batch must not be written as one
+ * insert per link, each failing on the unique constraint and logging a
+ * prisma:error — which on a small instance starved the health check.
+ */
+describe('UrlInventoryService.record', () => {
+  function harness(existing: string[]) {
+    const createMany = jest.fn(async ({ data }: any) => ({
+      count: data.filter((row: any) => !existing.includes(row.normalizedUrl)).length,
+    }));
+    const create = jest.fn();
+    const executeRaw = jest.fn().mockResolvedValue(0);
+    const prisma = { crawlFrontier: { createMany, create }, $executeRaw: executeRaw };
+    return { service: new UrlInventoryService(prisma as never), createMany, create, executeRaw };
+  }
+
+  it('writes the batch in one statement that skips known URLs', async () => {
+    const { service, createMany, create } = harness(['https://example.com/about']);
+
+    const result = await service.record('job1', [
+      { url: 'https://example.com/about', source: 'link' },
+      { url: 'https://example.com/new', source: 'link' },
+      { url: 'https://example.com/new', source: 'sitemap' },
+      { url: 'http://[bad', source: 'link' },
+    ]);
+
+    expect(result).toEqual({ added: 1, merged: 2, invalid: 1 });
+    expect(create).not.toHaveBeenCalled();
+    expect(createMany).toHaveBeenCalledTimes(1);
+    const call = createMany.mock.calls[0][0];
+    expect(call.skipDuplicates).toBe(true);
+    // One row per URL, from its first sighting.
+    expect(call.data.map((row: any) => [row.normalizedUrl, row.sources])).toEqual([
+      ['https://example.com/about', ['link']],
+      ['https://example.com/new', ['link']],
+    ]);
+  });
+
+  it('credits every source that found a URL, once per source', async () => {
+    const { service, executeRaw } = harness(['https://example.com/about']);
+
+    await service.record('job1', [
+      { url: 'https://example.com/about', source: 'link' },
+      { url: 'https://example.com/about', source: 'sitemap' },
+    ]);
+
+    const sources = executeRaw.mock.calls.map((call: any[]) => call.slice(1)).map((values: any[]) => values[0]);
+    expect(sources.sort()).toEqual(['link', 'sitemap']);
+  });
+});
