@@ -72,7 +72,13 @@ const LEGACY_TAB_MAP: Record<string, string> = {
  * competitors are being crawled. It polls automatically via the query's
  * refetchInterval and disappears once all crawls complete.
  */
-function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] }) {
+function CrawlStatusStrip({
+  competitors,
+  onRemove,
+}: {
+  competitors: TrackedCompetitor[];
+  onRemove: (competitor: TrackedCompetitor) => void;
+}) {
   const crawling = competitors.filter(
     (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
   );
@@ -121,6 +127,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
             </div>
             <div className="flex items-center gap-1">
               <Loader2 size={11} className="animate-spin text-slate-900" />
+              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
             </div>
           </div>
         ))}
@@ -143,6 +150,7 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
                     : "Done"}
               </p>
             </div>
+            <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
           </div>
         ))}
       </div>
@@ -151,6 +159,27 @@ function CrawlStatusStrip({ competitors }: { competitors: TrackedCompetitor[] })
         We re-check every competitor automatically. Results appear in each tab as soon as a website has been read.
       </p>
     </div>
+  );
+}
+
+function RemoveCompetitorButton({
+  competitor,
+  onRemove,
+}: {
+  competitor: TrackedCompetitor;
+  onRemove: (competitor: TrackedCompetitor) => void;
+}) {
+  const name = competitor.name ?? competitor.domain;
+  return (
+    <button
+      type="button"
+      onClick={() => onRemove(competitor)}
+      aria-label={`Remove ${name}`}
+      title={`Stop tracking ${name}`}
+      className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+    >
+      <Trash2 size={12} />
+    </button>
   );
 }
 
@@ -257,6 +286,7 @@ function CompetitorIntelligenceClient() {
   });
 
   const [competitorToDelete, setCompetitorToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   const removeCompetitorMutation = useMutation({
     mutationFn: (competitorId: string) => api.removeCompetitor(projectId!, competitorId),
@@ -264,10 +294,20 @@ function CompetitorIntelligenceClient() {
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
       setCompetitorToDelete(null);
     },
-    onError: () => {
-      setCompetitorToDelete(null);
+    onError: (err: Error) => {
+      setDeleteError(err.message || "Couldn't remove this competitor. Please try again.");
     },
   });
+
+  const openAddModal = () => {
+    setFormError("");
+    setShowAddModal(true);
+  };
+
+  const askToRemove = (c: TrackedCompetitor) => {
+    setDeleteError("");
+    setCompetitorToDelete({ id: c.id, name: c.name || c.label || c.domain });
+  };
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -342,7 +382,7 @@ function CompetitorIntelligenceClient() {
 
 
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
-      <CrawlStatusStrip competitors={competitorsList} />
+      <CrawlStatusStrip competitors={competitorsList} onRemove={askToRemove} />
 
       {activeTab === "battleground" && (
         <BattlegroundTab
@@ -350,7 +390,8 @@ function CompetitorIntelligenceClient() {
           domain={customerDomain}
           brand={clientRow?.name || customerDomain}
           competitors={competitorsList}
-          onAddCompetitor={() => setShowAddModal(true)}
+          onAddCompetitor={openAddModal}
+          onRemoveCompetitor={askToRemove}
           onOpenCounterMoves={() => setActiveTab("counter-moves")}
         />
       )}
@@ -463,8 +504,14 @@ function CompetitorIntelligenceClient() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-bold text-slate-900">Remove Competitor?</h3>
             <p className="text-xs text-slate-600">
-              Are you sure you want to stop tracking <strong>{competitorToDelete.name}</strong>? Crawled keyword and content gap history will be archived.
+              Stop tracking <strong>{competitorToDelete.name}</strong>? They&apos;ll be removed from every tab
+              here. You can add them again later.
             </p>
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                {deleteError}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
