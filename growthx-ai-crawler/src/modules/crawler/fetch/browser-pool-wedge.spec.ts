@@ -83,6 +83,60 @@ describe('BrowserPoolService — a wedged browser', () => {
     expect(result).toBeUndefined();
   });
 
+  /**
+   * One wedged page must cost one page, not the rest of the crawl.
+   *
+   * The caller queued behind a wedged render used to hold a context it had
+   * taken before the permit. The wedge tore that context down, the queued
+   * caller opened its page on it anyway, and Playwright neither failed nor
+   * returned: it ran out the timeout, was reported as a second wedge, and its
+   * teardown took the relaunched browser with it. Production logged "stopped
+   * responding while opening a page" every 75 seconds for a whole crawl.
+   */
+  it('does not hand the next render the context of the browser being torn down', async () => {
+    const pool = new BrowserPoolService();
+    let current: { closed: boolean; newPage: () => Promise<unknown> } | undefined;
+    const launch = () => {
+      const context = {
+        closed: false,
+        // What Playwright does with a page opened on a closing context.
+        newPage: async () => (context.closed ? new Promise<never>(() => {}) : { close: async () => {} }),
+      };
+      return context;
+    };
+    (pool as any).ensureContext = jest.fn(async () => (current ??= launch()));
+    (pool as any).shutdownBrowser = jest.fn(async () => {
+      if (current) current.closed = true;
+      current = undefined;
+    });
+
+    const wedged = pool.withPage('ua', () => new Promise<never>(() => {}));
+    const queued = pool.withPage('ua', async () => 'queued');
+
+    expect(await wedged).toBeUndefined();
+    expect(await queued).toBe('queued');
+    expect((pool as any).shutdownBrowser).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The wedged render's permit is held until its browser is closed, so a
+   * close that never finishes must not hold it forever either.
+   */
+  it('gives up on a browser that will not close, so the next render still runs', async () => {
+    const pool = new BrowserPoolService();
+    const never = () => new Promise<never>(() => {});
+    const hung = { newPage: async () => ({ close: never }), close: never };
+    (pool as any).context = hung;
+    (pool as any).browser = { close: never };
+    (pool as any).ensureContext = jest.fn(async () => (pool as any).context ?? { newPage: async () => ({ close: async () => {} }) });
+
+    const wedged = await pool.withPage('ua', () => new Promise<never>(() => {}));
+    const next = await pool.withPage('ua', async () => 'next');
+
+    expect(wedged).toBeUndefined();
+    expect(next).toBe('next');
+  });
+
   /** A real error is a different thing from silence and must still surface. */
   it('still propagates an ordinary render error', async () => {
     const pool = new BrowserPoolService();

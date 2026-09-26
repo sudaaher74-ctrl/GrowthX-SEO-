@@ -295,9 +295,6 @@ export class BrowserPoolService implements OnModuleDestroy {
    * caller must record rather than treat as "the page had no content".
    */
   async withPage<T>(userAgent: string, work: (page: Page) => Promise<T>): Promise<T | undefined> {
-    const context = await this.ensureContext(userAgent);
-    if (!context) return undefined;
-
     if (this.idleTimer) clearTimeout(this.idleTimer);
 
     // Bounded, for the reason on `acquire`: a caller blocked here is a queue
@@ -307,6 +304,24 @@ export class BrowserPoolService implements OnModuleDestroy {
       this.logger.warn('Waited too long for a render slot; reading this page without JavaScript.');
       return undefined;
     }
+
+    // The context is looked up only once the permit is held, never before.
+    //
+    // Taken first, a caller queued for the permit keeps a context that the
+    // render ahead of it may tear down while it waits. Opening a page on a
+    // context mid-close neither fails nor returns, so that caller runs out the
+    // full timeout and is reported as a second wedged browser, and its
+    // teardown takes the freshly relaunched browser with it. In production one
+    // slow page became "stopped responding while opening a page" on every page
+    // after it, 75 seconds each, for the rest of the crawl.
+    let context: BrowserContext | undefined;
+    try {
+      context = await this.ensureContext(userAgent);
+    } finally {
+      if (!context) this.semaphore.release();
+    }
+    if (!context) return undefined;
+    const browser = this.browser;
 
     let page: Page | undefined;
     let wedged = false;
@@ -335,12 +350,17 @@ export class BrowserPoolService implements OnModuleDestroy {
       // close either, so it is not waited on.
       if (page && !wedged) await page.close().catch(() => {});
       this.rendersSinceLaunch++;
-      this.semaphore.release();
       // A browser that failed to answer once is not trusted again: it is torn
       // down here so the next render starts a fresh one, rather than every
       // later render paying the same timeout.
-      if (wedged) await this.shutdownBrowser().catch(() => {});
-      else await this.recycleIfSpent();
+      //
+      // Before the permit is handed on, so the next render in line finds no
+      // browser and launches one instead of opening a page on this one while
+      // it closes. Only if it is still the browser this render used: one that
+      // has already been replaced is not this render's to close.
+      if (wedged && this.browser === browser) await this.shutdownBrowser().catch(() => {});
+      this.semaphore.release();
+      if (!wedged) await this.recycleIfSpent();
       this.scheduleIdleShutdown();
     }
   }
@@ -392,12 +412,25 @@ export class BrowserPoolService implements OnModuleDestroy {
     this.context = undefined;
     this.browser = undefined;
     this.rendersSinceLaunch = 0;
-    this.closing = (async () => {
-      await context?.close().catch(() => {});
-      await browser?.close().catch(() => {});
-    })().finally(() => {
-      this.closing = undefined;
-    });
+    // Bounded like a render, because a wedged render's permit is now held
+    // until this settles, and every launch waits on it too. Playwright's
+    // graceful close has no deadline of its own: it asks Chromium to exit and
+    // waits for the process, which a browser that has stopped answering may
+    // never do. Abandoning it leaks that process; waiting on it would stop
+    // every render for the life of this one.
+    this.closing = this.bounded(
+      (async () => {
+        await context?.close().catch(() => {});
+        await browser?.close().catch(() => {});
+      })(),
+      'closing',
+    )
+      .catch(() => {
+        this.logger.error('Chromium did not close in time; abandoning it and launching a fresh one.');
+      })
+      .finally(() => {
+        this.closing = undefined;
+      });
     return this.closing;
   }
 
