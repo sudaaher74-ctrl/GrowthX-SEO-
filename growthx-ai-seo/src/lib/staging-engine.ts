@@ -16,7 +16,9 @@ export type StagedSourceType =
   | "AI_VISIBILITY"
   | "TECHNICAL_AUDIT"
   | "AUTHORITY_GAP"
-  | "LOCAL_SEO_GEO";
+  | "LOCAL_SEO_GEO"
+  | "BUSINESS_CATALOG_GAP"
+  | "BUSINESS_MARKETING_SIGNAL";
 
 export interface StagedFixItem {
   id: string;

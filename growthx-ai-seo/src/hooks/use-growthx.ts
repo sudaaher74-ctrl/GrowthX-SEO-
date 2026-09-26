@@ -1541,3 +1541,72 @@ export function useSnapshotHtml(projectId: string | null, snapshotId: string | n
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// ─────────────────────────────────────────────────────────────── Business
+
+/** Catalog (You). Polls while a crawl is running, same as useLatestCrawl. */
+export function useBusinessMyCatalog(projectId: string | null) {
+  return useQuery({
+    queryKey: ["business-catalog-mine", projectId],
+    queryFn: () => api.business.myCatalog(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.crawlStatus;
+      return status === "RUNNING" || status === "PENDING" ? 4000 : false;
+    },
+  });
+}
+
+/** Catalog (Them). Polls only while at least one tracked competitor is crawling. */
+export function useBusinessCompetitorCatalogs(projectId: string | null) {
+  return useQuery({
+    queryKey: ["business-catalog-competitors", projectId],
+    queryFn: () => api.business.competitorCatalogs(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    refetchInterval: (query) => {
+      const list = query.state.data ?? [];
+      const crawling = list.some((c) => c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING");
+      return crawling ? 4000 : false;
+    },
+  });
+}
+
+export function useCrawlBusinessCompetitor(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (competitorId: string) => api.business.crawlCompetitor(projectId!, competitorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["business-catalog-competitors", projectId] });
+    },
+  });
+}
+
+export function useBusinessGaps(projectId: string | null) {
+  return useQuery({
+    queryKey: ["business-gaps", projectId],
+    queryFn: () => api.business.gaps(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useBusinessMarketingSignals(projectId: string | null) {
+  return useQuery({
+    queryKey: ["business-marketing-signals", projectId],
+    queryFn: () => api.business.marketingSignals(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGenerateBusinessMarketingSignals(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (competitorId?: string) => api.business.generateMarketingSignals(projectId!, competitorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["business-marketing-signals", projectId] });
+    },
+  });
+}

@@ -8,6 +8,7 @@ import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
+import { completenessScore, detectProductSignals, matchConfidence, ProductSignal } from './product-detector';
 import { canonicalUrl } from './canonical-url';
 import { isCrawlablePage, isHtmlResponse } from './crawlable';
 import { extractSocialProfiles } from './social-links';
@@ -676,6 +677,20 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // answer.
         const pageType = classifyPageType({ url: normUrl, title: htmlData.title, h1: htmlData.h1 });
 
+        // Business module's product detector. Reuses the JSON-LD this same
+        // pass already parsed above (htmlData.jsonLd) — never a second fetch,
+        // never a second crawl. Only worth running once there is a body to
+        // read; a non-200 or non-HTML response has none.
+        const productSignal =
+          fetchRes.statusCode === 200 && fetchRes.html
+            ? detectProductSignals({
+                url: normUrl,
+                jsonLd: htmlData.jsonLd,
+                bodyText: $('body').text(),
+                pageTypeIsProduct: pageType === 'PRODUCT',
+              })
+            : null;
+
         // Indexability is computed from robots.txt, meta robots, the
         // X-Robots-Tag header and the canonical — never from the status code.
         // There was previously no such field at all, and the UI derived it
@@ -752,6 +767,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             simHash: content.simHash || undefined,
           },
         });
+
+        if (productSignal?.isProductPage) {
+          await this.recordCatalogProduct(payload.websiteId, page.id, normUrl, productSignal);
+        }
 
         // The inventory's copy of the outcome. A 301 and a 404 are both crawl
         // results recorded against the URL that produced them; neither removes
@@ -1122,6 +1141,21 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    */
   private readonly projectIdByWebsite = new Map<string, string | null>();
 
+  /**
+   * (project, competitor) pairs a crawled website's product pages should be
+   * written to for the Business module's catalogs.
+   *
+   * One entry with `competitorId: null` for the project's own site. One entry
+   * per `CompetitorDomain` row for a competitor's site — there can be several,
+   * because a competitor's `Website` is shared across every project tracking
+   * that domain (deduped by domain), and each of those projects needs its own
+   * catalog comparison.
+   */
+  private readonly catalogTargetsByWebsite = new Map<
+    string,
+    { projectId: string; competitorId: string | null; organizationId: string }[]
+  >();
+
   private async resolveProjectId(websiteId: string): Promise<string | null> {
     const cached = this.projectIdByWebsite.get(websiteId);
     if (cached !== undefined) return cached;
@@ -1144,6 +1178,111 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // long after the database recovered.
       this.logger.warn(`Could not resolve the project for website ${websiteId}; findings will carry none.`);
       return null;
+    }
+  }
+
+  private async resolveCatalogTargets(
+    websiteId: string,
+  ): Promise<{ projectId: string; competitorId: string | null; organizationId: string }[]> {
+    const cached = this.catalogTargetsByWebsite.get(websiteId);
+    if (cached) return cached;
+
+    try {
+      const website = await this.prisma.website.findUnique({
+        where: { id: websiteId },
+        select: {
+          projectId: true,
+          project: { select: { organizationId: true } },
+          competitors: { select: { id: true, projectId: true, project: { select: { organizationId: true } } } },
+        },
+      });
+      if (!website) return [];
+
+      const targets: { projectId: string; competitorId: string | null; organizationId: string }[] = [];
+      if (website.projectId && website.project) {
+        targets.push({ projectId: website.projectId, competitorId: null, organizationId: website.project.organizationId });
+      }
+      for (const competitor of website.competitors) {
+        targets.push({ projectId: competitor.projectId, competitorId: competitor.id, organizationId: competitor.project.organizationId });
+      }
+
+      this.catalogTargetsByWebsite.set(websiteId, targets);
+      return targets;
+    } catch {
+      // Not cached, same reasoning as resolveProjectId: a transient failure
+      // must not poison every later page of this crawl.
+      this.logger.warn(`Could not resolve catalog targets for website ${websiteId}; product pages on it will not be cataloged this crawl.`);
+      return [];
+    }
+  }
+
+  /**
+   * Writes one CatalogProduct row per (project, competitor) target for a page
+   * the product detector flagged. Never called for a page that isn't one —
+   * a page that stops looking like a product on a later crawl keeps its old
+   * row rather than being silently deleted, which the Business module's Gaps
+   * tab treats as "check this one" instead of a phantom drop in the catalog.
+   */
+  private async recordCatalogProduct(websiteId: string, pageId: string, pageUrl: string, signal: ProductSignal): Promise<void> {
+    const targets = await this.resolveCatalogTargets(websiteId);
+    if (targets.length === 0) return;
+
+    const shared = {
+      pageId,
+      name: signal.name,
+      priceStatus: signal.priceStatus,
+      priceMinorUnits: signal.priceMinorUnits,
+      currency: signal.currency,
+      stockStatus: signal.stockStatus,
+      stockValue: signal.stockValue,
+      category: signal.category,
+      ctaType: signal.ctaType,
+      completenessScore: completenessScore(signal),
+    };
+    // Only meaningful for a competitor: matching your own crawl to your own
+    // catalog isn't a guess, so this stays null on those rows.
+    const confidence = matchConfidence(signal);
+
+    for (const target of targets) {
+      try {
+        if (target.competitorId) {
+          // A real, non-null competitorId makes (projectId, competitorId, url)
+          // a genuine tuple, so the compound unique key upsert works as-is.
+          await this.prisma.catalogProduct.upsert({
+            where: {
+              projectId_competitorId_url: { projectId: target.projectId, competitorId: target.competitorId, url: pageUrl },
+            },
+            create: {
+              projectId: target.projectId,
+              competitorId: target.competitorId,
+              url: pageUrl,
+              organizationId: target.organizationId,
+              matchConfidence: confidence,
+              ...shared,
+            },
+            update: { organizationId: target.organizationId, matchConfidence: confidence, ...shared },
+          });
+        } else {
+          // competitorId is NULL for every own-site row, and Postgres never
+          // treats two NULLs as a duplicate, so the compound unique key
+          // cannot back an upsert here — the partial index that protects this
+          // case is enforced by the database, not by the Prisma query engine.
+          // findFirst+create/update reaches the same result explicitly.
+          const existing = await this.prisma.catalogProduct.findFirst({
+            where: { projectId: target.projectId, competitorId: null, url: pageUrl },
+            select: { id: true },
+          });
+          if (existing) {
+            await this.prisma.catalogProduct.update({ where: { id: existing.id }, data: { organizationId: target.organizationId, ...shared } });
+          } else {
+            await this.prisma.catalogProduct.create({
+              data: { projectId: target.projectId, competitorId: null, url: pageUrl, organizationId: target.organizationId, ...shared },
+            });
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Could not record catalog product ${pageUrl} for project ${target.projectId}: ${(err as Error).message}`);
+      }
     }
   }
 
