@@ -101,7 +101,7 @@ model CrawlJob {
 }
 
 model Page {
-  id                 String       @id @default(uuid())
+  id                 String            @id @default(uuid())
   crawlJobId         String
   url                String
   finalUrl           String
@@ -112,19 +112,19 @@ model Page {
   metaDescription    String?
   canonicalUrl       String?
   robotsMeta         String?
-  h1                 String[]     @default([])
-  h2                 String[]     @default([])
-  h3                 String[]     @default([])
-  wordCount          Int          @default(0)
-  readingTimeMin     Float        @default(0)
-  duplicateScore     Float        @default(0)
+  h1                 String[]          @default([])
+  h2                 String[]          @default([])
+  h3                 String[]          @default([])
+  wordCount          Int               @default(0)
+  readingTimeMin     Float             @default(0)
+  duplicateScore     Float             @default(0)
   contentHash        String?
   simHash            String?
   /// HOME | SERVICE | PRODUCT | LOCATION | BLOG | CASE_STUDY | FAQ | ABOUT |
   /// CONTACT | LEGAL | OTHER. Derived from the URL and headings at crawl time.
   /// Every gap comparison counts pages by kind, so this is what makes "they
   /// have 24 service pages you do not" answerable rather than a URL total.
-  pageType           String       @default("OTHER")
+  pageType           String            @default("OTHER")
   htmlSnapshotUrl    String?
   /// Snapshot of the bytes the origin served, before any JavaScript ran.
   rawHtml            String?
@@ -136,11 +136,11 @@ model Page {
   /// Googlebot renders; Bing, GPTBot, PerplexityBot, ClaudeBot and most social
   /// scrapers largely do not, so this is the difference between a page that is
   /// merely slow to index and one that is blank to every AI answer engine.
-  jsRequired         Boolean      @default(false)
+  jsRequired         Boolean           @default(false)
   /// sitemap | link | bundle | seed | robots — how this URL entered the frontier.
   /// A page only ever reached from a JS bundle manifest is a page no crawler
   /// that does not execute JavaScript will ever find.
-  discoverySource    String       @default("seed")
+  discoverySource    String            @default("seed")
   /// Every redirect hop as [{ url, status, location }], not just the endpoints.
   /// An apex->www->https chain and a redirect loop are indistinguishable from
   /// a start and end URL alone.
@@ -148,7 +148,7 @@ model Page {
   /// The origin answered with a challenge or refusal that a browser does not
   /// get. Deliberately not the same as a recorded status: it says we suspect a
   /// block and carries the evidence, rather than asserting the site said no.
-  blockedSuspected   Boolean      @default(false)
+  blockedSuspected   Boolean           @default(false)
   /// Why indexability came out the way it did, as a machine-readable reason
   /// list. Never inferred from the status code.
   indexabilityReason Json?
@@ -158,16 +158,22 @@ model Page {
   fetchErrorKind     String?
   /// INDEXABLE | NOT_INDEXABLE | UNKNOWN. UNKNOWN is a real answer — a signal
   /// we could not read is not a signal that said no — and renders grey.
-  indexability       String       @default("UNKNOWN")
+  indexability       String            @default("UNKNOWN")
   screenshotUrl      String?
-  crawledAt          DateTime     @default(now())
+  crawledAt          DateTime          @default(now())
   aeoMetrics         AeoMetrics?
   images             Image[]
   issues             Issue[]
   links              Link[]
-  crawlJob           CrawlJob     @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  crawlJob           CrawlJob          @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
   performance        Performance?
   schemas            Schema[]
+  /// Product-catalog row(s) this page was resolved to, when the crawler's
+  /// product detector flagged it. More than one when the page belongs to a
+  /// competitor's site, since that Website/Page is shared across every
+  /// project tracking the same domain and each gets its own catalog row.
+  catalogProducts    CatalogProduct[]
+  marketingSignals   MarketingSignal[]
 
   @@unique([crawlJobId, url])
   @@index([crawlJobId, statusCode])
@@ -470,6 +476,8 @@ model Project {
   pageSnapshots             PageSnapshot[]
   contentSuggestions        ContentSuggestion[]
   publishedChanges          PublishedChange[]
+  catalogProducts           CatalogProduct[]
+  marketingSignals          MarketingSignal[]
 
   @@index([organizationId])
 }
@@ -720,6 +728,8 @@ model CompetitorDomain {
   project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   socialAccounts   CompetitorAccount[]
   findings         CompetitorFinding[]
+  catalogProducts  CatalogProduct[]
+  marketingSignals MarketingSignal[]
 
   @@unique([projectId, domain])
   @@index([projectId])
@@ -3521,4 +3531,102 @@ model AuditReportSnapshot {
   createdAt DateTime @default(now())
 
   @@index([projectId, createdAt])
+}
+
+/// FOUND | NOT_PUBLISHED | NOT_YET_CRAWLED, used for both price and stock.
+///
+/// Two states were not enough: a wholesale product with no listed price and a
+/// product nobody has crawled yet look identical as a blank cell, but they
+/// call for opposite next steps (one is a fact about the site, the other is a
+/// reason to run a crawl). A persisted CatalogProduct row is always written
+/// with FOUND or NOT_PUBLISHED — the crawler that creates the row has, by
+/// definition, just read the page. NOT_YET_CRAWLED is what the Business
+/// module's API returns at the catalog level when no crawl has completed for
+/// that project or competitor at all, so a table cell is never left blank.
+enum CatalogFieldStatus {
+  FOUND
+  NOT_PUBLISHED
+  NOT_YET_CRAWLED
+}
+
+enum CatalogCtaType {
+  ADD_TO_CART
+  BUY_NOW
+  ENQUIRE
+  REQUEST_QUOTE
+}
+
+/// One product page, found by the crawler's product detector as it runs the
+/// same crawl job Website Audit already uses — never a second crawl.
+///
+/// `competitorId` null means the project's own site, exactly like
+/// `CompetitorFinding.competitorId` — the same convention, so a query that
+/// forgets to filter it does not silently mix the two catalogs.
+///
+/// The `@@unique` below only actually protects the competitor rows: Postgres
+/// treats two NULLs as distinct, so it does not stop two own-site rows for
+/// the same URL. The migration adds a second, partial unique index —
+/// `("projectId", "url") WHERE "competitorId" IS NULL` — for that case; it has
+/// no Prisma-schema representation, so own-site writes go through
+/// findFirst+create/update in the crawler rather than `upsert()`, which only
+/// targets the compound key below.
+///
+/// `pageId` is deliberately not unique: a competitor's crawled `Page` is
+/// shared (one `Website` per domain, tracked by any number of projects), so
+/// the same page can resolve to one `CatalogProduct` row per project.
+model CatalogProduct {
+  id                String             @id @default(uuid())
+  organizationId    String
+  projectId         String
+  competitorId      String?
+  pageId            String?
+  url               String
+  name              String?
+  priceStatus       CatalogFieldStatus @default(NOT_YET_CRAWLED)
+  /// Set only when priceStatus is FOUND. Minor currency units (paise/cents)
+  /// so two prices are never compared after independent float rounding.
+  priceMinorUnits   Int?
+  currency          String?
+  stockStatus       CatalogFieldStatus @default(NOT_YET_CRAWLED)
+  /// Set only when stockStatus is FOUND.
+  stockValue        String?
+  category          String?
+  ctaType           CatalogCtaType?
+  /// 0-1, the share of {name, price, currency, stock, category} that carry a
+  /// real value. NOT_PUBLISHED counts as "not populated" — it is a known
+  /// absence, not a value — so this is literally "% of fields populated".
+  completenessScore Float              @default(0)
+  /// 0-1, how confident the match is that this row is the same product as
+  /// crawled. Only meaningful for competitor rows, where site structure
+  /// varies far more than on the project's own crawl. Null for own-site rows.
+  matchConfidence   Float?
+  detectedAt        DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  competitor        CompetitorDomain?  @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  page              Page?              @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, competitorId, url])
+  @@index([projectId, competitorId])
+  @@index([projectId, category])
+}
+
+/// A positioning/messaging claim read off an already-crawled page's own copy
+/// (value-prop phrases, a detected promo, tone) by the multi-AI router.
+/// Never a new crawl, never ad-spend or social-listening data — on-page copy
+/// only, per the Business module's Marketing Signals tab.
+model MarketingSignal {
+  id             String            @id @default(uuid())
+  organizationId String
+  projectId      String
+  competitorId   String?
+  pageId         String?
+  kind           String
+  text           String
+  detectedAt     DateTime          @default(now())
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  competitor     CompetitorDomain? @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  page           Page?             @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, competitorId])
 }

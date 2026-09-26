@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, Zap, Wand2 } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, Sparkles, Wrench, Store, ShoppingBag, Zap, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -96,6 +96,11 @@ export function Sidebar({
       icon: Crosshair,
       aliases: ["/competitors", "/market"],
       step: { n: 2, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
+    },
+    {
+      label: "Business",
+      href: "/business",
+      icon: ShoppingBag,
     },
     {
       label: "AI Visibility",

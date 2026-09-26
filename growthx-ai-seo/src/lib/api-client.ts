@@ -3073,6 +3073,79 @@ export interface GenerateSuggestionBody {
   recommendedLocation?: string;
 }
 
+// ─────────────────────────────────────────────────────────────── Business
+//
+// Products Intelligence: the catalog the crawler's product detector builds
+// as part of the crawl job Website Audit already runs. Price and stock are
+// three states, never two — a row with FOUND carries a real value, one with
+// NOT_PUBLISHED is a known absence (common on B2B/wholesale sites), and
+// NOT_YET_CRAWLED means this catalog has no completed crawl at all yet.
+// Never render any of the three as a blank cell.
+
+export type CatalogFieldStatus = "FOUND" | "NOT_PUBLISHED" | "NOT_YET_CRAWLED";
+export type CatalogCrawlStatus = "NOT_STARTED" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type CatalogCtaType = "ADD_TO_CART" | "BUY_NOW" | "ENQUIRE" | "REQUEST_QUOTE";
+
+export interface CatalogProductRow {
+  id: string;
+  url: string;
+  name: string | null;
+  priceStatus: CatalogFieldStatus;
+  priceMinorUnits: number | null;
+  currency: string | null;
+  stockStatus: CatalogFieldStatus;
+  stockValue: string | null;
+  category: string | null;
+  ctaType: CatalogCtaType | null;
+  completenessScore: number;
+  /** Null on your own catalog — only a competitor's rows carry a confidence. */
+  matchConfidence: number | null;
+  detectedAt: string;
+  updatedAt: string;
+}
+
+export interface MyCatalogResponse {
+  crawlStatus: CatalogCrawlStatus;
+  crawledAt: string | null;
+  products: CatalogProductRow[];
+}
+
+export interface CompetitorCatalogResult {
+  competitor: { id: string; domain: string; label: string };
+  crawlStatus: CatalogCrawlStatus;
+  crawledAt: string | null;
+  products: CatalogProductRow[];
+}
+
+export type CatalogGapKind = "MISSING_CATEGORY" | "PRICE_DELTA" | "PRICE_INCOMPARABLE" | "STOCK_TRANSPARENCY";
+
+export interface CategoryGapItem {
+  id: string;
+  kind: CatalogGapKind;
+  competitorId: string;
+  competitorLabel: string;
+  competitorDomain: string;
+  category: string;
+  headline: string;
+  why: string;
+  steps: string[];
+  weight: number;
+}
+
+export type MarketingSignalKind = "VALUE_PROP" | "PROMO" | "TONE";
+
+export interface MarketingSignalDto {
+  id: string;
+  kind: MarketingSignalKind;
+  text: string;
+  detectedAt: string;
+}
+
+export interface MarketingSignalsResult {
+  mine: MarketingSignalDto[];
+  competitors: { competitor: { id: string; domain: string; label: string }; signals: MarketingSignalDto[] }[];
+}
+
 export const api = {
   // Mammouth AI Orchestration
   mammouth: {
@@ -4130,6 +4203,28 @@ export const api = {
       post<VerificationResult>(`/api/projects/${projectId}/design-studio/verify`, { publishedChangeId }),
     rollback: (projectId: string, publishedChangeId: string, reason?: string) =>
       post<RollbackRecord>(`/api/projects/${projectId}/design-studio/rollback`, { publishedChangeId, reason }),
+  },
+
+  // ─────────────────────────────────────────────────────────── Business
+  //
+  // Catalog (You) / Catalog (Them). Extraction rides the crawl job Website
+  // Audit already runs — these calls only read what that job wrote, and
+  // queue the one crawl Competitor Intelligence already uses for a competitor.
+  business: {
+    myCatalog: (projectId: string) =>
+      get<MyCatalogResponse>(`/api/projects/${projectId}/business/catalog/mine`),
+    competitorCatalogs: (projectId: string) =>
+      get<CompetitorCatalogResult[]>(`/api/projects/${projectId}/business/catalog/competitors`),
+    crawlCompetitor: (projectId: string, competitorId: string) =>
+      post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
+        `/api/projects/${projectId}/business/catalog/competitors/${competitorId}/crawl`,
+        {},
+      ),
+    gaps: (projectId: string) => get<CategoryGapItem[]>(`/api/projects/${projectId}/business/gaps`),
+    marketingSignals: (projectId: string) =>
+      get<MarketingSignalsResult>(`/api/projects/${projectId}/business/marketing-signals`),
+    generateMarketingSignals: (projectId: string, competitorId?: string) =>
+      post<MarketingSignalDto[]>(`/api/projects/${projectId}/business/marketing-signals/generate`, competitorId ? { competitorId } : {}),
   },
 };
 

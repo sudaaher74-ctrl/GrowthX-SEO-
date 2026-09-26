@@ -56,6 +56,7 @@ import { AutopilotModule } from './modules/autopilot/autopilot.module';
 import { AuditReportModule } from './modules/audit-report/audit-report.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
+import { BusinessModule } from './modules/business/business.module';
 
 
 @Module({
@@ -129,6 +130,7 @@ import { CompetitorActionEngineModule } from './modules/competitor-action-engine
     RivalSnapshotsModule,
     AutopilotModule,
     AuditReportModule,
+    BusinessModule,
   ],
 
   controllers: [HealthController],
