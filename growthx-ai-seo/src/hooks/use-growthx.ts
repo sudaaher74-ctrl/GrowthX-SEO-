@@ -976,6 +976,12 @@ export function useLatestCrawl(domain: string | null) {
     queryFn: () => api.getLatestCrawl(domain!),
     enabled: Boolean(domain),
     retry: false,
+    // A crawl started in another tab won't show up here on its own: this
+    // query only polls once ITS OWN cached status says RUNNING/PENDING, and
+    // the client disables refetchOnWindowFocus globally. Re-checking on
+    // focus is what notices the other tab's crawl and starts the interval
+    // above ticking.
+    refetchOnWindowFocus: true,
     refetchInterval: (query) =>
       query.state.data?.status === "RUNNING" || query.state.data?.status === "PENDING" ? 3000 : false,
   });
@@ -1345,6 +1351,10 @@ export function useIssueCounts(projectId: string | null, days?: number) {
     queryFn: () => api.issueCounts(projectId!, window),
     enabled: Boolean(projectId),
     retry: false,
+    // Same reasoning as useLatestCrawl: a recrawl kicked off in another tab
+    // otherwise leaves these counts (e.g. pagesCrawled) stale here until
+    // something else happens to trigger a refetch.
+    refetchOnWindowFocus: true,
   });
 }
 
