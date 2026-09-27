@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
+import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -225,11 +226,31 @@ export class CrawlController {
   async getLatestCrawlJob(@Req() req: any, @Param('domain') domain: string) {
     await this.websiteForCaller(req, { domain });
 
-    const latest = await this.prisma.crawlJob.findFirst({
+    // The newest crawl, unless it finished without reading anything: then the
+    // last crawl that did, with the failed attempt described alongside it. A
+    // failed re-audit used to replace a good audit on every screen with an
+    // empty one. A crawl in progress is still returned (screens poll it for
+    // progress), carrying the last completed crawl's figures to show meanwhile.
+    const recent = await this.prisma.crawlJob.findMany({
       where: { website: { domain } },
       orderBy: { createdAt: 'desc' },
+      take: 6,
       include: { website: true },
     });
+    let { shown, failedAttempt, lastUsable } = crawlToShow(recent);
+    if (!lastUsable && recent.length === 6) {
+      // Six failures in a row: look further back for the last good one.
+      lastUsable = await this.prisma.crawlJob.findFirst({
+        where: { website: { domain }, ...USABLE_CRAWL },
+        orderBy: { createdAt: 'desc' },
+        include: { website: true },
+      });
+      if (lastUsable && shown && shown.status !== 'PENDING' && shown.status !== 'RUNNING') {
+        failedAttempt = shown;
+        shown = lastUsable;
+      }
+    }
+    const latest = shown;
 
     if (latest && latest.status === 'COMPLETED' && latest.healthScore === null) {
       try {
@@ -302,7 +323,31 @@ export class CrawlController {
       }
     }
 
-    return latest ?? null;
+    if (!latest) return null;
+    return {
+      ...latest,
+      // The newest attempt, when it failed and an older crawl is shown instead.
+      latestAttempt: failedAttempt
+        ? {
+            id: failedAttempt.id,
+            status: failedAttempt.status,
+            errorMessage: failedAttempt.errorMessage,
+            startedAt: failedAttempt.startedAt,
+            finishedAt: failedAttempt.finishedAt,
+          }
+        : null,
+      // The last completed crawl's figures, while a newer crawl is under way.
+      lastCompleted:
+        (latest.status === 'PENDING' || latest.status === 'RUNNING') && lastUsable
+          ? {
+              id: lastUsable.id,
+              pagesCrawled: lastUsable.pagesCrawled,
+              issuesFound: lastUsable.issuesFound,
+              healthScore: lastUsable.healthScore,
+              finishedAt: lastUsable.finishedAt,
+            }
+          : null,
+    };
   }
 
   @Get('websites/:domain/crawl-history')

@@ -514,6 +514,25 @@ export interface CrawlJob {
   startedAt: string | null;
   finishedAt: string | null;
   website?: { domain: string; url: string };
+  /**
+   * Set when the newest attempt failed and this (older, successful) crawl is
+   * returned instead, so the screen can say the re-audit did not finish.
+   */
+  latestAttempt?: {
+    id: string;
+    status: string;
+    errorMessage: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+  } | null;
+  /** While this crawl is PENDING/RUNNING: the last completed crawl's figures, to show meanwhile. */
+  lastCompleted?: {
+    id: string;
+    pagesCrawled: number;
+    issuesFound: number;
+    healthScore: number | null;
+    finishedAt: string | null;
+  } | null;
 }
 
 /** One completed crawl, for trend lines. Only finished runs are returned. */
@@ -1828,7 +1847,10 @@ export interface TrackedCompetitor {
   lastAnalyzedAt: string | null;
   healthScore?: number | null;
   pagesCrawled?: number;
+  /** The newest crawl attempt's status, which may be newer than the crawl the figures came from. */
   crawlStatus?: string;
+  /** Why the newest attempt read nothing, when it did not. Null otherwise. */
+  crawlError?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
   aiCitationSharePct?: number | null;

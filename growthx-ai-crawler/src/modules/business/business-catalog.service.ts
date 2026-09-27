@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { crawlToShow } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 
@@ -20,25 +22,31 @@ export class BusinessCatalogService {
     private readonly competitorCrawl: CompetitorCrawlService,
   ) {}
 
-  private async ownSiteCrawlStatus(projectId: string): Promise<{ status: CatalogCrawlStatus; crawledAt: Date | null }> {
-    const job = await this.prisma.crawlJob.findFirst({
-      where: { website: { projectId } },
-      orderBy: { createdAt: 'desc' },
-      select: { status: true, finishedAt: true },
-    });
-    if (!job) return { status: 'NOT_STARTED', crawledAt: null };
-    return { status: job.status, crawledAt: job.finishedAt };
+  /**
+   * The newest crawl's status, unless it failed after an earlier crawl read
+   * the site: the products on screen came from that earlier crawl, so it is
+   * the one whose status and date describe them.
+   */
+  private async crawlStatusFor(where: Prisma.CrawlJobWhereInput): Promise<{ status: CatalogCrawlStatus; crawledAt: Date | null }> {
+    const { shown } = crawlToShow(
+      await this.prisma.crawlJob.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: { status: true, finishedAt: true, pagesCrawled: true },
+      }),
+    );
+    if (!shown) return { status: 'NOT_STARTED', crawledAt: null };
+    return { status: shown.status, crawledAt: shown.finishedAt };
+  }
+
+  private ownSiteCrawlStatus(projectId: string): Promise<{ status: CatalogCrawlStatus; crawledAt: Date | null }> {
+    return this.crawlStatusFor({ website: { projectId } });
   }
 
   private async competitorCrawlStatus(websiteId: string | null): Promise<{ status: CatalogCrawlStatus; crawledAt: Date | null }> {
     if (!websiteId) return { status: 'NOT_STARTED', crawledAt: null };
-    const job = await this.prisma.crawlJob.findFirst({
-      where: { websiteId },
-      orderBy: { createdAt: 'desc' },
-      select: { status: true, finishedAt: true },
-    });
-    if (!job) return { status: 'NOT_STARTED', crawledAt: null };
-    return { status: job.status, crawledAt: job.finishedAt };
+    return this.crawlStatusFor({ websiteId });
   }
 
   /** Catalog (You): the project's own crawled product pages. */

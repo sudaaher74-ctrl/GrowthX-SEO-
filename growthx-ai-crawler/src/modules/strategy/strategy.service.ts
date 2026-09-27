@@ -8,6 +8,7 @@ import {
   RecommendationHorizon,
   RecommendationImpact,
   } from '@prisma/client';
+import { USABLE_CRAWL } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { AgentRunService } from '../agents/agent-run.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
@@ -75,7 +76,8 @@ export class StrategyService {
 
     const latestCrawl = websiteIds.length
       ? await this.prisma.crawlJob.findFirst({
-          where: { websiteId: { in: websiteIds }, pagesCrawled: { gt: 0 } },
+          // Finished crawls only: a crawl still running has read part of the site.
+          where: { websiteId: { in: websiteIds }, ...USABLE_CRAWL },
           orderBy: { createdAt: 'desc' },
         })
       : null;

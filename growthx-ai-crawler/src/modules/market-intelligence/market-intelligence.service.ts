@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { USABLE_CRAWL } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 
@@ -77,7 +78,8 @@ export class MarketIntelligenceService {
     // returned pages for one of this project's own websites.
     const latestCrawl = websiteIds.length
       ? await this.prisma.crawlJob.findFirst({
-          where: { websiteId: { in: websiteIds }, pagesCrawled: { gt: 0 } },
+          // Finished crawls only: a crawl still running has read part of the site.
+          where: { websiteId: { in: websiteIds }, ...USABLE_CRAWL },
           orderBy: { createdAt: 'desc' },
           select: { id: true },
         })

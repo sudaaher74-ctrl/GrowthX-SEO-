@@ -35,6 +35,11 @@ function fakePrisma() {
         if (domain && jobs[domain]) return Promise.resolve({ id: `job-${domain}`, ...jobs[domain] });
         return Promise.resolve(null);
       }),
+      // The site list reads a site's recent crawls; each fixture site has one.
+      findMany: jest.fn(({ where }) => {
+        const domain = where?.website?.domain;
+        return Promise.resolve(domain && jobs[domain] ? [{ id: `job-${domain}`, ...jobs[domain] }] : []);
+      }),
     },
     page: { findMany: jest.fn().mockResolvedValue([]) },
     competitorDomain: {

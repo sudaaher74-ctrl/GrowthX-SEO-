@@ -63,8 +63,12 @@ export default function UnifiedDashboardPage() {
   });
 
   // Health Score computation (0-100 or null if no crawl)
-  const crawlCompleted = crawl.data && crawl.data.status === "COMPLETED";
-  const healthScore = crawlCompleted ? (crawl.data?.healthScore ?? client?.health ?? null) : null;
+  // The crawl whose figures stand: the latest when it completed, otherwise the
+  // last completed one while a recrawl runs. Showing nothing during a recrawl
+  // read as "Run your first crawl" for a site audited many times.
+  const shownCrawl = crawl.data?.status === "COMPLETED" ? crawl.data : (crawl.data?.lastCompleted ?? null);
+  const crawlCompleted = Boolean(shownCrawl);
+  const healthScore = shownCrawl ? (shownCrawl.healthScore ?? client?.health ?? null) : null;
   const counts = issueCounts.data ?? null;
   const criticalCount = counts?.bySeverity.CRITICAL ?? 0;
   const openFindings = counts?.openFindings ?? 0;
@@ -102,7 +106,7 @@ export default function UnifiedDashboardPage() {
               <span className="text-brand-300">·</span>
               <span>
                 {crawlCompleted
-                  ? `Last crawl ${relativeTime(crawl.data?.finishedAt ?? crawl.data?.startedAt)}`
+                  ? `Last crawl ${relativeTime(shownCrawl?.finishedAt ?? crawl.data?.startedAt)}`
                   : "No crawl completed yet"}
               </span>
             </span>
@@ -187,10 +191,10 @@ export default function UnifiedDashboardPage() {
         <TruthfulKpiCard
           label="Site Health Score"
           value={healthScore != null ? `${healthScore}/100` : null}
-          sub={crawlCompleted ? `${crawl.data?.pagesCrawled ?? 0} pages analyzed` : undefined}
+          sub={shownCrawl ? `${shownCrawl.pagesCrawled ?? 0} pages analyzed` : undefined}
           state={healthScore != null ? "MEASURED" : "NOT_CONFIGURED"}
           source="GrowthX Crawler Engine"
-          lastUpdated={crawl.data?.finishedAt ? relativeTime(crawl.data.finishedAt) : undefined}
+          lastUpdated={shownCrawl?.finishedAt ? relativeTime(shownCrawl.finishedAt) : undefined}
           actionHref="/website"
           actionLabel="Run your first crawl →"
         />
