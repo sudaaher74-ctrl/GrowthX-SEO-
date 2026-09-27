@@ -9,6 +9,13 @@ services:
     name: growthx-redis
     plan: free
     ipAllowList: []
+    # BullMQ keeps queue state, job payloads and locks in Redis, and Render's
+    # default policy (allkeys-lru) is free to evict any of them under memory
+    # pressure: a crawl's queued pages vanish, its pending-task counter goes
+    # with them, and the job never finishes. BullMQ warns about exactly this at
+    # boot. With noeviction a full instance rejects new writes instead, which
+    # fails loudly rather than losing work silently.
+    maxmemoryPolicy: noeviction
 
   - type: web
     name: growthx-crawler-api

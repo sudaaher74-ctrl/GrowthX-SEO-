@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, ServiceUnavailableException } fr
 import { PrismaService } from '../../database/prisma.service';
 import { google } from '../integrations/google/google-apis';
 import axios from 'axios';
+import { instagramCredentials } from '../../config/optional-env';
 
 /** The slice of Business Discovery this reads. */
 interface InstagramBusinessDiscovery {
@@ -342,14 +343,14 @@ export class SocialScraperService {
    * stored.
    */
   async readInstagramMedia(handle: string, maxResults = 25): Promise<FetchedPost[]> {
-    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
-    const igUserId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
-    if (!token || !igUserId) {
+    const credentials = instagramCredentials();
+    if (!credentials) {
       throw new ServiceUnavailableException(
-        'Instagram ingestion is not configured: INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID must both ' +
-          'be set. Add competitor posts manually until they are.',
+        'Instagram ingestion is not configured: INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_BUSINESS_ACCOUNT_ID (numeric) ' +
+          'must both be set. Add competitor posts manually until they are.',
       );
     }
+    const { accessToken: token, businessAccountId: igUserId } = credentials;
 
     const username = handle.replace(/^@/, '').trim();
     const fields =

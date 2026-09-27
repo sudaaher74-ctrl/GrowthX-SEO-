@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as url from 'url';
+import { describeHtmlResponse, isHtmlResponse } from '../crawler/discovery/html-response';
 
 export interface RobotsRules {
   allowedPaths: string[];
@@ -52,7 +53,13 @@ export class RobotsService {
         },
       });
 
-      if (response.status === 200 && typeof response.data === 'string') {
+      const contentType = String(response.headers?.['content-type'] ?? '');
+      if (response.status === 200 && typeof response.data === 'string' && isHtmlResponse(response.data, contentType)) {
+        // A site that answers every path with a page answers /robots.txt with
+        // one too. It is not a robots.txt, and reading its markup as directives
+        // could only produce rules nobody wrote. Treated as absent: allow all.
+        this.logger.log(`${describeHtmlResponse(robotsUrl, response.data)} Treating robots.txt as absent; all paths allowed.`);
+      } else if (response.status === 200 && typeof response.data === 'string') {
         rules.exists = true;
         rules.rawText = response.data;
         this.parseRobotsText(response.data, rules, process.env.USER_AGENT || 'GrowthX-AI-Bot');

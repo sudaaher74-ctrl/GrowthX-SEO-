@@ -10,6 +10,7 @@ import {
   resolveSarvamReasoningEffort,
 } from '../ai-engine/utils/sarvam-request.util';
 import { isProviderAllowed, readProviderAllowlist } from '../ai-engine/utils/ai-provider-allowlist.util';
+import { configuredValue, isConfiguredValue } from '../../config/optional-env';
 
 /**
  * The role a call plays, rather than the model that serves it.
@@ -212,16 +213,13 @@ export class ModelRouterService {
     return false;
   }
 
+  /** Placeholder values in .env.example would otherwise look configured. */
   private realKey(value?: string | null): boolean {
-    if (!value) return false;
-    const trimmed = value.trim();
-    // Placeholder values in .env.example would otherwise look configured.
-    return trimmed.length > 20 && !/^(your_|add-your-|changeme)/i.test(trimmed);
+    return isConfiguredValue(value);
   }
 
   private apiKey(): string | undefined {
-    const key = this.config.get<string>(KEY_ENV[this.provider()]);
-    return this.realKey(key) ? key!.trim() : undefined;
+    return configuredValue(this.config.get<string>(KEY_ENV[this.provider()]));
   }
 
   private openai(): OpenAI {

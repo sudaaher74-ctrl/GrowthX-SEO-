@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import * as url from 'url';
+import { describeHtmlResponse, isHtmlResponse } from '../crawler/discovery/html-response';
 
 export interface SitemapUrlEntry {
   loc: string;
@@ -98,6 +99,14 @@ export class SitemapService {
       });
 
       if (!response.data || typeof response.data !== 'string') return;
+
+      // A 200 carrying an HTML page (a soft 404, a catch-all route, a bot
+      // challenge) is not a sitemap, and parsing it as XML only produces a
+      // misleading parse failure. Checked before the parser sees it.
+      if (isHtmlResponse(response.data, String(response.headers?.['content-type'] ?? ''))) {
+        this.logger.debug(describeHtmlResponse(sitemapUrl, response.data));
+        return;
+      }
 
       const jsonObj = this.xmlParser.parse(response.data);
 

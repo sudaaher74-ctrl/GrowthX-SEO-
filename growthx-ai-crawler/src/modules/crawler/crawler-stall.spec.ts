@@ -12,9 +12,11 @@ describe('CrawlerService — stalled job sweep', () => {
   let prisma: any;
   let service: any;
   let completed: string[];
+  let queue: { hasQueuedWork: jest.Mock };
 
   beforeEach(() => {
     completed = [];
+    queue = { hasQueuedWork: jest.fn().mockResolvedValue(false) };
     prisma = {
       crawlJob: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -23,7 +25,7 @@ describe('CrawlerService — stalled job sweep', () => {
     };
 
     // Only the collaborators the sweep touches; the rest are irrelevant here.
-    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
+    service = new (CrawlerService as any)(prisma, {}, queue, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = jest.fn(async (id: string) => {
       completed.push(id);
     });
@@ -82,6 +84,69 @@ describe('CrawlerService — stalled job sweep', () => {
 
     await expect(service.finalizeStalledJobs()).resolves.toBeUndefined();
   });
+
+  // After a restart or a sleeping instance waking, a queued crawl's updatedAt
+  // is old only because nothing was running. Its work is still in Redis, and
+  // failing it would make the workers drop that work.
+  it('leaves a quiet crawl alone while its work is still queued', async () => {
+    prisma.crawlJob.findMany.mockResolvedValue([
+      { id: 'queued', pagesCrawled: 0, status: 'PENDING', updatedAt: new Date(Date.now() - 20 * 60 * 1000) },
+    ]);
+    queue.hasQueuedWork.mockResolvedValue(true);
+
+    await service.finalizeStalledJobs();
+
+    expect(queue.hasQueuedWork).toHaveBeenCalledWith('queued');
+    expect(prisma.crawlJob.update).not.toHaveBeenCalled();
+    expect(completed).toEqual([]);
+  });
+
+  it('still closes a queued crawl that has gone without progress past the backstop', async () => {
+    prisma.crawlJob.findMany.mockResolvedValue([
+      { id: 'forgotten', pagesCrawled: 0, status: 'PENDING', updatedAt: new Date(Date.now() - 7 * 60 * 60 * 1000) },
+    ]);
+    queue.hasQueuedWork.mockResolvedValue(true);
+
+    await service.finalizeStalledJobs();
+
+    expect(prisma.crawlJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'forgotten' }, data: expect.objectContaining({ status: 'FAILED' }) }),
+    );
+  });
+});
+
+describe('CrawlerService — stalled job sweep at startup', () => {
+  let prisma: any;
+  let service: any;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    prisma = { crawlJob: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() } };
+    service = new (CrawlerService as any)(prisma, {}, { hasQueuedWork: async () => false }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});
+  });
+
+  afterEach(() => {
+    service.onModuleDestroy();
+    jest.useRealTimers();
+  });
+
+  // Sweeping at boot is what failed every queued crawl on a restart: their
+  // updatedAt had stopped moving only because no process was running.
+  it('does not sweep the moment the process starts', () => {
+    service.onModuleInit();
+
+    expect(prisma.crawlJob.findMany).not.toHaveBeenCalled();
+  });
+
+  it('sweeps once a full stall window has passed, then on its interval', async () => {
+    service.onModuleInit();
+
+    await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(prisma.crawlJob.findMany).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(2 * 60 * 1000);
+    expect(prisma.crawlJob.findMany).toHaveBeenCalledTimes(2);
+  });
 });
 
 /**
@@ -97,6 +162,7 @@ describe('CrawlerService — a crawl cut short', () => {
   let prisma: any;
   let service: any;
   let updates: any[];
+  const queue = { hasQueuedWork: async () => false };
 
   beforeEach(() => {
     updates = [];
@@ -109,7 +175,7 @@ describe('CrawlerService — a crawl cut short', () => {
         }),
       },
     };
-    service = new (CrawlerService as any)(prisma, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
+    service = new (CrawlerService as any)(prisma, {}, queue, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = jest.fn(async () => {});
   });
 

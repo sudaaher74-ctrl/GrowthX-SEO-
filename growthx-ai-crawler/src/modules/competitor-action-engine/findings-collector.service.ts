@@ -3,6 +3,7 @@ import { FindingCategory, FindingConfidence, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { SiteProfile, countOf, issuesOf, EMPTY_PROFILE } from './site-profile';
 import { SiteProfileLoader } from './site-profile.loader';
+import { instagramCredentials } from '../../config/optional-env';
 
 /** A finding before it is written, so the comparison logic stays pure. */
 export interface DraftFinding {
@@ -113,7 +114,7 @@ export class FindingsCollectorService {
 
     // Instagram is designed but not enabled; saying so is more useful than an
     // absent section the operator has to notice for themselves.
-    if (!process.env.INSTAGRAM_ACCESS_TOKEN || !process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
+    if (!instagramCredentials()) {
       coverageGaps.push('Instagram is not connected, so no Instagram signals were included.');
     }
 

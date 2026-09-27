@@ -58,7 +58,9 @@ services:
     image: redis:7-alpine
     container_name: growthx-redis
     restart: always
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # noeviction, not an LRU policy: BullMQ's queue state and job metadata must
+    # never be evicted. A full instance rejects writes instead of dropping work.
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:

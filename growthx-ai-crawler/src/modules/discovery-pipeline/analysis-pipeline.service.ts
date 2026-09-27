@@ -8,6 +8,7 @@ import { PatternDetectionService } from '../content-intelligence/pattern-detecti
 import { GapAnalysisService } from '../content-intelligence/gap-analysis.service';
 import { ContentStrategyService } from '../content-intelligence/content-strategy.service';
 import { StrategyEngineService } from '../competitor-action-engine/strategy-engine.service';
+import { instagramCredentials, isConfiguredValue } from '../../config/optional-env';
 
 /** One stage of the chain, and what it did. */
 export interface AnalysisStage {
@@ -275,10 +276,8 @@ export class AnalysisPipelineService {
  */
 function configuredPlatforms(): string[] {
   const platforms: string[] = [];
-  if (process.env.YOUTUBE_API_KEY) platforms.push('YOUTUBE');
-  if (process.env.INSTAGRAM_ACCESS_TOKEN && process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
-    platforms.push('INSTAGRAM');
-  }
+  if (isConfiguredValue(process.env.YOUTUBE_API_KEY)) platforms.push('YOUTUBE');
+  if (instagramCredentials()) platforms.push('INSTAGRAM');
   return platforms;
 }
 
