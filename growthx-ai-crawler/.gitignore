@@ -13,9 +13,9 @@ dist/
 *.log
 npm-debug.log*
 
-# Crawler snapshots & storage (large binary/HTML files - never commit)
-storage/
-storage/snapshots/
+# Crawler snapshots & storage (large binary/HTML files - never commit).
+# Anchored to this folder: unanchored, it also matched the src/storage/ source.
+/storage/
 
 # Prisma client (generated)
 node_modules/.prisma/
