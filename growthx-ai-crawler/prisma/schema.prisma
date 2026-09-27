@@ -84,6 +84,13 @@ model CrawlJob {
   uniqueIssuesCount   Int              @default(0)
   resolvedIssuesCount Int              @default(0)
   qualityDiagnostics  Json?
+  /// When crawl retention cleared this crawl's stored page HTML (rawHtml,
+  /// renderedHtml and the snapshot files). The pages, issues and figures remain.
+  htmlPrunedAt        DateTime?
+  /// When crawl retention deleted this crawl's pages, issues, graph and
+  /// frontier. The row and its summary figures (pagesCrawled, issuesFound,
+  /// healthScore) are kept so trend lines still reach back past it.
+  detailsPrunedAt     DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   website             Website          @relation(fields: [websiteId], references: [id], onDelete: Cascade)
