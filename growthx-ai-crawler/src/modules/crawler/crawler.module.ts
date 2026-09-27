@@ -10,6 +10,7 @@ import { FetchService } from './fetch/fetch.service';
 import { DiscoveryService } from './discovery/discovery.service';
 import { FrontierService } from './frontier/frontier.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
+import { CrawlRetentionService } from './crawl-retention.service';
 
 @Global()
 @Module({
@@ -28,6 +29,8 @@ import { UrlInventoryService } from './inventory/url-inventory.service';
     UrlInventoryService,
     CrawlerProcessor,
     VerificationEngineService,
+    // Nightly pruning of old crawls' HTML and detail; see the service.
+    CrawlRetentionService,
   ],
   // CrawlerProcessor is exported so the health endpoint can report whether
   // the BullMQ workers actually started in this process.

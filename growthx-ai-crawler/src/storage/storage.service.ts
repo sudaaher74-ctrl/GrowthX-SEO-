@@ -122,6 +122,66 @@ export class StorageService implements OnModuleInit {
     }
   }
 
+  /**
+   * Removes one stored snapshot. Returns whether a file was deleted.
+   *
+   * Only a `file://` locator inside this service's own snapshot directory is
+   * ever touched. The locator comes from the database, and a path that
+   * resolves anywhere else is refused rather than trusted. A file that is
+   * already gone counts as done: a restart on an ephemeral disk removes them
+   * all, and the caller only wants it not to be there.
+   */
+  async deleteSnapshot(fileUrl: string): Promise<boolean> {
+    if (!fileUrl.startsWith('file://')) return false;
+    const filePath = path.resolve(fileUrl.slice('file://'.length));
+    if (path.dirname(filePath) !== this.localPath) {
+      this.logger.warn(`Refusing to delete ${filePath}: it is outside the snapshot directory ${this.localPath}.`);
+      return false;
+    }
+    try {
+      await fs.promises.unlink(filePath);
+      return true;
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        this.logger.warn(`Could not delete snapshot ${filePath}: ${(error as Error).message}`);
+      }
+      return false;
+    }
+  }
+
+  /**
+   * Deletes every local snapshot file written for the given crawls, except
+   * the locators in `keep`. Returns how many files were removed.
+   *
+   * Matched on the `<jobId>_` filename prefix rather than on the locators the
+   * pages recorded, because a page fetched more than once (a retry, a
+   * re-run after a stalled lock) writes a file each time and records only the
+   * last. One directory read covers every crawl in the batch.
+   */
+  async deleteSnapshotsForJobs(jobIds: Iterable<string>, keep: Set<string> = new Set()): Promise<number> {
+    const prefixes = [...jobIds].map((id) => `${id}_`);
+    if (prefixes.length === 0 || this.provider === 's3') return 0;
+
+    let names: string[];
+    try {
+      names = await fs.promises.readdir(this.localPath);
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        this.logger.warn(`Could not list snapshots in ${this.localPath}: ${(error as Error).message}`);
+      }
+      return 0;
+    }
+
+    let removed = 0;
+    for (const name of names) {
+      if (!prefixes.some((prefix) => name.startsWith(prefix))) continue;
+      const locator = `file://${path.join(this.localPath, name)}`;
+      if (keep.has(locator)) continue;
+      if (await this.deleteSnapshot(locator)) removed++;
+    }
+    return removed;
+  }
+
   async readSnapshot(fileUrl: string): Promise<string | null> {
     if (fileUrl.startsWith('file://')) {
       const filePath = fileUrl.replace('file://', '');

@@ -82,6 +82,11 @@ services:
       # a database whose whole free-tier allowance is a gigabyte.
       - key: MAX_STORED_HTML_BYTES
         value: "131072"
+      # Nightly (02:30 UTC) pruning of old crawls so the free-plan database stops
+      # growing: HTML beyond each site's newest 2 crawls, pages and issues beyond
+      # the newest 3 once over 45 days old. "report" logs without deleting.
+      - key: CRAWL_RETENTION_MODE
+        value: delete
       # Secrets are never checked into the repository.
       #
       # `sync: false` tells Render to prompt for the value in the dashboard and
