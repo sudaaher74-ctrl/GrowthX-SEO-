@@ -172,6 +172,82 @@ describe('DiscoveryService', () => {
     expect(result.urls.filter((u) => u.source === 'sitemap')).toHaveLength(0);
   });
 
+  describe('a 200 that carries an HTML page instead of a sitemap', () => {
+    const catchAll = '<!doctype html><html><head><title>Shop</title></head><body>Welcome</body></html>';
+
+    it('says nothing about guessed paths once a real sitemap has been read', async () => {
+      // /sitemap.xml is real; /wp-sitemap.xml and the rest fall through to the
+      // catch-all route. That is "not here", not five broken sitemaps.
+      const pending: Record<string, any> = {};
+      server = await startFixtureServer(pending);
+      const origin = server.origin;
+      Object.assign(pending, {
+        '/robots.txt': { headers: { 'content-type': 'text/plain' }, body: 'User-agent: *\nAllow: /\n' },
+        '/sitemap.xml': { headers: { 'content-type': 'application/xml' }, body: urlset([`${origin}/a`]) },
+        '*': { body: catchAll },
+      });
+
+      const result = await discovery.discoverSeeds(server.url('/'));
+
+      expect(result.sitemapsFetched).toEqual([`${origin}/sitemap.xml`]);
+      expect(result.findings.filter((f) => f.kind === 'NOT_A_SITEMAP')).toEqual([]);
+    });
+
+    it('reports one missing sitemap, not one per guessed path, when nothing else was found', async () => {
+      server = await startFixtureServer({ '*': { body: catchAll } });
+
+      const result = await discovery.discoverSeeds(server.url('/'));
+
+      const notSitemaps = result.findings.filter((f) => f.kind === 'NOT_A_SITEMAP');
+      expect(notSitemaps).toHaveLength(1);
+      expect(notSitemaps[0].servedHtml).toBe(true);
+      expect(notSitemaps[0].evidence).toContain('/wp-sitemap.xml');
+      expect(notSitemaps[0].evidence).toContain('HTML page');
+    });
+
+    it('keeps the finding for a declared sitemap, and names a bot challenge as one', async () => {
+      const pending: Record<string, any> = {};
+      server = await startFixtureServer(pending);
+      const origin = server.origin;
+      Object.assign(pending, {
+        '/robots.txt': { headers: { 'content-type': 'text/plain' }, body: `Sitemap: ${origin}/wp-sitemap.xml\n` },
+        '/wp-sitemap.xml': {
+          body: '<!DOCTYPE html><html><head><title>Just a moment...</title></head><body><div id="cf-chl-widget"></div></body></html>',
+        },
+        '*': { body: catchAll },
+      });
+
+      const result = await discovery.discoverSeeds(server.url('/'));
+
+      const declared = result.findings.find((f) => f.sitemapUrl === `${origin}/wp-sitemap.xml`);
+      expect(declared?.kind).toBe('NOT_A_SITEMAP');
+      expect(declared?.evidence).toContain('bot-protection challenge');
+      // The guessed paths answering with the catch-all page add nothing to it.
+      expect(result.findings.filter((f) => f.kind === 'NOT_A_SITEMAP')).toHaveLength(1);
+    });
+
+    it('still reads a real sitemap that the server labels text/html', async () => {
+      const pending: Record<string, any> = {};
+      server = await startFixtureServer(pending);
+      const origin = server.origin;
+      Object.assign(pending, {
+        '/sitemap.xml': { headers: { 'content-type': 'text/html' }, body: urlset([`${origin}/mislabelled`]) },
+      });
+
+      const result = await discovery.discoverSeeds(server.url('/'));
+
+      expect(result.urls.map((u) => u.normalizedUrl)).toContain(`${origin}/mislabelled`);
+    });
+
+    it('treats an HTML page at /robots.txt as no robots.txt', async () => {
+      server = await startFixtureServer({ '*': { body: '<html><body>Disallow: /\n</body></html>' } });
+
+      const robots = await discovery.fetchRobots(server.origin);
+
+      expect(robots).toEqual({ groups: [], sitemaps: [], raw: '' });
+    });
+  });
+
   it('extracts rendered links, ignoring mailto, tel and off-site hrefs', () => {
     const html = `<html><body>
       <a href="/about">About</a>

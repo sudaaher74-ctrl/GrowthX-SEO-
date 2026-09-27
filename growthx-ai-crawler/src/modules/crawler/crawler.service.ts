@@ -90,7 +90,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    */
   private static readonly STALL_TIMEOUT_MS = 5 * 60 * 1000;
   private static readonly STALL_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
+  /**
+   * How long a crawl BullMQ still holds work for may go without progress
+   * before it is closed anyway. Its work is only waiting its turn, so this is
+   * a backstop for work that is queued but never runs, not a performance limit.
+   */
+  private static readonly QUEUED_MAX_IDLE_MS = Number(process.env.CRAWL_QUEUED_MAX_IDLE_MS ?? 6 * 60 * 60 * 1000);
   private stallSweep?: NodeJS.Timeout;
+  private startupSweep?: NodeJS.Timeout;
 
   /**
    * Crawl-job statuses, briefly cached, so abandoned work can be dropped
@@ -140,18 +147,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * Initiates a new crawl job for a verified website
    */
   onModuleInit(): void {
-    // Swept immediately as well as on a timer: a restart is the single most
-    // likely reason for an abandoned job, and the jobs it abandoned should not
-    // wait out a full interval before being cleared.
-    void this.finalizeStalledJobs();
-    this.stallSweep = setInterval(() => {
+    // The first sweep waits out a full stall window after boot.
+    //
+    // It used to run the moment the process started. But a job's `updatedAt`
+    // stops moving whenever no process is running, so after a deploy, a crash,
+    // or a free instance waking from sleep, every queued crawl looked idle for
+    // however long the process had been down. Every one of them was marked
+    // FAILED at boot ("Abandoned before any page was crawled"), and then the
+    // workers, which were resuming exactly that work from Redis, dropped it
+    // because the crawl was already finished.
+    //
+    // Only idleness while a process was alive to make progress counts. A crawl
+    // that was really lost is still closed, one stall window later.
+    const graceMs = Number(process.env.CRAWL_STARTUP_GRACE_MS ?? CrawlerService.STALL_TIMEOUT_MS);
+    this.startupSweep = setTimeout(() => {
       void this.finalizeStalledJobs();
-    }, CrawlerService.STALL_SWEEP_INTERVAL_MS);
-    // Do not hold the process open on this timer alone.
-    this.stallSweep.unref?.();
+      this.stallSweep = setInterval(() => {
+        void this.finalizeStalledJobs();
+      }, CrawlerService.STALL_SWEEP_INTERVAL_MS);
+      // Do not hold the process open on this timer alone.
+      this.stallSweep.unref?.();
+    }, graceMs);
+    this.startupSweep.unref?.();
   }
 
   onModuleDestroy(): void {
+    if (this.startupSweep) clearTimeout(this.startupSweep);
     if (this.stallSweep) clearInterval(this.stallSweep);
   }
 
@@ -174,7 +195,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * was crawled, so a partial crawl is never reported as more than it was.
    *
    * Only jobs idle beyond the timeout are touched, so a second instance's live
-   * crawl is never finalised out from under it.
+   * crawl is never finalised out from under it. A job BullMQ still holds work
+   * for is left alone too (up to QUEUED_MAX_IDLE_MS), since that work will run.
    */
   private async finalizeStalledJobs(): Promise<void> {
     const idleSince = new Date(Date.now() - CrawlerService.STALL_TIMEOUT_MS);
@@ -182,15 +204,30 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     try {
       const stalled = await this.prisma.crawlJob.findMany({
         where: { status: { in: ['RUNNING', 'PENDING'] }, updatedAt: { lt: idleSince } },
-        select: { id: true, pagesCrawled: true, pagesDiscovered: true, status: true },
+        select: { id: true, pagesCrawled: true, pagesDiscovered: true, status: true, updatedAt: true },
       });
       if (stalled.length === 0) return;
 
+      const abandoned: typeof stalled = [];
+      for (const job of stalled) {
+        // Quiet is not the same as abandoned: a crawl whose work is still in
+        // the queue is waiting its turn, and failing it would drop that work.
+        // Past the backstop it is closed regardless, so a crawl can never be
+        // left RUNNING forever by a queue that never reaches it.
+        const idleMs = Date.now() - new Date(job.updatedAt ?? 0).getTime();
+        if (idleMs < CrawlerService.QUEUED_MAX_IDLE_MS && (await this.queue.hasQueuedWork(job.id))) {
+          this.logger.log(`[JOB ${job.id}] No progress recently, but its work is still queued; leaving it to run.`);
+          continue;
+        }
+        abandoned.push(job);
+      }
+      if (abandoned.length === 0) return;
+
       this.logger.warn(
-        `Found ${stalled.length} crawl job(s) with no progress since ${idleSince.toISOString()}; finalising them.`,
+        `Found ${abandoned.length} crawl job(s) with no progress since ${idleSince.toISOString()} and no queued work; finalising them.`,
       );
 
-      for (const job of stalled) {
+      for (const job of abandoned) {
         try {
           if (job.pagesCrawled > 0) {
             // completeJob runs the graph analysis and flips the status, so the
@@ -370,7 +407,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           `${discovered.findings.length} sitemap finding(s).`,
       );
       for (const finding of discovered.findings) {
-        this.logger.warn(`[JOB ${payload.jobId}] Sitemap ${finding.kind}: ${finding.evidence}`);
+        // An HTML page where a sitemap was expected describes the site (no
+        // sitemap there, or a bot wall), not a fault in the crawler.
+        const line = `[JOB ${payload.jobId}] Sitemap ${finding.kind}: ${finding.evidence}`;
+        if (finding.servedHtml) this.logger.log(line);
+        else this.logger.warn(line);
       }
     } catch (err) {
       // Discovery failing must not stop the crawl: the start URL is still a

@@ -4,6 +4,7 @@ import * as zlib from 'zlib';
 import * as cheerio from 'cheerio';
 import { parseRobotsTxt, ParsedRobots, isAllowedByRobots, selectGroup } from './robots-txt';
 import { parseSitemapXml, SitemapEntry } from './sitemap-parser';
+import { describeHtmlResponse, isHtmlResponse } from './html-response';
 import { normalizeUrl } from '../url/url-normalizer';
 import { registrableDomain, sameRegistrableDomain } from '../url/registrable-domain';
 import { DEFAULT_CHROME_UA } from '../fetch/browser-pool.service';
@@ -37,6 +38,11 @@ export interface SitemapFinding {
   /** Sample of the offending URLs, for the issue's evidence. */
   sampleUrls?: string[];
   foreignDomain?: string;
+  /**
+   * NOT_A_SITEMAP only: the body was an HTML page (a soft 404, a catch-all
+   * route, a bot challenge) rather than malformed XML.
+   */
+  servedHtml?: boolean;
 }
 
 export interface DiscoveryResult {
@@ -110,6 +116,12 @@ export class DiscoveryService {
         this.logger.debug(`No robots.txt at ${robotsUrl} (HTTP ${response.status}).`);
         return { groups: [], sitemaps: [], raw: '' };
       }
+      // An HTML page at /robots.txt (a catch-all route, a soft 404) is an
+      // absent robots.txt too, not a file whose markup holds directives.
+      if (isHtmlResponse(response.data, String(response.headers?.['content-type'] ?? ''))) {
+        this.logger.debug(describeHtmlResponse(robotsUrl, response.data));
+        return { groups: [], sitemaps: [], raw: '' };
+      }
       return parseRobotsTxt(response.data);
     } catch (err) {
       this.logger.warn(`robots.txt at ${robotsUrl} could not be read: ${(err as Error).message}`);
@@ -131,7 +143,9 @@ export class DiscoveryService {
    * and plenty serve a plain `.xml` under a `.gz` name. The magic number
    * decides.
    */
-  private async fetchSitemapDocument(sitemapUrl: string): Promise<{ status: number; xml?: string; error?: string }> {
+  private async fetchSitemapDocument(
+    sitemapUrl: string,
+  ): Promise<{ status: number; xml?: string; contentType?: string; error?: string }> {
     const sitemapTimeout = Number(process.env.SITEMAP_TIMEOUT_MS || 15000);
     try {
       const response = await axios.get(sitemapUrl, {
@@ -144,6 +158,7 @@ export class DiscoveryService {
         maxContentLength: Number(process.env.MAX_SITEMAP_BYTES || 50 * 1024 * 1024),
       });
       if (response.status !== 200) return { status: response.status };
+      const contentType = String(response.headers?.['content-type'] ?? '') || undefined;
 
       let buffer = Buffer.from(response.data as ArrayBuffer);
       if (buffer.length > 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
@@ -153,7 +168,7 @@ export class DiscoveryService {
           return { status: response.status, error: `gzip could not be decoded: ${(err as Error).message}` };
         }
       }
-      return { status: response.status, xml: buffer.toString('utf8') };
+      return { status: response.status, xml: buffer.toString('utf8'), contentType };
     } catch (err) {
       return { status: 0, error: (err as Error).message };
     }
@@ -184,6 +199,20 @@ export class DiscoveryService {
         kind: 'UNREACHABLE',
         sitemapUrl,
         evidence: doc.error ? `${sitemapUrl} could not be fetched: ${doc.error}` : `${sitemapUrl} returned HTTP ${doc.status}`,
+      });
+      return;
+    }
+
+    // Checked before parsing. An HTML page is not broken XML: it is a page
+    // where no sitemap exists, or a challenge that kept us out, and treating it
+    // as XML is what turned every catch-all site into a "broken sitemap".
+    if (isHtmlResponse(doc.xml, doc.contentType)) {
+      this.logger.debug(`${sitemapUrl} answered with HTML, not a sitemap.`);
+      result.findings.push({
+        kind: 'NOT_A_SITEMAP',
+        sitemapUrl,
+        servedHtml: true,
+        evidence: describeHtmlResponse(sitemapUrl, doc.xml),
       });
       return;
     }
@@ -316,6 +345,27 @@ export class DiscoveryService {
     // /wp-sitemap.xml collects four spurious issues.
     const declared = new Set(robots?.sitemaps || []);
     result.findings = result.findings.filter((f) => f.kind !== 'UNREACHABLE' || declared.has(f.sitemapUrl) || result.sitemapsFetched.length === 0);
+
+    // The same goes for a guessed path that answers with an HTML page: on a
+    // site that serves a page for every URL, that is how "not here" looks.
+    // Once a real sitemap has been read they say nothing at all. When none
+    // was, they say one thing, "no sitemap could be found", and it is said once
+    // rather than once per guessed path.
+    const guessedHtml = result.findings.filter((f) => f.servedHtml && !declared.has(f.sitemapUrl));
+    if (guessedHtml.length > 0) {
+      result.findings = result.findings.filter((f) => !guessedHtml.includes(f));
+      if (result.sitemapsFetched.length === 0 && declared.size === 0) {
+        result.findings.push({
+          ...guessedHtml[0],
+          evidence:
+            guessedHtml.length === 1
+              ? guessedHtml[0].evidence
+              : `No sitemap was found: ${guessedHtml.length} conventional sitemap paths ` +
+                `(${guessedHtml.map((f) => new URL(f.sitemapUrl).pathname).join(', ')}) returned an HTML page instead. ` +
+                guessedHtml[0].evidence,
+        });
+      }
+    }
 
     return result;
   }

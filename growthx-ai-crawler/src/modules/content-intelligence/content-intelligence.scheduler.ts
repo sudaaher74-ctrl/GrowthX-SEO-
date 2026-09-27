@@ -7,6 +7,7 @@ import { ContentStrategyService } from './content-strategy.service';
 import { SocialScraperService } from './social-scraper.service';
 import { CompetitorLocalService } from '../competitor-action-engine/competitor-local.service';
 import { TRACKED_COMPETITOR_STATUSES } from './competitor-status';
+import { instagramCredentials, isConfiguredValue } from '../../config/optional-env';
 
 /**
  * Automated Cron Scheduler for Competitor Intelligence & Recurring Site Crawls.
@@ -123,10 +124,8 @@ export class ContentIntelligenceScheduler {
     // alone, so the sweep collects whichever it can rather than refusing
     // outright because one is missing.
     const platforms: string[] = [];
-    if (process.env.YOUTUBE_API_KEY) platforms.push('YOUTUBE');
-    if (process.env.INSTAGRAM_ACCESS_TOKEN && process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
-      platforms.push('INSTAGRAM');
-    }
+    if (isConfiguredValue(process.env.YOUTUBE_API_KEY)) platforms.push('YOUTUBE');
+    if (instagramCredentials()) platforms.push('INSTAGRAM');
 
     if (platforms.length === 0) {
       this.logger.warn(

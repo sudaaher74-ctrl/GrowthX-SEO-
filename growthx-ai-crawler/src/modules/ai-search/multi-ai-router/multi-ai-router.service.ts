@@ -17,6 +17,7 @@ import {
 } from '../../ai-engine/utils/sarvam-request.util';
 import { isProviderAllowed, readProviderAllowlist } from '../../ai-engine/utils/ai-provider-allowlist.util';
 import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
+import { configuredValue, isConfiguredValue } from '../../../config/optional-env';
 import { AiUsageService } from './ai-usage.service';
 import {
   MammouthCapability,
@@ -251,8 +252,8 @@ export class MultiAiRouterService {
     const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
     if (this.isRealKey(anthropicKey)) this.anthropic = new Anthropic({ apiKey: anthropicKey });
 
-    const openaiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (this.isRealKey(openaiKey)) this.openai = new OpenAI({ apiKey: openaiKey });
+    const openaiKey = configuredValue(this.config.get<string>('OPENAI_API_KEY'));
+    if (openaiKey) this.openai = new OpenAI({ apiKey: openaiKey });
 
     const geminiKey = this.config.get<string>('GEMINI_API_KEY');
     if (this.isRealKey(geminiKey)) this.gemini = new GoogleGenAI({ apiKey: geminiKey });
@@ -260,8 +261,8 @@ export class MultiAiRouterService {
     const groqKey = this.config.get<string>('GROQ_API_KEY');
     if (this.isRealKey(groqKey)) this.groq = new Groq({ apiKey: groqKey });
 
-    const openrouterKey = this.config.get<string>('OPENROUTER_API_KEY');
-    if (this.isRealKey(openrouterKey)) {
+    const openrouterKey = configuredValue(this.config.get<string>('OPENROUTER_API_KEY'));
+    if (openrouterKey) {
       this.openrouter = new OpenAI({
         apiKey: openrouterKey,
         baseURL: 'https://openrouter.ai/api/v1',
@@ -287,9 +288,7 @@ export class MultiAiRouterService {
 
   /** Placeholder values from .env.example must not count as configured. */
   private isRealKey(value?: string): value is string {
-    if (!value) return false;
-    const lower = value.toLowerCase();
-    return !lower.startsWith('your_') && !lower.startsWith('add-') && !lower.includes('***');
+    return isConfiguredValue(value);
   }
 
   configuredProviders(): AiProvider[] {

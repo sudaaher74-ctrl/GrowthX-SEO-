@@ -21,10 +21,10 @@ describe('google-apis', () => {
     return found;
   }
 
-  it('is the only module importing googleapis in aggregate', () => {
+  it('never imports the aggregate googleapis package', () => {
     const offenders = sourceFiles(SRC)
       .filter((file) => path.basename(file) !== 'google-apis.ts')
-      .filter((file) => /from ['"]googleapis['"]|require\(['"]googleapis['"]\)/.test(fs.readFileSync(file, 'utf8')))
+      .filter((file) => /from ['"]googleapis['"/]|require\(['"]googleapis['"/]/.test(fs.readFileSync(file, 'utf8')))
       .map((file) => path.relative(SRC, file));
 
     expect(offenders).toEqual([]);

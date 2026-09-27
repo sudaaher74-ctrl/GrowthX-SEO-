@@ -98,6 +98,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       await this.redisConnection.connect();
       this.logger.log(`Connected to ${redisUrl ? 'Production Redis' : `Redis at ${host}:${port}`} for BullMQ queues.`);
 
+      // Before the queues exist: BullMQ checks the policy as each one connects.
+      await this.ensureNoEviction(this.redisConnection);
+
       this.crawlJobsQueue = new Queue<CrawlJobPayload>('crawl-jobs', { connection: this.redisConnection });
       this.pageFetchQueue = new Queue<PageFetchPayload>('page-fetch', { connection: this.redisConnection });
     } catch (err: any) {
@@ -116,6 +119,56 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       // synchronous fallback when Redis is unreachable, not hang the boot.
       this.markReady();
     }
+  }
+
+  /**
+   * Makes sure Redis will never evict BullMQ's keys.
+   *
+   * Under an LRU policy (Render's default is allkeys-lru), Redis frees memory
+   * by deleting whatever keys were used least recently, and a queued page, a
+   * job's lock or a crawl's pending-task counter are all fair game. The crawl
+   * then never finishes and nothing records why. `noeviction` makes a full
+   * instance reject writes instead, which is loud rather than silent.
+   *
+   * The real fix is the server's configuration (`maxmemoryPolicy` in
+   * render.yaml, `--maxmemory-policy` in docker-compose). This corrects an
+   * instance that was created before that setting existed, where the server
+   * allows it. Managed Redis often disables CONFIG, and then all this can do is
+   * say what to change. Set REDIS_ENFORCE_NOEVICTION=false to only report.
+   *
+   * Never throws: an eviction policy is not a reason to run without a queue.
+   */
+  async ensureNoEviction(client: Pick<IORedis, 'config'>): Promise<'ok' | 'corrected' | 'wrong' | 'unknown'> {
+    let policy: string | undefined;
+    try {
+      const reply = (await client.config('GET', 'maxmemory-policy')) as unknown;
+      policy = Array.isArray(reply) ? String(reply[1] ?? '') : undefined;
+    } catch (err: any) {
+      this.logger.warn(
+        `Could not read the Redis eviction policy (${err?.message}). BullMQ requires "noeviction"; ` +
+          'confirm it in the Redis provider settings (render.yaml: maxmemoryPolicy: noeviction).',
+      );
+      return 'unknown';
+    }
+
+    if (!policy || policy === 'noeviction') return policy ? 'ok' : 'unknown';
+
+    if (process.env.REDIS_ENFORCE_NOEVICTION !== 'false') {
+      try {
+        await client.config('SET', 'maxmemory-policy', 'noeviction');
+        this.logger.log(`Redis eviction policy changed from "${policy}" to "noeviction" so queued crawl work cannot be evicted.`);
+        return 'corrected';
+      } catch (err: any) {
+        this.logger.warn(`Could not change the Redis eviction policy (${err?.message}).`);
+      }
+    }
+
+    this.logger.warn(
+      `Redis eviction policy is "${policy}"; BullMQ needs "noeviction". Under memory pressure Redis may delete ` +
+        'queued pages, job locks and crawl counters, and the affected crawls will never finish. Set ' +
+        '"maxmemoryPolicy: noeviction" on the Redis service (render.yaml) or "--maxmemory-policy noeviction" on the server.',
+    );
+    return 'wrong';
   }
 
   async onModuleDestroy() {
@@ -146,6 +199,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       return payload.jobId;
     }
     const job = await this.crawlJobsQueue.add('start-crawl', payload, {
+      // Keyed by the crawl's own id, so `hasQueuedWork` can find it directly.
+      jobId: payload.jobId,
       removeOnComplete: 1000,
       removeOnFail: 5000,
       attempts: 3,
@@ -332,6 +387,41 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       return val ? parseInt(val, 10) : 0;
     }
     return this.inMemoryTaskCounters.get(jobId) || 0;
+  }
+
+  /**
+   * Whether BullMQ still holds work for this crawl that a worker will pick up.
+   *
+   * A crawl that has recorded nothing for a while is not necessarily
+   * abandoned. After a restart, or when a sleeping instance wakes, its work is
+   * still in Redis: the start-crawl job is waiting, or its pages are queued
+   * behind another crawl's. Failing it then drops that work, because the
+   * workers skip tasks for a crawl that is already finished.
+   *
+   * True when the start-crawl job is still waiting, active or delayed, or when
+   * the crawl has pages outstanding and the page-fetch queue is not empty. The
+   * page-fetch queue is shared by every crawl and not indexed by crawl, so the
+   * second check cannot prove that this crawl's pages are among those queued.
+   * It can only say that they may be, and that the crawl is waiting its turn.
+   * False whenever the answer cannot be known (no Redis, or an error), which
+   * leaves the stall sweep's own judgement in charge.
+   */
+  async hasQueuedWork(jobId: string): Promise<boolean> {
+    if (!this.crawlJobsQueue || !this.pageFetchQueue) return false;
+    try {
+      const startJob = await this.crawlJobsQueue.getJob(jobId);
+      if (startJob) {
+        const state = await startJob.getState();
+        if (['waiting', 'active', 'delayed', 'prioritized', 'waiting-children'].includes(state)) return true;
+      }
+
+      if ((await this.getPendingTasks(jobId)) <= 0) return false;
+      const counts = await this.pageFetchQueue.getJobCounts('waiting', 'active', 'delayed', 'prioritized');
+      return Object.values(counts).some((count) => count > 0);
+    } catch (err: any) {
+      this.logger.warn(`Could not check queued work for job ${jobId}: ${err?.message}`);
+      return false;
+    }
   }
 
   getRedisClient(): IORedis | undefined {

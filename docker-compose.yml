@@ -22,6 +22,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    # Redis already defaults to noeviction; stated so it cannot be changed to
+    # an LRU policy by accident. BullMQ's queue state must never be evicted.
+    command: redis-server --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:

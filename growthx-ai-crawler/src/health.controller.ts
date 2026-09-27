@@ -4,6 +4,7 @@ import { QueueService } from './modules/queue/queue.service';
 import { ConfigService } from '@nestjs/config';
 import { isProviderAllowed, readProviderAllowlist } from './modules/ai-engine/utils/ai-provider-allowlist.util';
 import { CrawlerProcessor } from './modules/crawler/crawler.processor';
+import { instagramCredentials, isConfiguredValue } from './config/optional-env';
 
 /**
  * When this process started. A redeploy resets it, which — together with the
@@ -29,10 +30,9 @@ interface Capability {
   envVar: string;
 }
 
+/** The same rule the features themselves apply, so this report cannot disagree with them. */
 function realKey(value?: string): boolean {
-  if (!value) return false;
-  const trimmed = value.trim();
-  return trimmed.length > 20 && !/^(your_|add-your-|changeme)/i.test(trimmed);
+  return isConfiguredValue(value);
 }
 
 @Controller('health')
@@ -117,14 +117,21 @@ export class HealthController implements OnApplicationBootstrap {
     };
   }
 
-  /** Logs the gaps once at boot so they are visible in a deploy log. */
+  /**
+   * Logs the gaps once at boot so they are visible in a deploy log.
+   *
+   * At info level, not as a warning: each of these is optional by design, and
+   * the feature behind it reports itself unavailable rather than failing. A
+   * warning on every boot for a choice the operator made on purpose trains
+   * everyone to ignore warnings.
+   */
   onApplicationBootstrap(): void {
     const missing = this.capabilityList().filter((c) => !c.configured);
     if (missing.length === 0) {
       this.logger.log('All optional integrations are configured.');
       return;
     }
-    this.logger.warn(
+    this.logger.log(
       `${missing.length} optional integration(s) unconfigured — the matching sections will be empty, not estimated:\n` +
         missing.map((c) => `  - ${c.envVar}: ${c.consequence}`).join('\n'),
     );
@@ -254,20 +261,17 @@ export class HealthController implements OnApplicationBootstrap {
         envVar: 'INSTAGRAM_ACCESS_TOKEN + INSTAGRAM_BUSINESS_ACCOUNT_ID',
         // Both or neither: a token without the account id has nothing to run
         // the Business Discovery query from.
-        configured:
-          realKey(process.env.INSTAGRAM_ACCESS_TOKEN) &&
-          Boolean(process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim()),
+        configured: instagramCredentials() !== undefined,
         consequence:
           'Competitor Instagram posts are not collected, so the cross-competitor matrix and pattern detection see ' +
           'only whatever other platforms provide. Note that Business Discovery reads Business and Creator accounts ' +
           'only; a competitor posting from a personal account cannot be read by any compliant method.',
       },
-      {
-        name: 'Billing (Razorpay)',
-        envVar: 'RAZORPAY_KEY_ID',
-        configured: realKey(process.env.RAZORPAY_KEY_ID),
-        consequence: 'Customers cannot self-serve a plan; provision with scripts/provision-subscription.ts.',
-      },
+      // Billing (RAZORPAY_KEY_ID) is deliberately absent. No code reads the
+      // Razorpay keys and the billing tables were dropped, so the entry could
+      // only ever read "unconfigured", and setting the key would have claimed
+      // a checkout that does not exist. Plans are provisioned with
+      // scripts/provision-subscription.ts.
     ];
   }
 }
