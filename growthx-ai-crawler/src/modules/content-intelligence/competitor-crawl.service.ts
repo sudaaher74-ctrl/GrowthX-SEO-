@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { FULL_CRAWL } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { PageType } from '../crawler/page-type';
@@ -289,8 +290,10 @@ export class CompetitorCrawlService {
     if (!competitor) throw new NotFoundException('Competitor not found for this project.');
     if (!competitor.websiteId) return null;
 
+    // Only crawls that covered the site; see FULL_CRAWL. Comparing against a
+    // partial or empty crawl reports pages it never reached as removed.
     const jobs = await this.prisma.crawlJob.findMany({
-      where: { websiteId: competitor.websiteId, status: 'COMPLETED' },
+      where: { websiteId: competitor.websiteId, ...FULL_CRAWL },
       orderBy: { finishedAt: 'desc' },
       take: 2,
       select: { id: true, finishedAt: true },

@@ -9,6 +9,7 @@ import { QuestionAnalysisService } from './questions/question-analysis.service';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
 import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
+import { competitorCrawlState } from './competitor-crawl-state';
 
 export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
 
@@ -406,9 +407,11 @@ export class AiVisibilityService {
         project: { select: { organizationId: true } },
         website: {
           include: {
+            // Several, not one: the figures come from the newest crawl that read
+            // anything, which is not necessarily the newest crawl.
             crawlJobs: {
               orderBy: { createdAt: 'desc' },
-              take: 1,
+              take: 6,
             },
           },
         },
@@ -421,26 +424,30 @@ export class AiVisibilityService {
     const enriched = await Promise.all(
       competitors.map(async (c) => {
         let website = c.website;
-        let latestCrawl = website?.crawlJobs?.[0];
+        let state = competitorCrawlState(website?.crawlJobs ?? []);
 
-        // A competitor that has never been crawled gets one. Only never: this
-        // runs on every poll of the list, and starting a crawl whenever the
-        // latest one was not COMPLETED queued a new crawl on every poll while
-        // one was already running, and would retry a failing site the same
-        // way. Re-crawling on a schedule is the scheduler's job.
-        if ((!website || !latestCrawl) && this.competitorCrawl) {
+        // A competitor with nothing read yet gets a crawl: when it was never
+        // crawled, and when its last attempt failed. This runs on every poll of
+        // the list, so a retry waits RETRY_AFTER_MS after a failure and stops
+        // after MAX_FAILURES_PER_DAY (see competitor-crawl-state); startCrawl
+        // itself never queues a second crawl while one is active. A competitor
+        // already read once is re-read by the nightly sweep, not from here.
+        if ((!website || state.retry) && this.competitorCrawl) {
           try {
             const orgId = c.project?.organizationId || '';
             await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
             website = await this.prisma.website.findFirst({
               where: { domain: normalizeDomain(c.domain) },
-              include: { crawlJobs: { orderBy: { createdAt: 'desc' }, take: 1 } },
+              include: { crawlJobs: { orderBy: { createdAt: 'desc' }, take: 6 } },
             });
-            latestCrawl = website?.crawlJobs?.[0];
+            state = competitorCrawlState(website?.crawlJobs ?? []);
           } catch (e: any) {
             this.logger.warn(`Auto-crawl on list failed for ${c.domain}: ${e.message}`);
           }
         }
+        // Figures from the newest crawl that read anything, so one failed
+        // recrawl cannot blank out a competitor that was read before.
+        const latestCrawl = state.good;
 
         let healthScore: number | null = null;
         if (latestCrawl) {
@@ -482,11 +489,16 @@ export class AiVisibilityService {
           domain: c.domain,
           label: c.label || c.name || c.domain,
           name: c.name || c.label,
-          status: latestCrawl?.status === 'COMPLETED' ? 'ANALYZED' : (latestCrawl?.status || c.status),
+          status: latestCrawl ? 'ANALYZED' : (state.latest?.status || c.status),
           lastAnalyzedAt: c.lastAnalyzedAt || latestCrawl?.finishedAt || null,
           healthScore,
           pagesCrawled: latestCrawl?.pagesCrawled ?? 0,
-          crawlStatus: latestCrawl?.status ?? c.status,
+          // The newest attempt, which may be newer than the crawl the figures
+          // came from: RUNNING while a recrawl is under way, FAILED when it
+          // failed. crawlError says why, so the page need not claim it is
+          // "still reading" a site it gave up on.
+          crawlStatus: state.latest?.status ?? c.status,
+          crawlError: state.failureReason,
           rating: c.localRating ?? null,
           reviewCount: c.localReviewCount ?? null,
           createdAt: c.createdAt,

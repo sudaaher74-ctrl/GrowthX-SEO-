@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FULL_CRAWL } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { isCrawlablePage } from '../crawler/crawlable';
@@ -66,8 +67,11 @@ export class RivalMovesService {
       let lastCrawl: Date | null = null;
       let pagesRead: number | null = null;
       if (c.websiteId) {
+        // Only crawls that covered the site. A crawl that read nothing, or was
+        // closed early after part of it, would make every page it never
+        // reached look like a page the rival deleted.
         const jobs = await this.prisma.crawlJob.findMany({
-          where: { websiteId: c.websiteId, status: 'COMPLETED' },
+          where: { websiteId: c.websiteId, ...FULL_CRAWL },
           orderBy: { finishedAt: 'desc' },
           take: 2,
           select: { id: true, finishedAt: true, pagesCrawled: true },

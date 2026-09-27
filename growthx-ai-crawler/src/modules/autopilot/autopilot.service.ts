@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AutopilotRun } from '@prisma/client';
+import { crawlToShow } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { CrawlerService } from '../crawler/crawler.service';
@@ -463,12 +464,17 @@ export class AutopilotService {
   }
 
   private async sites(run: AutopilotRun): Promise<AutopilotSite[]> {
+    // The newest crawl, unless it failed after an earlier one succeeded; a
+    // failed recrawl must not read as "failed, 0 pages" for a site already read.
     const jobFor = async (domain: string) =>
-      this.prisma.crawlJob.findFirst({
-        where: { website: { domain } },
-        orderBy: { createdAt: 'desc' },
-        select: { status: true, pagesCrawled: true },
-      });
+      crawlToShow(
+        await this.prisma.crawlJob.findMany({
+          where: { website: { domain } },
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+          select: { status: true, pagesCrawled: true },
+        }),
+      ).shown;
     const own = await jobFor(run.domain);
     const out: AutopilotSite[] = [
       { domain: run.domain, name: 'Your website', role: 'you', crawl: own?.status ?? 'NONE', pagesCrawled: own?.pagesCrawled ?? 0 },

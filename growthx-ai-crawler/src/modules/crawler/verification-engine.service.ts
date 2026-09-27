@@ -4,6 +4,7 @@ import { FetcherService } from './fetcher.service';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 import { verdictFor } from './verification-verdict';
+import { USABLE_CRAWL } from './crawl-selection';
 
 export interface VerificationCertificateItem {
   id: string;
@@ -105,9 +106,11 @@ export class VerificationEngineService {
         },
       });
     } else {
-      // Find latest crawl job for website
+      // The latest crawl that read the site. The latest crawl of any status
+      // is a running or failed one whenever a re-audit is under way or broke,
+      // and verifying its issues verified nothing.
       const latestJob = await this.prisma.crawlJob.findFirst({
-        where: { websiteId: website.id },
+        where: { websiteId: website.id, ...USABLE_CRAWL },
         orderBy: { createdAt: 'desc' },
       });
 
@@ -271,21 +274,21 @@ export class VerificationEngineService {
         data: { status: 'RESOLVED' },
       });
 
-      // Update CrawlJob counts if available
-      const latestJob = await this.prisma.crawlJob.findFirst({
-        where: { websiteId: website.id },
-        orderBy: { createdAt: 'desc' },
+      // Credited to the crawls those issues belong to. The newest crawl is
+      // often a different one (a re-audit started since), and incrementing it
+      // gave that crawl resolutions it never found.
+      const byCrawl = await this.prisma.issue.groupBy({
+        by: ['crawlJobId'],
+        where: { id: { in: resolvedIssueIds } },
+        _count: { _all: true },
       });
-
-      if (latestJob) {
-        await this.prisma.crawlJob.update({
-          where: { id: latestJob.id },
-          data: {
-            resolvedIssuesCount: {
-              increment: resolvedIssueIds.length,
-            },
-          },
-        }).catch(() => {});
+      for (const row of byCrawl) {
+        await this.prisma.crawlJob
+          .update({
+            where: { id: row.crawlJobId },
+            data: { resolvedIssuesCount: { increment: row._count._all } },
+          })
+          .catch(() => {});
       }
     }
 

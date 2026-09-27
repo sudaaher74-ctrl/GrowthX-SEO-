@@ -349,6 +349,21 @@ function WebsiteAuditClient() {
         })}
       </div>
 
+      {/* A re-audit that failed: the API returns the last good audit and says so. */}
+      {crawl.data?.latestAttempt && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-[13px] text-warning-700"
+        >
+          The latest audit
+          {crawl.data.latestAttempt.startedAt ? ` (started ${formatRelativeTime(crawl.data.latestAttempt.startedAt)})` : ""} did
+          not finish
+          {crawl.data.latestAttempt.errorMessage ? `: ${crawl.data.latestAttempt.errorMessage}` : "."} Showing the previous
+          audit
+          {crawl.data.finishedAt ? ` from ${formatRelativeTime(crawl.data.finishedAt)}` : ""}.
+        </div>
+      )}
+
       {/* Main Tab View Router with Real Query State */}
       <QueryState
         isLoading={Boolean(client?.domain) && (portfolio.isLoading || crawl.isLoading)}

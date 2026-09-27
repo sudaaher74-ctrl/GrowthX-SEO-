@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { crawlToShow } from '../crawler/crawl-selection';
 import { PrismaService } from '../../database/prisma.service';
 import { COMPETITOR_STATUS } from '../content-intelligence/competitor-status';
 
@@ -72,12 +73,16 @@ export class DiscoveryStatusService {
     const website = project.websites[0] ?? null;
 
     const [latestCrawl, competitors, ownAccounts] = await Promise.all([
+      // A failed recrawl after a good crawl is not a site that was never read.
       website
-        ? this.prisma.crawlJob.findFirst({
-            where: { websiteId: website.id },
-            orderBy: { createdAt: 'desc' },
-            select: { status: true, pagesCrawled: true, finishedAt: true, startedAt: true },
-          })
+        ? this.prisma.crawlJob
+            .findMany({
+              where: { websiteId: website.id },
+              orderBy: { createdAt: 'desc' },
+              take: 6,
+              select: { status: true, pagesCrawled: true, finishedAt: true, startedAt: true },
+            })
+            .then((jobs) => crawlToShow(jobs).shown)
         : null,
       this.prisma.competitorDomain.findMany({
         where: { projectId },

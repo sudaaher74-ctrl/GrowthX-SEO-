@@ -94,7 +94,13 @@ export function BattlegroundTab({
   onOpenCounterMoves,
 }: BattlegroundTabProps) {
   const ourCrawl = useLatestCrawl(domain || null);
-  const ourPages = useCrawlPages(ourCrawl.data?.id ?? null, ourCrawl.data?.status);
+  // While a recrawl of your site runs, compare with the last completed one;
+  // the running crawl has read only part of the site.
+  const ourFigures = ourCrawl.data?.lastCompleted ?? ourCrawl.data ?? null;
+  const ourPages = useCrawlPages(
+    ourFigures?.id ?? null,
+    ourCrawl.data?.lastCompleted ? "COMPLETED" : ourCrawl.data?.status,
+  );
   const visibility = useVisibility(projectId || null);
   const localSeo = useLocalSeo(projectId || null);
 
@@ -144,8 +150,8 @@ export function BattlegroundTab({
       buildMetrics(
         {
           domain,
-          pagesCrawled: ourCrawl.data?.pagesCrawled ?? null,
-          healthScore: ourCrawl.data?.healthScore ?? null,
+          pagesCrawled: ourFigures?.pagesCrawled ?? null,
+          healthScore: ourFigures?.healthScore ?? null,
           aiSharePct: summary?.citationSharePct ?? null,
           aiChecked: summary?.checked ?? null,
           // Google gives no rating to a listing without reviews; 0.0 is not a score.
@@ -154,7 +160,7 @@ export function BattlegroundTab({
         },
         rivalInputs,
       ),
-    [domain, ourCrawl.data, summary, localSeo.data, rivalInputs],
+    [domain, ourFigures, summary, localSeo.data, rivalInputs],
   );
 
   const gaps = useMemo(() => {
@@ -184,6 +190,16 @@ export function BattlegroundTab({
 
   const moves = useMemo(() => buildMoves(metrics, gaps, ignored), [metrics, gaps, ignored]);
   const threats = useMemo(() => buildThreats(metrics, rivalInputs), [metrics, rivalInputs]);
+  // Why a rival has no figures: still being read, or read and failed. The
+  // panel used to say "Still reading" either way, so a failed crawl looked
+  // like one that would finish any minute.
+  const unreadNote = (id: string) => {
+    const rival = rivals.find((c) => c.id === id);
+    if (rival?.crawlError && rival.crawlStatus !== "PENDING" && rival.crawlStatus !== "RUNNING") {
+      return `Couldn't read their website: ${rival.crawlError} We'll try again automatically.`;
+    }
+    return "Still reading their website";
+  };
   const columns = measuredColumns(metrics);
   const hiddenColumns = metrics.filter((m) => !columns.includes(m)).map((m) => m.label);
 
@@ -262,7 +278,7 @@ export function BattlegroundTab({
           Add competitor
         </ActionButton>
         <span className="ml-auto text-[11px] text-brand-400">
-          We last read your website: {ourCrawl.data?.finishedAt ? relativeTime(ourCrawl.data.finishedAt) : "not yet"}
+          We last read your website: {ourFigures?.finishedAt ? relativeTime(ourFigures.finishedAt) : "not yet"}
         </span>
       </div>
 
@@ -360,7 +376,7 @@ export function BattlegroundTab({
                   <p className="truncate text-[12px] font-semibold text-brand-950">{t.name}</p>
                   <p className="text-[11px] text-brand-400">
                     {t.measured === 0
-                      ? "Still reading their website"
+                      ? unreadNote(t.id)
                       : t.ahead.length === 0
                         ? `You beat them on all ${t.measured} things we measured`
                         : `Beats you on: ${t.ahead.join(", ")}`}

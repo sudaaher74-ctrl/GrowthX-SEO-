@@ -16,7 +16,7 @@ describe('DiscoveryStatusService', () => {
   beforeEach(() => {
     prisma = {
       project: { findFirst: jest.fn().mockResolvedValue(project) },
-      crawlJob: { findFirst: jest.fn().mockResolvedValue(null) },
+      crawlJob: { findMany: jest.fn().mockResolvedValue([]) },
       competitorDomain: { findMany: jest.fn().mockResolvedValue([]) },
       socialAccount: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -47,12 +47,12 @@ describe('DiscoveryStatusService', () => {
   });
 
   it('shows a crawl that is under way with the pages it has so far', async () => {
-    prisma.crawlJob.findFirst.mockResolvedValue({
+    prisma.crawlJob.findMany.mockResolvedValue([{
       status: 'RUNNING',
       pagesCrawled: 12,
       startedAt: new Date('2026-09-05T01:00:00Z'),
       finishedAt: null,
-    });
+    }]);
 
     const status = await service.getStatus('org1', 'p1');
 
@@ -60,13 +60,22 @@ describe('DiscoveryStatusService', () => {
     expect(status.steps.websiteCrawled.detail).toBe('12 page(s) so far.');
   });
 
+  it('does not call a site uncrawled because its latest recrawl failed', async () => {
+    prisma.crawlJob.findMany.mockResolvedValue([
+      { status: 'FAILED', pagesCrawled: 0, startedAt: new Date(), finishedAt: new Date() },
+      { status: 'COMPLETED', pagesCrawled: 34, startedAt: new Date('2026-09-20T01:00:00Z'), finishedAt: new Date('2026-09-20T01:20:00Z') },
+    ]);
+
+    expect((await service.getStatus('org1', 'p1')).steps.websiteCrawled.state).toBe('done');
+  });
+
   it('surfaces a failed crawl as failed rather than as not started', async () => {
-    prisma.crawlJob.findFirst.mockResolvedValue({
+    prisma.crawlJob.findMany.mockResolvedValue([{
       status: 'FAILED',
       pagesCrawled: 0,
       startedAt: new Date(),
       finishedAt: new Date(),
-    });
+    }]);
 
     expect((await service.getStatus('org1', 'p1')).steps.websiteCrawled.state).toBe('failed');
   });
