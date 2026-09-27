@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import * as url from 'url';
 import { describeHtmlResponse, isHtmlResponse } from '../crawler/discovery/html-response';
@@ -89,7 +89,7 @@ export class SitemapService {
 
     try {
       this.logger.debug(`Fetching sitemap [Depth ${depth}]: ${sitemapUrl}`);
-      const response = await axios.get(sitemapUrl, {
+      const response = await publicAxios.get(sitemapUrl, {
         timeout: 10000,
         validateStatus: (status) => status === 200,
         headers: {

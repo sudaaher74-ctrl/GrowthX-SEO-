@@ -2191,16 +2191,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       crawlCoveragePercent,
     });
 
-    // Bill crawled pages against the plan allowance only now that the job has
-    // actually finished, so an aborted or failed crawl costs the customer nothing.
-    const organizationId = (finished as any).website?.project?.organizationId;
-    if (organizationId && finished.pagesCrawled > 0) {
-      try {
-      } catch (usageErr) {
-        this.logger.error(`[JOB ${jobId}] Failed to record crawl usage`, usageErr);
-      }
-    }
-
     this.metrics.activeCrawlJobs.dec();
     this.localVisited.delete(jobId);
     this.jobSitemapUrls.delete(jobId);

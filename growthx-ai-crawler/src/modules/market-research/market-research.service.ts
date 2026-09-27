@@ -1,3 +1,4 @@
+import { publicAxios } from '../security/ssrf';
 import {
   BadRequestException,
   HttpException,
@@ -20,7 +21,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { EvidenceRetrievalService, RetrievedSource } from './evidence-retrieval.service';
 import { ModelRole, ModelRouterService, ModelUsage } from './model-router.service';
 import { validateCitations } from './citation-validator';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
@@ -773,7 +773,7 @@ export class MarketResearchService {
     const urls = [`https://${domain}`, `http://${domain}`];
     for (const url of urls) {
       try {
-        const res = await axios.get(url, {
+        const res = await publicAxios.get(url, {
           timeout: 4500,
           headers: {
             'User-Agent':

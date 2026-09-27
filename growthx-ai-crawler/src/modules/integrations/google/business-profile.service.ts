@@ -568,7 +568,10 @@ export class BusinessProfileService {
     // Keeping it would show the customer a service they no longer offer, which
     // is the same class of untruth as inventing one.
     await this.prisma.gbpServiceItem.deleteMany({
-      where: { projectId, locationName, serviceKey: { notIn: keys.length ? keys : [' '] } },
+      // No `notIn` when Google returned none: every stored row goes. The empty
+      // case used to pass a NUL-byte placeholder, which PostgreSQL rejects in a
+      // text parameter, so removing a location's last item failed instead.
+      where: { projectId, locationName, ...(keys.length ? { serviceKey: { notIn: keys } } : {}) },
     });
 
     return keys.length;
@@ -826,7 +829,7 @@ export class BusinessProfileService {
 
     // A photo the merchant deleted on Google must stop being shown here.
     await this.prisma.gbpMedia.deleteMany({
-      where: { projectId, locationName, mediaName: { notIn: names.length ? names : [' '] } },
+      where: { projectId, locationName, ...(names.length ? { mediaName: { notIn: names } } : {}) },
     });
 
     return names.length;
@@ -874,7 +877,7 @@ export class BusinessProfileService {
     }
 
     await this.prisma.gbpLocalPost.deleteMany({
-      where: { projectId, locationName, postName: { notIn: names.length ? names : [' '] } },
+      where: { projectId, locationName, ...(names.length ? { postName: { notIn: names } } : {}) },
     });
 
     return names.length;

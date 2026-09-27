@@ -1,5 +1,5 @@
+import { browserMayLoad, publicAxios } from '../security/ssrf';
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { chromium, Browser, BrowserContext } from 'playwright';
 import { MetricsService } from '../observability/metrics.service';
@@ -161,7 +161,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     let retries = 0;
     while (retries < 3) {
       try {
-        response = await axios.get(targetUrl, {
+        response = await publicAxios.get(targetUrl, {
           timeout: 15000,
           maxRedirects: 10,
           validateStatus: () => true,
@@ -270,6 +270,13 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
       let contentType = 'text/html';
 
       try {
+        // The browser resolves names itself, past the agents' address check;
+        // this keeps a page's redirects, scripts and frames off internal hosts.
+        await page.route('**/*', async (route) => {
+          if (!(await browserMayLoad(route.request().url()))) return route.abort('blockedbyclient');
+          return route.continue();
+        }).catch(() => {});
+
         page.on('response', (res) => {
           if (res.url() === targetUrl || res.url() === page.url()) {
             statusCode = res.status();

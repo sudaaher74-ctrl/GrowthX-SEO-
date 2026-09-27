@@ -4,6 +4,8 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 
 /** Control characters that are illegal inside a JSON string literal. */
+// Matching control characters is the point of this pattern.
+// eslint-disable-next-line no-control-regex
 const ILLEGAL_CONTROL_CHARS = /[\x00-\x1F\x7F-\x9F]/g;
 
 /** Closes a JSON document the model stopped writing partway through. */

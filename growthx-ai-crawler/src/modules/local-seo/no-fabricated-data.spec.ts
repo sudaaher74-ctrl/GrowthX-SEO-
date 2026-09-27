@@ -66,8 +66,8 @@ describe('local SEO — no fabricated data', () => {
 
   describe('citation counts', () => {
     it('never seeds a citation count with a random number', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const source = require('fs').readFileSync(require.resolve('./local-seo.service.ts'), 'utf8');
+      const fs = jest.requireActual<typeof import('fs')>('fs');
+      const source = fs.readFileSync(require.resolve('./local-seo.service.ts'), 'utf8');
 
       // `Math.floor(Math.random() * 50) + 10` was written to citationsCount and
       // displayed as a measured figure.

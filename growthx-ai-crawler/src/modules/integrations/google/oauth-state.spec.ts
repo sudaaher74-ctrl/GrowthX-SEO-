@@ -77,7 +77,7 @@ describe('OAuth state', () => {
     // Signed by us, so the signature passes; the callback still must not act
     // on a state with no project.
     const secret = process.env.INTEGRATION_STATE_SECRET!;
-    const crypto = require('crypto');
+    const crypto = jest.requireActual<typeof import('crypto')>('crypto');
     const payload = Buffer.from(JSON.stringify({ issuedAt: Date.now(), nonce: 'x' })).toString('base64url');
     const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
 

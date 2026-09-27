@@ -1,5 +1,5 @@
+import { publicAxios } from '../../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as zlib from 'zlib';
 import * as cheerio from 'cheerio';
 import { parseRobotsTxt, ParsedRobots, isAllowedByRobots, selectGroup } from './robots-txt';
@@ -102,7 +102,7 @@ export class DiscoveryService {
     const robotsUrl = new URL('/robots.txt', origin).toString();
     const robotsTimeout = Number(process.env.ROBOTS_TIMEOUT_MS || 10000);
     try {
-      const response = await axios.get(robotsUrl, {
+      const response = await publicAxios.get(robotsUrl, {
         headers: this.httpHeaders,
         timeout: robotsTimeout,
         signal: deadlineSignal(robotsTimeout),
@@ -148,7 +148,7 @@ export class DiscoveryService {
   ): Promise<{ status: number; xml?: string; contentType?: string; error?: string }> {
     const sitemapTimeout = Number(process.env.SITEMAP_TIMEOUT_MS || 15000);
     try {
-      const response = await axios.get(sitemapUrl, {
+      const response = await publicAxios.get(sitemapUrl, {
         headers: this.httpHeaders,
         timeout: sitemapTimeout,
         signal: deadlineSignal(sitemapTimeout),
@@ -496,7 +496,7 @@ export class DiscoveryService {
 
   private async fetchText(url: string): Promise<string | undefined> {
     try {
-      const response = await axios.get(url, {
+      const response = await publicAxios.get(url, {
         headers: this.httpHeaders,
         timeout: 15000,
         signal: deadlineSignal(15000),
@@ -515,7 +515,7 @@ export class DiscoveryService {
   private async urlResponds(url: string): Promise<boolean> {
     for (const method of ['head', 'get'] as const) {
       try {
-        const response = await axios.request({
+        const response = await publicAxios.request({
           url,
           method,
           headers: this.httpHeaders,

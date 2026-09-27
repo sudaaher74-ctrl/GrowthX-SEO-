@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -31,11 +31,11 @@ const FALLBACK_PATHS = ['', '/contact', '/about', '/contact-us', '/about-us'];
 
 const PATTERNS: { platform: string; pattern: RegExp }[] = [
   { platform: 'INSTAGRAM', pattern: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi },
-  { platform: 'FACEBOOK', pattern: /https?:\/\/(?:www\.|web\.)?facebook\.com\/([A-Za-z0-9.\-]+)/gi },
-  { platform: 'YOUTUBE', pattern: /https?:\/\/(?:www\.)?youtube\.com\/((?:@|c\/|channel\/|user\/)[A-Za-z0-9._\-]+)/gi },
+  { platform: 'FACEBOOK', pattern: /https?:\/\/(?:www\.|web\.)?facebook\.com\/([A-Za-z0-9.-]+)/gi },
+  { platform: 'YOUTUBE', pattern: /https?:\/\/(?:www\.)?youtube\.com\/((?:@|c\/|channel\/|user\/)[A-Za-z0-9._-]+)/gi },
   {
     platform: 'LINKEDIN',
-    pattern: /https?:\/\/(?:(?:www|[a-z]{2})\.)?linkedin\.com\/((?:company|in)\/[A-Za-z0-9._\-]+)/gi,
+    pattern: /https?:\/\/(?:(?:www|[a-z]{2})\.)?linkedin\.com\/((?:company|in)\/[A-Za-z0-9._-]+)/gi,
   },
   { platform: 'TWITTER', pattern: /https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([A-Za-z0-9_]+)/gi },
 ];
@@ -145,14 +145,19 @@ export class SocialDiscoveryService {
 
     for (const path of FALLBACK_PATHS) {
       try {
-        const response = await fetch(`${base}${path}`, {
-          redirect: 'follow',
+        // publicAxios rather than fetch(): fetch follows redirects with no
+        // address check, so a competitor's site could send it anywhere.
+        const response = await publicAxios.get(`${base}${path}`, {
+          timeout: 10_000,
           signal: AbortSignal.timeout(10_000),
           headers: { 'User-Agent': 'GrowthXBot/1.0 (+https://growthx.ai/bot)' },
+          responseType: 'text',
+          validateStatus: () => true,
+          transitional: { silentJSONParsing: false, forcedJSONParsing: false },
         });
-        if (!response.ok) continue;
+        if (response.status < 200 || response.status >= 300) continue;
 
-        const html = await response.text();
+        const html = typeof response.data === 'string' ? response.data : '';
         if (PATTERNS.some(({ pattern }) => new RegExp(pattern.source, 'i').test(html))) {
           return html;
         }
@@ -183,7 +188,7 @@ export class SocialDiscoveryService {
     let detectedName = (businessName || '').trim();
 
     try {
-      const res = await axios.get(normalizedUrl, {
+      const res = await publicAxios.get(normalizedUrl, {
         timeout: 10000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 GrowthXBot/1.0',

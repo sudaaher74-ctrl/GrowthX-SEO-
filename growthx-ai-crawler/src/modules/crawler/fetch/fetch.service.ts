@@ -1,3 +1,4 @@
+import { blockedHostname, browserMayLoad, publicOnly } from '../../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { BrowserPoolService, DEFAULT_CHROME_UA } from './browser-pool.service';
@@ -278,31 +279,25 @@ export class FetchService {
   }
 
   /** Refuses internal and reserved addresses. Its own outcome, not a 403. */
+  /**
+   * The check a URL can be given before any connection: a malformed URL, a
+   * literal internal address, or a name that only means this network. Names
+   * that resolve to internal addresses are refused by the agent as it
+   * connects (see security/ssrf.ts). Run on every redirect hop, not only the
+   * first: checking the first alone let any site redirect the crawler to the
+   * cloud metadata service.
+   */
   private ssrfGuard(targetUrl: string): FetchError | undefined {
     let host: string;
     try {
-      host = new URL(targetUrl).hostname.toLowerCase();
+      host = new URL(targetUrl).hostname;
     } catch {
       // Deliberately NOT an http kind: a URL we cannot parse is our problem,
       // and calling it a 403 is precisely the bug this rebuild removes.
       return new FetchError('unknown', `Malformed URL: ${targetUrl}`);
     }
-    const isPrivate =
-      host === 'localhost' ||
-      host === '0.0.0.0' ||
-      host.endsWith('.local') ||
-      host.endsWith('.internal') ||
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^169\.254\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-      host === '::1';
-    // Tests and local fixtures need a loopback origin to crawl at all.
-    if (isPrivate && process.env.ALLOW_PRIVATE_CRAWL_TARGETS !== 'true') {
-      return new FetchError('ssrf', `Refusing to crawl internal or reserved address: ${host}`);
-    }
-    return undefined;
+    const blocked = blockedHostname(host);
+    return blocked ? new FetchError('ssrf', `Refusing to crawl internal or reserved address: ${blocked}`) : undefined;
   }
 
   private async fetchStatic(
@@ -322,10 +317,14 @@ export class FetchService {
       }
       seen.add(current);
 
+      const guard = this.ssrfGuard(current);
+      if (guard) throw guard;
+
       const hopStart = Date.now();
       let response: { status: number; headers: Record<string, unknown>; data: unknown };
       try {
         response = await axios.get(current, {
+          ...publicOnly(),
           headers,
           timeout: timeoutMs,
           // A hard cap as well as axios's idle timeout: see deadlineSignal.
@@ -400,10 +399,14 @@ export class FetchService {
       //
       // Scripts and same-origin stylesheets are always allowed: a site whose
       // application bundle is served from a CDN must still be able to render.
-      await page.route('**/*', (route) => {
+      await page.route('**/*', async (route) => {
         const request = route.request();
         const type = request.resourceType();
         if (type === 'font' || type === 'image' || type === 'media') return route.abort();
+        // The browser does its own DNS, so the agents' check does not reach it.
+        // Without this, a page's script, iframe or redirect could make the
+        // render tier fetch an internal address.
+        if (!(await browserMayLoad(request.url()))) return route.abort('blockedbyclient');
         if (type === 'stylesheet') {
           try {
             if (new URL(request.url()).host !== new URL(targetUrl).host) return route.abort();

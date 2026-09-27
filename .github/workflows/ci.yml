@@ -1,9 +1,9 @@
-# Frontend CI — the gate that did not exist when a hook bug reached production.
+# CI — the gate that did not exist when a hook bug reached production.
 #
-# `growthx-ai-seo` is what Vercel deploys, so these are the checks that decide
-# whether a commit is safe to land on `main`. Scoped to the frontend on purpose:
-# the crawler has its own 112 Jest specs, but they need service dependencies
-# this workflow does not stand up yet.
+# `growthx-ai-seo` is what Vercel deploys and `growthx-ai-crawler` is what
+# Render deploys, so these are the checks that decide whether a commit is safe
+# to land on `main`. The API's Jest suite needs no database or Redis: every
+# spec runs against in-memory fakes and local fixture servers.
 name: CI
 
 on:
@@ -67,3 +67,41 @@ jobs:
           name: playwright-traces
           path: growthx-ai-seo/test-results/
           retention-days: 7
+
+  api:
+    name: API checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: growthx-ai-crawler
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          cache: npm
+          cache-dependency-path: growthx-ai-crawler/package-lock.json
+
+      # postinstall runs `prisma generate`, which needs no database.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # lint:check, not lint: `npm run lint` passes --fix and would rewrite
+      # files instead of failing on them.
+      - name: Lint
+        run: npm run lint:check
+
+      # The fetch, render-permit and crawl-engine specs drive a real browser.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Unit tests
+        run: npx jest --ci
+
+      - name: Build
+        run: npm run build

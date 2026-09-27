@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { MarketScope } from './competitor-discovery.service';
@@ -333,7 +333,7 @@ export class CompetitorVerificationService {
 
     for (const url of urls) {
       try {
-        const res = await axios.get(url, {
+        const res = await publicAxios.get(url, {
           timeout: this.TIMEOUT_MS,
           maxRedirects: 4,
           headers: {

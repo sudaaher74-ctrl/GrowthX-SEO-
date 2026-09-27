@@ -58,6 +58,12 @@ export function classifyTransportError(err: unknown): FetchError {
   const message = e?.cause?.message || e?.message || String(err);
   const haystack = `${code} ${message}`.toUpperCase();
 
+  // First: the SSRF guard's refusal mentions a hostname and would otherwise be
+  // read by the DNS arm below as a lookup failure.
+  if (code === 'ESSRF' || e?.name === 'SsrfBlockedError') {
+    return new FetchError('ssrf', message);
+  }
+
   // ERR_CANCELED and CanceledError are counted as timeouts because the only
   // AbortSignal the crawler attaches to a request is its own wall-clock
   // deadline; nothing else cancels one. Without this arm, a request killed by

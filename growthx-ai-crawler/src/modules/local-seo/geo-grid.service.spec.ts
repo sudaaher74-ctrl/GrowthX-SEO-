@@ -95,8 +95,8 @@ describe('GeoGridService', () => {
     });
 
     it('contains no simulated ranking or competitor data', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const source = require('fs').readFileSync(require.resolve('./geo-grid.service.ts'), 'utf8');
+      const fs = jest.requireActual<typeof import('fs')>('fs');
+      const source = fs.readFileSync(require.resolve('./geo-grid.service.ts'), 'utf8');
 
       expect(source).not.toMatch(/quadrantBias/);
       expect(source).not.toMatch(/distancePenalty/);
