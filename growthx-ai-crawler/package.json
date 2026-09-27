@@ -18,6 +18,7 @@
     "start:crawler": "node dist/main-worker",
     "start:crawler:dev": "nest start --entryFile main-worker --watch",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

@@ -67,7 +67,7 @@ const RULES: PlatformRule[] = [
     hosts: ['facebook.com', 'fb.com', 'web.facebook.com', 'm.facebook.com'],
     // Facebook pages are not handles and are not written with an `@` anywhere
     // the platform itself displays them, so they are stored as the page name.
-    handleFrom: (s) => (isAccountSegment(s[0], /^[A-Za-z0-9.\-]{2,60}$/) ? s[0] : null),
+    handleFrom: (s) => (isAccountSegment(s[0], /^[A-Za-z0-9.-]{2,60}$/) ? s[0] : null),
     profileUrl: (h) => `https://www.facebook.com/${h}`,
   },
   {
@@ -119,11 +119,11 @@ function youtubeHandle(segments: string[]): string | null {
   const [first, second] = segments;
   if (!first) return null;
 
-  if (first.startsWith('@')) return atHandle(first.slice(1), /^[A-Za-z0-9._\-]{3,30}$/);
+  if (first.startsWith('@')) return atHandle(first.slice(1), /^[A-Za-z0-9._-]{3,30}$/);
 
   const prefix = first.toLowerCase();
   if (prefix === 'channel' || prefix === 'c' || prefix === 'user') {
-    if (!second || !/^[A-Za-z0-9._\-]{2,60}$/.test(second)) return null;
+    if (!second || !/^[A-Za-z0-9._-]{2,60}$/.test(second)) return null;
     return `${prefix}/${second}`;
   }
 
@@ -135,7 +135,7 @@ function linkedinHandle(segments: string[]): string | null {
   const [first, second] = segments;
   const prefix = first?.toLowerCase();
   if (prefix !== 'company' && prefix !== 'in' && prefix !== 'school') return null;
-  if (!second || !/^[A-Za-z0-9._%\-]{2,100}$/.test(second)) return null;
+  if (!second || !/^[A-Za-z0-9._%-]{2,100}$/.test(second)) return null;
   return `${prefix}/${second}`;
 }
 

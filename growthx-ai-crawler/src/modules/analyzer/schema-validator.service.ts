@@ -138,7 +138,7 @@ export class SchemaValidatorService {
           }
           break;
 
-        case 'PRODUCT':
+        case 'PRODUCT': {
           // Required: name
           if (!item.name) {
             findings.push({
@@ -214,6 +214,7 @@ export class SchemaValidatorService {
             });
           }
           break;
+        }
 
         case 'ARTICLE':
           if (!item.headline) {

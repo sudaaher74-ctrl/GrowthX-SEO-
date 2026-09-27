@@ -369,9 +369,9 @@ describe('AutomationService', () => {
   });
 
   describe('resolveTargetFile', () => {
-    const os = require('os');
-    const realFs = require('fs');
-    const nodePath = require('path');
+    const os = jest.requireActual<typeof import('os')>('os');
+    const realFs = jest.requireActual<typeof import('fs')>('fs');
+    const nodePath = jest.requireActual<typeof import('path')>('path');
     let repo: string;
 
     /** Creates an empty file, making its parent directories on the way. */

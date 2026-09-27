@@ -31,11 +31,11 @@ const FALLBACK_PATHS = ['', '/contact', '/about', '/contact-us', '/about-us'];
 
 const PATTERNS: { platform: string; pattern: RegExp }[] = [
   { platform: 'INSTAGRAM', pattern: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi },
-  { platform: 'FACEBOOK', pattern: /https?:\/\/(?:www\.|web\.)?facebook\.com\/([A-Za-z0-9.\-]+)/gi },
-  { platform: 'YOUTUBE', pattern: /https?:\/\/(?:www\.)?youtube\.com\/((?:@|c\/|channel\/|user\/)[A-Za-z0-9._\-]+)/gi },
+  { platform: 'FACEBOOK', pattern: /https?:\/\/(?:www\.|web\.)?facebook\.com\/([A-Za-z0-9.-]+)/gi },
+  { platform: 'YOUTUBE', pattern: /https?:\/\/(?:www\.)?youtube\.com\/((?:@|c\/|channel\/|user\/)[A-Za-z0-9._-]+)/gi },
   {
     platform: 'LINKEDIN',
-    pattern: /https?:\/\/(?:(?:www|[a-z]{2})\.)?linkedin\.com\/((?:company|in)\/[A-Za-z0-9._\-]+)/gi,
+    pattern: /https?:\/\/(?:(?:www|[a-z]{2})\.)?linkedin\.com\/((?:company|in)\/[A-Za-z0-9._-]+)/gi,
   },
   { platform: 'TWITTER', pattern: /https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([A-Za-z0-9_]+)/gi },
 ];
