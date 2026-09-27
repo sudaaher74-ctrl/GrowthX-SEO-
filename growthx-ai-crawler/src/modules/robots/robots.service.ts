@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as url from 'url';
 import { describeHtmlResponse, isHtmlResponse } from '../crawler/discovery/html-response';
 
@@ -45,7 +45,7 @@ export class RobotsService {
 
     try {
       this.logger.log(`Fetching robots.txt from: ${robotsUrl}`);
-      const response = await axios.get(robotsUrl, {
+      const response = await publicAxios.get(robotsUrl, {
         timeout: 5000,
         validateStatus: (status) => status === 200 || status === 404,
         headers: {

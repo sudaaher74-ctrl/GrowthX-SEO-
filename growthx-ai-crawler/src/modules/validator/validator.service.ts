@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as tls from 'tls';
 import * as url from 'url';
 
@@ -55,7 +55,7 @@ export class ValidatorService {
     // 2. Check Reachability and Redirect Chain
     try {
       const redirectChain: string[] = [formattedUrl];
-      const response = await axios.get(formattedUrl, {
+      const response = await publicAxios.get(formattedUrl, {
         timeout: 10000,
         maxRedirects: 10,
         validateStatus: () => true, // Accept any status code to inspect reachability

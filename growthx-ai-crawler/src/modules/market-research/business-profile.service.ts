@@ -1,5 +1,5 @@
+import { publicAxios } from '../security/ssrf';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 import { ModelRole, ModelRouterService } from './model-router.service';
@@ -348,7 +348,7 @@ export class BusinessProfileService {
   private async fetchHtml(urls: string[]): Promise<{ url: string; html: string } | null> {
     for (const url of urls) {
       try {
-        const res = await axios.get(url, {
+        const res = await publicAxios.get(url, {
           timeout: 5000,
           maxRedirects: 4,
           headers: {
