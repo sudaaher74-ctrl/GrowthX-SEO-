@@ -5,30 +5,35 @@
  * several hundred of them, Cloud Dataproc and Blogger included — because the
  * aggregate entry point builds a client for each. Measured on this codebase it
  * costs 69MB of heap and 112MB of RSS at require time, before a single request
- * is served. Importing the six APIs actually used costs 6.5MB and 26MB.
+ * is served. Importing the APIs actually used costs 6.5MB and 26MB.
  *
  * On a 512MB instance that difference is the whole argument. The app's
  * baseline RSS is what decides whether a browser can be launched beside it,
  * and 86MB is most of the headroom Chromium needs.
  *
- * The cost of this file is that a new Google API has to be added here before
- * it can be used. That is the intended trade: the aggregate import is
- * convenient precisely because it hides what it loads.
+ * Each API is its own `@googleapis/<name>` package rather than a deep import
+ * into `googleapis`. The code is the same, but the `googleapis` package ships
+ * all 335 APIs on disk, over 200MB of node_modules and Docker image for seven
+ * clients.
+ *
+ * The cost of this file is that a new Google API has to be added here (and to
+ * package.json) before it can be used. That is the intended trade: the
+ * aggregate import is convenient precisely because it hides what it loads.
  */
 
-import { analyticsadmin } from 'googleapis/build/src/apis/analyticsadmin';
-import { analyticsdata } from 'googleapis/build/src/apis/analyticsdata';
-import { businessprofileperformance } from 'googleapis/build/src/apis/businessprofileperformance';
-import { mybusinessaccountmanagement } from 'googleapis/build/src/apis/mybusinessaccountmanagement';
-import { mybusinessbusinessinformation } from 'googleapis/build/src/apis/mybusinessbusinessinformation';
-// `auth` rather than google-auth-library's own export. googleapis-common
-// depends on a nested copy of that package, so the top-level OAuth2Client is a
-// structurally identical but distinct type, and every client built with one
-// rejects it — the same mismatch google-oauth.service.ts already carries a
-// comment about. This is the AuthPlus the aggregate `google.auth` is, so the
-// types line up by construction.
-import { auth, searchconsole } from 'googleapis/build/src/apis/searchconsole';
-import { youtube } from 'googleapis/build/src/apis/youtube';
+import { analyticsadmin } from '@googleapis/analyticsadmin';
+import { analyticsdata } from '@googleapis/analyticsdata';
+import { businessprofileperformance } from '@googleapis/businessprofileperformance';
+import { mybusinessaccountmanagement } from '@googleapis/mybusinessaccountmanagement';
+import { mybusinessbusinessinformation } from '@googleapis/mybusinessbusinessinformation';
+// `auth` rather than google-auth-library's own export. It is the AuthPlus
+// from googleapis-common that the aggregate `google.auth` was, so an OAuth2
+// client built from it is the type every client below accepts, by
+// construction. Should googleapis-common ever nest its own copy of
+// google-auth-library again, the top-level OAuth2Client would become a
+// structurally identical but distinct type that the clients reject.
+import { auth, searchconsole } from '@googleapis/searchconsole';
+import { youtube } from '@googleapis/youtube';
 
 /**
  * Shaped to match the `google.<api>()` calls this replaced, so the call sites
