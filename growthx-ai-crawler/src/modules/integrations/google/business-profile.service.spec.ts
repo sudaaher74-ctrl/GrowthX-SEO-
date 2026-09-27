@@ -362,6 +362,27 @@ describe('BusinessProfileService', () => {
       expect(prisma.gbpServiceItem.rows).toHaveLength(1);
     });
 
+    it('clears everything when the merchant removed every service, photo and post', async () => {
+      const { service, prisma } = harness({ performance, v4: v4WithContent });
+      await service.sync(PROJECT);
+      expect(prisma.gbpServiceItem.rows.length).toBeGreaterThan(0);
+      expect(prisma.gbpMedia.rows.length).toBeGreaterThan(0);
+      expect(prisma.gbpLocalPost.rows.length).toBeGreaterThan(0);
+
+      // The empty case used a NUL-byte placeholder that PostgreSQL rejects,
+      // so removing the last item failed the sync instead of clearing it.
+      // Google now answers with empty lists for media and posts.
+      const v4Emptied = (path: string): any =>
+        path.includes('/media') ? { body: { mediaItems: [] } } : path.includes('/localPosts') ? { body: { localPosts: [] } } : v4WithContent(path);
+      const emptied = harness({ location: { ...fullLocation, serviceItems: [] }, performance, v4: v4Emptied });
+      (emptied.service as any).prisma = prisma;
+      await emptied.service.sync(PROJECT);
+
+      expect(prisma.gbpServiceItem.rows).toHaveLength(0);
+      expect(prisma.gbpMedia.rows).toHaveLength(0);
+      expect(prisma.gbpLocalPost.rows).toHaveLength(0);
+    });
+
     it('re-reads recent days without doubling them', async () => {
       // Google restates recent days, so the window is deliberately fetched
       // again. Inserting over the top would keep the first, stale value.

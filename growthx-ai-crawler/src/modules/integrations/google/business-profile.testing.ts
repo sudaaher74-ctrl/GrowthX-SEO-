@@ -27,7 +27,21 @@ function flattenWhere(where: Row): Row {
   return where ?? {};
 }
 
+/**
+ * PostgreSQL refuses a NUL byte in any text parameter ("invalid byte sequence
+ * for encoding UTF8: 0x00"), so the fake does too. Without this, a query that
+ * fails on every real database passed here.
+ */
+function rejectNulBytes(value: unknown): void {
+  if (typeof value === 'string' && value.includes('\u0000')) {
+    throw new Error('invalid byte sequence for encoding "UTF8": 0x00');
+  }
+  if (Array.isArray(value)) value.forEach(rejectNulBytes);
+  else if (value && typeof value === 'object' && !(value instanceof Date)) Object.values(value).forEach(rejectNulBytes);
+}
+
 function matches(row: Row, where: Row): boolean {
+  rejectNulBytes(where);
   return Object.entries(where ?? {}).every(([field, condition]) => {
     if (condition && typeof condition === 'object' && !(condition instanceof Date) && !Array.isArray(condition)) {
       const clause = condition as Row;
