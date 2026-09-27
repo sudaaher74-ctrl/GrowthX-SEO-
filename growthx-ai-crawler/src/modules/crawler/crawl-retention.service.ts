@@ -4,8 +4,15 @@ import { JobStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 
+/**
+ * `delete` (the default) prunes. `report` works out exactly what would be
+ * pruned and logs it without writing anything, for checking the numbers on a
+ * real database first. `off` skips the run.
+ */
+export type RetentionMode = 'delete' | 'report' | 'off';
+
 export interface RetentionConfig {
-  enabled: boolean;
+  mode: RetentionMode;
   /** Newest COMPLETED crawls per website that keep their stored page HTML. */
   keepHtml: number;
   /** Newest COMPLETED crawls per website that keep their pages and issues. */
@@ -17,6 +24,8 @@ export interface RetentionConfig {
 }
 
 export interface RetentionSummary {
+  /** False in report mode: the counts below are what would have been pruned. */
+  applied: boolean;
   htmlPruned: number;
   detailsPruned: number;
   filesDeleted: number;
@@ -33,8 +42,10 @@ function intFromEnv(name: string, fallback: number, min: number): number {
 
 export function retentionConfig(): RetentionConfig {
   const keepHtml = intFromEnv('CRAWL_RETENTION_KEEP_HTML', 2, 1);
+  const mode = (process.env.CRAWL_RETENTION_MODE ?? 'delete').trim().toLowerCase();
   return {
-    enabled: process.env.CRAWL_RETENTION_ENABLED !== 'false',
+    // Anything unrecognised reports rather than deletes: a typo must not delete.
+    mode: mode === 'delete' || mode === 'off' ? mode : 'report',
     keepHtml,
     // Never fewer than keep HTML: a crawl whose pages were deleted has no HTML to keep.
     keepDetailed: Math.max(keepHtml, intFromEnv('CRAWL_RETENTION_KEEP_DETAILED', 3, 1)),
@@ -84,7 +95,7 @@ export class CrawlRetentionService {
   @Cron('30 2 * * *')
   async nightly(): Promise<void> {
     const config = retentionConfig();
-    if (!config.enabled) return;
+    if (config.mode === 'off') return;
     if (this.running) {
       this.logger.warn('Crawl retention skipped: the previous run has not finished.');
       return;
@@ -93,8 +104,12 @@ export class CrawlRetentionService {
     try {
       const summary = await this.run(config);
       this.logger.log(
-        `Crawl retention: cleared HTML on ${summary.htmlPruned} crawl(s), removed detail from ${summary.detailsPruned}, ` +
-          `deleted ${summary.filesDeleted} snapshot file(s); ${summary.skippedProtected} protected crawl(s) left alone.`,
+        summary.applied
+          ? `Crawl retention: cleared HTML on ${summary.htmlPruned} crawl(s), removed detail from ${summary.detailsPruned}, ` +
+              `deleted ${summary.filesDeleted} snapshot file(s); ${summary.skippedProtected} protected crawl(s) left alone.`
+          : `Crawl retention (report only, nothing changed): would clear HTML on ${summary.htmlPruned} crawl(s) and ` +
+              `remove detail from ${summary.detailsPruned}; ${summary.skippedProtected} protected crawl(s) would be left alone. ` +
+              'Set CRAWL_RETENTION_MODE=delete to apply.',
       );
     } catch (error) {
       this.logger.error('Crawl retention failed', error);
@@ -104,8 +119,14 @@ export class CrawlRetentionService {
   }
 
   async run(config: RetentionConfig = retentionConfig(), now: Date = new Date()): Promise<RetentionSummary> {
-    const summary: RetentionSummary = { htmlPruned: 0, detailsPruned: 0, filesDeleted: 0, skippedProtected: 0 };
-    const { protectedJobs, protectedPages } = await this.protectedWork();
+    const summary: RetentionSummary = {
+      applied: config.mode === 'delete',
+      htmlPruned: 0,
+      detailsPruned: 0,
+      filesDeleted: 0,
+      skippedProtected: 0,
+    };
+    const protectedJobs = await this.protectedCrawls();
     const keepFiles = await this.filesDesignStudioUses();
     const ageFloor = new Date(now.getTime() - config.minAgeDays * DAY_MS);
 
@@ -164,11 +185,17 @@ export class CrawlRetentionService {
       }
     }
 
+    if (!summary.applied) {
+      summary.htmlPruned = htmlJobs.length;
+      summary.detailsPruned = detailJobs.length;
+      return summary;
+    }
+
     for (const id of htmlJobs) {
       try {
         await this.prisma.$transaction([
           this.prisma.page.updateMany({
-            where: { crawlJobId: id, ...(protectedPages.size ? { id: { notIn: [...protectedPages] } } : {}) },
+            where: { crawlJobId: id },
             data: { rawHtml: null, renderedHtml: null, htmlSnapshotUrl: null },
           }),
           this.prisma.crawlJob.update({ where: { id }, data: { htmlPrunedAt: now } }),
@@ -203,8 +230,12 @@ export class CrawlRetentionService {
     return summary;
   }
 
-  /** Crawls and pages other records cite as evidence, which retention must not remove. */
-  private async protectedWork(): Promise<{ protectedJobs: Set<string>; protectedPages: Set<string> }> {
+  /**
+   * Crawls other records cite as evidence, which retention leaves whole. A
+   * crawl owning a FixIntervention's before or after page is protected as a
+   * whole, so that page keeps its HTML as well as its row.
+   */
+  private async protectedCrawls(): Promise<Set<string>> {
     const [autopilot, interventions] = await Promise.all([
       this.prisma.autopilotRun.findMany({ where: { ownCrawlJobId: { not: null } }, select: { ownCrawlJobId: true } }),
       this.prisma.fixIntervention.findMany({ select: { beforePageId: true, afterPageId: true } }),
@@ -224,7 +255,7 @@ export class CrawlRetentionService {
       });
       for (const page of pages) protectedJobs.add(page.crawlJobId);
     }
-    return { protectedJobs, protectedPages };
+    return protectedJobs;
   }
 
   /** Snapshot files a saved Design Studio analysis still reads. */
