@@ -226,9 +226,7 @@ export class CompetitorSetupService {
     await this.prisma.competitorDomain.delete({ where: { id: existing.id } });
 
     // Stop the site's crawl too, or it runs to the end for nobody.
-    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, existing.websiteId ?? null, existing.domain).catch(
-      () => 0,
-    );
+    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, existing.websiteId ?? null).catch(() => 0);
     return { removed: existing.domain, crawlsStopped };
   }
 }

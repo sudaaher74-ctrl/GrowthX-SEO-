@@ -85,7 +85,9 @@ describe('mergeMoves', () => {
 describe('RivalMovesService.feed', () => {
   it('adds AI answers that named a competitor and not you', async () => {
     const prisma = {
-      competitorDomain: { findMany: jest.fn().mockResolvedValue([{ domain: 'www.countrydelight.in', name: 'Country Delight', label: null, websiteId: null }]) },
+      competitorDomain: {
+        findMany: jest.fn().mockResolvedValue([{ domain: 'www.countrydelight.in', name: 'Country Delight', label: null, websiteId: null, createdAt: day(1) }]),
+      },
       rivalPageSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
       crawlJob: { findMany: jest.fn() },
       page: { findMany: jest.fn() },
@@ -107,7 +109,9 @@ describe('RivalMovesService.feed', () => {
 
   it('counts the pages that opened as pages read, not every attempt', async () => {
     const prisma = {
-      competitorDomain: { findMany: jest.fn().mockResolvedValue([{ domain: 'fortuneexicom.com', name: 'Fortueexicom', label: null, websiteId: 'w1' }]) },
+      competitorDomain: {
+        findMany: jest.fn().mockResolvedValue([{ domain: 'fortuneexicom.com', name: 'Fortueexicom', label: null, websiteId: 'w1', createdAt: day(1) }]),
+      },
       rivalPageSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
       // 300 attempts, most of them turned away.
       crawlJob: { findMany: jest.fn().mockResolvedValue([{ id: 'job1', finishedAt: day(20), pagesCrawled: 300 }]) },
@@ -120,5 +124,46 @@ describe('RivalMovesService.feed', () => {
     expect(prisma.page.count).toHaveBeenCalledWith({
       where: { crawlJobId: 'job1', statusCode: { gte: 200, lt: 400 }, blockedSuspected: false },
     });
+  });
+
+  it("shows a newly added competitor's changes from when this project added it, not before", async () => {
+    const u = 'https://countrydelight.in/a';
+    const prisma = {
+      // Added on the 15th; the daily check had been watching the site for someone else since the 2nd.
+      competitorDomain: {
+        findMany: jest.fn().mockResolvedValue([{ domain: 'countrydelight.in', name: 'Country Delight', label: null, websiteId: null, createdAt: day(15) }]),
+      },
+      rivalPageSnapshot: {
+        findMany: jest.fn().mockResolvedValue([
+          snap(u, 20, { title: 'Cow milk subscription' }),
+          snap(u, 10, { title: 'Cow milk delivery in Pune' }),
+          snap(u, 2),
+        ]),
+      },
+      crawlJob: { findMany: jest.fn() },
+      page: { findMany: jest.fn() },
+      promptCheck: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const res = await new RivalMovesService(prisma as any).feed('p1', day(25));
+
+    // The retitle on the 10th was before this project was watching.
+    expect(res.moves).toEqual([expect.objectContaining({ kind: 'RETITLED', from: 'Cow milk delivery in Pune', to: 'Cow milk subscription' })]);
+    expect(res.watching[0].lastChangeAt).toBe(day(20).toISOString());
+  });
+
+  it('shows no change seen before a competitor was added', async () => {
+    const prisma = {
+      competitorDomain: {
+        findMany: jest.fn().mockResolvedValue([{ domain: 'countrydelight.in', name: 'Country Delight', label: null, websiteId: null, createdAt: day(22) }]),
+      },
+      rivalPageSnapshot: { findMany: jest.fn().mockResolvedValue([snap('https://countrydelight.in/a', 10, { title: 'New' }), snap('https://countrydelight.in/a', 2)]) },
+      crawlJob: { findMany: jest.fn() },
+      page: { findMany: jest.fn() },
+      promptCheck: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const res = await new RivalMovesService(prisma as any).feed('p1', day(25));
+
+    expect(res.moves).toEqual([]);
+    expect(res.watching[0]).toMatchObject({ lastChangeAt: null, lastCheckedAt: null });
   });
 });

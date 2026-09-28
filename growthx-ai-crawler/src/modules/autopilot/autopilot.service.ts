@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AutopilotRun } from '@prisma/client';
 import { crawlToShow } from '../crawler/crawl-selection';
+import { OWN_SCOPE, competitorScope, websiteKey } from '../crawler/website-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { CrawlerService } from '../crawler/crawler.service';
@@ -149,8 +150,10 @@ export class AutopilotService {
    * refused, as the website registration route refuses it.
    */
   private async resolveProject(organizationId: string, userId: string, domain: string, projectId?: string | null) {
+    // Somebody's own website only. A competitor record of the same domain is
+    // another project's, with its crawls, and is never taken over.
     const existing = await this.prisma.website.findUnique({
-      where: { domain },
+      where: websiteKey(domain, OWN_SCOPE),
       select: { id: true, projectId: true, project: { select: { organizationId: true } } },
     });
     if (existing?.project && existing.project.organizationId !== organizationId) {
@@ -178,9 +181,9 @@ export class AutopilotService {
     }
 
     const website = await this.prisma.website.upsert({
-      where: { domain },
+      where: websiteKey(domain, OWN_SCOPE),
       update: { projectId: target },
-      create: { domain, url: `https://${domain}`, isVerified: false, projectId: target },
+      create: { domain, scope: OWN_SCOPE, url: `https://${domain}`, isVerified: false, projectId: target },
     });
     return { projectId: target, websiteId: website.id };
   }
@@ -259,7 +262,7 @@ export class AutopilotService {
       // Carry on with whatever the crawl knows.
     }
     const pages = await this.prisma.page.findMany({
-      where: { crawlJob: { website: { domain } }, title: { not: null } },
+      where: { crawlJob: { website: { domain, projectId, scope: OWN_SCOPE } }, title: { not: null } },
       select: { title: true },
       take: 40,
     });
@@ -414,7 +417,7 @@ export class AutopilotService {
         create: { projectId: run.projectId, domain, name, label: name },
       });
       competitors.push({ domain, name, competitorId: row.id });
-      if (await this.rivalCrawlIsFresh(domain)) {
+      if (await this.rivalCrawlIsFresh(run.projectId, domain)) {
         log.push(`${name} was read recently; using that.`);
         continue;
       }
@@ -440,9 +443,10 @@ export class AutopilotService {
     return this.view(updated);
   }
 
-  private async rivalCrawlIsFresh(domain: string): Promise<boolean> {
+  /** Only a crawl this project ran itself counts: another customer's read of the same site is theirs. */
+  private async rivalCrawlIsFresh(projectId: string, domain: string): Promise<boolean> {
     const job = await this.prisma.crawlJob.findFirst({
-      where: { website: { domain }, status: 'COMPLETED' },
+      where: { website: { domain, scope: competitorScope(projectId) }, status: 'COMPLETED' },
       orderBy: { finishedAt: 'desc' },
       select: { finishedAt: true },
     });
@@ -564,21 +568,23 @@ export class AutopilotService {
   private async sites(run: AutopilotRun): Promise<AutopilotSite[]> {
     // The newest crawl, unless it failed after an earlier one succeeded; a
     // failed recrawl must not read as "failed, 0 pages" for a site already read.
-    const jobFor = async (domain: string) =>
+    // Always this project's own records: the same domain can be on file for
+    // other customers too, with crawls this one never ran.
+    const jobFor = async (website: { domain: string; projectId?: string; scope: string }) =>
       crawlToShow(
         await this.prisma.crawlJob.findMany({
-          where: { website: { domain } },
+          where: { website },
           orderBy: { createdAt: 'desc' },
           take: 6,
           select: { status: true, pagesCrawled: true },
         }),
       ).shown;
-    const own = await jobFor(run.domain);
+    const own = await jobFor({ domain: run.domain, projectId: run.projectId, scope: OWN_SCOPE });
     const out: AutopilotSite[] = [
       { domain: run.domain, name: 'Your website', role: 'you', crawl: own?.status ?? 'NONE', pagesCrawled: own?.pagesCrawled ?? 0 },
     ];
     for (const c of (run.competitors as unknown as ConfirmedCompetitor[]) ?? []) {
-      const job = await jobFor(c.domain);
+      const job = await jobFor({ domain: c.domain, scope: competitorScope(run.projectId) });
       out.push({ domain: c.domain, name: c.name, role: 'competitor', crawl: job?.status ?? 'NONE', pagesCrawled: job?.pagesCrawled ?? 0 });
     }
     return out;

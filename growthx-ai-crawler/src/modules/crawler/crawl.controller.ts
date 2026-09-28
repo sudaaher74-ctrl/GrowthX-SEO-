@@ -16,6 +16,7 @@ import { OrgContextService } from '../organizations/org-context.service';
 import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
+import { OWN_SCOPE, websiteKey } from './website-scope';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -45,8 +46,10 @@ export class CrawlController {
    * `latest-crawl` takes a plain domain, so no id had to be guessed.
    */
   private async websiteForCaller(req: any, where: { id: string } | { domain: string }) {
+    // By domain, only ever a customer's own website: the same domain can also
+    // be on file as a competitor for any number of other projects.
     const website = await this.prisma.website.findUnique({
-      where: where as any,
+      where: 'id' in where ? { id: where.id } : websiteKey(where.domain, OWN_SCOPE),
       select: { id: true, domain: true, verificationToken: true, project: { select: { organizationId: true } } },
     });
     if (!website) throw new NotFoundException('Website not found');
@@ -109,14 +112,16 @@ export class CrawlController {
     if (!domain) throw new BadRequestException('URL or domain is required.');
 
     const existing = await this.prisma.website.findUnique({
-      where: { domain },
+      where: websiteKey(domain, OWN_SCOPE),
       select: { id: true, project: { select: { organizationId: true } } },
     });
 
-    // `Website.domain` is globally unique and `registerWebsite` upserts on it,
+    // A domain has one own-website record and `registerWebsite` upserts on it,
     // so re-registering a domain another tenant already owns used to reassign
     // its projectId — moving that site and its whole crawl history across the
     // tenant boundary. A domain stays with the organization that claimed it.
+    // Competitor records of the same domain are never touched: they belong to
+    // the projects tracking it, crawls and all.
     const owner = existing?.project?.organizationId;
     if (owner && owner !== organizationId) {
       throw new ForbiddenException(
@@ -154,9 +159,9 @@ export class CrawlController {
 
     const token = this.securityService.generateVerificationToken(domain);
     const website = await this.prisma.website.upsert({
-      where: { domain },
+      where: websiteKey(domain, OWN_SCOPE),
       update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
-      create: { url: formattedUrl, domain, verificationToken: token, isVerified: false, projectId: body.projectId },
+      create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
     });
     return {
       id: website.id,
@@ -224,15 +229,17 @@ export class CrawlController {
   @ApiOperation({ summary: 'Retrieve the most recent crawl job for a domain' })
   @ApiParam({ name: 'domain', description: 'Website Domain' })
   async getLatestCrawlJob(@Req() req: any, @Param('domain') domain: string) {
-    await this.websiteForCaller(req, { domain });
+    const website = await this.websiteForCaller(req, { domain });
 
     // The newest crawl, unless it finished without reading anything: then the
     // last crawl that did, with the failed attempt described alongside it. A
     // failed re-audit used to replace a good audit on every screen with an
     // empty one. A crawl in progress is still returned (screens poll it for
     // progress), carrying the last completed crawl's figures to show meanwhile.
+    // By the record just authorized, not by domain, which other customers'
+    // competitor records share.
     const recent = await this.prisma.crawlJob.findMany({
-      where: { website: { domain } },
+      where: { websiteId: website.id },
       orderBy: { createdAt: 'desc' },
       take: 6,
       include: { website: true },
@@ -241,7 +248,7 @@ export class CrawlController {
     if (!lastUsable && recent.length === 6) {
       // Six failures in a row: look further back for the last good one.
       lastUsable = await this.prisma.crawlJob.findFirst({
-        where: { website: { domain }, ...USABLE_CRAWL },
+        where: { websiteId: website.id, ...USABLE_CRAWL },
         orderBy: { createdAt: 'desc' },
         include: { website: true },
       });
@@ -359,7 +366,7 @@ export class CrawlController {
     @Param('domain') domain: string,
     @Query('limit') limit?: string,
   ) {
-    await this.websiteForCaller(req, { domain });
+    const website = await this.websiteForCaller(req, { domain });
 
     // Only finished crawls: a running or failed job has no meaningful page or
     // issue count, and plotting its zeros would draw a cliff that never
@@ -368,7 +375,7 @@ export class CrawlController {
     const take = Math.min(Math.max(parseInt(limit ?? '12', 10) || 12, 2), 60);
 
     const runs = await this.prisma.crawlJob.findMany({
-      where: { website: { domain }, status: JobStatus.COMPLETED, finishedAt: { not: null } },
+      where: { websiteId: website.id, status: JobStatus.COMPLETED, finishedAt: { not: null } },
       orderBy: { finishedAt: 'desc' },
       take,
       select: { id: true, pagesCrawled: true, issuesFound: true, startedAt: true, finishedAt: true },

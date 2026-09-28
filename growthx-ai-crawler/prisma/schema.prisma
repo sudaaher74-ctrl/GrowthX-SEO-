@@ -22,7 +22,19 @@ datasource db {
 
 model Website {
   id                String             @id @default(uuid())
-  domain            String             @unique
+  domain            String
+  /// Whose record this is, which keeps one customer's crawls out of another's.
+  ///
+  /// `own` — a customer's own site; at most one per domain, so a domain stays
+  /// with the organization that registered it. `competitor:<projectId>` — a
+  /// competitor's site as tracked by that one project. `legacy:<id>` — a row
+  /// from before this existed that nothing tracks any more.
+  ///
+  /// A domain used to be one row for everybody: two customers tracking the
+  /// same competitor shared its crawls, so the second saw pages "read" that
+  /// they never asked for, and a competitor that was also somebody's own site
+  /// shared that customer's own audit. See website-scope.ts.
+  scope             String
   url               String
   isVerified        Boolean            @default(false)
   verifiedAt        DateTime?
@@ -41,7 +53,8 @@ model Website {
   projectId         String?
   crawlJobs         CrawlJob[]
   project           Project?           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// Competitors, across any project, whose domain this is.
+  /// The competitor entry this record was made for: only ever the one project
+  /// named by a `competitor:<projectId>` scope.
   ///
   /// A competitor's site is stored with projectId left null. That is what
   /// keeps it out of the customer's own analysis for free: every query that
@@ -51,6 +64,7 @@ model Website {
   /// exclude it in a dozen places.
   competitors       CompetitorDomain[]
 
+  @@unique([domain, scope])
   @@index([domain])
   @@index([isVerified, crawlFrequency])
 }
@@ -176,9 +190,9 @@ model Page {
   performance        Performance?
   schemas            Schema[]
   /// Product-catalog row(s) this page was resolved to, when the crawler's
-  /// product detector flagged it. More than one when the page belongs to a
-  /// competitor's site, since that Website/Page is shared across every
-  /// project tracking the same domain and each gets its own catalog row.
+  /// product detector flagged it. More than one only for competitor pages
+  /// crawled before each project had its own record of a competitor's site
+  /// (see `Website.scope`).
   catalogProducts    CatalogProduct[]
   marketingSignals   MarketingSignal[]
 
@@ -724,8 +738,9 @@ model CompetitorDomain {
   lastAnalyzedAt   DateTime?
   nextAnalysisAt   DateTime?
   /// The crawled site behind this domain, once it has been crawled at least
-  /// once. Shared: two projects tracking the same competitor point at one
-  /// Website rather than crawling that third party twice.
+  /// once. This project's own record of it (scope `competitor:<projectId>`):
+  /// two projects tracking the same competitor each crawl it, so neither ever
+  /// sees the other's crawls.
   ///
   /// SetNull rather than Cascade — deleting a crawled site must not delete
   /// the competitor the customer added.
@@ -3470,7 +3485,9 @@ model CrawlFrontier {
 /// Keyed by domain rather than project: two customers tracking the same rival
 /// share one history instead of fetching that third party twice. The history
 /// is the point — a change can only be shown against a snapshot taken before
-/// it, so these start accumulating before any screen reads them.
+/// it, so these start accumulating before any screen reads them. A project is
+/// only ever shown changes seen after it added the competitor; earlier rows
+/// are its baseline, never its feed (see RivalMovesService).
 model RivalPageSnapshot {
   id              String   @id @default(uuid())
   domain          String
@@ -3628,9 +3645,10 @@ enum CatalogCtaType {
 /// findFirst+create/update in the crawler rather than `upsert()`, which only
 /// targets the compound key below.
 ///
-/// `pageId` is deliberately not unique: a competitor's crawled `Page` is
-/// shared (one `Website` per domain, tracked by any number of projects), so
-/// the same page can resolve to one `CatalogProduct` row per project.
+/// `pageId` is not unique. A competitor's pages were once shared by every
+/// project tracking its domain; each project now crawls its own record of the
+/// site (see `Website.scope`), but rows written before that are kept as they
+/// are, so the constraint stays as loose as the data it has to describe.
 model CatalogProduct {
   id                String             @id @default(uuid())
   organizationId    String

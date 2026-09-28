@@ -52,6 +52,9 @@ describe('OrgContextService', () => {
         project: { organizationId: 'org_1' },
       });
       await expect(service.assertWebsiteAccess('user_1', { domain: 'example.com' })).resolves.toMatchObject({ id: 'w1' });
+      // By domain, only ever a customer's own site: a competitor record of the
+      // same domain belongs to whichever project tracks it.
+      expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'example.com', scope: 'own' } });
     });
 
     it('refuses a website belonging to another organization', async () => {

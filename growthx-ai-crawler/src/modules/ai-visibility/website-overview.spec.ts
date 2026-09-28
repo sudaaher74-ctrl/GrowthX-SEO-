@@ -129,11 +129,13 @@ describe('AiVisibilityService.websitesOverview', () => {
     const prisma = {
       website: {
         findMany: jest.fn().mockResolvedValue([
-          { domain: 'milquufresh.in', projectId: 'p1', crawlJobs: [crawl({ id: 'own', pagesCrawled: 34, healthScore: 80 })] },
-          { domain: 'countrydelight.in', projectId: null, crawlJobs: [crawl({ id: 'cd', pagesCrawled: 247 })] },
+          { id: 'w-own', domain: 'milquufresh.in', projectId: 'p1', scope: 'own', crawlJobs: [crawl({ id: 'own', pagesCrawled: 34, healthScore: 80 })] },
+          { id: 'w-cd', domain: 'countrydelight.in', projectId: null, scope: 'competitor:p1', crawlJobs: [crawl({ id: 'cd', pagesCrawled: 247 })] },
           {
+            id: 'w-md',
             domain: 'mittaldairy.in',
             projectId: null,
+            scope: 'competitor:p1',
             crawlJobs: [crawl({ id: 'md', status: 'RUNNING', pagesCrawled: 9, finishedAt: null })],
           },
         ]),
@@ -157,11 +159,37 @@ describe('AiVisibilityService.websitesOverview', () => {
     };
     const service = new AiVisibilityService(prisma as any, {} as any);
     jest.spyOn(service, 'listCompetitors').mockResolvedValue([
-      { id: 'c1', domain: 'countrydelight.in', label: 'country delight', healthScore: 78, rating: 4.3, reviewCount: 5120 },
-      { id: 'c2', domain: 'mittaldairy.in', label: 'mittal dairy farms', healthScore: null, rating: null, reviewCount: null },
+      { id: 'c1', websiteId: 'w-cd', domain: 'countrydelight.in', label: 'country delight', healthScore: 78, rating: 4.3, reviewCount: 5120 },
+      { id: 'c2', websiteId: 'w-md', domain: 'mittaldairy.in', label: 'mittal dairy farms', healthScore: null, rating: null, reviewCount: null },
     ] as any);
     return { service, prisma };
   }
+
+  it("reads this project's own records only, never another customer's record of the same competitor", async () => {
+    const { service, prisma } = build();
+    await service.websitesOverview('p1');
+
+    expect(prisma.website.findMany.mock.calls[0][0].where).toEqual({
+      OR: [{ projectId: 'p1', scope: 'own' }, { id: { in: ['w-cd', 'w-md'] } }],
+    });
+  });
+
+  it('shows a competitor with no record of its own as not read yet, whatever else is on file for its domain', async () => {
+    const { service, prisma } = build();
+    // Another customer's record of countrydelight.in, with a finished crawl.
+    prisma.website.findMany.mockResolvedValue([
+      { id: 'w-theirs', domain: 'countrydelight.in', projectId: null, scope: 'competitor:p2', crawlJobs: [crawl({ id: 'theirs', pagesCrawled: 247 })] },
+    ]);
+    jest.spyOn(service, 'listCompetitors').mockResolvedValue([
+      { id: 'c1', websiteId: null, domain: 'countrydelight.in', label: 'country delight', healthScore: null, rating: null, reviewCount: null },
+    ] as any);
+
+    const { sites } = await service.websitesOverview('p1');
+
+    expect(sites).toHaveLength(1);
+    expect(sites[0]).toMatchObject({ role: 'competitor', status: 'WAITING', pagesRead: 0, lastReadAt: null, pageTypes: [] });
+    expect(prisma.page.groupBy).not.toHaveBeenCalled();
+  });
 
   it('describes your website first, then each competitor, with pages, kinds of pages and rating', async () => {
     const { service } = build();
