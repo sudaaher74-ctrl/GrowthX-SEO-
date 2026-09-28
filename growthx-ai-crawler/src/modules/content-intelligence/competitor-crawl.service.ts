@@ -7,6 +7,7 @@ import { canonicalUrl } from '../crawler/canonical-url';
 import { isCrawlablePage } from '../crawler/crawlable';
 import { closestMatch, siteBoilerplate, MATCH_THRESHOLD } from './topic-match';
 import { calculateHealthScore } from '../issues/health-score.util';
+import { competitorScope, websiteKey } from '../crawler/website-scope';
 
 @Injectable()
 export class CompetitorCrawlService {
@@ -60,11 +61,16 @@ export class CompetitorCrawlService {
 
     const domain = CompetitorCrawlService.normalizeDomain(competitor.domain);
 
+    // This project's own record of the competitor, never one shared with
+    // another customer: tracking a competitor somebody else already crawled
+    // starts a crawl of its own rather than showing their pages as read.
+    const scope = competitorScope(projectId);
     const website = await this.prisma.website.upsert({
-      where: { domain },
+      where: websiteKey(domain, scope),
       update: {},
       create: {
         domain,
+        scope,
         url: `https://${domain}`,
         rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
         maxConcurrency: CompetitorCrawlService.MAX_CONCURRENCY,
@@ -444,11 +450,15 @@ export class CompetitorCrawlService {
     let targetWebsiteId = websiteId;
 
     if (!targetWebsiteId) {
+      const owner = await this.prisma.competitorDomain.findUnique({ where: { id: competitorId }, select: { projectId: true } });
+      if (!owner) return { websiteId: '', crawlJobId: '' };
+      const scope = competitorScope(owner.projectId);
       const site = await this.prisma.website.upsert({
-        where: { domain: cleanDomain },
+        where: websiteKey(cleanDomain, scope),
         update: {},
         create: {
           domain: cleanDomain,
+          scope,
           url: `https://${cleanDomain}`,
           rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
           maxConcurrency: CompetitorCrawlService.MAX_CONCURRENCY,
@@ -523,38 +533,19 @@ export class CompetitorCrawlService {
  * removed a competitor and watched the log keep reading its pages. The
  * crawler stops fetching a CANCELLED job's queued pages within seconds.
  *
- * A competitor's site is shared: the `Website` row is keyed by domain, and
- * another project may track the same competitor. Its crawls are only stopped
- * when nothing tracks the site any more, and a project's own site (one with a
- * projectId) is never stopped from here. Returns how many crawls were stopped.
+ * Each project has its own record of a competitor's site (see
+ * website-scope.ts), so its crawls stop as soon as nothing in that project
+ * tracks it; another project tracking the same domain has its own record and
+ * its own crawls, untouched. A competitor that never recorded a site has no
+ * crawl of its own to stop. A project's own site (one with a projectId) is
+ * never stopped from here. Returns how many crawls were stopped.
  */
-export async function stopUntrackedCompetitorCrawls(
-  prisma: PrismaService,
-  websiteId: string | null,
-  domain: string,
-): Promise<number> {
-  let bare: string | null = null;
-  try {
-    bare = CompetitorCrawlService.normalizeDomain(domain);
-  } catch {
-    bare = null;
-  }
-
-  const website = websiteId
-    ? await prisma.website.findUnique({ where: { id: websiteId }, select: { id: true, projectId: true } })
-    : bare
-      ? await prisma.website.findUnique({ where: { domain: bare }, select: { id: true, projectId: true } })
-      : null;
+export async function stopUntrackedCompetitorCrawls(prisma: PrismaService, websiteId: string | null): Promise<number> {
+  if (!websiteId) return 0;
+  const website = await prisma.website.findUnique({ where: { id: websiteId }, select: { id: true, projectId: true } });
   if (!website || website.projectId) return 0;
 
-  const stillTracked = await prisma.competitorDomain.count({
-    where: {
-      OR: [
-        { websiteId: website.id },
-        ...(bare ? [{ domain: { in: [bare, `www.${bare}`] } }] : []),
-      ],
-    },
-  });
+  const stillTracked = await prisma.competitorDomain.count({ where: { websiteId: website.id } });
   if (stillTracked > 0) return 0;
 
   const { count } = await prisma.crawlJob.updateMany({

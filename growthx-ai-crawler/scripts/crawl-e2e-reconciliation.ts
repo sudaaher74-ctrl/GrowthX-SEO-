@@ -54,7 +54,7 @@ async function main() {
   await prisma.project.upsert({ where: { id: slug }, create: { id: slug, name: slug, organizationId: slug }, update: {} });
   await prisma.website.upsert({
     where: { id: slug },
-    create: { id: slug, domain: host, url: START, projectId: slug },
+    create: { id: slug, domain: host, scope: 'own', url: START, projectId: slug },
     update: {},
   });
 
