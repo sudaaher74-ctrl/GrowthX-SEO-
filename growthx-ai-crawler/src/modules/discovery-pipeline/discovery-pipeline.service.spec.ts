@@ -22,6 +22,7 @@ describe('DiscoveryPipelineService', () => {
   let research: any;
   let competitorCrawl: any;
   let analysis: any;
+  let autopilot: any;
   let service: DiscoveryPipelineService;
 
   beforeEach(() => {
@@ -52,7 +53,9 @@ describe('DiscoveryPipelineService', () => {
     competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j2' }) };
     analysis = { run: jest.fn().mockResolvedValue({ projectId: 'p1', startedAt: '', stages: [] }) };
 
-    service = new DiscoveryPipelineService(prisma, crawler, research, competitorCrawl, analysis);
+    autopilot = { offerSuggestions: jest.fn().mockResolvedValue({ id: 'run1' }) };
+
+    service = new DiscoveryPipelineService(prisma, crawler, research, competitorCrawl, analysis, autopilot);
   });
 
   it('subscribes to crawl completion at start-up rather than being injected into the crawler', () => {
@@ -67,23 +70,44 @@ describe('DiscoveryPipelineService', () => {
       expect(research.getBusinessProfile).toHaveBeenCalledWith('org1', 'p1', { refresh: true });
     });
 
-    it('identifies competitors and tracks the verified ones', async () => {
+    it('offers the verified competitors for the customer to pick from, instead of tracking them unasked', async () => {
       research.autoIdentifyCompetitors.mockResolvedValue({
         topCompetitors: [
-          { domain: 'rival.com', name: 'Rival', industry: 'Dairy', description: 'x', overlapScore: 88, verified: true },
+          { domain: 'rival.com', name: 'Rival', industry: 'Dairy', description: 'x', keyDifferentiator: 'Same-day milk delivery', overlapScore: 88, verified: true },
           { domain: 'ghost.com', name: 'Ghost', industry: 'Dairy', description: 'y', overlapScore: 60, verified: false },
         ],
         notes: [],
+        identifiedBy: 'sarvam-105b',
       });
-      research.addSelectedCompetitors.mockResolvedValue({ count: 1, addedCompetitors: [] });
 
       await service.handleCrawlCompleted('j1', 'w1');
 
-      const [, , tracked] = research.addSelectedCompetitors.mock.calls[0];
-      expect(tracked).toEqual([expect.objectContaining({ domain: 'rival.com', confidenceScore: 88 })]);
+      expect(research.addSelectedCompetitors).not.toHaveBeenCalled();
+      expect(autopilot.offerSuggestions).toHaveBeenCalledWith({
+        projectId: 'p1',
+        organizationId: 'org1',
+        domain: 'clientco.com',
+        suggestions: [{ domain: 'rival.com', name: 'Rival', reason: 'Same-day milk delivery', foundBy: 'sarvam-105b' }],
+      });
+      expect(prisma.project.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { competitorsIdentifiedAt: expect.any(Date) } }),
+      );
     });
 
-    it('caps automatic tracking at five however many were identified', async () => {
+    it('still records that identification ran when a search the customer started already owns the question', async () => {
+      research.autoIdentifyCompetitors.mockResolvedValue({
+        topCompetitors: [{ domain: 'rival.com', name: 'Rival', description: '', verified: true }],
+      });
+      autopilot.offerSuggestions.mockResolvedValue(null);
+
+      await service.handleCrawlCompleted('j1', 'w1');
+
+      expect(prisma.project.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { competitorsIdentifiedAt: expect.any(Date) } }),
+      );
+    });
+
+    it('offers at most five however many were identified', async () => {
       research.autoIdentifyCompetitors.mockResolvedValue({
         topCompetitors: Array.from({ length: 9 }, (_, i) => ({
           domain: `rival${i}.com`,
@@ -97,7 +121,7 @@ describe('DiscoveryPipelineService', () => {
 
       await service.handleCrawlCompleted('j1', 'w1');
 
-      expect(research.addSelectedCompetitors.mock.calls[0][2]).toHaveLength(5);
+      expect(autopilot.offerSuggestions.mock.calls[0][0].suggestions).toHaveLength(5);
     });
 
     // A customer who reviewed the five we found and deleted four made a

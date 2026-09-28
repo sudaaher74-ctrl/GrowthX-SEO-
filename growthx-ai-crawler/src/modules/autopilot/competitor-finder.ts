@@ -22,7 +22,30 @@ export interface CompetitorSuggestion {
   domain: string;
   name: string;
   reason: string;
+  /** The model that suggested it (e.g. `sarvam-105b`), shown next to the list. */
+  foundBy?: string | null;
 }
+
+/** Held to by the router, so a reply in prose moves on to the next provider. */
+export const FINDER_SCHEMA = {
+  type: 'object',
+  properties: {
+    business: { type: 'string' },
+    competitors: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          domain: { type: 'string' },
+          name: { type: 'string' },
+          reason: { type: 'string' },
+        },
+        required: ['domain', 'name', 'reason'],
+      },
+    },
+  },
+  required: ['business', 'competitors'],
+};
 
 /** Marketplaces, directories and social sites: where competitors list, not competitors. */
 const PLATFORM_NAMES = new Set(

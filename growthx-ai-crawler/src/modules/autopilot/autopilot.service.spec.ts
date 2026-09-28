@@ -42,6 +42,9 @@ function fakePrisma() {
       }),
     },
     page: { findMany: jest.fn().mockResolvedValue([]) },
+    organizationMember: {
+      findFirst: jest.fn(({ where }) => Promise.resolve(where.role === 'OWNER' ? { userId: 'owner1' } : { userId: 'member1' })),
+    },
     competitorDomain: {
       findMany: jest.fn(() => Promise.resolve(competitors)),
       upsert: jest.fn(({ create }) => {
@@ -160,6 +163,49 @@ describe('AutopilotService', () => {
     expect(done.log.map((l) => l.message).join(' ')).toContain('Your website audit report is ready.');
   });
 
+  it('asks Sarvam first, and the next model when Sarvam cannot answer', async () => {
+    const { service, prisma, router } = setup(MODEL);
+    router.generate
+      .mockRejectedValueOnce(new Error('SARVAM_API_KEY is not configured.'))
+      .mockResolvedValueOnce({ text: MODEL, refused: false, model: 'claude-sonnet-5' });
+    const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
+    await service.discover(view.id);
+
+    expect(router.generate.mock.calls[0][0]).toMatchObject({ provider: 'SARVAM', jsonSchema: expect.any(Object) });
+    expect(router.generate.mock.calls[1][0].provider).toBeUndefined();
+    const run = prisma.runs[0];
+    expect(run.suggestions.map((s: any) => s.domain)).toEqual(['teabox.com', 'vahdamteas.com']);
+    expect(run.suggestions[0].foundBy).toBe('claude-sonnet-5');
+  });
+
+  it('says which model found the competitors when Sarvam answers', async () => {
+    const { service, prisma, router } = setup(MODEL);
+    router.generate.mockResolvedValue({ text: MODEL, refused: false, model: 'sarvam-105b' });
+    const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
+    await service.discover(view.id);
+
+    expect(router.generate).toHaveBeenCalledTimes(1);
+    const run = prisma.runs[0];
+    expect(run.suggestions.every((s: any) => s.foundBy === 'sarvam-105b')).toBe(true);
+    expect(run.log.map((l: any) => l.message).join(' ')).toContain('with sarvam-105b');
+  });
+
+  it('keeps the first three when more are confirmed, as a spoken "yes" confirms all five', async () => {
+    const { service, competitorCrawl } = setup(MODEL);
+    const run = await service.offerSuggestions({
+      projectId: 'p1',
+      organizationId: 'o1',
+      domain: 'brandkettle.co.in',
+      suggestions: ['a.in', 'b.in', 'c.in', 'd.in', 'e.in'].map((domain) => ({ domain, name: domain.toUpperCase(), reason: '' })),
+    });
+
+    const confirmed = await service.confirm(run!.id, 'u1', ['a.in', 'b.in', 'c.in', 'd.in', 'e.in']);
+
+    expect(confirmed.competitors.map((c) => c.domain)).toEqual(['a.in', 'b.in', 'c.in']);
+    expect(competitorCrawl.startCrawl).toHaveBeenCalledTimes(3);
+    expect(confirmed.log.map((l) => l.message).join(' ')).toContain('Kept your first 3. Skipped d.in, e.in');
+  });
+
   it('writes the report anyway when a crawl never finishes', async () => {
     const { service, prisma, report } = setup(MODEL);
     const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
@@ -168,6 +214,48 @@ describe('AutopilotService', () => {
     prisma.jobs['teabox.com'] = { status: 'PENDING', pagesCrawled: 0 };
     await service.tick(new Date(Date.now() + 2 * 60 * 60 * 1000));
     expect(report.generate).toHaveBeenCalled();
+  });
+});
+
+describe('offering competitors found after the first audit', () => {
+  const found = Array.from({ length: 6 }, (_, i) => ({
+    domain: `rival${i}.in`,
+    name: `Rival ${i}`,
+    reason: 'Sells fresh milk in Pune',
+    foundBy: 'sarvam-105b',
+  }));
+
+  it('puts five to the customer as a question, attributed to the organization owner', async () => {
+    const { service, prisma, competitorCrawl } = setup(MODEL);
+
+    const run = await service.offerSuggestions({ projectId: 'p1', organizationId: 'o1', domain: 'milquufresh.in', suggestions: found });
+
+    expect(run).toMatchObject({ status: 'AWAITING_CONFIRMATION', step: 'CONFIRM', userId: 'owner1', domain: 'milquufresh.in' });
+    expect(run!.suggestions).toHaveLength(5);
+    // Nothing is tracked or crawled until the customer picks.
+    expect(prisma.competitors).toHaveLength(0);
+    expect(competitorCrawl.startCrawl).not.toHaveBeenCalled();
+    const log = (run!.log as any[]).map((l) => l.message).join(' ');
+    expect(log).toContain('Your website audit of milquufresh.in finished.');
+    expect(log).toContain('Found 5 likely competitors with sarvam-105b');
+    expect(log).toContain('Pick up to 3 to track.');
+  });
+
+  it('leaves the question to a search the customer already started', async () => {
+    const { service, prisma } = setup(MODEL);
+    prisma.runs.push({ id: 'mine', projectId: 'p1', status: 'DISCOVERING' });
+
+    await expect(
+      service.offerSuggestions({ projectId: 'p1', organizationId: 'o1', domain: 'milquufresh.in', suggestions: found }),
+    ).resolves.toBeNull();
+    expect(prisma.runs).toHaveLength(1);
+  });
+
+  it('offers nothing when nothing was found', async () => {
+    const { service } = setup(MODEL);
+    await expect(
+      service.offerSuggestions({ projectId: 'p1', organizationId: 'o1', domain: 'milquufresh.in', suggestions: [] }),
+    ).resolves.toBeNull();
   });
 });
 

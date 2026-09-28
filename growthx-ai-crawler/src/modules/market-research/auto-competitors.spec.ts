@@ -212,6 +212,19 @@ describe('MarketResearchService — auto-identify & add selected competitors', (
       expect(result.topCompetitors).toHaveLength(0);
     });
 
+    it('records which model named the competitors, so the screen can say so', async () => {
+      models.isConfigured.mockReturnValue(true);
+      models.generate.mockResolvedValue({
+        text: JSON.stringify({ competitors: [{ domain: 'semrush.com', name: 'Semrush', description: 'x', overlapScore: 90 }] }),
+        usage: { step: 'auto_identify_competitors', role: 'ANALYST', model: 'sarvam-105b', inputTokens: 1, outputTokens: 1, costUsd: null },
+        webSources: [],
+      });
+
+      const result = await service.autoIdentifyCompetitors('org1', 'p1');
+
+      expect(result.identifiedBy).toBe('sarvam-105b');
+    });
+
     it('uses AI output when models are configured', async () => {
       models.isConfigured.mockReturnValue(true);
       models.generate.mockResolvedValue({

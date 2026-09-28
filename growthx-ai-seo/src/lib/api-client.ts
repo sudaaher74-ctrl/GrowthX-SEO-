@@ -2825,7 +2825,8 @@ export interface AutopilotRun {
   domain: string;
   status: "DISCOVERING" | "AWAITING_CONFIRMATION" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
   step: "SETUP" | "FIND_COMPETITORS" | "CONFIRM" | "CRAWL_SITES" | "REPORT" | "DONE";
-  suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean }>;
+  /** `foundBy` is the model that suggested it, e.g. "sarvam-105b". */
+  suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean; foundBy?: string | null }>;
   competitors: Array<{ domain: string; name: string; competitorId: string }>;
   sites: Array<{ domain: string; name: string; role: "you" | "competitor"; crawl: string; pagesCrawled: number }>;
   log: Array<{ at: string; message: string }>;

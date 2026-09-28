@@ -68,9 +68,9 @@ describe('voice autopilot turns', () => {
 });
 
 describe('describeRun', () => {
-  it('asks the confirmation question with the names found', () => {
+  it('asks which two or three to keep, with the names found', () => {
     expect(describeRun(view() as any)).toBe(
-      'I found Teabox and Vahdam. Are these your competitors? Say yes, or tell me which to remove or add.',
+      'I found Teabox and Vahdam. Which two or three do you really compete with? Name them, or say yes to keep the top three.',
     );
   });
 });
