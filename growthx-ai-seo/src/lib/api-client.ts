@@ -3247,6 +3247,10 @@ export interface MyCatalogResponse {
   crawlStatus: CatalogCrawlStatus;
   crawledAt: string | null;
   products: CatalogProductRow[];
+  /** Pages the crawl products are read from opened. */
+  pagesRead?: number;
+  /** True while products are being read from pages already stored. */
+  readingProducts?: boolean;
 }
 
 export interface CompetitorCatalogResult {
@@ -3254,6 +3258,86 @@ export interface CompetitorCatalogResult {
   crawlStatus: CatalogCrawlStatus;
   crawledAt: string | null;
   products: CatalogProductRow[];
+  pagesRead?: number;
+  readingProducts?: boolean;
+}
+
+// ── Business → Marketing Strategy (mirrors business-strategy.ts) ──────────
+
+export interface StrategyProduct {
+  name: string;
+  url: string;
+  price: string | null;
+  category: string | null;
+}
+
+export interface RivalPush {
+  url: string;
+  name: string;
+  source: "catalog" | "product-page" | "linked-page";
+  price: string | null;
+  linkedFrom: number;
+  onHomepage: boolean;
+  fromArticles: Array<{ title: string; url: string }>;
+  linkWords: string[];
+  headline: string | null;
+}
+
+export interface StrategyPriceBand {
+  min: number;
+  max: number;
+  count: number;
+  currency: string;
+}
+
+export interface StrategyPositioning {
+  valueProps: string[];
+  promos: string[];
+  tone: string | null;
+}
+
+export interface StrategyCompetitor {
+  id: string;
+  name: string;
+  domain: string;
+  pagesRead: number;
+  productCount: number;
+  pricedCount: number;
+  products: StrategyProduct[];
+  pushed: RivalPush[];
+  positioning: StrategyPositioning | null;
+}
+
+export interface StrategyFacts {
+  business: { name: string | null; domain: string | null };
+  you: { productCount: number; pricedCount: number; products: StrategyProduct[]; positioning: StrategyPositioning | null };
+  competitors: StrategyCompetitor[];
+  prices: Array<{ category: string; you: StrategyPriceBand | null; them: Array<{ competitor: string; band: StrategyPriceBand }> }>;
+}
+
+export interface StrategyAction {
+  title: string;
+  why: string;
+  steps: string[];
+  priority: "high" | "medium" | "low";
+}
+
+export interface MarketingStrategy {
+  summary: string;
+  rivalProducts: Array<{ competitor: string; url: string; whyItWorks: string; keywords: string[]; counter: string[] }>;
+  pricing: string[];
+  keywords: Array<{ phrase: string; why: string; forProduct: string | null }>;
+  blogPosts: Array<{ title: string; covers: string; keyword: string }>;
+  positioning: { yourEdge: string; theirAngle: string; message: string } | null;
+  actions: StrategyAction[];
+}
+
+export interface BusinessStrategyReport {
+  generatedAt: string;
+  facts: StrategyFacts;
+  strategy: MarketingStrategy | null;
+  strategyError: string | null;
+  model: string | null;
 }
 
 export type CatalogGapKind = "MISSING_CATEGORY" | "PRICE_DELTA" | "PRICE_INCOMPARABLE" | "STOCK_TRANSPARENCY";
@@ -4373,6 +4457,9 @@ export const api = {
       get<MarketingSignalsResult>(`/api/projects/${projectId}/business/marketing-signals`),
     generateMarketingSignals: (projectId: string, competitorId?: string) =>
       post<MarketingSignalDto[]>(`/api/projects/${projectId}/business/marketing-signals/generate`, competitorId ? { competitorId } : {}),
+    latestStrategy: (projectId: string) =>
+      get<BusinessStrategyReport | null>(`/api/projects/${projectId}/business/strategy/latest`),
+    generateStrategy: (projectId: string) => post<BusinessStrategyReport>(`/api/projects/${projectId}/business/strategy`, {}),
   },
 };
 

@@ -5,6 +5,8 @@ import { BusinessController } from './business.controller';
 import { BusinessCatalogService } from './business-catalog.service';
 import { BusinessGapsService } from './business-gaps.service';
 import { BusinessMarketingService } from './business-marketing.service';
+import { CatalogBackfillService } from './catalog-backfill.service';
+import { BusinessStrategyService } from './business-strategy.service';
 
 @Module({
   // ContentIntelligenceModule exports CompetitorCrawlService — Catalog (Them)
@@ -13,6 +15,6 @@ import { BusinessMarketingService } from './business-marketing.service';
   // MultiAiRouterService, for the Marketing Signals tab.
   imports: [ContentIntelligenceModule, AiSearchModule],
   controllers: [BusinessController],
-  providers: [BusinessCatalogService, BusinessGapsService, BusinessMarketingService],
+  providers: [BusinessCatalogService, BusinessGapsService, BusinessMarketingService, CatalogBackfillService, BusinessStrategyService],
 })
 export class BusinessModule {}

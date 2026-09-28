@@ -8,7 +8,8 @@ import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
-import { completenessScore, detectProductSignals, matchConfidence, ProductSignal } from './product-detector';
+import { detectProductSignals, ProductSignal } from './product-detector';
+import { writeCatalogProduct } from './catalog-write';
 import { canonicalUrl } from './canonical-url';
 import { isCrawlablePage, isHtmlResponse } from './crawlable';
 import { extractSocialProfiles } from './social-links';
@@ -1229,11 +1230,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * because a competitor's `Website` is shared across every project tracking
    * that domain (deduped by domain), and each of those projects needs its own
    * catalog comparison.
+   *
+   * Cached briefly, not for the life of the process. It used to be kept
+   * forever, so a competitor linked to a website after the first lookup —
+   * a second project adding the same rival, or a crawl whose first page beat
+   * the link being written — never had a product recorded until a restart,
+   * and Business showed "No product pages found" for a site that had them.
    */
   private readonly catalogTargetsByWebsite = new Map<
     string,
-    { projectId: string; competitorId: string | null; organizationId: string }[]
+    { at: number; targets: { projectId: string; competitorId: string | null; organizationId: string }[] }
   >();
+  private static readonly CATALOG_TARGETS_TTL_MS = 60_000;
 
   private async resolveProjectId(websiteId: string): Promise<string | null> {
     const cached = this.projectIdByWebsite.get(websiteId);
@@ -1264,7 +1272,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     websiteId: string,
   ): Promise<{ projectId: string; competitorId: string | null; organizationId: string }[]> {
     const cached = this.catalogTargetsByWebsite.get(websiteId);
-    if (cached) return cached;
+    if (cached && Date.now() - cached.at < CrawlerService.CATALOG_TARGETS_TTL_MS) return cached.targets;
 
     try {
       const website = await this.prisma.website.findUnique({
@@ -1285,7 +1293,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         targets.push({ projectId: competitor.projectId, competitorId: competitor.id, organizationId: competitor.project.organizationId });
       }
 
-      this.catalogTargetsByWebsite.set(websiteId, targets);
+      this.catalogTargetsByWebsite.set(websiteId, { at: Date.now(), targets });
       return targets;
     } catch {
       // Not cached, same reasoning as resolveProjectId: a transient failure
@@ -1306,59 +1314,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const targets = await this.resolveCatalogTargets(websiteId);
     if (targets.length === 0) return;
 
-    const shared = {
-      pageId,
-      name: signal.name,
-      priceStatus: signal.priceStatus,
-      priceMinorUnits: signal.priceMinorUnits,
-      currency: signal.currency,
-      stockStatus: signal.stockStatus,
-      stockValue: signal.stockValue,
-      category: signal.category,
-      ctaType: signal.ctaType,
-      completenessScore: completenessScore(signal),
-    };
-    // Only meaningful for a competitor: matching your own crawl to your own
-    // catalog isn't a guess, so this stays null on those rows.
-    const confidence = matchConfidence(signal);
-
     for (const target of targets) {
       try {
-        if (target.competitorId) {
-          // A real, non-null competitorId makes (projectId, competitorId, url)
-          // a genuine tuple, so the compound unique key upsert works as-is.
-          await this.prisma.catalogProduct.upsert({
-            where: {
-              projectId_competitorId_url: { projectId: target.projectId, competitorId: target.competitorId, url: pageUrl },
-            },
-            create: {
-              projectId: target.projectId,
-              competitorId: target.competitorId,
-              url: pageUrl,
-              organizationId: target.organizationId,
-              matchConfidence: confidence,
-              ...shared,
-            },
-            update: { organizationId: target.organizationId, matchConfidence: confidence, ...shared },
-          });
-        } else {
-          // competitorId is NULL for every own-site row, and Postgres never
-          // treats two NULLs as a duplicate, so the compound unique key
-          // cannot back an upsert here — the partial index that protects this
-          // case is enforced by the database, not by the Prisma query engine.
-          // findFirst+create/update reaches the same result explicitly.
-          const existing = await this.prisma.catalogProduct.findFirst({
-            where: { projectId: target.projectId, competitorId: null, url: pageUrl },
-            select: { id: true },
-          });
-          if (existing) {
-            await this.prisma.catalogProduct.update({ where: { id: existing.id }, data: { organizationId: target.organizationId, ...shared } });
-          } else {
-            await this.prisma.catalogProduct.create({
-              data: { projectId: target.projectId, competitorId: null, url: pageUrl, organizationId: target.organizationId, ...shared },
-            });
-          }
-        }
+        await writeCatalogProduct(this.prisma, target, pageId, pageUrl, signal);
       } catch (err) {
         this.logger.warn(`Could not record catalog product ${pageUrl} for project ${target.projectId}: ${(err as Error).message}`);
       }

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BusinessCatalogService } from './business-catalog.service';
 import { BusinessGapsService } from './business-gaps.service';
 import { BusinessMarketingService } from './business-marketing.service';
+import { BusinessStrategyService } from './business-strategy.service';
 
 export class GenerateMarketingSignalsDto {
   /** Regenerates one competitor's signals instead of the project's own. */
@@ -32,7 +33,25 @@ export class BusinessController {
     private readonly catalog: BusinessCatalogService,
     private readonly gaps: BusinessGapsService,
     private readonly marketing: BusinessMarketingService,
+    private readonly strategy: BusinessStrategyService,
   ) {}
+
+  @Get('strategy/latest')
+  @ApiOperation({ summary: 'Marketing Strategy: the most recently generated report, or null' })
+  @ApiParam({ name: 'projectId' })
+  latestStrategy(@Param('projectId') projectId: string) {
+    return this.strategy.latest(projectId);
+  }
+
+  @Post('strategy')
+  @ApiOperation({
+    summary: 'Marketing Strategy: products, prices and what each competitor pushes, with a strategy written by Sarvam',
+    description: 'A POST because it spends model tokens. The counted facts are returned even when the strategy cannot be written.',
+  })
+  @ApiParam({ name: 'projectId' })
+  generateStrategy(@Req() req: any, @Param('projectId') projectId: string) {
+    return this.strategy.generate(projectId, req.user?.organizationId || req.organizationId);
+  }
 
   @Get('catalog/mine')
   @ApiOperation({ summary: 'Catalog (You): products auto-extracted from the project\'s own crawl' })

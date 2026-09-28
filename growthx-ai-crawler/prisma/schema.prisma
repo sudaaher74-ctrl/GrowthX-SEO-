@@ -3532,6 +3532,17 @@ model CompetitorReportSnapshot {
 }
 
 /// A Website Audit report as it was generated, so it can be read again later.
+/// Stored Business → Marketing Strategy reports: the facts counted from both
+/// catalogs and crawls, and the strategy Sarvam wrote from them.
+model BusinessStrategySnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  report    Json
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
 model AuditReportSnapshot {
   id        String   @id @default(uuid())
   projectId String

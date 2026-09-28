@@ -101,6 +101,14 @@ export class CompetitorCrawlService {
       };
     }
 
+    // Linked before the crawl starts, not after: the crawler looks up which
+    // competitors a website's products belong to on the first product page it
+    // reads, and a link written after that page is a catalog left empty.
+    await this.prisma.competitorDomain.update({
+      where: { id: competitor.id },
+      data: { websiteId: website.id, status: 'ANALYZING' },
+    });
+
     let jobId = 'job-' + Date.now();
     try {
       jobId = await this.crawler.startCrawlJob(website.id, {
@@ -114,11 +122,6 @@ export class CompetitorCrawlService {
     } catch (e: any) {
       this.logger.warn(`Live crawler notice: ${e.message}. Ensuring baseline crawl.`);
     }
-
-    await this.prisma.competitorDomain.update({
-      where: { id: competitor.id },
-      data: { websiteId: website.id, status: 'ANALYZING' },
-    });
 
     if ((this.prisma as any).page?.create) {
       await this.ensureCompetitorCrawlData(domain, competitor.id, website.id);
