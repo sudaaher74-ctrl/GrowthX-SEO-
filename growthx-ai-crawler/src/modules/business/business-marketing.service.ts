@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
 /**
  * Business module, Marketing Signals — positioning/messaging claims read off
@@ -35,6 +36,54 @@ interface ExtractedSignals {
 }
 
 const MAX_PAGE_TEXT_CHARS = 6000;
+
+/**
+ * Passed to the router so the reply is held to it. Without a schema the router
+ * neither asks the vendor to enforce JSON nor moves on to the next provider
+ * when the first answers in prose — and the fast providers this task routes to
+ * first often wrap their JSON in a code fence, which a bare `JSON.parse`
+ * rejects.
+ */
+const MARKETING_SCHEMA = {
+  type: 'object',
+  properties: {
+    valueProps: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Short value-proposition phrases actually stated on the page, at most 5.',
+    },
+    promos: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Promos, discounts or offers actually stated on the page, at most 5. Empty if none.',
+    },
+    tone: {
+      type: 'string',
+      description: "One short phrase describing the page's tone.",
+    },
+  },
+  required: ['valueProps', 'promos', 'tone'],
+};
+
+/** Everything in a document that is not copy a visitor reads. */
+const NON_COPY_ELEMENTS = 'script, style, noscript, template, svg, iframe';
+
+const PAGE_FIELDS = {
+  id: true,
+  title: true,
+  metaDescription: true,
+  h1: true,
+  rawHtml: true,
+  renderedHtml: true,
+} as const;
+
+interface CopySource {
+  title: string | null;
+  metaDescription: string | null;
+  h1: string[];
+  rawHtml: string | null;
+  renderedHtml?: string | null;
+}
 
 @Injectable()
 export class BusinessMarketingService {
@@ -92,7 +141,7 @@ export class BusinessMarketingService {
     const home = await this.prisma.page.findFirst({
       where: { ...scope, statusCode: 200, pageType: 'HOME' },
       orderBy: { crawledAt: 'desc' },
-      select: { id: true, title: true, metaDescription: true, h1: true, rawHtml: true },
+      select: PAGE_FIELDS,
     });
     if (home) return home;
 
@@ -101,22 +150,25 @@ export class BusinessMarketingService {
     return this.prisma.page.findFirst({
       where: { ...scope, statusCode: 200 },
       orderBy: { wordCount: 'desc' },
-      select: { id: true, title: true, metaDescription: true, h1: true, rawHtml: true },
+      select: PAGE_FIELDS,
     });
   }
 
-  private async extract(
-    organizationId: string,
-    projectId: string,
-    page: { title: string | null; metaDescription: string | null; h1: string[]; rawHtml: string | null },
-  ): Promise<ExtractedSignals> {
-    const bodyText = page.rawHtml ? cheerio.load(page.rawHtml)('body').text().replace(/\s+/g, ' ').trim() : '';
-    const pageText = [page.title, page.metaDescription, page.h1.join(' — '), bodyText]
-      .filter(Boolean)
-      .join('\n')
-      .slice(0, MAX_PAGE_TEXT_CHARS);
-
-    if (!pageText.trim()) return { valueProps: [], promos: [], tone: null };
+  /**
+   * Reads the page with the multi-AI router.
+   *
+   * Every failure here throws, and throws before `persist` runs. It used to
+   * return "nothing found" instead, which `persist` then wrote — deleting the
+   * last good read — and the screen went back to its empty state with no
+   * message, so a customer clicking "Read your positioning" saw nothing happen.
+   */
+  private async extract(organizationId: string, projectId: string, page: CopySource): Promise<ExtractedSignals> {
+    const pageText = pageCopy(page);
+    if (!pageText.trim()) {
+      throw new UnprocessableEntityException(
+        'We found the page but could not read any text on it. Run a new Website Audit and try again.',
+      );
+    }
 
     const prompt = `Read this webpage's own copy and extract its marketing positioning. Do not invent anything not actually said on the page.
 
@@ -132,6 +184,7 @@ Respond ONLY in valid JSON matching this schema:
   "tone": "one short phrase describing the page's tone (e.g. 'premium and formal', 'playful and casual', 'plain B2B/technical')"
 }`;
 
+    let text: string;
     try {
       const res = await this.aiRouter.generate({
         prompt,
@@ -139,17 +192,32 @@ Respond ONLY in valid JSON matching this schema:
         task: AiTask.CONTENT_STRUCTURE_ANALYSIS,
         organizationId,
         projectId,
+        jsonSchema: MARKETING_SCHEMA,
       });
-      const parsed = JSON.parse(res.text);
-      return {
-        valueProps: Array.isArray(parsed.valueProps) ? parsed.valueProps.filter((v: unknown) => typeof v === 'string').slice(0, 5) : [],
-        promos: Array.isArray(parsed.promos) ? parsed.promos.filter((v: unknown) => typeof v === 'string').slice(0, 5) : [],
-        tone: typeof parsed.tone === 'string' ? parsed.tone : null,
-      };
+      if (res.refused) throw new Error(`${res.provider} declined to read the page`);
+      text = res.text;
     } catch (err) {
-      this.logger.warn(`Marketing signal extraction failed: ${(err as Error).message}`);
-      return { valueProps: [], promos: [], tone: null };
+      this.logger.warn(`Marketing signal extraction failed for project ${projectId}: ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        'The AI could not read your page just now. Your previous results are unchanged — please try again in a minute.',
+      );
     }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseModelJson(text, 'Marketing signals');
+    } catch (err) {
+      this.logger.warn(`Marketing signal extraction returned unusable output for project ${projectId}: ${(err as Error).message}`);
+      throw new ServiceUnavailableException(
+        'The AI returned an answer we could not read. Your previous results are unchanged — please try again.',
+      );
+    }
+
+    return {
+      valueProps: cleanList(parsed.valueProps),
+      promos: cleanList(parsed.promos),
+      tone: typeof parsed.tone === 'string' && parsed.tone.trim() ? parsed.tone.trim() : null,
+    };
   }
 
   private async persist(params: {
@@ -181,6 +249,40 @@ Respond ONLY in valid JSON matching this schema:
       await this.prisma.marketingSignal.findMany({ where: { projectId, competitorId }, orderBy: { detectedAt: 'desc' } }),
     );
   }
+}
+
+/**
+ * The words a visitor actually reads on the page.
+ *
+ * Prefers the rendered DOM: on a site built in the browser the served HTML is
+ * an empty shell and the copy only exists after scripts run. Scripts, styles
+ * and inline SVG come out before the text is taken — `$('body').text()`
+ * includes the contents of every `<script>` in the body, and on a Shopify or
+ * Next.js page those JSON blobs alone can fill the whole character budget, so
+ * the model was being sent code instead of the homepage's copy.
+ */
+export function pageCopy(page: CopySource): string {
+  const html = page.renderedHtml || page.rawHtml;
+  let bodyText = '';
+  if (html) {
+    const $ = cheerio.load(html);
+    $(NON_COPY_ELEMENTS).remove();
+    bodyText = $('body').text().replace(/\s+/g, ' ').trim();
+  }
+  return [page.title, page.metaDescription, page.h1.join(' — '), bodyText]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, MAX_PAGE_TEXT_CHARS);
+}
+
+/** Up to five non-empty strings, whatever shape the model returned. */
+function cleanList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 }
 
 function toDto(rows: { id: string; kind: string; text: string; detectedAt: Date }[]): MarketingSignalDto[] {
