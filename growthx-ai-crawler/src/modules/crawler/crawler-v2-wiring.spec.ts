@@ -210,6 +210,140 @@ describe('CrawlerService budgets rendering', () => {
       else process.env.CRAWL_MAX_RENDERED_PAGES = previous;
     }
   });
+
+  it('lets a crawl ask for fewer renders than the deployment allows', async () => {
+    const fetch = jest.fn(async (_url: string, _opts?: unknown) =>
+      outcome({ tier: 'rendered', jsRequired: true, renderedHtml: '<html><body><h1>R</h1></body></html>' }),
+    );
+    const { service } = makeService({ fetchSvc: { fetch } });
+
+    await service.processPageFetch({ ...payload, renderBudget: 1 });
+    await service.processPageFetch({ ...payload, renderBudget: 1, targetUrl: 'https://example.com/second' });
+
+    expect(fetch.mock.calls[0][1]).toEqual({ renderAllowed: true });
+    expect(fetch.mock.calls[1][1]).toEqual({ renderAllowed: false });
+  });
+
+  it('never lets a crawl ask for more renders than the deployment allows', async () => {
+    const previous = process.env.CRAWL_MAX_RENDERED_PAGES;
+    process.env.CRAWL_MAX_RENDERED_PAGES = '1';
+    try {
+      const fetch = jest.fn(async (_url: string, _opts?: unknown) =>
+        outcome({ tier: 'rendered', jsRequired: true, renderedHtml: '<html><body><h1>R</h1></body></html>' }),
+      );
+      const { service } = makeService({ fetchSvc: { fetch } });
+
+      await service.processPageFetch({ ...payload, renderBudget: 10 });
+      await service.processPageFetch({ ...payload, renderBudget: 10, targetUrl: 'https://example.com/second' });
+
+      expect(fetch.mock.calls[1][1]).toEqual({ renderAllowed: false });
+    } finally {
+      if (previous === undefined) delete process.env.CRAWL_MAX_RENDERED_PAGES;
+      else process.env.CRAWL_MAX_RENDERED_PAGES = previous;
+    }
+  });
+});
+
+describe('CrawlerService honours a crawl time budget', () => {
+  function withStats(service: CrawlerService) {
+    (service as any).jobStats.set('job1', {
+      urlsDiscovered: 0,
+      urlsSkipped: 0,
+      robotsBlocked: 0,
+      internalLinksFound: 0,
+      crawlStatus: 'COMPLETED',
+    });
+    return (service as any).jobStats.get('job1');
+  }
+
+  it('fetches as normal before the deadline', async () => {
+    const fetch = jest.fn(async () => outcome());
+    const { service, upserts } = makeService({ fetchSvc: { fetch } });
+    const stats = withStats(service);
+
+    await service.processPageFetch({ ...payload, deadlineAt: Date.now() + 60_000 });
+
+    expect(fetch).toHaveBeenCalled();
+    expect(upserts).toHaveLength(1);
+    expect(stats.crawlStatus).toBe('COMPLETED');
+  });
+
+  it('skips the fetch once the deadline has passed, and says the crawl was capped', async () => {
+    const fetch = jest.fn(async () => outcome());
+    const markExcluded = jest.fn(async () => undefined);
+    const { service, upserts } = makeService({
+      fetchSvc: { fetch },
+      inventory: {
+        record: jest.fn(async () => ({ added: 0, merged: 0, invalid: 0 })),
+        markQueued: jest.fn(async () => undefined),
+        markCrawled: jest.fn(async () => undefined),
+        markExcluded,
+        metrics: jest.fn(async () => null),
+      },
+    });
+    const stats = withStats(service);
+
+    await service.processPageFetch({ ...payload, deadlineAt: Date.now() - 1 });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(upserts).toHaveLength(0);
+    expect(markExcluded).toHaveBeenCalledWith('job1', 'https://example.com/', 'crawl_budget_exceeded');
+    expect(stats.crawlStatus).toBe('LIMIT_REACHED');
+    expect(stats.urlsSkipped).toBe(1);
+  });
+
+  it('does not count a skipped URL as a page read, so it does not use up the page limit', async () => {
+    const fetch = jest.fn(async () => outcome());
+    const { service } = makeService({ fetchSvc: { fetch } });
+    withStats(service);
+
+    await service.processPageFetch({ ...payload, deadlineAt: Date.now() - 1 });
+
+    expect((service as any).localVisited.get('job1')?.size ?? 0).toBe(0);
+  });
+
+  it('still records a duplicate as a duplicate after the deadline', async () => {
+    const fetch = jest.fn(async () => outcome());
+    const markExcluded = jest.fn(async () => undefined);
+    const { service } = makeService({
+      fetchSvc: { fetch },
+      inventory: {
+        record: jest.fn(async () => ({ added: 0, merged: 0, invalid: 0 })),
+        markQueued: jest.fn(async () => undefined),
+        markCrawled: jest.fn(async () => undefined),
+        markExcluded,
+        metrics: jest.fn(async () => null),
+      },
+    });
+    const stats = withStats(service);
+
+    await service.processPageFetch(payload);
+    await service.processPageFetch({ ...payload, deadlineAt: Date.now() - 1 });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(markExcluded).toHaveBeenLastCalledWith('job1', 'https://example.com/', 'duplicate');
+    expect(stats.crawlStatus).toBe('COMPLETED');
+  });
+
+  it('hands the deadline and render budget on to the pages it finds', async () => {
+    const bulkAddPageFetchTasks = jest.fn(async () => undefined);
+    const { service } = makeService({
+      queue: { getRedisClient: () => null, pageFetchQueue: {}, bulkAddPageFetchTasks },
+    });
+    const deadlineAt = Date.now() + 60_000;
+
+    await (service as any).discoverInternalLinksAndEnqueue(
+      { ...payload, domain: 'example.com', rateLimitDelayMs: 0, deadlineAt, renderBudget: 5 },
+      [{ targetUrl: 'https://example.com/about' }],
+      'page1',
+    );
+
+    expect(bulkAddPageFetchTasks).toHaveBeenCalledTimes(1);
+    const [children] = bulkAddPageFetchTasks.mock.calls[0] as unknown as [any[]];
+    expect(children).toHaveLength(1);
+    expect(children[0].deadlineAt).toBe(deadlineAt);
+    expect(children[0].renderBudget).toBe(5);
+  });
 });
 
 describe('CrawlerService suppresses the issue cascade', () => {

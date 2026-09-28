@@ -1,3 +1,4 @@
+import { ideasToMarkdown } from "@/lib/content-ideas";
 import type { WebsiteAuditReport } from "@/lib/api-client";
 
 /** Downloads for the Website Audit report: Markdown to read, CSV to work in. Print goes through the shared renderer. */
@@ -71,6 +72,8 @@ export function auditToMarkdown(report: WebsiteAuditReport): string {
   } else {
     out.push(`## Analysis\nNot available: ${report.analysisError ?? "unknown reason"}. The measured facts below are complete.`);
   }
+
+  out.push(...ideasToMarkdown(report.ideas));
 
   const rows = pageRows(report);
   if (rows.length) {

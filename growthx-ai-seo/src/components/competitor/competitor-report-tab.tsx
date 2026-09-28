@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ExternalLink, FileSpreadsheet, FileText, Loader2, Printer, Sparkles } from "lucide-react";
 import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console";
+import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 import { api, type CompetitorIntelReport, type IntelPriority, type IntelReportRival } from "@/lib/api-client";
 import {
   aiMentionText,
@@ -220,6 +221,8 @@ export function CompetitorReportTab({ projectId, rivalCount }: { projectId: stri
           )}
         </>
       )}
+
+      {data && <ContentIdeasPanels projectId={projectId} ideas={data.ideas} error={data.ideasError} />}
 
       {data && (
         <Panel

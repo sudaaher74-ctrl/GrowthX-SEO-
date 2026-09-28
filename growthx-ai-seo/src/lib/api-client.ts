@@ -1859,6 +1859,13 @@ export interface TrackedCompetitor {
   socialAccounts?: Array<{ platform: string; handle: string; lastSyncedAt: string | null }>;
 }
 
+/** Mirrors ContentIdeas in growthx-ai-crawler content-ideas.service.ts. Suggestions, not measurements. */
+export interface ContentIdeas {
+  keywords: Array<{ phrase: string; why: string; usePage: string | null }>;
+  blogIdeas: Array<{ title: string; covers: string; keyword: string }>;
+  model: string | null;
+}
+
 /** Mirrors WebsiteAuditReport in growthx-ai-crawler audit-report.service.ts. */
 export interface WebsiteAuditReport {
   generatedAt: string;
@@ -1901,6 +1908,9 @@ export interface WebsiteAuditReport {
   } | null;
   model: string | null;
   analysisError: string | null;
+  /** Absent on reports written before suggestions existed. */
+  ideas?: ContentIdeas | null;
+  ideasError?: string | null;
   snapshotId?: string | null;
 }
 
@@ -1959,6 +1969,9 @@ export interface CompetitorIntelReport {
   } | null;
   model: string | null;
   analysisError: string | null;
+  /** Absent on reports written before suggestions existed. */
+  ideas?: ContentIdeas | null;
+  ideasError?: string | null;
 }
 
 /** Mirrors WebsiteOverview in growthx-ai-crawler ai-visibility/website-overview.ts. */
