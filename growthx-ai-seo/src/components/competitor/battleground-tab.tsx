@@ -239,7 +239,7 @@ export function BattlegroundTab({
     <div className="space-y-4">
       {/* Rival selector */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-lg border border-brand-950 bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white">
+        <span className="rounded-lg border border-primary-600 bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white">
           You · {domain || "your site"}
         </span>
         {competitors.map((c) => {

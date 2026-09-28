@@ -621,7 +621,7 @@ function SetupGuide({ steps }: { steps: SetupStep[] }) {
             <p className="mt-0.5 text-[12px] text-brand-600">{next.why}</p>
             <Link
               href={next.href}
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90"
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90"
             >
               {next.cta}
               <ArrowRight size={12} />
@@ -892,7 +892,7 @@ function EmptyPrompt({
   action?: { label: string; href?: string; onClick?: () => void; disabled?: boolean };
 }) {
   const button =
-    "inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:opacity-50";
+    "inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:opacity-50";
   return (
     <div className="flex flex-col items-center py-4 text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-600">

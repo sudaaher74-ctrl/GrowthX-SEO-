@@ -469,7 +469,7 @@ export function CompetitorKeywordsPanel({
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-950 text-white shadow-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
                 <Hash size={16} />
               </div>
               <div>
@@ -508,7 +508,7 @@ export function CompetitorKeywordsPanel({
               <button
                 onClick={() => crawlCompetitorMutation.mutate()}
                 disabled={crawlCompetitorMutation.isPending}
-                className="flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-brand-800 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50"
               >
                 <RefreshCw size={13} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
                 {crawlCompetitorMutation.isPending ? "Crawling Site..." : "Crawl Competitor"}
@@ -574,7 +574,7 @@ export function CompetitorKeywordsPanel({
           <button
             onClick={() => crawlCompetitorMutation.mutate()}
             disabled={crawlCompetitorMutation.isPending}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-950 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-50"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-50"
           >
             <RefreshCw size={14} className={crawlCompetitorMutation.isPending ? "animate-spin" : ""} />
             {crawlCompetitorMutation.isPending ? "Crawling Site..." : "Start Competitor Crawl"}
@@ -623,7 +623,7 @@ export function CompetitorKeywordsPanel({
                 onClick={() => setFilterCategory("ALL")}
                 className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold transition ${
                   filterCategory === "ALL"
-                    ? "bg-brand-950 text-white shadow-sm"
+                    ? "bg-primary-600 text-white shadow-sm"
                     : "bg-white border text-brand-700 hover:bg-brand-50"
                 }`}
                 style={filterCategory !== "ALL" ? { borderColor: "var(--border-color)" } : {}}
@@ -651,7 +651,7 @@ export function CompetitorKeywordsPanel({
                 <button
                   onClick={() => setViewMode("SPLIT")}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
-                    viewMode === "SPLIT" ? "bg-brand-950 text-white" : "text-brand-600 hover:text-brand-950"
+                    viewMode === "SPLIT" ? "bg-primary-600 text-white" : "text-brand-600 hover:text-brand-950"
                   }`}
                 >
                   <ArrowLeftRight size={13} />
@@ -660,7 +660,7 @@ export function CompetitorKeywordsPanel({
                 <button
                   onClick={() => setViewMode("BLUEPRINTS")}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${
-                    viewMode === "BLUEPRINTS" ? "bg-brand-950 text-white" : "text-brand-600 hover:text-brand-950"
+                    viewMode === "BLUEPRINTS" ? "bg-primary-600 text-white" : "text-brand-600 hover:text-brand-950"
                   }`}
                 >
                   <LayoutTemplate size={13} />
@@ -1059,7 +1059,7 @@ export function CompetitorKeywordsPanel({
                       </span>
                       <button
                         onClick={() => copyBlueprintToClipboard(item)}
-                        className="flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-800"
+                        className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-primary-700"
                       >
                         {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                         <span>{isCopied ? "Copied!" : "Copy Blueprint"}</span>

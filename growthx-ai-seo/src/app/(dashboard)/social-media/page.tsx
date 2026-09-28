@@ -91,7 +91,7 @@ function SocialMediaClient() {
               type="button"
               onClick={() => generateStrategyMutation.mutate()}
               disabled={generateStrategyMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-brand-900 transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-primary-700 transition shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Sparkles size={13} className={generateStrategyMutation.isPending ? "animate-spin" : "text-amber-400"} />
               <span>{generateStrategyMutation.isPending ? "Generating Strategy..." : "Regenerate Strategy"}</span>
@@ -148,7 +148,7 @@ function SocialMediaClient() {
               onClick={() => setActiveTab(cat.id)}
               className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-bold transition cursor-pointer ${
                 isActive
-                  ? "bg-brand-950 text-white shadow-xs"
+                  ? "bg-primary-600 text-white shadow-xs"
                   : "bg-white border text-brand-700 hover:bg-brand-50 hover:text-brand-950"
               }`}
               style={!isActive ? { borderColor: "var(--border-color)" } : {}}

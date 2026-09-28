@@ -126,7 +126,7 @@ export default function CampaignsPage() {
               <p className="text-[12px] text-brand-500">Manage campaigns, brief creators, and link content.</p>
             </div>
           </div>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white">
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white">
             <Plus size={13} /> New Campaign
           </button>
         </div>
@@ -189,7 +189,7 @@ export default function CampaignsPage() {
                       <button
                         key={p}
                         onClick={() => togglePlatform(p)}
-                        className={`rounded-full px-2.5 py-1 text-[10.5px] font-medium transition ${form.platforms?.includes(p) ? "bg-accent-600 text-white" : "bg-brand-100 text-brand-600"}`}
+                        className={`rounded-full px-2.5 py-1 text-[10.5px] font-medium transition ${form.platforms?.includes(p) ? "bg-primary-600 text-white" : "bg-brand-100 text-brand-600"}`}
                       >
                         {p}
                       </button>

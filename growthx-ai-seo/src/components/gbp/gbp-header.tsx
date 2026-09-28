@@ -242,7 +242,7 @@ export function GbpHeader({
                 <button
                   type="button"
                   onClick={onConnect}
-                  className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition"
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition"
                 >
                   <GoogleGLogo size={13} />
                   <span>Connect Google</span>
@@ -252,7 +252,7 @@ export function GbpHeader({
               <button
                 type="button"
                 onClick={onConnect}
-                className="flex items-center gap-2 rounded-lg bg-brand-950 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition"
+                className="flex items-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:opacity-90 transition"
               >
                 <GoogleGLogo size={14} />
                 <span>Connect with Google</span>

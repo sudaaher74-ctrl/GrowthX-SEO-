@@ -103,7 +103,7 @@ export function GbpStatePanel({
               type="button"
               onClick={action.onClick}
               disabled={action.pending}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
             >
               {action.pending && <Loader2 size={12} className="animate-spin" />}
               {action.label}

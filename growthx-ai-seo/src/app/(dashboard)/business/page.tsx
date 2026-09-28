@@ -101,7 +101,7 @@ function BusinessClient() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
-                    ? "bg-accent-600 text-white shadow-xs"
+                    ? "bg-primary-600 text-white shadow-xs"
                     : "text-brand-600 hover:text-brand-950 hover:bg-brand-100 font-semibold"
                 }`}
               >

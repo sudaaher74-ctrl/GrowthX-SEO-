@@ -52,7 +52,7 @@ export function TruthfulState({
       )}
       style={{ borderColor: "var(--border-color)" }}
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border shadow-sm text-brand-700 mb-3.5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary-100 bg-primary-50 text-primary-600 mb-3.5">
         <Icon size={18} />
       </div>
 
@@ -62,7 +62,7 @@ export function TruthfulState({
 
       {actionRequired && (
         <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-white border px-2.5 py-1 text-[11px] font-medium text-brand-700 shadow-2xs">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent-600 animate-pulse" />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary-600 animate-pulse" />
           <span>Next step: {actionRequired}</span>
         </div>
       )}
@@ -77,7 +77,7 @@ export function TruthfulState({
                   "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
                   action.variant === "secondary"
                     ? "border bg-white text-brand-700 hover:bg-brand-50"
-                    : "bg-brand-950 text-white hover:opacity-90"
+                    : "bg-primary-600 text-white hover:bg-primary-700"
                 )}
               >
                 {action.label}
@@ -90,7 +90,7 @@ export function TruthfulState({
                   "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-semibold transition-colors",
                   action.variant === "secondary"
                     ? "border bg-white text-brand-700 hover:bg-brand-50"
-                    : "bg-brand-950 text-white hover:opacity-90"
+                    : "bg-primary-600 text-white hover:bg-primary-700"
                 )}
               >
                 {action.label}

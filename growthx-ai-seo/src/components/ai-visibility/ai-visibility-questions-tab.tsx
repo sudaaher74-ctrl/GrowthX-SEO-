@@ -252,7 +252,7 @@ function Suggestions({ projectId }: { projectId: string | null }) {
           type="button"
           onClick={track}
           disabled={picked.size === 0 || addPrompts.isPending}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-2 text-[12px] font-bold text-white hover:bg-brand-800 disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white hover:bg-primary-700 disabled:opacity-50"
         >
           {addPrompts.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
           Track {picked.size > 0 ? picked.size : ""} selected

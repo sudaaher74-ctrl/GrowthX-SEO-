@@ -362,7 +362,7 @@ function GeoTrackingPage() {
                     setNewPrompt("");
                     setShowPromptAdd(false);
                   }}
-                  className="h-9 px-4 rounded-lg bg-brand-950 text-[12px] font-semibold text-white disabled:opacity-50 hover:bg-brand-900 transition"
+                  className="h-9 px-4 rounded-lg bg-primary-600 text-[12px] font-semibold text-white disabled:opacity-50 hover:bg-primary-700 transition"
                 >
                   {addPrompts.isPending ? "Adding…" : "Add"}
                 </button>
@@ -383,7 +383,7 @@ function GeoTrackingPage() {
               <p className="text-[11px] text-brand-400 mt-1">Add buyer-intent queries to see if AI engines cite your brand.</p>
               <button
                 onClick={() => setShowPromptAdd(true)}
-                className="mt-3 flex items-center gap-1 mx-auto rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-semibold text-white"
+                className="mt-3 flex items-center gap-1 mx-auto rounded-lg bg-primary-600 px-3 py-1.5 text-[11.5px] font-semibold text-white"
               >
                 <Plus size={12} /> Add First Prompt
               </button>

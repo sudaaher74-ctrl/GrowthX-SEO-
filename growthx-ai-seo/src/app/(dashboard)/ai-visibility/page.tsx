@@ -451,7 +451,7 @@ function AiVisibilityClient() {
                 <button
                   type="submit"
                   disabled={addPrompts.isPending || !newQueryText.trim()}
-                  className="rounded-xl bg-slate-950 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
+                  className="rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
                 >
                   {addPrompts.isPending ? "Adding..." : "Add & Monitor"}
                 </button>
@@ -508,7 +508,7 @@ function AiVisibilityClient() {
                 <button
                   type="submit"
                   disabled={addCompetitor.isPending || !newCompDomain.trim()}
-                  className="rounded-xl bg-slate-950 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
+                  className="rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white shadow-xs hover:bg-black transition-colors disabled:opacity-50"
                 >
                   {addCompetitor.isPending ? "Adding..." : "Add Competitor"}
                 </button>

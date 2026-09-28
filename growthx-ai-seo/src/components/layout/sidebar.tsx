@@ -154,7 +154,7 @@ export function Sidebar({
       >
         {/* Brand */}
         <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-brand-950">
+          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-gradient-to-br from-primary-500 to-primary-700 shadow-sm">
             <LayoutGrid size={13} className="text-white" />
           </div>
           <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-brand-950">GrowthX</span>
@@ -311,7 +311,7 @@ export function Sidebar({
                 onClick={() => setUserMenuOpen((v) => !v)}
                 className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-50 transition"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-950 font-mono text-[10px] font-semibold text-white">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 font-mono text-[10px] font-semibold text-white">
                   {userInitials}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -380,11 +380,11 @@ function NavLink({
           className={cn(
             "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
             active
-              ? "bg-brand-950 font-semibold text-white"
+              ? "bg-primary-50 font-semibold text-primary-700"
               : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
           )}
         >
-          <item.icon size={15} className={active ? "text-white" : "text-brand-400"} />
+          <item.icon size={15} className={active ? "text-primary-600" : "text-brand-400"} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.step && (
             <span
@@ -395,7 +395,7 @@ function NavLink({
                 item.step.done
                   ? "bg-success-500 text-white"
                   : active
-                    ? "border border-white/50 text-white"
+                    ? "border border-primary-300 text-primary-700"
                     : "border text-brand-500",
               )}
             >
@@ -410,10 +410,10 @@ function NavLink({
                   ? "bg-error-50 text-error-700"
                   : item.tagTone === "success"
                     ? active
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
-                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      ? "bg-success-100 text-success-700 border border-success-200"
+                      : "bg-success-50 text-success-700 border border-success-200"
                     : active
-                      ? "bg-white/15 text-white"
+                      ? "bg-primary-100 text-primary-700"
                       : "bg-brand-200 text-brand-600",
               )}
             >

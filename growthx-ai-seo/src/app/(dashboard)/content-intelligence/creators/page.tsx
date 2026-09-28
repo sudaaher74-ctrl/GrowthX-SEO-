@@ -117,7 +117,7 @@ export default function CreatorsPage() {
               <p className="text-[12px] text-brand-500">Discover, manage, and collaborate with creators and influencers.</p>
             </div>
           </div>
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white">
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white">
             <Plus size={13} /> Add Creator
           </button>
         </div>
@@ -131,7 +131,7 @@ export default function CreatorsPage() {
             <Users size={28} className="mx-auto mb-3 text-brand-300" />
             <p className="text-[13px] font-medium text-brand-950">No creators yet</p>
             <p className="mt-1 text-[12px] text-brand-500">Add creators to your CRM to manage collaborations and AI-powered matching.</p>
-            <button onClick={() => setShowAdd(true)} className="mt-4 mx-auto flex items-center gap-1.5 rounded-lg bg-accent-600 px-4 py-2 text-[12px] font-medium text-white">
+            <button onClick={() => setShowAdd(true)} className="mt-4 mx-auto flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-[12px] font-medium text-white">
               <Plus size={13} /> Add First Creator
             </button>
           </div>
@@ -206,7 +206,7 @@ export default function CreatorsPage() {
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setShowAdd(false)} className="flex-1 rounded-lg border py-2 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>Cancel</button>
                 <button onClick={() => addMut.mutate(form)} disabled={!form.name || addMut.isPending}
-                  className="flex-1 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
+                  className="flex-1 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
                   {addMut.isPending ? "Adding…" : "Add Creator"}
                 </button>
               </div>
@@ -254,7 +254,7 @@ export default function CreatorsPage() {
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setOutreachCreator(null)} className="flex-1 rounded-lg border py-2 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>Cancel</button>
                 <button onClick={() => outreachMut.mutate()} disabled={!outreachForm.brandName || outreachMut.isPending}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
                   <Send size={12} /> {outreachMut.isPending ? "Drafting…" : "Draft Message"}
                 </button>
               </div>

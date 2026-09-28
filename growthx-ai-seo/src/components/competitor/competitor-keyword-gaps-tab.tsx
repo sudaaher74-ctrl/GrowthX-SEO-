@@ -347,7 +347,7 @@ export function CompetitorKeywordGapsTab({
             type="button"
             onClick={handleAddSelected}
             disabled={filteredKeywords.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
           >
             <Play className="h-4 w-4 fill-white" />
             <span>Add Selected to Fix Plan</span>
@@ -587,7 +587,7 @@ export function CompetitorKeywordGapsTab({
           <button
             type="button"
             onClick={handleAddSelected}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <span>Add All Gaps to Fix Plan</span>
             <ArrowRight className="h-3.5 w-3.5" />

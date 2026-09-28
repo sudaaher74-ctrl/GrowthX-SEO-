@@ -83,7 +83,7 @@ export default function ClientsPage() {
           </button>
           <Link
             href="/projects"
-            className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Plus size={13} /> Add project
           </Link>
@@ -143,7 +143,7 @@ export default function ClientsPage() {
                 className={cn(
                   "rounded-full border px-3 py-1 text-[11.5px] font-medium transition-colors",
                   filter === f
-                    ? "border-brand-950 bg-brand-950 text-white"
+                    ? "border-primary-600 bg-primary-600 text-white"
                     : "bg-white text-brand-600 hover:bg-brand-50",
                 )}
                 style={filter === f ? undefined : { borderColor: "var(--border-color)" }}

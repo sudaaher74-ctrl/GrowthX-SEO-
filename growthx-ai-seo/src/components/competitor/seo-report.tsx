@@ -70,7 +70,7 @@ export function CompetitorSeoReportPanel({
             className={
               "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition " +
               (competitor.id === competitorId
-                ? "border-brand-950 bg-brand-950 text-white"
+                ? "border-primary-600 bg-primary-600 text-white"
                 : "border-[var(--border-color)] bg-white text-brand-700 hover:border-brand-400")
             }
           >

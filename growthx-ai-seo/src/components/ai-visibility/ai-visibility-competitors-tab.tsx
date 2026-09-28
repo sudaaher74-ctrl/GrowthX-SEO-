@@ -411,7 +411,7 @@ export function AiVisibilityCompetitorsTab({
           <button
             type="button"
             onClick={onViewAllGaps}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-black text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <span>View All Competitor Gaps</span>
             <ArrowRight size={13} />

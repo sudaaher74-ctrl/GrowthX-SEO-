@@ -367,7 +367,7 @@ export function AutoCompetitorsPanel({
                     }}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition ${
                       activeRegion === scope.value
-                        ? "bg-blue-600 font-semibold text-white shadow-xs"
+                        ? "bg-primary-600 font-semibold text-white shadow-xs"
                         : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                     }`}
                   >
@@ -422,7 +422,7 @@ export function AutoCompetitorsPanel({
               <button
                 onClick={() => void runDiscovery({ refreshProfile: true })}
                 disabled={isDiscovering}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-900 disabled:opacity-50"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-primary-700 disabled:opacity-50"
               >
                 <Target size={13} />
                 Re-run with these
@@ -532,7 +532,7 @@ export function AutoCompetitorsPanel({
               <button
                 type="button"
                 onClick={() => setShowRefine(true)}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-xs font-medium text-white transition hover:bg-brand-900"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-primary-700"
               >
                 <SlidersHorizontal size={13} />
                 Refine the search
@@ -594,7 +594,7 @@ export function AutoCompetitorsPanel({
                               }}
                               className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all ${
                                 isSelected
-                                  ? "border-blue-600 bg-blue-600 text-white"
+                                  ? "border-primary-600 bg-primary-600 text-white"
                                   : "border-[var(--border-color)] bg-[var(--surface-2)] text-transparent hover:border-blue-500"
                               }`}
                             >

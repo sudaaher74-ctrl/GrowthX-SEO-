@@ -27,7 +27,7 @@ export default function FixEnginePage() {
           <div className="pt-2">
             <Link
               href="/action-queue"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 text-white px-3.5 py-2 text-xs font-semibold hover:bg-brand-900 transition"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 text-white px-3.5 py-2 text-xs font-semibold hover:bg-primary-700 transition"
             >
               <ArrowLeft size={13} />
               <span>Go to Action Queue</span>

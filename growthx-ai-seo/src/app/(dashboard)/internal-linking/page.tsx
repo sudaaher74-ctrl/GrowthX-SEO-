@@ -254,7 +254,7 @@ export default function InternalLinkingPage() {
                     type="button"
                     onClick={() => linkMut.mutate()}
                     disabled={!url.trim() || linkMut.isPending}
-                    className="h-10 px-5 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                    className="h-10 px-5 rounded-xl bg-primary-600 hover:bg-black text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                   >
                     {linkMut.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
                     <span>Generate Linking Strategy</span>

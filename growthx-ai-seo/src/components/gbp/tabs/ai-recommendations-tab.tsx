@@ -87,7 +87,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
       >
         <div className="space-y-2 flex-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-xs">
               <Sparkles size={16} />
             </div>
             <h2 className="text-lg font-bold text-brand-950 tracking-tight">AI Recommendations</h2>
@@ -103,7 +103,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
           type="button"
           onClick={handleRunAnalysis}
           disabled={!localSeo || analyzeMutation.isPending}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 text-white text-xs font-bold shadow-sm hover:bg-black transition disabled:opacity-50"
+          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-xs font-bold shadow-sm hover:bg-black transition disabled:opacity-50"
         >
           {analyzeMutation.isPending ? (
             <Loader2 size={14} className="animate-spin" />
@@ -161,7 +161,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
             className={cn(
               "px-3 py-1 rounded-full text-xs font-semibold transition-all border",
               activeFilter === f
-                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                ? "bg-primary-600 text-white border-primary-600 shadow-xs"
                 : "bg-white border-brand-200 text-brand-700 hover:bg-brand-50"
             )}
           >
@@ -216,7 +216,7 @@ export function AiRecommendationsTab({ localSeo, projectId }: AiRecommendationsT
                       type="button"
                       onClick={() => handleApprove(rec.id)}
                       disabled={approveMutation.isPending}
-                      className="px-3 py-1.5 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
                     >
                       {approveMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                       <span>Approve & Push</span>

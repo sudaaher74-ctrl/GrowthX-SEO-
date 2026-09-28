@@ -226,7 +226,7 @@ export function GapsTab({
       <div className="rounded-2xl border border-accent-200/80 bg-gradient-to-br from-accent-50/50 via-white to-surface-1 p-5 shadow-xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-600 text-white shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-xs">
               <Compass size={20} />
             </div>
             <div>
@@ -247,7 +247,7 @@ export function GapsTab({
         {/* 3 Step Walkthrough */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="flex items-start gap-3 rounded-xl border border-accent-200/80 bg-white/95 p-3.5 shadow-2xs transition-all hover:border-accent-300">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-600 text-[11px] font-bold text-white shadow-xs">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-[11px] font-bold text-white shadow-xs">
               1
             </span>
             <div>
@@ -300,7 +300,7 @@ export function GapsTab({
                   aria-pressed={isSelected}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-all ${
                     isSelected
-                      ? "border-accent-600 bg-accent-600 text-white shadow-xs scale-[1.02]"
+                      ? "border-primary-600 bg-primary-600 text-white shadow-xs scale-[1.02]"
                       : "border-line bg-white text-brand-700 hover:border-accent-300 hover:bg-accent-50/40 hover:text-accent-700"
                   }`}
                 >
@@ -531,7 +531,7 @@ function GapRow({
         <button
           type="button"
           onClick={onPlan}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent-600 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-xs transition-all hover:bg-accent-700 active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-xs transition-all hover:bg-primary-700 active:scale-[0.98]"
         >
           <Sparkles size={13} className="text-accent-200" />
           <span>Get a plan</span>

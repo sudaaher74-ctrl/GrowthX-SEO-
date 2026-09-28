@@ -76,7 +76,7 @@ export function AnswerBlock({
     <div className="space-y-3">
       {/* The question, as the operator asked it */}
       <div className="flex justify-end">
-        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-brand-950 px-4 py-2.5 text-sm text-white">
+        <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary-600 px-4 py-2.5 text-sm text-white">
           {turn.question}
         </p>
       </div>

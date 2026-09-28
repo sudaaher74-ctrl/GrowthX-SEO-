@@ -369,7 +369,7 @@ function CompetitorIntelligenceClient() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
-                    ? "bg-accent-600 text-white shadow-xs"
+                    ? "bg-primary-600 text-white shadow-xs"
                     : "text-brand-600 hover:text-brand-950 hover:bg-brand-100 font-semibold"
                 }`}
               >
@@ -489,7 +489,7 @@ function CompetitorIntelligenceClient() {
                 <button
                   type="submit"
                   disabled={addCompetitorMutation.isPending}
-                  className="px-5 py-2 rounded-xl bg-slate-950 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 disabled:opacity-60"
+                  className="px-5 py-2 rounded-xl bg-primary-600 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 disabled:opacity-60"
                 >
                   {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
                 </button>

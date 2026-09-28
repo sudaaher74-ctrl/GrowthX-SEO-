@@ -98,7 +98,7 @@ export function SocialMarketTrendsPanel({ projectId, businessName }: SocialMarke
       {/* 1. Header Banner */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm" style={{ borderColor: "var(--border-color)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-950 text-white shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
             <TrendingUp size={16} />
           </div>
           <div>
@@ -199,7 +199,7 @@ export function SocialMarketTrendsPanel({ projectId, businessName }: SocialMarke
 
                   <button
                     onClick={() => copyHook(hook.id, hook.hookText)}
-                    className="flex items-center gap-1 rounded-xl bg-brand-950 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-800"
+                    className="flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-primary-700"
                   >
                     {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                     <span>{isCopied ? "Copied!" : "Copy Hook"}</span>

@@ -115,7 +115,7 @@ export function AiCitationMatrixPanel({ projectId, customerDomain }: AiCitationM
             <button
               onClick={() => runSweep.mutate()}
               disabled={isScanning || assistants.length === 0}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-brand-900 disabled:opacity-50 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-primary-700 disabled:opacity-50 transition"
             >
               <RefreshCw size={13} className={isScanning ? "animate-spin" : ""} />
               <span>{isScanning ? `Asking ${assistantList(assistants)}…` : "Run AI Visibility Check"}</span>
@@ -224,7 +224,7 @@ export function AiCitationMatrixPanel({ projectId, customerDomain }: AiCitationM
                 <div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
                     <div
-                      className={`h-full rounded-full transition-all ${isWinning ? "bg-success-500" : "bg-brand-950"}`}
+                      className={`h-full rounded-full transition-all ${isWinning ? "bg-success-500" : "bg-primary-600"}`}
                       style={{ width: `${sharePct != null ? Math.min(100, Math.max(5, sharePct)) : 0}%` }}
                     />
                   </div>
@@ -308,7 +308,7 @@ export function AiCitationMatrixPanel({ projectId, customerDomain }: AiCitationM
                 onClick={() => setFilterIntent(intent)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
                   filterIntent === intent
-                    ? "bg-brand-950 text-white shadow-2xs"
+                    ? "bg-primary-600 text-white shadow-2xs"
                     : "border bg-white text-brand-600 hover:bg-brand-50 hover:text-brand-950 font-medium"
                 }`}
               >

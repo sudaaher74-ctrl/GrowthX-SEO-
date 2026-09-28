@@ -78,7 +78,7 @@ export function SweepScheduleCard({ projectId }: SweepScheduleCardProps) {
               onClick={() => handleFrequencyChange(freq)}
               className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                 frequency === freq
-                  ? "bg-brand-950 text-white font-semibold"
+                  ? "bg-primary-600 text-white font-semibold"
                   : "text-brand-600 hover:text-brand-950"
               }`}
             >

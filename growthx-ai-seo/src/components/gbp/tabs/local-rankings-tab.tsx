@@ -196,7 +196,7 @@ export function LocalRankingsTab({ localSeo, projectId, onEditLocation }: LocalR
           <button
             type="submit"
             disabled={scanMutation.isPending || !keyword.trim() || (!hasCoordinates && !locationQuery.trim())}
-            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-xs disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 h-9 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition-all shadow-xs disabled:opacity-50"
           >
             {scanMutation.isPending ? (
               <Loader2 size={13} className="animate-spin" />
@@ -241,7 +241,7 @@ export function LocalRankingsTab({ localSeo, projectId, onEditLocation }: LocalR
               className={cn(
                 "px-2.5 py-1 rounded-full text-[11px] font-semibold border transition",
                 effectiveKeyword === k && !lastResult
-                  ? "bg-brand-950 text-white border-brand-950"
+                  ? "bg-primary-600 text-white border-primary-600"
                   : "bg-white text-brand-700 border-brand-200 hover:bg-brand-50"
               )}
             >

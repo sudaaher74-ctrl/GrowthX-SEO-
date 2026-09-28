@@ -77,7 +77,7 @@ export function SocialAccountsPanel({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-950 text-white shadow-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
                 <Share2 size={16} />
               </div>
               <div>
@@ -110,7 +110,7 @@ export function SocialAccountsPanel({
             <button
               onClick={() => discoverMutation.mutate(selectedCompetitorForScan)}
               disabled={discoverMutation.isPending}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-950 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-50"
             >
               <RefreshCw size={13} className={discoverMutation.isPending ? "animate-spin" : ""} />
               <span>{discoverMutation.isPending ? "Scanning Website..." : "Scan for Social Links"}</span>

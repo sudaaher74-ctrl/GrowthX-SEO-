@@ -406,7 +406,7 @@ export function PerformanceTab({
               {/* Hover Tooltip */}
               {hoveredTrendIndex !== null && (
                 <div
-                  className="absolute top-1 bg-slate-900 text-white rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg border border-slate-700 pointer-events-none transform -translate-x-1/2 z-10"
+                  className="absolute top-1 bg-primary-600 text-white rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg border border-slate-700 pointer-events-none transform -translate-x-1/2 z-10"
                   style={{ left: `${(30 + hoveredTrendIndex * 55) * (100 / 320)}%` }}
                 >
                   <p className="font-bold border-b border-slate-700 pb-0.5 mb-1 text-slate-300">

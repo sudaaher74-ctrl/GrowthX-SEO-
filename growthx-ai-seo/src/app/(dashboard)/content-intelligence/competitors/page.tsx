@@ -142,7 +142,7 @@ export default function CompetitorWorkspacePage() {
             </button>
             <button
               onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white shadow-2xs hover:bg-brand-900 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white shadow-2xs hover:bg-primary-700 transition"
             >
               <Plus size={13} /> Add Account
             </button>
@@ -165,7 +165,7 @@ export default function CompetitorWorkspacePage() {
             onClick={() => setActiveTab("ACCOUNTS")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
               activeTab === "ACCOUNTS"
-                ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                ? "bg-primary-600 text-white font-semibold shadow-2xs"
                 : "text-brand-600 hover:bg-brand-100"
             }`}
           >
@@ -176,7 +176,7 @@ export default function CompetitorWorkspacePage() {
             onClick={() => setActiveTab("FEED")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
               activeTab === "FEED"
-                ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                ? "bg-primary-600 text-white font-semibold shadow-2xs"
                 : "text-brand-600 hover:bg-brand-100"
             }`}
           >
@@ -194,7 +194,7 @@ export default function CompetitorWorkspacePage() {
                 <Crosshair size={28} className="mx-auto mb-3 text-brand-300" />
                 <p className="text-[13px] font-medium text-brand-950">No competitor accounts yet</p>
                 <p className="mt-1 text-[12px] text-brand-500">Add a competitor&apos;s Instagram, YouTube, or Facebook account to start tracking.</p>
-                <button onClick={() => setShowAdd(true)} className="mt-4 flex items-center gap-1.5 rounded-lg bg-accent-600 px-4 py-2 text-[12px] font-medium text-white mx-auto">
+                <button onClick={() => setShowAdd(true)} className="mt-4 flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-[12px] font-medium text-white mx-auto">
                   <Plus size={13} /> Add First Account
                 </button>
               </div>
@@ -268,7 +268,7 @@ export default function CompetitorWorkspacePage() {
                   onClick={() => setSelectedPlatform(p)}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                     selectedPlatform === p
-                      ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                      ? "bg-primary-600 text-white font-semibold shadow-2xs"
                       : "bg-white border text-brand-600 hover:bg-brand-50"
                   }`}
                   style={{ borderColor: selectedPlatform === p ? undefined : "var(--color-brand-200)" }}
@@ -287,7 +287,7 @@ export default function CompetitorWorkspacePage() {
                 <p className="mt-1 text-[12px] text-brand-500">Add posts manually from the Tracked Accounts tab or run ingestion.</p>
                 <button
                   onClick={() => setActiveTab("ACCOUNTS")}
-                  className="mt-4 flex items-center gap-1.5 rounded-lg bg-brand-950 px-4 py-2 text-[12px] font-medium text-white mx-auto shadow-2xs"
+                  className="mt-4 flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-[12px] font-medium text-white mx-auto shadow-2xs"
                 >
                   Go to Tracked Accounts
                 </button>
@@ -500,7 +500,7 @@ export default function CompetitorWorkspacePage() {
                 <button
                   onClick={() => addMut.mutate(form)}
                   disabled={!form.handle || addMut.isPending}
-                  className="flex-1 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60"
+                  className="flex-1 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60"
                 >
                   {addMut.isPending ? "Adding…" : "Add Account"}
                 </button>
@@ -551,7 +551,7 @@ export default function CompetitorWorkspacePage() {
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setIngestAccountId(null)} className="flex-1 rounded-lg border py-2 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>Cancel</button>
                 <button onClick={() => ingestMut.mutate()} disabled={!ingestForm.caption || ingestMut.isPending}
-                  className="flex-1 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
+                  className="flex-1 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
                   {ingestMut.isPending ? "Saving…" : "Add Content"}
                 </button>
               </div>

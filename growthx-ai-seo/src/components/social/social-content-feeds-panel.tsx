@@ -174,7 +174,7 @@ export function SocialContentFeedsPanel({
               <button
                 onClick={() => setPlatformFilter("ALL")}
                 className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition ${
-                  platformFilter === "ALL" ? "bg-brand-950 text-white" : "text-brand-600 hover:text-brand-950"
+                  platformFilter === "ALL" ? "bg-primary-600 text-white" : "text-brand-600 hover:text-brand-950"
                 }`}
               >
                 All Channels
@@ -182,7 +182,7 @@ export function SocialContentFeedsPanel({
               <button
                 onClick={() => setPlatformFilter("INSTAGRAM")}
                 className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition ${
-                  platformFilter === "INSTAGRAM" ? "bg-brand-950 text-white" : "text-pink-700 hover:text-brand-950"
+                  platformFilter === "INSTAGRAM" ? "bg-primary-600 text-white" : "text-pink-700 hover:text-brand-950"
                 }`}
               >
                 Instagram
@@ -190,7 +190,7 @@ export function SocialContentFeedsPanel({
               <button
                 onClick={() => setPlatformFilter("YOUTUBE")}
                 className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition ${
-                  platformFilter === "YOUTUBE" ? "bg-brand-950 text-white" : "text-red-700 hover:text-brand-950"
+                  platformFilter === "YOUTUBE" ? "bg-primary-600 text-white" : "text-red-700 hover:text-brand-950"
                 }`}
               >
                 YouTube
@@ -323,7 +323,7 @@ export function SocialContentFeedsPanel({
 
                 <button
                   onClick={() => onSelectForCounterStrategy && onSelectForCounterStrategy(item)}
-                  className="flex items-center gap-1 rounded-xl bg-brand-950 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-800"
+                  className="flex items-center gap-1 rounded-xl bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-primary-700"
                 >
                   <Sparkles size={12} className="text-amber-400" />
                   <span>Replicate & Counter</span>

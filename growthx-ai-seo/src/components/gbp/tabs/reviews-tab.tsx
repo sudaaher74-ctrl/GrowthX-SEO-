@@ -302,7 +302,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-brand-950 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
                       {review.authorName.slice(0, 1)}
                     </div>
                     <div>
@@ -431,7 +431,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                           type="button"
                           onClick={() => handlePublish(review.id)}
                           disabled={publishMutation.isPending || !currentEdit.trim()}
-                          className="px-3 py-1.5 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 flex items-center gap-1.5 transition disabled:opacity-40"
+                          className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 flex items-center gap-1.5 transition disabled:opacity-40"
                         >
                           <Send size={12} />
                           <span>{publishMutation.isPending ? "Publishing…" : "Publish Reply to Google"}</span>

@@ -44,7 +44,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
       {/* Top Header / Breadcrumbs */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-brand-700 dark:text-brand-300">
-          <div className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-600 text-white shadow-2xs">
+          <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary-600 text-white shadow-2xs">
             <GbpStoreIcon className="h-3.5 w-3.5 text-white" />
           </div>
           <ChevronDown size={14} className="text-brand-400" />
@@ -156,7 +156,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
 
               {/* Right GrowthX Card */}
               <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 p-3 shadow-sm flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-950 text-white shadow-xs">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-white shadow-xs">
                   <div className="grid grid-cols-2 gap-0.5 p-1">
                     <div className="w-1.5 h-1.5 rounded-xs bg-blue-400" />
                     <div className="w-1.5 h-1.5 rounded-xs bg-white" />
@@ -470,7 +470,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
               <button
                 type="button"
                 onClick={() => setHelpModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-brand-950 text-white hover:opacity-90 transition"
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-primary-600 text-white hover:opacity-90 transition"
               >
                 Got it
               </button>

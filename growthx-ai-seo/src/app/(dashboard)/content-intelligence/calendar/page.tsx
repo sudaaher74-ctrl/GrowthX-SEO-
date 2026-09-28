@@ -77,7 +77,7 @@ function ContentItemCard({ item, onUpdateStatus }: { item: CalendarItem; onUpdat
             </button>
           )}
           {item.status === "APPROVED" && (
-            <button onClick={() => onUpdateStatus(item.id, "SCHEDULED")} className="flex items-center gap-1 rounded-md bg-accent-600 px-2 py-1 text-[10px] font-medium text-white">
+            <button onClick={() => onUpdateStatus(item.id, "SCHEDULED")} className="flex items-center gap-1 rounded-md bg-primary-600 px-2 py-1 text-[10px] font-medium text-white">
               <Clock size={11} /> Schedule
             </button>
           )}
@@ -171,7 +171,7 @@ export default function CalendarPage() {
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium text-brand-600 hover:bg-brand-100" style={{ borderColor: "var(--color-brand-200)" }}>
               <Plus size={13} /> Manual
             </button>
-            <button onClick={() => setShowGenerate(true)} className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-1.5 text-[12px] font-medium text-white shadow-sm hover:opacity-90 transition">
+            <button onClick={() => setShowGenerate(true)} className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white shadow-sm hover:opacity-90 transition">
               <Sparkles size={13} /> AI Generate
             </button>
           </div>
@@ -256,7 +256,7 @@ export default function CalendarPage() {
                 <button
                   onClick={() => generateMut.mutate(generateForm)}
                   disabled={!generateForm.topic || generateMut.isPending}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-accent-600 py-2 text-[12px] font-medium text-white disabled:opacity-60"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60"
                 >
                   {generateMut.isPending ? <><RefreshCw size={12} className="animate-spin" /> Generating…</> : <><Sparkles size={12} /> Generate</>}
                 </button>
@@ -304,7 +304,7 @@ export default function CalendarPage() {
               <div className="mt-5 flex gap-2">
                 <button onClick={() => setShowCreate(false)} className="flex-1 rounded-lg border py-2 text-[12px] font-medium text-brand-600" style={{ borderColor: "var(--color-brand-200)" }}>Cancel</button>
                 <button onClick={() => createMut.mutate(createForm)} disabled={!createForm.title || createMut.isPending}
-                  className="flex-1 rounded-lg bg-brand-950 py-2 text-[12px] font-medium text-white disabled:opacity-60">
+                  className="flex-1 rounded-lg bg-primary-600 py-2 text-[12px] font-medium text-white disabled:opacity-60">
                   {createMut.isPending ? "Adding…" : "Add"}
                 </button>
               </div>

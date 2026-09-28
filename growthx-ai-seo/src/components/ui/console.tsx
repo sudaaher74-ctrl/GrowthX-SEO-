@@ -56,7 +56,7 @@ export function ActionButton({
       className={cn(
         "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50",
         variant === "primary"
-          ? "bg-brand-950 text-white hover:opacity-90"
+          ? "bg-primary-600 text-white shadow-sm hover:bg-primary-700"
           : "border bg-white text-brand-700 hover:bg-brand-50",
         props.className,
       )}
@@ -95,7 +95,7 @@ export function Kpi({
   aside?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col rounded-xl border bg-white p-4">
+    <div className="flex flex-col rounded-xl border bg-white p-4 shadow-card">
       <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">{label}</p>
       <div className="mt-1.5 flex items-baseline gap-2">
         <span
@@ -153,7 +153,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <div className={`overflow-hidden rounded-xl border bg-white ${className ?? ""}`}>
+    <div className={`overflow-hidden rounded-xl border bg-white shadow-card ${className ?? ""}`}>
       {title && (
         <div
           className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-3"
@@ -206,8 +206,8 @@ export function Tabs<T extends string>({
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors cursor-pointer",
               isActive
-                ? "border-brand-950 bg-brand-950 text-white"
-                : "border-line bg-white text-brand-600 hover:bg-brand-50 hover:text-brand-950",
+                ? "border-primary-600 bg-primary-600 text-white shadow-sm"
+                : "border-line bg-white text-brand-600 hover:bg-primary-50 hover:text-primary-700",
             )}
           >
             {Icon && <Icon size={13} className={isActive ? "text-white/80" : "text-brand-400"} />}
