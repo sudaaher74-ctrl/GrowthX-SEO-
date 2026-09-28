@@ -40,6 +40,7 @@ import {
   type Measure,
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { SEVERITY_ORDER, SEVERITY_PLAIN, asSentence } from "@/lib/plain-language";
 import { AutopilotStart } from "@/components/autopilot/autopilot-start";
 
 /**
@@ -410,16 +411,10 @@ export default function UnifiedDashboardPage() {
 /* ── Website health ─────────────────────────────────────────────── */
 
 /**
- * Plain-word severity, used everywhere on this page so the to-do list and the
- * breakdown above it speak the same language.
+ * Plain-word severity, shared with the action plan so the to-do list, the
+ * breakdown above it and the plan all speak the same language.
  */
-const SEVERITY: Record<IssueSeverity, { label: string; tone: "bad" | "warn" | "info" | "default"; bar: string }> = {
-  CRITICAL: { label: "Urgent", tone: "bad", bar: "bg-error-600" },
-  HIGH: { label: "Important", tone: "warn", bar: "bg-warning-500" },
-  MEDIUM: { label: "Moderate", tone: "info", bar: "bg-accent-500" },
-  LOW: { label: "Minor", tone: "default", bar: "bg-brand-300" },
-};
-const SEVERITY_ORDER: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITY = SEVERITY_PLAIN;
 
 /**
  * A verdict read straight off the measured score, on the same bands the
@@ -864,12 +859,6 @@ function IdeaCard({ idea }: { idea: GrowthOpportunity }) {
 }
 
 /* ── Shared bits ────────────────────────────────────────────────── */
-
-/** The issue copy is written without a closing full stop; some fallbacks have one. */
-function asSentence(text: string): string {
-  const t = text.trim();
-  return /[.!?]$/.test(t) ? t : `${t}.`;
-}
 
 function LoadingLine({ text }: { text: string }) {
   return (
