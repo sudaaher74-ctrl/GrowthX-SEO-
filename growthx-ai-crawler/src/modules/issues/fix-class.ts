@@ -48,6 +48,8 @@ export const FIX_CLASS: Readonly<Record<string, FixClass>> = {
   SERVER_ERROR_5XX: 'MANUAL',
   HTTPS_ISSUE: 'MANUAL',
   THIN_CONTENT: 'MANUAL',
+  // Gone or restore is the owner's call, and either fix lives in routing.
+  SOFT_404: 'MANUAL',
 };
 
 /**

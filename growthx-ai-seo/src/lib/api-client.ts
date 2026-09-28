@@ -7,6 +7,20 @@
 
 import type { StagedFixItem } from "@/lib/staging-engine";
 import type { CrawlSummary } from "./crawl-summary";
+import type {
+  ChangeImpact,
+  ChangeKind,
+  ChangeLedger,
+  ChangeRiskReport,
+  DiagnosisSummary,
+  IndexStatusReport,
+  InspectOutcome,
+  KeywordDiagnosis,
+  KeywordGapsReport,
+  RankingsReport,
+  SearchIntelligenceStatus,
+  SearchMarket,
+} from "./search-intelligence";
 
 /**
  * Which API this build talks to.
@@ -268,6 +282,8 @@ const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 const patch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: body === undefined ? undefined : JSON.stringify(body) });
+const put = <T>(path: string, body?: unknown) =>
+  request<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body) });
 const del = <T>(path: string) => request<T>(path, { method: "DELETE" });
 
 // ──────────────────────────────────────────────────────────────── types
@@ -4078,6 +4094,40 @@ export const api = {
     save: (projectId: string, plan: StagedFixItem) => post<StagedFixItem>(`/api/projects/${projectId}/saved-plans`, planBody(plan)),
     remove: (projectId: string, id: string) =>
       del<{ removed: boolean }>(`/api/projects/${projectId}/saved-plans/${encodeURIComponent(id)}`),
+  },
+  /**
+   * What Google itself shows and records: index status, live results and
+   * rankings, competitor keywords, and search results around a change.
+   */
+  searchIntelligence: {
+    status: (projectId: string) => get<SearchIntelligenceStatus>(`/api/projects/${projectId}/search-intelligence/status`),
+    setMarket: (projectId: string, body: { country?: string | null; language?: string }) =>
+      put<SearchMarket>(`/api/projects/${projectId}/search-intelligence/market`, body),
+    indexStatus: (projectId: string) => get<IndexStatusReport>(`/api/projects/${projectId}/search-intelligence/index-status`),
+    inspect: (projectId: string, body: { urls?: string[]; limit?: number } = {}) =>
+      post<InspectOutcome>(`/api/projects/${projectId}/search-intelligence/index-status/inspect`, body),
+    diagnose: (projectId: string, body: { keyword: string; pageUrl?: string }) =>
+      post<KeywordDiagnosis>(`/api/projects/${projectId}/search-intelligence/diagnose`, body),
+    diagnoses: (projectId: string) => get<DiagnosisSummary[]>(`/api/projects/${projectId}/search-intelligence/diagnoses`),
+    diagnosis: (projectId: string, id: string) =>
+      get<KeywordDiagnosis>(`/api/projects/${projectId}/search-intelligence/diagnoses/${encodeURIComponent(id)}`),
+    rankings: (projectId: string) => get<RankingsReport>(`/api/projects/${projectId}/search-intelligence/rankings`),
+    track: (projectId: string, keywords: string[], source: "USER" | "COMPETITOR_GAP" = "USER") =>
+      post<{ added: number; skipped: number }>(`/api/projects/${projectId}/search-intelligence/rankings/keywords`, { keywords, source }),
+    untrack: (projectId: string, id: string) =>
+      del<{ removed: boolean }>(`/api/projects/${projectId}/search-intelligence/rankings/keywords/${encodeURIComponent(id)}`),
+    checkRankings: (projectId: string) =>
+      post<{ checked: number; failed: string[] }>(`/api/projects/${projectId}/search-intelligence/rankings/check`, {}),
+    keywordGaps: (projectId: string) => get<KeywordGapsReport>(`/api/projects/${projectId}/search-intelligence/keyword-gaps`),
+    refreshKeywordGaps: (projectId: string, body: { competitorDomain?: string; force?: boolean } = {}) =>
+      post<KeywordGapsReport>(`/api/projects/${projectId}/search-intelligence/keyword-gaps/refresh`, body),
+    changes: (projectId: string) => get<ChangeLedger>(`/api/projects/${projectId}/search-intelligence/changes`),
+    changeImpact: (projectId: string, url: string, changedAt: string, days?: number) => {
+      const qs = new URLSearchParams({ url, changedAt, ...(days ? { days: String(days) } : {}) });
+      return get<ChangeImpact>(`/api/projects/${projectId}/search-intelligence/change-impact?${qs.toString()}`);
+    },
+    changeRisk: (projectId: string, body: { url: string; change: ChangeKind; target?: string }) =>
+      post<ChangeRiskReport>(`/api/projects/${projectId}/search-intelligence/change-risk`, body),
   },
   /** "I've done this" on the action plan, kept on the server. */
   actionPlanDone: {

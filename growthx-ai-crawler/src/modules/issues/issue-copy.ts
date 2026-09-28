@@ -209,6 +209,14 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     fixClass: FIX_CLASS.URL_STRUCTURE_ISSUE ?? 'APPROVAL',
     technical: 'URL contains excessive query parameters, uppercase characters, or non-descriptive numeric tokens.',
   },
+  SOFT_404: {
+    title: '{n} pages say "page not found" while telling Google they are fine',
+    cost: 'Google treats these as missing pages and drops them from search, and visitors who land on them hit a dead end',
+    action:
+      "If the page is gone for good, ask your web developer to make it return a proper not-found response or send visitors to the closest replacement page. If it should still exist, put its content back",
+    fixClass: FIX_CLASS.SOFT_404 ?? 'MANUAL',
+    technical: 'HTTP 200 response whose title, main heading or near-empty body reads as a not-found page (soft 404).',
+  },
   ORPHAN_PAGE: {
     title: '{n} pages have no links pointing to them from your site',
     cost: 'Visitors and search engines cannot find these pages through your navigation, leaving them stranded and unranked',
