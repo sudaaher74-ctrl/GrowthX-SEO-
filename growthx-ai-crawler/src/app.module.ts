@@ -74,10 +74,17 @@ import { SearchIntelligenceModule } from './modules/search-intelligence/search-i
     // which Nest also applies to WebSocket handlers, and the throttler resolves
     // its request through `switchToHttp()` — left unguarded it would misbehave
     // on the crawl-progress gateway.
+    //
+    // The ceilings are per IP address, and one page load of the dashboard
+    // fires 13 requests in its first second, so the old 10-a-second burst
+    // turned ordinary navigation into "Too Many Requests" — worse for a team
+    // sharing an office connection, who share one address. These defaults
+    // leave room for that; the routes worth attacking (login, sign-up) carry
+    // their own far tighter limits.
     ThrottlerModule.forRoot({
       throttlers: [
-        { name: 'burst', ttl: 1_000, limit: Number(process.env.THROTTLE_BURST_LIMIT ?? 10) },
-        { name: 'sustained', ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 120) },
+        { name: 'burst', ttl: 1_000, limit: Number(process.env.THROTTLE_BURST_LIMIT ?? 60) },
+        { name: 'sustained', ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 900) },
       ],
       skipIf: (context) => context.getType() !== 'http',
     }),

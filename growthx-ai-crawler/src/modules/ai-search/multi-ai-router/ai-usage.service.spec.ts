@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, HttpException } from '@nestjs/common';
 import { AiUsageService } from './ai-usage.service';
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -145,6 +145,30 @@ describe('AiUsageService', () => {
       });
 
       await expect(service.assertWithinBudget('org-1')).resolves.toBeUndefined();
+    });
+
+    it('refuses an account that has made its daily number of AI requests, even with no dollar budget set', async () => {
+      const { service, count } = build({ budget: null, count: jest.fn().mockResolvedValue(1500) });
+      const error = await service.assertWithinBudget('org-1').catch((e) => e);
+      expect(error).toBeInstanceOf(HttpException);
+      expect(error.getStatus()).toBe(429);
+      expect(count.mock.calls[0][0].where.organizationId).toBe('org-1');
+    });
+
+    it('lets the daily ceiling be raised, or switched off with 0', async () => {
+      const previous = process.env.AI_DAILY_CALLS_PER_ORG;
+      try {
+        process.env.AI_DAILY_CALLS_PER_ORG = '0';
+        const { service, count } = build({ budget: null, count: jest.fn().mockResolvedValue(99999) });
+        await expect(service.assertWithinBudget('org-1')).resolves.toBeUndefined();
+        expect(count).not.toHaveBeenCalled();
+        process.env.AI_DAILY_CALLS_PER_ORG = '5000';
+        const raised = build({ budget: null, count: jest.fn().mockResolvedValue(1500) });
+        await expect(raised.service.assertWithinBudget('org-1')).resolves.toBeUndefined();
+      } finally {
+        if (previous === undefined) delete process.env.AI_DAILY_CALLS_PER_ORG;
+        else process.env.AI_DAILY_CALLS_PER_ORG = previous;
+      }
     });
 
     it('refuses once spend reaches the ceiling', async () => {

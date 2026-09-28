@@ -291,6 +291,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** A PENDING or RUNNING crawl touched within this window counts as in flight. */
+  static readonly IN_FLIGHT_WINDOW_MS = 3 * 60 * 60 * 1000;
+
   async startCrawlJob(
     websiteId: string,
     options: {
@@ -313,13 +316,35 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException(`Website with ID ${websiteId} not found`);
     }
 
+    // One crawl of a site at a time. Pressing "Run audit" again while one is
+    // running used to start a second, then a third, each fetching the same
+    // pages and each taking worker slots every other customer shares. The
+    // running one is returned instead; a crawl silent for hours is left to the
+    // stall sweep rather than blocking new ones forever.
+    const inFlight = await this.prisma.crawlJob.findFirst({
+      where: {
+        websiteId: website.id,
+        status: { in: ['PENDING', 'RUNNING'] },
+        updatedAt: { gte: new Date(Date.now() - CrawlerService.IN_FLIGHT_WINDOW_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (inFlight) {
+      this.logger.log(`Crawl ${inFlight.id} is already running for ${website.domain}; returning it instead of starting another.`);
+      return inFlight.id;
+    }
+
+    const limits = crawlLimits();
     const job = await this.prisma.crawlJob.create({
       data: {
         websiteId: website.id,
         status: 'PENDING',
-        concurrency: options.maxConcurrency || website.maxConcurrency || 5,
-        depthLimit: options.maxDepth || website.maxDepth || 10,
-        pageLimit: options.pageLimit ?? null,
+        concurrency: clamp(options.maxConcurrency || website.maxConcurrency || 5, 1, limits.maxConcurrency),
+        depthLimit: clamp(options.maxDepth || website.maxDepth || 10, 1, limits.maxDepth),
+        // Every crawl has a ceiling. Without one, a site of 100,000 product
+        // pages held the shared workers for a day.
+        pageLimit: clamp(options.pageLimit ?? limits.defaultPageLimit, 1, limits.maxPageLimit),
         startedAt: new Date(),
       },
     });
@@ -2279,4 +2304,28 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       return rawUrl;
     }
   }
+}
+
+/**
+ * Deployment-wide crawl ceilings. A caller can ask for less, never more: the
+ * workers are shared by every customer, and one crawl at concurrency 500 or
+ * depth 1,000 degrades all of them.
+ */
+export function crawlLimits() {
+  const num = (name: string, fallback: number) => {
+    const value = Number(process.env[name]);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  };
+  return {
+    maxConcurrency: num('CRAWL_MAX_CONCURRENCY', 10),
+    maxDepth: num('CRAWL_MAX_DEPTH', 25),
+    defaultPageLimit: num('CRAWL_DEFAULT_PAGE_LIMIT', 2000),
+    maxPageLimit: num('CRAWL_MAX_PAGE_LIMIT', 5000),
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n)) return min;
+  return Math.min(Math.max(n, min), max);
 }

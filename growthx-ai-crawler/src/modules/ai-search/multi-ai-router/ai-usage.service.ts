@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 
 /** How a routed call ended. A call that cost tokens and then failed is still spend. */
@@ -117,6 +117,23 @@ export class AiUsageService {
   async assertWithinBudget(organizationId?: string): Promise<void> {
     if (!organizationId) return;
 
+    // A count ceiling that holds even when no per-token rates are configured,
+    // which is when the dollar budget below can never fire. Every new account
+    // starts with no dollar budget, so without this one account could spend
+    // the platform's AI credit without limit.
+    const dailyLimit = dailyCallLimit();
+    if (dailyLimit > 0) {
+      const callsToday = await this.prisma.aiUsageRecord.count({
+        where: { organizationId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      });
+      if (callsToday >= dailyLimit) {
+        throw new HttpException(
+          `This account has used its ${dailyLimit.toLocaleString()} AI requests for the last 24 hours. It frees up gradually over the next day.`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: { aiMonthlyBudgetUsd: true },
@@ -133,6 +150,14 @@ export class AiUsageService {
         `(accounted spend $${spend.costUsd.toFixed(2)}). Raise the budget in settings to continue.`,
     );
   }
+}
+
+/** AI calls one organization may make in a rolling 24 hours. 0 turns the ceiling off. */
+export function dailyCallLimit(): number {
+  const raw = process.env.AI_DAILY_CALLS_PER_ORG;
+  if (raw === undefined || raw === '') return 1500;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1500;
 }
 
 function startOfUtcMonth(now: Date): Date {

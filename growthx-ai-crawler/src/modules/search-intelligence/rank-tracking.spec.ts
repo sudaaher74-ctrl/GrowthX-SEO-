@@ -1,4 +1,4 @@
-import { findOvertakes, placements, Standing } from './rank-tracking.service';
+import { findOvertakes, placements, RankTrackingService, Standing } from './rank-tracking.service';
 
 const at = (iso: string) => new Date(iso);
 function standing(own: number | null, competitors: Record<string, number>, when = '2026-09-21'): Standing {
@@ -75,5 +75,22 @@ describe('placements', () => {
 
   it('never lists your own domain as a competitor', () => {
     expect(placements(results, 'milquu.in', [{ domain: 'milquu.in', label: null }]).competitorPositions).toEqual({});
+  });
+});
+
+describe('RankTrackingService daily ceiling', () => {
+  function build(checksToday: number) {
+    const dataforseo = { isConfigured: () => true, googleResults: jest.fn() };
+    const prisma: any = { serpSnapshot: { count: jest.fn().mockResolvedValue(checksToday) } };
+    const service = new RankTrackingService(prisma, dataforseo as any, { get: () => undefined } as any);
+    return { service, dataforseo, prisma };
+  }
+
+  it('stops paying for Google checks once the project has made its daily number', async () => {
+    const { service, dataforseo } = build(60);
+    const error = await service.checkKeyword('p1', 'a2 milk').catch((e: any) => e);
+    expect(error.getStatus()).toBe(429);
+    expect(error.message).toMatch(/60 Google checks/);
+    expect(dataforseo.googleResults).not.toHaveBeenCalled();
   });
 });
