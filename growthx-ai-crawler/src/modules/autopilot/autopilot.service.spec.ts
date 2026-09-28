@@ -121,6 +121,12 @@ describe('AutopilotService', () => {
     const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'https://BrandKettle.co.in/' });
 
     expect(prisma.project.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ name: 'brandkettle.co.in' }) }));
+    // Their own site's record, never a competitor record of the same domain.
+    expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'brandkettle.co.in', scope: 'own' } });
+    expect(prisma.website.upsert.mock.calls[0][0]).toMatchObject({
+      where: { domain_scope: { domain: 'brandkettle.co.in', scope: 'own' } },
+      create: { domain: 'brandkettle.co.in', scope: 'own', projectId: 'p-new' },
+    });
     expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-own', expect.any(Object));
     expect(view).toMatchObject({ projectId: 'p-new', domain: 'brandkettle.co.in', status: 'DISCOVERING' });
 
@@ -204,6 +210,42 @@ describe('AutopilotService', () => {
     expect(confirmed.competitors.map((c) => c.domain)).toEqual(['a.in', 'b.in', 'c.in']);
     expect(competitorCrawl.startCrawl).toHaveBeenCalledTimes(3);
     expect(confirmed.log.map((l) => l.message).join(' ')).toContain('Kept your first 3. Skipped d.in, e.in');
+  });
+
+  it("crawls a confirmed competitor for this customer even when another customer read it recently", async () => {
+    const { service, prisma, competitorCrawl } = setup(MODEL);
+    const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
+    await service.discover(view.id);
+    // Another project's recent, finished read of teabox.com.
+    prisma.crawlJob.findFirst.mockImplementation(({ where }: any) =>
+      where?.website?.scope === 'competitor:someone-else'
+        ? Promise.resolve({ id: 'theirs', status: 'COMPLETED', pagesCrawled: 40, finishedAt: new Date() })
+        : Promise.resolve(null),
+    );
+
+    const confirmed = await service.confirm(view.id, 'u1', ['teabox.com']);
+
+    expect(prisma.crawlJob.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { website: { domain: 'teabox.com', scope: 'competitor:p-new' }, status: 'COMPLETED' } }),
+    );
+    expect(competitorCrawl.startCrawl).toHaveBeenCalledTimes(1);
+    expect(confirmed.log.map((l) => l.message).join(' ')).toContain("Started reading Teabox's website.");
+  });
+
+  it("shows each site's progress from this project's own records only", async () => {
+    const { service, prisma } = setup(MODEL);
+    const view = await service.start({ userId: 'u1', organizationId: 'o1', domain: 'brandkettle.co.in' });
+    await service.discover(view.id);
+    await service.confirm(view.id, 'u1', ['teabox.com']);
+    prisma.crawlJob.findMany.mockClear();
+
+    await service.get(view.id, 'u1');
+
+    const wheres = prisma.crawlJob.findMany.mock.calls.map((c: any[]) => c[0].where.website);
+    expect(wheres).toEqual([
+      { domain: 'brandkettle.co.in', projectId: 'p-new', scope: 'own' },
+      { domain: 'teabox.com', scope: 'competitor:p-new' },
+    ]);
   });
 
   it('writes the report anyway when a crawl never finishes', async () => {

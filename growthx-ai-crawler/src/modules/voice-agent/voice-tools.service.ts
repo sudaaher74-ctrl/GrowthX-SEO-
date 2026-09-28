@@ -8,6 +8,7 @@ import { ContentStrategyService } from '../content-intelligence/content-strategy
 import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
 import { FetcherService } from '../crawler/fetcher.service';
 import { CrawlerService } from '../crawler/crawler.service';
+import { competitorScope, websiteKey } from '../crawler/website-scope';
 import * as cheerio from 'cheerio';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 
@@ -43,7 +44,7 @@ export class VoiceToolsService {
     private readonly crawler: CrawlerService,
   ) {}
 
-  // ─── Crawl ───────────────────────────────────────────────────────────────────
+  // ─── Crawl ───────────────────────────────────────────────────────────────────────
 
   async crawlWebsite(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -126,7 +127,7 @@ export class VoiceToolsService {
     return { success: true, tool: 'cancelCrawl', data: { jobId }, spokenSummary: 'Crawl cancelled.' };
   }
 
-  // ─── Competitors ─────────────────────────────────────────────────────────────
+  // ─── Competitors ───────────────────────────────────────────────────────────────────
 
   async addCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -187,12 +188,17 @@ export class VoiceToolsService {
       return { success: false, tool: 'crawlCompetitor', data: null, spokenSummary: `${cleanDomain} isn't in your competitor list. Add them first.` };
     }
 
-    // Find or create website record for competitor
-    let website = await this.prisma.website.findUnique({ where: { domain: cleanDomain } });
-    if (!website) {
-      website = await this.prisma.website.create({
-        data: { domain: cleanDomain, url: `https://${cleanDomain}`, isVerified: false },
-      });
+    // This project's own record of the competitor. Found by domain alone it
+    // could be another customer's record — or their own website — and their
+    // crawls would be read out as this project's.
+    const scope = competitorScope(projectId);
+    const website = await this.prisma.website.upsert({
+      where: websiteKey(cleanDomain, scope),
+      update: {},
+      create: { domain: cleanDomain, scope, url: `https://${cleanDomain}`, isVerified: false, crawlFrequency: 'OFF' },
+    });
+    if (competitor.websiteId !== website.id) {
+      await this.prisma.competitorDomain.update({ where: { id: competitor.id }, data: { websiteId: website.id } });
     }
 
     const running = await this.activeCrawl(website.id);
@@ -211,7 +217,7 @@ export class VoiceToolsService {
     };
   }
 
-  // ─── Analysis ────────────────────────────────────────────────────────────────
+  // ─── Analysis ──────────────────────────────────────────────────────────────────────
 
   async compareWebsites(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -500,7 +506,7 @@ export class VoiceToolsService {
     }
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  // ─── Helpers ───────────────────────────────────────────────────────────────────────
 
   /**
    * The crawl already under way for a site, if any.
