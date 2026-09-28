@@ -33,6 +33,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/google-business-profile": { scope: "Workspace", title: "Google Business Profile" },
   "/monitoring": { scope: "Workspace", title: "Monitoring" },
   "/market-research": { scope: "Workspace", title: "Market Research" },
+  "/search-intelligence": { scope: "Workspace", title: "Google Search" },
   "/search-performance": { scope: "Workspace", title: "Search Performance" },
   "/search/search-console": { scope: "Workspace", title: "Search Performance" },
   "/analytics": { scope: "Workspace", title: "Search Performance" },

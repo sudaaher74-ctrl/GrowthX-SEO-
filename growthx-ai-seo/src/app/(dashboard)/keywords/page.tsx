@@ -6,7 +6,6 @@ import {
   ActionButton,
   Kpi,
   Mono,
-  NotConnected,
   PageHeader,
   Panel,
   Pill,
@@ -185,11 +184,14 @@ export default function SearchPage() {
       )}
 
       {tab === "ranks" && (
-        <NotConnected
-          title="Classic rank tracking is not connected"
-          what="Google position tracking needs a SERP data source. AI citation share, which is what this product measures, is on the Prompts tab."
-          needs={["A SERP API subscription (e.g. DataForSEO, SerpAPI)", "A keyword list per client", "A daily rank-check job"]}
-        />
+        <Panel title="Google rank tracking" subtitle="Positions, competitor overtakes and keyword gaps from real Google results" padded>
+          <p className="text-[12.5px] text-brand-600">
+            Rank tracking lives on the Google Search page, next to the keyword diagnosis and competitor keyword gaps it feeds.
+          </p>
+          <Link href="/search-intelligence" className="mt-3 inline-block">
+            <ActionButton variant="primary">Open Google Search</ActionButton>
+          </Link>
+        </Panel>
       )}
     </div>
   );
