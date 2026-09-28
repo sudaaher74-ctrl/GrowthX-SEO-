@@ -21,6 +21,7 @@ import { CommandPalette } from "@/components/ui/command-palette";
 const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/clients": { scope: "Portfolio", title: "Projects" },
   "/dashboard": { scope: "Workspace", title: "Dashboard" },
+  "/action-queue": { scope: "Workspace", title: "Your action plan" },
   "/website": { scope: "Workspace", title: "Website Audit" },
   "/technical-seo": { scope: "Workspace", title: "Website Audit" },
   "/competitor-intelligence": { scope: "Workspace", title: "Competitor Intelligence" },

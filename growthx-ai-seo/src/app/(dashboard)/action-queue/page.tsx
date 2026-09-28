@@ -1,519 +1,534 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  NotConnected,
-  PageHeader,
-  Panel,
-  Pill,
-  Tabs,
-} from "@/components/ui/console";
-import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  Check,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Sparkles,
-  Clock,
-  CheckCircle2,
-  CheckCircle,
-  Copy,
-  Download,
-  FileText,
   AlertTriangle,
-  Code2,
-  MapPin,
-  Flame,
   ArrowRight,
-  ListTodo,
-  Layers,
-  Globe,
-  Bot,
-  Swords,
-  ShieldCheck,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Lightbulb,
+  Loader2,
+  RotateCcw,
+  User,
+  Wrench,
 } from "lucide-react";
+import { ActionButton, PageHeader, Panel, Pill, StatusNote, Tabs, relativeTime } from "@/components/ui/console";
 import {
   useWorkspace,
+  usePortfolio,
   useIssueCounts,
   useIssueGroups,
-  useIssueGroupPages,
   useAiVisibilityRoadmapTasks,
 } from "@/hooks/use-growthx";
-import type { IssueGroup, FixClass } from "@/lib/api-client";
+import type { IssueGroup } from "@/lib/api-client";
+import { SEVERITY_PLAIN, asSentence, pagePath, whoCanFix } from "@/lib/plain-language";
 
-type RoadmapTab = "TO_DO" | "IN_PROGRESS" | "DONE";
-type SourceFilter = "ALL" | "WEBSITE" | "AIVIS" | "GBP" | "COMPETITOR";
-type SeverityFilter = "ALL" | "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+/**
+ * The action plan, for someone who has never heard the word "SEO".
+ *
+ * It used to be an "SEO Action Roadmap" of "directives" with impact scores,
+ * severity and source filters, "Copy Brief" and a block of developer
+ * instructions about Lighthouse and schema validators. The customers reading
+ * it run a dairy or a shop. So each problem is now a numbered step: what is
+ * wrong in everyday words, why it costs them customers, what to do, whether
+ * they can do it themselves, and a message ready to send to whoever built
+ * their website when they cannot.
+ *
+ * "I've done this" was React state, so every step reset to "To Do" on reload.
+ * It is now remembered per project in this browser, and honest about it: a
+ * step marked done that the next check of the website still finds comes back
+ * to the list with a note saying so, rather than sitting under "Done".
+ */
 
-export default function ActionRoadmapPage() {
-  const { projectId } = useWorkspace();
-  const [tab, setTab] = useState<RoadmapTab>("TO_DO");
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("ALL");
-  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("ALL");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [technicalOpenId, setTechnicalOpenId] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [copiedBriefId, setCopiedBriefId] = useState<string | null>(null);
-  const [copiedRoadmap, setCopiedRoadmap] = useState(false);
+type View = "todo" | "done";
 
-  // Local state tracking for roadmap task completion
-  const [taskStatusMap, setTaskStatusMap] = useState<Record<string, "TO_DO" | "IN_PROGRESS" | "DONE">>({});
+/** When each step was marked done, by group key, for one project. */
+type DoneMap = Record<string, string>;
+
+function storageKey(projectId: string) {
+  return `growthx.actionPlan.done.${projectId}`;
+}
+
+function readDone(projectId: string | null): DoneMap {
+  if (!projectId) return {};
+  try {
+    const raw = window.localStorage.getItem(storageKey(projectId));
+    return raw ? (JSON.parse(raw) as DoneMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDone(projectId: string, map: DoneMap) {
+  try {
+    window.localStorage.setItem(storageKey(projectId), JSON.stringify(map));
+  } catch {
+    // A per-browser convenience; the plan still works without it.
+  }
+}
+
+export default function ActionPlanPage() {
+  const { orgId, projectId } = useWorkspace();
+  const portfolio = usePortfolio(orgId);
+  const domain =
+    portfolio.data?.clients.find((c) => c.projectId === projectId)?.domain ?? portfolio.data?.clients[0]?.domain ?? null;
 
   const countsQuery = useIssueCounts(projectId);
   const groupsQuery = useIssueGroups(projectId, {});
-  // AI Visibility findings, one task per buyer question the latest answer did
-  // not cite you for, tied to the page that should answer it. Same shape and
-  // same list as the audit's issues, ranked together by impact.
   const aiTasksQuery = useAiVisibilityRoadmapTasks(projectId);
 
-  const allGroups = useMemo(
+  const [view, setView] = useState<View>("todo");
+  const [note, setNote] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  // What this browser remembers for the project, read when the project is
+  // known, and held in state only once the customer changes it. The shell
+  // renders nothing on the server, so this never reads storage there.
+  const stored = useMemo(() => readDone(projectId), [projectId]);
+  const [changed, setChanged] = useState<{ projectId: string; map: DoneMap } | null>(null);
+  const done: DoneMap = changed && changed.projectId === projectId ? changed.map : stored;
+
+  // Most important first: the server ranks by impact, and AI answer tasks
+  // are merged into the same order.
+  const steps = useMemo(
     () =>
-      [...(groupsQuery.data?.groups ?? []), ...(aiTasksQuery.data?.groups ?? [])].sort(
-        (a, b) => b.impact - a.impact,
-      ),
+      [...(groupsQuery.data?.groups ?? []), ...(aiTasksQuery.data?.groups ?? [])].sort((a, b) => b.impact - a.impact),
     [groupsQuery.data?.groups, aiTasksQuery.data?.groups],
   );
 
-  // Filter groups according to tab and filters
-  const visibleGroups = useMemo(() => {
-    return allGroups.filter((group) => {
-      const currentStatus = taskStatusMap[group.groupKey] || "TO_DO";
-      if (tab !== currentStatus) return false;
-
-      if (sourceFilter !== "ALL") {
-        const match =
-          (sourceFilter === "WEBSITE" && (!group.category || group.category === "SEO" || group.category === "TECHNICAL")) ||
-          (sourceFilter === "AIVIS" && group.category === "AI_VISIBILITY") ||
-          (sourceFilter === "GBP" && group.category === "LOCAL") ||
-          (sourceFilter === "COMPETITOR" && group.category === "COMPETITOR");
-        if (!match) return false;
-      }
-
-      if (severityFilter !== "ALL" && group.severity !== severityFilter) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [allGroups, taskStatusMap, tab, sourceFilter, severityFilter]);
-
-  // Counts for tabs
-  const todoCount = allGroups.filter((g) => (taskStatusMap[g.groupKey] || "TO_DO") === "TO_DO").length;
-  const inProgressCount = allGroups.filter((g) => taskStatusMap[g.groupKey] === "IN_PROGRESS").length;
-  const doneCount = allGroups.filter((g) => taskStatusMap[g.groupKey] === "DONE").length;
-
-  const tabs = [
-    { id: "TO_DO" as const, label: `To Do (${todoCount})` },
-    { id: "IN_PROGRESS" as const, label: `In Progress (${inProgressCount})` },
-    { id: "DONE" as const, label: `Completed (${doneCount})` },
-  ];
-
-  const handleSetStatus = (groupKey: string, newStatus: "TO_DO" | "IN_PROGRESS" | "DONE") => {
-    setTaskStatusMap((prev) => ({ ...prev, [groupKey]: newStatus }));
-    const label = newStatus === "DONE" ? "Completed" : newStatus === "IN_PROGRESS" ? "In Progress" : "To Do";
-    setStatusMessage(`Task marked as ${label}.`);
+  const lastCheck = countsQuery.data?.crawledAt ?? null;
+  /** Marked done, and no check of the website has run since to say otherwise. */
+  const isDone = (g: IssueGroup) => {
+    const at = done[g.groupKey];
+    return Boolean(at) && !(lastCheck && new Date(lastCheck) > new Date(at));
+  };
+  /** Marked done, but the latest check still found it. */
+  const stillThere = (g: IssueGroup) => {
+    const at = done[g.groupKey];
+    return Boolean(at && lastCheck && new Date(lastCheck) > new Date(at));
   };
 
-  const generateTaskBrief = (group: IssueGroup) => {
-    return `### [SEO Fix Brief] ${group.title}
-**Severity**: ${group.severity} | **Impact Score**: ${group.impact}/100
-**Category**: ${group.category || "Website Audit"} | **Pages Affected**: ${group.affectedCount}
+  const todo = steps.filter((g) => !isDone(g));
+  const finished = steps.filter(isDone);
+  const shown = view === "todo" ? todo : finished;
 
-#### 1. What's Wrong
-${group.title}
-Confidence: ${group.confidence}
-
-#### 2. Why It Matters
-${group.summary || "This issue reduces organic search performance and negatively impacts user experience."}
-
-#### 3. How to Fix (Step-by-Step)
-- ${group.action || "Inspect affected URLs and deploy the recommended markup/code correction."}
-- Check Core Web Vitals and ensure status 200 responses.
-- Re-crawl or request re-indexing via Google Search Console once deployed.
-
-#### 4. Sample Affected URLs
-${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
-`;
+  const setStepDone = (g: IssueGroup, value: boolean) => {
+    if (!projectId) return;
+    const next = { ...done };
+    if (value) next[g.groupKey] = new Date().toISOString();
+    else delete next[g.groupKey];
+    setChanged({ projectId, map: next });
+    writeDone(projectId, next);
+    setNote(
+      value
+        ? `Nice work. "${g.title}" is marked as done. We'll confirm it the next time we check your website.`
+        : `"${g.title}" is back on your to-do list.`,
+    );
   };
 
-  const handleCopyTaskBrief = (group: IssueGroup) => {
-    const brief = generateTaskBrief(group);
-    navigator.clipboard.writeText(brief);
-    setCopiedBriefId(group.groupKey);
-    setTimeout(() => setCopiedBriefId(null), 2000);
+  const copy = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied((c) => (c === key ? null : c)), 2500);
+    } catch {
+      setNote("Couldn't copy automatically. Select the text and copy it yourself.");
+    }
   };
 
-  const handleExportRoadmapMarkdown = () => {
-    let md = `# SEO Implementation Roadmap\nGenerated on ${new Date().toLocaleDateString()}\n\n`;
-    md += `## 1. High Priority & Critical Fixes\n`;
-    allGroups.forEach((g, idx) => {
-      const status = taskStatusMap[g.groupKey] || "TO_DO";
-      md += `\n### ${idx + 1}. [${status}] ${g.title}\n`;
-      md += `- **Severity**: ${g.severity} (Impact: ${g.impact}/100)\n`;
-      md += `- **Pages Affected**: ${g.affectedCount}\n`;
-      md += `- **Remediation Action**: ${g.action}\n`;
-      md += `- **Sample URLs**:\n${(g.sampleUrls || []).slice(0, 3).map((u) => `  * ${u}`).join("\n")}\n`;
-    });
-
-    navigator.clipboard.writeText(md);
-    setCopiedRoadmap(true);
-    setStatusMessage("Roadmap copied to clipboard in Markdown format!");
-    setTimeout(() => setCopiedRoadmap(false), 2500);
-  };
+  const loading = groupsQuery.isLoading || countsQuery.isLoading;
 
   return (
-    <div className="space-y-6">
-      {/* ── HEADER BANNER ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <PageHeader
-            title="SEO Action Roadmap"
-            subtitle="Prioritized, step-by-step implementation guide for your engineering and content teams. Follow the verified instructions to drive measurable organic rankings."
-          />
-        </div>
-
-        {projectId && allGroups.length > 0 && (
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Button
-              onClick={handleExportRoadmapMarkdown}
-              variant="outline"
-              className="flex items-center gap-2 border text-brand-700 hover:bg-brand-50 font-bold text-xs px-3.5 py-2 rounded-xl transition"
+    <div className="mx-auto max-w-4xl space-y-5 pb-12">
+      <PageHeader
+        title="Your action plan"
+        subtitle={
+          domain
+            ? `Simple steps to help more customers find ${domain} on Google. Start at the top: the most important come first.`
+            : "Simple steps to help more customers find you on Google. Start at the top: the most important come first."
+        }
+        actions={
+          steps.length > 0 ? (
+            <ActionButton
+              icon={copied === "plan" ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+              onClick={() => copy("plan", planText(todo, domain))}
             >
-              {copiedRoadmap ? <Check size={14} className="text-success-600" /> : <Copy size={14} />}
-              <span>{copiedRoadmap ? "Roadmap Copied!" : "Export Roadmap (Markdown)"}</span>
-            </Button>
-          </div>
-        )}
-      </div>
+              {copied === "plan" ? "Copied" : "Copy the whole plan"}
+            </ActionButton>
+          ) : undefined
+        }
+      />
 
       {!projectId ? (
-        <NotConnected
-          title="No client selected"
-          what="The Action Roadmap is scoped to one client so roadmap directives never cross projects."
-          needs={["An active organization", "A selected client project"]}
+        <Empty
+          title="Add your website first"
+          body="Your action plan is made from a check of your website. Add it on the dashboard and we'll write your plan."
+          href="/dashboard"
+          cta="Go to the dashboard"
+        />
+      ) : loading ? (
+        <Panel>
+          <p className="flex items-center justify-center gap-2 py-12 text-[13px] text-brand-500">
+            <Loader2 size={15} className="animate-spin" /> Getting your plan ready…
+          </p>
+        </Panel>
+      ) : !lastCheck && steps.length === 0 ? (
+        <Empty
+          title="We haven't checked your website yet"
+          body="Your plan is made from a check of your website. Run one and your steps will appear here."
+          href="/website"
+          cta="Check my website"
         />
       ) : (
         <>
-          {/* ── ROADMAP SCOREBOARD ── */}
-          <div className="grid grid-cols-2 gap-4 rounded-2xl border bg-primary-600 p-6 text-white shadow-md sm:grid-cols-4">
-            <div className="space-y-1">
-              <div className="text-[11px] font-medium text-brand-400">Total Roadmap Directives</div>
-              <div className="text-2xl font-black text-white">{allGroups.length}</div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[11px] font-medium text-brand-400">Critical & High Priority</div>
-              <div className="text-2xl font-black text-error-400">
-                {allGroups.filter((g) => g.severity === "CRITICAL" || g.severity === "HIGH").length}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[11px] font-medium text-brand-400">In Progress</div>
-              <div className="text-2xl font-black text-warning-400">{inProgressCount}</div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-[11px] font-medium text-brand-400">Completed Directives</div>
-              <div className="text-2xl font-black text-success-400">{doneCount}</div>
-            </div>
-          </div>
+          <HowItWorks />
 
-          {/* ── TABS AND FILTERS ── */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-3">
-            <Tabs tabs={tabs} active={tab} onChange={setTab} />
+          <Progress
+            done={finished.length}
+            total={steps.length}
+            next={todo[0] ?? null}
+            fixedRecently={countsQuery.data?.resolvedThisPeriod ?? 0}
+          />
 
-            {/* Filter chips */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-brand-500 font-medium text-[11px] uppercase tracking-wider">
-                Filter:
-              </span>
-              <div className="flex items-center gap-1 bg-brand-50 p-1 rounded-lg border">
-                {(["ALL", "WEBSITE", "AIVIS", "GBP", "COMPETITOR"] as SourceFilter[]).map((src) => (
-                  <button
-                    key={src}
-                    type="button"
-                    onClick={() => setSourceFilter(src)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
-                      sourceFilter === src
-                        ? "bg-primary-600 text-white shadow-2xs"
-                        : "text-brand-600 hover:text-brand-950"
-                    }`}
-                  >
-                    {src === "ALL"
-                      ? "All Sources"
-                      : src === "WEBSITE"
-                        ? "Audit"
-                        : src === "AIVIS"
-                          ? "AI Visibility"
-                          : src === "GBP"
-                            ? "GBP"
-                            : "Competitors"}
-                  </button>
-                ))}
-              </div>
+          {note && <StatusNote>{note}</StatusNote>}
 
-              <div className="flex items-center gap-1 bg-brand-50 p-1 rounded-lg border">
-                {(["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as SeverityFilter[]).map((sev) => (
-                  <button
-                    key={sev}
-                    type="button"
-                    onClick={() => setSeverityFilter(sev)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
-                      severityFilter === sev
-                        ? "bg-primary-600 text-white shadow-2xs"
-                        : "text-brand-600 hover:text-brand-950"
-                    }`}
-                  >
-                    {sev === "ALL" ? "All Severities" : sev}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <Tabs
+            tabs={[
+              { id: "todo" as const, label: "To do", tag: String(todo.length) },
+              { id: "done" as const, label: "Done", tag: String(finished.length) },
+            ]}
+            active={view}
+            onChange={setView}
+          />
 
-          {statusMessage && (
-            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-primary-600 border text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-success-400 shrink-0" />
-                <span>{statusMessage}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStatusMessage(null)}
-                className="text-brand-400 hover:text-white p-1 rounded-md"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          )}
-
-          {groupsQuery.isLoading ? (
-            <Panel title="Loading SEO Action Roadmap">
-              <div className="flex items-center justify-center py-16">
-                <Loader2 size={28} className="animate-spin text-brand-950" />
-              </div>
-            </Panel>
-          ) : visibleGroups.length === 0 ? (
-            <Panel title="All clear">
-              <div className="p-12 text-center text-xs text-brand-500 space-y-2">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-success-500/10 text-success-500 mb-2">
-                  <CheckCircle size={24} />
+          {shown.length === 0 ? (
+            <Panel padded>
+              <div className="flex flex-col items-center py-8 text-center">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-success-50 text-success-600">
+                  <CheckCircle2 size={22} />
                 </div>
-                <p className="font-semibold text-sm text-brand-950">
-                  {tab === "TO_DO"
-                    ? "No pending directives in your roadmap."
-                    : tab === "IN_PROGRESS"
-                      ? "No directives currently in flight."
-                      : "No completed directives yet."}
+                <p className="mt-3 text-[14px] font-semibold text-brand-950">
+                  {view === "todo" ? "Nothing left to do right now" : "Nothing marked as done yet"}
                 </p>
-                <p className="text-[12px] max-w-md mx-auto text-brand-500">
-                  {tab === "TO_DO"
-                    ? "Auditing and competitor crawls continuously add newly detected gaps and blueprints here."
-                    : "Track directives here as your engineering and content teams complete them."}
+                <p className="mt-1 max-w-md text-[12.5px] text-brand-600">
+                  {view === "todo"
+                    ? "Every step is done. We check your website regularly and will add new steps here if we find anything."
+                    : "When you finish a step, press “I've done this” and it moves here."}
                 </p>
               </div>
             </Panel>
           ) : (
-            <div className="space-y-4">
-              {visibleGroups.map((group) => {
-                const isExpanded = expandedId === group.groupKey;
-                const isBriefCopied = copiedBriefId === group.groupKey;
-                const currentStatus = taskStatusMap[group.groupKey] || "TO_DO";
-
-                const severityStripe =
-                  group.severity === "CRITICAL"
-                    ? "border-l-4 border-l-error-500"
-                    : group.severity === "HIGH"
-                      ? "border-l-4 border-l-warning-500"
-                      : group.severity === "MEDIUM"
-                        ? "border-l-4 border-l-accent-500"
-                        : "border-l-4 border-l-brand-400";
-
-                return (
-                  <div
-                    key={group.groupKey}
-                    className={`rounded-2xl border bg-white transition-all shadow-xs overflow-hidden ${severityStripe}`}
-                  >
-                    {/* Collapsed Card Header */}
-                    <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
-                              group.severity === "CRITICAL"
-                                ? "bg-error-50 text-error-700"
-                                : group.severity === "HIGH"
-                                  ? "bg-warning-50 text-warning-700"
-                                  : "bg-brand-100 text-brand-700"
-                            }`}
-                          >
-                            {group.severity}
-                          </span>
-                          <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
-                            {group.category ? group.category.replace(/_/g, " ") : "Website Audit"}
-                          </span>
-                          <span className="text-[11.5px] font-semibold text-brand-500">
-                            {group.affectedCount === 0 && group.category === "AI_VISIBILITY"
-                              ? "New page needed"
-                              : group.affectedCount === 1
-                                ? "1 page affected"
-                                : `${group.affectedCount} pages affected`}
-                          </span>
-                          <span className="text-[11.5px] font-black text-brand-900">
-                            Impact: {group.impact}/100
-                          </span>
-                        </div>
-
-                        <h3 className="text-base font-bold text-brand-950 leading-snug">
-                          {group.title}
-                        </h3>
-                      </div>
-
-                      {/* Workflow Controls: Mark as Done / In Progress / Copy Brief / How To Fix */}
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        {currentStatus !== "DONE" ? (
-                          <Button
-                            onClick={() => handleSetStatus(group.groupKey, "DONE")}
-                            className="bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-2xs transition flex items-center gap-1.5"
-                          >
-                            <Check size={13} />
-                            <span>Mark as Done</span>
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => handleSetStatus(group.groupKey, "TO_DO")}
-                            variant="outline"
-                            className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-600 hover:bg-brand-50"
-                          >
-                            <span>Reopen Task</span>
-                          </Button>
-                        )}
-
-                        {currentStatus === "TO_DO" && (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleSetStatus(group.groupKey, "IN_PROGRESS")}
-                            className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-700 hover:bg-brand-50"
-                          >
-                            <span>Start Work</span>
-                          </Button>
-                        )}
-
-                        <Button
-                          variant="outline"
-                          onClick={() => handleCopyTaskBrief(group)}
-                          className="text-xs font-semibold px-3 py-2 rounded-xl text-brand-600 hover:bg-brand-50 flex items-center gap-1"
-                        >
-                          {isBriefCopied ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
-                          <span>{isBriefCopied ? "Copied Brief" : "Copy Brief"}</span>
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          onClick={() => setExpandedId(isExpanded ? null : group.groupKey)}
-                          className="text-xs font-bold px-3 py-2 rounded-xl text-brand-950 hover:bg-brand-100 transition flex items-center gap-1"
-                        >
-                          <span>{isExpanded ? "Hide Steps" : "How to Fix"}</span>
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Step-by-Step Implementation Guide Expander */}
-                    {isExpanded && (
-                      <div className="border-t bg-brand-50 p-6 space-y-5 animate-in fade-in duration-150">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          {/* Block 1: What's wrong */}
-                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-error-600">
-                              1 · What&apos;s Wrong
-                            </span>
-                            <p className="text-[13px] font-semibold text-brand-950 leading-relaxed">
-                              {group.title}
-                            </p>
-                            <p className="text-[11.5px] text-brand-500">
-                              Confidence: {group.confidence} &bull; {group.regressionCount > 0 ? `Regressed ${group.regressionCount}x` : "Fresh detection"}
-                            </p>
-                          </div>
-
-                          {/* Block 2: Why it matters */}
-                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-warning-600">
-                              2 · Why It Matters
-                            </span>
-                            <p className="text-[13px] font-medium text-brand-800 leading-relaxed">
-                              {group.summary || "This issue depresses crawl equity, hurts search click-through rate, and diminishes conversion trust on affected pages."}
-                            </p>
-                          </div>
-
-                          {/* Block 3: How to fix */}
-                          <div className="space-y-2 rounded-2xl border bg-white p-5 shadow-2xs">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-success-600">
-                              3 · The Fix Directive
-                            </span>
-                            <p className="text-[13px] font-medium text-brand-800 leading-relaxed">
-                              {group.action || "Deploy recommended code or metadata correction to restore compliance."}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Step-by-Step Guidance Box */}
-                        <div className="rounded-2xl border bg-white p-5 space-y-3 shadow-2xs">
-                          <div className="flex items-center gap-2 text-xs font-bold text-brand-950">
-                            <Code2 size={15} className="text-brand-950" />
-                            <span>Developer Implementation Instructions</span>
-                          </div>
-
-                          <ol className="list-decimal list-inside space-y-2 text-xs text-brand-700 leading-relaxed">
-                            <li>
-                              Open the code repository or CMS editor for the affected URLs listed below.
-                            </li>
-                            <li>
-                              Implement the required change: <span className="font-semibold text-brand-950">{group.action}</span>.
-                            </li>
-                            <li>
-                              Validate locally using browser developer tools, Lighthouse, or Schema Markup Validator.
-                            </li>
-                            <li>
-                              Deploy changes to production and trigger a crawl re-check to confirm resolution.
-                            </li>
-                          </ol>
-
-                          {/* Sample URLs */}
-                          {group.sampleUrls && group.sampleUrls.length > 0 && (
-                            <div className="mt-4 pt-4 border-t space-y-2">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-500">
-                                Example Affected URLs:
-                              </span>
-                              <div className="space-y-1">
-                                {group.sampleUrls.slice(0, 5).map((url, i) => (
-                                  <div key={i} className="flex items-center gap-2 text-xs">
-                                    <ExternalLink size={12} className="text-brand-400 shrink-0" />
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="font-mono text-brand-800 hover:underline truncate"
-                                    >
-                                      {url}
-                                    </a>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <ol className="space-y-3">
+              {shown.map((g) => (
+                <StepCard
+                  key={g.groupKey}
+                  step={g}
+                  number={steps.indexOf(g) + 1}
+                  domain={domain}
+                  doneAt={isDone(g) ? done[g.groupKey] : null}
+                  stillThereSince={stillThere(g) ? lastCheck : null}
+                  copied={copied === g.groupKey}
+                  onCopy={() => copy(g.groupKey, developerMessage(g, domain))}
+                  onDone={(value) => setStepDone(g, value)}
+                />
+              ))}
+            </ol>
           )}
         </>
       )}
     </div>
   );
+}
+
+/* ── Explainer and progress ─────────────────────────────────────── */
+
+function HowItWorks() {
+  return (
+    <Panel>
+      <details className="group px-4 py-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-brand-950 [&::-webkit-details-marker]:hidden">
+          <Lightbulb size={15} className="text-warning-500" />
+          New to this? How your plan works
+          <ChevronDown size={14} className="ml-auto text-brand-400 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 space-y-1.5 text-[12.5px] leading-relaxed text-brand-600">
+          <p>
+            When someone searches on Google, Google shows the websites it can read easily and trusts most. We checked every
+            page of your website and found things that make that harder.
+          </p>
+          <p>
+            Each step below fixes one of them. Many you can do yourself in the tool you use to edit your website. For the
+            others, press <strong>Copy message for your developer</strong> and send it to whoever built your website.
+          </p>
+          <p>When you&apos;ve finished a step, press <strong>I&apos;ve done this</strong>. We&apos;ll confirm it the next time we check your website.</p>
+        </div>
+      </details>
+    </Panel>
+  );
+}
+
+function Progress({
+  done,
+  total,
+  next,
+  fixedRecently,
+}: {
+  done: number;
+  total: number;
+  next: IssueGroup | null;
+  fixedRecently: number;
+}) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <Panel padded>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[15px] font-semibold text-brand-950">
+            {done} of {total} step{total === 1 ? "" : "s"} done
+          </p>
+          <p className="mt-0.5 text-[12.5px] text-brand-600">
+            {next ? (
+              <>
+                Next up: <span className="font-medium text-brand-950">{next.title}</span>
+              </>
+            ) : (
+              "You've done everything on your plan."
+            )}
+          </p>
+        </div>
+        {fixedRecently > 0 && (
+          <Pill tone="good">
+            {fixedRecently} fix{fixedRecently === 1 ? "" : "es"} confirmed by our checks recently
+          </Pill>
+        )}
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-brand-100">
+        <div className="h-full rounded-full bg-success-600 transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </Panel>
+  );
+}
+
+/* ── One step ───────────────────────────────────────────────────── */
+
+function StepCard({
+  step,
+  number,
+  domain,
+  doneAt,
+  stillThereSince,
+  copied,
+  onCopy,
+  onDone,
+}: {
+  step: IssueGroup;
+  number: number;
+  domain: string | null;
+  doneAt: string | null;
+  stillThereSince: string | null;
+  copied: boolean;
+  onCopy: () => void;
+  onDone: (done: boolean) => void;
+}) {
+  const sev = SEVERITY_PLAIN[step.severity] ?? SEVERITY_PLAIN.LOW;
+  const who = whoCanFix(step.action);
+  const pages = step.affectedCount;
+
+  if (doneAt) {
+    return (
+      <li>
+        <Panel>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success-600 text-white">
+              <Check size={14} strokeWidth={3} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-brand-950">{step.title}</p>
+              <p className="text-[11.5px] text-brand-500">
+                Marked done {relativeTime(doneAt)}. We&apos;ll confirm it the next time we check {domain ?? "your website"}.
+              </p>
+            </div>
+            <ActionButton icon={<RotateCcw size={12} />} onClick={() => onDone(false)}>
+              Undo
+            </ActionButton>
+          </div>
+        </Panel>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Panel>
+        <div className="flex gap-3 p-4 sm:p-5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-50 text-[13px] font-bold text-primary-700">
+            {number}
+          </span>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Pill tone={sev.tone}>{sev.label}</Pill>
+                {who === "yourself" && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-success-50 px-1.5 py-0.5 text-[11px] font-medium text-success-700">
+                    <User size={11} /> You can do this yourself
+                  </span>
+                )}
+                {who === "developer" && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-accent-50 px-1.5 py-0.5 text-[11px] font-medium text-accent-700">
+                    <Wrench size={11} /> Needs your web developer
+                  </span>
+                )}
+                {pages > 0 && (
+                  <span className="text-[11.5px] text-brand-500">
+                    On {pages} page{pages === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-brand-950">{step.title}</h3>
+            </div>
+
+            {stillThereSince && (
+              <div className="flex items-start gap-2 rounded-lg bg-warning-50 px-3 py-2 text-[12px] text-warning-700">
+                <AlertTriangle size={14} className="mt-px shrink-0" />
+                <span>
+                  You marked this done, but our check {relativeTime(stillThereSince)} still found it. It may not be fully
+                  fixed yet.
+                </span>
+              </div>
+            )}
+
+            {step.summary && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-400">Why it matters</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-brand-700">{asSentence(step.summary)}</p>
+              </div>
+            )}
+
+            {step.action && (
+              <div className="rounded-lg bg-brand-50 px-3.5 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-400">What to do</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-brand-950">{asSentence(step.action)}</p>
+              </div>
+            )}
+
+            {step.sampleUrls.length > 0 && <WhichPages urls={step.sampleUrls} total={pages} />}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <ActionButton variant="primary" icon={<Check size={13} />} onClick={() => onDone(true)}>
+                I&apos;ve done this
+              </ActionButton>
+              <ActionButton
+                icon={copied ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+                onClick={onCopy}
+              >
+                {copied
+                ? "Copied. Paste it into an email or WhatsApp"
+                : who === "yourself"
+                  ? "Copy these steps"
+                  : "Copy message for your developer"}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      </Panel>
+    </li>
+  );
+}
+
+function WhichPages({ urls, total }: { urls: string[]; total: number }) {
+  const more = Math.max(0, total - urls.length);
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-1 text-[12.5px] font-semibold text-accent-700 hover:underline [&::-webkit-details-marker]:hidden">
+        Which pages?
+        <ChevronDown size={13} className="transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="mt-1.5 space-y-1">
+        {urls.map((url) => (
+          <li key={url}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex max-w-full items-center gap-1 text-[12.5px] text-brand-700 hover:text-primary-700 hover:underline"
+            >
+              <span className="truncate">{pagePath(url)}</span>
+              <ExternalLink size={11} className="shrink-0" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      {more > 0 && (
+        <Link href="/website?tab=issues" className="mt-1 inline-flex items-center gap-1 text-[12px] text-brand-500 hover:underline">
+          and {more} more. See them all <ArrowRight size={11} />
+        </Link>
+      )}
+    </details>
+  );
+}
+
+function Empty({ title, body, href, cta }: { title: string; body: string; href: string; cta: string }) {
+  return (
+    <Panel padded>
+      <div className="flex flex-col items-center py-8 text-center">
+        <p className="text-[15px] font-semibold text-brand-950">{title}</p>
+        <p className="mt-1 max-w-md text-[12.5px] text-brand-600">{body}</p>
+        <Link
+          href={href}
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:bg-primary-700"
+        >
+          {cta} <ArrowRight size={13} />
+        </Link>
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Text to share ──────────────────────────────────────────────── */
+
+/** A message a business owner can paste into an email or WhatsApp as it is. */
+function developerMessage(g: IssueGroup, domain: string | null): string {
+  const pages = g.sampleUrls.slice(0, 5);
+  const more = Math.max(0, g.affectedCount - pages.length);
+  return [
+    `Hi, could you please help me fix this on ${domain ?? "our website"}?`,
+    "",
+    g.title,
+    g.summary ? `Why it matters: ${asSentence(g.summary)}` : null,
+    g.action ? `What to do: ${asSentence(forTheDeveloper(g.action))}` : null,
+    pages.length ? "" : null,
+    pages.length ? "Pages:" : null,
+    ...pages.map((u) => `- ${u}`),
+    more > 0 ? `- and ${more} more` : null,
+    "",
+    "Thank you!",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+/**
+ * The instruction as the developer should read it. The audit writes it to the
+ * business owner ("Ask your web developer to tell Google…"); the message goes
+ * to the developer, so it starts at the instruction itself.
+ */
+function forTheDeveloper(action: string): string {
+  const trimmed = action.replace(/^ask your (web )?developer to\s+/i, "");
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+/** Every step still to do, numbered, for sending to whoever looks after the website. */
+function planText(steps: IssueGroup[], domain: string | null): string {
+  const lines = [`Website action plan${domain ? ` for ${domain}` : ""}`, ""];
+  steps.forEach((g, i) => {
+    lines.push(`${i + 1}. ${g.title}`);
+    if (g.action) lines.push(`   What to do: ${asSentence(g.action)}`);
+    if (g.affectedCount > 0) lines.push(`   On ${g.affectedCount} page${g.affectedCount === 1 ? "" : "s"}, for example: ${g.sampleUrls[0] ?? ""}`);
+    lines.push("");
+  });
+  return lines.join("\n").trimEnd();
 }
