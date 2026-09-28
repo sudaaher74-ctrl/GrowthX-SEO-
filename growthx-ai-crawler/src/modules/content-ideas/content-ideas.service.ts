@@ -1,5 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { SearchDemandService } from '../integrations/google/search-demand.service';
+import {
+  demandPromptLines,
+  indexSearches,
+  measure,
+  Measured,
+  MeasuredSearch,
+  SearchDataStatus,
+  SearchDemand,
+} from '../integrations/google/search-demand';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 
@@ -27,6 +37,12 @@ export interface KeywordIdea {
   why: string;
   /** The existing page that should use it (a path), or null for a new page. */
   usePage: string | null;
+  /**
+   * Google's own numbers for this phrase, when it is one of the searches the
+   * site already appeared in (Search Console). Null means it is a suggestion
+   * with nothing measured behind it — never an estimate.
+   */
+  measured?: Measured | null;
 }
 
 export interface BlogIdea {
@@ -42,6 +58,17 @@ export interface ContentIdeas {
   blogIdeas: BlogIdea[];
   /** The model that wrote them, as the router reports it. */
   model: string | null;
+  /** The real Search Console numbers behind them, and whether there are any. */
+  search?: SearchNumbers;
+}
+
+/** The part of the project's search data a report shows beside its ideas. */
+export interface SearchNumbers {
+  status: SearchDataStatus;
+  days: number;
+  range: { start: string; end: string } | null;
+  /** Searches the site shows for just off the first page, most seen first. */
+  almostWinning: Array<MeasuredSearch & { pagePath: string | null }>;
 }
 
 /** What the suggestions are grounded in, beyond the business's own pages. */
@@ -94,6 +121,7 @@ export class ContentIdeasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
+    @Optional() private readonly demand?: SearchDemandService,
   ) {}
 
   /**
@@ -102,13 +130,13 @@ export class ContentIdeasService {
    * report and show the error in place of the suggestions.
    */
   async suggest(projectId: string, organizationId?: string, context: ContentIdeasContext = {}): Promise<ContentIdeas> {
-    const { name, domain, pages } = await this.sitePages(projectId);
+    const [{ name, domain, pages }, demand] = await Promise.all([this.sitePages(projectId), this.searchDemand(projectId)]);
     if (!domain || pages.length === 0) {
       throw new Error("Your website hasn't been read yet, so there is nothing to base suggestions on. Run the audit first.");
     }
 
     const completion = await this.router.generate({
-      prompt: buildIdeasPrompt({ name, domain, pages, ...context }),
+      prompt: buildIdeasPrompt({ name, domain, pages, ...context, searchLines: demandPromptLines(demand, pathOf) }),
       systemInstruction:
         'You suggest search phrases and blog posts for a small business whose owner knows nothing about SEO. ' +
         'Base everything on what their website says. Never invent numbers. Reply with valid JSON only.',
@@ -125,10 +153,11 @@ export class ContentIdeasService {
     if (completion.refused || !completion.text.trim()) throw new Error('Sarvam returned no suggestions. Try again.');
 
     const raw = extractAndParseJson<Record<string, unknown>>(completion.text);
-    const ideas = {
-      keywords: normaliseKeywordIdeas(raw.keywords, pages),
+    const ideas: ContentIdeas = {
+      keywords: attachMeasured(normaliseKeywordIdeas(raw.keywords, pages), demand),
       blogIdeas: normaliseBlogIdeas(raw.blogIdeas),
       model: completion.model ?? null,
+      search: toSearchNumbers(demand),
     };
     this.logger.log(`[${projectId}] ${ideas.keywords.length} keyword and ${ideas.blogIdeas.length} blog ideas from ${ideas.model}`);
     return ideas;
@@ -149,6 +178,12 @@ export class ContentIdeasService {
       this.logger.warn(`[${projectId}] content ideas failed: ${(err as Error).message}`);
       return { ideas: null, ideasError: `Keyword and blog ideas could not be written: ${(err as Error).message}`.slice(0, 300) };
     }
+  }
+
+  /** Search Console numbers, or an honest "none" when there is no connection or data. */
+  private async searchDemand(projectId: string): Promise<SearchDemand> {
+    if (!this.demand) return { status: 'NOT_CONNECTED', days: 28, range: null, topSearches: [], almostWinning: [] };
+    return this.demand.forProject(projectId);
   }
 
   /** The business's own pages from its latest completed crawl, the ones that say what it sells. */
@@ -197,7 +232,9 @@ export function toSitePages(rows: Array<{ url: string; title: string | null; h1:
   return pages;
 }
 
-export function buildIdeasPrompt(input: { name: string | null; domain: string; pages: SitePage[] } & ContentIdeasContext): string {
+export function buildIdeasPrompt(
+  input: { name: string | null; domain: string; pages: SitePage[]; searchLines?: string } & ContentIdeasContext,
+): string {
   const pages = input.pages.map((p) => `- ${p.path}: ${p.title}${p.heading ? ` (headline: ${p.heading})` : ''}`).join('\n');
   const topics = (input.rivalTopics ?? []).slice(0, 30).map((t) => `- "${t.title}" (${t.rival})`).join('\n');
   const questions = (input.rivalQuestions ?? []).slice(0, 20).map((q) => `- ${q}`).join('\n');
@@ -209,7 +246,7 @@ ${input.name ? `${input.name} (${input.domain})` : input.domain}
 
 WHAT THEIR WEBSITE SAYS (its own pages: address, title, headline)
 ${pages}
-${topics ? `\nTOPICS THEIR COMPETITORS HAVE A PAGE FOR AND THIS WEBSITE DOES NOT\n${topics}\n` : ''}${questions ? `\nQUESTIONS THEIR COMPETITORS ANSWER\n${questions}\n` : ''}
+${input.searchLines ? `\n${input.searchLines}\n` : ''}${topics ? `\nTOPICS THEIR COMPETITORS HAVE A PAGE FOR AND THIS WEBSITE DOES NOT\n${topics}\n` : ''}${questions ? `\nQUESTIONS THEIR COMPETITORS ANSWER\n${questions}\n` : ''}
 Return JSON exactly in this shape:
 {
   "keywords": [
@@ -221,7 +258,11 @@ Return JSON exactly in this shape:
 }
 
 Rules:
-- keywords: ${KEYWORDS_KEPT - 2}-${KEYWORDS_KEPT} phrases real customers of this business would type, in their own everyday words, about what the website actually sells. Include the city or area when the website names one.
+- keywords: ${KEYWORDS_KEPT - 2}-${KEYWORDS_KEPT} phrases real customers of this business would type, in their own everyday words, about what the website actually sells. Include the city or area when the website names one.${
+    input.searchLines
+      ? '\n- Where one of the real Google searches listed above fits, use that exact search as the phrase (especially the ones it almost wins), and point usePage at the page listed for it. Add new phrases only for what those searches miss.'
+      : ''
+  }
 - usePage: an address from the list above when an existing page is the right place, otherwise "new page".
 - blogIdeas: ${BLOGS_KEPT - 1}-${BLOGS_KEPT} posts that answer questions these customers have${topics || questions ? ', including topics and questions the competitors cover' : ''}. Each targets one of the keywords.
 - Do not give search volumes, rankings, prices, percentages or any other numbers: none were measured.
@@ -258,4 +299,38 @@ export function normaliseBlogIdeas(raw: unknown): BlogIdea[] {
     if (out.length >= BLOGS_KEPT) break;
   }
   return out;
+}
+
+/** A URL's path, or the URL unchanged when it cannot be parsed. */
+export function pathOf(url: string): string {
+  try {
+    return new URL(url).pathname || '/';
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Google's numbers on each suggested phrase that is one of the site's real
+ * searches. The model is told not to write numbers; these come from the data,
+ * matched by the same words, and nothing else gets any.
+ */
+export function attachMeasured(keywords: KeywordIdea[], demand: SearchDemand): KeywordIdea[] {
+  if (demand.status !== 'OK') return keywords;
+  const index = indexSearches([...demand.topSearches, ...demand.almostWinning]);
+  return keywords.map((k) => {
+    const measured = measure(k.phrase, index, demand.days);
+    // The page Google already shows for this search is the page to improve,
+    // even when it was not among the pages the model was shown.
+    return { ...k, usePage: k.usePage ?? (measured?.page ? pathOf(measured.page) : null), measured };
+  });
+}
+
+export function toSearchNumbers(demand: SearchDemand): SearchNumbers {
+  return {
+    status: demand.status,
+    days: demand.days,
+    range: demand.range,
+    almostWinning: demand.almostWinning.map((s) => ({ ...s, pagePath: s.page ? pathOf(s.page) : null })),
+  };
 }

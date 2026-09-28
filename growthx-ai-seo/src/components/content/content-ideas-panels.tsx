@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Copy, FilePlus2, PenLine, Search, Sparkles } from "lucide-react";
 import { ActionButton, Panel, Pill } from "@/components/ui/console";
 import { CreateArticleModal } from "@/components/content/create-article-modal";
+import { AlmostWinningPanel, MeasuredBadge, SearchConnectNote } from "@/components/content/search-numbers";
 import type { ContentIdeas } from "@/lib/api-client";
 import { keywordsText } from "@/lib/content-ideas";
 
@@ -13,9 +14,11 @@ import { keywordsText } from "@/lib/content-ideas";
  * report that says what to do next rather than what is wrong.
  *
  * Suggested by Sarvam from the business's own pages (and, in the competitor
- * report, what the rivals cover), and said to be suggestions: none of it is a
- * measured search figure, so no numbers are shown. Each post can be handed
- * straight to the article writer with its title and phrase filled in.
+ * report, what the rivals cover). Where a phrase is one of the searches the
+ * site already appears in, it carries Google's own numbers from Search
+ * Console; every other phrase is labelled a suggestion. The searches the
+ * site almost wins are listed first, with their numbers. Each post can be
+ * handed straight to the article writer with its title and phrase filled in.
  */
 export function ContentIdeasPanels({
   projectId,
@@ -50,6 +53,9 @@ export function ContentIdeasPanels({
   }
 
   const by = ideas.model ?? "Sarvam";
+  const search = ideas.search;
+  const measuredOn = search?.status === "OK";
+  const anyMeasured = ideas.keywords.some((k) => k.measured);
   const copyKeywords = async () => {
     try {
       await navigator.clipboard.writeText(keywordsText(ideas));
@@ -62,10 +68,18 @@ export function ContentIdeasPanels({
 
   return (
     <>
+      <SearchConnectNote status={search?.status} />
+
+      {measuredOn && search && <AlmostWinningPanel searches={search.almostWinning} days={search.days} />}
+
       {ideas.keywords.length > 0 && (
         <Panel
           title="Words your customers search for"
-          subtitle={`Use these phrases in your page titles, headings and text, so Google shows you when people search for them. Suggested by ${by} from your own pages. These are ideas, not measured search numbers.`}
+          subtitle={
+            anyMeasured
+              ? `Use these phrases in your page titles, headings and text. Green numbers are Google's own, from your Search Console${search ? ` (last ${search.days} days)` : ""}; the rest are suggestions by ${by} from your pages.`
+              : `Use these phrases in your page titles, headings and text, so Google shows you when people search for them. Suggested by ${by} from your own pages. These are ideas, not measured search numbers.`
+          }
           actions={
             <ActionButton icon={copied ? <Check size={12} className="text-success-600" /> : <Copy size={12} />} onClick={copyKeywords}>
               {copied ? "Copied" : "Copy all"}
@@ -79,7 +93,14 @@ export function ContentIdeasPanels({
                   <Search size={13} className="shrink-0 text-primary-600" />
                   {k.phrase}
                 </span>
-                <span className="min-w-0 flex-1 text-[12.5px] text-brand-600">{k.why}</span>
+                <span className="min-w-0 flex-1 text-[12.5px] text-brand-600">
+                  {k.why}
+                  {measuredOn && (
+                    <span className="mt-1 block">
+                      <MeasuredBadge measured={k.measured} days={search?.days} />
+                    </span>
+                  )}
+                </span>
                 <span className="shrink-0 text-[11.5px]">
                   {k.usePage ? (
                     <span className="text-brand-500">

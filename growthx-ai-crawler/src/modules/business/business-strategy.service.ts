@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { crawlToShow } from '../crawler/crawl-selection';
+import { SearchDemandService } from '../integrations/google/search-demand.service';
 import { OPENED_PAGE } from '../crawler/page-outcome';
 import { BusinessMarketingService } from './business-marketing.service';
 import { CatalogBackfillService } from './catalog-backfill.service';
@@ -41,6 +42,7 @@ export class BusinessStrategyService {
     private readonly router: MultiAiRouterService,
     private readonly marketing: BusinessMarketingService,
     private readonly backfill: CatalogBackfillService,
+    @Optional() private readonly demand?: SearchDemandService,
   ) {}
 
   async latest(projectId: string): Promise<BusinessStrategyReport | null> {
@@ -137,7 +139,7 @@ export class BusinessStrategyService {
       where: { id: projectId },
       select: { name: true, organizationId: true, websites: { select: { domain: true }, take: 1 } },
     });
-    const [mine, competitors, signals] = await Promise.all([
+    const [mine, competitors, signals, search] = await Promise.all([
       this.prisma.catalogProduct.findMany({ where: { projectId, competitorId: null }, select: CATALOG_FIELDS, orderBy: { updatedAt: 'desc' } }),
       this.prisma.competitorDomain.findMany({
         where: { projectId },
@@ -145,6 +147,7 @@ export class BusinessStrategyService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.marketingSignal.findMany({ where: { projectId }, select: { competitorId: true, kind: true, text: true } }),
+      this.demand ? this.demand.forProject(projectId) : Promise.resolve(undefined),
     ]);
 
     const positioningOf = (competitorId: string | null): Positioning | null => {
@@ -221,6 +224,7 @@ export class BusinessStrategyService {
         mine,
         rivals.map((r) => ({ name: r.name, products: r.catalog })),
       ),
+      ...(search ? { search } : {}),
     };
   }
 

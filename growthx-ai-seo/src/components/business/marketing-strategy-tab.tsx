@@ -177,12 +177,22 @@ function StrategyBody({ report, projectId, refreshing }: { report: BusinessStrat
             keywords: strategy.keywords.map((k) => ({
               phrase: k.phrase,
               why: k.forProduct ? `${k.why} For your ${k.forProduct}.` : k.why,
-              // The product's own page, so a phrase for a product you sell is
-              // never labelled "Needs a new page".
-              usePage: productPath(facts.you.products, k.forProduct),
+              // The product's own page, or the page Google already shows for
+              // the search, so a phrase for something you sell is never
+              // labelled "Needs a new page".
+              usePage: productPath(facts.you.products, k.forProduct) ?? (k.measured?.page ? urlPath(k.measured.page) : null),
+              measured: k.measured ?? null,
             })),
             blogIdeas: strategy.blogPosts,
             model: report.model,
+            search: facts.search
+              ? {
+                  status: facts.search.status,
+                  days: facts.search.days,
+                  range: facts.search.range,
+                  almostWinning: facts.search.almostWinning.map((s) => ({ ...s, pagePath: s.page ? urlPath(s.page) : null })),
+                }
+              : undefined,
           }}
         />
       )}
@@ -503,5 +513,13 @@ function productPath(products: BusinessStrategyReport["facts"]["you"]["products"
     return new URL(hit.url).pathname;
   } catch {
     return null;
+  }
+}
+
+function urlPath(url: string): string {
+  try {
+    return new URL(url).pathname || "/";
+  } catch {
+    return url;
   }
 }

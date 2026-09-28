@@ -1860,10 +1860,46 @@ export interface TrackedCompetitor {
 }
 
 /** Mirrors ContentIdeas in growthx-ai-crawler content-ideas.service.ts. Suggestions, not measurements. */
+/** Google's numbers for one search the site appeared in (Search Console). Mirrors search-demand.ts. */
+export interface MeasuredSearch {
+  query: string;
+  impressions: number;
+  clicks: number;
+  position: number;
+  page: string | null;
+}
+
+/** What a suggested phrase carries when it is one of the site's real searches. */
+export interface MeasuredNumbers {
+  impressions: number;
+  clicks: number;
+  position: number;
+  days: number;
+  page: string | null;
+}
+
+export type SearchDataStatus = "NOT_CONNECTED" | "NO_DATA_YET" | "NEEDS_ATTENTION" | "OK";
+
+export interface SearchDemand {
+  status: SearchDataStatus;
+  days: number;
+  range: { start: string; end: string } | null;
+  topSearches: MeasuredSearch[];
+  almostWinning: MeasuredSearch[];
+}
+
 export interface ContentIdeas {
-  keywords: Array<{ phrase: string; why: string; usePage: string | null }>;
+  /** `measured` is Google's numbers when the phrase is one of the site's real searches; absent or null means a suggestion only. */
+  keywords: Array<{ phrase: string; why: string; usePage: string | null; measured?: MeasuredNumbers | null }>;
   blogIdeas: Array<{ title: string; covers: string; keyword: string }>;
   model: string | null;
+  /** Absent on reports written before real search numbers were added. */
+  search?: {
+    status: SearchDataStatus;
+    days: number;
+    range: { start: string; end: string } | null;
+    almostWinning: Array<MeasuredSearch & { pagePath: string | null }>;
+  };
 }
 
 /** Mirrors WebsiteAuditReport in growthx-ai-crawler audit-report.service.ts. */
@@ -3313,6 +3349,7 @@ export interface StrategyFacts {
   you: { productCount: number; pricedCount: number; products: StrategyProduct[]; positioning: StrategyPositioning | null };
   competitors: StrategyCompetitor[];
   prices: Array<{ category: string; you: StrategyPriceBand | null; them: Array<{ competitor: string; band: StrategyPriceBand }> }>;
+  search?: SearchDemand;
 }
 
 export interface StrategyAction {
@@ -3326,7 +3363,7 @@ export interface MarketingStrategy {
   summary: string;
   rivalProducts: Array<{ competitor: string; url: string; whyItWorks: string; keywords: string[]; counter: string[] }>;
   pricing: string[];
-  keywords: Array<{ phrase: string; why: string; forProduct: string | null }>;
+  keywords: Array<{ phrase: string; why: string; forProduct: string | null; measured?: MeasuredNumbers | null }>;
   blogPosts: Array<{ title: string; covers: string; keyword: string }>;
   positioning: { yourEdge: string; theirAngle: string; message: string } | null;
   actions: StrategyAction[];
@@ -4015,6 +4052,7 @@ export const api = {
     get<GscRow[]>(
       `/api/projects/${projectId}/search-console/page-queries?page=${encodeURIComponent(page)}&days=${days}`,
     ),
+  searchDemand: (projectId: string) => get<SearchDemand>(`/api/projects/${projectId}/search-console/demand`),
   gscStrikingDistance: (projectId: string, days: number) =>
     get<GscStrikingDistanceRow[]>(`/api/projects/${projectId}/search-console/striking-distance?days=${days}`),
   gscCtrOpportunities: (projectId: string, days: number) =>

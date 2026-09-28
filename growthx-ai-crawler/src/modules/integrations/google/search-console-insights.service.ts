@@ -303,6 +303,40 @@ export class SearchConsoleInsightsService {
   }
 
   /**
+   * For each of these queries, the page Google showed most for it over the
+   * window. A query with no QUERY_PAGE rows is simply absent from the map.
+   */
+  async topPageForQueries(projectId: string, queries: string[], options: { days?: number } = {}): Promise<Map<string, string>> {
+    const { days = 28 } = options;
+    const pages = new Map<string, string>();
+    if (queries.length === 0) return pages;
+    const coverage = await this.coverage(projectId);
+    if (!coverage) return pages;
+    const start = shift(coverage.newestDate, -(days - 1));
+
+    const rows = await this.prisma.$queryRawUnsafe<{ query: string; page: string; impressions: bigint }[]>(
+      `SELECT query, page, SUM(impressions)::bigint AS impressions
+         FROM "GscDailyMetric"
+        WHERE "projectId" = $1 AND grain = 'QUERY_PAGE' AND date >= $2 AND date <= $3
+          AND query = ANY($4::text[]) AND page <> ''
+        GROUP BY query, page`,
+      projectId,
+      start,
+      coverage.newestDate,
+      queries,
+    );
+    const best = new Map<string, number>();
+    for (const row of rows) {
+      const impressions = Number(row.impressions);
+      if (impressions > (best.get(row.query) ?? -1)) {
+        best.set(row.query, impressions);
+        pages.set(row.query, row.page);
+      }
+    }
+    return pages;
+  }
+
+  /**
    * Which page answers a query, and how well.
    *
    * The QUERY_PAGE grain, which is what makes "this search term lands on this
