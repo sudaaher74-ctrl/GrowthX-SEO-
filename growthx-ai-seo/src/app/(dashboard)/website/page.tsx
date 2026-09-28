@@ -296,7 +296,7 @@ function WebsiteAuditClient() {
               type="button"
               onClick={handleReCrawl}
               disabled={crawling || !client?.domain}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-950 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-900 active:scale-95 disabled:opacity-50 transition-all dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
             >
               <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
               <span>{crawling ? "Checking…" : "Check my website again"}</span>
@@ -374,7 +374,7 @@ function WebsiteAuditClient() {
         emptyAction={
           <Link
             href="/projects"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
           >
             Go to Projects to Add Website
           </Link>
@@ -493,7 +493,7 @@ function WebsiteAuditClient() {
               <button
                 type="button"
                 onClick={handleCopyShareLink}
-                className="h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 text-xs font-semibold transition inline-flex items-center gap-1"
+                className="h-8 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-3 text-xs font-semibold transition inline-flex items-center gap-1"
               >
                 {copiedLink ? <Check size={12} /> : <Copy size={12} />}
                 <span>{copiedLink ? "Copied!" : "Copy"}</span>
@@ -554,7 +554,7 @@ function WebsiteAuditClient() {
               <button
                 type="button"
                 onClick={() => setShowLogsModal(false)}
-                className="rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-1.5 text-xs font-semibold"
+                className="rounded-lg bg-primary-600 dark:bg-white text-white dark:text-slate-900 px-4 py-1.5 text-xs font-semibold"
               >
                 Close Logs
               </button>

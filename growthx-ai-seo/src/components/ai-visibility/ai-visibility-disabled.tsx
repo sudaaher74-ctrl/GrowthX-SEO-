@@ -25,7 +25,7 @@ export function AiVisibilityDisabled() {
           <div className="pt-2">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-900"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary-700"
             >
               <ArrowLeft size={13} /> Back to dashboard
             </Link>

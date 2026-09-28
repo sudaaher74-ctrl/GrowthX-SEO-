@@ -11,6 +11,9 @@ import { api, type AutopilotRun } from "@/lib/api-client";
 
 const ACTIVE: AutopilotRun["status"][] = ["DISCOVERING", "AWAITING_CONFIRMATION", "RUNNING"];
 const DISMISSED_KEY = "growthx.autopilot.dismissed";
+/** Five are suggested; the customer keeps two or three. Mirrors PICK_LIMIT on the server. */
+const PICK_MIN = 2;
+const PICK_MAX = 3;
 
 function readDismissed(): string[] {
   if (typeof window === "undefined") return [];
@@ -49,7 +52,9 @@ export function AutopilotCard() {
     queryKey: ["autopilot", projectId],
     queryFn: () => api.autopilot.latest(projectId!),
     enabled: Boolean(projectId),
-    refetchInterval: (q) => (q.state.data && ACTIVE.includes(q.state.data.status) ? 5000 : false),
+    // With no run yet, check now and then: the first website audit finishing
+    // starts one on the server, and the picker should appear without a reload.
+    refetchInterval: (q) => (q.state.data == null ? 30_000 : ACTIVE.includes(q.state.data.status) ? 5000 : false),
     retry: false,
   });
   const data = run.data ?? null;
@@ -67,7 +72,7 @@ export function AutopilotCard() {
     if (data.status === "AWAITING_CONFIRMATION") {
       say(
         data.suggestions.length
-          ? `I found ${listNames(data.suggestions.map((s) => s.name))}. Are these your competitors? Say yes, or tell me which to remove or add.`
+          ? `I found ${listNames(data.suggestions.map((s) => s.name))}. Which two or three do you really compete with? Pick them here, or say yes to keep the top three.`
           : "I couldn't find your competitors on my own. Tell me their websites and I'll carry on.",
       );
     } else if (data.status === "DONE") {
@@ -91,20 +96,27 @@ export function AutopilotCard() {
   if (!data || dismissed.includes(data.id) || data.status === "CANCELLED") return null;
   if (!ACTIVE.includes(data.status) && data.finishedAt && openedAt - new Date(data.finishedAt).getTime() > 24 * 3600e3) return null;
 
-  const selected = chosen ?? new Set(data.suggestions.map((s) => s.domain));
+  // Nothing is ticked for you: the point is that the customer, not the model,
+  // says which of these they actually lose sales to.
+  const selected = chosen ?? new Set<string>();
+  const full = selected.size >= PICK_MAX;
   const toggle = (domain: string) => {
     const next = new Set(selected);
     if (next.has(domain)) next.delete(domain);
-    else next.add(domain);
+    else if (!full) next.add(domain);
     setChosen(next);
   };
   const addExtra = () => {
     const d = extra.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
-    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return;
+    if (full || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return;
     setChosen(new Set([...selected, d]));
     setExtra("");
   };
   const extras = [...selected].filter((d) => !data.suggestions.some((s) => s.domain === d));
+  // Two is the ask, unless fewer than two were found and none added.
+  const pickMin = Math.min(PICK_MIN, data.suggestions.length + extras.length) || 1;
+  const canConfirm = selected.size >= pickMin && selected.size <= PICK_MAX;
+  const finders = [...new Set(data.suggestions.map((s) => s.foundBy).filter(Boolean))];
 
   const openReport = () => {
     const url = "/competitor-intelligence?tab=report";
@@ -140,7 +152,7 @@ export function AutopilotCard() {
       detail: own ? (crawlingSite(own) ? `Reading ${data.domain}: ${own.pagesCrawled} pages so far` : `${data.domain}: ${own.pagesCrawled} pages read`) : data.domain,
     },
     { label: "Find your competitors" },
-    { label: "Confirm your competitors" },
+    { label: `Pick ${PICK_MIN} or ${PICK_MAX} competitors` },
     {
       label: "Read their websites",
       detail:
@@ -163,7 +175,7 @@ export function AutopilotCard() {
   return (
     <div className="fixed bottom-5 left-5 z-40 w-[380px] max-w-[calc(100vw-2.5rem)] rounded-2xl border bg-white shadow-xl md:left-[252px]" role="region" aria-label="Autopilot">
       <div className="flex items-center gap-2 border-b px-4 py-3">
-        <Sparkles size={14} className="text-brand-950" />
+        <Sparkles size={14} className="text-primary-600" />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold text-brand-950">Autopilot · {data.domain}</p>
           <p className="text-[11px] text-brand-500">
@@ -195,7 +207,7 @@ export function AutopilotCard() {
                     {st === "done" ? (
                       <Check size={14} className="text-success-600" />
                     ) : st === "active" ? (
-                      <Loader2 size={14} className="animate-spin text-brand-950" />
+                      <Loader2 size={14} className="animate-spin text-primary-600" />
                     ) : st === "waiting" ? (
                       <Circle size={14} className="fill-warning-500 text-warning-500" />
                     ) : (
@@ -212,25 +224,51 @@ export function AutopilotCard() {
           </ol>
 
           {data.status === "AWAITING_CONFIRMATION" && (
-            <div className="mt-3 rounded-xl border bg-brand-50 p-3">
-              <p className="text-[12px] font-semibold text-brand-950">Are these your competitors?</p>
-              <p className="text-[11px] text-brand-500">Untick any that aren&apos;t, add any we missed, then confirm. Or just say &quot;yes&quot; to Nexa.</p>
-              <ul className="mt-2 space-y-1.5">
-                {data.suggestions.map((s) => (
-                  <li key={s.domain}>
-                    <label className="flex cursor-pointer items-start gap-2 text-[12px]">
-                      <input type="checkbox" className="mt-0.5" checked={selected.has(s.domain)} onChange={() => toggle(s.domain)} />
-                      <span>
-                        <span className="font-medium text-brand-950">{s.name}</span> <span className="text-brand-400">{s.domain}</span>
-                        {s.reason && <span className="block text-[11px] text-brand-500">{s.reason}</span>}
-                      </span>
-                    </label>
-                  </li>
-                ))}
+            <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50 p-3">
+              <p className="text-[12.5px] font-semibold text-brand-950">
+                {data.suggestions.length
+                  ? `We found ${data.suggestions.length} likely competitor${data.suggestions.length === 1 ? "" : "s"}. Pick ${PICK_MIN} or ${PICK_MAX}.`
+                  : "Tell us who your competitors are"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-brand-600">
+                Choose the ones you really compete with. We&apos;ll read their websites and compare them with yours.
+              </p>
+              {finders.length === 1 && (
+                <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10.5px] font-medium text-primary-700">
+                  <Sparkles size={10} /> Suggested by {finders[0]} after your website audit
+                </p>
+              )}
+              <ul className="mt-2 space-y-1">
+                {data.suggestions.map((s) => {
+                  const on = selected.has(s.domain);
+                  const locked = !on && full;
+                  return (
+                    <li key={s.domain}>
+                      <label
+                        className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[12px] transition-colors ${
+                          on ? "border-primary-300 bg-white" : "border-transparent"
+                        } ${locked ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-white"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 accent-primary-600"
+                          checked={on}
+                          disabled={locked}
+                          onChange={() => toggle(s.domain)}
+                        />
+                        <span className="min-w-0">
+                          <span className="font-medium text-brand-950">{s.name}</span>{" "}
+                          <span className="text-brand-400">{s.domain}</span>
+                          {s.reason && <span className="block text-[11px] text-brand-500">{s.reason}</span>}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
                 {extras.map((d) => (
                   <li key={d}>
-                    <label className="flex cursor-pointer items-center gap-2 text-[12px]">
-                      <input type="checkbox" checked onChange={() => toggle(d)} />
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-primary-300 bg-white px-2.5 py-2 text-[12px]">
+                      <input type="checkbox" className="accent-primary-600" checked onChange={() => toggle(d)} />
                       <span className="font-medium text-brand-950">{d}</span>
                     </label>
                   </li>
@@ -241,18 +279,26 @@ export function AutopilotCard() {
                   value={extra}
                   onChange={(e) => setExtra(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addExtra()}
-                  placeholder="Add a competitor website"
+                  placeholder={full ? `You've picked ${PICK_MAX}` : "Missing one? Add its website"}
                   aria-label="Add a competitor website"
-                  className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 text-[12px] text-brand-950"
+                  disabled={full}
+                  className="min-w-0 flex-1 rounded-lg border bg-white px-2.5 py-1.5 text-[12px] text-brand-950 disabled:opacity-60"
                 />
-                <ActionButton icon={<Plus size={12} />} onClick={addExtra}>
+                <ActionButton icon={<Plus size={12} />} onClick={addExtra} disabled={full}>
                   Add
                 </ActionButton>
               </div>
               {confirm.error && <p className="mt-2 text-[11px] text-error-600">{(confirm.error as Error).message}</p>}
-              <div className="mt-3 flex justify-end">
-                <ActionButton variant="primary" disabled={selected.size === 0 || confirm.isPending} onClick={() => confirm.mutate([...selected])}>
-                  {confirm.isPending ? "Starting…" : "Yes, these are my competitors"}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-brand-600" aria-live="polite">
+                  {selected.size} of {PICK_MAX} picked
+                </span>
+                <ActionButton variant="primary" disabled={!canConfirm || confirm.isPending} onClick={() => confirm.mutate([...selected])}>
+                  {confirm.isPending
+                    ? "Starting…"
+                    : selected.size === 0
+                      ? `Pick ${pickMin === 1 ? "one" : `at least ${pickMin}`}`
+                      : `Track ${selected.size === 1 ? "this competitor" : `these ${selected.size}`}`}
                 </ActionButton>
               </div>
             </div>

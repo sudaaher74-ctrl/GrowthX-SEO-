@@ -119,6 +119,13 @@ export class AiVisibilityController {
     return this.visibility.listCompetitors(projectId);
   }
 
+  @Get('competitors/websites')
+  @ApiOperation({ summary: 'Your website and each competitor\'s: read status, pages read, kinds of pages, health and Google rating' })
+  @ApiParam({ name: 'projectId' })
+  websitesOverview(@Param('projectId') projectId: string) {
+    return this.visibility.websitesOverview(projectId);
+  }
+
   @Delete('competitors/:competitorId')
   @ApiOperation({ summary: 'Stop tracking a competitor' })
   @ApiParam({ name: 'projectId' })

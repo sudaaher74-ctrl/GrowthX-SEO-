@@ -159,7 +159,7 @@ export function ActionPlanTab({ localSeo, projectId }: ActionPlanTabProps) {
                       type="button"
                       onClick={() => handleApprove(task.id)}
                       disabled={approveMutation.isPending}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-950 text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary-600 text-white hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
                     >
                       {approveMutation.isPending && <Loader2 size={11} className="animate-spin" />}
                       <span>Approve</span>

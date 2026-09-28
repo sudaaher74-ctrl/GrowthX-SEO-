@@ -241,7 +241,7 @@ export function ApprovalModal({
             type="button"
             disabled={!acknowledged || blocking.length > 0 || methodBlocked || isSubmitting}
             onClick={() => onConfirm(method)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-4 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting && <Loader2 size={12} className="animate-spin" />}
             Approve and send

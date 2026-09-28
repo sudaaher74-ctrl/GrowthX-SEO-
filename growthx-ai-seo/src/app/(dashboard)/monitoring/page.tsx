@@ -138,7 +138,7 @@ export default function MonitoringPage() {
                     onClick={() => setNegativeReviewThreshold(star)}
                     className={`px-2.5 py-1 text-xs rounded border font-medium ${
                       negativeReviewThreshold === star
-                        ? "bg-accent-600 text-white border-accent-600"
+                        ? "bg-primary-600 text-white border-primary-600"
                         : "border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300"
                     }`}
                   >

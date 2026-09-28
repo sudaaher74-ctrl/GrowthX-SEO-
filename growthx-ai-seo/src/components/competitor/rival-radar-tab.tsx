@@ -78,7 +78,7 @@ export function RivalRadarTab({
                     setRival(w.domain);
                     setKind("all");
                   }}
-                  className={`rounded-full border px-3 py-1 text-[12px] ${on ? "bg-brand-950 text-white" : "text-brand-700 hover:bg-brand-50"}`}
+                  className={`rounded-full border px-3 py-1 text-[12px] ${on ? "bg-primary-600 text-white" : "text-brand-700 hover:bg-brand-50"}`}
                 >
                   {w.name} <span className={on ? "text-brand-300" : "text-brand-400"}>· {n}</span>
                 </button>
@@ -151,7 +151,7 @@ export function RivalRadarTab({
                     type="button"
                     onClick={() => setKind(k)}
                     aria-pressed={kind === k}
-                    className={`rounded-full border px-3 py-1 text-[12px] ${kind === k ? "bg-brand-950 text-white" : "text-brand-700 hover:bg-brand-50"}`}
+                    className={`rounded-full border px-3 py-1 text-[12px] ${kind === k ? "bg-primary-600 text-white" : "text-brand-700 hover:bg-brand-50"}`}
                   >
                     {k === "all" ? "All changes" : KIND_LABEL[k]}
                   </button>

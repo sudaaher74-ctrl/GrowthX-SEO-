@@ -499,7 +499,7 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
             onClick={() => setSelectedCategory("ALL")}
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
               selectedCategory === "ALL"
-                ? "bg-brand-950 text-white shadow-2xs"
+                ? "bg-primary-600 text-white shadow-2xs"
                 : "bg-brand-100/70 text-brand-700 hover:bg-brand-200"
             }`}
           >
@@ -515,7 +515,7 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
                 onClick={() => setSelectedCategory(key)}
                 className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition flex items-center gap-1 ${
                   selectedCategory === key
-                    ? "bg-brand-950 text-white shadow-2xs"
+                    ? "bg-primary-600 text-white shadow-2xs"
                     : "bg-brand-100/70 text-brand-700 hover:bg-brand-200"
                 }`}
               >
@@ -536,7 +536,7 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
                 onClick={() => setSelectedImpact(imp)}
                 className={`rounded-md px-2 py-0.5 text-[10.5px] font-semibold transition ${
                   selectedImpact === imp
-                    ? "bg-brand-900 text-white"
+                    ? "bg-primary-600 text-white"
                     : "text-brand-600 hover:text-brand-950 hover:bg-brand-100"
                 }`}
               >
@@ -852,7 +852,7 @@ ${opp.actionChecklist.map((step, idx) => `${idx + 1}. ${step}`).join("\n")}
                               <button
                                 type="button"
                                 onClick={() => setDraftOpportunity(opp)}
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-brand-800 transition shadow-2xs cursor-pointer"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[11.5px] font-bold text-white hover:bg-primary-700 transition shadow-2xs cursor-pointer"
                               >
                                 <Sparkles size={12} />
                                 Draft with Content AI

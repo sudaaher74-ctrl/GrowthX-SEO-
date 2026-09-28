@@ -500,7 +500,7 @@ ${competitorProfiles
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-950 text-white shadow-2xs">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-2xs">
                 <Flame size={18} className="text-amber-400" />
               </div>
               <div>
@@ -641,7 +641,7 @@ ${competitorProfiles
               onClick={() => setSelectedWeekFilter("ALL")}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === "ALL"
-                  ? "bg-brand-950 text-white shadow-2xs"
+                  ? "bg-primary-600 text-white shadow-2xs"
                   : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
             >
@@ -651,7 +651,7 @@ ${competitorProfiles
               onClick={() => setSelectedWeekFilter(1)}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 1
-                  ? "bg-brand-950 text-white shadow-2xs"
+                  ? "bg-primary-600 text-white shadow-2xs"
                   : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
             >
@@ -661,7 +661,7 @@ ${competitorProfiles
               onClick={() => setSelectedWeekFilter(2)}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 2
-                  ? "bg-brand-950 text-white shadow-2xs"
+                  ? "bg-primary-600 text-white shadow-2xs"
                   : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
             >
@@ -671,7 +671,7 @@ ${competitorProfiles
               onClick={() => setSelectedWeekFilter(3)}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 3
-                  ? "bg-brand-950 text-white shadow-2xs"
+                  ? "bg-primary-600 text-white shadow-2xs"
                   : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
             >
@@ -681,7 +681,7 @@ ${competitorProfiles
               onClick={() => setSelectedWeekFilter(4)}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition ${
                 selectedWeekFilter === 4
-                  ? "bg-brand-950 text-white shadow-2xs"
+                  ? "bg-primary-600 text-white shadow-2xs"
                   : "bg-white border border-brand-200 text-brand-700 hover:bg-brand-50"
               }`}
             >

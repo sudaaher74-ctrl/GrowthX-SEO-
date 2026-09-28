@@ -142,7 +142,7 @@ export function ArticlePreviewModal({
                 onClick={() => setActiveTab(tab.id as PreviewTab)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                   activeTab === tab.id
-                    ? "bg-brand-950 text-white dark:bg-brand-100 dark:text-brand-950 font-semibold shadow-xs"
+                    ? "bg-primary-600 text-white dark:bg-brand-100 dark:text-brand-950 font-semibold shadow-xs"
                     : "text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900"
                 }`}
               >

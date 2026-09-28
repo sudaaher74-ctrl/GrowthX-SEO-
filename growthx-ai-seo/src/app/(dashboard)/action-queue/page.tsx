@@ -199,7 +199,7 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
       ) : (
         <>
           {/* ── ROADMAP SCOREBOARD ── */}
-          <div className="grid grid-cols-2 gap-4 rounded-2xl border bg-brand-950 p-6 text-white shadow-md sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 rounded-2xl border bg-primary-600 p-6 text-white shadow-md sm:grid-cols-4">
             <div className="space-y-1">
               <div className="text-[11px] font-medium text-brand-400">Total Roadmap Directives</div>
               <div className="text-2xl font-black text-white">{allGroups.length}</div>
@@ -237,7 +237,7 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
                     onClick={() => setSourceFilter(src)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
                       sourceFilter === src
-                        ? "bg-brand-950 text-white shadow-2xs"
+                        ? "bg-primary-600 text-white shadow-2xs"
                         : "text-brand-600 hover:text-brand-950"
                     }`}
                   >
@@ -262,7 +262,7 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
                     onClick={() => setSeverityFilter(sev)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
                       severityFilter === sev
-                        ? "bg-brand-950 text-white shadow-2xs"
+                        ? "bg-primary-600 text-white shadow-2xs"
                         : "text-brand-600 hover:text-brand-950"
                     }`}
                   >
@@ -274,7 +274,7 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
           </div>
 
           {statusMessage && (
-            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-brand-950 border text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl bg-primary-600 border text-white text-xs font-medium shadow-2xs animate-in fade-in duration-200">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={16} className="text-success-400 shrink-0" />
                 <span>{statusMessage}</span>
@@ -376,7 +376,7 @@ ${(group.sampleUrls || []).map((u) => `- ${u}`).join("\n") || "- Site-wide"}
                         {currentStatus !== "DONE" ? (
                           <Button
                             onClick={() => handleSetStatus(group.groupKey, "DONE")}
-                            className="bg-brand-950 hover:bg-brand-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-2xs transition flex items-center gap-1.5"
+                            className="bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-2xs transition flex items-center gap-1.5"
                           >
                             <Check size={13} />
                             <span>Mark as Done</span>

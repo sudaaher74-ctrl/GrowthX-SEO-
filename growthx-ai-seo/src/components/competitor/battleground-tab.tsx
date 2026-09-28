@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Plus, Swords, X } from "lucide-react";
+import { ClipboardList, Loader2, Plus, Swords, X } from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
+import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { useCrawlPages, useLatestCrawl, useLocalSeo, useVisibility } from "@/hooks/use-growthx";
@@ -239,13 +240,14 @@ export function BattlegroundTab({
     <div className="space-y-4">
       {/* Rival selector */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-lg border border-brand-950 bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white">
+        <span className="rounded-lg border border-primary-600 bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white">
           You · {domain || "your site"}
         </span>
         {competitors.map((c) => {
           const on = selectedIds.includes(c.id);
           const full = !on && selectedIds.length >= MAX_RIVALS;
           const name = c.name || c.label || c.domain;
+          const reading = c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING";
           return (
             <span
               key={c.id}
@@ -258,9 +260,14 @@ export function BattlegroundTab({
                 onClick={() => toggleRival(c.id)}
                 disabled={full}
                 title={full ? `Compare up to ${MAX_RIVALS} competitors at once` : undefined}
-                className={`py-1.5 pl-3 pr-1.5 disabled:opacity-40 ${on ? "" : "line-through"}`}
+                className={`inline-flex items-center gap-1.5 py-1.5 pl-3 pr-1.5 disabled:opacity-40 ${on ? "" : "line-through"}`}
               >
                 {name}
+                {reading ? (
+                  <Loader2 size={11} className="animate-spin text-primary-600" aria-label="Reading their website" />
+                ) : c.crawlError ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-error-600" title={`Couldn't read their website: ${c.crawlError}`} />
+                ) : null}
               </button>
               <button
                 type="button"
@@ -313,6 +320,8 @@ export function BattlegroundTab({
       <p className="text-[11px] text-brand-400">
         Your Google ranking positions aren&apos;t shown yet: connect Google Search Console in Integrations to add them.
       </p>
+
+      <CompetitorWebsitesPanel projectId={projectId} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* This week's moves */}

@@ -201,7 +201,7 @@ export function ContentEditorModal({
               type="button"
               disabled={!canSave}
               onClick={() => onSave({ heading, body, variant, targetKeyword })}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isSaving && <Loader2 size={12} className="animate-spin" />}
               Save and re-score
@@ -238,7 +238,7 @@ function Chip({
       aria-pressed={active}
       className={cn(
         "rounded-lg border px-2 py-1 text-[11px] font-medium transition",
-        active ? "border-brand-950 bg-brand-950 text-white" : "bg-white text-brand-600 hover:bg-brand-50",
+        active ? "border-primary-600 bg-primary-600 text-white" : "bg-white text-brand-600 hover:bg-brand-50",
       )}
     >
       {children}

@@ -564,7 +564,7 @@ export function describeRun(view: AutopilotView): string {
       return "I'm still looking for your competitors.";
     case 'AWAITING_CONFIRMATION':
       return view.suggestions.length
-        ? `I found ${listNames(view.suggestions.map((s) => s.name))}. Are these your competitors? Say yes, or tell me which to remove or add.`
+        ? `I found ${listNames(view.suggestions.map((s) => s.name))}. Which two or three do you really compete with? Name them, or say yes to keep the top three.`
         : "I couldn't find your competitors on my own. Tell me their websites and I'll carry on.";
     case 'RUNNING': {
       const pending = view.sites.filter((s) => s.crawl === 'PENDING' || s.crawl === 'RUNNING');

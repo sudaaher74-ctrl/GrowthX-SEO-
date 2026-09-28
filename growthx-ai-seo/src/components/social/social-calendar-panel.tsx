@@ -80,7 +80,7 @@ export function SocialCalendarPanel({ projectId, businessName }: SocialCalendarP
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-950 text-white shadow-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
                 <Calendar size={16} />
               </div>
               <h3 className="text-[16px] font-bold text-brand-950">
@@ -117,7 +117,7 @@ export function SocialCalendarPanel({ projectId, businessName }: SocialCalendarP
 
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded bg-brand-950 px-2 py-0.5 text-[10px] font-bold uppercase text-white font-mono">
+                    <span className="rounded bg-primary-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white font-mono">
                       {slot.platform}
                     </span>
                     <span className="text-[11px] font-semibold text-brand-500 font-mono">

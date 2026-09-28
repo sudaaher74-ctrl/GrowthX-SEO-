@@ -185,7 +185,7 @@ export default function ImageSeoPage() {
                     onClick={() => setFilter(tab.id)}
                     className={`px-3 py-1.5 rounded-lg text-[12px] font-medium transition ${
                       filter === tab.id
-                        ? "bg-brand-950 text-white"
+                        ? "bg-primary-600 text-white"
                         : "bg-white text-brand-500 hover:text-brand-950 border border-brand-200"
                     }`}
                   >

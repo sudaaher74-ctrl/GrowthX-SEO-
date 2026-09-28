@@ -166,7 +166,7 @@ export function CoverageComparison({
             <button
               onClick={() => crawl.mutate()}
               disabled={crawl.isPending}
-              className="flex items-center gap-1.5 rounded-md bg-brand-950 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
             >
               <Globe size={12} /> Analyze their site
             </button>

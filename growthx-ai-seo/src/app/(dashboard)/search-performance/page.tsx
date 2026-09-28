@@ -167,7 +167,7 @@ function SearchPerformanceClient() {
                   onClick={() => setDays(r.days)}
                   className={`rounded-md px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
                     days === r.days
-                      ? "bg-brand-950 text-white"
+                      ? "bg-primary-600 text-white"
                       : "text-brand-500 hover:text-brand-950"
                   }`}
                 >
@@ -264,7 +264,7 @@ function SearchPerformanceClient() {
                         onClick={() => setMetric(m.key)}
                         className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                           metric === m.key
-                            ? "bg-brand-950 text-white"
+                            ? "bg-primary-600 text-white"
                             : "border bg-white text-brand-600 hover:bg-brand-50"
                         }`}
                         style={{ borderColor: "var(--border-color)" }}

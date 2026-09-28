@@ -199,7 +199,7 @@ export function SelectGbpLocation({
                   type="button"
                   onClick={() => handleChoose(location)}
                   disabled={busy}
-                  className="shrink-0 px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
+                  className="shrink-0 px-3.5 py-2 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isChosen && busy && <Loader2 size={12} className="animate-spin" />}
                   {isChosen && syncMutation.isPending
@@ -243,7 +243,7 @@ export function SelectGbpLocation({
               <button
                 type="button"
                 onClick={onTrackAlternative}
-                className="px-3.5 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition"
+                className="px-3.5 py-2 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition"
               >
                 Track via Places / Manual Entry
               </button>

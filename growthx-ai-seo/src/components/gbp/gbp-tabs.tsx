@@ -106,7 +106,7 @@ export function GbpTabs({
                   className={cn(
                     "ml-1 rounded-full px-1.5 py-0.2 font-mono text-[10px] font-bold leading-tight",
                     isActive
-                      ? "bg-brand-950 text-white"
+                      ? "bg-primary-600 text-white"
                       : "bg-brand-100 text-brand-700 group-hover:bg-brand-200"
                   )}
                 >

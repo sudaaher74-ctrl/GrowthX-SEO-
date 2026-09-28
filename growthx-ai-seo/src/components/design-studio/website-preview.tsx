@@ -268,7 +268,7 @@ function Toggle({
             aria-pressed={active}
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition",
-              active ? "bg-brand-950 text-white" : "text-brand-600 hover:bg-brand-100",
+              active ? "bg-primary-600 text-white" : "text-brand-600 hover:bg-brand-100",
             )}
           >
             {Icon && <Icon size={12} />}

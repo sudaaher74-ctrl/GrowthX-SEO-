@@ -487,7 +487,7 @@ export default function StrategyPage() {
           <button
             onClick={() => generateMut.mutate()}
             disabled={generateMut.isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-accent-600 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-accent-700 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
           >
             {generateMut.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
             {generateMut.isPending ? "Generating Strategy…" : "Generate New Strategy"}

@@ -197,7 +197,7 @@ function LocalTrackedOverview({
               <button
                 type="button"
                 onClick={() => onSelectTab("rankings")}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition"
               >
                 <span>Scan Geo-Grid</span>
                 <ArrowRight size={12} />

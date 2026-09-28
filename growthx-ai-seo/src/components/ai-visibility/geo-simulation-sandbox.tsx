@@ -88,7 +88,7 @@ export function GeoSimulationSandbox({ projectId, availableEngines = [], suggest
   return (
     <div className="space-y-6">
       {/* ── HEADER ── */}
-      <div className="rounded-2xl border bg-brand-950 text-white p-6 shadow-md">
+      <div className="rounded-2xl border bg-primary-600 text-white p-6 shadow-md">
         <div className="space-y-2 max-w-3xl">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold tracking-wider uppercase bg-white/10 text-brand-300 border border-white/20">
             <Sparkles className="h-3 w-3" />
@@ -124,7 +124,7 @@ export function GeoSimulationSandbox({ projectId, availableEngines = [], suggest
               type="button"
               onClick={() => handleRunSimulation()}
               disabled={simulateMutation.isPending || !query.trim() || selectedEngines.length === 0}
-              className="px-6 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-2 shrink-0"
+              className="px-6 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-2 shrink-0"
             >
               {simulateMutation.isPending ? (
                 <>
@@ -292,7 +292,7 @@ export function GeoSimulationSandbox({ projectId, availableEngines = [], suggest
             <div className="rounded-2xl border bg-white p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-xl bg-brand-950 text-white flex items-center justify-center shrink-0">
+                  <div className="h-11 w-11 rounded-xl bg-primary-600 text-white flex items-center justify-center shrink-0">
                     <Flame className="h-6 w-6" />
                   </div>
                   <div>
@@ -309,7 +309,7 @@ export function GeoSimulationSandbox({ projectId, availableEngines = [], suggest
                   <button
                     type="button"
                     onClick={() => handleStageDisplacement(result.displacementPatch!)}
-                    className="px-5 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 text-white text-xs font-bold transition flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition flex items-center gap-2"
                   >
                     {stagedSuccess ? (
                       <>

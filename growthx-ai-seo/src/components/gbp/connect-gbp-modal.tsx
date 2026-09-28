@@ -131,7 +131,7 @@ export function ConnectGbpModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity" onClick={() => onOpenChange(false)} />
       <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border bg-white shadow-2xl animate-in fade-in zoom-in-95">
-        <div className="bg-brand-950 p-6 text-white flex items-center justify-between">
+        <div className="bg-primary-600 p-6 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md">
               <GoogleGLogo size={22} />
@@ -231,7 +231,7 @@ export function ConnectGbpModal({
                 <button
                   type="submit"
                   disabled={searchMutation.isPending || !searchQuery.trim()}
-                  className="px-4 h-10 rounded-lg bg-brand-950 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 transition disabled:opacity-50"
+                  className="px-4 h-10 rounded-lg bg-primary-600 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 transition disabled:opacity-50"
                 >
                   {searchMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
                   Search
@@ -265,7 +265,7 @@ export function ConnectGbpModal({
                         type="button"
                         onClick={() => handleSelectPlace(place)}
                         disabled={connectMutation.isPending}
-                        className="shrink-0 px-3 py-1.5 rounded-md bg-brand-950 text-white text-xs font-medium hover:opacity-90 transition flex items-center gap-1"
+                        className="shrink-0 px-3 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:opacity-90 transition flex items-center gap-1"
                       >
                         {connectMutation.isPending ? (
                           <Loader2 size={11} className="animate-spin" />
@@ -358,7 +358,7 @@ export function ConnectGbpModal({
                 <button
                   type="submit"
                   disabled={connectMutation.isPending || !manualName.trim() || !manualAddress.trim()}
-                  className="px-4 py-2 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {connectMutation.isPending && <Loader2 size={12} className="animate-spin" />}
                   Connect Profile

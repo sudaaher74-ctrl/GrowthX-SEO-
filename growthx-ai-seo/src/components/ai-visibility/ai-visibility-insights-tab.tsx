@@ -31,7 +31,7 @@ export function InsightsNoData({ onRunSweep }: { onRunSweep?: () => void }) {
         <button
           type="button"
           onClick={onRunSweep}
-          className="mt-4 rounded-xl bg-brand-950 px-4 py-2 text-[12px] font-bold text-white hover:bg-brand-800"
+          className="mt-4 rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white hover:bg-primary-700"
         >
           Run AI Visibility
         </button>
@@ -81,7 +81,7 @@ export function AiInsightsTab({ projectId, onRunSweep }: { projectId: string | n
           <button
             type="submit"
             disabled={!draft.trim() || insightsQuery.isFetching}
-            className="rounded-xl bg-brand-950 px-4 py-2 text-[12px] font-bold text-white hover:bg-brand-800 disabled:opacity-50"
+            className="rounded-xl bg-primary-600 px-4 py-2 text-[12px] font-bold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             Ask
           </button>

@@ -146,6 +146,12 @@ export interface AutoIdentifyCompetitorsResult {
   rejected?: CompetitorRejection[];
   /** Plain-language notes for the operator, e.g. why the list is short. */
   notes?: string[];
+  /**
+   * The model that named the candidates (e.g. `sarvam-105b`), so the screen
+   * can say who suggested them. Null when no model was asked — search results
+   * alone, or the model call failed.
+   */
+  identifiedBy?: string | null;
 }
 
 const LEVEL: Record<string, ResearchConfidence> = {
@@ -393,6 +399,7 @@ export class MarketResearchService {
 
     let candidates: AutoIdentifiedCompetitor[] = [];
     const notes: string[] = [];
+    let identifiedBy: string | null = null;
 
     // 4. Search the market the way this client's customers search it.
     //
@@ -518,6 +525,8 @@ export class MarketResearchService {
 
         const parsed = parseJson(result.text) as { competitors?: unknown[] };
         if (Array.isArray(parsed?.competitors) && parsed.competitors.length > 0) {
+          // Attribution only: a missing usage block must never cost the answer.
+          identifiedBy = result.usage?.model ?? null;
           candidates = parsed.competitors
             .map((raw: any) => this.sanitizeCompetitor(raw, domain, normalizedRegion))
             .filter((c): c is AutoIdentifiedCompetitor => c !== null);
@@ -627,6 +636,7 @@ export class MarketResearchService {
       regionWasDetected,
       rejected,
       notes,
+      identifiedBy,
     };
   }
 

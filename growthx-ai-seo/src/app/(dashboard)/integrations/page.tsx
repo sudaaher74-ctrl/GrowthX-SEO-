@@ -415,7 +415,7 @@ function IntegrationsClient() {
                 <button
                   type="submit"
                   disabled={connectRepo.isPending}
-                  className="rounded-lg bg-brand-950 px-3.5 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  className="rounded-lg bg-primary-600 px-3.5 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {connectRepo.isPending ? "Connecting..." : "Save GitHub Connection"}
                 </button>

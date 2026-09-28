@@ -195,7 +195,7 @@ export function SocialCreatorsPanel({
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                   isActive
-                    ? "bg-brand-950 text-white shadow-2xs"
+                    ? "bg-primary-600 text-white shadow-2xs"
                     : "bg-brand-50/60 text-brand-700 hover:bg-brand-100 hover:text-brand-950"
                 }`}
               >
@@ -388,7 +388,7 @@ export function SocialCreatorsPanel({
                   <button
                     type="button"
                     onClick={() => handleOpenContact(creator)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-brand-950 text-white hover:bg-brand-900 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                    className="w-full py-2.5 px-4 rounded-xl bg-primary-600 text-white hover:bg-primary-700 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                   >
                     <MessageCircle size={14} className="text-accent-400" />
                     <span>Talk With Us</span>
@@ -408,7 +408,7 @@ export function SocialCreatorsPanel({
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-brand-100 bg-brand-50/50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-950 text-white flex items-center justify-center font-bold text-xs">
+                <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center font-bold text-xs">
                   {activeCreatorForContact.name
                     .split(" ")
                     .map((n) => n[0])
@@ -451,7 +451,7 @@ export function SocialCreatorsPanel({
                     <button
                       type="button"
                       onClick={() => setActiveCreatorForContact(null)}
-                      className="px-4 py-2 rounded-xl bg-brand-950 text-white text-xs font-semibold hover:bg-brand-900 transition"
+                      className="px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700 transition"
                     >
                       Close Window
                     </button>
@@ -470,7 +470,7 @@ export function SocialCreatorsPanel({
                         href={activeCreatorForContact.contactUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-accent-600 text-white text-xs font-semibold hover:bg-accent-700 transition flex items-center gap-1.5 shrink-0"
+                        className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700 transition flex items-center gap-1.5 shrink-0"
                       >
                         <span>Open Chat</span>
                         <ExternalLink size={12} />
@@ -534,7 +534,7 @@ export function SocialCreatorsPanel({
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-1.5 rounded-lg bg-brand-950 text-white text-xs font-semibold hover:bg-brand-900 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        className="px-4 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                       >
                         <Send size={12} />
                         <span>Send Brief</span>

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { SiteProfile, countOf, issuesOf } from './site-profile';
 import { SiteProfileLoader } from './site-profile.loader';
+import { PAGE_TYPE_LABELS } from '../crawler/page-type';
 
 /** One kind of problem the crawl found, and where to see it. */
 export interface IssueGroup {
@@ -53,19 +54,8 @@ export interface CompetitorSeoReport {
   notes: string[];
 }
 
-export const PAGE_TYPE_LABELS: Record<string, string> = {
-  HOME: 'Homepage',
-  SERVICE: 'Service pages',
-  PRODUCT: 'Product pages',
-  LOCATION: 'Location pages',
-  BLOG: 'Articles and guides',
-  CASE_STUDY: 'Case studies',
-  FAQ: 'FAQ pages',
-  ABOUT: 'About pages',
-  CONTACT: 'Contact pages',
-  LEGAL: 'Legal pages',
-  OTHER: 'Other pages',
-};
+// Defined beside the page-type rules so every screen names page kinds alike.
+export { PAGE_TYPE_LABELS };
 
 const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 

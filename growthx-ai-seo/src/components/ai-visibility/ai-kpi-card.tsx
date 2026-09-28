@@ -102,7 +102,7 @@ export function AiKpiCard({
           {infoTooltip ? (
             <div className="group relative cursor-pointer text-slate-300 hover:text-slate-400">
               <Info size={14} />
-              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-48 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] leading-tight text-white shadow-lg group-hover:block">
+              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-48 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[11px] leading-tight text-white shadow-lg group-hover:block">
                 {infoTooltip}
               </div>
             </div>

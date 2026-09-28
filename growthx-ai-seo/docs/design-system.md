@@ -57,6 +57,9 @@ for new code.**
 | Text, primary | `text-brand-950` | `text-slate-900` (#0f172a — blue-tinted) |
 | Text, secondary | `text-brand-600` / `text-brand-500` | `text-slate-600` |
 | Text, muted / meta | `text-brand-400` | `text-slate-400` |
+| Primary button, active tab / nav item, selected toggle | `bg-primary-600 text-white`, hover `bg-primary-700` | `bg-brand-950` (black), `bg-blue-600` |
+| Soft selected state (active nav item, selected pill) | `bg-primary-50 text-primary-700` | `bg-brand-100` |
+| Page background (behind panels) | `var(--color-canvas)` | `bg-brand-50` |
 | Panel background | `bg-white` | — |
 | Recessed background | `bg-brand-50` / `bg-brand-100` | `bg-slate-50` |
 | Hairline border | bare `border` | `border-slate-200` |
@@ -65,6 +68,12 @@ for new code.**
 | Needs attention | `warning-500` | `amber-500` |
 | Broken / failing | `error-600` | `red-600` |
 | Chart series | `--color-series-1` … `-8` | a typed hex |
+
+**Primary is the brand colour, and it is for action and location only.** It
+marks the thing to click and where you are — not text, not panels. Body text
+stays `brand-950`. The console used to use `brand-950` for both, which is why it
+read as black-and-white. The ten `--color-primary-*` values in `globals.css` are
+the one place to change the brand colour.
 
 `text-slate-900` is `#0f172a` and carries a blue cast; `text-brand-950` is
 `#09090b` and is neutral. Put them in adjacent cards and the mismatch is

@@ -7,9 +7,10 @@ import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl
 import { COMPETITOR_STATUS } from '../content-intelligence/competitor-status';
 import { chooseOwnProfiles, CandidateProfile, ChosenProfile } from './own-social-accounts';
 import { AnalysisPipelineService } from './analysis-pipeline.service';
+import { AutopilotService } from '../autopilot/autopilot.service';
 
-/** How many identified competitors are tracked without anyone being asked. */
-const AUTO_TRACK_LIMIT = 5;
+/** How many identified competitors are offered to the customer to pick from. */
+const OFFERED = 5;
 
 /**
  * What a project's onboarding does after its website has been crawled.
@@ -22,9 +23,10 @@ const AUTO_TRACK_LIMIT = 5;
  * tabs with no indication that anything else was expected of them.
  *
  * This service is the chain between them. A finished crawl of a customer's own
- * site detects what they sell, identifies who they compete with, and starts
- * those competitors' crawls; each of those crawls finishing in turn records
- * that competitor's social accounts. Nothing here is new analysis — every step
+ * site detects what they sell and identifies who they compete with, then asks
+ * the customer to pick two or three of the five it found; the ones they pick
+ * are crawled, and each of those crawls finishing in turn records that
+ * competitor's social accounts. Nothing here is new analysis — every step
  * calls the service that already implemented it.
  */
 @Injectable()
@@ -37,6 +39,7 @@ export class DiscoveryPipelineService implements OnModuleInit {
     private readonly research: MarketResearchService,
     private readonly competitorCrawl: CompetitorCrawlService,
     private readonly analysis: AnalysisPipelineService,
+    private readonly autopilot: AutopilotService,
   ) {}
 
   onModuleInit(): void {
@@ -126,7 +129,11 @@ export class DiscoveryPipelineService implements OnModuleInit {
   }
 
   /**
-   * Identifies competitors once, off the first crawl, and tracks the top few.
+   * Identifies competitors once, off the first crawl, and offers the top five.
+   *
+   * They are offered, not tracked. This used to add all five on its own; the
+   * customer now picks the two or three they actually compete with, through
+   * the same confirmation the autopilot uses, and only those are crawled.
    *
    * The marker is written whether or not anything was found. Identification
    * that legitimately returns nothing — a business with no verifiable online
@@ -153,29 +160,28 @@ export class DiscoveryPipelineService implements OnModuleInit {
     if (verified.length === 0) {
       await this.markIdentified(projectId);
       this.logger.warn(
-        `No competitor for ${domain} survived verification. ${(result.notes || []).join(' ') || 'Nothing was tracked.'}`,
+        `No competitor for ${domain} survived verification. ${(result.notes || []).join(' ') || 'Nothing was offered.'}`,
       );
       return;
     }
 
-    // addSelectedCompetitors saves these and starts each one's first crawl,
-    // which is what brings the second half of this pipeline round again.
-    const added = await this.research.addSelectedCompetitors(
-      organizationId,
+    const offered = await this.autopilot.offerSuggestions({
       projectId,
-      verified.slice(0, AUTO_TRACK_LIMIT).map((competitor) => ({
+      organizationId,
+      domain,
+      suggestions: verified.slice(0, OFFERED).map((competitor) => ({
         domain: competitor.domain,
         name: competitor.name,
-        industry: competitor.industry,
-        description: competitor.description,
-        location: competitor.location,
-        confidenceScore: competitor.overlapScore,
+        reason: competitor.keyDifferentiator || competitor.description || '',
+        foundBy: result.identifiedBy ?? null,
       })),
-    );
+    });
 
     await this.markIdentified(projectId);
     this.logger.log(
-      `Identified and started tracking ${added.count} competitor(s) for ${domain}; their crawls are underway.`,
+      offered
+        ? `Identified ${Math.min(verified.length, OFFERED)} competitor(s) for ${domain}${result.identifiedBy ? ` with ${result.identifiedBy}` : ''}; waiting for the customer to pick which to track.`
+        : `Identified competitors for ${domain}, but a competitor search the customer started is already in progress; that one asks.`,
     );
   }
 

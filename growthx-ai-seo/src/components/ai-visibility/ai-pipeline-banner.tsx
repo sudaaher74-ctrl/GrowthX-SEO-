@@ -111,7 +111,7 @@ export function AiPipelineBanner({
                   );
                   return (
                     <div key={c.id} className="flex items-center gap-2.5 rounded-xl border bg-brand-50/60 px-3 py-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-950 text-white">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-white">
                         {isAnalyzing ? <Loader2 size={15} className="animate-spin" /> : <Globe size={15} />}
                       </div>
                       <div className="min-w-0">
@@ -148,7 +148,7 @@ export function AiPipelineBanner({
                     key={assistant}
                     className="flex items-center gap-2.5 rounded-xl border bg-brand-50/60 px-3 py-2"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-950 text-white">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-white">
                       {isAnalyzing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                     </div>
                     <div>

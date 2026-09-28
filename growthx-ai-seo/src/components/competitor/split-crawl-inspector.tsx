@@ -236,7 +236,7 @@ export function SplitCrawlInspector({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-950 text-white font-black text-[11px]">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-600 text-white font-black text-[11px]">
               2X
             </span>
             <h3 className="font-bold text-[16px] text-brand-950">
@@ -364,7 +364,7 @@ export function SplitCrawlInspector({
           {/* Clickable Header Bar */}
           <div
             onClick={() => setIsDiffExpanded((prev) => !prev)}
-            className="bg-brand-950 px-4 py-2.5 flex items-center justify-between text-white cursor-pointer hover:bg-brand-900 transition-colors select-none"
+            className="bg-primary-600 px-4 py-2.5 flex items-center justify-between text-white cursor-pointer hover:bg-primary-700 transition-colors select-none"
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -406,7 +406,7 @@ export function SplitCrawlInspector({
             <div className="md:col-span-5 space-y-2 md:pr-4">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-950">
-                  <span className="h-2 w-2 rounded-full bg-brand-950" />
+                  <span className="h-2 w-2 rounded-full bg-primary-600" />
                   Your Page ({customerDomain})
                 </span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${TYPE_CONFIG[activeOurPage.pageType]?.color || TYPE_CONFIG.OTHER.color}`}>
@@ -525,7 +525,7 @@ export function SplitCrawlInspector({
               {/* Section Sub-header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-900 text-white font-bold text-[10px]">
+                  <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-600 text-white font-bold text-[10px]">
                     VS
                   </span>
                   <div>
@@ -553,7 +553,7 @@ export function SplitCrawlInspector({
                 <div className="rounded-xl border border-brand-200 bg-white p-3.5 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between pb-2 border-b border-brand-100">
                     <div className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-brand-950" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-primary-600" />
                       <span className="font-bold text-[12px] text-brand-950">
                         Your Page Content ({customerDomain})
                       </span>
@@ -777,7 +777,7 @@ export function SplitCrawlInspector({
               {/* ── Short Comparison & Actionable Verdict ── */}
               <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-white to-brand-50/50 p-4 space-y-3.5 shadow-xs">
                 <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-md bg-indigo-600 text-white">
+                  <div className="p-1 rounded-md bg-primary-600 text-white">
                     <Sparkles size={13} />
                   </div>
                   <div>
@@ -926,7 +926,7 @@ export function SplitCrawlInspector({
           {/* Panel Header */}
           <div className="p-3.5 bg-brand-50/60 border-b border-brand-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-950 text-white font-bold text-[10px]">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-600 text-white font-bold text-[10px]">
                 YOU
               </span>
               <div>
@@ -981,7 +981,7 @@ export function SplitCrawlInspector({
                   type="button"
                   onClick={() => crawlOurSiteMutation.mutate()}
                   disabled={crawlOurSiteMutation.isPending}
-                  className="rounded-lg bg-brand-950 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-brand-800 transition mt-2"
+                  className="rounded-lg bg-primary-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-primary-700 transition mt-2"
                 >
                   {crawlOurSiteMutation.isPending ? "Starting Audit..." : "Run Site Audit Now"}
                 </button>
@@ -1032,7 +1032,7 @@ export function SplitCrawlInspector({
                       }}
                       className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold border transition ${
                         isSelected
-                          ? "border-brand-950 bg-brand-950 text-white"
+                          ? "border-primary-600 bg-primary-600 text-white"
                           : "border-brand-200 text-brand-700 bg-white hover:bg-brand-50"
                       }`}
                     >
@@ -1115,7 +1115,7 @@ export function SplitCrawlInspector({
                   type="button"
                   onClick={() => crawlCompetitorMutation.mutate()}
                   disabled={crawlCompetitorMutation.isPending}
-                  className="rounded-lg bg-brand-950 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-brand-800 transition mt-2"
+                  className="rounded-lg bg-primary-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-2xs hover:bg-primary-700 transition mt-2"
                 >
                   {crawlCompetitorMutation.isPending ? "Crawling..." : `Crawl ${competitor.domain} Now`}
                 </button>
@@ -1166,7 +1166,7 @@ export function SplitCrawlInspector({
                       }}
                       className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold border transition ${
                         isSelected
-                          ? "border-brand-950 bg-brand-950 text-white"
+                          ? "border-primary-600 bg-primary-600 text-white"
                           : "border-brand-200 text-brand-700 bg-white hover:bg-brand-50"
                       }`}
                     >

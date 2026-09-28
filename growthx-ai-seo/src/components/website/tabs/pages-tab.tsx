@@ -1240,7 +1240,7 @@ export function PagesTab({
                     className={cn(
                       "h-7 w-7 rounded border text-xs font-semibold transition",
                       currentPage === pageNum
-                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        ? "bg-primary-600 text-white border-primary-600 shadow-xs"
                         : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
                     )}
                   >

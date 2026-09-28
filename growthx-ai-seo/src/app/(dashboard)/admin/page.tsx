@@ -539,7 +539,7 @@ export default function AdminPage() {
                       <Tr key={t.id}>
                         <Td>
                           <div className="flex items-center gap-2">
-                            <div className="h-7 w-7 rounded-lg bg-brand-950 text-white font-mono font-bold flex items-center justify-center text-xs">
+                            <div className="h-7 w-7 rounded-lg bg-primary-600 text-white font-mono font-bold flex items-center justify-center text-xs">
                               {t.name.slice(0, 2).toUpperCase()}
                             </div>
                             <span className="font-semibold text-brand-950 dark:text-brand-100 text-xs">{t.name}</span>

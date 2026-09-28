@@ -1961,6 +1961,31 @@ export interface CompetitorIntelReport {
   analysisError: string | null;
 }
 
+/** Mirrors WebsiteOverview in growthx-ai-crawler ai-visibility/website-overview.ts. */
+export type SiteReadStatus = "READING" | "QUEUED" | "READ" | "FAILED" | "WAITING";
+
+export interface CompetitorWebsite {
+  role: "you" | "competitor";
+  competitorId: string | null;
+  domain: string;
+  name: string;
+  status: SiteReadStatus;
+  /** Pages in the crawl the figures come from. */
+  pagesRead: number;
+  /** Pages the running crawl has read so far; null when nothing is running. */
+  pagesSoFar: number | null;
+  readingStartedAt: string | null;
+  lastReadAt: string | null;
+  /** Why the newest attempt read nothing, when it did not. */
+  error: string | null;
+  healthScore: number | null;
+  /** Null when there is no Google listing to read it from — not a zero rating. */
+  rating: number | null;
+  reviewCount: number | null;
+  /** Kinds of working pages, most first. */
+  pageTypes: Array<{ type: string; label: string; count: number }>;
+}
+
 export interface TrackedCompetitorList {
   competitors: TrackedCompetitor[];
   slotsUsed: number;
@@ -2825,7 +2850,8 @@ export interface AutopilotRun {
   domain: string;
   status: "DISCOVERING" | "AWAITING_CONFIRMATION" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
   step: "SETUP" | "FIND_COMPETITORS" | "CONFIRM" | "CRAWL_SITES" | "REPORT" | "DONE";
-  suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean }>;
+  /** `foundBy` is the model that suggested it, e.g. "sarvam-105b". */
+  suggestions: Array<{ domain: string; name: string; reason: string; tracked?: boolean; foundBy?: string | null }>;
   competitors: Array<{ domain: string; name: string; competitorId: string }>;
   sites: Array<{ domain: string; name: string; role: "you" | "competitor"; crawl: string; pagesCrawled: number }>;
   log: Array<{ at: string; message: string }>;
@@ -3993,6 +4019,9 @@ export const api = {
   /** Tracked competitors, whether or not any prompt has cited them yet. */
   listCompetitors: (projectId: string) =>
     get<TrackedCompetitor[]>(`/api/projects/${projectId}/ai-visibility/competitors`),
+  /** Your website and each competitor's: read status, pages, kinds of pages, health and rating. */
+  competitorWebsites: (projectId: string) =>
+    get<{ sites: CompetitorWebsite[] }>(`/api/projects/${projectId}/ai-visibility/competitors/websites`),
   removeCompetitor: async (projectId: string, competitorId: string) => {
     try {
       return await request<{ removed: number }>(`/api/projects/${projectId}/ai-visibility/competitors/${competitorId}`, {

@@ -127,7 +127,7 @@ export default function PatternsPage() {
             onClick={() => setActiveTab("PATTERNS")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
               activeTab === "PATTERNS"
-                ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                ? "bg-primary-600 text-white font-semibold shadow-2xs"
                 : "text-brand-600 hover:bg-brand-100"
             }`}
           >
@@ -138,7 +138,7 @@ export default function PatternsPage() {
             onClick={() => setActiveTab("GAPS")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
               activeTab === "GAPS"
-                ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                ? "bg-primary-600 text-white font-semibold shadow-2xs"
                 : "text-brand-600 hover:bg-brand-100"
             }`}
           >
@@ -160,7 +160,7 @@ export default function PatternsPage() {
                 <button
                   onClick={() => detectMut.mutate()}
                   disabled={detectMut.isPending}
-                  className="mt-4 rounded-lg bg-brand-950 px-4 py-2 text-[12px] font-semibold text-white mx-auto flex items-center gap-1.5 disabled:opacity-60 shadow-2xs"
+                  className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-[12px] font-semibold text-white mx-auto flex items-center gap-1.5 disabled:opacity-60 shadow-2xs"
                 >
                   {detectMut.isPending ? <RefreshCw size={12} className="animate-spin" /> : null}
                   <span>{detectMut.isPending ? "Detecting…" : "Detect Patterns Now"}</span>
@@ -257,7 +257,7 @@ export default function PatternsPage() {
                     onClick={() => setGapStatusFilter(status)}
                     className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                       gapStatusFilter === status
-                        ? "bg-brand-950 text-white font-semibold shadow-2xs"
+                        ? "bg-primary-600 text-white font-semibold shadow-2xs"
                         : "bg-white border text-brand-600 hover:bg-brand-50"
                     }`}
                     style={{ borderColor: gapStatusFilter === status ? undefined : "var(--color-brand-200)" }}
@@ -287,7 +287,7 @@ export default function PatternsPage() {
                 <button
                   onClick={() => analyzeGapsMut.mutate()}
                   disabled={analyzeGapsMut.isPending}
-                  className="mt-4 rounded-lg bg-brand-950 px-4 py-2 text-[12px] font-semibold text-white mx-auto flex items-center gap-1.5 disabled:opacity-60 shadow-2xs"
+                  className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-[12px] font-semibold text-white mx-auto flex items-center gap-1.5 disabled:opacity-60 shadow-2xs"
                 >
                   {analyzeGapsMut.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Target size={12} />}
                   <span>{analyzeGapsMut.isPending ? "Analyzing…" : "Run Gap Analysis"}</span>
@@ -395,7 +395,7 @@ export default function PatternsPage() {
                           {gap.status !== "RESOLVED" && (
                             <button
                               onClick={() => updateGapMut.mutate({ gapId: gap.id, status: "RESOLVED" })}
-                              className="rounded-lg bg-brand-950 px-2.5 py-1 text-[10.5px] font-semibold text-white hover:bg-brand-900 transition shadow-2xs"
+                              className="rounded-lg bg-primary-600 px-2.5 py-1 text-[10.5px] font-semibold text-white hover:bg-primary-700 transition shadow-2xs"
                             >
                               Resolve
                             </button>

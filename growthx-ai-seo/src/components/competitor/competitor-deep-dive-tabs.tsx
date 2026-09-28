@@ -180,7 +180,7 @@ export function CompetitorsDiscoveryTab({
           <button
             type="button"
             onClick={onAddCompetitor}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
             <span>+ Add Competitor</span>
@@ -201,7 +201,7 @@ export function CompetitorsDiscoveryTab({
             onClick={() => setFilterType(tab.id as typeof filterType)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               filterType === tab.id
-                ? "bg-slate-950 text-white shadow-2xs"
+                ? "bg-primary-600 text-white shadow-2xs"
                 : "bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -225,7 +225,7 @@ export function CompetitorsDiscoveryTab({
           <button
             type="button"
             onClick={onAddCompetitor}
-            className="px-4 py-2 rounded-xl bg-slate-950 text-white text-xs font-bold shadow-xs hover:bg-black"
+            className="px-4 py-2 rounded-xl bg-primary-600 text-white text-xs font-bold shadow-xs hover:bg-black"
           >
             Add Competitor Domain
           </button>
@@ -323,7 +323,7 @@ export function CompetitorsDiscoveryTab({
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-slate-950 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
+            <div className="h-10 w-10 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -380,7 +380,7 @@ export function CompetitorsDiscoveryTab({
                     type="button"
                     onClick={() => handleTrackDomain(candidate.domain, "Auto-discovered competitor")}
                     disabled={Boolean(trackingDomain)}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-primary-600 hover:bg-black disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs"
                   >
                     {isTracking ? (
                       <>
@@ -427,7 +427,7 @@ export function CompetitorsDiscoveryTab({
             type="button"
             onClick={() => handleTrackDomain(manualDomain)}
             disabled={!manualDomain.trim() || Boolean(trackingDomain)}
-            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
+            className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs"
           >
             {trackingDomain === manualDomain.trim() ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -540,7 +540,7 @@ export function CompetitorTechnicalGapsTab({
           type="button"
           onClick={() => onAddToFixPlan?.(issues.length, "Technical Architecture Improvements")}
           disabled={issues.length === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Stage Technical Fixes to 30-Day Plan</span>
@@ -661,7 +661,7 @@ export function CompetitorAiVisibilityTab({
           type="button"
           onClick={() => onAddToFixPlan?.(prompts.length, "AI Citation Engine Tasks")}
           disabled={prompts.length === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-950 hover:bg-brand-800 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Stage AI Visibility Tasks to Fix Plan</span>
@@ -684,7 +684,7 @@ export function CompetitorAiVisibilityTab({
                 </div>
                 <div className="h-2 w-full bg-brand-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-brand-950 rounded-full"
+                    className="h-full bg-primary-600 rounded-full"
                     style={{ width: `${measured ? Math.max(4, row!.citationSharePct) : 0}%` }}
                   />
                 </div>
@@ -905,7 +905,7 @@ export function CompetitorOpportunitiesTab({
           type="button"
           onClick={() => onAddToFixPlan?.(selectedItems.size, `${selectedItems.size} High-Impact Strategy Items`)}
           disabled={opportunities.length === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-black disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Play className="h-4 w-4 fill-white" />
           <span>Add Selected ({selectedItems.size}) to 30-Day Fix Plan</span>
@@ -1015,7 +1015,7 @@ export function CompetitorReportsTab({
         <button
           type="button"
           onClick={onGenerateReport}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-950 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-black text-white text-sm font-semibold transition-all shadow-md shadow-slate-900/10 active:scale-[0.98]"
         >
           <Sparkles className="h-4 w-4" />
           <span>Generate New Report</span>

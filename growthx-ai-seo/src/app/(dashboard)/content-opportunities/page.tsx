@@ -138,7 +138,7 @@ function ContentOpportunitiesClient() {
                   onClick={() => setSelectedCategory(f.val)}
                   className={`rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition ${
                     selectedCategory === f.val
-                      ? "bg-brand-950 text-white"
+                      ? "bg-primary-600 text-white"
                       : "border bg-white text-brand-600 hover:bg-brand-50"
                   }`}
                   style={{ borderColor: "var(--border-color)" }}
@@ -223,7 +223,7 @@ function ContentOpportunitiesClient() {
                             onClick={() => {
                               setActiveTab("drafts");
                             }}
-                            className="flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[11.5px] font-semibold text-white hover:opacity-90 transition"
+                            className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[11.5px] font-semibold text-white hover:opacity-90 transition"
                           >
                             <Sparkles size={12} />
                             Generate Draft
@@ -312,7 +312,7 @@ function ContentOpportunitiesClient() {
                         <button
                           type="button"
                           onClick={() => planContent.mutate()}
-                          className="rounded bg-brand-950 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 transition cursor-pointer"
+                          className="rounded bg-primary-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 transition cursor-pointer"
                         >
                           Plan Piece
                         </button>
@@ -378,7 +378,7 @@ function ContentOpportunitiesClient() {
                         <button
                           type="button"
                           onClick={() => draftContent.mutate(c.id)}
-                          className="rounded bg-brand-950 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 cursor-pointer"
+                          className="rounded bg-primary-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 cursor-pointer"
                         >
                           Draft
                         </button>
@@ -425,7 +425,7 @@ function ContentOpportunitiesClient() {
                           type="button"
                           onClick={() => draftContent.mutate(piece.id)}
                           disabled={draftContent.isPending}
-                          className="rounded bg-brand-950 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 transition cursor-pointer"
+                          className="rounded bg-primary-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 transition cursor-pointer"
                         >
                           Draft Piece
                         </button>

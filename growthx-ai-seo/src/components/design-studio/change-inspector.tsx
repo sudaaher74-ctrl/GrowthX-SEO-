@@ -86,7 +86,7 @@ export function ChangeInspector({
                 aria-pressed={mode === id}
                 className={cn(
                   "rounded-md px-2 py-0.5 text-[10.5px] font-medium capitalize transition",
-                  mode === id ? "bg-brand-950 text-white" : "text-brand-600 hover:bg-brand-100",
+                  mode === id ? "bg-primary-600 text-white" : "text-brand-600 hover:bg-brand-100",
                 )}
               >
                 {id}
@@ -245,7 +245,7 @@ export function ChangeInspector({
                 ? blocking[0]
                 : undefined
           }
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-950 px-3 py-2 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowRightLeft size={13} />
           Approve Change

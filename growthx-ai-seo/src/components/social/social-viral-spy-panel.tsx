@@ -359,7 +359,7 @@ ${caseItem.ourWinningCounterAction.scenePlan
 
                     <button
                       onClick={() => handleScheduleAction(item)}
-                      className="flex items-center gap-1.5 rounded-xl bg-brand-950 px-3.5 py-1.5 text-[11.5px] font-semibold text-white shadow-2xs transition hover:bg-brand-800"
+                      className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-1.5 text-[11.5px] font-semibold text-white shadow-2xs transition hover:bg-primary-700"
                     >
                       {isScheduled ? <Check size={13} className="text-emerald-400" /> : <Calendar size={13} />}
                       <span>{isScheduled ? "Scheduled to Calendar!" : "Schedule to Calendar"}</span>

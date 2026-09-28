@@ -190,7 +190,7 @@ export function PropertyPicker({
                 if (property) choose.mutate({ id: property.id, label: property.label });
               }}
               disabled={!selected || choose.isPending}
-              className="mt-5 flex items-center gap-2 rounded-lg bg-brand-950 px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
+              className="mt-5 flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
             >
               {choose.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
               {choose.isPending ? "Saving…" : "Continue"}

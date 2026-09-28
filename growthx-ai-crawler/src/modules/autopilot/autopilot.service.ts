@@ -5,7 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { FetcherService } from '../crawler/fetcher.service';
-import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { AiProvider, AiRequest, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
 import { CompetitorIntelReportService } from '../competitor-action-engine/competitor-intel-report.service';
@@ -13,6 +13,7 @@ import { MAX_COMPETITORS } from '../competitor-action-engine/competitor-setup.se
 import { AuditReportService } from '../audit-report/audit-report.service';
 import {
   CompetitorSuggestion,
+  FINDER_SCHEMA,
   buildFinderPrompt,
   filterCandidates,
   normaliseCandidate,
@@ -27,6 +28,13 @@ const FRESH_RIVAL_CRAWL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Past this, the report is written from whatever has finished. */
 const CRAWL_WAIT_MS = 60 * 60 * 1000;
 const SUGGESTIONS_KEPT = 5;
+/**
+ * How many of the suggestions the customer picks. Five are offered and two or
+ * three are kept: enough to compare against, few enough that every one gets
+ * crawled and read properly. More can be added later from Competitor
+ * Intelligence.
+ */
+export const PICK_LIMIT = 3;
 const ACTIVE = ['DISCOVERING', 'AWAITING_CONFIRMATION', 'RUNNING'];
 
 export interface ConfirmedCompetitor {
@@ -233,7 +241,7 @@ export class AutopilotService {
           log: append(
             run.log,
             suggestions.length
-              ? `Found ${suggestions.length} likely competitor${suggestions.length === 1 ? '' : 's'}: ${suggestions.map((s) => s.name).join(', ')}. Waiting for you to confirm.`
+              ? `Found ${suggestions.length} likely competitor${suggestions.length === 1 ? '' : 's'}${foundByNote(found)}: ${suggestions.map((s) => s.name).join(', ')}. Pick up to ${PICK_LIMIT} to track.`
               : "Couldn't find competitors on my own. Tell me their websites and I'll carry on.",
           ),
         },
@@ -257,22 +265,108 @@ export class AutopilotService {
     });
     const titles = [...new Set(pages.map((p) => (p.title ?? '').trim()).filter(Boolean))];
 
-    const completion = await this.router.generate({
+    const { raw, model } = await this.askForCompetitors({
       prompt: buildFinderPrompt(domain, site, titles),
       systemInstruction: 'You identify real business competitors. Reply with valid JSON only.',
       task: AiTask.COMPETITOR_ANALYSIS,
       organizationId,
       projectId,
-      maxTokens: 1500,
+      maxTokens: 4000,
+      jsonSchema: FINDER_SCHEMA,
     });
-    const candidates = filterCandidates(extractAndParseJson<any>(completion.text), domain);
+    const candidates = filterCandidates(raw, domain);
 
     const live: CompetitorSuggestion[] = [];
     for (const c of candidates) {
       if (live.length >= SUGGESTIONS_KEPT) break;
-      if (await this.answers(c.domain)) live.push(c);
+      if (await this.answers(c.domain)) live.push({ ...c, foundBy: model });
     }
     return live;
+  }
+
+  /**
+   * Sarvam 105B first, then whatever else the router has.
+   *
+   * Sarvam is asked by name because it knows Indian businesses, and their
+   * websites, better than the general-purpose chain's first choice. When it is
+   * not configured, declines, or answers with something that is not JSON, the
+   * normal chain is asked instead, so a Sarvam outage costs the customer a
+   * slower answer rather than no answer.
+   */
+  private async askForCompetitors(request: AiRequest): Promise<{ raw: unknown; model: string | null }> {
+    try {
+      const completion = await this.router.generate({ ...request, provider: AiProvider.SARVAM });
+      if (completion.refused) throw new Error('Sarvam declined');
+      return { raw: extractAndParseJson<any>(completion.text), model: completion.model ?? null };
+    } catch (err) {
+      this.logger.warn(`Sarvam could not suggest competitors (${(err as Error).message}); asking the next available model.`);
+    }
+    const completion = await this.router.generate(request);
+    return { raw: extractAndParseJson<any>(completion.text), model: completion.model ?? null };
+  }
+
+  /**
+   * Competitors found after a project's first website audit, offered to the
+   * customer rather than tracked unasked.
+   *
+   * The audit's discovery step used to add the top five on its own. Five
+   * competitors picked by a model is a lot to crawl and a lot to read, and
+   * only the customer knows which of them they actually lose sales to. So the
+   * five become a question — the same one the autopilot asks — and confirming
+   * two or three of them adds those, crawls them and writes the report.
+   *
+   * Returns null, and offers nothing, when the project already has a run in
+   * progress (the customer started one themselves, and it owns the question)
+   * or the organization has no member to attribute the run to.
+   */
+  async offerSuggestions(input: {
+    projectId: string;
+    organizationId: string;
+    domain: string;
+    suggestions: CompetitorSuggestion[];
+  }): Promise<AutopilotRun | null> {
+    const suggestions = input.suggestions.slice(0, SUGGESTIONS_KEPT);
+    if (!suggestions.length) return null;
+
+    const active = await this.prisma.autopilotRun.findFirst({
+      where: { projectId: input.projectId, status: { in: ACTIVE } },
+      select: { id: true },
+    });
+    if (active) return null;
+
+    // The run is the customer's; the earliest owner stands in for "the
+    // customer" when no one is signed in to start it.
+    const member =
+      (await this.prisma.organizationMember.findFirst({
+        where: { organizationId: input.organizationId, role: 'OWNER' },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true },
+      })) ??
+      (await this.prisma.organizationMember.findFirst({
+        where: { organizationId: input.organizationId },
+        orderBy: { createdAt: 'asc' },
+        select: { userId: true },
+      }));
+    if (!member) return null;
+
+    return this.prisma.autopilotRun.create({
+      data: {
+        projectId: input.projectId,
+        organizationId: input.organizationId,
+        userId: member.userId,
+        domain: input.domain,
+        status: 'AWAITING_CONFIRMATION',
+        step: 'CONFIRM',
+        suggestions: suggestions as any,
+        log: [
+          entry(`Your website audit of ${input.domain} finished.`),
+          entry(
+            `Found ${suggestions.length} likely competitor${suggestions.length === 1 ? '' : 's'}${foundByNote(suggestions)}: ` +
+              `${suggestions.map((s) => s.name).join(', ')}. Pick up to ${PICK_LIMIT} to track.`,
+          ),
+        ],
+      },
+    });
   }
 
   /** Whether a website exists and serves a page, so no invented site is ever offered. */
@@ -301,6 +395,9 @@ export class AutopilotService {
       (d) => d !== normaliseCandidate(run.domain),
     );
     if (!chosen.length) throw new BadRequestException('Tell me at least one competitor website.');
+    // A spoken "yes" confirms every suggestion; the first few — the strongest,
+    // since suggestions are ranked — are the ones kept.
+    const overPick = chosen.splice(PICK_LIMIT);
 
     const existing = await this.prisma.competitorDomain.findMany({ where: { projectId: run.projectId }, select: { id: true, domain: true } });
     const room = MAX_COMPETITORS - existing.filter((e) => !chosen.includes(e.domain)).length;
@@ -328,6 +425,7 @@ export class AutopilotService {
         log.push(`Couldn't start reading ${name}: ${(err as Error).message}`);
       }
     }
+    if (overPick.length) log.push(`Kept your first ${PICK_LIMIT}. Skipped ${overPick.join(', ')}; you can add more later from Competitor Intelligence.`);
     if (dropped.length) log.push(`Skipped ${dropped.join(', ')}: you can track up to ${MAX_COMPETITORS} competitors.`);
 
     const updated = await this.prisma.autopilotRun.update({
@@ -503,6 +601,12 @@ export class AutopilotService {
       finishedAt: run.finishedAt?.toISOString() ?? null,
     };
   }
+}
+
+/** " with sarvam-105b", when every suggestion came from the same model. */
+function foundByNote(suggestions: Array<{ foundBy?: string | null }>): string {
+  const models = [...new Set(suggestions.map((s) => s.foundBy).filter(Boolean))];
+  return models.length === 1 ? ` with ${models[0]}` : '';
 }
 
 function entry(message: string) {

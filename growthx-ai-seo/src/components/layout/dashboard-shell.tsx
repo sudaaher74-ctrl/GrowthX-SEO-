@@ -56,7 +56,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AivaProvider>
-      <div className="min-h-screen" style={{ background: "var(--color-brand-50)" }}>
+      <div className="min-h-screen" style={{ background: "var(--color-canvas)" }}>
         <Sidebar
           collapsed={collapsed}
           onToggle={() => toggleCollapsed()}
