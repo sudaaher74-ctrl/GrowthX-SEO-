@@ -1629,6 +1629,68 @@ export function useBusinessMarketingSignals(projectId: string | null) {
   });
 }
 
+/** The browser-only store the action plan's ticks lived in before they moved to the server. */
+const LEGACY_DONE_KEY = (projectId: string) => `growthx.actionPlan.done.${projectId}`;
+
+/**
+ * When each action-plan step was marked done, from the server. Ticks this
+ * browser saved before they lived on the server are uploaded the first time,
+ * with the time they were made, and then forgotten locally.
+ */
+export function useActionPlanDone(projectId: string | null) {
+  return useQuery({
+    queryKey: ["action-plan-done", projectId],
+    queryFn: async () => {
+      const server = await api.actionPlanDone.get(projectId!);
+      let legacy: Record<string, string> = {};
+      try {
+        legacy = JSON.parse(window.localStorage.getItem(LEGACY_DONE_KEY(projectId!)) ?? "{}") ?? {};
+      } catch {
+        legacy = {};
+      }
+      const missing = Object.entries(legacy).filter(([key]) => !(key in server));
+      if (missing.length === 0) return server;
+      let merged = server;
+      for (const [stepKey, doneAt] of missing) {
+        merged = await api.actionPlanDone.mark(projectId!, { stepKey, done: true, doneAt });
+      }
+      try {
+        window.localStorage.removeItem(LEGACY_DONE_KEY(projectId!));
+      } catch {
+        // Uploaded either way; a leftover copy is only uploaded again, harmlessly.
+      }
+      return merged;
+    },
+    enabled: Boolean(projectId),
+    retry: 1,
+  });
+}
+
+/** Marks a step done or not done: on screen at once, on the server behind it, and put back if the server refuses. */
+export function useMarkActionStep(projectId: string | null) {
+  const qc = useQueryClient();
+  const key = ["action-plan-done", projectId];
+  return useMutation({
+    mutationFn: (input: { stepKey: string; done: boolean }) =>
+      api.actionPlanDone.mark(projectId!, { ...input, ...(input.done ? { doneAt: new Date().toISOString() } : {}) }),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<Record<string, string>>(key);
+      const next = { ...(before ?? {}) };
+      if (input.done) next[input.stepKey] = new Date().toISOString();
+      else delete next[input.stepKey];
+      qc.setQueryData(key, next);
+      return { before };
+    },
+    onError: (_err, _input, context) => {
+      if (context) qc.setQueryData(key, context.before);
+    },
+    onSuccess: (map) => {
+      qc.setQueryData(key, map);
+    },
+  });
+}
+
 /**
  * Real Google search numbers for the project (Search Console): its top
  * searches, the ones it almost wins, and whether it is connected at all.

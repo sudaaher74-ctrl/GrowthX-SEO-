@@ -24,6 +24,8 @@ import {
   useIssueGroups,
   useAiVisibilityRoadmapTasks,
   useSearchDemand,
+  useActionPlanDone,
+  useMarkActionStep,
 } from "@/hooks/use-growthx";
 import { AlmostWinningPanel, SearchConnectNote } from "@/components/content/search-numbers";
 import type { IssueGroup } from "@/lib/api-client";
@@ -40,38 +42,18 @@ import { SEVERITY_PLAIN, asSentence, pagePath, whoCanFix } from "@/lib/plain-lan
  * they can do it themselves, and a message ready to send to whoever built
  * their website when they cannot.
  *
- * "I've done this" was React state, so every step reset to "To Do" on reload.
- * It is now remembered per project in this browser, and honest about it: a
- * step marked done that the next check of the website still finds comes back
- * to the list with a note saying so, rather than sitting under "Done".
+ * "I've done this" was React state, so every step reset to "To Do" on reload,
+ * and then only this browser remembered it. It is now kept per project on the
+ * server, so it follows the customer to any device and any colleague, and it
+ * is honest: a step marked done that the next check of the website still
+ * finds comes back to the list with a note saying so, rather than sitting
+ * under "Done".
  */
 
 type View = "todo" | "done";
 
 /** When each step was marked done, by group key, for one project. */
 type DoneMap = Record<string, string>;
-
-function storageKey(projectId: string) {
-  return `growthx.actionPlan.done.${projectId}`;
-}
-
-function readDone(projectId: string | null): DoneMap {
-  if (!projectId) return {};
-  try {
-    const raw = window.localStorage.getItem(storageKey(projectId));
-    return raw ? (JSON.parse(raw) as DoneMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeDone(projectId: string, map: DoneMap) {
-  try {
-    window.localStorage.setItem(storageKey(projectId), JSON.stringify(map));
-  } catch {
-    // A per-browser convenience; the plan still works without it.
-  }
-}
 
 export default function ActionPlanPage() {
   const { orgId, projectId } = useWorkspace();
@@ -90,12 +72,11 @@ export default function ActionPlanPage() {
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // What this browser remembers for the project, read when the project is
-  // known, and held in state only once the customer changes it. The shell
-  // renders nothing on the server, so this never reads storage there.
-  const stored = useMemo(() => readDone(projectId), [projectId]);
-  const [changed, setChanged] = useState<{ projectId: string; map: DoneMap } | null>(null);
-  const done: DoneMap = changed && changed.projectId === projectId ? changed.map : stored;
+  // When each step was marked done, from the server; a tick shows at once and
+  // is put back if the server refuses it.
+  const doneQuery = useActionPlanDone(projectId);
+  const markStep = useMarkActionStep(projectId);
+  const done: DoneMap = doneQuery.data ?? {};
 
   // Most important first: the server ranks by impact, and AI answer tasks
   // are merged into the same order.
@@ -123,11 +104,10 @@ export default function ActionPlanPage() {
 
   const setStepDone = (g: IssueGroup, value: boolean) => {
     if (!projectId) return;
-    const next = { ...done };
-    if (value) next[g.groupKey] = new Date().toISOString();
-    else delete next[g.groupKey];
-    setChanged({ projectId, map: next });
-    writeDone(projectId, next);
+    markStep.mutate(
+      { stepKey: g.groupKey, done: value },
+      { onError: () => setNote("We couldn't save that just now. Check your internet connection and try again.") },
+    );
     setNote(
       value
         ? `Nice work. "${g.title}" is marked as done. We'll confirm it the next time we check your website.`
@@ -145,7 +125,8 @@ export default function ActionPlanPage() {
     }
   };
 
-  const loading = groupsQuery.isLoading || countsQuery.isLoading;
+  // Waits for the ticks too, so steps already done never flash up as to-do.
+  const loading = groupsQuery.isLoading || countsQuery.isLoading || doneQuery.isLoading;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 pb-12">

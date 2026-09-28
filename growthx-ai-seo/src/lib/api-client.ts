@@ -5,6 +5,7 @@
  * auth and organizations sit at the root, everything else under `/api`.
  */
 
+import type { StagedFixItem } from "@/lib/staging-engine";
 import type { CrawlSummary } from "./crawl-summary";
 
 /**
@@ -95,6 +96,24 @@ export const auth = {
     return Boolean(auth.getToken());
   },
 };
+
+/** Exactly the fields the saved-plans API accepts; anything else a caller attached stays in the browser. */
+function planBody(plan: StagedFixItem) {
+  return {
+    id: plan.id,
+    title: plan.title,
+    category: plan.category,
+    source: plan.source,
+    priority: plan.priority,
+    impact: plan.impact ?? "",
+    effortHours: plan.effortHours ?? 0,
+    deliverable: plan.deliverable ?? "",
+    ...(plan.evidence ? { evidence: plan.evidence } : {}),
+    ...(plan.affectedUrl ? { affectedUrl: plan.affectedUrl } : {}),
+    status: plan.status,
+    stagedAt: plan.stagedAt,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────── errors
 
@@ -4053,6 +4072,19 @@ export const api = {
       `/api/projects/${projectId}/search-console/page-queries?page=${encodeURIComponent(page)}&days=${days}`,
     ),
   searchDemand: (projectId: string) => get<SearchDemand>(`/api/projects/${projectId}/search-console/demand`),
+  /** Plans saved from every "Save as a plan" button, kept on the server. See staging-engine.ts. */
+  savedPlans: {
+    list: (projectId: string) => get<StagedFixItem[]>(`/api/projects/${projectId}/saved-plans`),
+    save: (projectId: string, plan: StagedFixItem) => post<StagedFixItem>(`/api/projects/${projectId}/saved-plans`, planBody(plan)),
+    remove: (projectId: string, id: string) =>
+      del<{ removed: boolean }>(`/api/projects/${projectId}/saved-plans/${encodeURIComponent(id)}`),
+  },
+  /** "I've done this" on the action plan, kept on the server. */
+  actionPlanDone: {
+    get: (projectId: string) => get<Record<string, string>>(`/api/projects/${projectId}/action-plan/done`),
+    mark: (projectId: string, body: { stepKey: string; done: boolean; doneAt?: string }) =>
+      post<Record<string, string>>(`/api/projects/${projectId}/action-plan/done`, body),
+  },
   gscStrikingDistance: (projectId: string, days: number) =>
     get<GscStrikingDistanceRow[]>(`/api/projects/${projectId}/search-console/striking-distance?days=${days}`),
   gscCtrOpportunities: (projectId: string, days: number) =>
