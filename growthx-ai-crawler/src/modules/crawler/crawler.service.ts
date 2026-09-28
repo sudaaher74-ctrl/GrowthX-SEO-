@@ -298,6 +298,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       /** Slowest of this and the site's own setting wins, so a caller can be
        *  politer than the site's configuration but never ruder. */
       rateLimitDelayMs?: number;
+      /** How long the crawl may keep fetching. Omitted means no limit. */
+      timeBudgetMs?: number;
+      /** Ceiling on headless-browser renders, below the deployment's own. */
+      renderBudget?: number;
     } = {}
   ): Promise<string> {
     const website = await this.prisma.website.findUnique({ where: { id: websiteId } });
@@ -331,6 +335,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       rateLimitDelayMs: Math.max(website.rateLimitDelayMs || 500, options.rateLimitDelayMs ?? 0),
       useSitemap: options.useSitemap !== false,
       pageLimit: job.pageLimit ?? undefined,
+      timeBudgetMs: options.timeBudgetMs,
+      renderBudget: options.renderBudget,
     };
 
     this.logger.log(`Created crawl job ${job.id} for ${website.domain}. Dispatching to queue...`);
@@ -353,6 +359,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    */
   async processCrawlJob(payload: CrawlJobPayload): Promise<void> {
     this.logger.log(`[JOB ${payload.jobId}] Starting crawl for domain: ${payload.domain}`);
+    // The clock starts when the crawl does, not when it was queued, so a crawl
+    // that waited its turn behind another still gets its whole budget.
+    const deadlineAt = payload.timeBudgetMs ? Date.now() + payload.timeBudgetMs : undefined;
     await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: { status: 'RUNNING' } });
     this.metrics.activeCrawlJobs.inc();
 
@@ -481,6 +490,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: delayMs,
           pageLimit: payload.pageLimit,
+          deadlineAt,
+          renderBudget: payload.renderBudget,
         });
       }
       try {
@@ -514,6 +525,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: delayMs,
           pageLimit: payload.pageLimit,
+          deadlineAt,
+          renderBudget: payload.renderBudget,
         });
       }
       await this.inventory.markQueued(payload.jobId, [...seedUrls]);
@@ -615,6 +628,21 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // reason it was not fetched. Returning without one is what made a
       // "discovered" URL disappear from the accounts entirely, so that the only
       // self-consistent coverage the dashboard could print was 100%.
+      //
+      // Out of time is the same as out of pages: the crawl is capped, not
+      // done, and what is still queued drains without a fetch so the crawl
+      // finishes with what it has read. Checked before the URL is claimed, so
+      // a URL skipped here is not counted as a page read.
+      if (payload.deadlineAt && Date.now() > payload.deadlineAt) {
+        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
+        if (await this.isUrlClaimed(payload.jobId, normUrl)) {
+          await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
+          return;
+        }
+        await this.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
+        return;
+      }
       const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
       if (alreadyVisited) {
         await this.bumpJobStat(payload.jobId, 'urlsSkipped');
@@ -658,7 +686,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // error and is recorded as such, instead of being written down as the
       // site refusing us.
       const rendersUsed = await this.rendersUsed(payload.jobId);
-      const renderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
+      // A crawl may ask for fewer renders than the deployment allows, never more.
+      const deploymentRenderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
+      const renderBudget =
+        payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentRenderBudget) : deploymentRenderBudget;
       const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed: rendersUsed < renderBudget });
       if (outcome.tier === 'rendered') {
         await this.noteRenderUsed(payload.jobId);
@@ -1522,6 +1553,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           maxDepth: payload.maxDepth,
           rateLimitDelayMs: payload.rateLimitDelayMs,
           pageLimit: payload.pageLimit,
+          deadlineAt: payload.deadlineAt,
+          renderBudget: payload.renderBudget,
         });
       }
     }
@@ -2113,7 +2146,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
     // Determine final crawl status:
     // COMPLETED    — queue fully exhausted, no ceiling hit
-    // LIMIT_REACHED — page ceiling was hit (explicitly configured cap)
+    // LIMIT_REACHED — page ceiling or time budget was hit (explicitly configured cap)
     // PARTIAL      — stall sweep or error finalized a crawl before queue exhaustion
     const crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL' = sharedStats.crawlStatus;
 

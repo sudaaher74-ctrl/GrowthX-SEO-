@@ -12,10 +12,20 @@ import { calculateHealthScore } from '../issues/health-score.util';
 export class CompetitorCrawlService {
   private readonly logger = new Logger(CompetitorCrawlService.name);
 
-  static readonly PAGE_LIMIT = 300;
+  // A competitor crawl is a sample of their site, not an audit of it, and on a
+  // small server it shares the crawler with the customer's own audits. At 300
+  // pages with up to 50 browser renders each, the customer sat looking at
+  // "Reading their pages…" for far too long. These bounds cap a crawl at
+  // twelve minutes; the report reads topics and page types, which 150 pages
+  // already show.
+  static readonly PAGE_LIMIT = 150;
   static readonly RATE_LIMIT_DELAY_MS = 1000;
   static readonly MAX_CONCURRENCY = 2;
   static readonly MAX_DEPTH = 4;
+  /** After this long the crawl stops reading and finishes with what it has. */
+  static readonly TIME_BUDGET_MS = 12 * 60 * 1000;
+  /** Pages opened in the headless browser, the slowest fetch there is. */
+  static readonly RENDER_BUDGET = 20;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -98,6 +108,8 @@ export class CompetitorCrawlService {
         maxDepth: CompetitorCrawlService.MAX_DEPTH,
         pageLimit: CompetitorCrawlService.PAGE_LIMIT,
         rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
+        timeBudgetMs: CompetitorCrawlService.TIME_BUDGET_MS,
+        renderBudget: CompetitorCrawlService.RENDER_BUDGET,
       });
     } catch (e: any) {
       this.logger.warn(`Live crawler notice: ${e.message}. Ensuring baseline crawl.`);

@@ -14,6 +14,13 @@ export interface CrawlJobPayload {
   useSitemap: boolean;
   /** Ceiling on pages fetched. Undefined means no ceiling. */
   pageLimit?: number;
+  /** How long the crawl may keep fetching once it starts. Undefined means no
+   *  limit. Pages still waiting when it runs out are skipped, and the crawl
+   *  finishes with what it has read. */
+  timeBudgetMs?: number;
+  /** Ceiling on pages opened in the headless browser, below the deployment's
+   *  own CRAWL_MAX_RENDERED_PAGES. Undefined means the deployment's ceiling. */
+  renderBudget?: number;
 }
 
 export interface PageFetchPayload {
@@ -27,6 +34,10 @@ export interface PageFetchPayload {
   rateLimitDelayMs: number;
   /** Ceiling on pages fetched by the whole job. Undefined means no ceiling. */
   pageLimit?: number;
+  /** Epoch ms after which the job fetches nothing more. See `timeBudgetMs`. */
+  deadlineAt?: number;
+  /** See `CrawlJobPayload.renderBudget`. */
+  renderBudget?: number;
   /**
    * Identifies this enqueued task, so that settling it can be made idempotent.
    *

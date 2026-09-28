@@ -94,11 +94,20 @@ describe('CompetitorCrawlService', () => {
       expect(options.pageLimit).toBe(CompetitorCrawlService.PAGE_LIMIT);
       expect(options.rateLimitDelayMs).toBe(CompetitorCrawlService.RATE_LIMIT_DELAY_MS);
       expect(options.maxConcurrency).toBe(CompetitorCrawlService.MAX_CONCURRENCY);
+      expect(options.timeBudgetMs).toBe(CompetitorCrawlService.TIME_BUDGET_MS);
+      expect(options.renderBudget).toBe(CompetitorCrawlService.RENDER_BUDGET);
       // Slower and shallower than the defaults used on a customer's own site,
       // which are 500ms, concurrency 5, depth 10.
       expect(CompetitorCrawlService.RATE_LIMIT_DELAY_MS).toBeGreaterThan(500);
       expect(CompetitorCrawlService.MAX_CONCURRENCY).toBeLessThan(5);
       expect(CompetitorCrawlService.MAX_DEPTH).toBeLessThan(10);
+    });
+
+    it('keeps a competitor crawl to minutes, not the better part of an hour', () => {
+      expect(CompetitorCrawlService.PAGE_LIMIT).toBeLessThanOrEqual(150);
+      expect(CompetitorCrawlService.TIME_BUDGET_MS).toBeLessThanOrEqual(15 * 60 * 1000);
+      // Below the production deployment's own ceiling of 50 renders.
+      expect(CompetitorCrawlService.RENDER_BUDGET).toBeLessThan(50);
     });
 
     it('crawls the bare domain, not the URL the customer pasted', async () => {
