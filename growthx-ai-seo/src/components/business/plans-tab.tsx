@@ -7,8 +7,8 @@ import { useStagedFixItems } from "@/hooks/use-growthx";
 import { stagingEngine, type StagedFixItem } from "@/lib/staging-engine";
 
 /**
- * Your Plans: every plan saved from Catalog (You/Them), Gaps and Marketing
- * Signals — the same stagingEngine store Competitor Intelligence's "Your
+ * Your Plans: every plan saved from the product tabs, Gaps and Marketing
+ * Strategy — the same stagingEngine store Competitor Intelligence's "Your
  * Plans" tab uses, filtered to this module's own category so the two lists
  * never mix.
  */
@@ -27,25 +27,33 @@ export function PlansTab({
     <div className="space-y-4">
       <Panel
         title="Your plans"
-        subtitle="Every plan you save from Catalog (You/Them), Gaps and Marketing Signals lands here. Open one, follow the steps, then mark it done."
+        subtitle="Every plan you save from Gaps and Marketing Strategy lands here. Open one, follow the steps, then mark it done."
         padded
       >
         {items.length === 0 ? (
           <div className="py-4 text-center">
             <p className="text-[12.5px] text-brand-600">
-              No plans yet. Open one of these tabs and click <span className="font-semibold">Get a plan</span> on anything
-              you want to act on:
+              No plans yet. Open one of these tabs and click <span className="font-semibold">Get a plan</span> or{" "}
+              <span className="font-semibold">Save as a plan</span> on anything you want to act on:
             </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <ActionButton onClick={() => onOpenTab("catalog-you")}>Catalog (You): your own products</ActionButton>
-              <ActionButton onClick={() => onOpenTab("catalog-them")}>Catalog (Them): what competitors sell</ActionButton>
-              <ActionButton onClick={() => onOpenTab("gaps")}>Gaps: category and price differences</ActionButton>
+              <ActionButton variant="primary" onClick={() => onOpenTab("marketing")}>Marketing Strategy: what to do next</ActionButton>
+              <ActionButton onClick={() => onOpenTab("gaps")}>Gaps: products and prices to fix</ActionButton>
+              <ActionButton onClick={() => onOpenTab("catalog-them")}>Their products</ActionButton>
             </div>
           </div>
         ) : (
-          <p className="text-[12px] text-brand-500">
-            {todo.length} to do · {done.length} done
-          </p>
+          <div>
+            <div className="flex items-baseline justify-between text-[12px]">
+              <span className="font-semibold text-brand-950">
+                {done.length} of {items.length} done
+              </span>
+              <span className="text-brand-500">{todo.length} to do</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-brand-100" aria-hidden>
+              <div className="h-full rounded-full bg-success-500" style={{ width: `${(done.length / items.length) * 100}%` }} />
+            </div>
+          </div>
         )}
       </Panel>
 

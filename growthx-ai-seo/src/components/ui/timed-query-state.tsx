@@ -11,8 +11,8 @@ import { ActionButton } from "@/components/ui/console";
  * "Comparing your website…" / "Looking at what your competitors changed…"
  * string with no timeout, because the underlying api-client `request()` has
  * no AbortController — a hung backend leaves that spinner on screen with no
- * way out. Business's Gaps and Marketing Signals tabs are exactly this kind
- * of AI/multi-source computation, so they get the fix here rather than
+ * way out. Business's Gaps tab is exactly this kind
+ * of multi-source computation, so it gets the fix here rather than
  * inheriting the bug: past `slowAfterMs`, this swaps the skeleton for an
  * explicit "taking longer than usual" message with a manual retry.
  *

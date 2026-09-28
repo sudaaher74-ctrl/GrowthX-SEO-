@@ -1579,8 +1579,9 @@ export function useBusinessMyCatalog(projectId: string | null) {
     enabled: Boolean(projectId),
     retry: false,
     refetchInterval: (query) => {
-      const status = query.state.data?.crawlStatus;
-      return status === "RUNNING" || status === "PENDING" ? 4000 : false;
+      const data = query.state.data;
+      const status = data?.crawlStatus;
+      return status === "RUNNING" || status === "PENDING" || data?.readingProducts ? 4000 : false;
     },
   });
 }
@@ -1594,7 +1595,7 @@ export function useBusinessCompetitorCatalogs(projectId: string | null) {
     retry: false,
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
-      const crawling = list.some((c) => c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING");
+      const crawling = list.some((c) => c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING" || c.readingProducts);
       return crawling ? 4000 : false;
     },
   });
@@ -1625,6 +1626,27 @@ export function useBusinessMarketingSignals(projectId: string | null) {
     queryFn: () => api.business.marketingSignals(projectId!),
     enabled: Boolean(projectId),
     retry: false,
+  });
+}
+
+/** Marketing Strategy: the last stored report, or null when none has been written. */
+export function useBusinessStrategy(projectId: string | null) {
+  return useQuery({
+    queryKey: ["business-strategy", projectId],
+    queryFn: () => api.business.latestStrategy(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useGenerateBusinessStrategy(projectId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.business.generateStrategy(projectId!),
+    onSuccess: (report) => {
+      qc.setQueryData(["business-strategy", projectId], report);
+      qc.invalidateQueries({ queryKey: ["business-marketing-signals", projectId] });
+    },
   });
 }
 

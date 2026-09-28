@@ -33,7 +33,7 @@ export function stockLabel(value: string | null): string {
 export function fieldStatusLabel(status: CatalogFieldStatus): string {
   switch (status) {
     case "NOT_PUBLISHED":
-      return "Not published";
+      return "Not shown";
     case "NOT_YET_CRAWLED":
       return "Not yet crawled";
     default:
