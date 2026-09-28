@@ -115,9 +115,45 @@ describe('CompetitorCrawlService', () => {
 
       const result = await service.startCrawl('org1', 'p1', 'comp1');
 
-      expect(prisma.website.upsert.mock.calls[0][0].where).toEqual({ domain: 'acme.com' });
+      expect(prisma.website.upsert.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'acme.com', scope: 'competitor:p1' } });
       expect(prisma.website.upsert.mock.calls[0][0].create.url).toBe('https://acme.com');
       expect(result.domain).toBe('acme.com');
+    });
+
+    it("gives each project its own record of a competitor, so nobody sees another customer's crawl", async () => {
+      // The bug: a second customer adding a competitor the first had already
+      // crawled was shown that crawl's pages as read, without ever crawling it.
+      // One record per project means their first look starts a crawl of their own.
+      const sites = new Map<string, { id: string; domain: string; scope: string }>();
+      const jobs: Array<{ id: string; websiteId: string; status: string }> = [{ id: 'theirs', websiteId: 'w-competitor:p1', status: 'RUNNING' }];
+      const prisma = {
+        competitorDomain: {
+          findFirst: jest.fn(({ where }) => Promise.resolve({ id: `comp-${where.projectId}`, projectId: where.projectId, domain: 'acme.com', websiteId: null })),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        website: {
+          upsert: jest.fn(({ where, create }) => {
+            const { domain, scope } = where.domain_scope;
+            const key = `${domain}|${scope}`;
+            if (!sites.has(key)) sites.set(key, { id: `w-${scope}`, ...create });
+            return Promise.resolve(sites.get(key));
+          }),
+        },
+        crawlJob: {
+          findFirst: jest.fn(({ where }) => Promise.resolve(jobs.find((j) => j.websiteId === where.websiteId && where.status.in.includes(j.status)) ?? null)),
+        },
+      };
+      const crawler = { startCrawlJob: jest.fn().mockResolvedValue('mine') };
+      const service = new CompetitorCrawlService(prisma as any, crawler as any);
+
+      const first = await service.startCrawl('org1', 'p1', 'comp-p1');
+      const second = await service.startCrawl('org2', 'p2', 'comp-p2');
+
+      expect(first).toMatchObject({ jobId: 'theirs', websiteId: 'w-competitor:p1', alreadyRunning: true });
+      expect(second).toMatchObject({ jobId: 'mine', websiteId: 'w-competitor:p2', alreadyRunning: false });
+      expect(crawler.startCrawlJob).toHaveBeenCalledWith('w-competitor:p2', expect.any(Object));
+      expect(prisma.competitorDomain.update).toHaveBeenCalledWith({ where: { id: 'comp-p2' }, data: { websiteId: 'w-competitor:p2', status: 'ANALYZING' } });
+      expect(sites.get('acme.com|competitor:p2')?.scope).toBe('competitor:p2');
     });
 
     it('refuses a competitor from another project', async () => {
@@ -618,7 +654,7 @@ describe('stopUntrackedCompetitorCrawls', () => {
   it("cancels the removed competitor's active crawls", async () => {
     const prisma = build({ id: 'w1', projectId: null }, 0);
 
-    const stopped = await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'parsidairyfarm.com');
+    const stopped = await stopUntrackedCompetitorCrawls(prisma as any, 'w1');
 
     expect(stopped).toBe(2);
     const call = prisma.crawlJob.updateMany.mock.calls[0][0];
@@ -626,11 +662,12 @@ describe('stopUntrackedCompetitorCrawls', () => {
     expect(call.data.status).toBe('CANCELLED');
   });
 
-  it('leaves the crawl alone while another project still tracks the site', async () => {
+  it('leaves the crawl alone while the site is still tracked', async () => {
     const prisma = build({ id: 'w1', projectId: null }, 1);
 
-    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'parsidairyfarm.com')).toBe(0);
+    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1')).toBe(0);
     expect(prisma.crawlJob.updateMany).not.toHaveBeenCalled();
+    expect(prisma.competitorDomain.count).toHaveBeenCalledWith({ where: { websiteId: 'w1' } });
   });
 
   it("never stops a project's own site", async () => {
@@ -638,19 +675,18 @@ describe('stopUntrackedCompetitorCrawls', () => {
     // the competitor must not cancel the customer's own audit.
     const prisma = build({ id: 'w1', projectId: 'p9' }, 0);
 
-    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1', 'milquufresh.in')).toBe(0);
+    expect(await stopUntrackedCompetitorCrawls(prisma as any, 'w1')).toBe(0);
     expect(prisma.crawlJob.updateMany).not.toHaveBeenCalled();
   });
 
-  it('finds the site by domain when the competitor never recorded one', async () => {
+  it('never goes looking for the site by domain', async () => {
+    // A domain can have a record per customer. A competitor that never
+    // recorded one has no crawl of its own; any other record of the domain,
+    // and its crawls, belong to somebody else.
     const prisma = build({ id: 'w1', projectId: null }, 0);
 
-    await stopUntrackedCompetitorCrawls(prisma as any, null, 'https://www.ParsiDairyFarm.com/shop');
-
-    expect(prisma.website.findUnique).toHaveBeenCalledWith({
-      where: { domain: 'parsidairyfarm.com' },
-      select: { id: true, projectId: true },
-    });
-    expect(prisma.crawlJob.updateMany).toHaveBeenCalled();
+    expect(await stopUntrackedCompetitorCrawls(prisma as any, null)).toBe(0);
+    expect(prisma.website.findUnique).not.toHaveBeenCalled();
+    expect(prisma.crawlJob.updateMany).not.toHaveBeenCalled();
   });
 });
