@@ -44,7 +44,7 @@ export class VoiceToolsService {
     private readonly crawler: CrawlerService,
   ) {}
 
-  // ─── Crawl ───────────────────────────────────────────────────────────────────────
+  // ─── Crawl ───────────────────────────────────────────────────────────────────
 
   async crawlWebsite(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -127,7 +127,7 @@ export class VoiceToolsService {
     return { success: true, tool: 'cancelCrawl', data: { jobId }, spokenSummary: 'Crawl cancelled.' };
   }
 
-  // ─── Competitors ───────────────────────────────────────────────────────────────────
+  // ─── Competitors ─────────────────────────────────────────────────────────────
 
   async addCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -217,7 +217,7 @@ export class VoiceToolsService {
     };
   }
 
-  // ─── Analysis ──────────────────────────────────────────────────────────────────────
+  // ─── Analysis ────────────────────────────────────────────────────────────────
 
   async compareWebsites(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
@@ -506,7 +506,7 @@ export class VoiceToolsService {
     }
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────────────
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   /**
    * The crawl already under way for a site, if any.

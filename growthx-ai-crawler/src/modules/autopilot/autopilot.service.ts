@@ -106,7 +106,7 @@ export class AutopilotService {
     private readonly auditReport: AuditReportService,
   ) {}
 
-  // ─── Start ──────────────────────────────────────────────────────────────────────────
+  // ─── Start ──────────────────────────────────────────────────────────────────
 
   async start(input: { userId: string; organizationId: string; domain: string; projectId?: string | null }): Promise<AutopilotView> {
     const domain = websiteDomain(input.domain);
@@ -201,7 +201,7 @@ export class AutopilotService {
     return this.crawler.startCrawlJob(websiteId, OWN_SITE_CRAWL);
   }
 
-  // ─── Find competitors ───────────────────────────────────────────────────────────────────────
+  // ─── Find competitors ─────────────────────────────────────────────────────────
 
   discover(runId: string): Promise<void> {
     const inFlight = this.discovering.get(runId);
@@ -382,7 +382,7 @@ export class AutopilotService {
     }
   }
 
-  // ─── Confirm ──────────────────────────────────────────────────────────────────────
+  // ─── Confirm ────────────────────────────────────────────────────────────────
 
   /**
    * The customer's answer: which competitors are real. Adds them, starts
@@ -463,7 +463,7 @@ export class AutopilotService {
     return this.view(updated);
   }
 
-  // ─── Advance (called by the scheduler) ──────────────────────────────────────────
+  // ─── Advance (called by the scheduler) ──────────────────────────────────────
 
   /** Moves every active run on by one step where it can. */
   async tick(now = new Date()): Promise<void> {
@@ -536,7 +536,7 @@ export class AutopilotService {
     }
   }
 
-  // ─── Read ──────────────────────────────────────────────────────────────────────────
+  // ─── Read ──────────────────────────────────────────────────────────────────
 
   async latest(projectId: string, userId: string): Promise<AutopilotView | null> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { organizationId: true } });
