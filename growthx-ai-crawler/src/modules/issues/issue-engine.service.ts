@@ -8,6 +8,7 @@ import { LinkAnalysisResult } from '../analyzer/link-analyzer.service';
 import { ContentMetrics } from '../analyzer/content-analyzer.service';
 import { ValidatedSchema } from '../analyzer/schema-validator.service';
 import { fingerprintFor, fingerprintScope, issueGroupKey } from './fingerprint.util';
+import { detectSoft404 } from './soft-404';
 
 export interface DetectedIssueInput {
   issueType: string;
@@ -253,8 +254,39 @@ export class IssueEngineService {
       });
     }
 
-    // 7. Context-Aware Thin Content Detection
-    if (statusCode === 200) {
+    // 7. Soft 404: answered 200, but the page is a "not found" page. Google
+    // drops these as errors, and nothing in the status code says so.
+    const soft404 = detectSoft404({
+      statusCode,
+      title: htmlData.title,
+      h1: htmlData.h1,
+      wordCount: content.wordCount,
+      bodyText: $('body').text(),
+    });
+    if (soft404) {
+      issues.push({
+        issueType: 'SOFT_404',
+        severity: isHomePage ? 'CRITICAL' : 'HIGH',
+        confidence: 'LIKELY',
+        category: 'TECHNICAL',
+        affectedUrl: pageUrl,
+        description: 'Page answers 200 OK but shows a "page not found" message.',
+        explanation:
+          'The server says this page exists, while the page itself says it does not. Google calls this a soft 404 and ' +
+          'treats it as an error, so it will not rank, and it wastes crawl budget that real pages need.',
+        impact: 'The URL is dropped from search results, and any links pointing here lead visitors to a dead end.',
+        recommendation:
+          'If the page is gone, return a real 404 or 410, or redirect it to its closest replacement. If it should exist, restore its content.',
+        evidence: soft404.signals.join(' | '),
+        dedupKey: `${pageUrl}::SOFT_404`,
+        aiFixAvailable: false,
+      });
+    }
+
+    // 8. Context-Aware Thin Content Detection. Skipped for a soft 404: a
+    // not-found page is short because it is missing, and saying so once is
+    // enough.
+    if (statusCode === 200 && !soft404) {
       const thinThreshold = this.getThinContentThreshold(pageType, pageUrl);
       if (thinThreshold > 0 && content.wordCount < thinThreshold) {
         issues.push({
@@ -274,7 +306,7 @@ export class IssueEngineService {
       }
     }
 
-    // 8. Large HTML (> 150 KB)
+    // 9. Large HTML (> 150 KB)
     const htmlSizeKb = Buffer.byteLength(html || '', 'utf8') / 1024;
     if (htmlSizeKb > 150) {
       issues.push({
@@ -293,7 +325,7 @@ export class IssueEngineService {
       });
     }
 
-    // 9. Missing Image Alt Text
+    // 10. Missing Image Alt Text
     const missingAltImages = images.filter((i) => i.isMissingAlt);
     if (missingAltImages.length > 0) {
       issues.push({
@@ -312,7 +344,7 @@ export class IssueEngineService {
       });
     }
 
-    // 10. Broken Images (4xx/5xx)
+    // 11. Broken Images (4xx/5xx)
     const brokenImages = images.filter((i) => i.isBroken);
     if (brokenImages.length > 0) {
       issues.push({
@@ -331,7 +363,7 @@ export class IssueEngineService {
       });
     }
 
-    // 11. Status Code Errors
+    // 12. Status Code Errors
     if (statusCode >= 500) {
       issues.push({
         issueType: 'SERVER_ERROR_5XX',
@@ -364,7 +396,7 @@ export class IssueEngineService {
       });
     }
 
-    // 12. Redirect Chains and Loops
+    // 13. Redirect Chains and Loops
     if (redirectChain.length > 2) {
       const isLoop = new Set(redirectChain).size < redirectChain.length;
       if (isLoop) {
@@ -400,7 +432,7 @@ export class IssueEngineService {
       }
     }
 
-    // 13. Robots Meta Directives
+    // 14. Robots Meta Directives
     if (htmlData.robotsMeta) {
       const lower = htmlData.robotsMeta.toLowerCase();
       if (lower.includes('noindex')) {
@@ -438,7 +470,7 @@ export class IssueEngineService {
       }
     }
 
-    // 14. HTTPS & Mixed Content
+    // 15. HTTPS & Mixed Content
     if (pageUrl.startsWith('http://')) {
       issues.push({
         issueType: 'HTTPS_ISSUE',
@@ -477,7 +509,7 @@ export class IssueEngineService {
       }
     }
 
-    // 15. URL Hygiene
+    // 16. URL Hygiene
     if (pageUrl.length > 120 || /[A-Z]/.test(pageUrl) || pageUrl.includes('_')) {
       issues.push({
         issueType: 'URL_STRUCTURE_ISSUE',
@@ -495,7 +527,7 @@ export class IssueEngineService {
       });
     }
 
-    // 16. XML Sitemap check
+    // 17. XML Sitemap check
     if (!inSitemap && statusCode === 200 && !isHomePage) {
       issues.push({
         issueType: 'NOT_IN_SITEMAP',
@@ -513,7 +545,7 @@ export class IssueEngineService {
       });
     }
 
-    // 17. Structured Data / Schema Checks
+    // 18. Structured Data / Schema Checks
     for (const schema of schemas) {
       if (schema.findings && schema.findings.length > 0) {
         for (const finding of schema.findings) {
@@ -553,7 +585,7 @@ export class IssueEngineService {
       }
     }
 
-    // 18. Duplicate Title check across crawl job
+    // 19. Duplicate Title check across crawl job
     if (htmlData.title && statusCode === 200) {
       const dupTitle = await this.prisma.page.findFirst({
         where: { crawlJobId, title: htmlData.title, NOT: { id: pageId } },
