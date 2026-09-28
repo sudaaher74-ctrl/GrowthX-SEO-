@@ -1,4 +1,5 @@
 import { PAGE_TYPE_LABELS } from '../crawler/page-type';
+import { pageOutcome } from '../crawler/page-outcome';
 import { competitorCrawlState, CrawlSummary } from './competitor-crawl-state';
 
 /**
@@ -24,6 +25,16 @@ export type SiteReadStatus =
   /** Never crawled. */
   | 'WAITING';
 
+/** Pages a crawl asked for and did not get, by why. */
+export interface NotOpened {
+  /** The site turned us away: a firewall or a limit on how fast we may ask. */
+  refused: number;
+  /** The site answered with an error, such as "page not found". */
+  errored: number;
+  /** Nothing answered in time. */
+  noAnswer: number;
+}
+
 export interface PageTypeCount {
   type: string;
   label: string;
@@ -36,10 +47,18 @@ export interface WebsiteOverview {
   domain: string;
   name: string;
   status: SiteReadStatus;
-  /** Pages in the crawl the figures come from. */
-  pagesRead: number;
-  /** Pages the running crawl has read so far; null when nothing is running. */
+  /**
+   * Pages that opened in the crawl the figures come from, which is exactly
+   * what `pageTypes` adds up to. Null when that crawl's page details are no
+   * longer kept, so there is nothing left to count them from.
+   */
+  pagesRead: number | null;
+  /** Pages that crawl asked for and did not get, and why. Null when not known. */
+  notOpened: NotOpened | null;
+  /** Pages the running crawl has opened so far; null when nothing is running. */
   pagesSoFar: number | null;
+  /** Pages the running crawl has asked for and not got so far. */
+  notOpenedSoFar: number | null;
   readingStartedAt: string | null;
   lastReadAt: string | null;
   /** Why the newest attempt read nothing, when it did not. */
@@ -58,10 +77,11 @@ const RUNNING = new Set(['RUNNING']);
 const QUEUED = new Set(['PENDING']);
 
 /** Status, progress and dates for one site, from its crawls newest first. */
-export function readState(crawls: OverviewCrawl[]): Pick<
-  WebsiteOverview,
-  'status' | 'pagesRead' | 'pagesSoFar' | 'readingStartedAt' | 'lastReadAt' | 'error'
-> & { readCrawlId: string | null } {
+export function readState(crawls: OverviewCrawl[]): Pick<WebsiteOverview, 'status' | 'readingStartedAt' | 'lastReadAt' | 'error'> & {
+  readCrawlId: string | null;
+  /** The running crawl, when there is one. */
+  readingCrawlId: string | null;
+} {
   const state = competitorCrawlState(crawls);
   const latest = state.latest as OverviewCrawl | null;
   const good = state.good as OverviewCrawl | null;
@@ -79,8 +99,7 @@ export function readState(crawls: OverviewCrawl[]): Pick<
   return {
     status,
     readCrawlId: good?.id ?? null,
-    pagesRead: good?.pagesCrawled ?? 0,
-    pagesSoFar: status === 'READING' ? (latest?.pagesCrawled ?? 0) : null,
+    readingCrawlId: status === 'READING' ? (latest?.id ?? null) : null,
     readingStartedAt: status === 'READING' || status === 'QUEUED' ? (latest?.startedAt ?? latest?.createdAt ?? null)?.toISOString() ?? null : null,
     lastReadAt: good?.finishedAt?.toISOString() ?? null,
     error: state.failureReason,
@@ -98,4 +117,41 @@ export function toPageTypeCounts(rows: Array<{ pageType: string | null; count: n
     .filter(([, count]) => count > 0)
     .map(([type, count]) => ({ type, label: PAGE_TYPE_LABELS[type], count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+/** Stored page rows for one crawl, grouped the way the overview asks for them. */
+export interface PageRowGroup {
+  pageType: string | null;
+  statusCode: number | null;
+  blockedSuspected: boolean | null;
+  count: number;
+}
+
+/**
+ * One crawl's pages, counted by what happened to each: the pages that opened
+ * with their kinds, and the ones that did not with the reason. `opened` and
+ * the kinds are the same pages, so they always add up.
+ */
+export function summarisePages(rows: PageRowGroup[]): {
+  opened: number;
+  notOpened: NotOpened;
+  pageTypes: PageTypeCount[];
+} {
+  const notOpened: NotOpened = { refused: 0, errored: 0, noAnswer: 0 };
+  const openedByType: Array<{ pageType: string | null; count: number }> = [];
+  let opened = 0;
+  for (const row of rows) {
+    const outcome = pageOutcome(row.statusCode, row.blockedSuspected);
+    if (outcome === 'opened') {
+      opened += row.count;
+      openedByType.push({ pageType: row.pageType, count: row.count });
+    } else {
+      notOpened[outcome] += row.count;
+    }
+  }
+  return { opened, notOpened, pageTypes: toPageTypeCounts(openedByType) };
+}
+
+export function notOpenedTotal(n: NotOpened): number {
+  return n.refused + n.errored + n.noAnswer;
 }

@@ -10,7 +10,7 @@ import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './cita
 import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 import { competitorCrawlState } from './competitor-crawl-state';
-import { readState, toPageTypeCounts, WebsiteOverview } from './website-overview';
+import { notOpenedTotal, PageRowGroup, readState, summarisePages, WebsiteOverview } from './website-overview';
 
 export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
 
@@ -447,7 +447,8 @@ export class AiVisibilityService {
     const own = websites.find((w) => w.projectId === projectId) ?? null;
     const byDomain = new Map(websites.map((w) => [w.domain, w]));
 
-    const rows: Array<Omit<WebsiteOverview, 'pageTypes'> & { readCrawlId: string | null }> = [];
+    type Counted = 'pageTypes' | 'pagesRead' | 'notOpened' | 'pagesSoFar' | 'notOpenedSoFar';
+    const rows: Array<Omit<WebsiteOverview, Counted> & { readCrawlId: string | null; readingCrawlId: string | null }> = [];
     if (own) {
       const state = readState(own.crawlJobs);
       rows.push({
@@ -476,26 +477,44 @@ export class AiVisibilityService {
       });
     }
 
-    // One query for every site's page kinds, from the crawl its figures come
-    // from. Broken pages are left out: a 404 is not a product page they have.
-    const crawlIds = rows.map((r) => r.readCrawlId).filter((id): id is string => Boolean(id));
+    // Every count on a card comes from the stored pages, in one query: the
+    // pages that opened, with their kinds, and the ones that did not, with
+    // why. `CrawlJob.pagesCrawled` is not used for "Pages read" — it counts
+    // every attempt, refusals included, which is how a competitor showed 300
+    // pages read above kinds of pages that added up to 16.
+    const crawlIds = [
+      ...new Set(rows.flatMap((r) => [r.readCrawlId, r.readingCrawlId]).filter((id): id is string => Boolean(id))),
+    ];
     const grouped = crawlIds.length
       ? await this.prisma.page.groupBy({
-          by: ['crawlJobId', 'pageType'],
-          where: { crawlJobId: { in: crawlIds }, statusCode: { lt: 400 } },
+          by: ['crawlJobId', 'pageType', 'statusCode', 'blockedSuspected'],
+          where: { crawlJobId: { in: crawlIds } },
           _count: { _all: true },
         })
       : [];
+    const pagesOf = (crawlId: string | null): PageRowGroup[] =>
+      grouped
+        .filter((g) => g.crawlJobId === crawlId)
+        .map((g) => ({ pageType: g.pageType, statusCode: g.statusCode, blockedSuspected: g.blockedSuspected, count: g._count._all }));
 
     return {
-      sites: rows.map(({ readCrawlId, ...row }) => ({
-        ...row,
-        pageTypes: toPageTypeCounts(
-          grouped
-            .filter((g) => g.crawlJobId === readCrawlId)
-            .map((g) => ({ pageType: g.pageType, count: g._count._all })),
-        ),
-      })),
+      sites: rows.map(({ readCrawlId, readingCrawlId, ...row }) => {
+        const read = pagesOf(readCrawlId);
+        const summary = summarisePages(read);
+        // A crawl whose page rows have been cleared away has nothing left to
+        // count from. That is "not known", not zero pages and not the attempt
+        // counter.
+        const kept = read.length > 0;
+        const reading = readingCrawlId ? summarisePages(pagesOf(readingCrawlId)) : null;
+        return {
+          ...row,
+          pagesRead: readCrawlId ? (kept ? summary.opened : null) : 0,
+          notOpened: kept ? summary.notOpened : null,
+          pageTypes: summary.pageTypes,
+          pagesSoFar: reading ? reading.opened : null,
+          notOpenedSoFar: reading ? notOpenedTotal(reading.notOpened) : null,
+        };
+      }),
     };
   }
 

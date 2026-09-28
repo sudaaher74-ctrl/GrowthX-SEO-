@@ -1983,10 +1983,17 @@ export interface CompetitorWebsite {
   domain: string;
   name: string;
   status: SiteReadStatus;
-  /** Pages in the crawl the figures come from. */
-  pagesRead: number;
-  /** Pages the running crawl has read so far; null when nothing is running. */
+  /**
+   * Pages that opened in the crawl the figures come from — exactly what
+   * `pageTypes` adds up to. Null when that crawl's page details are no longer kept.
+   */
+  pagesRead: number | null;
+  /** Pages that crawl asked for and did not get, and why. Null when not known. */
+  notOpened: { refused: number; errored: number; noAnswer: number } | null;
+  /** Pages the running crawl has opened so far; null when nothing is running. */
   pagesSoFar: number | null;
+  /** Pages the running crawl has asked for and not got so far. */
+  notOpenedSoFar: number | null;
   readingStartedAt: string | null;
   lastReadAt: string | null;
   /** Why the newest attempt read nothing, when it did not. */
