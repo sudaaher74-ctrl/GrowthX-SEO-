@@ -109,6 +109,15 @@ describe('CrawlController — crawl history', () => {
     expect(result.map((r: any) => r.id)).toEqual(['c1', 'c2', 'c3']);
   });
 
+  it("reads the caller's own site, never a competitor record of the same domain", async () => {
+    // The same domain can be on file as a competitor for other projects, each
+    // with crawls of its own. A lookup by domain alone could return theirs.
+    await controller.getCrawlHistory(REQ, 'milquufresh.in');
+
+    expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'milquufresh.in', scope: 'own' } });
+    expect(prisma.crawlJob.findMany.mock.calls[0][0].where.websiteId).toBe('w1');
+  });
+
   it('clamps the window so a long-lived site cannot return thousands', async () => {
     await controller.getCrawlHistory(REQ, 'milquufresh.in', '5000');
     expect(prisma.crawlJob.findMany.mock.calls[0][0].take).toBe(60);

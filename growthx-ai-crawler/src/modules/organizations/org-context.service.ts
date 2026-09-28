@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { OWN_SCOPE, websiteKey } from '../crawler/website-scope';
 
 /**
  * Confirms the caller is a member of the organization a request acts on.
@@ -53,8 +54,10 @@ export class OrgContextService {
 
   /** Resolves a website's owning organization and checks the caller is in it. */
   async assertWebsiteAccess(userId: string, where: { id: string } | { domain: string }) {
+    // By domain, only ever a customer's own website: the same domain can also
+    // be on file as a competitor for any number of other projects.
     const website = await this.prisma.website.findUnique({
-      where: where as any,
+      where: 'id' in where ? { id: where.id } : websiteKey(where.domain, OWN_SCOPE),
       select: {
         id: true,
         domain: true,

@@ -46,7 +46,7 @@ export class RivalMovesService {
     const since = new Date(now.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const competitors = await this.prisma.competitorDomain.findMany({
       where: { projectId },
-      select: { domain: true, name: true, label: true, websiteId: true },
+      select: { domain: true, name: true, label: true, websiteId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -57,13 +57,18 @@ export class RivalMovesService {
       const domain = normalizeDomain(c.domain);
       const rival = { name: c.name || c.label || domain, domain };
 
+      // The daily check is kept per domain, so it may have been watching this
+      // site for another customer long before this project added it. Earlier
+      // rows are only a baseline to compare against: this project is shown
+      // what changed since it started watching, never what was seen before.
+      const watchedFrom = c.createdAt > since ? c.createdAt : since;
       const rows = await this.prisma.rivalPageSnapshot.findMany({
         where: { domain },
         orderBy: { capturedAt: 'desc' },
         take: SNAPSHOT_ROWS_PER_RIVAL,
         select: { url: true, statusCode: true, title: true, h1: true, schemaTypes: true, wordCount: true, capturedAt: true },
       });
-      moves.push(...movesFromSnapshots(rows, rival, since));
+      moves.push(...movesFromSnapshots(rows, rival, watchedFrom));
 
       let lastCrawl: Date | null = null;
       let pagesRead: number | null = null;
@@ -87,7 +92,7 @@ export class RivalMovesService {
         }
       }
 
-      const lastSnapshot = rows[0]?.capturedAt ?? null;
+      const lastSnapshot = rows[0] && rows[0].capturedAt >= c.createdAt ? rows[0].capturedAt : null;
       const last = [lastSnapshot, lastCrawl].filter((d): d is Date => d != null).sort((a, b) => b.getTime() - a.getTime())[0];
       watching.push({
         ...rival,

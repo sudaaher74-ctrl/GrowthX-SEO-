@@ -4,6 +4,7 @@ import { CrawlFrequency } from '@prisma/client';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
+import { OWN_SCOPE } from '../crawler/website-scope';
 
 @Injectable()
 export class SchedulerService {
@@ -123,9 +124,11 @@ export class SchedulerService {
    * domain, at whatever rate the caller liked.
    */
   async handleWebhookTrigger(domainOrId: string, secretToken?: string): Promise<{ success: boolean; jobId?: string; message: string }> {
+    // By domain or address, only a customer's own website: competitor records
+    // of the same domain belong to the projects tracking it.
     const website = await this.prisma.website.findFirst({
       where: {
-        OR: [{ id: domainOrId }, { domain: domainOrId }, { url: domainOrId }],
+        OR: [{ id: domainOrId }, { domain: domainOrId, scope: OWN_SCOPE }, { url: domainOrId, scope: OWN_SCOPE }],
       },
     });
 

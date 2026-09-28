@@ -113,13 +113,28 @@ describe('CrawlController — cross-tenant access', () => {
   describe('website registration', () => {
     it("does not let a differently-typed domain take over another organization's site", async () => {
       prisma.website.findUnique.mockImplementation(({ where }: any) =>
-        Promise.resolve(where.domain === 'victim.com' ? { id: 'w_victim', project: { organizationId: 'org_other' } } : null),
+        Promise.resolve(
+          where.domain_scope?.domain === 'victim.com' && where.domain_scope.scope === 'own'
+            ? { id: 'w_victim', project: { organizationId: 'org_other' } }
+            : null,
+        ),
       );
 
       await expect(
         controller.registerWebsiteRoute(REQ, { url: 'https://Victim.com/', domain: 'https://Victim.com/' }),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.website.upsert).not.toHaveBeenCalled();
+    });
+
+    it("registers a site of your own without taking over anybody's competitor record of it", async () => {
+      // A domain can also be on file as a competitor for other projects, crawls
+      // and all. Registering it as your own site used to claim that record.
+      await controller.registerWebsiteRoute(REQ, { url: 'https://rival.com', domain: 'rival.com' });
+
+      expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'rival.com', scope: 'own' } });
+      const upsert = prisma.website.upsert.mock.calls[0][0];
+      expect(upsert.where).toEqual({ domain_scope: { domain: 'rival.com', scope: 'own' } });
+      expect(upsert.create).toMatchObject({ domain: 'rival.com', scope: 'own' });
     });
 
     it("refuses to attach a site to a project in another organization", async () => {
