@@ -103,8 +103,8 @@ export class AutomationController {
   @ApiOperation({ summary: 'Write the actual page for a planned piece' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })
-  draft(@Req() req: any, @Param('pieceId') pieceId: string) {
-    return this.content.draft(pieceId, req.organizationId);
+  draft(@Req() req: any, @Param('projectId') projectId: string, @Param('pieceId') pieceId: string) {
+    return this.content.draft(projectId, pieceId, req.organizationId);
   }
 
   // ── runs

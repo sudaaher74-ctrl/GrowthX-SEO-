@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -33,6 +33,13 @@ export interface Overtake {
 }
 
 const DEFAULT_TRACKED = 25;
+const DEFAULT_DAILY_CHECKS = 60;
+
+/** Paid Google checks one project may make in a rolling 24 hours. */
+export function dailyGoogleChecks(): number {
+  const n = Number(process.env.SERP_DAILY_CHECKS_PER_PROJECT);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_CHECKS;
+}
 const MAX_KEYWORD_LENGTH = 120;
 
 /**
@@ -126,6 +133,18 @@ export class RankTrackingService {
   /** Checks one keyword in Google now and stores the result. */
   async checkKeyword(projectId: string, keyword: string) {
     if (!this.dataforseo.isConfigured()) throw new ServiceUnavailableException(NOT_CONFIGURED_MESSAGE);
+    // Every check is paid for. A ceiling per project keeps one account pressing
+    // "Diagnose" or "Check all now" in a loop from running up the bill.
+    const limit = dailyGoogleChecks();
+    const recent = await this.prisma.serpSnapshot.count({
+      where: { projectId, checkedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    });
+    if (recent >= limit) {
+      throw new HttpException(
+        `This project has made its ${limit} Google checks for the last 24 hours. More become available over the next day.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const site = await ownSite(this.prisma, projectId);
     if (!site) throw new NotFoundException('Add your website to this project first.');
     const market = await resolveMarket(this.prisma, projectId);
@@ -257,8 +276,8 @@ export class RankTrackingService {
         checked++;
       } catch (error: any) {
         failed.push(`${k.keyword}: ${error?.message ?? 'failed'}`);
-        // Credentials or credit problems fail every keyword the same way.
-        if (/login and password|run out of credit|not connected/i.test(error?.message ?? '')) break;
+        // Credentials, credit or the daily ceiling fail every keyword the same way.
+        if (/login and password|run out of credit|not connected|Google checks for the last 24 hours/i.test(error?.message ?? '')) break;
       }
     }
     this.logger.log(`[${projectId}] Rank check: ${checked} keyword(s) checked, ${failed.length} failed.`);

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { DataForSeoError, DataForSeoService, NOT_CONFIGURED_MESSAGE, RankedKeyword } from './dataforseo.service';
@@ -20,6 +20,8 @@ export interface GapRow {
 }
 
 const CACHE_DAYS = 7;
+/** Paid competitor-keyword fetches one project may make in a rolling 24 hours. */
+const DAILY_FETCHES = Number(process.env.KEYWORD_GAP_DAILY_FETCHES_PER_PROJECT) > 0 ? Number(process.env.KEYWORD_GAP_DAILY_FETCHES_PER_PROJECT) : 15;
 const MAX_COMPETITORS = 5;
 
 function key(keyword: string): string {
@@ -159,6 +161,16 @@ export class KeywordGapService {
       if (!recent) stale.push(c);
     }
     if (stale.length === 0) return { fetched: 0, fromCache: competitors.length };
+
+    const fetchedToday = await this.prisma.keywordGapSnapshot.count({
+      where: { projectId, fetchedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    });
+    if (fetchedToday + stale.length > DAILY_FETCHES) {
+      throw new HttpException(
+        `This project has used its ${DAILY_FETCHES} competitor keyword fetches for the last 24 hours. The results already fetched are shown below.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
 
     const ownDomain = bareDomain(site.website.domain) ?? site.website.domain;
     let own;

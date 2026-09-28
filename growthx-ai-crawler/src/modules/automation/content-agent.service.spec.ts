@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ContentPieceKind, ContentPieceStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
@@ -46,6 +46,7 @@ describe('ContentAgentService', () => {
       localLocation: { findFirst: jest.fn().mockResolvedValue(null) },
       contentPiece: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn(async ({ data }: any) => ({ id: 'piece_1', ...data })),
         update: jest.fn(async ({ data }: any) => ({ id: 'piece_1', ...data })),
         findMany: jest.fn().mockResolvedValue([]),
@@ -162,23 +163,30 @@ describe('ContentAgentService', () => {
 
   describe('review gate', () => {
     it('moves an approved draft to COMMITTED', async () => {
-      prisma.contentPiece.findUnique.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.DRAFTED });
+      prisma.contentPiece.findFirst.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.DRAFTED });
 
-      const piece = await service.review('piece_1', 'APPROVE');
+      const piece = await service.review('proj_1', 'piece_1', 'APPROVE');
       expect(piece.status).toBe(ContentPieceStatus.COMMITTED);
     });
 
     it('moves a rejected draft to REJECTED', async () => {
-      prisma.contentPiece.findUnique.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.DRAFTED });
+      prisma.contentPiece.findFirst.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.DRAFTED });
 
-      const piece = await service.review('piece_1', 'REJECT');
+      const piece = await service.review('proj_1', 'piece_1', 'REJECT');
       expect(piece.status).toBe(ContentPieceStatus.REJECTED);
     });
 
-    it('will not re-review something already published', async () => {
-      prisma.contentPiece.findUnique.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.PUBLISHED });
+    it("never reviews another project's draft", async () => {
+      prisma.contentPiece.findFirst.mockResolvedValue(null);
+      await expect(service.review('proj_other', 'piece_1', 'APPROVE')).rejects.toThrow(NotFoundException);
+      expect(prisma.contentPiece.findFirst.mock.calls[0][0].where).toEqual({ id: 'piece_1', projectId: 'proj_other' });
+      expect(prisma.contentPiece.update).not.toHaveBeenCalled();
+    });
 
-      await expect(service.review('piece_1', 'REJECT')).rejects.toThrow(BadRequestException);
+    it('will not re-review something already published', async () => {
+      prisma.contentPiece.findFirst.mockResolvedValue({ id: 'piece_1', status: ContentPieceStatus.PUBLISHED });
+
+      await expect(service.review('proj_1', 'piece_1', 'REJECT')).rejects.toThrow(BadRequestException);
     });
   });
 });

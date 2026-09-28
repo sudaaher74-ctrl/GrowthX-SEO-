@@ -247,9 +247,16 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   }
 
   const envelope = body as { message?: unknown } | null;
+  // Validation failures arrive as a list ({ message: ["Enter a valid email
+  // address."] }). Read as an object, a list has no `.message`, and every
+  // rejected form showed only "Bad Request".
+  const listed = Array.isArray(envelope?.message)
+    ? (envelope.message as unknown[]).filter((m): m is string => typeof m === "string").join(" ")
+    : null;
   const payload =
-    envelope?.message && typeof envelope.message === "object" ? envelope.message : envelope;
+    envelope?.message && typeof envelope.message === "object" && !Array.isArray(envelope.message) ? envelope.message : envelope;
   const message =
+    (listed || null) ??
     (payload as { message?: string } | null)?.message ??
     (typeof envelope?.message === "string" ? envelope.message : null) ??
     response?.statusText ??

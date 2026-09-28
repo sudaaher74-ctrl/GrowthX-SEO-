@@ -38,7 +38,7 @@ describe('ImpactService', () => {
 
     const prisma = {
       fixIntervention: {
-        findUnique: jest.fn().mockResolvedValue(
+        findFirst: jest.fn().mockResolvedValue(
           'intervention' in options
             ? options.intervention
             : {
@@ -106,19 +106,27 @@ describe('ImpactService', () => {
         intervention: { id: 'int-1', projectId: 'p1', arm: InterventionArm.HOLD, shippedAt: null },
       });
 
-      await expect(service.markShipped('int-1')).rejects.toBeInstanceOf(BadRequestException);
-      await expect(service.markShipped('int-1')).rejects.toThrow(/control group/);
+      await expect(service.markShipped('p1', 'int-1')).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.markShipped('p1', 'int-1')).rejects.toThrow(/control group/);
     });
 
     it('does not move the ship date when marked shipped twice', async () => {
       const { service, prisma } = build();
-      await service.markShipped('int-1');
+      await service.markShipped('p1', 'int-1');
       expect(prisma.fixIntervention.update.mock.calls[0][0].data.shippedAt).toEqual(shippedAt);
+    });
+
+    it("only finds an intervention in the project it was asked about", async () => {
+      const { service, prisma } = build();
+      await service.markShipped('p1', 'int-1');
+      expect(prisma.fixIntervention.findFirst.mock.calls[0][0].where).toEqual({ id: 'int-1', projectId: 'p1' });
+      await service.measure('p1', 'int-1', 30);
+      expect(prisma.fixIntervention.findFirst.mock.calls[1][0].where).toEqual({ id: 'int-1', projectId: 'p1' });
     });
 
     it('reports a missing intervention rather than measuring nothing', async () => {
       const { service } = build({ intervention: null });
-      await expect(service.measure('nope', 30)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.measure('p1', 'nope', 30)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -127,13 +135,13 @@ describe('ImpactService', () => {
       const { service } = build({
         intervention: { id: 'int-1', projectId: 'p1', arm: InterventionArm.TREAT, shippedAt: null },
       });
-      await expect(service.measure('int-1', 30)).rejects.toThrow(/has not shipped/);
+      await expect(service.measure('p1', 'int-1', 30)).rejects.toThrow(/has not shipped/);
     });
 
     it('reports an observed change, not a causal estimate, when there are no holds', async () => {
       const { service } = build({ holds: [], project: [100, 10, 100, 20] });
 
-      const result = await service.measure('int-1', 30);
+      const result = await service.measure('p1', 'int-1', 30);
 
       expect(result.pre.rate).toBe(0.1);
       expect(result.post.rate).toBe(0.2);
@@ -161,7 +169,7 @@ describe('ImpactService', () => {
           Array.from({ length: 50 }, (_, i) => ({ cited: i < 13, citedUrl: 'https://example.com/held' })),
         );
 
-      const result = await service.measure('int-1', 30);
+      const result = await service.measure('p1', 'int-1', 30);
 
       expect(result.control).not.toBeNull();
       expect(result.control!.pre.rate).toBe(0.2);
@@ -182,14 +190,14 @@ describe('ImpactService', () => {
           Array.from({ length: 20 }, (_, i) => ({ cited: i < 7, citedUrl: 'https://example.com/held' })),
         );
 
-      const result = await service.measure('int-1', 30);
+      const result = await service.measure('p1', 'int-1', 30);
       expect(result.lift).toBeLessThan(0);
     });
 
     it('says the sample is too small rather than reporting a swing as a result', async () => {
       const { service } = build({ holds: [], project: [4, 0, 4, 2] });
 
-      const result = await service.measure('int-1', 30);
+      const result = await service.measure('p1', 'int-1', 30);
       expect(result.interpretation).toBe('INSUFFICIENT_DATA');
     });
 
@@ -202,14 +210,14 @@ describe('ImpactService', () => {
         { cited: false, citedUrl: null },
       ]);
 
-      const result = await service.measure('int-1', 30);
+      const result = await service.measure('p1', 'int-1', 30);
       expect(result.control!.pre.sampleSize).toBe(0);
       expect(result.lift).toBeNull();
     });
 
     it('measures a single engine separately from the blended figure', async () => {
       const { service, prisma } = build();
-      await service.measure('int-1', 30, AiAssistant.PERPLEXITY);
+      await service.measure('p1', 'int-1', 30, AiAssistant.PERPLEXITY);
 
       const where = prisma.promptCheck.count.mock.calls[0][0].where;
       expect(where.assistant).toBe(AiAssistant.PERPLEXITY);
@@ -217,14 +225,14 @@ describe('ImpactService', () => {
 
     it('excludes errored checks, which asked nothing and are evidence of nothing', async () => {
       const { service, prisma } = build();
-      await service.measure('int-1', 30);
+      await service.measure('p1', 'int-1', 30);
 
       expect(prisma.promptCheck.count.mock.calls[0][0].where.error).toBeNull();
     });
 
     it('updates an existing measurement instead of writing a second one', async () => {
       const { service, prisma } = build({ existingOutcome: { id: 'out-1' } });
-      await service.measure('int-1', 30);
+      await service.measure('p1', 'int-1', 30);
 
       expect(prisma.interventionOutcome.update).toHaveBeenCalled();
       expect(prisma.interventionOutcome.create).not.toHaveBeenCalled();

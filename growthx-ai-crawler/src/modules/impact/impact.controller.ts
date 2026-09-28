@@ -42,22 +42,24 @@ export class ImpactController {
 
   @Post('interventions/:id/shipped')
   async markShipped(
+    @Param('projectId') projectId: string,
     @Param('id') id: string,
     @Body() body: { mergedSha?: string; afterPageId?: string },
   ) {
-    return this.impact.markShipped(id, body?.mergedSha, body?.afterPageId);
+    return this.impact.markShipped(projectId, id, body?.mergedSha, body?.afterPageId);
   }
 
   /** Measures one intervention over one window. */
   @Post('interventions/:id/measure')
   async measure(
+    @Param('projectId') projectId: string,
     @Param('id') id: string,
     @Body() body: { windowDays?: number; assistant?: AiAssistant },
   ) {
     const windowDays = (MEASUREMENT_WINDOWS as readonly number[]).includes(body?.windowDays ?? 30)
       ? ((body?.windowDays ?? 30) as MeasurementWindow)
       : 30;
-    return this.impact.measure(id, windowDays, body?.assistant ?? null);
+    return this.impact.measure(projectId, id, windowDays, body?.assistant ?? null);
   }
 
   /** Measured effect per change class, with how much evidence sits behind each. */

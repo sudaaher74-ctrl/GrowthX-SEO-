@@ -97,8 +97,8 @@ export class ContentGenerationService {
    * The brief is built from the same evidence the strategy used, so the page is
    * about this business rather than generically about the topic.
    */
-  async draft(pieceId: string, organizationId?: string) {
-    const piece = await this.prisma.contentPiece.findUnique({ where: { id: pieceId } });
+  async draft(projectId: string, pieceId: string, organizationId?: string) {
+    const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
     if (!piece) throw new BadRequestException('Content piece not found');
 
     const evidence = await this.strategy.gatherEvidence(piece.projectId);

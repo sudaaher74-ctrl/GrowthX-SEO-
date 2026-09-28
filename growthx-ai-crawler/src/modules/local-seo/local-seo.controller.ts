@@ -102,8 +102,8 @@ export class LocalSeoController {
 
   /** One stored run, with every coordinate and the businesses seen there. */
   @Get('geo-grid/run/:runId')
-  async geoGridRun(@Param('runId') runId: string) {
-    return this.geoGridService.run(runId);
+  async geoGridRun(@Param('projectId') projectId: string, @Param('runId') runId: string) {
+    return this.geoGridService.run(projectId, runId);
   }
 
   @Post('geo-grid/run')

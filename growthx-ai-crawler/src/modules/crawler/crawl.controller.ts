@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { JobStatus, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -65,6 +65,31 @@ export class CrawlController {
     // caller is one of them. Both halves are the check.
     await this.orgContext.assertMembership(req.user?.userId, organizationId);
     return website;
+  }
+
+  /**
+   * How many of one organization's own sites may be crawling at once. The
+   * workers are shared by every customer; one account starting audits of
+   * twenty sites together would queue everyone else behind them. A site that
+   * is already crawling is always allowed through, because the crawler hands
+   * back that same crawl rather than starting another.
+   */
+  private async assertCrawlCapacity(websiteId: string, organizationId: string) {
+    const limit = Number(process.env.CRAWL_MAX_ACTIVE_PER_ORG) > 0 ? Number(process.env.CRAWL_MAX_ACTIVE_PER_ORG) : 3;
+    const active = await this.prisma.crawlJob.findMany({
+      where: {
+        status: { in: ['PENDING', 'RUNNING'] },
+        updatedAt: { gte: new Date(Date.now() - CrawlerService.IN_FLIGHT_WINDOW_MS) },
+        website: { scope: OWN_SCOPE, project: { organizationId } },
+      },
+      select: { websiteId: true },
+    });
+    const sites = new Set(active.map((j) => j.websiteId));
+    if (sites.has(websiteId) || sites.size < limit) return;
+    throw new HttpException(
+      `${sites.size} of your websites are being audited right now, the most at once. Start this one when one of them finishes.`,
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   /** Same, for a crawl job traced back through its website's project. */
@@ -212,6 +237,7 @@ export class CrawlController {
       ? await this.websiteForCaller(req, { id: body.websiteId })
       : await this.websiteForCaller(req, { domain: body.domain as string });
 
+    await this.assertCrawlCapacity(website.id, website.project!.organizationId);
     const jobId = await this.crawlerService.startCrawlJob(website.id, body);
     return { success: true, jobId, message: 'Crawl job initiated and dispatched to BullMQ distributed workers.' };
   }

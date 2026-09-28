@@ -155,6 +155,8 @@ export class FindingsController {
     @Body() body: { to: FindingLifecycle; reason?: string; snoozeUntil?: string },
   ) {
     await this.assertProjectAccess(req.organizationId, projectId);
+    const owned = await this.prisma.growthOpportunity.findFirst({ where: { id, projectId }, select: { id: true } });
+    if (!owned) throw new NotFoundException(`Finding ${id} not found`);
 
     return this.lifecycleService.transition(
       id,

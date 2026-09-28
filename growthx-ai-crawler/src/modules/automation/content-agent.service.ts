@@ -321,8 +321,8 @@ export class ContentAgentService {
    * this material goes out under the customer's name, on their listing or their
    * site, so the last step before publication is a human one.
    */
-  async review(pieceId: string, decision: 'APPROVE' | 'REJECT') {
-    const piece = await this.prisma.contentPiece.findUnique({ where: { id: pieceId } });
+  async review(projectId: string, pieceId: string, decision: 'APPROVE' | 'REJECT') {
+    const piece = await this.prisma.contentPiece.findFirst({ where: { id: pieceId, projectId } });
     if (!piece) throw new NotFoundException('Content piece not found');
     if (piece.status !== ContentPieceStatus.DRAFTED) {
       throw new BadRequestException(`Only a DRAFTED piece can be reviewed; this one is ${piece.status}.`);
