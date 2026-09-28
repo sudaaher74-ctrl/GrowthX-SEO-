@@ -104,4 +104,21 @@ describe('RivalMovesService.feed', () => {
     expect(res.watching).toEqual([{ name: 'Country Delight', domain: 'countrydelight.in', lastCheckedAt: null, lastCrawlAt: null, pagesRead: null, lastChangeAt: null }]);
     expect(prisma.promptCheck.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ cited: false }) }));
   });
+
+  it('counts the pages that opened as pages read, not every attempt', async () => {
+    const prisma = {
+      competitorDomain: { findMany: jest.fn().mockResolvedValue([{ domain: 'fortuneexicom.com', name: 'Fortueexicom', label: null, websiteId: 'w1' }]) },
+      rivalPageSnapshot: { findMany: jest.fn().mockResolvedValue([]) },
+      // 300 attempts, most of them turned away.
+      crawlJob: { findMany: jest.fn().mockResolvedValue([{ id: 'job1', finishedAt: day(20), pagesCrawled: 300 }]) },
+      page: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(16) },
+      promptCheck: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const res = await new RivalMovesService(prisma as any).feed('p1', day(25));
+
+    expect(res.watching[0].pagesRead).toBe(16);
+    expect(prisma.page.count).toHaveBeenCalledWith({
+      where: { crawlJobId: 'job1', statusCode: { gte: 200, lt: 400 }, blockedSuspected: false },
+    });
+  });
 });

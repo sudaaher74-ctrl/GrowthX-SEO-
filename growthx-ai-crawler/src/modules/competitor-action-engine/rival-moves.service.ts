@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { FULL_CRAWL } from '../crawler/crawl-selection';
+import { OPENED_PAGE } from '../crawler/page-outcome';
 import { PrismaService } from '../../database/prisma.service';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { isCrawlablePage } from '../crawler/crawlable';
@@ -77,7 +78,9 @@ export class RivalMovesService {
           select: { id: true, finishedAt: true, pagesCrawled: true },
         });
         lastCrawl = jobs[0]?.finishedAt ?? null;
-        pagesRead = jobs[0]?.pagesCrawled ?? null;
+        // Pages that opened, not `pagesCrawled`: that counts every attempt,
+        // including the ones the site turned away.
+        pagesRead = jobs[0] ? await this.prisma.page.count({ where: { crawlJobId: jobs[0].id, ...OPENED_PAGE } }) : null;
         if (jobs.length === 2 && jobs[0].finishedAt && jobs[0].finishedAt >= since) {
           const [latest, previous] = await Promise.all([this.pagesOf(jobs[0].id), this.pagesOf(jobs[1].id)]);
           moves.push(...movesFromCrawls(latest, previous, rival, jobs[0].finishedAt, jobs[1].finishedAt));

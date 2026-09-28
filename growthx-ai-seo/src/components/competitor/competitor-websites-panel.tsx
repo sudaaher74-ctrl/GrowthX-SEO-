@@ -89,12 +89,13 @@ function SiteCard({ site }: { site: CompetitorWebsite }) {
       <ReadStatus site={site} />
 
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Pages read" value={site.pagesRead > 0 ? site.pagesRead.toLocaleString() : "—"} />
+        <Stat label="Pages read" value={site.pagesRead ? site.pagesRead.toLocaleString() : "—"} />
         <Stat label="Health" value={site.healthScore != null ? `${site.healthScore}/100` : "—"} />
         <RatingStat site={site} />
       </div>
 
       <PageKinds site={site} />
+      <NotOpenedNote site={site} />
     </div>
   );
 }
@@ -110,9 +111,14 @@ function ReadStatus({ site }: { site: CompetitorWebsite }) {
             <p className="font-semibold">
               Reading now · {(site.pagesSoFar ?? 0).toLocaleString()} page{site.pagesSoFar === 1 ? "" : "s"} so far
             </p>
+            {(site.notOpenedSoFar ?? 0) > 0 && (
+              <p className="text-[11px] text-warning-700">
+                {site.notOpenedSoFar!.toLocaleString()} more didn&apos;t open, so they aren&apos;t counted.
+              </p>
+            )}
             <p className="text-[11px] opacity-80">
               {site.readingStartedAt ? `Started ${relativeTime(site.readingStartedAt)}. ` : ""}
-              {site.pagesRead > 0 && site.lastReadAt
+              {site.pagesRead && site.lastReadAt
                 ? `The figures below are from the last read, ${relativeTime(site.lastReadAt)}.`
                 : "Figures appear here when it finishes."}
             </p>
@@ -183,6 +189,41 @@ function RatingStat({ site }: { site: CompetitorWebsite }) {
         {site.rating.toFixed(1)} <Star size={13} className="fill-warning-400 text-warning-400" />
       </p>
       <p className="text-[10.5px] leading-tight text-brand-500">{site.reviewCount.toLocaleString()} Google reviews</p>
+    </div>
+  );
+}
+
+/**
+ * The pages the crawl asked for and did not get, shown apart from "Pages read"
+ * so that figure and the kinds of pages under it are always the same pages.
+ * Folding them in is how a card once said 300 pages read above kinds of pages
+ * that added up to 16.
+ */
+function NotOpenedNote({ site }: { site: CompetitorWebsite }) {
+  const n = site.notOpened;
+  if (!n) return null;
+  const reasons = [
+    { key: "refused", count: n.refused, text: "their website turned us away" },
+    { key: "errored", count: n.errored, text: "showed an error, like “page not found”" },
+    { key: "noAnswer", count: n.noAnswer, text: "didn't answer in time" },
+  ].filter((r) => r.count > 0);
+  const total = reasons.reduce((sum, r) => sum + r.count, 0);
+  if (total === 0) return null;
+
+  return (
+    <div className="rounded-lg bg-warning-50 px-2.5 py-2 text-[11.5px] text-warning-700">
+      <p className="flex items-center gap-1.5 font-semibold">
+        <AlertTriangle size={12} className="shrink-0" />
+        {total.toLocaleString()} more page{total === 1 ? "" : "s"} didn&apos;t open, so {total === 1 ? "it isn't" : "they aren't"} counted
+        above
+      </p>
+      <ul className="mt-1 space-y-0.5 pl-[18px]">
+        {reasons.map((r) => (
+          <li key={r.key}>
+            <span className="font-semibold">{r.count.toLocaleString()}</span> {r.text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

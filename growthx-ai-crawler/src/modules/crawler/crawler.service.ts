@@ -23,6 +23,7 @@ import { IssueEngineService } from '../issues/issue-engine.service';
 import { GraphService } from '../graph/graph.service';
 import { CrawlerGateway } from '../socket/crawler.gateway';
 import { FetchService, FetchOutcome } from './fetch/fetch.service';
+import { HostPacer } from './host-pacer';
 import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
 import { ParsedRobots } from './discovery/robots-txt';
 import { computeIndexability } from './indexability';
@@ -119,6 +120,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    * cancelled mid-flight stops within seconds.
    */
   private readonly jobStatusCache = new Map<string, { status: string; readAt: number }>();
+  /** Spaces requests to one website by its politeness delay. See HostPacer. */
+  private readonly pacer = new HostPacer();
   private static readonly JOB_STATUS_TTL_MS = 10 * 1000;
 
 
@@ -685,6 +688,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // actually sent: a DNS, TLS, timeout or proxy failure arrives as a typed
       // error and is recorded as such, instead of being written down as the
       // site refusing us.
+      // The politeness delay the crawl was started with, which nothing used to
+      // wait on. Keyed by the website's domain rather than the URL's host, so
+      // the www and bare spellings of one site share one queue.
+      await this.pacer.wait(payload.domain || new URL(normUrl).host, payload.rateLimitDelayMs);
       const rendersUsed = await this.rendersUsed(payload.jobId);
       // A crawl may ask for fewer renders than the deployment allows, never more.
       const deploymentRenderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);

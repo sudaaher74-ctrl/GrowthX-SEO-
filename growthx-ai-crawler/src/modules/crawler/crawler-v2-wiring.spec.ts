@@ -244,6 +244,26 @@ describe('CrawlerService budgets rendering', () => {
   });
 });
 
+describe('CrawlerService is polite to the site it reads', () => {
+  it('waits the crawl\'s delay for that site before each fetch', async () => {
+    const order: string[] = [];
+    const fetch = jest.fn(async () => {
+      order.push('fetch');
+      return outcome();
+    });
+    const { service } = makeService({ fetchSvc: { fetch } });
+    const wait = jest.fn(async () => {
+      order.push('wait');
+    });
+    (service as any).pacer = { wait };
+
+    await service.processPageFetch({ ...payload, domain: 'fortuneexicom.com', rateLimitDelayMs: 1000 });
+
+    expect(wait).toHaveBeenCalledWith('fortuneexicom.com', 1000);
+    expect(order).toEqual(['wait', 'fetch']);
+  });
+});
+
 describe('CrawlerService honours a crawl time budget', () => {
   function withStats(service: CrawlerService) {
     (service as any).jobStats.set('job1', {
