@@ -3532,6 +3532,44 @@ model CompetitorReportSnapshot {
 }
 
 /// A Website Audit report as it was generated, so it can be read again later.
+/// A plan the customer saved to act on — "Save as a plan" / "Get a plan" in
+/// Competitor Intelligence, Business, Internal Linking and the rest. These
+/// lived only in one browser's storage, so a new phone, a cleared browser or
+/// a colleague logging in saw none of them.
+model SavedPlan {
+  projectId   String
+  /// Made by the browser, so a plan saved while offline keeps the same id
+  /// when it reaches the server and is never stored twice.
+  id          String
+  title       String
+  category    String
+  source      String
+  /// CRITICAL | HIGH | MEDIUM | LOW
+  priority    String
+  impact      String   @default("")
+  effortHours Float    @default(0)
+  deliverable String   @default("")
+  evidence    String?
+  affectedUrl String?
+  /// STAGED | APPROVED | EXECUTED
+  status      String   @default("STAGED")
+  stagedAt    DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@id([projectId, id])
+  @@index([projectId, stagedAt])
+}
+
+/// "I've done this" on the action plan, one row per step marked done.
+model ActionStepDone {
+  projectId String
+  /// The issue group the step is, e.g. "<projectId>::MISSING_CANONICAL".
+  stepKey   String
+  doneAt    DateTime
+
+  @@id([projectId, stepKey])
+}
+
 /// Stored Business → Marketing Strategy reports: the facts counted from both
 /// catalogs and crawls, and the strategy Sarvam wrote from them.
 model BusinessStrategySnapshot {

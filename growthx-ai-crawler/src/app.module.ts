@@ -57,6 +57,7 @@ import { AuditReportModule } from './modules/audit-report/audit-report.module';
 import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
 import { BusinessModule } from './modules/business/business.module';
+import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 
 
 @Module({
@@ -131,6 +132,7 @@ import { BusinessModule } from './modules/business/business.module';
     AutopilotModule,
     AuditReportModule,
     BusinessModule,
+    SavedPlansModule,
   ],
 
   controllers: [HealthController],
