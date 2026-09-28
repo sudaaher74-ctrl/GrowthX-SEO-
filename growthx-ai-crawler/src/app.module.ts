@@ -58,6 +58,7 @@ import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
 import { BusinessModule } from './modules/business/business.module';
 import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
+import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
 
 
 @Module({
@@ -133,6 +134,7 @@ import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
     AuditReportModule,
     BusinessModule,
     SavedPlansModule,
+    SearchIntelligenceModule,
   ],
 
   controllers: [HealthController],

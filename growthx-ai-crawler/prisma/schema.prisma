@@ -450,6 +450,13 @@ model Project {
   /// figure is excluded from MRR rather than being guessed at.
   retainerMonthlyMinor      Int?
   retainerCurrency          String                     @default("INR")
+  /// The Google market this project's rankings are checked in, as a country
+  /// name Google results are localised to ("India", "United States"). Null
+  /// means not chosen: the busiest Search Console country is used, and the
+  /// screen says which was used and why.
+  searchCountry             String?
+  /// Language of the Google results checked, as a code ("en", "hi").
+  searchLanguage            String                     @default("en")
   /// When automatic competitor identification last ran to completion for this
   /// project.
   ///
@@ -500,6 +507,11 @@ model Project {
   catalogProducts           CatalogProduct[]
   placesListingSnapshots    PlacesListingSnapshot[]
   marketingSignals          MarketingSignal[]
+  urlIndexInspections       UrlIndexInspection[]
+  trackedKeywords           TrackedKeyword[]
+  serpSnapshots             SerpSnapshot[]
+  keywordGapSnapshots       KeywordGapSnapshot[]
+  keywordDiagnoses          KeywordDiagnosis[]
 
   @@index([organizationId])
 }
@@ -3732,4 +3744,128 @@ model PlacesListingSnapshot {
 
   @@unique([projectId, placeId])
   @@index([projectId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Google index status and Google results
+//
+// What Google itself reports about a site, as opposed to what our crawler
+// sees: whether each URL is indexed (Search Console URL Inspection), who ranks
+// where for a keyword (DataForSEO), and which keywords a competitor's domain
+// ranks for. Every row records when it was observed, so a stale answer shows
+// its age instead of passing for today's.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One URL Inspection answer from Search Console.
+model UrlIndexInspection {
+  id              String    @id @default(uuid())
+  projectId       String
+  /// The Search Console property the question was asked of.
+  propertyId      String
+  url             String
+  inspectedAt     DateTime  @default(now())
+  /// PASS | PARTIAL | FAIL | NEUTRAL | VERDICT_UNSPECIFIED, as Google returns it.
+  verdict         String?
+  /// Google's own words, e.g. "Crawled - currently not indexed".
+  coverageState   String?
+  indexingState   String?
+  pageFetchState  String?
+  robotsTxtState  String?
+  googleCanonical String?
+  userCanonical   String?
+  lastCrawlTime   DateTime?
+  crawledAs       String?
+  sitemaps        String[]  @default([])
+  referringUrls   String[]  @default([])
+  /// Deep link to this URL in the Search Console UI.
+  inspectionLink  String?
+  /// Set when Google refused or failed the request; the other fields are empty.
+  error           String?
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, url, inspectedAt])
+  @@index([projectId, inspectedAt])
+}
+
+/// A keyword whose Google results are checked on a schedule.
+model TrackedKeyword {
+  id        String   @id @default(uuid())
+  projectId String
+  keyword   String
+  /// SEARCH_CONSOLE | USER | COMPETITOR_GAP — where the keyword came from.
+  source    String   @default("USER")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, keyword])
+  @@index([projectId, isActive])
+}
+
+/// The Google results for one keyword at one moment.
+///
+/// Positions cannot be recovered after the fact, so this table is the rank
+/// history: overtakes are found by comparing two of these, never estimated.
+model SerpSnapshot {
+  id                  String   @id @default(uuid())
+  projectId           String
+  keyword             String
+  checkedAt           DateTime @default(now())
+  /// Market the results are localised to, e.g. "India".
+  country             String
+  language            String
+  device              String   @default("desktop")
+  provider            String   @default("dataforseo")
+  /// Top results in order: [{ position, url, domain, title, snippet, format }].
+  results             Json     @default("[]")
+  /// Result types Google showed on the page, e.g. "featured_snippet",
+  /// "local_pack", "people_also_ask", "shopping".
+  features            String[] @default([])
+  /// The customer's best organic position, null when not in the results fetched.
+  ownPosition         Int?
+  ownUrl              String?
+  /// { "<competitor domain>": { position, url } } for tracked competitors present.
+  competitorPositions Json     @default("{}")
+  /// What the provider charged for this check, in USD, when it says.
+  costUsd             Float?
+  error               String?
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, keyword, checkedAt])
+  @@index([projectId, checkedAt])
+}
+
+/// Keywords one competitor ranks for that the customer does not, as fetched.
+model KeywordGapSnapshot {
+  id                     String   @id @default(uuid())
+  projectId              String
+  competitorDomain       String
+  fetchedAt              DateTime @default(now())
+  country                String
+  language               String
+  /// [{ keyword, searchVolume, competitorPosition, competitorUrl, ownPosition, ownSource }]
+  rows                   Json     @default("[]")
+  /// How many keywords each side was read for, so "no gaps" can be told from "nothing read".
+  competitorKeywordsRead Int      @default(0)
+  ownKeywordsRead        Int      @default(0)
+  costUsd                Float?
+  error                  String?
+  project                Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, competitorDomain, fetchedAt])
+}
+
+/// Why one page does or does not rank for one keyword, with the evidence.
+model KeywordDiagnosis {
+  id             String   @id @default(uuid())
+  projectId      String
+  keyword        String
+  pageUrl        String
+  createdAt      DateTime @default(now())
+  serpSnapshotId String?
+  /// The full diagnosis as shown: intent, dominant format, comparison, reasons.
+  result         Json
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
 }

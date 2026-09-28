@@ -130,6 +130,14 @@ services:
       # Completions call. Free tier at https://tavily.com.
       - key: TAVILY_API_KEY
         sync: false
+      # Google results, rankings and competitor keywords (DataForSEO). Powers
+      # keyword diagnosis, competitor keyword gaps and rank tracking. Unset,
+      # those screens say Google data is not connected instead of guessing.
+      # API login and password from https://app.dataforseo.com/api-access.
+      - key: DATAFORSEO_LOGIN
+        sync: false
+      - key: DATAFORSEO_PASSWORD
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY
