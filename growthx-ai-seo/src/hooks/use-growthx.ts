@@ -1629,6 +1629,20 @@ export function useBusinessMarketingSignals(projectId: string | null) {
   });
 }
 
+/**
+ * Real Google search numbers for the project (Search Console): its top
+ * searches, the ones it almost wins, and whether it is connected at all.
+ */
+export function useSearchDemand(projectId: string | null) {
+  return useQuery({
+    queryKey: ["search-demand", projectId],
+    queryFn: () => api.searchDemand(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 10 * 60_000,
+  });
+}
+
 /** Marketing Strategy: the last stored report, or null when none has been written. */
 export function useBusinessStrategy(projectId: string | null) {
   return useQuery({

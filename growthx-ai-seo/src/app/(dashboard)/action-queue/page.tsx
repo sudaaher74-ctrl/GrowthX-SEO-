@@ -23,7 +23,9 @@ import {
   useIssueCounts,
   useIssueGroups,
   useAiVisibilityRoadmapTasks,
+  useSearchDemand,
 } from "@/hooks/use-growthx";
+import { AlmostWinningPanel, SearchConnectNote } from "@/components/content/search-numbers";
 import type { IssueGroup } from "@/lib/api-client";
 import { SEVERITY_PLAIN, asSentence, pagePath, whoCanFix } from "@/lib/plain-language";
 
@@ -80,6 +82,9 @@ export default function ActionPlanPage() {
   const countsQuery = useIssueCounts(projectId);
   const groupsQuery = useIssueGroups(projectId, {});
   const aiTasksQuery = useAiVisibilityRoadmapTasks(projectId);
+  // Google's own numbers: searches the site shows for but does not win yet.
+  const demandQuery = useSearchDemand(projectId);
+  const demand = demandQuery.data;
 
   const [view, setView] = useState<View>("todo");
   const [note, setNote] = useState<string | null>(null);
@@ -238,6 +243,11 @@ export default function ActionPlanPage() {
               ))}
             </ol>
           )}
+
+          {view === "todo" && demand?.status === "OK" && (
+            <AlmostWinningPanel searches={demand.almostWinning} days={demand.days} />
+          )}
+          {view === "todo" && <SearchConnectNote status={demand?.status} />}
         </>
       )}
     </div>

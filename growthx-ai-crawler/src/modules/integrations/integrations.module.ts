@@ -9,6 +9,7 @@ import { GoogleOAuthService } from './google/google-oauth.service';
 import { GoogleOAuthController, GoogleOAuthCallbackController } from './google/google-oauth.controller';
 import { SearchConsoleService } from './google/search-console.service';
 import { SearchConsoleInsightsService } from './google/search-console-insights.service';
+import { SearchDemandService } from './google/search-demand.service';
 import { SearchConsoleController } from './google/search-console.controller';
 import { BusinessProfileService } from './google/business-profile.service';
 import { BusinessProfileInsightsService } from './google/business-profile-insights.service';
@@ -36,6 +37,7 @@ import { DatabaseModule } from '../../database/database.module';
     GoogleOAuthService,
     SearchConsoleService,
     SearchConsoleInsightsService,
+    SearchDemandService,
     AnalyticsService,
     AnalyticsInsightsService,
     BusinessProfileService,
@@ -62,6 +64,8 @@ import { DatabaseModule } from '../../database/database.module';
     // Executive Dashboard read search data from one place rather than each
     // calling Google.
     SearchConsoleInsightsService,
+    // Real search numbers for the keyword ideas and Marketing Strategy.
+    SearchDemandService,
     AnalyticsService,
     AnalyticsInsightsService,
     // Local SEO reads and writes the customer's profile through this — the

@@ -18,6 +18,8 @@
  * it is trying hardest to sell — a real signal, reported as exactly that.
  */
 
+import { demandPromptLines, indexSearches, Measured, measure, SearchDemand } from '../integrations/google/search-demand';
+
 /** Page kinds that are never a product for sale. */
 const NOT_A_PRODUCT = new Set(['HOME', 'BLOG', 'LEGAL', 'STATIC', 'CONTACT', 'ABOUT', 'FAQ', 'CASE_STUDY']);
 
@@ -89,6 +91,8 @@ export interface StrategyFacts {
   you: { productCount: number; pricedCount: number; products: StrategyProduct[]; positioning: Positioning | null };
   competitors: StrategyCompetitor[];
   prices: PriceRow[];
+  /** Real Google searches the site appears in (Search Console). Absent on reports written before it existed. */
+  search?: SearchDemand;
 }
 
 export interface RivalProductPlay {
@@ -103,6 +107,8 @@ export interface StrategyKeyword {
   phrase: string;
   why: string;
   forProduct: string | null;
+  /** Google's numbers when this is one of the searches the site already appears in; null means a suggestion only. */
+  measured?: Measured | null;
 }
 
 export interface StrategyBlogPost {
@@ -375,7 +381,7 @@ ${rivals || 'No competitors have been read yet.'}
 
 PRICES BY CATEGORY (lowest–highest, number of priced products)
 ${prices || '  (no category where both sides show prices)'}
-
+${facts.search ? `\n${demandPromptLines(facts.search, pathOnly)}\n` : ''}
 Return JSON exactly in this shape:
 {
   "summary": "2-3 plain sentences: where this business stands against its competitors on products, prices and marketing",
@@ -392,7 +398,7 @@ Return JSON exactly in this shape:
 Rules:
 - rivalProducts: up to ${RIVAL_PRODUCTS_KEPT}, only addresses from the "push hardest" lists, the strongest first. Pages marked "may be a product" only if their name clearly is a product for sale.
 - Nobody can see a competitor's sales. Say "they push" or "they promote", never "best-selling" or "sells the most".
-- keywords: ${KEYWORDS_KEPT - 2}-${KEYWORDS_KEPT}. blogPosts: ${BLOGS_KEPT - 1}-${BLOGS_KEPT}, each countering something a competitor does. actions: 3-${ACTIONS_KEPT}, most important first.
+- keywords: ${KEYWORDS_KEPT - 2}-${KEYWORDS_KEPT}. Where one of the real Google searches listed above fits, use that exact search as the phrase, especially the ones it almost wins. blogPosts: ${BLOGS_KEPT - 1}-${BLOGS_KEPT}, each countering something a competitor does. actions: 3-${ACTIONS_KEPT}, most important first.
 - Only quote prices listed above. Do not invent sales figures, search volumes, rankings, percentages or products.
 - Plain everyday words, no jargon.`;
 }
@@ -501,6 +507,7 @@ export function normaliseStrategy(raw: Record<string, unknown>, facts: StrategyF
   }
 
   const productNames = new Set(facts.you.products.map((p) => p.name.toLowerCase()));
+  const searches = facts.search?.status === 'OK' ? indexSearches([...facts.search.topSearches, ...facts.search.almostWinning]) : null;
   const keywords: StrategyKeyword[] = [];
   const seenPhrases = new Set<string>();
   for (const item of Array.isArray(raw.keywords) ? raw.keywords : []) {
@@ -508,7 +515,13 @@ export function normaliseStrategy(raw: Record<string, unknown>, facts: StrategyF
     if (!phrase || seenPhrases.has(phrase.toLowerCase())) continue;
     seenPhrases.add(phrase.toLowerCase());
     const forProduct = str((item as any)?.forProduct, 160);
-    keywords.push({ phrase, why: str((item as any)?.why, 300), forProduct: productNames.has(forProduct.toLowerCase()) ? forProduct : null });
+    keywords.push({
+      phrase,
+      why: str((item as any)?.why, 300),
+      forProduct: productNames.has(forProduct.toLowerCase()) ? forProduct : null,
+      // Numbers come from Search Console, matched by the same words, never from the model.
+      measured: searches ? measure(phrase, searches, facts.search!.days) : null,
+    });
     if (keywords.length >= KEYWORDS_KEPT) break;
   }
 
@@ -552,4 +565,12 @@ export function normaliseStrategy(raw: Record<string, unknown>, facts: StrategyF
     positioning,
     actions,
   };
+}
+
+function pathOnly(url: string): string {
+  try {
+    return new URL(url).pathname || '/';
+  } catch {
+    return url;
+  }
 }

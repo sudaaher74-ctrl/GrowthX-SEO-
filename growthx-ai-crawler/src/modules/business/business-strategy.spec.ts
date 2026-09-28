@@ -197,6 +197,26 @@ describe('normaliseStrategy', () => {
     expect(s.rivalProducts[0].whyItWorks).toBe('It is their most promoted.');
   });
 
+  it("puts Google's numbers on a strategy keyword that is one of the site's real searches", () => {
+    const f = {
+      ...facts(),
+      search: {
+        status: 'OK' as const,
+        days: 28,
+        range: { start: '2026-08-31', end: '2026-09-27' },
+        topSearches: [{ query: 'a2 milk pune', impressions: 120, clicks: 9, position: 6.04, page: null }],
+        almostWinning: [],
+      },
+    };
+    const s = normaliseStrategy(
+      { keywords: [{ phrase: 'Pune A2 milk', why: 'x' }, { phrase: 'ghee online', why: 'y' }] },
+      f,
+    );
+    expect(s.keywords[0].measured).toEqual({ impressions: 120, clicks: 9, position: 6, days: 28, page: null });
+    expect(s.keywords[1].measured).toBeNull();
+    expect(buildStrategyPrompt(f)).toContain('"a2 milk pune": shown 120 times, 9 clicks, average position 6');
+  });
+
   it('survives an answer missing whole sections', () => {
     const s = normaliseStrategy({}, facts());
     expect(s).toEqual({ summary: '', rivalProducts: [], pricing: [], keywords: [], blogPosts: [], positioning: null, actions: [] });

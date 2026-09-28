@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { SearchConsoleService } from './search-console.service';
 import { SearchConsoleInsightsService } from './search-console-insights.service';
+import { SearchDemandService } from './search-demand.service';
 
 @ApiTags('Search Console')
 @ApiBearerAuth()
@@ -12,7 +13,19 @@ export class SearchConsoleController {
   constructor(
     private readonly gsc: SearchConsoleService,
     private readonly insights: SearchConsoleInsightsService,
+    private readonly demand: SearchDemandService,
   ) {}
+
+  /**
+   * The searches the site appears in, with the ones it almost wins, and
+   * whether Search Console is connected at all — for the screens that show
+   * real numbers beside suggestions (the action plan, reports, strategy).
+   */
+  @Get('demand')
+  @ApiOperation({ summary: 'Top searches, searches just off page one, and connection status (last 28 days)' })
+  searchDemand(@Param('projectId') projectId: string) {
+    return this.demand.forProject(projectId);
+  }
 
   /** Properties the connected Google account can read, for the picker. */
   @Get('properties')
