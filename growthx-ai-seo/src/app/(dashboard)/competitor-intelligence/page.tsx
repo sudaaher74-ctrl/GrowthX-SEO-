@@ -73,6 +73,11 @@ const LEGACY_TAB_MAP: Record<string, string> = {
  * competitors are being crawled. It polls automatically via the query's
  * refetchInterval and disappears once all crawls complete.
  */
+/** A crawl job the server has queued or is running. JobStatus is PENDING | RUNNING | COMPLETED | FAILED | CANCELLED. */
+function isReading(c: TrackedCompetitor): boolean {
+  return c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING";
+}
+
 function CrawlStatusStrip({
   competitors,
   onRemove,
@@ -80,75 +85,56 @@ function CrawlStatusStrip({
   competitors: TrackedCompetitor[];
   onRemove: (competitor: TrackedCompetitor) => void;
 }) {
-  const crawling = competitors.filter(
-    (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
-  );
-  const done = competitors.filter(
-    (c) => c.crawlStatus === "DONE" || (c.status === "ACTIVE" && c.pagesCrawled !== undefined && c.pagesCrawled !== null && c.pagesCrawled > 0),
-  );
+  // These used to test for IN_PROGRESS, QUEUED and DONE, which no crawl job is
+  // ever in, so the strip never appeared and nothing said a competitor was
+  // being read. The Battleground's "Websites we read" panel has the detail.
+  const crawling = competitors.filter(isReading);
+  const done = competitors.filter((c) => !isReading(c) && c.crawlStatus === "COMPLETED");
 
   if (crawling.length === 0) return null;
 
   return (
-    <div
-      className="rounded-2xl border bg-white p-4 shadow-xs"
-      style={{ borderColor: "var(--border-color, #e2e8f0)" }}
-    >
-      <div className="flex items-center gap-2 mb-3">
+    <div className="rounded-xl border bg-white p-4 shadow-card">
+      <div className="mb-3 flex items-center gap-2">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-950" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary-600" />
         </span>
-        <Radar size={14} className="text-slate-900" />
-        <span className="text-[12px] font-bold text-slate-900">
+        <Radar size={14} className="text-primary-600" />
+        <span className="text-[12px] font-semibold text-brand-950">
           Reading {crawling.length} competitor website{crawling.length > 1 ? "s" : ""}. This usually takes a few minutes.
         </span>
-        <Loader2 size={13} className="animate-spin text-slate-900 ml-auto" />
+        <Loader2 size={13} className="ml-auto animate-spin text-primary-600" />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {crawling.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2 shadow-2xs"
-            style={{ borderColor: "var(--border-color, #e2e8f0)" }}
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-800">
+          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-[10px] font-bold text-primary-700">
               {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-slate-500">
-                {c.crawlStatus === "QUEUED" || c.status === "PENDING"
-                  ? "Waiting to start…"
-                  : c.pagesCrawled !== undefined && c.pagesCrawled !== null && c.pagesCrawled > 0
-                  ? `${c.pagesCrawled.toLocaleString()} pages read so far`
-                  : "Reading their pages…"}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-brand-500">
+                {c.crawlStatus === "PENDING" ? "Waiting to start…" : "Reading their pages…"}
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin text-slate-900" />
+              <Loader2 size={11} className="animate-spin text-primary-600" />
               <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
             </div>
           </div>
         ))}
 
         {done.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center gap-2.5 rounded-xl border bg-emerald-50/60 px-3 py-2 border-emerald-200 shadow-2xs"
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-success-200 bg-success-50 px-3 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-success-100 text-success-600">
               <CheckCircle2 size={14} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11.5px] font-semibold text-slate-900 truncate">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-emerald-700">
-                {c.pagesCrawled === 0
-                  ? "Couldn't read any pages. Their website may be blocking us."
-                  : c.pagesCrawled !== undefined && c.pagesCrawled !== null
-                    ? `Done: ${c.pagesCrawled.toLocaleString()} pages read`
-                    : "Done"}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-success-700">
+                {c.pagesCrawled ? `Done: ${c.pagesCrawled.toLocaleString()} pages read` : "Done"}
               </p>
             </div>
             <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
@@ -156,7 +142,7 @@ function CrawlStatusStrip({
         ))}
       </div>
 
-      <p className="mt-2.5 text-[10.5px] text-slate-400">
+      <p className="mt-2.5 text-[10.5px] text-brand-400">
         We re-check every competitor automatically. Results appear in each tab as soon as a website has been read.
       </p>
     </div>
@@ -253,10 +239,7 @@ function CompetitorIntelligenceClient() {
     enabled: !!projectId,
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
-      const activelyCrawling = list.some(
-        (c) => c.crawlStatus === "IN_PROGRESS" || c.crawlStatus === "QUEUED" || c.status === "PENDING",
-      );
-      return activelyCrawling ? 4000 : false;
+      return list.some(isReading) ? 4000 : false;
     },
   });
 
@@ -270,6 +253,7 @@ function CompetitorIntelligenceClient() {
       setCompetitorDomain("");
       setCompetitorName("");
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
       if (newComp?.id) {
         crawlCompetitorMutation.mutate(newComp.id);
       }
@@ -283,6 +267,7 @@ function CompetitorIntelligenceClient() {
     mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
     },
   });
 
@@ -293,6 +278,7 @@ function CompetitorIntelligenceClient() {
     mutationFn: (competitorId: string) => api.removeCompetitor(projectId!, competitorId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
       setCompetitorToDelete(null);
     },
     onError: (err: Error) => {

@@ -10,6 +10,7 @@ import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './cita
 import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
 import { competitorCrawlState } from './competitor-crawl-state';
+import { readState, toPageTypeCounts, WebsiteOverview } from './website-overview';
 
 export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
 
@@ -400,6 +401,104 @@ export class AiVisibilityService {
    * cited yet. Automatically initiates competitor crawl for any uncrawled
    * domain and resolves genuine technical health scores and crawl status.
    */
+  /**
+   * Every website on the Competitor Intelligence page, the customer's own
+   * first: whether each one is being read, how much of it has been read, when,
+   * and what kinds of pages it has.
+   *
+   * Built on listCompetitors rather than beside it, so the per-competitor work
+   * that must happen in one place — starting a crawl for a competitor never
+   * read, scoring its health — still happens in one place.
+   */
+  async websitesOverview(projectId: string): Promise<{ sites: WebsiteOverview[] }> {
+    const competitors = await this.listCompetitors(projectId);
+    const competitorDomains = competitors.map((c) => normalizeDomain(c.domain));
+
+    const [websites, location] = await Promise.all([
+      this.prisma.website.findMany({
+        where: { OR: [{ projectId }, { domain: { in: competitorDomains } }] },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          domain: true,
+          projectId: true,
+          crawlJobs: {
+            orderBy: { createdAt: 'desc' },
+            take: 6,
+            select: {
+              id: true,
+              status: true,
+              pagesCrawled: true,
+              healthScore: true,
+              errorMessage: true,
+              createdAt: true,
+              startedAt: true,
+              finishedAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+      }),
+      this.prisma.localLocation.findFirst({
+        where: { projectId },
+        orderBy: { createdAt: 'asc' },
+        select: { rating: true, reviewCount: true },
+      }),
+    ]);
+    const own = websites.find((w) => w.projectId === projectId) ?? null;
+    const byDomain = new Map(websites.map((w) => [w.domain, w]));
+
+    const rows: Array<Omit<WebsiteOverview, 'pageTypes'> & { readCrawlId: string | null }> = [];
+    if (own) {
+      const state = readState(own.crawlJobs);
+      rows.push({
+        role: 'you',
+        competitorId: null,
+        domain: own.domain,
+        name: 'Your website',
+        ...state,
+        healthScore: own.crawlJobs.find((j) => j.id === state.readCrawlId)?.healthScore ?? null,
+        // No Business Profile location is "not connected", not a zero rating.
+        rating: location ? location.rating : null,
+        reviewCount: location ? location.reviewCount : null,
+      });
+    }
+    for (const c of competitors) {
+      const site = byDomain.get(normalizeDomain(c.domain));
+      rows.push({
+        role: 'competitor',
+        competitorId: c.id,
+        domain: c.domain,
+        name: c.label,
+        ...readState(site?.crawlJobs ?? []),
+        healthScore: c.healthScore,
+        rating: c.rating,
+        reviewCount: c.reviewCount,
+      });
+    }
+
+    // One query for every site's page kinds, from the crawl its figures come
+    // from. Broken pages are left out: a 404 is not a product page they have.
+    const crawlIds = rows.map((r) => r.readCrawlId).filter((id): id is string => Boolean(id));
+    const grouped = crawlIds.length
+      ? await this.prisma.page.groupBy({
+          by: ['crawlJobId', 'pageType'],
+          where: { crawlJobId: { in: crawlIds }, statusCode: { lt: 400 } },
+          _count: { _all: true },
+        })
+      : [];
+
+    return {
+      sites: rows.map(({ readCrawlId, ...row }) => ({
+        ...row,
+        pageTypes: toPageTypeCounts(
+          grouped
+            .filter((g) => g.crawlJobId === readCrawlId)
+            .map((g) => ({ pageType: g.pageType, count: g._count._all })),
+        ),
+      })),
+    };
+  }
+
   async listCompetitors(projectId: string) {
     const competitors = await this.prisma.competitorDomain.findMany({
       where: { projectId },

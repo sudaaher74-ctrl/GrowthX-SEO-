@@ -136,3 +136,24 @@ export function toDisplayPageType(type: string): string {
   }
 }
 
+/**
+ * Plural, customer-facing names for each kind of page, for counts such as
+ * "24 Product pages". Every PageType has one, so no screen falls back to
+ * printing an enum.
+ */
+export const PAGE_TYPE_LABELS: Record<string, string> = {
+  HOME: 'Homepage',
+  SERVICE: 'Service pages',
+  PRODUCT: 'Product pages',
+  CATEGORY: 'Category pages',
+  LOCATION: 'Location pages',
+  BLOG: 'Articles and guides',
+  CASE_STUDY: 'Case studies',
+  FAQ: 'FAQ pages',
+  ABOUT: 'About pages',
+  CONTACT: 'Contact pages',
+  LEGAL: 'Legal pages',
+  STATIC: 'Policy pages',
+  LANDING: 'Landing pages',
+  OTHER: 'Other pages',
+};
