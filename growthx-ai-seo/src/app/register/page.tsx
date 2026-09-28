@@ -109,8 +109,11 @@ export default function RegisterPage() {
         />
         <Field
           label="Password"
+          hint="At least 8 characters"
           type="password"
           required
+          minLength={8}
+          maxLength={128}
           autoComplete="new-password"
           value={form.password}
           onChange={set("password")}

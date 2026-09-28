@@ -1,4 +1,6 @@
 import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res, UseFilters } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GoogleAuthGuard } from './google-auth.guard';
@@ -13,8 +15,13 @@ export class AuthController {
     private usersService: UsersService,
   ) {}
 
+  /**
+   * Far tighter than the global limit, which allowed 120 password guesses a
+   * minute from one address. Ten a minute is plenty for a person mistyping.
+   */
   @Post('login')
-  async login(@Body() body: any) {
+  @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
+  async login(@Body() body: LoginDto) {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -27,8 +34,10 @@ export class AuthController {
     return this.authService.refresh(body?.refresh_token ?? '');
   }
 
+  /** Sign-ups from one address, capped so a script cannot mass-create accounts. */
   @Post('register')
-  async register(@Body() body: any) {
+  @Throttle({ burst: { limit: 2, ttl: 1_000 }, sustained: { limit: 5, ttl: 60_000 } })
+  async register(@Body() body: RegisterDto) {
     return this.authService.register(body);
   }
 

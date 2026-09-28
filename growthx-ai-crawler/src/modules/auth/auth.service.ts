@@ -13,7 +13,8 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+    if (typeof email !== 'string' || typeof pass !== 'string' || !email.trim() || !pass) return null;
+    const user = await this.usersService.findByEmail(normaliseEmail(email));
     if (user && await bcrypt.compare(pass, user.passwordHash)) {
       const { passwordHash: _passwordHash, ...result } = user;
       return result;
@@ -74,20 +75,31 @@ export class AuthService {
     return this.issueTokens({ id: user.id, email: user.email });
   }
 
-  async register(data: any) {
-    const existingUser = await this.usersService.findByEmail(data.email);
+  async register(data: { email: string; password: string; firstName?: string; lastName?: string }) {
+    // One spelling per address: "Priya@Shop.in" and "priya@shop.in" are the
+    // same inbox and must not become two accounts.
+    const email = normaliseEmail(data.email);
+    const existingUser = await this.usersService.findByEmail(email);
     if (existingUser) {
       throw new BadRequestException('User with this email already exists');
     }
     const saltOrRounds = 10;
     const passwordHash = await bcrypt.hash(data.password, saltOrRounds);
-    
-    const user = await this.usersService.createUser({
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-    });
+
+    let user;
+    try {
+      user = await this.usersService.createUser({
+        email,
+        passwordHash,
+        firstName: data.firstName?.trim() || undefined,
+        lastName: data.lastName?.trim() || undefined,
+      });
+    } catch (error: any) {
+      // Two sign-ups for the same address at the same moment: the second hits
+      // the unique index. Same answer as the check above, not a 500.
+      if (error?.code === 'P2002') throw new BadRequestException('User with this email already exists');
+      throw error;
+    }
     
     // Auto-create a default workspace for the new user
     await this.organizationsService.createOrganization(user.id, {
@@ -151,3 +163,7 @@ export class AuthService {
   }
 }
 
+/** Trimmed and lower-cased: the form every new account's email is stored in. */
+export function normaliseEmail(email: string): string {
+  return String(email ?? '').trim().toLowerCase();
+}

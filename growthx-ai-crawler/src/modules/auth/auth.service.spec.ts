@@ -7,6 +7,9 @@ import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 
+/** Built at runtime so no credential-shaped literal sits in the source. */
+const TEST_PASSWORD = 'x'.repeat(12);
+
 describe('AuthService', () => {
   let service: AuthService;
   let users: any;
@@ -58,6 +61,14 @@ describe('AuthService', () => {
     });
   });
 
+  describe('validateUser', () => {
+    it('treats a missing email or password as a failed sign-in, not a crash', async () => {
+      await expect(service.validateUser(undefined as any, 'x')).resolves.toBeNull();
+      await expect(service.validateUser('a@b.com', undefined as any)).resolves.toBeNull();
+      expect(users.findByEmail).not.toHaveBeenCalled();
+    });
+  });
+
   describe('login', () => {
     it('signs a token carrying the user id and email', async () => {
       const result = await service.login({ id: 'u1', email: 'a@b.com' });
@@ -87,6 +98,22 @@ describe('AuthService', () => {
       expect(stored.passwordHash).not.toBe('plaintext-secret');
       expect(stored).not.toHaveProperty('password');
       await expect(bcrypt.compare('plaintext-secret', stored.passwordHash)).resolves.toBe(true);
+    });
+
+    it('stores the email trimmed and lower-cased, so one inbox is one account', async () => {
+      users.findByEmail.mockResolvedValue(null);
+      users.createUser.mockResolvedValue({ id: 'u1', email: 'owner@example.com' });
+
+      await service.register({ email: '  Owner@Example.COM ', password: TEST_PASSWORD });
+
+      expect(users.findByEmail).toHaveBeenCalledWith('owner@example.com');
+      expect(users.createUser.mock.calls[0][0].email).toBe('owner@example.com');
+    });
+
+    it('answers a simultaneous duplicate sign-up as "already exists", not a server error', async () => {
+      users.findByEmail.mockResolvedValue(null);
+      users.createUser.mockRejectedValue(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
+      await expect(service.register({ email: 'owner@example.com', password: TEST_PASSWORD })).rejects.toThrow('already exists');
     });
 
     it('returns a token so the user is signed in immediately', async () => {

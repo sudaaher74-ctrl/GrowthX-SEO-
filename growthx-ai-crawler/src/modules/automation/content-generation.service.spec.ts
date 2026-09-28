@@ -29,6 +29,7 @@ describe('ContentGenerationService', () => {
       contentPiece: {
         upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'piece_1', ...create })),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'piece_1', ...data })),
         findMany: jest.fn().mockResolvedValue([]),
       },
@@ -95,7 +96,7 @@ describe('ContentGenerationService', () => {
 
   describe('draft', () => {
     beforeEach(() => {
-      prisma.contentPiece.findUnique.mockResolvedValue({
+      prisma.contentPiece.findFirst.mockResolvedValue({
         id: 'piece_1',
         projectId: 'proj_1',
         title: 'Best Insulated Jackets',
@@ -107,7 +108,7 @@ describe('ContentGenerationService', () => {
     });
 
     it('writes the brief from the same evidence the strategy used', async () => {
-      await service.draft('piece_1', 'org_1');
+      await service.draft('proj_1', 'piece_1', 'org_1');
       const prompt = router.generate.mock.calls[0][0].prompt;
       expect(prompt).toContain('Northwind Outdoors');
       expect(prompt).toContain('best insulated jacket');
@@ -115,15 +116,15 @@ describe('ContentGenerationService', () => {
     });
 
     it('marks the piece DRAFTED with the generated body', async () => {
-      const result = await service.draft('piece_1', 'org_1');
+      const result = await service.draft('proj_1', 'piece_1', 'org_1');
       expect(result.status).toBe(ContentPieceStatus.DRAFTED);
       expect(result.body).toContain('Why insulation matters');
       expect(result.generatedByModel).toBe('claude-opus-5');
     });
 
     it('refuses for an unknown piece', async () => {
-      prisma.contentPiece.findUnique.mockResolvedValue(null);
-      await expect(service.draft('missing', 'org_1')).rejects.toThrow(BadRequestException);
+      prisma.contentPiece.findFirst.mockResolvedValue(null);
+      await expect(service.draft('proj_1', 'missing', 'org_1')).rejects.toThrow(BadRequestException);
     });
 
     it('does not write a piece when the model refuses', async () => {
@@ -134,7 +135,7 @@ describe('ContentGenerationService', () => {
         usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: null },
         refused: true,
       });
-      await expect(service.draft('piece_1', 'org_1')).rejects.toThrow(ServiceUnavailableException);
+      await expect(service.draft('proj_1', 'piece_1', 'org_1')).rejects.toThrow(ServiceUnavailableException);
       expect(prisma.contentPiece.update).not.toHaveBeenCalled();
     });
 
@@ -146,7 +147,7 @@ describe('ContentGenerationService', () => {
         usage: { inputTokens: 1, outputTokens: 1, estimatedCostUsd: null },
         refused: false,
       });
-      await expect(service.draft('piece_1', 'org_1')).rejects.toThrow(ServiceUnavailableException);
+      await expect(service.draft('proj_1', 'piece_1', 'org_1')).rejects.toThrow(ServiceUnavailableException);
     });
   });
 

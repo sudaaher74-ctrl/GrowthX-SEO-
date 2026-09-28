@@ -46,8 +46,8 @@ export class StrategyController {
   @ApiOperation({ summary: 'One strategy report, with the evidence it was built from' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'reportId' })
-  get(@Param('reportId') reportId: string) {
-    return this.strategy.get(reportId);
+  get(@Param('projectId') projectId: string, @Param('reportId') reportId: string) {
+    return this.strategy.get(projectId, reportId);
   }
 
   @Post()

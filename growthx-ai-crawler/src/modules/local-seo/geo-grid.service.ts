@@ -344,9 +344,9 @@ export class GeoGridService {
   }
 
   /** One stored run with every coordinate and the businesses seen there. */
-  async run(runId: string) {
-    return this.prisma.geoGridRun.findUnique({
-      where: { id: runId },
+  async run(projectId: string, runId: string) {
+    return this.prisma.geoGridRun.findFirst({
+      where: { id: runId, projectId },
       include: {
         points: {
           orderBy: [{ row: 'asc' }, { col: 'asc' }],

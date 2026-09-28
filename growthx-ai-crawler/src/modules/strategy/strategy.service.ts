@@ -304,8 +304,8 @@ export class StrategyService {
     });
   }
 
-  async get(reportId: string) {
-    const report = await this.prisma.strategyReport.findUnique({ where: { id: reportId } });
+  async get(projectId: string, reportId: string) {
+    const report = await this.prisma.strategyReport.findFirst({ where: { id: reportId, projectId } });
     if (!report) throw new NotFoundException('Strategy report not found');
     return report;
   }

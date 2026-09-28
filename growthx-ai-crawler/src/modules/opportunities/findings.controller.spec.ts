@@ -93,7 +93,19 @@ describe('FindingsController', () => {
   });
 
   describe('transition', () => {
+    it("refuses a finding that belongs to a different project", async () => {
+      mockPrisma.growthOpportunity.findFirst.mockResolvedValueOnce(null);
+      await expect(
+        controller.transition({ organizationId: 'org-1', user: { id: 'user-1' } }, 'proj-1', 'finding-of-another-project', {
+          to: FindingLifecycle.APPROVED,
+        }),
+      ).rejects.toThrow('not found');
+      expect(mockPrisma.growthOpportunity.findFirst.mock.calls.at(-1)[0].where).toEqual({ id: 'finding-of-another-project', projectId: 'proj-1' });
+      expect(mockLifecycleService.transition).not.toHaveBeenCalled();
+    });
+
     it('calls lifecycleService.transition with provided parameters', async () => {
+      mockPrisma.growthOpportunity.findFirst.mockResolvedValue({ id: 'finding-1' });
       const res = await controller.transition(
         { organizationId: 'org-1', user: { id: 'user-1' } },
         'proj-1',

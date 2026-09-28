@@ -90,7 +90,7 @@ export class ContentAgentController {
   @ApiOperation({ summary: 'Approve or reject a draft. Nothing publishes without this.' })
   @ApiParam({ name: 'projectId' })
   @ApiParam({ name: 'pieceId' })
-  review(@Param('pieceId') pieceId: string, @Body() body: ReviewDecisionDto) {
-    return this.contentAgent.review(pieceId, body.decision);
+  review(@Param('projectId') projectId: string, @Param('pieceId') pieceId: string, @Body() body: ReviewDecisionDto) {
+    return this.contentAgent.review(projectId, pieceId, body.decision);
   }
 }

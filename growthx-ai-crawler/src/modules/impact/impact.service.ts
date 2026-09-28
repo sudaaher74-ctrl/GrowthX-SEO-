@@ -139,8 +139,10 @@ export class ImpactService {
   }
 
   /** Marks a recorded change as live, which starts its measurement clock. */
-  async markShipped(interventionId: string, mergedSha?: string, afterPageId?: string) {
-    const intervention = await this.prisma.fixIntervention.findUnique({ where: { id: interventionId } });
+  async markShipped(projectId: string, interventionId: string, mergedSha?: string, afterPageId?: string) {
+    // By project as well as id: an id from another customer's project reads
+    // as not found, never as theirs to change.
+    const intervention = await this.prisma.fixIntervention.findFirst({ where: { id: interventionId, projectId } });
     if (!intervention) throw new NotFoundException(`Intervention ${interventionId} not found.`);
     if (intervention.arm === InterventionArm.HOLD) {
       throw new BadRequestException(
@@ -167,11 +169,12 @@ export class ImpactService {
    * them hides the disagreement that is usually the actionable part.
    */
   async measure(
+    projectId: string,
     interventionId: string,
     windowDays: MeasurementWindow,
     assistant: AiAssistant | null = null,
   ): Promise<InterventionMeasurement> {
-    const intervention = await this.prisma.fixIntervention.findUnique({ where: { id: interventionId } });
+    const intervention = await this.prisma.fixIntervention.findFirst({ where: { id: interventionId, projectId } });
     if (!intervention) throw new NotFoundException(`Intervention ${interventionId} not found.`);
     if (!intervention.shippedAt) {
       throw new BadRequestException(
