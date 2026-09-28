@@ -6,6 +6,7 @@ import { ActionButton, Panel, Pill, relativeTime } from "@/components/ui/console
 import { api, type WebsiteAuditReport } from "@/lib/api-client";
 import { auditReportFilename, auditToCsv, auditToMarkdown, pageRows, severityWord } from "@/lib/audit-report";
 import { download, markdownToPrintableHtml, themeColours } from "@/lib/competitor-report";
+import { ContentIdeasPanels } from "@/components/content/content-ideas-panels";
 
 const PRIORITY_TONE = { high: "bad", medium: "warn", low: "default" } as const;
 
@@ -198,6 +199,8 @@ export function AuditReportTab({ projectId }: { projectId: string }) {
           )}
         </>
       )}
+
+      {data && <ContentIdeasPanels projectId={projectId} ideas={data.ideas} error={data.ideasError} />}
 
       {data && (
         <Panel title="Your pages, measured" subtitle="Counted from the latest read of your website. Included in both downloads.">

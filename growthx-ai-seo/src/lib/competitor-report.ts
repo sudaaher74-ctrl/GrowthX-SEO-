@@ -1,3 +1,4 @@
+import { ideasToMarkdown } from "@/lib/content-ideas";
 import type { CompetitorIntelReport, IntelPriority, IntelReportRival } from "@/lib/api-client";
 
 /** Downloads for the competitor report: Markdown to read, CSV to work in, HTML to print. */
@@ -101,6 +102,8 @@ export function toMarkdown(report: CompetitorIntelReport): string {
   } else {
     out.push(`## Analysis\nNot available: ${report.analysisError ?? "unknown reason"}. The measured facts below are complete.`);
   }
+
+  out.push(...ideasToMarkdown(report.ideas));
 
   out.push(`## What each rival has, measured`);
   if (facts.you) out.push(`Your site: ${facts.you.name} (${facts.you.domain}), crawled ${date(facts.you.crawledAt)}, ${num(facts.you.pagesCrawled, " pages")}.`);

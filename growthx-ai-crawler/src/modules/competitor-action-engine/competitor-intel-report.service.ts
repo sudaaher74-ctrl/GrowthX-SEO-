@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
@@ -6,6 +6,7 @@ import { brandTerms, questionGroup } from '../ai-visibility/questions/question-g
 import { normalizeDomain } from '../ai-visibility/citation/citation-detector';
 import { CompetitorSeoReportService, SideBySide } from './competitor-seo-report.service';
 import { AdvantagePage, LONG_PAGE_WORDS, RivalAdvantages, computeAdvantages, dedupePages } from './rival-advantages';
+import { ContentIdeas, ContentIdeasService } from '../content-ideas/content-ideas.service';
 
 /** Rivals read into one report; the rest are named as not included. */
 export const MAX_RIVALS = 7;
@@ -84,6 +85,10 @@ export interface CompetitorIntelReport {
   model: string | null;
   /** Why there is no analysis, when there is none. The facts are still usable. */
   analysisError: string | null;
+  /** Search phrases and blog posts Sarvam suggests, from your pages and the rivals' topics. Absent on older reports. */
+  ideas?: ContentIdeas | null;
+  /** Why there are no suggestions, when there are none. */
+  ideasError?: string | null;
   /** The stored copy of this report, when it could be saved. */
   snapshotId?: string | null;
 }
@@ -158,6 +163,7 @@ export class CompetitorIntelReportService {
     private readonly prisma: PrismaService,
     private readonly seoReport: CompetitorSeoReportService,
     private readonly router: MultiAiRouterService,
+    @Optional() private readonly contentIdeas?: ContentIdeasService,
   ) {}
 
   async gatherFacts(projectId: string): Promise<ReportFacts> {
@@ -310,6 +316,18 @@ export class CompetitorIntelReportService {
 
   private async write(projectId: string, organizationId?: string): Promise<CompetitorIntelReport> {
     const facts = await this.gatherFacts(projectId);
+    // Side by side, as their own Sarvam call: the suggestions draw on what the
+    // rivals cover that you do not, and neither call can cost the other.
+    const [report, ideas] = await Promise.all([
+      this.analyse(facts, projectId, organizationId),
+      this.contentIdeas
+        ? this.contentIdeas.forReport(projectId, organizationId, ideasContext(facts))
+        : { ideas: null, ideasError: null },
+    ]);
+    return { ...report, ...ideas };
+  }
+
+  private async analyse(facts: ReportFacts, projectId: string, organizationId?: string): Promise<CompetitorIntelReport> {
     const base = { generatedAt: new Date().toISOString(), facts };
 
     try {
@@ -347,6 +365,14 @@ export class CompetitorIntelReportService {
       };
     }
   }
+}
+
+/** The rivals' topics you have no page for, and the questions they answer, for the suggestions. */
+export function ideasContext(facts: ReportFacts) {
+  return {
+    rivalTopics: facts.rivals.flatMap((r) => (r.advantages?.missingTopics ?? []).map((t) => ({ title: t.title, rival: r.name }))),
+    rivalQuestions: [...new Set(facts.rivals.flatMap((r) => r.advantages?.questions.theirs ?? []))],
+  };
 }
 
 function advantagesBlock(a: RivalAdvantages): string {

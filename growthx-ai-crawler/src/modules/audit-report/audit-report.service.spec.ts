@@ -88,6 +88,38 @@ describe('AuditReportService', () => {
   });
 });
 
+describe('AuditReportService keyword and blog ideas', () => {
+  const ideas = { keywords: [{ phrase: 'a2 milk delivery', why: 'x', usePage: null }], blogIdeas: [], model: 'sarvam-105b' };
+
+  it('adds the suggestions beside the analysis, and stores them with the report', async () => {
+    const router = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok', fixes: [] }), refused: false, model: 'sarvam-105b' }) };
+    const { prisma } = setup(router);
+    const contentIdeas = { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) };
+    const service = new AuditReportService(prisma as any, { countsForProject: jest.fn().mockResolvedValue({ crawledAt: '2026-09-24T00:00:00Z', healthScore: 72, bySeverity: {} }) } as any, { groupsForProject: jest.fn().mockResolvedValue({ groups: [] }) } as any, router as any, contentIdeas as any);
+
+    const report = await service.generate('p1', 'org1');
+
+    expect(contentIdeas.forReport).toHaveBeenCalledWith('p1', 'org1');
+    expect(report).toMatchObject({ analysis: expect.objectContaining({ summary: 'ok' }), ideas, ideasError: null });
+    expect(prisma.auditReportSnapshot.create.mock.calls[0][0].data.report.ideas).toEqual(ideas);
+  });
+
+  it('keeps the suggestions when the analysis fails, and the analysis when the suggestions fail', async () => {
+    const router = { generate: jest.fn().mockRejectedValue(new Error('timeout')) };
+    const { prisma } = setup(router);
+    const counts = { countsForProject: jest.fn().mockResolvedValue({ crawledAt: '2026-09-24T00:00:00Z', healthScore: 72, bySeverity: {} }) };
+    const groups = { groupsForProject: jest.fn().mockResolvedValue({ groups: [] }) };
+    const ok = new AuditReportService(prisma as any, counts as any, groups as any, router as any, { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) } as any);
+    expect(await ok.generate('p1')).toMatchObject({ analysis: null, ideas });
+
+    const router2 = { generate: jest.fn().mockResolvedValue({ text: JSON.stringify({ summary: 'ok' }), refused: false, model: 'sarvam-105b' }) };
+    const failing = new AuditReportService(prisma as any, counts as any, groups as any, router2 as any, {
+      forReport: jest.fn().mockResolvedValue({ ideas: null, ideasError: 'Keyword and blog ideas could not be written: x' }),
+    } as any);
+    expect(await failing.generate('p1')).toMatchObject({ analysis: expect.objectContaining({ summary: 'ok' }), ideas: null, ideasError: expect.stringContaining('could not be written') });
+  });
+});
+
 describe('buildAuditPrompt', () => {
   it('carries the numbers and bans jargon in the answer', async () => {
     const { service } = setup({ generate: jest.fn() });

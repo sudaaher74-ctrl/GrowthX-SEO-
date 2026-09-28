@@ -121,6 +121,25 @@ describe('CompetitorIntelReportService.generate', () => {
   });
 });
 
+describe('CompetitorIntelReportService keyword and blog ideas', () => {
+  it("passes the rivals' topics and questions to the suggestions, and attaches them to the report", async () => {
+    const service = setup({ generate: jest.fn().mockResolvedValue({ text: '{}', refused: false, model: 'sarvam-105b' }) });
+    const ideas = { keywords: [], blogIdeas: [{ title: 'Why A2 milk?', covers: 'x', keyword: 'a2 milk' }], model: 'sarvam-105b' };
+    const contentIdeas = { forReport: jest.fn().mockResolvedValue({ ideas, ideasError: null }) };
+    (service as any).contentIdeas = contentIdeas;
+
+    const report = await service.generate('p1', 'org1');
+
+    const [projectId, orgId, context] = contentIdeas.forReport.mock.calls[0];
+    expect([projectId, orgId]).toEqual(['p1', 'org1']);
+    expect(context).toEqual({
+      rivalTopics: report.facts.rivals.flatMap((r) => (r.advantages?.missingTopics ?? []).map((t) => ({ title: t.title, rival: r.name }))),
+      rivalQuestions: expect.any(Array),
+    });
+    expect(report.ideas).toEqual(ideas);
+  });
+});
+
 describe('computeAdvantages', () => {
   const toAdv = (p: RawPage): AdvantagePage => ({ ...p, schemaTypes: p.schemas.map((s) => s.schemaType) });
   const a = computeAdvantages(OUR_PAGES.map(toAdv), THEIR_PAGES.map(toAdv));
