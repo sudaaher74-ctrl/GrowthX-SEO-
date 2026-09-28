@@ -9,6 +9,7 @@ import { QuestionAnalysisService } from './questions/question-analysis.service';
 import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
 import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
 import { calculateHealthScore } from '../issues/health-score.util';
+import { OWN_SCOPE } from '../crawler/website-scope';
 import { competitorCrawlState } from './competitor-crawl-state';
 import { notOpenedTotal, PageRowGroup, readState, summarisePages, WebsiteOverview } from './website-overview';
 
@@ -412,15 +413,19 @@ export class AiVisibilityService {
    */
   async websitesOverview(projectId: string): Promise<{ sites: WebsiteOverview[] }> {
     const competitors = await this.listCompetitors(projectId);
-    const competitorDomains = competitors.map((c) => normalizeDomain(c.domain));
+    // Each competitor by this project's own record of it, never by domain: a
+    // domain can have a record per customer, and only this project's is read.
+    const competitorWebsiteIds = competitors.map((c) => c.websiteId).filter((id): id is string => Boolean(id));
 
     const [websites, location] = await Promise.all([
       this.prisma.website.findMany({
-        where: { OR: [{ projectId }, { domain: { in: competitorDomains } }] },
+        where: { OR: [{ projectId, scope: OWN_SCOPE }, { id: { in: competitorWebsiteIds } }] },
         orderBy: { createdAt: 'desc' },
         select: {
+          id: true,
           domain: true,
           projectId: true,
+          scope: true,
           crawlJobs: {
             orderBy: { createdAt: 'desc' },
             take: 6,
@@ -444,8 +449,8 @@ export class AiVisibilityService {
         select: { rating: true, reviewCount: true },
       }),
     ]);
-    const own = websites.find((w) => w.projectId === projectId) ?? null;
-    const byDomain = new Map(websites.map((w) => [w.domain, w]));
+    const own = websites.find((w) => w.projectId === projectId && w.scope === OWN_SCOPE) ?? null;
+    const byId = new Map(websites.map((w) => [w.id, w]));
 
     type Counted = 'pageTypes' | 'pagesRead' | 'notOpened' | 'pagesSoFar' | 'notOpenedSoFar';
     const rows: Array<Omit<WebsiteOverview, Counted> & { readCrawlId: string | null; readingCrawlId: string | null }> = [];
@@ -464,7 +469,7 @@ export class AiVisibilityService {
       });
     }
     for (const c of competitors) {
-      const site = byDomain.get(normalizeDomain(c.domain));
+      const site = c.websiteId ? byId.get(c.websiteId) : undefined;
       rows.push({
         role: 'competitor',
         competitorId: c.id,
@@ -553,9 +558,12 @@ export class AiVisibilityService {
         if ((!website || state.retry) && this.competitorCrawl) {
           try {
             const orgId = c.project?.organizationId || '';
-            await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
-            website = await this.prisma.website.findFirst({
-              where: { domain: normalizeDomain(c.domain) },
+            const started = await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
+            // This project's own record of the competitor, never one found by
+            // domain: another customer tracking the same site has a record of
+            // their own, and its crawls are theirs.
+            website = await this.prisma.website.findUnique({
+              where: { id: started.websiteId },
               include: { crawlJobs: { orderBy: { createdAt: 'desc' }, take: 6 } },
             });
             state = competitorCrawlState(website?.crawlJobs ?? []);
@@ -604,6 +612,7 @@ export class AiVisibilityService {
 
         return {
           id: c.id,
+          websiteId: website?.id ?? null,
           domain: c.domain,
           label: c.label || c.name || c.domain,
           name: c.name || c.label,
@@ -696,7 +705,7 @@ export class AiVisibilityService {
     if (deleted.count === 0 || !competitor) throw new NotFoundException('Competitor not found for this project.');
 
     // Stop the site's crawl too, or it runs to the end for nobody.
-    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, competitor.websiteId, competitor.domain).catch(
+    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, competitor.websiteId).catch(
       (error: any) => {
         this.logger.warn(`Could not stop crawls for removed competitor ${competitor.domain}: ${error.message}`);
         return 0;
