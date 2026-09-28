@@ -101,26 +101,37 @@ test.describe("dashboard issue counts", () => {
   });
 
   test("shows the severity breakdown it was given, not zeros", async ({ page }) => {
-    const card = page.locator("text=Technical SEO Health").locator("xpath=ancestor::*[.//text()[contains(., 'Critical')]][1]");
+    const card = page
+      .getByText("How healthy is your website?")
+      .locator("xpath=ancestor::*[.//text()[contains(., 'Urgent')]][1]");
     await expect(card).toBeVisible({ timeout: 15_000 });
 
-    // Each tile is its number followed by its label.
-    for (const [label, value] of [["Critical", "1"], ["High", "30"], ["Medium", "2"], ["Low", "0"]] as const) {
-      const tile = card.locator("div", { has: page.getByText(label, { exact: true }) }).last();
-      await expect(tile, `${label} tile`).toContainText(value);
+    // Each legend entry is its plain-word label followed by its number:
+    // Critical reads as Urgent, High as Important, Medium as Moderate, Low as Minor.
+    for (const [label, value] of [["Urgent", "1"], ["Important", "30"], ["Moderate", "2"], ["Minor", "0"]] as const) {
+      const entry = card.locator("li", { has: page.getByText(label, { exact: true }) });
+      await expect(entry.locator("span").last(), `${label} count`).toHaveText(value);
     }
   });
 
   test("the breakdown adds up to the headline", async ({ page }) => {
-    await expect(page.getByText("33 open findings")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("across 4 problems")).toBeVisible();
+    await expect(page.getByText("4 problems to fix")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/showing up 33 times across the 35 pages we checked/)).toBeVisible();
     // 1 + 30 + 2 + 0 — the invariant the server guarantees, visible on screen.
     expect(COUNTS.bySeverity.CRITICAL + COUNTS.bySeverity.HIGH + COUNTS.bySeverity.MEDIUM + COUNTS.bySeverity.LOW)
       .toBe(COUNTS.openFindings);
   });
 
-  test("the queue shows distinct problems, one of them on 29 pages", async ({ page }) => {
-    const queue = page.locator("text=Priority Action Queue").locator("xpath=ancestor::*[.//text()[contains(., 'Missing title')]][1]");
+  test("gives the score a plain-word verdict", async ({ page }) => {
+    // 89 sits in the same 80+ band the Website Audit gauge colours as good.
+    await expect(page.getByText("Good", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("89/100", { exact: true })).toBeVisible();
+  });
+
+  test("the to-do list shows distinct problems, one of them on 29 pages", async ({ page }) => {
+    const queue = page
+      .getByText("Your to-do list")
+      .locator("xpath=ancestor::*[.//text()[contains(., 'Missing title')]][1]");
     await expect(queue).toBeVisible({ timeout: 15_000 });
 
     for (const title of ["Missing title", "Schema product offers", "Missing h1", "Missing meta description"]) {
@@ -133,10 +144,12 @@ test.describe("dashboard issue counts", () => {
   });
 
   test("says the order is not traffic-weighted when Search Console is not connected", async ({ page }) => {
-    await expect(page.getByText(/connect Search Console for traffic-weighted priority/)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByText(/Connect Search Console to sort by how many visitors each one affects/),
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("explains the health score beside it", async ({ page }) => {
-    await expect(page.getByText(/89\/100 — 33 findings, mostly high severity/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/Why 89 and not lower\? 33 issues, mostly important/)).toBeVisible({ timeout: 15_000 });
   });
 });
