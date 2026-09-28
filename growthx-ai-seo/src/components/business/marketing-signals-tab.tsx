@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Sparkles } from "lucide-react";
-import { ActionButton, PageHeader, Panel, Pill } from "@/components/ui/console";
+import { ActionButton, PageHeader, Panel, Pill, StatusNote } from "@/components/ui/console";
 import { TimedQueryState } from "@/components/ui/timed-query-state";
 import { useBusinessMarketingSignals, useGenerateBusinessMarketingSignals } from "@/hooks/use-growthx";
 import type { MarketingSignalDto } from "@/lib/api-client";
@@ -18,22 +18,39 @@ export function MarketingSignalsTab({ projectId }: { projectId: string }) {
   const data = query.data;
   const hasAny = Boolean(data && (data.mine.length > 0 || data.competitors.some((c) => c.signals.length > 0)));
 
+  // Which read is running: undefined is your own site, an id is one competitor.
+  // Only that button spins, instead of every "Re-read" on the page.
+  const reading = (competitorId?: string) => generate.isPending && generate.variables === competitorId;
+  const readTarget =
+    generate.variables === undefined
+      ? "your homepage"
+      : (data?.competitors.find((c) => c.competitor.id === generate.variables)?.competitor.label ?? "that competitor");
+
+  // A failed read used to leave the screen exactly as it was, so clicking the
+  // button looked like it did nothing. Say what happened either way.
+  const outcome = generate.isError ? (
+    <StatusNote tone="bad">
+      {generate.error instanceof Error ? generate.error.message : "Could not read the page. Please try again."}
+    </StatusNote>
+  ) : generate.isSuccess && generate.data.length === 0 ? (
+    // Not an error: the read worked and the page simply says nothing we can quote.
+    <div className="rounded-xl border bg-brand-50 px-4 py-2.5 text-[12px] text-brand-700">
+      We read {readTarget}, but it doesn&apos;t clearly state any value props, offers or tone yet. Adding a clear
+      headline and what makes you different to that page will give us something to read.
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Marketing Signals"
         subtitle="Value-prop phrases, promos and tone, read off the copy already on your crawled pages."
         actions={
-          <ActionButton
-            variant="primary"
-            icon={generate.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            disabled={generate.isPending}
-            onClick={() => generate.mutate(undefined)}
-          >
-            {generate.isPending ? "Reading…" : "Read your positioning"}
-          </ActionButton>
+          <ReadButton reading={reading(undefined)} disabled={generate.isPending} onClick={() => generate.mutate(undefined)} />
         }
       />
+
+      {outcome}
 
       <TimedQueryState
         isLoading={query.isLoading}
@@ -42,9 +59,7 @@ export function MarketingSignalsTab({ projectId }: { projectId: string }) {
         emptyTitle="No marketing signals yet"
         emptyBody={'Click "Read your positioning" to have the AI router read your homepage\'s own copy for value props, promos and tone.'}
         emptyAction={
-          <ActionButton variant="primary" icon={<Sparkles size={13} />} onClick={() => generate.mutate(undefined)}>
-            Read your positioning
-          </ActionButton>
+          <ReadButton reading={reading(undefined)} disabled={generate.isPending} onClick={() => generate.mutate(undefined)} />
         }
         onRetry={() => query.refetch()}
       >
@@ -60,11 +75,13 @@ export function MarketingSignalsTab({ projectId }: { projectId: string }) {
               subtitle={result.competitor.domain}
               actions={
                 <ActionButton
-                  icon={generate.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  icon={
+                    reading(result.competitor.id) ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />
+                  }
                   disabled={generate.isPending}
                   onClick={() => generate.mutate(result.competitor.id)}
                 >
-                  Re-read
+                  {reading(result.competitor.id) ? "Reading…" : "Re-read"}
                 </ActionButton>
               }
               padded
@@ -75,6 +92,19 @@ export function MarketingSignalsTab({ projectId }: { projectId: string }) {
         </div>
       </TimedQueryState>
     </div>
+  );
+}
+
+function ReadButton({ reading, disabled, onClick }: { reading: boolean; disabled: boolean; onClick: () => void }) {
+  return (
+    <ActionButton
+      variant="primary"
+      icon={reading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {reading ? "Reading…" : "Read your positioning"}
+    </ActionButton>
   );
 }
 

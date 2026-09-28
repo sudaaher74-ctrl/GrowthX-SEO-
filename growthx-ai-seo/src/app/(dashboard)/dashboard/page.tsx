@@ -1,30 +1,57 @@
-"use client";import Link from "next/link";
+"use client";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, Globe, Plus, RefreshCw, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Globe,
+  Lightbulb,
+  Loader2,
+  PlugZap,
+  RefreshCw,
+  Star,
+  Zap,
+} from "lucide-react";
 import {
   ActionButton,
   PageHeader,
   Panel,
   Pill,
+  StatusNote,
   relativeTime,
 } from "@/components/ui/console";
 import {
   useWorkspace,
   usePortfolio,
-  useVisibility,
   useExecutiveSummary,
   useIssueCounts,
   useIssueGroups,
   useLatestCrawl,
   useLocalSeo,
-  useMonitoring,
   useStartCrawl,
 } from "@/hooks/use-growthx";
-import { api, type IssueSeverity } from "@/lib/api-client";
+import {
+  api,
+  type GrowthOpportunity,
+  type IssueCounts,
+  type IssueGroup,
+  type IssueSeverity,
+  type Measure,
+} from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AutopilotStart } from "@/components/autopilot/autopilot-start";
-import { TruthfulKpiCard, TruthfulState, NotConnectedState, LoadingState } from "@/components/ui/truthful-state";
 
+/**
+ * The first screen a business owner sees.
+ *
+ * Written for someone who has never heard the words "crawl", "severity" or
+ * "impressions". Each section answers one plain question — how is my website
+ * doing, what should I fix, are people finding me, what do customers say, what
+ * could I do next — and every figure on it is still a real measurement or an
+ * honest "not connected yet". The detailed, technical views live one click
+ * away on their own pages.
+ */
 export default function UnifiedDashboardPage() {
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
@@ -33,7 +60,6 @@ export default function UnifiedDashboardPage() {
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const startCrawlMutation = useStartCrawl();
-  const visibility = useVisibility(projectId);
   const executive = useExecutiveSummary(projectId);
   const localSeo = useLocalSeo(projectId);
   // Every issue count on this page comes from here. The card used to read
@@ -54,25 +80,25 @@ export default function UnifiedDashboardPage() {
     enabled: !!projectId,
   });
 
-  // 28-day GSC sparkline for dashboard organic panel
+  const hasGsc = Boolean(executive.data?.connections?.searchConsole);
+  const hasGa = Boolean(executive.data?.connections?.analytics);
+
+  // 28-day daily clicks, for the small trend line under "Visitors from Google".
   const gscSeries = useQuery({
     queryKey: ["gsc-dash-series", projectId],
     queryFn: () => api.gscTimeseries(projectId!, 28),
-    enabled: !!projectId && Boolean(executive.data?.connections?.searchConsole),
+    enabled: !!projectId && hasGsc,
     retry: false,
   });
 
-  // Health Score computation (0-100 or null if no crawl)
   // The crawl whose figures stand: the latest when it completed, otherwise the
   // last completed one while a recrawl runs. Showing nothing during a recrawl
   // read as "Run your first crawl" for a site audited many times.
   const shownCrawl = crawl.data?.status === "COMPLETED" ? crawl.data : (crawl.data?.lastCompleted ?? null);
   const crawlCompleted = Boolean(shownCrawl);
+  const crawlRunning = crawl.data?.status === "RUNNING" || crawl.data?.status === "PENDING";
   const healthScore = shownCrawl ? (shownCrawl.healthScore ?? client?.health ?? null) : null;
   const counts = issueCounts.data ?? null;
-  const criticalCount = counts?.bySeverity.CRITICAL ?? 0;
-  const openFindings = counts?.openFindings ?? 0;
-  const openGroups = counts?.openGroups ?? 0;
 
   // One row per problem, not per page. Sorted by impact on the server, so the
   // five shown are the five that matter most — not five pages of the same
@@ -80,513 +106,454 @@ export default function UnifiedDashboardPage() {
   const priorityGroups = issueGroups.data?.groups ?? [];
   const reachAvailable = issueGroups.data?.reachAvailable ?? false;
 
-  const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 4);
+  const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 3);
 
-  // Setup Checklist Calculation
   const hasWebsite = Boolean(client?.domain);
-  const hasCrawl = Boolean(crawlCompleted);
-  const hasGsc = Boolean(executive.data?.connections?.searchConsole);
-  const hasGa = Boolean(executive.data?.connections?.analytics);
-  const hasGbp = Boolean(executive.data?.connections?.businessProfile || localSeo.data);
   const hasCompetitors = Boolean((trackedCompetitors.data?.length ?? 0) > 0);
+  const hasGbp = Boolean(executive.data?.connections?.businessProfile || localSeo.data);
 
-  const completedStepsCount = [hasWebsite, hasCrawl, hasGsc, hasGa, hasGbp, hasCompetitors].filter(Boolean).length;
-  const setupIncomplete = completedStepsCount < 6;
+  const setupSteps: SetupStep[] = [
+    {
+      label: "Add your website",
+      why: "So we know which website to look after.",
+      done: hasWebsite,
+      href: "/website",
+      cta: "Add website",
+    },
+    {
+      label: "Check your website for problems",
+      why: "We look through every page and list what is stopping Google from showing it.",
+      done: crawlCompleted,
+      href: "/website",
+      cta: "Check my website",
+    },
+    {
+      label: "Connect Google Search Console",
+      why: "Shows how many people find you on Google, and what they searched for.",
+      done: hasGsc,
+      href: "/integrations",
+      cta: "Connect",
+    },
+    {
+      label: "Connect Google Analytics",
+      why: "Shows how many people visit your website and what they do there.",
+      done: hasGa,
+      href: "/integrations",
+      cta: "Connect",
+    },
+    {
+      label: "Connect your Google Business Profile",
+      why: "Brings your star rating and customer reviews into this page.",
+      done: hasGbp,
+      href: "/google-business-profile",
+      cta: "Connect",
+    },
+    {
+      label: "Add your competitors",
+      why: "Lets us show where competitors are ahead of you, and how to catch up.",
+      done: hasCompetitors,
+      href: "/competitor-intelligence",
+      cta: "Add competitors",
+    },
+  ];
+  const setupIncomplete = setupSteps.some((s) => !s.done);
+
+  const runAudit = () => {
+    if (!client?.domain) return;
+    startCrawlMutation.mutate({
+      domain: client.domain,
+      maxDepth: 10,
+      maxConcurrency: 3,
+      useSitemap: true,
+    });
+  };
+  const auditBusy = startCrawlMutation.isPending || crawlRunning;
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
+    <div className="space-y-5 pb-12">
       <PageHeader
         title={project?.name ?? "Dashboard"}
         subtitle={
           client?.domain ? (
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <Globe size={13} className="text-brand-400" />
               <span>{client.domain}</span>
               <span className="text-brand-300">·</span>
               <span>
                 {crawlCompleted
-                  ? `Last crawl ${relativeTime(shownCrawl?.finishedAt ?? crawl.data?.startedAt)}`
-                  : "No crawl completed yet"}
+                  ? `Last checked ${relativeTime(shownCrawl?.finishedAt ?? crawl.data?.startedAt)}`
+                  : "Not checked yet"}
               </span>
             </span>
           ) : (
-            "Select or add a business project to view unified SEO performance."
+            "Add your website to see how it is doing on Google."
           )
         }
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <Link href="/action-queue">
               <ActionButton variant="primary" icon={<Zap size={12} className="fill-white" />}>
-                View SEO Roadmap
+                See my action plan
               </ActionButton>
             </Link>
             <ActionButton
               variant="secondary"
-              icon={startCrawlMutation.isPending ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              disabled={startCrawlMutation.isPending || !client?.domain}
-              onClick={() => {
-                if (client?.domain) {
-                  startCrawlMutation.mutate({
-                    domain: client.domain,
-                    maxDepth: 10,
-                    maxConcurrency: 3,
-                    useSitemap: true,
-                  });
-                }
-              }}
+              icon={<RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />}
+              disabled={auditBusy || !client?.domain}
+              onClick={runAudit}
             >
-              {startCrawlMutation.isPending ? "Auditing..." : "Audit Website"}
+              {auditBusy ? "Checking…" : "Check my website again"}
             </ActionButton>
-          </div>
+          </>
         }
       />
+
+      {crawlRunning && (
+        <StatusNote>
+          We&apos;re checking your website now. This page updates by itself when it&apos;s done
+          {crawlCompleted ? " — until then you're seeing the results of the last check." : "."}
+        </StatusNote>
+      )}
 
       {/* One step to everything: website in, competitors and full report out. */}
       {(!hasWebsite || (trackedCompetitors.isSuccess && !hasCompetitors)) && (
         <AutopilotStart projectId={projectId} domain={client?.domain ?? null} />
       )}
 
-      {/* Guided Setup Progress Banner (if project setup is incomplete) */}
-      {setupIncomplete && (
-        <div
-          className="rounded-xl border bg-gradient-to-r from-brand-50 via-white to-brand-50/30 p-4 sm:p-5 shadow-2xs"
-          style={{ borderColor: "var(--border-color)" }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-950 text-white font-bold text-[10px]">
-                  {completedStepsCount}/6
-                </span>
-                <h3 className="text-[14px] font-semibold text-brand-950">Setup Checklist in Progress</h3>
-              </div>
-              <p className="text-[12px] text-brand-500 mt-1">
-                Complete data connections and initial sweeps to unlock 100% authoritative SEO intelligence.
-              </p>
-            </div>
-            <Link
-              href="/integrations"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-1.5 text-[12px] font-semibold text-white hover:opacity-90 transition shrink-0"
-            >
-              Connect Data Sources
-              <ArrowRight size={13} />
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mt-4 pt-3 border-t" style={{ borderColor: "var(--color-brand-100)" }}>
-            <ChecklistBadge label="Website Added" completed={hasWebsite} href="/website" />
-            <ChecklistBadge label="Crawl Audit" completed={hasCrawl} href="/website" />
-            <ChecklistBadge label="Search Console" completed={hasGsc} href="/integrations" />
-            <ChecklistBadge label="Analytics (GA4)" completed={hasGa} href="/integrations" />
-            <ChecklistBadge label="Google Business" completed={hasGbp} href="/google-business-profile" />
-            <ChecklistBadge label="Competitors" completed={hasCompetitors} href="/competitor-intelligence" />
-          </div>
-        </div>
-      )}
-
-      {/* Row 1: Core Performance Truthful KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* Overall Technical Health */}
-        <TruthfulKpiCard
-          label="Site Health Score"
-          value={healthScore != null ? `${healthScore}/100` : null}
-          sub={shownCrawl ? `${shownCrawl.pagesCrawled ?? 0} pages analyzed` : undefined}
-          state={healthScore != null ? "MEASURED" : "NOT_CONFIGURED"}
-          source="GrowthX Crawler Engine"
-          lastUpdated={shownCrawl?.finishedAt ? relativeTime(shownCrawl.finishedAt) : undefined}
-          actionHref="/website"
-          actionLabel="Run your first crawl →"
-        />
-
-        {/* Organic Search Clicks (GSC) */}
-        <TruthfulKpiCard
-          label="Organic Search Clicks"
-          value={
-            executive.data?.headline?.searchClicks?.state === "MEASURED"
-              ? executive.data.headline.searchClicks.value.toLocaleString()
-              : null
-          }
-          sub="Organic Google search clicks"
-          state={
-            executive.data?.headline?.searchClicks?.state === "MEASURED"
-              ? "MEASURED"
-              : executive.data?.connections?.searchConsole
-                ? "UNAVAILABLE"
-                : "NOT_CONNECTED"
-          }
-          source="Google Search Console"
-          dateRange="Past 28 Days"
-          actionHref="/integrations"
-          actionLabel="Connect Search Console →"
-          trend={
-            executive.data?.headline?.searchClicks?.state === "MEASURED" &&
-            executive.data.headline.searchClicks.changePct != null
-              ? { delta: executive.data.headline.searchClicks.changePct, positiveIsGood: true }
-              : undefined
-          }
-        />
-
-        {/* AI Visibility / Citation Share */}
-        <TruthfulKpiCard
-          label="AI Citation Share"
-          value={
-            client?.aiCitationSharePct != null
-              ? `${client.aiCitationSharePct}%`
-              : visibility.data?.summary?.citationSharePct != null
-                ? `${visibility.data.summary.citationSharePct}%`
-                : null
-          }
-          sub="AI Visibility is disabled for now"
-          state="UNAVAILABLE"
-          source="AI Engine Sweep"
-          dateRange="Recent 7 Days"
-        />
-
-        {/* Local SEO Reputation */}
-        <TruthfulKpiCard
-          label="Local Rating & Reviews"
-          value={
-            localSeo.data && localSeo.data.reviewCount > 0
-              ? `${localSeo.data.rating.toFixed(1)} ★ (${localSeo.data.reviewCount})`
-              : localSeo.data
-                ? "No reviews yet"
-                : null
-          }
-          sub={localSeo.data?.businessName || "Google Business Profile"}
-          state={localSeo.data ? "MEASURED" : "NOT_CONNECTED"}
-          source="Google Places & GBP"
-          lastUpdated={localSeo.data?.updatedAt ? relativeTime(localSeo.data.updatedAt) : undefined}
-          actionHref="/google-business-profile"
-          actionLabel="Connect Google Business Profile →"
-        />
-      </div>
-
-      {/* Row 2: Deep Dives (Site Health Breakdown & Organic Traffic Trends) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Technical SEO Audit Snapshot */}
+      {/* 1. How is my website doing? */}
+      <div className={cn("grid grid-cols-1 gap-4", setupIncomplete && "lg:grid-cols-3")}>
         <Panel
-          title="Technical SEO Health"
-          subtitle="Deduplicated crawl findings categorized by severity"
-          actions={
-            <Link href="/website" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              View full audit →
-            </Link>
-          }
+          title="How healthy is your website?"
+          subtitle="A score out of 100 for how easily Google can find, read and show your pages. Higher is better."
+          className={setupIncomplete ? "lg:col-span-2" : undefined}
         >
           <div className="p-5">
-            {crawl.isLoading ? (
-              <LoadingState title="Analyzing Site Health..." message="Reading crawl issues" compact />
+            {(portfolio.isLoading || crawl.isLoading) && !crawl.data ? (
+              <LoadingLine text="Loading your website's health…" />
             ) : !crawlCompleted ? (
-              <TruthfulState
+              <EmptyPrompt
                 icon={Globe}
-                title="Audit Not Run Yet"
-                missing="No completed crawl data found for this domain."
-                whyItMatters="Technical flaws like redirect loops, 404s, thin content, and missing schema suppress rankings."
-                actionRequired="Launch the crawler to calculate site health."
-                action={{
-                  label: "Run Site Crawl",
-                  onClick: () => {
-                    if (client?.domain) {
-                      startCrawlMutation.mutate({
-                        domain: client.domain,
-                        maxDepth: 10,
-                        maxConcurrency: 3,
-                        useSitemap: true,
-                      });
-                    }
-                  },
-                }}
-                compact
+                title={crawlRunning ? "Checking your website…" : "We haven't checked your website yet"}
+                body={
+                  crawlRunning
+                    ? "Your score and to-do list will appear here as soon as the check is finished."
+                    : client?.domain
+                      ? "Run a check and we'll give your website a score and a simple list of things to fix."
+                      : "Add your website above and we'll give it a score and a simple list of things to fix."
+                }
+                action={
+                  crawlRunning || !client?.domain
+                    ? undefined
+                    : { label: "Check my website", onClick: runAudit, disabled: auditBusy }
+                }
+              />
+            ) : (
+              <HealthSummary score={healthScore} counts={counts} pagesChecked={shownCrawl?.pagesCrawled ?? null} />
+            )}
+          </div>
+        </Panel>
+
+        {setupIncomplete && <SetupGuide steps={setupSteps} />}
+      </div>
+
+      {/* 2. What should I fix first? */}
+      <Panel
+        title="Your to-do list"
+        subtitle={
+          reachAvailable
+            ? "The most important fixes first — sorted by how many of your Google visitors each one affects."
+            : "The most important fixes first — sorted by how serious each problem is. Connect Search Console to sort by how many visitors each one affects."
+        }
+        actions={
+          counts && counts.openGroups > 0 ? (
+            <Link href="/website?tab=issues" className="text-[12px] font-semibold text-accent-700 hover:underline">
+              See all {counts.openGroups} →
+            </Link>
+          ) : undefined
+        }
+      >
+        {issueGroups.isLoading ? (
+          <div className="p-5">
+            <LoadingLine text="Loading your to-do list…" />
+          </div>
+        ) : priorityGroups.length === 0 ? (
+          <div className="p-8 text-center text-[13px] text-brand-500">
+            {crawlCompleted
+              ? "Nothing to fix right now — your website is in good shape."
+              : "Your to-do list will appear here after we check your website."}
+          </div>
+        ) : (
+          <ol className="divide-y">
+            {priorityGroups.map((group, i) => (
+              <TodoItem key={group.groupKey} index={i + 1} group={group} />
+            ))}
+          </ol>
+        )}
+      </Panel>
+
+      {/* 3. Are people finding me? / What do customers say? */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Panel
+          title="Visitors from Google"
+          subtitle={
+            executive.data?.range?.days
+              ? `How people found and used your website in the last ${executive.data.range.days} days.`
+              : "How people find and use your website."
+          }
+          actions={
+            hasGsc || hasGa ? (
+              <Link href="/search-performance" className="text-[12px] font-semibold text-accent-700 hover:underline">
+                More detail →
+              </Link>
+            ) : undefined
+          }
+          className="lg:col-span-3"
+        >
+          <div className="p-5">
+            {executive.isLoading ? (
+              <LoadingLine text="Loading your visitors…" />
+            ) : !hasGsc && !hasGa ? (
+              <EmptyPrompt
+                icon={PlugZap}
+                title="Connect Google to see your visitors"
+                body="Link your Google account and we'll show how many people find your website on Google and how many visit it."
+                action={{ label: "Connect Google", href: "/integrations" }}
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[28px] font-bold tracking-tight text-brand-950 font-mono">
-                      {healthScore != null ? healthScore : "—"}
-                    </span>
-                    <span className="text-[12px] text-brand-400 ml-1.5 font-mono">/ 100</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[12px] font-semibold text-brand-950">
-                      {openFindings} open finding{openFindings === 1 ? "" : "s"}
-                    </span>
-                    <p className="text-[10.5px] text-brand-400">
-                      across {openGroups} problem{openGroups === 1 ? "" : "s"}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainStat
+                    label="Clicks from Google"
+                    hint="People who clicked your website in Google search"
+                    measure={executive.data?.headline?.searchClicks}
+                  />
+                  <PlainStat
+                    label="Times seen on Google"
+                    hint="How often your website appeared in search results"
+                    measure={executive.data?.headline?.impressions}
+                  />
+                  <PlainStat
+                    label="Website visits"
+                    hint="Visits to your website from anywhere"
+                    measure={executive.data?.headline?.sessions}
+                  />
+                  <PlainStat
+                    label="Goals reached"
+                    hint="Enquiries, sign-ups or sales you track"
+                    measure={executive.data?.headline?.conversions}
+                  />
                 </div>
 
-                <div className="grid grid-cols-4 gap-2 text-center pt-2 border-t" style={{ borderColor: "var(--color-brand-100)" }}>
-                  <div className="rounded-lg bg-rose-50/60 p-2 border border-rose-100">
-                    <span className="block text-[15px] font-bold text-rose-700 font-mono">{criticalCount}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600">Critical</span>
-                  </div>
-                  <div className="rounded-lg bg-amber-50/60 p-2 border border-amber-100">
-                    <span className="block text-[15px] font-bold text-amber-700 font-mono">{counts?.bySeverity.HIGH ?? 0}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">High</span>
-                  </div>
-                  <div className="rounded-lg bg-blue-50/60 p-2 border border-blue-100">
-                    <span className="block text-[15px] font-bold text-blue-700 font-mono">
-                      {counts?.bySeverity.MEDIUM ?? 0}
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">Medium</span>
-                  </div>
-                  <div className="rounded-lg bg-brand-50 p-2 border border-brand-200">
-                    <span className="block text-[15px] font-bold text-brand-700 font-mono">
-                      {counts?.bySeverity.LOW ?? 0}
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-600">Low</span>
-                  </div>
-                </div>
-
-                {counts && healthScore != null && (
-                  <p className="text-[10.5px] leading-snug text-brand-500">
-                    {explainHealthScore(healthScore, counts.openFindings, counts.bySeverity)}
-                  </p>
+                {gscSeries.data && gscSeries.data.length >= 2 && (
+                  <DailyClicks points={gscSeries.data} />
                 )}
               </div>
             )}
           </div>
         </Panel>
 
-        {/* Organic Search Performance (GSC + GA4) */}
-        <Panel
-          title="Organic Search & Traffic"
-          subtitle="Direct performance metrics from Google Search & Analytics"
-          actions={
-            <Link href="/search-performance" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              Open Search Performance →
-            </Link>
-          }
-          className="lg:col-span-2"
-        >
+        <Panel title="Your Google reviews" subtitle="What customers say about you on Google." className="lg:col-span-2">
           <div className="p-5">
-            {!executive.data?.connections?.searchConsole && !executive.data?.connections?.analytics ? (
-              <NotConnectedState
-                title="Connect Search Console & Analytics"
-                missing="Neither Google Search Console nor GA4 is currently linked to this project."
-                whyItMatters="Without Google connection, search clicks, impressions, landing pages, and traffic trends cannot be measured."
-                actionRequired="Authorize Google in Integrations."
-                action={{ label: "Connect Search Console", href: "/integrations" }}
-                secondaryAction={{ label: "Connect Analytics", href: "/integrations" }}
-                compact
+            {localSeo.isLoading ? (
+              <LoadingLine text="Loading your reviews…" />
+            ) : !localSeo.data ? (
+              <EmptyPrompt
+                icon={Star}
+                title="Connect your Google Business Profile"
+                body="See your star rating and number of reviews here, and get tips to earn more."
+                action={{ label: "Connect", href: "/google-business-profile" }}
               />
             ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                  <div className="p-3 rounded-lg border bg-brand-50/20" style={{ borderColor: "var(--border-color)" }}>
-                    <span className="text-[10.5px] font-semibold text-brand-400 uppercase tracking-wider">Search Clicks</span>
-                    <p className="text-[20px] font-bold text-brand-950 font-mono mt-1">
-                      {executive.data?.headline?.searchClicks?.state === "MEASURED"
-                        ? executive.data.headline.searchClicks.value.toLocaleString()
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg border bg-brand-50/20" style={{ borderColor: "var(--border-color)" }}>
-                    <span className="text-[10.5px] font-semibold text-brand-400 uppercase tracking-wider">Impressions</span>
-                    <p className="text-[20px] font-bold text-brand-950 font-mono mt-1">
-                      {executive.data?.headline?.impressions?.state === "MEASURED"
-                        ? executive.data.headline.impressions.value.toLocaleString()
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg border bg-brand-50/20" style={{ borderColor: "var(--border-color)" }}>
-                    <span className="text-[10.5px] font-semibold text-brand-400 uppercase tracking-wider">GA4 Sessions</span>
-                    <p className="text-[20px] font-bold text-brand-950 font-mono mt-1">
-                      {executive.data?.headline?.sessions?.state === "MEASURED"
-                        ? executive.data.headline.sessions.value.toLocaleString()
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg border bg-brand-50/20" style={{ borderColor: "var(--border-color)" }}>
-                    <span className="text-[10.5px] font-semibold text-brand-400 uppercase tracking-wider">Conversions</span>
-                    <p className="text-[20px] font-bold text-brand-950 font-mono mt-1">
-                      {executive.data?.headline?.conversions?.state === "MEASURED"
-                        ? executive.data.headline.conversions.value.toLocaleString()
-                        : "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* GSC Sparkline */}
-                {gscSeries.data && gscSeries.data.length >= 2 && (
-                  <div className="pt-2">
-                    <p className="text-[10px] font-semibold text-brand-400 uppercase tracking-wider mb-1.5">Search Clicks — 28 Day Trend</p>
-                    <div className="flex items-end gap-0.5 h-8">
-                      {gscSeries.data.map((point, i) => {
-                        const maxClicks = Math.max(...gscSeries.data!.map((p) => p.clicks ?? 0), 1);
-                        const heightPct = ((point.clicks ?? 0) / maxClicks) * 100;
-                        const isRecent = i >= gscSeries.data!.length - 3;
-                        return (
-                          <div
-                            key={i}
-                            className={`flex-1 rounded-t transition-all ${
-                              isRecent ? "bg-accent-500" : "bg-brand-200"
-                            }`}
-                            style={{ height: `${Math.max(6, heightPct)}%` }}
-                            title={`${point.date}: ${(point.clicks ?? 0).toLocaleString()} clicks`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Critical Issues Alert */}
-                {criticalCount > 0 && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2">
-                    <AlertCircle size={13} className="shrink-0 text-rose-500" />
-                    <span className="text-[11px] font-semibold text-rose-700">
-                      {criticalCount} Critical SEO issue{criticalCount > 1 ? "s" : ""} detected — fix immediately to protect rankings.
-                    </span>
-                    <Link href="/website" className="ml-auto text-[10.5px] font-bold text-rose-700 hover:underline shrink-0">Fix Now →</Link>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-[11px] text-brand-400 font-mono pt-2">
-                  <span>Source: Google Search Console + GA4 APIs</span>
-                  <span>Range: Last 28 Days</span>
-                </div>
-              </div>
+              <ReviewsSummary
+                businessName={localSeo.data.businessName}
+                rating={localSeo.data.rating}
+                reviewCount={localSeo.data.reviewCount}
+                updatedAt={localSeo.data.updatedAt}
+              />
             )}
           </div>
         </Panel>
       </div>
 
-      {/* Row 3: Action Queue (Prioritize & Take Action) & Opportunities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Priority Technical Fixes */}
-        <Panel
-          title="Priority Action Queue"
-          subtitle={
-            reachAvailable
-              ? "Ranked by the search traffic each problem touches"
-              : "Ranked by severity — connect Search Console for traffic-weighted priority"
-          }
-          actions={
-            <Link href="/website" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              See all {openGroups} problem{openGroups === 1 ? "" : "s"} →
+      {/* 4. What could I do next? */}
+      <Panel
+        title="Ideas to grow"
+        subtitle="Things you could add or change to get more customers from Google."
+        actions={
+          topOpportunities.length > 0 ? (
+            <Link href="/content-opportunities" className="text-[12px] font-semibold text-accent-700 hover:underline">
+              See all ideas →
             </Link>
-          }
-        >
-          <div className="p-0">
-            {issueGroups.isLoading ? (
-              <div className="p-8 text-center text-[12px] text-brand-400">Loading priorities…</div>
-            ) : priorityGroups.length === 0 ? (
-              <div className="p-8 text-center text-[12px] text-brand-400">
-                {crawlCompleted ? "No open problems detected. Site is clean." : "Run your first crawl to detect issues."}
-              </div>
-            ) : (
-              <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
-                {priorityGroups.map((group) => (
-                  <div key={group.groupKey} className="p-3.5 flex items-start justify-between gap-3 hover:bg-brand-50/40 transition">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <SeverityBadge severity={group.severity} />
-                        <span className="text-[12px] font-semibold text-brand-950 truncate">
-                          {group.title}
-                        </span>
-                        <span className="shrink-0 text-[10.5px] font-mono text-brand-400">
-                          {group.affectedCount} page{group.affectedCount === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                      <p className="text-[11.5px] text-brand-500 font-mono truncate max-w-md">
-                        {group.affectedCount === 1
-                          ? group.sampleUrls[0]
-                          : `${group.sampleUrls[0]} and ${group.affectedCount - 1} more`}
-                      </p>
-                    </div>
-                    <Link
-                      href="/website"
-                      className="shrink-0 text-[11px] font-semibold text-brand-700 hover:text-brand-950 border rounded px-2 py-1 bg-white hover:bg-brand-50 transition"
-                    >
-                      View Fix
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
+          ) : undefined
+        }
+      >
+        {opportunities.isLoading ? (
+          <div className="p-5">
+            <LoadingLine text="Loading ideas…" />
           </div>
-        </Panel>
+        ) : topOpportunities.length === 0 ? (
+          <div className="p-8 text-center text-[13px] text-brand-500">
+            No ideas yet. They&apos;ll appear here once we&apos;ve checked your website and Google is connected.
+          </div>
+        ) : (
+          <ul className="grid grid-cols-1 divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+            {topOpportunities.map((op) => (
+              <IdeaCard key={op.id} idea={op} />
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </div>
+  );
+}
 
-        {/* High-Impact Content & Growth Opportunities */}
-        <Panel
-          title="Content & Keyword Opportunities"
-          subtitle="Algorithmically identified ranking & CTR growth gaps"
-          actions={
-            <Link href="/content-opportunities" className="text-[11.5px] font-semibold text-accent-700 hover:underline">
-              Open Opportunities →
-            </Link>
-          }
-        >
-          <div className="p-0">
-            {topOpportunities.length === 0 ? (
-              <div className="p-8 text-center text-[12px] text-brand-400">
-                No growth opportunities generated yet. Connect data sources and run an analysis to generate briefs.
-              </div>
-            ) : (
-              <div className="divide-y" style={{ borderColor: "var(--color-brand-100)" }}>
-                {topOpportunities.map((op) => (
-                  <div key={op.id} className="p-3.5 flex items-start justify-between gap-3 hover:bg-brand-50/40 transition">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-100 text-brand-700">
-                          {op.category}
-                        </span>
-                        <span className="text-[12px] font-semibold text-brand-950 truncate">
-                          {op.title}
-                        </span>
-                      </div>
-                      <p className="text-[11.5px] text-brand-500 line-clamp-1">
-                        {op.recommendedAction || op.summary}
-                      </p>
-                    </div>
-                    <Link
-                      href="/content-opportunities"
-                      className="shrink-0 text-[11px] font-semibold text-accent-700 hover:text-accent-900 border border-accent-200 rounded px-2.5 py-1 bg-accent-50/50 hover:bg-accent-100 transition"
-                    >
-                      Take Action
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
+/* ── Website health ─────────────────────────────────────────────── */
+
+/**
+ * Plain-word severity, used everywhere on this page so the to-do list and the
+ * breakdown above it speak the same language.
+ */
+const SEVERITY: Record<IssueSeverity, { label: string; tone: "bad" | "warn" | "info" | "default"; bar: string }> = {
+  CRITICAL: { label: "Urgent", tone: "bad", bar: "bg-error-600" },
+  HIGH: { label: "Important", tone: "warn", bar: "bg-warning-500" },
+  MEDIUM: { label: "Moderate", tone: "info", bar: "bg-accent-500" },
+  LOW: { label: "Minor", tone: "default", bar: "bg-brand-300" },
+};
+const SEVERITY_ORDER: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+
+/**
+ * A verdict read straight off the measured score, on the same bands the
+ * Website Audit gauge colours by (80 and 50), so the two screens agree.
+ */
+function gradeScore(score: number): { label: string; tone: "good" | "warn" | "bad"; line: string } {
+  if (score >= 90) return { label: "Excellent", tone: "good", line: "Your website is in great shape." };
+  if (score >= 80) return { label: "Good", tone: "good", line: "Your website is in good shape, with a few things to improve." };
+  if (score >= 50) return { label: "Needs work", tone: "warn", line: "Some problems are holding your website back on Google." };
+  return { label: "Poor", tone: "bad", line: "Serious problems are making it hard for Google to show your website." };
+}
+
+function HealthSummary({
+  score,
+  counts,
+  pagesChecked,
+}: {
+  score: number | null;
+  counts: IssueCounts | null;
+  pagesChecked: number | null;
+}) {
+  const grade = score != null ? gradeScore(score) : null;
+
+  return (
+    <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+      <ScoreRing score={score} tone={grade?.tone ?? "default"} />
+
+      <div className="min-w-0 flex-1 space-y-3">
+        {grade ? (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[18px] font-bold text-brand-950">{grade.label}</span>
+              <Pill tone={grade.tone}>{score}/100</Pill>
+            </div>
+            <p className="mt-0.5 text-[13px] text-brand-600">{grade.line}</p>
           </div>
-        </Panel>
+        ) : (
+          <p className="text-[13px] text-brand-600">We checked your website but couldn&apos;t work out a score this time.</p>
+        )}
+
+        {counts && (
+          <>
+            <p className="text-[13px] text-brand-700">
+              {counts.openFindings === 0 ? (
+                <>
+                  We found <strong>nothing to fix</strong>
+                  {pagesChecked != null && <> across the {pagesChecked} pages we checked</>}.
+                </>
+              ) : (
+                <>
+                  We found{" "}
+                  <strong>
+                    {counts.openGroups} {counts.openGroups === 1 ? "problem" : "problems"} to fix
+                  </strong>
+                  , showing up {counts.openFindings} {counts.openFindings === 1 ? "time" : "times"}
+                  {pagesChecked != null && <> across the {pagesChecked} pages we checked</>}.
+                </>
+              )}
+            </p>
+
+            {counts.openFindings > 0 && <SeverityBreakdown bySeverity={counts.bySeverity} total={counts.openFindings} />}
+
+            {score != null && counts.openFindings > 0 && (
+              <p className="text-[11.5px] leading-snug text-brand-500">
+                {explainHealthScore(score, counts.openFindings, counts.bySeverity)}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function ChecklistBadge({
-  label,
-  completed,
-  href,
-}: {
-  label: string;
-  completed: boolean;
-  href: string;
-}) {
+function ScoreRing({ score, tone }: { score: number | null; tone: "good" | "warn" | "bad" | "default" }) {
+  const size = 112;
+  const stroke = 10;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const pct = score != null ? Math.max(0, Math.min(100, score)) / 100 : 0;
+  const color = {
+    good: "var(--color-success-600)",
+    warn: "var(--color-warning-500)",
+    bad: "var(--color-error-600)",
+    default: "var(--color-brand-300)",
+  }[tone];
+
   return (
-    <Link
-      href={href}
-      className={cn(
-        "flex items-center gap-1.5 p-2 rounded-lg border text-[11px] font-medium transition",
-        completed
-          ? "bg-emerald-50/60 border-emerald-200 text-emerald-800"
-          : "bg-white border-brand-200 text-brand-600 hover:border-brand-400"
-      )}
-    >
-      <span
-        className={cn(
-          "h-2 w-2 rounded-full shrink-0",
-          completed ? "bg-emerald-500" : "bg-brand-300"
+    <div className="relative shrink-0 self-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-brand-100)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - pct)}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[30px] font-bold leading-none tracking-[-0.02em] text-brand-950">
+          {score != null ? score : "—"}
+        </span>
+        <span className="mt-1 text-[11px] text-brand-400">out of 100</span>
+      </div>
+    </div>
+  );
+}
+
+/** One bar split by how serious each finding is, with a plain-word legend. */
+function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<IssueSeverity, number>; total: number }) {
+  return (
+    <div>
+      <div className="flex h-2 overflow-hidden rounded-full bg-brand-100" aria-hidden>
+        {SEVERITY_ORDER.map((sev) =>
+          bySeverity[sev] > 0 ? (
+            <div key={sev} className={SEVERITY[sev].bar} style={{ width: `${(bySeverity[sev] / total) * 100}%` }} />
+          ) : null,
         )}
-      />
-      <span className="truncate">{label}</span>
-    </Link>
+      </div>
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {SEVERITY_ORDER.map((sev) => (
+          <li key={sev} className="flex items-center gap-1.5 text-[12px] text-brand-600">
+            <span className={cn("h-2 w-2 rounded-full", SEVERITY[sev].bar)} />
+            <span>{SEVERITY[sev].label}</span>
+            <span className="font-semibold text-brand-950">{bySeverity[sev]}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -608,44 +575,346 @@ function explainHealthScore(
   openFindings: number,
   bySeverity: Record<IssueSeverity, number>,
 ): string {
-  if (openFindings === 0) return `${score}/100 — no open findings.`;
+  if (openFindings === 0) return `${score}/100 — nothing to fix.`;
 
-  const order: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
-  const dominant = order.reduce((best, sev) => (bySeverity[sev] > bySeverity[best] ? sev : best), order[0]);
-  const noun = openFindings === 1 ? "finding" : "findings";
+  const dominant = SEVERITY_ORDER.reduce(
+    (best, sev) => (bySeverity[sev] > bySeverity[best] ? sev : best),
+    SEVERITY_ORDER[0],
+  );
+  const noun = openFindings === 1 ? "issue" : "issues";
 
   return (
-    `${score}/100 — ${openFindings} ${noun}, mostly ${dominant.toLowerCase()} severity. ` +
-    `Capped at ${PENALTY_CAP_PER_PAGE} penalty points per page so one broken page can't sink the score.`
+    `Why ${score} and not lower? ${openFindings} ${noun}, mostly ${SEVERITY[dominant].label.toLowerCase()}. ` +
+    `No single page can take away more than ${PENALTY_CAP_PER_PAGE} points, so one broken page can't sink your score.`
   );
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
-  switch (severity?.toUpperCase()) {
-    case "CRITICAL":
-      return (
-        <span className="rounded px-1.5 py-0.5 text-[9.5px] font-bold bg-rose-100 text-rose-800 uppercase">
-          Critical
-        </span>
-      );
-    case "HIGH":
-      return (
-        <span className="rounded px-1.5 py-0.5 text-[9.5px] font-bold bg-amber-100 text-amber-800 uppercase">
-          High
-        </span>
-      );
-    case "MEDIUM":
-      return (
-        <span className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-blue-100 text-blue-800 uppercase">
-          Medium
-        </span>
-      );
-    case "LOW":
-    default:
-      return (
-        <span className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold bg-brand-100 text-brand-700 uppercase">
-          Low
-        </span>
-      );
+/* ── Setup guide ────────────────────────────────────────────────── */
+
+interface SetupStep {
+  label: string;
+  why: string;
+  done: boolean;
+  href: string;
+  cta: string;
+}
+
+/** Shows the one next step prominently; the full checklist is one click away. */
+function SetupGuide({ steps }: { steps: SetupStep[] }) {
+  const doneCount = steps.filter((s) => s.done).length;
+  const next = steps.find((s) => !s.done);
+
+  return (
+    <Panel title="Finish setting up" subtitle={`${doneCount} of ${steps.length} steps done`}>
+      <div className="space-y-4 p-4">
+        <div className="h-1.5 overflow-hidden rounded-full bg-brand-100">
+          <div
+            className="h-full rounded-full bg-success-600"
+            style={{ width: `${(doneCount / steps.length) * 100}%` }}
+          />
+        </div>
+
+        {next && (
+          <div className="rounded-lg bg-brand-50 p-3">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-brand-400">Next step</p>
+            <p className="mt-1 text-[13px] font-semibold text-brand-950">{next.label}</p>
+            <p className="mt-0.5 text-[12px] text-brand-600">{next.why}</p>
+            <Link
+              href={next.href}
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90"
+            >
+              {next.cta}
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+        )}
+
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline [&::-webkit-details-marker]:hidden">
+            See all {steps.length} steps
+            <ChevronDown size={13} className="transition-transform group-open:rotate-180" />
+          </summary>
+          <ul className="mt-2 space-y-1.5">
+            {steps.map((step) => (
+              <li key={step.label}>
+                <Link
+                  href={step.href}
+                  className="flex items-center gap-2 rounded-md py-0.5 text-[12.5px] hover:text-brand-950"
+                >
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
+                      step.done ? "bg-success-600 text-white" : "border-2 border-brand-300",
+                    )}
+                  >
+                    {step.done && <Check size={10} strokeWidth={3} />}
+                  </span>
+                  <span className={step.done ? "text-brand-400 line-through" : "text-brand-700"}>{step.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+    </Panel>
+  );
+}
+
+/* ── To-do list ─────────────────────────────────────────────────── */
+
+function TodoItem({ index, group }: { index: number; group: IssueGroup }) {
+  const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
+
+  return (
+    <li className="flex gap-3 px-4 py-3.5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11.5px] font-semibold text-brand-600">
+        {index}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Pill tone={sev.tone}>{sev.label}</Pill>
+            <span className="text-[13px] font-semibold text-brand-950">{group.title}</span>
+          </div>
+          {group.summary && <p className="mt-1 text-[12.5px] text-brand-600">{asSentence(group.summary)}</p>}
+          {group.action && (
+            <details className="group mt-1.5">
+              <summary className="flex cursor-pointer list-none items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline [&::-webkit-details-marker]:hidden">
+                How do I fix this?
+                <ChevronDown size={13} className="transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="mt-1.5 rounded-lg bg-brand-50 px-3 py-2 text-[12.5px] leading-relaxed text-brand-700">
+                {asSentence(group.action)}
+              </p>
+            </details>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5">
+          <span className="whitespace-nowrap text-[11.5px] text-brand-500">
+            {group.affectedCount} {group.affectedCount === 1 ? "page" : "pages"}
+          </span>
+          <Link
+            href="/website?tab=issues"
+            className="whitespace-nowrap rounded-lg border bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-700 hover:bg-brand-50"
+          >
+            Show me
+          </Link>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/* ── Visitors ───────────────────────────────────────────────────── */
+
+function PlainStat({ label, hint, measure }: { label: string; hint: string; measure: Measure | undefined }) {
+  const measured = measure?.state === "MEASURED" ? measure : null;
+  const change = measured?.changePct ?? null;
+
+  return (
+    <div className="rounded-lg border p-3">
+      <p className="text-[12px] font-semibold text-brand-700">{label}</p>
+      {measured ? (
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[22px] font-bold tracking-[-0.02em] text-brand-950">
+            {measured.value.toLocaleString()}
+          </span>
+          {change != null && (
+            <span className={cn("text-[11.5px] font-semibold", change >= 0 ? "text-success-600" : "text-error-600")}>
+              {change >= 0 ? "▲" : "▼"} {Math.abs(change)}%
+            </span>
+          )}
+        </div>
+      ) : (
+        <p className="mt-1 text-[13px] text-brand-400">
+          {measure?.state === "NOT_CONNECTED" ? "Not connected" : "No data yet"}
+        </p>
+      )}
+      <p className="mt-0.5 text-[11px] leading-snug text-brand-400">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * Daily clicks as plain bars. Neutral on purpose: a day-to-day dip is normal,
+ * and a red line would read as bad news to someone who can't tell noise from
+ * a trend.
+ */
+function DailyClicks({ points }: { points: { date: string; clicks: number | null }[] }) {
+  const max = Math.max(...points.map((p) => p.clicks ?? 0), 1);
+  return (
+    <div className="rounded-lg bg-brand-50 px-3 py-2.5">
+      <p className="text-[12px] text-brand-600">Clicks from Google each day, last {points.length} days</p>
+      <div className="mt-2 flex h-10 items-end gap-0.5" aria-hidden>
+        {points.map((p) => (
+          <div
+            key={p.date}
+            className="flex-1 rounded-t bg-accent-400"
+            style={{ height: `${Math.max(6, ((p.clicks ?? 0) / max) * 100)}%` }}
+            title={`${p.date}: ${(p.clicks ?? 0).toLocaleString()} clicks`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Reviews ────────────────────────────────────────────────────── */
+
+function ReviewsSummary({
+  businessName,
+  rating,
+  reviewCount,
+  updatedAt,
+}: {
+  businessName: string;
+  rating: number;
+  reviewCount: number;
+  updatedAt?: string | null;
+}) {
+  if (reviewCount === 0) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[13px] font-semibold text-brand-950">{businessName}</p>
+        <p className="text-[18px] font-bold text-brand-950">No reviews yet</p>
+        <p className="text-[12.5px] text-brand-600">
+          Reviews help new customers trust you. Ask happy customers to leave one on Google.
+        </p>
+        <Link
+          href="/google-business-profile"
+          className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline"
+        >
+          Get more reviews <ArrowRight size={12} />
+        </Link>
+      </div>
+    );
   }
+
+  const rounded = Math.round(rating);
+  return (
+    <div className="space-y-2">
+      <p className="text-[13px] font-semibold text-brand-950">{businessName}</p>
+      <div className="flex items-center gap-3">
+        <span className="text-[30px] font-bold leading-none tracking-[-0.02em] text-brand-950">{rating.toFixed(1)}</span>
+        <div>
+          <div className="flex gap-0.5" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Star
+                key={n}
+                size={15}
+                className={n <= rounded ? "fill-warning-400 text-warning-400" : "text-brand-200"}
+              />
+            ))}
+          </div>
+          <p className="mt-0.5 text-[12px] text-brand-500">
+            from {reviewCount.toLocaleString()} {reviewCount === 1 ? "review" : "reviews"}
+          </p>
+        </div>
+      </div>
+      {updatedAt && <p className="text-[11px] text-brand-400">Updated {relativeTime(updatedAt)}</p>}
+      <Link
+        href="/google-business-profile"
+        className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline"
+      >
+        See your reviews <ArrowRight size={12} />
+      </Link>
+    </div>
+  );
+}
+
+/* ── Ideas ──────────────────────────────────────────────────────── */
+
+const IDEA_KIND: Record<GrowthOpportunity["category"], string> = {
+  SEO: "Google ranking",
+  CONTENT: "New content",
+  LOCAL: "Local customers",
+  TECHNICAL: "Website fix",
+  MARKETING: "Marketing",
+  BUSINESS: "Business",
+  COMPETITOR: "Competitors",
+};
+
+const POTENTIAL: Record<GrowthOpportunity["potential"], { label: string; tone: "good" | "info" | "default" }> = {
+  HIGH: { label: "Big impact", tone: "good" },
+  MEDIUM: { label: "Some impact", tone: "info" },
+  LOW: { label: "Small impact", tone: "default" },
+};
+
+function IdeaCard({ idea }: { idea: GrowthOpportunity }) {
+  const potential = POTENTIAL[idea.potential];
+  return (
+    <li className="flex flex-col gap-2 p-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500">
+          <Lightbulb size={12} className="text-warning-500" />
+          {IDEA_KIND[idea.category] ?? "Idea"}
+        </span>
+        {potential && <Pill tone={potential.tone}>{potential.label}</Pill>}
+      </div>
+      <p className="line-clamp-2 text-[13px] font-semibold text-brand-950">{idea.title}</p>
+      <p className="line-clamp-3 text-[12px] text-brand-600">{idea.recommendedAction || idea.summary}</p>
+      <Link
+        href="/content-opportunities"
+        className="mt-auto inline-flex items-center gap-1 pt-1 text-[12px] font-semibold text-accent-700 hover:underline"
+      >
+        Let&apos;s do it <ArrowRight size={12} />
+      </Link>
+    </li>
+  );
+}
+
+/* ── Shared bits ────────────────────────────────────────────────── */
+
+/** The issue copy is written without a closing full stop; some fallbacks have one. */
+function asSentence(text: string): string {
+  const t = text.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
+function LoadingLine({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 py-6 text-[12.5px] text-brand-500">
+      <Loader2 size={14} className="animate-spin" />
+      {text}
+    </div>
+  );
+}
+
+function EmptyPrompt({
+  icon: Icon,
+  title,
+  body,
+  action,
+}: {
+  icon: React.ElementType;
+  title: string;
+  body: string;
+  action?: { label: string; href?: string; onClick?: () => void; disabled?: boolean };
+}) {
+  const button =
+    "inline-flex items-center gap-1.5 rounded-lg bg-brand-950 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:opacity-50";
+  return (
+    <div className="flex flex-col items-center py-4 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+        <Icon size={18} />
+      </div>
+      <p className="mt-3 text-[14px] font-semibold text-brand-950">{title}</p>
+      <p className="mt-1 max-w-sm text-[12.5px] text-brand-600">{body}</p>
+      {action && (
+        <div className="mt-4">
+          {action.href ? (
+            <Link href={action.href} className={button}>
+              {action.label}
+              <ArrowRight size={13} />
+            </Link>
+          ) : (
+            <button type="button" onClick={action.onClick} disabled={action.disabled} className={button}>
+              {action.label}
+              <ArrowRight size={13} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
