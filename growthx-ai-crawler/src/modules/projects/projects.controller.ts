@@ -38,7 +38,7 @@ export class ProjectsController {
   async createProject(@Req() req: any, @Body() body: CreateProjectDto) {
     // Without this the caller could create a project inside any organization
     // id they cared to type, including one they have never been a member of.
-    await this.orgContext.assertMembership(req.user.userId, body.organizationId);
+    await this.orgContext.assertCanWrite(req.user.userId, body.organizationId);
 
     return this.projectsService.createProject({
       name: body.name,

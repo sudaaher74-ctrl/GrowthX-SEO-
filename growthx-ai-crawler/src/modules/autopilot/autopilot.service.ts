@@ -111,7 +111,7 @@ export class AutopilotService {
   async start(input: { userId: string; organizationId: string; domain: string; projectId?: string | null }): Promise<AutopilotView> {
     const domain = websiteDomain(input.domain);
     if (!normaliseCandidate(domain)) throw new BadRequestException(`"${input.domain}" doesn't look like a website address.`);
-    await this.orgContext.assertMembership(input.userId, input.organizationId);
+    await this.orgContext.assertCanWrite(input.userId, input.organizationId);
 
     const { projectId, websiteId } = await this.resolveProject(input.organizationId, input.userId, domain, input.projectId);
 
@@ -390,6 +390,7 @@ export class AutopilotService {
    */
   async confirm(runId: string, userId: string, domains: string[]): Promise<AutopilotView> {
     const run = await this.owned(runId, userId);
+    await this.orgContext.assertCanWrite(userId, run.organizationId);
     if (run.status !== 'AWAITING_CONFIRMATION') {
       throw new BadRequestException(run.status === 'DISCOVERING' ? 'Still looking for competitors. One moment.' : 'This run has moved on already.');
     }
@@ -455,6 +456,7 @@ export class AutopilotService {
 
   async cancel(runId: string, userId: string): Promise<AutopilotView> {
     const run = await this.owned(runId, userId);
+    await this.orgContext.assertCanWrite(userId, run.organizationId);
     if (!ACTIVE.includes(run.status)) return this.view(run);
     const updated = await this.prisma.autopilotRun.update({
       where: { id: runId },
