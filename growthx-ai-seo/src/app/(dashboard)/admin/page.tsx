@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";import { ShieldAlert, Cpu, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Sliders, Search, Check, ShieldCheck } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { ActionButton, Kpi, Panel, Pill, Table, Tabs, Td, Th, Tr, relativeTime } from "@/components/ui/console";
+import Link from "next/link";import { ShieldAlert, Cpu, Users, Database, Play, Pause, RefreshCw, ArrowUpRight, Zap, Server, Sliders, Search, Check } from "lucide-react";import { StatusDot } from "@/components/ui/badge";import { ActionButton, Kpi, Panel, Pill, Table, Tabs, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import {
   api,
   QueueStat,
@@ -288,31 +288,6 @@ export default function AdminPage() {
                   <p className="text-xs text-[var(--text-muted)]">
                     Routes each AI task to the vendors allowed by AI_PROVIDERS that have a key. See /health/capabilities for the live chain.
                   </p>
-                </div>
-              </div>
-            </Panel>
-
-            <Panel title="Platform Activity Audit Trail" subtitle="Recent administrative and automated background tasks.">
-              <div className="divide-y divide-brand-200/60 dark:divide-brand-800/60 text-xs">
-                <div className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <ShieldCheck size={16} className="text-emerald-500" />
-                    <div>
-                      <span className="font-semibold text-brand-950 dark:text-brand-100">Crawl Engine Heartbeat Check</span>
-                      <p className="text-[var(--text-muted)] text-[11px]">All BullMQ queue workers responding within nominal thresholds.</p>
-                    </div>
-                  </div>
-                  <span className="text-[var(--text-muted)] font-mono text-[11px]">Just now</span>
-                </div>
-                <div className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Zap size={16} className="text-amber-500" />
-                    <div>
-                      <span className="font-semibold text-brand-950 dark:text-brand-100">AI Cost Ledger Aggregated</span>
-                      <p className="text-[var(--text-muted)] text-[11px]">Token consumption parsed for recent market research runs.</p>
-                    </div>
-                  </div>
-                  <span className="text-[var(--text-muted)] font-mono text-[11px]">5m ago</span>
                 </div>
               </div>
             </Panel>
