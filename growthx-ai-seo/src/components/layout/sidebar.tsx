@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -19,7 +19,7 @@ import { TokensChip } from "@/components/tokens/tokens-chip";
  * Agency console sidebar.
  *
  * Scoped to the selected client with core workspace tabs:
- * Website Audit, Google, Competitor Intelligence, Google Business Profile, Fix Engine
+ * Dashboard, Website Audit, Google, Competitor Intelligence, Google Business Profile, Fix Engine
  */
 
 interface NavItem {
@@ -84,10 +84,15 @@ export function Sidebar({
   const googleDone = isConnected("search_console") || isConnected("analytics");
   const profileDone = isConnected("business_profile");
 
-  // The workflow, in the order a client should work through it. Dashboard, AI
-  // Visibility, Business and Design Studio are hidden from the sidebar for now;
+  // The workflow, in the order a client should work through it. AI Visibility,
+  // Business and Design Studio are hidden from the sidebar for now;
   // their pages still exist and can be restored by adding the entries back.
   const mainNav: NavItem[] = [
+    {
+      label: "Dashboard",
+      href: "/dashboard",
+      icon: Activity,
+    },
     {
       label: "Website Audit",
       href: "/website",
