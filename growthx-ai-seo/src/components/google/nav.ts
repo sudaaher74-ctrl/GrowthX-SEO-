@@ -21,6 +21,13 @@ export interface GoogleView {
 export const GOOGLE_VIEWS: GoogleView[] = [
   { id: "overview", label: "Overview", href: "/google", built: true, will: "How Google visibility turns into traffic, engagement and results." },
   {
+    id: "business-profile",
+    label: "Google Business Profile",
+    href: "/google/business-profile",
+    built: true,
+    will: "Your Business Profile audit, reviews, photos, categories and Maps ranking.",
+  },
+  {
     id: "search-performance",
     label: "Search Performance",
     href: "/google/search-performance",
