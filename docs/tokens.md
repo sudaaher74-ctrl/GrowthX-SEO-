@@ -136,11 +136,18 @@ the backstop.
 measurement.** Nobody has calibrated it against real usage, and too tight a
 figure blocks paying customers the day it ships. A sensible rollout:
 
-1. Deploy with `TOKENS_ENFORCEMENT=shadow`.
+1. Deploy with `TOKENS_ENFORCEMENT=shadow`. The Render blueprint
+   (`render.yaml`) already sets it, so production starts here. Check it took
+   effect: `GET /health/capabilities` on the API reports `tokens.mode`. If it
+   does not say `shadow` (the service was created by hand rather than from the
+   blueprint, or the value was mistyped), set `TOKENS_ENFORCEMENT=shadow` in the
+   service's environment in the Render dashboard.
 2. After a week or two, read the burn (per workspace: `scripts/tokens.ts --org
    <slug>`; overall: the `SPEND` rows in `TokenTransaction`, where
    `-(allowanceDelta + bonusDelta) + shortfall` is what each call cost).
-3. Set `TOKENS_MONTHLY_ALLOWANCE` from that, then switch to `enforce`.
+3. Set `TOKENS_MONTHLY_ALLOWANCE` from that, then switch to `enforce`: change
+   the `TOKENS_ENFORCEMENT` value in `render.yaml` (or the dashboard) and confirm
+   `tokens.mode` reads `enforce`.
 
 Changing `TOKENS_MONTHLY_ALLOWANCE` reaches every workspace without its own
 figure at its next refill. What the *current* month was granted is unchanged,

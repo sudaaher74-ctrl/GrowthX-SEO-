@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { isProviderAllowed, readProviderAllowlist } from './modules/ai-engine/utils/ai-provider-allowlist.util';
 import { CrawlerProcessor } from './modules/crawler/crawler.processor';
 import { instagramCredentials, isConfiguredValue } from './config/optional-env';
+import { readTokenConfig } from './modules/tokens/token-rates';
 
 /**
  * When this process started. A redeploy resets it, which — together with the
@@ -96,6 +97,11 @@ export class HealthController implements OnApplicationBootstrap {
         .filter((c) => !c.configured)
         .map(({ name, envVar, consequence }) => ({ name, envVar, consequence })),
       ai: this.aiStatus(),
+      // Whether tokens are limiting anyone. A rollout that starts in shadow mode
+      // is only as safe as being able to see, from outside, that it did: any
+      // value TOKENS_ENFORCEMENT does not recognise enforces, so a typo in the
+      // hosting dashboard would otherwise start refusing work without a sign.
+      tokens: { mode: readTokenConfig().mode },
     };
   }
 

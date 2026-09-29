@@ -72,8 +72,9 @@ does not fall back to sample output.
 Each workspace has a token balance that AI use and geo-grid scans draw down, a
 monthly allowance that refills on the 1st (UTC), and bonus tokens an operator can
 add. Customers see it on the **Tokens** screen. It is on by default with a
-generous starting allowance; set `TOKENS_ENFORCEMENT=shadow` to count usage
-without blocking anything while you decide the numbers, and see
+generous starting allowance; `TOKENS_ENFORCEMENT=shadow` counts usage without
+blocking anything while you decide the numbers, and `render.yaml` ships
+production in that mode until you change it. See
 [docs/tokens.md](docs/tokens.md) for how it works, what is and is not metered,
 and how to give tokens (`npx ts-node scripts/tokens.ts --list` in
 `growthx-ai-crawler`).

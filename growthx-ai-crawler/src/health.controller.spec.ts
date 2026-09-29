@@ -82,6 +82,25 @@ describe('HealthController', () => {
     restore();
   });
 
+  it.each([
+    ['shadow', 'shadow'],
+    ['off', 'off'],
+    ['enforce', 'enforce'],
+    // Unset, empty and misspelt all enforce: the reading must never treat a value
+    // it does not understand as permission, and this is where an operator checks.
+    [undefined, 'enforce'],
+    ['', 'enforce'],
+    ['shdow', 'enforce'],
+  ])('reports the token mode for TOKENS_ENFORCEMENT=%p as %s', async (setting, mode) => {
+    // build() snapshots the environment first, so restore() also undoes this.
+    const { controller, restore } = await build({});
+    if (setting === undefined) delete process.env.TOKENS_ENFORCEMENT;
+    else process.env.TOKENS_ENFORCEMENT = setting;
+
+    expect((controller.capabilities() as any).tokens).toEqual({ mode });
+    restore();
+  });
+
   it('counts Sarvam for Market Research and ignores keys outside AI_PROVIDERS', async () => {
     const { controller, restore } = await build({
       AI_PROVIDERS: 'SARVAM',
