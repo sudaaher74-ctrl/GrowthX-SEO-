@@ -230,7 +230,7 @@ test.describe("Google section, Overview", () => {
       "Search Performance\nsoon",
       "Keywords\nsoon",
       "Pages",
-      "Traffic & Acquisition\nsoon",
+      "Traffic & Acquisition",
       "Engagement\nsoon",
       "Conversions\nsoon",
       "Google Index\nsoon",

@@ -50,8 +50,7 @@ export const GOOGLE_VIEWS: GoogleView[] = [
     id: "traffic",
     label: "Traffic & Acquisition",
     href: "/google/traffic",
-    built: false,
-    phase: 3,
+    built: true,
     will: "Organic Search against Direct, Referral, Social and Paid, with landing-page performance.",
   },
   {
