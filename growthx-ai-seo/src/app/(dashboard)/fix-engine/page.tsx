@@ -1,40 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { Wrench, ArrowLeft } from "lucide-react";
-import { PageHeader, Panel } from "@/components/ui/console";
+import { PageHeader } from "@/components/ui/console";
+import { PlanView } from "@/components/fix-engine/plan-view";
 
 /**
- * The Fix Engine is switched off. Its screen marked fixes "Applied & Verified"
- * after a timer, without changing or re-checking the customer's site, so it is
- * closed here the same way Design Studio is, and remediation runs through the
- * Action Queue.
+ * Fix Engine: the improvement plan drawn from every tab of the workflow.
+ *
+ * The earlier screen was switched off because it marked fixes "Applied &
+ * Verified" on a timer without touching or re-checking the site. This one only
+ * shows real findings and records your decisions. Applying a change, and
+ * confirming it by re-checking the site, is added in separate steps.
  */
 export default function FixEnginePage() {
   return (
-    <div className="space-y-6 max-w-4xl mx-auto py-8">
-      <PageHeader title="Fix Engine" subtitle="Automated code fixes for crawl findings." />
-      <Panel padded>
-        <div className="py-12 px-6 text-center space-y-4 max-w-md mx-auto">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
-            <Wrench size={24} />
-          </div>
-          <h3 className="text-base font-bold text-brand-950">Fix Engine is Disabled</h3>
-          <p className="text-xs text-brand-600 leading-relaxed">
-            Automated fixes are currently disabled for this workspace. Follow your SEO Action Queue for prioritized
-            technical and content recommendations, each with the pages it affects.
-          </p>
-          <div className="pt-2">
-            <Link
-              href="/action-queue"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 text-white px-3.5 py-2 text-xs font-semibold hover:bg-primary-700 transition"
-            >
-              <ArrowLeft size={13} />
-              <span>Go to Action Queue</span>
-            </Link>
-          </div>
-        </div>
-      </Panel>
+    <div className="space-y-4 pb-12">
+      <PageHeader title="Fix Engine" subtitle="Everything found across your website, Google, competitors, AI visibility and Business Profile, ranked, with what to do about it." />
+      <PlanView />
     </div>
   );
 }
