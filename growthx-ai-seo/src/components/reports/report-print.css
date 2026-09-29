@@ -1,0 +1,13 @@
+/* Reports print as A4 PDFs: the browser's "Save as PDF" on the report only. */
+@page { size: A4 portrait; margin: 14mm; }
+
+@media print {
+  body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body * { visibility: hidden; }
+  #report-root, #report-root * { visibility: visible; }
+  #report-root { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+  .no-print { display: none !important; }
+  .report-section { break-inside: avoid-page; }
+  .report-table tr { break-inside: avoid; }
+  .report-table thead { display: table-header-group; }
+}

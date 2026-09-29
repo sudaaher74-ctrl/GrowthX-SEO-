@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
 
@@ -14,7 +15,9 @@ import { PlanView } from "@/components/fix-engine/plan-view";
 export default function FixEnginePage() {
   return (
     <div className="space-y-4 pb-12">
-      <PageHeader title="Fix Engine" subtitle="Everything found across your website, Google, competitors, AI visibility and Business Profile, ranked, with what to do about it." />
+      <PageHeader title="Fix Engine" subtitle="Everything found across your website, Google, competitors, AI visibility and Business Profile, ranked, with what to do about it."
+        actions={<Link href="/reports/plan" className="rounded-lg border bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50">Download full report</Link>}
+      />
       <PlanView />
     </div>
   );
