@@ -76,3 +76,53 @@ export function useGoogleRefresh(projectId: string | null | undefined) {
     },
   });
 }
+
+/** GrowthX Intelligence for the workspace and the window chosen in the top bar. */
+export function useGrowthIntelligence(projectId: string | null | undefined) {
+  const days = usePeriodDays();
+  return {
+    days,
+    query: useQuery({
+      queryKey: ["growth-intelligence", projectId, days],
+      queryFn: () => api.growthIntelligence(projectId!, days),
+      enabled: Boolean(projectId),
+      retry: false,
+      staleTime: 60_000,
+    }),
+  };
+}
+
+/** Planned and implemented changes, and the before/after for each. */
+export function useSeoImpact(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["seo-impact", projectId],
+    queryFn: () => api.seoImpactList(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+}
+
+export function useSeoImpactResult(projectId: string | null | undefined, id: string | null) {
+  return useQuery({
+    queryKey: ["seo-impact", projectId, id],
+    queryFn: () => api.seoImpactMeasure(projectId!, id!),
+    enabled: Boolean(projectId && id),
+    retry: false,
+  });
+}
+
+export function usePlanChange(projectId: string | null | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { url?: string | null; findingType: string; action: string }) => api.seoImpactPlan(projectId!, body),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["seo-impact", projectId] }),
+  });
+}
+
+export function useMarkImplemented(projectId: string | null | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.seoImpactImplemented(projectId!, id),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["seo-impact", projectId] }),
+  });
+}

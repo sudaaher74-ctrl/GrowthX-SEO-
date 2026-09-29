@@ -501,6 +501,7 @@ model Project {
   ContentStrategy           ContentStrategy[]
   integrations              Integration[]
   ga4ReportSnapshots        Ga4ReportSnapshot[]
+  seoImpactRecords          SeoImpactRecord[]
   socialPosts               SocialPost[]
   gbpFixProposals           GbpFixProposal[]
   competitorChangeAlerts    CompetitorChangeAlert[]
@@ -3995,4 +3996,36 @@ model KeywordDiagnosis {
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+/// One change a customer decided to make, with the figures as they stood before
+/// it. The "before" half of a before/after comparison cannot be reconstructed
+/// later — Search Console restates recent days and Analytics windows move — so
+/// it is captured when the change is planned, not when someone asks how it went.
+model SeoImpactRecord {
+  id             String    @id @default(uuid())
+  projectId      String
+  /// The person who planned the change.
+  createdById    String?
+  /// The page the change is on, or null for a site-wide change.
+  url            String?
+  /// The finding type this came from, e.g. LOW_CTR.
+  findingType    String
+  /// What is being changed, in the customer's words or the recommendation's.
+  action         String
+  note           String?
+  /// PLANNED | IMPLEMENTED
+  status         String    @default("PLANNED")
+  /// The window length the baseline covers, in days.
+  windowDays     Int
+  /// Figures for the window ending when this was created:
+  /// { capturedAt, range, page: { gsc, ga4 } | null, site: { gsc, ga4, gbp, ai } }.
+  /// A source with no data is null in here, never zero.
+  baseline       Json
+  createdAt      DateTime  @default(now())
+  implementedAt  DateTime?
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, url])
 }

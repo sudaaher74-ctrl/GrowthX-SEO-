@@ -4208,6 +4208,17 @@ export const api = {
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
     ),
 
+  // ── GrowthX Intelligence ─────────────────────────────────────────────────
+  growthIntelligence: (projectId: string, days: number) =>
+    get<GrowthIntelligenceReport>(`/api/projects/${projectId}/intelligence?days=${days}`),
+
+  seoImpactList: (projectId: string) => get<SeoImpactListItem[]>(`/api/projects/${projectId}/seo-impact`),
+  seoImpactPlan: (projectId: string, body: { url?: string | null; findingType: string; action: string; note?: string; windowDays?: number }) =>
+    post<{ id: string }>(`/api/projects/${projectId}/seo-impact`, body),
+  seoImpactImplemented: (projectId: string, id: string, implementedAt?: string) =>
+    post<{ id: string }>(`/api/projects/${projectId}/seo-impact/${id}/implemented`, implementedAt ? { implementedAt } : {}),
+  seoImpactMeasure: (projectId: string, id: string) => get<SeoImpactResult>(`/api/projects/${projectId}/seo-impact/${id}`),
+
   // ── Google connections ───────────────────────────────────────────────────
   googleConnections: (projectId: string) =>
     get<GoogleConnectionStatus>(`/api/projects/${projectId}/integrations/google`),
@@ -5498,4 +5509,115 @@ export async function askResearchStream(
     throw new ApiError(502, "The research connection closed before the answer arrived.");
   }
   return result;
+}
+
+// ── GrowthX Intelligence ───────────────────────────────────────────────────
+
+export type IntelligenceSource = "CRAWL" | "GSC" | "GA4" | "GBP" | "COMPETITORS" | "AI_VISIBILITY";
+
+export interface IntelligenceEvidence {
+  id: string;
+  source: IntelligenceSource;
+  text: string;
+  data?: Record<string, string | number | boolean | null>;
+}
+
+export interface IntelligenceFinding {
+  id: string;
+  type: string;
+  category: "PROBLEM" | "OPPORTUNITY" | "RISK";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  url: string | null;
+  what: string;
+  why: string;
+  evidenceIds: string[];
+  action: string;
+  expectedImpact: string | null;
+  measurement: string[];
+  potentialClicks: number | null;
+  fixIssueId?: string | null;
+}
+
+export interface IntelligencePage {
+  url: string;
+  path: string;
+  headline: string;
+  evidence: IntelligenceEvidence[];
+  findings: IntelligenceFinding[];
+  conclusion: string | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  corroboratingSources: IntelligenceSource[];
+  priority: { potentialClicks: number; reason: string };
+  notMeasured: { source: IntelligenceSource; reason: string }[];
+}
+
+export interface GrowthIntelligenceReport {
+  question: string;
+  windowDays: number;
+  generatedAt: string;
+  sources: Record<IntelligenceSource, { connected: boolean; note: string | null }>;
+  answer: { summary: string; confidenceNote: string };
+  counts: { problems: number; opportunities: number; risks: number };
+  estimatedExtraClicks: number;
+  risks: IntelligenceFinding[];
+  problems: IntelligenceFinding[];
+  opportunities: IntelligenceFinding[];
+  pages: IntelligencePage[];
+  evidence: Record<string, IntelligenceEvidence>;
+  notMeasured: { source: IntelligenceSource; reason: string | null }[];
+  methodology: { thresholds: Record<string, unknown>; notes: string[] };
+}
+
+export interface SeoImpactReadiness {
+  state: "NOT_IMPLEMENTED" | "TOO_EARLY" | "READY";
+  message: string;
+  measurableFrom: string | null;
+}
+
+export interface SeoImpactListItem {
+  id: string;
+  url: string | null;
+  findingType: string;
+  action: string;
+  note: string | null;
+  status: "PLANNED" | "IMPLEMENTED";
+  windowDays: number;
+  createdAt: string;
+  implementedAt: string | null;
+  readiness: SeoImpactReadiness;
+}
+
+export interface SeoImpactChange {
+  key: string;
+  label: string;
+  scope: "page" | "site";
+  source: "GSC" | "GA4" | "GBP" | "AI_VISIBILITY";
+  unit: "count_per_day" | "ratio" | "position" | "points";
+  before: number | null;
+  after: number | null;
+  change: number | null;
+  verdict: "IMPROVED" | "WORSE" | "NO_CLEAR_CHANGE" | "NOT_COMPARABLE";
+  reason: string;
+}
+
+export interface SeoImpactResult {
+  id: string;
+  url: string | null;
+  findingType: string;
+  action: string;
+  status: string;
+  implementedAt: string | null;
+  createdAt: string;
+  readiness: SeoImpactReadiness;
+  before: { capturedAt: string; range: { start: string; end: string; days: number } };
+  after: { range: { start: string; end: string; days: number } } | null;
+  changes: SeoImpactChange[];
+  explanation: {
+    whatChanged: string[];
+    improved: string[];
+    notImproved: string[];
+    notComparable: string[];
+    contributors: string[];
+    note: string;
+  } | null;
 }

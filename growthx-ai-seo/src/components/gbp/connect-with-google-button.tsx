@@ -8,7 +8,7 @@ import { errorMessage } from "@/lib/error-message";
 import type { GbpConnection } from "@/lib/api-client";
 
 /** Where Google sends the browser back to once consent is done. */
-export const GBP_RETURN_TO = "/google-business-profile";
+export const GBP_RETURN_TO = "/google/business-profile";
 
 interface ConnectWithGoogleButtonProps {
   projectId: string | null;
@@ -22,7 +22,7 @@ interface ConnectWithGoogleButtonProps {
  * The real "Connect with Google".
  *
  * It asks the backend for an authorization URL and sends the browser there;
- * Google then redirects back to `/google-business-profile?google=…`, which the
+ * Google then redirects back to `/google/business-profile?google=…`, which the
  * page reads to decide what to show next.
  *
  * Two states are handled before the customer can hit a wall with them: a
