@@ -7,9 +7,13 @@ import { QueryState } from "@/components/ui/query-state";
 import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import type { GapRow } from "@/lib/search-intelligence";
-import { ErrorNote, GoogleResultsNotConnected, pathOf } from "./shared";
+import { ErrorNote, pathOf } from "./shared";
 
-export function KeywordGapsTab({ projectId, connected }: { projectId: string; connected: boolean }) {
+/**
+ * Only offered where the platform has a source of competitor rankings, so it
+ * has no not-connected state of its own: the page leaves the tab out instead.
+ */
+export function KeywordGapsTab({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [tracked, setTracked] = useState<Set<string>>(new Set());
   const gaps = useQuery({
@@ -29,7 +33,6 @@ export function KeywordGapsTab({ projectId, connected }: { projectId: string; co
     },
   });
 
-  if (!connected) return <GoogleResultsNotConnected />;
   const data = gaps.data;
   const neverFetched = (data?.competitors ?? []).every((c) => !c.fetchedAt);
 

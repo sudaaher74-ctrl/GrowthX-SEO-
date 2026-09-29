@@ -1,4 +1,4 @@
-import { AnalyticsInsightsService } from './analytics-insights.service';
+import { AnalyticsInsightsService, pathKey } from './analytics-insights.service';
 
 /**
  * Two things break GA4 integrations quietly. A property with no conversion
@@ -190,6 +190,55 @@ describe('AnalyticsInsightsService', () => {
       const result = await service.pageValue('p1', 28);
 
       expect(result.rows[0].page).toContain('/converts');
+    });
+  });
+
+  describe('visitsByPage — what a landing page received', () => {
+    const landing = (landingPage: string, sessions: number, engaged: number, conversions: number | null) => ({
+      landingPage,
+      sessions: BigInt(sessions),
+      engaged,
+      conversions: conversions === null ? null : BigInt(conversions),
+    });
+
+    it('says nothing when no Analytics data has been synced, which is not the same as no visits', async () => {
+      const { service } = build([]);
+      expect(await service.visitsByPage('p1', 28)).toBeNull();
+    });
+
+    it('finds a page however Search Console spells it, folding tracked variants onto one', async () => {
+      const { service } = build([row()], [[
+        landing('/products/a2-milk', 100, 70, 4),
+        landing('/products/a2-milk?utm_source=newsletter', 50, 20, 1),
+        landing('/Products/A2-Milk/', 10, 8, 0),
+        landing('/blog/why-a2', 40, 10, null),
+      ]]);
+
+      const visits = await service.visitsByPage('p1', 28);
+
+      // All three spellings are one page; Search Console's full URL reduces to the same key.
+      expect(visits!.get(pathKey('https://milquu.in/products/a2-milk'))).toMatchObject({ sessions: 160, conversions: 5 });
+      expect(visits!.size).toBe(2);
+    });
+
+    it('weights engagement by sessions, so a busy page is not averaged with a quiet one', async () => {
+      // 100 sessions at 70% engaged and 50 at 40%: 90 engaged of 150 is 60%, not the 55% a plain mean gives.
+      const { service } = build([row()], [[landing('/a', 100, 70, null), landing('/a?x=1', 50, 20, null)]]);
+      const visits = await service.visitsByPage('p1', 28);
+      expect(visits!.get('/a')!.engagementRate).toBeCloseTo(0.6, 6);
+    });
+
+    it('keeps "no conversion tracking" apart from "no conversions"', async () => {
+      const { service } = build([row()], [[landing('/tracked', 30, 20, 0), landing('/untracked', 30, 20, null)]]);
+      const visits = await service.visitsByPage('p1', 28);
+      expect(visits!.get('/tracked')!.conversions).toBe(0);
+      expect(visits!.get('/untracked')!.conversions).toBeNull();
+    });
+
+    it('does not invent visits for a page Analytics never saw', async () => {
+      const { service } = build([row()], [[landing('/seen', 10, 5, 0)]]);
+      const visits = await service.visitsByPage('p1', 28);
+      expect(visits!.get('/never-seen')).toBeUndefined();
     });
   });
 });

@@ -219,11 +219,71 @@ export class AnalyticsInsightsService {
 
     return { rows, hasSearchData: true, hasAnalyticsData: true };
   }
+
+  /**
+   * Visits per landing page over the newest `days` of stored data, keyed by
+   * `pathKey` so a Search Console URL finds its GA4 row.
+   *
+   * Every traffic source is counted: the stored landing-page rows are not
+   * split by channel, so this is "visits", never "visits from Google". Null
+   * when no GA4 data has been synced, which is not the same as a page that
+   * received none.
+   */
+  async visitsByPage(projectId: string, days: number): Promise<Map<string, PageVisits> | null> {
+    const coverage = await this.coverage(projectId);
+    if (!coverage) return null;
+    const start = shift(coverage.newestDate, -(days - 1));
+
+    const rows = await this.prisma.$queryRaw<
+      { landingPage: string; sessions: bigint; engaged: number | null; conversions: bigint | null }[]
+    >`
+      SELECT "landingPage",
+             SUM(sessions)::bigint AS sessions,
+             SUM(sessions * "engagementRate") AS engaged,
+             CASE WHEN bool_or(conversions IS NOT NULL)
+                  THEN SUM(COALESCE(conversions, 0))::bigint
+                  ELSE NULL END AS conversions
+        FROM "Ga4DailyMetric"
+       WHERE "projectId" = ${projectId} AND grain = 'LANDING_PAGE'
+         AND date >= ${start} AND date <= ${coverage.newestDate} AND "landingPage" <> ''
+       GROUP BY "landingPage"`;
+
+    // Several tracked variants of one page fold onto a single key.
+    const folded = new Map<string, { sessions: number; engaged: number; conversions: number | null }>();
+    for (const row of rows) {
+      const key = pathKey(row.landingPage);
+      const existing = folded.get(key);
+      folded.set(key, {
+        sessions: (existing?.sessions ?? 0) + Number(row.sessions),
+        engaged: (existing?.engaged ?? 0) + Number(row.engaged ?? 0),
+        conversions: sumNullable(existing?.conversions, row.conversions === null ? null : Number(row.conversions)),
+      });
+    }
+
+    const visits = new Map<string, PageVisits>();
+    for (const [key, value] of folded) {
+      visits.set(key, {
+        sessions: value.sessions,
+        engagementRate: value.sessions > 0 ? value.engaged / value.sessions : null,
+        conversions: value.conversions,
+      });
+    }
+    return visits;
+  }
 }
 
 function sumNullable(a: number | null | undefined, b: number | null): number | null {
   if (a == null && b == null) return null;
   return (a ?? 0) + (b ?? 0);
+}
+
+/** What GA4 recorded for visits that started on one page. */
+export interface PageVisits {
+  sessions: number;
+  /** Share of sessions GA4 counted as engaged, 0-1; null with no sessions. */
+  engagementRate: number | null;
+  /** Null when the property has no key events configured, which is not zero. */
+  conversions: number | null;
 }
 
 /**
@@ -233,7 +293,7 @@ function sumNullable(a: number | null | undefined, b: number | null): number | n
  * dropped because GA4's landingPagePlusQueryString splits a page across every
  * tracking parameter that ever pointed at it; trailing slash normalised.
  */
-function pathKey(value: string): string {
+export function pathKey(value: string): string {
   let path = value;
   try {
     path = new URL(value).pathname;

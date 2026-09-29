@@ -20,6 +20,7 @@ import type {
   RankingsReport,
   SearchIntelligenceStatus,
   SearchMarket,
+  SearchRankingsReport,
 } from "./search-intelligence";
 
 /**
@@ -4150,6 +4151,8 @@ export const api = {
     diagnoses: (projectId: string) => get<DiagnosisSummary[]>(`/api/projects/${projectId}/search-intelligence/diagnoses`),
     diagnosis: (projectId: string, id: string) =>
       get<KeywordDiagnosis>(`/api/projects/${projectId}/search-intelligence/diagnoses/${encodeURIComponent(id)}`),
+    searchRankings: (projectId: string, days: number) =>
+      get<SearchRankingsReport>(`/api/projects/${projectId}/search-intelligence/search-rankings?days=${days}`),
     rankings: (projectId: string) => get<RankingsReport>(`/api/projects/${projectId}/search-intelligence/rankings`),
     track: (projectId: string, keywords: string[], source: "USER" | "COMPETITOR_GAP" = "USER") =>
       post<{ added: number; skipped: number }>(`/api/projects/${projectId}/search-intelligence/rankings/keywords`, { keywords, source }),

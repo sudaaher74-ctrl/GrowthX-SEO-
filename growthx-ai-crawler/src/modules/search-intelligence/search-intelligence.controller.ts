@@ -9,7 +9,7 @@ import { IndexStatusService } from './index-status.service';
 import { KeywordDiagnosisService } from './keyword-diagnosis.service';
 import { KeywordGapService } from './keyword-gap.service';
 import { RankTrackingService } from './rank-tracking.service';
-import { searchConsoleConnected } from './search-console-facts';
+import { analyticsConnected, searchConsoleConnected } from './search-console-facts';
 import {
   ChangeImpactQueryDto,
   ChangeRiskDto,
@@ -17,8 +17,10 @@ import {
   InspectUrlsDto,
   RefreshGapsDto,
   SearchMarketDto,
+  SearchRankingsQueryDto,
   TrackKeywordsDto,
 } from './search-intelligence.dto';
+import { SearchRankingsService } from './search-rankings.service';
 import { resolveMarket } from './search-market';
 
 /**
@@ -37,6 +39,7 @@ export class SearchIntelligenceController {
     private readonly indexStatus: IndexStatusService,
     private readonly diagnosis: KeywordDiagnosisService,
     private readonly ranks: RankTrackingService,
+    private readonly searchRankings: SearchRankingsService,
     private readonly gaps: KeywordGapService,
     private readonly impact: ChangeImpactService,
     private readonly risk: ChangeRiskService,
@@ -47,8 +50,12 @@ export class SearchIntelligenceController {
   @ApiParam({ name: 'projectId' })
   async status(@Param('projectId') projectId: string) {
     return {
-      googleResultsConnected: this.dataforseo.isConfigured(),
+      // The customer's own connections: what this page runs on.
       searchConsoleConnected: await searchConsoleConnected(this.prisma, projectId),
+      analyticsConnected: await analyticsConnected(this.prisma, projectId),
+      // A platform-wide source of live Google results and competitor keywords.
+      // It is an addition, not a requirement: the customer cannot connect it.
+      googleResultsConnected: this.dataforseo.isConfigured(),
       market: await resolveMarket(this.prisma, projectId),
     };
   }
@@ -107,7 +114,16 @@ export class SearchIntelligenceController {
     return this.diagnosis.get(projectId, id);
   }
 
-  // ── Rank tracking ──────────────────────────────────────────────────────
+  // ── Rankings from Search Console ───────────────────────────────────────
+
+  @Get('search-rankings')
+  @ApiOperation({ summary: "Where Google shows the site for each search, from the customer's own Search Console" })
+  @ApiParam({ name: 'projectId' })
+  searchRankingsReport(@Param('projectId') projectId: string, @Query() query: SearchRankingsQueryDto) {
+    return this.searchRankings.report(projectId, { days: query.days, limit: query.limit });
+  }
+
+  // ── Rank tracking (live Google results) ────────────────────────────────
 
   @Get('rankings')
   @ApiOperation({ summary: 'Tracked keywords with positions, and where competitors overtook you' })

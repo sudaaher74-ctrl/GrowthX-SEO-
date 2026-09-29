@@ -30,6 +30,23 @@ export class DiagnoseKeywordDto {
   pageUrl?: string;
 }
 
+export class SearchRankingsQueryDto {
+  /** The window, in days, set against the window before it. The dashboard's 7 / 28 / 90. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(7)
+  @Max(365)
+  days?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
 export class TrackKeywordsDto {
   @IsArray()
   @ArrayMaxSize(200)

@@ -244,4 +244,123 @@ describe('SearchConsoleInsightsService', () => {
       expect(await service.declining('p1', { days: 2 })).toEqual([]);
     });
   });
+
+  describe('queriesWithMovement — the rankings table', () => {
+    /** Four days of totals, so two-day windows have a "before" and an "after". */
+    const totals = Array.from({ length: 4 }, (_, i) => ({
+      date: day(`2026-08-0${i + 1}`),
+      clicks: 10,
+      impressions: 1000,
+      ctr: 0.01,
+      position: 8,
+    }));
+    const q = (key: string, clicks: number, impressions: number, position: number) => ({ key, clicks: BigInt(clicks), impressions: BigInt(impressions), position });
+
+    it('says nothing at all before any data is synced', async () => {
+      const { service } = build([]);
+      expect(await service.queriesWithMovement('p1')).toBeNull();
+    });
+
+    it('reports a move up as positive and a move down as negative, against the window before', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe
+        .mockResolvedValueOnce([q('climbing', 40, 900, 4.2), q('slipping', 10, 800, 9.5)])
+        .mockResolvedValueOnce([q('climbing', 30, 700, 7.7), q('slipping', 30, 800, 5)]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      const byQuery = Object.fromEntries(table!.rows.map((r) => [r.query, r]));
+      expect(byQuery.climbing.movement).toBeCloseTo(3.5, 5);
+      expect(byQuery.climbing.previousPosition).toBe(7.7);
+      expect(byQuery.slipping.movement).toBeCloseTo(-4.5, 5);
+      expect(table).toMatchObject({ movedUp: 1, movedDown: 1 });
+    });
+
+    it('calls no movement when either window shows the search too few times for an average to mean anything', async () => {
+      // Position 40 on three impressions is not a ranking anyone lost.
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe
+        .mockResolvedValueOnce([q('rare now', 0, 3, 40), q('rare before', 5, 900, 6)])
+        .mockResolvedValueOnce([q('rare now', 5, 900, 6), q('rare before', 0, 4, 30)]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      expect(table!.rows.every((r) => r.movement === null)).toBe(true);
+      expect(table).toMatchObject({ movedUp: 0, movedDown: 0 });
+    });
+
+    it('gives no movement at all, and no comparison range, when there is no earlier period stored', async () => {
+      // Comparing with nothing would report every search as having arrived from position 0.
+      const recent = totals.slice(2);
+      const { prisma, service } = build(recent);
+      prisma.$queryRawUnsafe.mockResolvedValueOnce([q('new', 12, 400, 5)]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      expect(table!.comparisonRange).toBeNull();
+      expect(table!.rows[0]).toMatchObject({ query: 'new', movement: null, previousPosition: null });
+      // Only the one query for the window that exists was asked of the database.
+      expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call a wobble of less than a place a move', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe
+        .mockResolvedValueOnce([q('steady', 20, 900, 6.4)])
+        .mockResolvedValueOnce([q('steady', 20, 900, 6.9)]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      expect(table!.rows[0].movement).toBeCloseTo(0.5, 5);
+      expect(table).toMatchObject({ movedUp: 0, movedDown: 0 });
+    });
+
+    it('counts every search by where it stands, while returning only the ones clicked most', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe
+        .mockResolvedValueOnce([
+          q('a', 90, 900, 12), // page two
+          q('b', 40, 900, 15), // page two
+          q('c', 30, 900, 3.5), // page one
+          q('d', 20, 900, 10), // page one
+          q('e', 10, 900, 20), // page two, at its edge
+          q('f', 5, 900, 20.5), // beyond
+          // The best-placed search is the least clicked, so it is not among the rows returned.
+          q('g', 1, 900, 2), // top 3
+        ])
+        .mockResolvedValueOnce([]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2, limit: 2 });
+
+      expect(table).toMatchObject({ searches: 7, top3: 1, pageOne: 2, pageTwo: 3, beyond: 1 });
+      expect(table!.rows.map((r) => r.query)).toEqual(['a', 'b']);
+    });
+
+    it('leaves out a search that was never actually shown', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe.mockResolvedValueOnce([q('ghost', 0, 0, 0), q('real', 3, 120, 8)]).mockResolvedValueOnce([]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      expect(table!.searches).toBe(1);
+      expect(table!.rows.map((r) => r.query)).toEqual(['real']);
+    });
+
+    it('orders by clicks, then by how often the search was shown', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe
+        .mockResolvedValueOnce([q('few shown', 5, 100, 5), q('many shown', 5, 900, 5), q('most clicked', 50, 800, 5)])
+        .mockResolvedValueOnce([]);
+
+      const table = await service.queriesWithMovement('p1', { days: 2 });
+
+      expect(table!.rows.map((r) => r.query)).toEqual(['most clicked', 'many shown', 'few shown']);
+    });
+
+    it('computes the click-through rate from the totals, not from a stored ratio', async () => {
+      const { prisma, service } = build(totals);
+      prisma.$queryRawUnsafe.mockResolvedValueOnce([q('x', 25, 1000, 5)]).mockResolvedValueOnce([]);
+      expect((await service.queriesWithMovement('p1', { days: 2 }))!.rows[0].ctr).toBeCloseTo(0.025, 6);
+    });
+  });
 });
