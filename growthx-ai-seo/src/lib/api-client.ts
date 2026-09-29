@@ -1081,6 +1081,196 @@ export interface PageValue {
   hasAnalyticsData: boolean;
 }
 
+// ── Google section ─────────────────────────────────────────────────────────
+
+export type GoogleSource = "GSC" | "GA4" | "GrowthX";
+
+export interface GoogleSourceStatus {
+  connected: boolean;
+  /** NOT_CONNECTED | NEEDS_SELECTION | NEEDS_REAUTH | ERROR | NEVER_SYNCED | EMPTY | READY */
+  state: string;
+  message: string | null;
+  lastSyncedAt: string | null;
+  hasData: boolean;
+  propertyName: string | null;
+  accountEmail: string | null;
+}
+
+export interface GoogleKpi {
+  key: string;
+  label: string;
+  source: "GSC" | "GA4";
+  format: "count" | "percent" | "position" | "currency";
+  /** Null when not measured; `note` says why. */
+  value: number | null;
+  previous: number | null;
+  delta: { kind: "pct" | "pts" | "places"; value: number } | null;
+  lowerIsBetter: boolean;
+  /** Real daily values, or null where none are stored. */
+  sparkline: number[] | null;
+  note: string | null;
+}
+
+export interface GoogleFunnelStage {
+  key: "impressions" | "clicks" | "sessions" | "engaged" | "keyEvents" | "revenue";
+  label: string;
+  source: GoogleSource;
+  value: number | null;
+  rate: number | null;
+  rateLabel: string | null;
+  note: string | null;
+}
+
+export interface GoogleEvidence {
+  label: string;
+  value: string;
+  source: GoogleSource;
+}
+
+export interface GoogleHeadline {
+  id: string;
+  tone: "good" | "bad" | "warn" | "neutral";
+  text: string;
+  evidence: GoogleEvidence[];
+  links: { label: string; view: string; segment?: string }[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  source: GoogleSource | "GSC+GA4";
+}
+
+export interface GoogleOverview {
+  days: 7 | 28 | 90;
+  sources: {
+    searchConsole: GoogleSourceStatus;
+    analytics: GoogleSourceStatus & { needsRefresh: boolean };
+    crawler: { lastCrawledAt: string | null };
+  };
+  windows: {
+    search: { start: string; end: string; comparison: { start: string; end: string } | null } | null;
+    analytics: { start: string; end: string; comparison: { start: string; end: string } | null } | null;
+  };
+  kpis: GoogleKpi[];
+  series: {
+    search: { date: string; clicks: number; impressions: number; ctr: number; position: number }[];
+    organic: { date: string; sessions: number; users: number; keyEvents: number | null; revenue: number | null }[];
+  };
+  funnel: GoogleFunnelStage[];
+  headlines: GoogleHeadline[];
+}
+
+export type GooglePageSegment =
+  | "top-traffic"
+  | "top-impressions"
+  | "top-converting"
+  | "declining"
+  | "growing"
+  | "high-impressions-low-ctr"
+  | "high-traffic-low-conversion"
+  | "low-traffic-high-conversion"
+  | "ranking-opportunity"
+  | "technical-risk";
+
+export interface GooglePageRow {
+  key: string;
+  url: string;
+  gsc: {
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+    previousClicks: number | null;
+    previousImpressions: number | null;
+    clicksChangePct: number | null;
+  } | null;
+  ga: {
+    users: number;
+    sessions: number;
+    engagementRate: number;
+    averageEngagementTimeSec: number;
+    keyEvents: number | null;
+    revenue: number | null;
+  } | null;
+  technicalRisk: string | null;
+  segments: GooglePageSegment[];
+  trend: number[];
+}
+
+export interface GooglePages {
+  days: 7 | 28 | 90;
+  windows: {
+    search: { start: string; end: string; comparison: { start: string; end: string } | null };
+    analytics: { start: string; end: string } | null;
+  } | null;
+  sources: {
+    searchConsole: { hasData: boolean };
+    analytics: { state: string; message: string | null; hasOrganic: boolean; needsRefresh: boolean; conversionsMeasured: boolean };
+  };
+  criteria: Partial<Record<GooglePageSegment, string>>;
+  segmentCounts: Record<GooglePageSegment, number>;
+  total: number;
+  rows: GooglePageRow[];
+}
+
+export interface GoogleDiagnosisFinding {
+  id: string;
+  tone: "good" | "bad" | "warn" | "neutral";
+  text: string;
+  evidence: GoogleEvidence[];
+  action: string;
+  source: GoogleSource | "GSC+GA4";
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+}
+
+export interface GooglePageDetail {
+  days: 7 | 28 | 90;
+  key: string;
+  url: string;
+  found: boolean;
+  gsc: NonNullable<GooglePageRow["gsc"]> | null;
+  ga: {
+    users: number;
+    sessions: number;
+    engagedSessions: number;
+    views: number;
+    engagementRate: number;
+    averageEngagementTimeSec: number;
+    keyEvents: number | null;
+    revenue: number | null;
+  } | null;
+  queries: { query: string; clicks: number; impressions: number; ctr: number; position: number }[];
+  history: { date: string; clicks: number; impressions: number; ctr: number; position: number }[];
+  funnel: GoogleFunnelStage[];
+  index: {
+    verdict: string | null;
+    coverageState: string | null;
+    lastCrawlTime: string | null;
+    googleCanonical: string | null;
+    inspectedAt: string;
+    error: string | null;
+    meaning: string | null;
+    action: string | null;
+  } | null;
+  crawl: {
+    url: string;
+    crawledAt: string;
+    statusCode: number;
+    responseTimeMs: number;
+    title: string | null;
+    metaDescription: string | null;
+    canonicalUrl: string | null;
+    h1Count: number;
+    wordCount: number;
+    indexability: string;
+    jsRequired: boolean;
+    schemas: { type: string; valid: boolean }[];
+    performance: { performanceScore: number | null; lcpMs: number | null; clsScore: number | null; inpMs: number | null } | null;
+    internalLinksIn: number;
+    internalLinksOut: number;
+    openIssues: { severity: string; issueType: string; description: string }[];
+  } | null;
+  diagnosis: GoogleDiagnosisFinding[];
+  windows: { analytics: { start: string; end: string } | null };
+}
+
 /**
  * One measurement, or an honest reason there is none.
  *
@@ -4261,6 +4451,15 @@ export const api = {
   ga4Timeseries: (projectId: string, days: number) =>
     get<Ga4Point[]>(`/api/projects/${projectId}/analytics/timeseries?days=${days}`),
   /** Organic clicks joined to sessions and conversions, per page. */
+  // ── Google section ───────────────────────────────────────────────────────
+  googleOverview: (projectId: string, days: number) =>
+    get<GoogleOverview>(`/api/projects/${projectId}/google/overview?days=${days}`),
+  googlePages: (projectId: string, days: number, segment?: string) =>
+    get<GooglePages>(
+      `/api/projects/${projectId}/google/pages?days=${days}${segment ? `&segment=${encodeURIComponent(segment)}` : ""}`,
+    ),
+  googlePage: (projectId: string, days: number, url: string) =>
+    get<GooglePageDetail>(`/api/projects/${projectId}/google/page?days=${days}&url=${encodeURIComponent(url)}`),
   ga4PageValue: (projectId: string, days: number) =>
     get<PageValue>(`/api/projects/${projectId}/analytics/page-value?days=${days}`),
 

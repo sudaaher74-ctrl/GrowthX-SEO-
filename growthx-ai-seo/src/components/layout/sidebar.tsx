@@ -97,9 +97,11 @@ export function Sidebar({
       step: { n: 2, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
     },
     {
-      label: "Google Search",
-      href: "/search-intelligence",
+      label: "Google",
+      href: "/google",
       icon: SearchCheck,
+      // The earlier Google Search page stays reachable while the new sections replace its tabs.
+      aliases: ["/search-intelligence"],
     },
     {
       label: "Business",

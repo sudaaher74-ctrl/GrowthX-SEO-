@@ -193,6 +193,52 @@ describe('AnalyticsReportService', () => {
       expect(data.empty).toBe(false);
     });
 
+    it('adds Organic Search figures, every one asked through the organic channel filter', async () => {
+      const { service, prisma } = build(connected);
+      await service.refresh('p1');
+
+      const filtered = runReport.mock.calls.map((c: any[]) => c[0].requestBody).filter((b: any) => b.dimensionFilter);
+      // daily, plus totals / previous period / landing pages for each of three windows
+      expect(filtered).toHaveLength(1 + 3 * 3);
+      for (const body of filtered) {
+        expect(body.dimensionFilter.filter).toEqual({
+          fieldName: 'sessionDefaultChannelGroup',
+          stringFilter: { matchType: 'EXACT', value: 'Organic Search' },
+        });
+      }
+      // The previous window is the equal-length one ending the day before this one starts.
+      const seven = filtered.filter((b: any) => b.dateRanges[0].startDate !== '90daysAgo' && b.dimensions.length === 0);
+      const starts = seven.map((b: any) => b.dateRanges[0].startDate).sort();
+      expect(new Set(starts).size).toBe(6); // three windows, each with a current and a previous range
+
+      const data = prisma.ga4ReportSnapshot.upsert.mock.calls.map((c: any[]) => c[0]).find((u: any) => u.create.range === '7d').create.data;
+      expect(data.organic.totals).toMatchObject({ sessions: 100, activeUsers: 30, keyEvents: 7, views: 542, revenue: null });
+      expect(data.organic.totals.averageEngagementTimeSec).toBe(30);
+      expect(data.organic.previous).not.toBeNull();
+      expect(data.organic.daily).toHaveLength(7);
+      expect(data.organic.landingPages[0].page).toBe('/');
+    });
+
+    it('has no previous organic period when GA4 recorded nothing before this window', async () => {
+      runReport.mockImplementation(async ({ requestBody }: any) => {
+        const dims = requestBody.dimensions.map((d: any) => d.name);
+        const metrics = requestBody.metrics.map((m: any) => m.name);
+        // An organic total for an earlier window (it ends before the last week) comes back empty:
+        // the property had recorded nothing then.
+        const end = requestBody.dateRanges[0].endDate;
+        if (requestBody.dimensionFilter && dims.length === 0 && /^\d{4}-/.test(end)) {
+          const sevenStart = new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10);
+          if (end < sevenStart) return { data: { metadata: { timeZone: 'UTC' }, rows: [] } };
+        }
+        return { data: answer(dims, metrics) };
+      });
+      const { service, prisma } = build(connected);
+      await service.refresh('p1');
+      const data = prisma.ga4ReportSnapshot.upsert.mock.calls.map((c: any[]) => c[0]).find((u: any) => u.create.range === '90d').create.data;
+      // The 90d previous window ends long before any recorded data: no baseline, not a comparison against zero.
+      expect(data.organic.previous).toBeNull();
+    });
+
     it('stores key events as unknown, not zero, when the property has none', async () => {
       runReport.mockImplementation(async ({ requestBody }: any) => {
         const metrics = requestBody.metrics.map((m: any) => m.name);

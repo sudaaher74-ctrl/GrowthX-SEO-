@@ -4,6 +4,8 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { ChangeImpactService } from './change-impact.service';
 import { ChangeRiskService } from './change-risk.service';
 import { DataForSeoService } from './dataforseo.service';
+import { GoogleOverviewController } from './google-overview.controller';
+import { GoogleOverviewService } from './google-overview.service';
 import { IndexStatusService } from './index-status.service';
 import { KeywordDiagnosisService } from './keyword-diagnosis.service';
 import { KeywordGapService } from './keyword-gap.service';
@@ -22,8 +24,9 @@ import { SearchRankingsService } from './search-rankings.service';
  */
 @Module({
   imports: [DatabaseModule, IntegrationsModule],
-  controllers: [SearchIntelligenceController],
+  controllers: [SearchIntelligenceController, GoogleOverviewController],
   providers: [
+    GoogleOverviewService,
     DataForSeoService,
     IndexStatusService,
     RankTrackingService,
