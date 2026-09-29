@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { isProviderAllowed, readProviderAllowlist } from './modules/ai-engine/utils/ai-provider-allowlist.util';
 import { CrawlerProcessor } from './modules/crawler/crawler.processor';
 import { instagramCredentials, isConfiguredValue } from './config/optional-env';
+import { readTokenConfig } from './modules/tokens/token-rates';
 
 /**
  * When this process started. A redeploy resets it, which — together with the
@@ -96,6 +97,11 @@ export class HealthController implements OnApplicationBootstrap {
         .filter((c) => !c.configured)
         .map(({ name, envVar, consequence }) => ({ name, envVar, consequence })),
       ai: this.aiStatus(),
+      // Whether tokens are limiting anyone. A rollout that starts in shadow mode
+      // is only as safe as being able to see, from outside, that it did: any
+      // value TOKENS_ENFORCEMENT does not recognise enforces, so a typo in the
+      // hosting dashboard would otherwise start refusing work without a sign.
+      tokens: { mode: readTokenConfig().mode },
     };
   }
 
@@ -270,8 +276,9 @@ export class HealthController implements OnApplicationBootstrap {
       // Billing (RAZORPAY_KEY_ID) is deliberately absent. No code reads the
       // Razorpay keys and the billing tables were dropped, so the entry could
       // only ever read "unconfigured", and setting the key would have claimed
-      // a checkout that does not exist. Plans are provisioned with
-      // scripts/provision-subscription.ts.
+      // a checkout that does not exist. What an organization may use is its
+      // tokens instead (TOKENS_ENFORCEMENT and friends), given out with
+      // scripts/tokens.ts.
     ];
   }
 }

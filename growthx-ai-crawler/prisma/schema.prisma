@@ -423,6 +423,9 @@ model Organization {
   auditLogs          AuditLog[]
   members            OrganizationMember[]
   projects           Project[]
+  /// Created on first use, not at sign-up, so organizations that predate the
+  /// token system and ones made by scripts get one without a backfill.
+  tokenWallet        TokenWallet?
 }
 
 model OrganizationMember {
@@ -2734,6 +2737,103 @@ model AiUsageRecord {
   @@index([projectId, createdAt])
   @@index([taskType, createdAt])
   @@index([provider, createdAt])
+}
+
+/// What one row of the token ledger records. A closed set, so a typo is a
+/// compile error rather than a row nothing knows how to read.
+enum TokenTransactionKind {
+  /// A period's monthly allowance being granted.
+  ALLOWANCE
+  /// The previous period's unspent allowance lapsing.
+  EXPIRY
+  /// Tokens added by an operator or, later, a purchase. These never expire.
+  GRANT
+  /// A correction by an operator, up or down.
+  ADJUSTMENT
+  /// Tokens used by a feature.
+  SPEND
+  /// Tokens returned because the work they paid for did not happen.
+  REFUND
+}
+
+/// An organization's spendable tokens.
+///
+/// Two buckets, drawn down in this order: the monthly allowance, which is
+/// granted at the start of each UTC month and does not roll over, then bonus
+/// tokens, which never expire. Keeping them apart is what lets an allowance
+/// refill without swallowing tokens someone was given or paid for.
+///
+/// `balance >= 0` is enforced by the database, not just by the service: a bug
+/// that overdraws should fail loudly instead of publishing a negative balance.
+///
+/// One row per organization, created on first use (see TokensService).
+model TokenWallet {
+  id               String       @id @default(uuid())
+  organizationId   String       @unique
+  /// Left of this period's allowance. Reset to `monthlyAllowance` at `periodEnd`.
+  allowanceBalance Int          @default(0)
+  /// What this period's allowance was when it was granted. Kept apart from
+  /// `monthlyAllowance`, which is what the *next* period will grant: an operator
+  /// who changes the figure mid-month has not changed what this month held, and
+  /// a screen that read one for the other would show "4.9M of 0".
+  periodAllowance  Int          @default(0)
+  /// Tokens that do not lapse: grants, purchases, and refunds from a past period.
+  bonusBalance     Int          @default(0)
+  /// Tokens granted at the start of each period, for an account that has its
+  /// own figure. Null means the platform default (TOKENS_MONTHLY_ALLOWANCE), so
+  /// changing the default reaches every account that was never negotiated.
+  monthlyAllowance Int?
+  periodStart      DateTime
+  periodEnd        DateTime
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// One movement of tokens. Append-only: a wrong entry is corrected by another
+/// entry, never edited, so the ledger can always be replayed into the balance.
+///
+/// `organizationId` is a loose id rather than a relation, on purpose. This is a
+/// billing ledger — deleting an organization should not erase the record of
+/// what it was given and what it spent (the same rule as AiUsageRecord).
+model TokenTransaction {
+  id             String               @id @default(uuid())
+  organizationId String
+  kind           TokenTransactionKind
+  /// What the movement was for. For a SPEND, the feature ("AI_USAGE",
+  /// "GEO_GRID_POINT"); for other kinds, the reason ("MONTHLY_ALLOWANCE",
+  /// "ADMIN_GRANT"). Text, so a new feature needs no migration.
+  action         String
+  /// Signed change to each bucket: negative for tokens leaving.
+  allowanceDelta Int
+  bonusDelta     Int
+  /// For a SPEND, tokens the work needed beyond what the wallet held, so what
+  /// it needed is always -(allowanceDelta + bonusDelta) + shortfall. Nonzero
+  /// when a metered call finished after the balance ran out, and for every call
+  /// in shadow mode once it has, which is what lets shadow mode show the demand
+  /// before anything is enforced.
+  shortfall      Int                  @default(0)
+  /// Both balances once this row was applied, so a statement can be read (and
+  /// audited) row by row without replaying everything before it.
+  allowanceAfter Int
+  bonusAfter     Int
+  projectId      String?
+  /// Who triggered it, when a person did.
+  userId         String?
+  /// Set on anything that must not be applied twice: the grant for a period, a
+  /// refund of a spend, a payment. A second row with the same key is refused by
+  /// the database rather than trusted to be avoided by the caller.
+  idempotencyKey String?              @unique
+  /// For a REFUND, the SPEND it reverses.
+  refundOfId     String?
+  /// Facts behind the number: model and token counts for AI usage, the grid
+  /// size for a geo-grid scan, an operator's note.
+  detail         Json?
+  createdAt      DateTime             @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action, createdAt])
+  @@index([refundOfId])
 }
 
 /// One geo-grid scan: a keyword measured at every coordinate of an N x N grid

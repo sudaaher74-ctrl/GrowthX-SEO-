@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../database/prisma.service';
+import { TokensService } from '../tokens/tokens.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly queueService: QueueService,
-    private readonly prisma: PrismaService,) {}
+    private readonly prisma: PrismaService,
+    private readonly tokens: TokensService,
+  ) {}
 
   async getQueueStats() {
     const queues = [
@@ -124,6 +127,13 @@ export class AdminService {
       }
     });
 
+    // What each organization can actually use. This column used to be a
+    // `plan: 'ENTERPRISE'` written into every row, whatever the organization was:
+    // a made-up value on the one screen operators rely on to know who is who.
+    // An organization that has not used a metered feature yet has no wallet and
+    // reads as null, which the screen shows as exactly that.
+    const balances = await this.tokens.peek(orgs.map((org) => org.id));
+
     return orgs.map(org => {
       // Calculate sites
       let totalSites = 0;
@@ -138,7 +148,7 @@ export class AdminService {
         id: org.id,
         name: org.name,
         owner: ownerEmail,
-        plan: 'ENTERPRISE',
+        tokens: balances.get(org.id) ?? null,
         sites: totalSites,
         status: 'active'
       };

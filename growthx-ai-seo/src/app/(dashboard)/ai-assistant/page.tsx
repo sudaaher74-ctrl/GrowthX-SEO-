@@ -57,9 +57,12 @@ function ChatPanel({ projectId, clientName }: { projectId: string | null; client
       const result = await askAi.mutateAsync(content);
       setMessages((prev) => [...prev, { role: "assistant", content: result.answer }]);
     } catch (err) {
-      if (!(err instanceof ApiError && err.isUpgradeRequired)) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I couldn't process that — please try again." }]);
-      }
+      // Out of tokens is not a glitch to retry: say so, and when they refill.
+      const reply =
+        err instanceof ApiError && err.isOutOfTokens
+          ? err.message
+          : "Sorry, I couldn't process that — please try again.";
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     }
   };
 

@@ -7,11 +7,12 @@ import { GeoGridService } from './geo-grid.service';
 import { DatabaseModule } from '../../database/database.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { TokensModule } from '../tokens/tokens.module';
 
 import { ReviewsService } from './reviews.service';
 
 @Module({
-  imports: [DatabaseModule, AiSearchModule, IntegrationsModule],
+  imports: [DatabaseModule, AiSearchModule, IntegrationsModule, TokensModule],
   controllers: [LocalSeoController],
   providers: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService, ReviewsService],
   exports: [LocalSeoService, GbpAnalyzerService, GbpAutofixService, GeoGridService, ReviewsService],

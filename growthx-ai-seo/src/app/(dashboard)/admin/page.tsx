@@ -13,6 +13,8 @@ import {
 } from "@/lib/api-client";
 import { useWorkspace, useCreators, useAddCreator, useDeleteCreator } from "@/hooks/use-growthx";
 import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
+import { GrantTokensForm } from "@/components/tokens/grant-tokens-form";
+import { formatTokens, formatTokensExact } from "@/lib/tokens";
 
 function InstagramIcon({ size = 14, className }: { size?: number; className?: string }) {
   return (
@@ -63,6 +65,7 @@ export default function AdminPage() {
   const [workerQueues, setWorkerQueues] = useState<QueueStat[]>([]);
   const [apiCosts, setApiCosts] = useState<ApiCostStat[]>([]);
   const [tenants, setTenants] = useState<TenantStat[]>([]);
+  const [grantTo, setGrantTo] = useState<TenantStat | null>(null);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -506,6 +509,16 @@ export default function AdminPage() {
         {/* TAB 2: TENANTS & WORKSPACES */}
         {activeTab === "tenants" && (
           <div className="space-y-4">
+            {grantTo && (
+              <GrantTokensForm
+                tenant={grantTo}
+                onClose={() => setGrantTo(null)}
+                onDone={() => {
+                  setGrantTo(null);
+                  loadData();
+                }}
+              />
+            )}
             <Panel
               title="Registered SaaS Tenants & Workspaces"
               subtitle="All client organizations registered on this GrowthX instance."
@@ -528,7 +541,7 @@ export default function AdminPage() {
                     <Th>Organization Name</Th>
                     <Th>Owner Account</Th>
                     <Th>Configured Sites</Th>
-                    <Th>Subscription Plan</Th>
+                    <Th>Tokens</Th>
                     <Th>Status</Th>
                     <Th align="right">Action</Th>
                   </tr>
@@ -552,21 +565,39 @@ export default function AdminPage() {
                           <span className="font-mono text-xs font-semibold text-brand-900 dark:text-brand-200">{t.sites} sites</span>
                         </Td>
                         <Td>
-                          <Pill tone="good">{t.plan}</Pill>
+                          {t.tokens ? (
+                            <span title={`${formatTokensExact(t.tokens.available)} available, ${formatTokensExact(t.tokens.monthly)} a month`}>
+                              <span className="font-mono text-xs font-semibold text-brand-900">{formatTokens(t.tokens.available)}</span>{" "}
+                              <span className="text-[10.5px] text-brand-400">of {formatTokens(t.tokens.monthly)}/mo</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-brand-400" title="Opened the first time this workspace uses a feature that spends tokens">
+                              Not started
+                            </span>
+                          )}
                         </Td>
                         <Td>
                           <Pill tone={t.status === "active" ? "good" : "warn"}>{t.status.toUpperCase()}</Pill>
                         </Td>
                         <Td align="right">
-                          <Link href="/clients">
+                          <div className="flex items-center justify-end gap-3">
                             <button
                               type="button"
-                              className="text-xs font-semibold text-accent-600 hover:underline flex items-center gap-1 justify-end"
+                              onClick={() => setGrantTo(t)}
+                              className="text-xs font-semibold text-accent-600 hover:underline"
                             >
-                              <span>Inspect</span>
-                              <ArrowUpRight size={11} />
+                              Add tokens
                             </button>
-                          </Link>
+                            <Link href="/clients">
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-accent-600 hover:underline flex items-center gap-1 justify-end"
+                              >
+                                <span>Inspect</span>
+                                <ArrowUpRight size={11} />
+                              </button>
+                            </Link>
+                          </div>
                         </Td>
                       </Tr>
                     ))

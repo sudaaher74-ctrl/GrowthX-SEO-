@@ -60,6 +60,15 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-}
       - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
+      # Tokens must be configured identically for the API and the worker: both
+      # run AI calls, and two processes disagreeing about limits would meter
+      # the same organization two ways. Left empty, the built-in defaults apply.
+      - TOKENS_ENFORCEMENT=${TOKENS_ENFORCEMENT:-}
+      - TOKENS_MONTHLY_ALLOWANCE=${TOKENS_MONTHLY_ALLOWANCE:-}
+      - TOKENS_AI_INPUT_WEIGHT=${TOKENS_AI_INPUT_WEIGHT:-}
+      - TOKENS_AI_OUTPUT_WEIGHT=${TOKENS_AI_OUTPUT_WEIGHT:-}
+      - TOKENS_MIN_TO_START_AI=${TOKENS_MIN_TO_START_AI:-}
+      - TOKENS_COST_GEO_GRID_POINT=${TOKENS_COST_GEO_GRID_POINT:-}
     depends_on:
       - postgres
       - redis
@@ -87,6 +96,15 @@ services:
       - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY:-}
       - CRAWLER_JOB_CONCURRENCY=5
       - CRAWLER_WORKER_CONCURRENCY=10
+      # Tokens must be configured identically for the API and the worker: both
+      # run AI calls, and two processes disagreeing about limits would meter
+      # the same organization two ways. Left empty, the built-in defaults apply.
+      - TOKENS_ENFORCEMENT=${TOKENS_ENFORCEMENT:-}
+      - TOKENS_MONTHLY_ALLOWANCE=${TOKENS_MONTHLY_ALLOWANCE:-}
+      - TOKENS_AI_INPUT_WEIGHT=${TOKENS_AI_INPUT_WEIGHT:-}
+      - TOKENS_AI_OUTPUT_WEIGHT=${TOKENS_AI_OUTPUT_WEIGHT:-}
+      - TOKENS_MIN_TO_START_AI=${TOKENS_MIN_TO_START_AI:-}
+      - TOKENS_COST_GEO_GRID_POINT=${TOKENS_COST_GEO_GRID_POINT:-}
     depends_on:
       - postgres
       - redis

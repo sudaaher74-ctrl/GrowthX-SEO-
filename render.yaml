@@ -87,6 +87,14 @@ services:
       # the newest 3 once over 45 days old. "report" logs without deleting.
       - key: CRAWL_RETENTION_MODE
         value: delete
+      # Tokens start in shadow mode: every AI call and geo-grid scan is counted
+      # and shown on each workspace's Tokens screen, but nothing is ever refused,
+      # so the figures can be checked against real use before anyone is limited.
+      # Without this line the code default is "enforce". To start limiting, change
+      # the value to "enforce" and set TOKENS_MONTHLY_ALLOWANCE from what the
+      # ledger shows (scripts/tokens.ts --list). See docs/tokens.md.
+      - key: TOKENS_ENFORCEMENT
+        value: shadow
       # Secrets are never checked into the repository.
       #
       # `sync: false` tells Render to prompt for the value in the dashboard and

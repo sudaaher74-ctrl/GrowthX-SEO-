@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
 import { AutopilotCard } from "@/components/autopilot/autopilot-card";
+import { TokenBanner } from "@/components/tokens/token-banner";
 
 /**
  * Every dashboard route renders inside this shell, so it is where the session
@@ -75,7 +76,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             collapsed ? "md:ml-0" : "md:ml-[232px]",
           )}
         >
-          <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">{children}</div>
+          <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
+            <TokenBanner />
+            {children}
+          </div>
         </main>
       </div>
       <AutopilotCard />

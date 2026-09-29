@@ -19,6 +19,7 @@ import { isProviderAllowed, readProviderAllowlist } from '../../ai-engine/utils/
 import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { configuredValue, isConfiguredValue } from '../../../config/optional-env';
 import { AiUsageService } from './ai-usage.service';
+import { TokensService } from '../../tokens/tokens.service';
 import {
   MammouthCapability,
   MAMMOUTH_MODELS,
@@ -227,6 +228,12 @@ export class MultiAiRouterService {
      * go unrecorded.
      */
     @Optional() private readonly usageLedger?: AiUsageService,
+    /**
+     * Optional for the same reason. When absent, calls are not charged to a
+     * wallet — so AiSearchModule must import TokensModule (tested in
+     * ai-search.module.spec.ts), or enforcement would silently not exist.
+     */
+    @Optional() private readonly tokens?: TokensService,
   ) {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
@@ -332,20 +339,78 @@ export class MultiAiRouterService {
   }
 
   /**
-   * Runs a prompt against the best vendor the caller's plan allows.
+   * Runs a prompt against the best vendor the caller's plan allows, for an
+   * organization that still has the tokens to pay for it.
    *
+   * Three steps, in this order:
+   *  1. Refuse before spending anything: over the spend budget or the daily
+   *     ceiling, or out of tokens. A ceiling that only reports overspend is a
+   *     report, not a ceiling.
+   *  2. Route the call (see `route`).
+   *  3. Charge the organization for the answer it is getting — and only that
+   *     one. A vendor that errored, declined, or answered with unparseable
+   *     JSON before another vendor succeeded is the platform's cost, not the
+   *     customer's.
+   */
+  async generate(request: AiRequest): Promise<AiCompletion> {
+    const task = request.task ?? AiTask.REASONING;
+    const scoped = await this.attributed(request);
+
+    await this.usageLedger?.assertWithinBudget(scoped.organizationId);
+    await this.tokens?.assertCanStart(scoped.organizationId);
+
+    const completion = await this.route(scoped, task);
+
+    if (this.tokens && !completion.refused) {
+      // Settling never throws by contract, and is caught anyway: the answer
+      // exists and the vendor has billed us for it, so a bookkeeping failure
+      // here must not stop it reaching the customer.
+      await this.tokens
+        .settleAiUsage({
+          organizationId: scoped.organizationId,
+          projectId: scoped.projectId,
+          taskType: task,
+          provider: completion.provider,
+          model: completion.model,
+          inputTokens: completion.usage.inputTokens,
+          outputTokens: completion.usage.outputTokens,
+          promptChars: scoped.prompt.length + (scoped.systemInstruction?.length ?? 0),
+          responseChars: completion.text.length,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(`Could not charge tokens for a completed AI call: ${(error as Error)?.message}`);
+        });
+    }
+    return completion;
+  }
+
+  /**
+   * Fills in the organization for a caller that knows only the project.
+   *
+   * Several callers pass `projectId` alone, so their calls had no organization:
+   * no budget applied to them, and they sat in the spend ledger unattributed.
+   * Resolved once here so everything downstream — budget, tokens, the ledger —
+   * sees the same organization.
+   */
+  private async attributed(request: AiRequest): Promise<AiRequest> {
+    if (request.organizationId || !request.projectId || !this.tokens) return request;
+    try {
+      const organizationId = await this.tokens.resolveOrganization({ projectId: request.projectId });
+      return organizationId ? { ...request, organizationId } : request;
+    } catch (error) {
+      this.logger.warn(`Could not find the organization for project ${request.projectId}: ${(error as Error)?.message}`);
+      return request;
+    }
+  }
+
+  /**
    * Selection order: an explicitly requested provider (403 if not in plan) →
    * the task's preference list, filtered to what the plan allows and what has
    * credentials. If the chosen vendor errors or its safety classifiers decline,
    * the next allowed vendor is tried.
    */
-  async generate(request: AiRequest): Promise<AiCompletion> {
-    const task = request.task ?? AiTask.REASONING;
+  private async route(request: AiRequest, task: AiTask): Promise<AiCompletion> {
     const allowed = this.configuredProviders();
-
-    // Checked before the call, not after: a ceiling that only reports overspend
-    // is a report, not a ceiling.
-    await this.usageLedger?.assertWithinBudget(request.organizationId);
 
     const targetProvider = request.provider;
 

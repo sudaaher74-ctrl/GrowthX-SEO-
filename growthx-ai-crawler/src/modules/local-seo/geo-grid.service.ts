@@ -3,6 +3,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 import { geocodeAddress } from './geocoding.util';
+import { TokenAction, fixedPriceTokens } from '../tokens/token-rates';
+import { TokensService } from '../tokens/tokens.service';
 
 export interface GridCompetitor {
   name: string;
@@ -120,6 +122,7 @@ export class GeoGridService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
+    private readonly tokens: TokensService,
   ) {}
 
   /**
@@ -253,7 +256,21 @@ export class GeoGridService {
     );
 
     const coordinates = this.gridCoordinates(centerLat, centerLng, gridSize, radiusKm);
-    const nodes = await this.measureNodes(coordinates, keyword, businessName, radiusKm, gridSize, apiKey);
+
+    // Charged here, after every check that could refuse the scan and just before
+    // the first paid lookup, so a request that was never going to run costs
+    // nothing. Every lookup must succeed for a scan to be stored, so a scan that
+    // fails partway is refunded in full.
+    const nodes = await this.tokens.withCharge(
+      {
+        organizationId,
+        projectId,
+        action: TokenAction.GEO_GRID_POINT,
+        tokens: fixedPriceTokens(TokenAction.GEO_GRID_POINT, coordinates.length, this.tokens.config()),
+        detail: { keyword, gridSize, radiusKm, points: coordinates.length },
+      },
+      () => this.measureNodes(coordinates, keyword, businessName, radiusKm, gridSize, apiKey),
+    );
 
     const found = nodes.filter((n) => n.rank != null).map((n) => n.rank as number);
     const averageGridRank = found.length

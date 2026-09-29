@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
         destination: "/google-business-profile",
         permanent: false,
       },
+      // Billing and plans were removed; what a workspace may use is now its tokens.
+      {
+        source: "/billing",
+        destination: "/tokens",
+        permanent: false,
+      },
     ];
   },
 };

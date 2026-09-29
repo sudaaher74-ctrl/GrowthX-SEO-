@@ -212,6 +212,9 @@ export class StrategyService {
           prompt: buildStrategyPrompt(evidence, keyed),
           systemInstruction: STRATEGY_SYSTEM_PROMPT,
           task: AiTask.REASONING,
+          // Without this the call had no organization, so no budget or token
+          // wallet applied to what is one of the longest calls in the product.
+          projectId,
           jsonSchema: STRATEGY_SCHEMA as unknown as Record<string, unknown>,
           // Strategy output is long; leave room for reasoning plus the plan itself.
           maxTokens: 16000,
