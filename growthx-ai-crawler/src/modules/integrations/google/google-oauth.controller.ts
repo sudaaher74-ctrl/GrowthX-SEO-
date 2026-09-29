@@ -2,6 +2,8 @@ import { BadRequestException, Controller, Delete, Get, Param, Post, Query, Req, 
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { Roles } from '../../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { GoogleOAuthService } from './google-oauth.service';
 import { isGoogleProvider } from './google-provider';
 
@@ -69,6 +71,7 @@ export class GoogleOAuthController {
    * client can open it however suits — the caller is an authenticated fetch,
    * not a navigation.
    */
+  @Roles(Role.OWNER, Role.ADMIN)
   @Post(':provider/authorize')
   @ApiOperation({ summary: 'Begin connecting a Google service' })
   authorize(
@@ -92,6 +95,7 @@ export class GoogleOAuthController {
     };
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Post(':provider/select')
   @ApiOperation({ summary: 'Choose the property or location to read' })
   select(
@@ -106,6 +110,7 @@ export class GoogleOAuthController {
     return this.oauth.selectResource(projectId, provider, { id: resourceId, name: resourceName || resourceId });
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Delete(':provider')
   @ApiOperation({ summary: 'Disconnect and revoke a Google service' })
   disconnect(@Req() req: any, @Param('projectId') projectId: string, @Param('provider') provider: string) {

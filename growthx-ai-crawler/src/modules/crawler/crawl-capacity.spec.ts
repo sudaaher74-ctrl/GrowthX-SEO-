@@ -42,7 +42,7 @@ describe('crawl capacity', () => {
           { provide: AiService, useValue: {} },
           { provide: AutoFixService, useValue: {} },
           { provide: SchedulerService, useValue: {} },
-          { provide: OrgContextService, useValue: { assertMembership: jest.fn().mockResolvedValue(undefined) } },
+          { provide: OrgContextService, useValue: { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined), assertManager: jest.fn().mockResolvedValue(undefined) } },
           { provide: VerificationEngineService, useValue: {} },
           { provide: FixPreviewService, useValue: {} },
           { provide: UrlInventoryService, useValue: {} },

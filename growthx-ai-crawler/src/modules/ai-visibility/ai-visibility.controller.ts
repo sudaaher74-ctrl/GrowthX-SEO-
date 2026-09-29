@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } fro
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AiAssistant, SearchIntent } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { AiVisibilityService } from './ai-visibility.service';
 import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
 import { GeoSimulationService } from './geo-simulation.service';
@@ -126,6 +128,7 @@ export class AiVisibilityController {
     return this.visibility.websitesOverview(projectId);
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Delete('competitors/:competitorId')
   @ApiOperation({ summary: 'Stop tracking a competitor' })
   @ApiParam({ name: 'projectId' })

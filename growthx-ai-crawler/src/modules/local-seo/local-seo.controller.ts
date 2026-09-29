@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { LocalSeoService } from './local-seo.service';
 import { GbpAnalyzerService } from './gbp-analyzer.service';
 import { GbpAutofixService } from './gbp-autofix.service';
@@ -75,6 +77,7 @@ export class LocalSeoController {
     return this.gbpAnalyzer.analyzeProfile(projectId, req.user?.organizationId || req.organizationId);
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Post('gbp/fix/:proposalId/approve')
   async approveFix(@Param('projectId') projectId: string, @Param('proposalId') proposalId: string) {
     return this.gbpAutofix.approveAndPushFix(proposalId, projectId);
@@ -135,6 +138,7 @@ export class LocalSeoController {
     return this.reviewsService.draftReply(projectId, reviewId, body?.tone);
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Post('reviews/:reviewId/publish')
   async publishReviewReply(
     @Param('projectId') projectId: string,

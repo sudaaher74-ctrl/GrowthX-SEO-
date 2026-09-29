@@ -42,10 +42,12 @@ describe('CrawlController — cross-tenant access', () => {
       },
     };
     // The caller belongs to org_1 only.
+    const member = (_user: string, org: string) =>
+      org === 'org_1' ? Promise.resolve() : Promise.reject(new ForbiddenException('no'));
     orgContext = {
-      assertMembership: jest.fn().mockImplementation((_user: string, org: string) =>
-        org === 'org_1' ? Promise.resolve() : Promise.reject(new ForbiddenException('no')),
-      ),
+      assertMembership: jest.fn().mockImplementation(member),
+      assertCanWrite: jest.fn().mockImplementation(member),
+      assertManager: jest.fn().mockImplementation(member),
     };
     aiService = { analyzeIssue: jest.fn() };
     autoFix = { generateFixPatch: jest.fn(), approveAndExecuteFix: jest.fn() };
