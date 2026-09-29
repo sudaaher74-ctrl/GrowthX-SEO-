@@ -15,13 +15,43 @@ export class GitService {
     const targetDir = path.join('/tmp', 'growthx-auto-engineer', repoName, Date.now().toString());
     await fs.mkdir(targetDir, { recursive: true });
 
-    const authUrl = repoUrl.replace('https://', `https://${token}@`);
+    // GitHub's documented form for a token over HTTPS. The token is URL-encoded, so a
+    // character that is not valid in a URL cannot corrupt the address (git reports that
+    // as "URL using bad/illegal format").
+    const url = new URL(repoUrl);
+    url.username = 'x-access-token';
+    url.password = token.trim();
     const git: SimpleGit = simpleGit();
-    
+
     this.logger.log(`Cloning ${repoUrl} to ${targetDir}...`);
-    await git.clone(authUrl, targetDir);
-    
+    await git.clone(url.toString(), targetDir);
+
     return targetDir;
+  }
+
+  /**
+   * Checks a token against GitHub before it is saved: that it is accepted, that it can
+   * see the repository, and that it can write to it. Returns the repository's real
+   * default branch. A failure is worded for the person who pasted the token.
+   */
+  async verifyAccess(
+    token: string,
+    owner: string,
+    repo: string,
+  ): Promise<{ defaultBranch: string; canPush: boolean }> {
+    const octokit = new Octokit({ auth: token });
+    try {
+      const { data } = await octokit.rest.repos.get({ owner, repo });
+      return { defaultBranch: data.default_branch, canPush: Boolean(data.permissions?.push) };
+    } catch (error: any) {
+      if (error?.status === 401) {
+        throw new Error('GitHub did not accept this token. Check it was copied completely, and has not expired or been revoked.');
+      }
+      if (error?.status === 404 || error?.status === 403) {
+        throw new Error(`This token cannot see ${owner}/${repo}. Check the owner and repository name, and that the token was given access to this repository.`);
+      }
+      throw new Error(`Could not reach GitHub to check the token (${error?.message ?? 'unknown error'}). Try again.`);
+    }
   }
 
   /**

@@ -7,6 +7,7 @@ import { StrategyModule } from '../strategy/strategy.module';
 import { ImpactModule } from '../impact/impact.module';
 import { AutomationController } from './automation.controller';
 import { AutomationService } from './automation.service';
+import { EngineerAgentService } from './engineer-agent.service';
 import { ContentGenerationService } from './content-generation.service';
 import { ContentAgentController } from './content-agent.controller';
 import { ContentAgentService } from './content-agent.service';
@@ -14,7 +15,7 @@ import { ContentAgentService } from './content-agent.service';
 @Module({
   imports: [DatabaseModule, AiSearchModule, AutonomousEngineerModule, SecurityModule, StrategyModule, ImpactModule],
   controllers: [AutomationController, ContentAgentController],
-  providers: [AutomationService, ContentGenerationService, ContentAgentService],
+  providers: [AutomationService, EngineerAgentService, ContentGenerationService, ContentAgentService],
   exports: [AutomationService, ContentGenerationService, ContentAgentService],
 })
 export class AutomationModule {}

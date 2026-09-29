@@ -81,6 +81,7 @@ describe('AutomationService', () => {
     };
 
     git = {
+      verifyAccess: jest.fn().mockResolvedValue({ defaultBranch: 'trunk', canPush: true }),
       cloneRepository: jest.fn().mockResolvedValue(workDir),
       createFeatureBranch: jest.fn().mockResolvedValue(undefined),
       commitAndPush: jest.fn().mockResolvedValue(undefined),
@@ -139,6 +140,29 @@ describe('AutomationService', () => {
     it('never turns autoMerge on, even when asked', async () => {
       await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't', autoMerge: true });
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.autoMerge).toBe(false);
+    });
+
+    it('checks the token against GitHub, and uses the repository\'s real default branch', async () => {
+      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' });
+      expect(git.verifyAccess).toHaveBeenCalledWith('t', 'a', 'b');
+      expect(prisma.siteRepository.upsert.mock.calls[0][0].create.defaultBranch).toBe('trunk');
+    });
+
+    it('cleans up what people paste: a Bearer prefix, spaces and a trailing .git', async () => {
+      await service.connectRepository('proj_1', { owner: ' a ', name: 'b.git', accessToken: 'Bearer  ghp_abc \n' });
+      expect(git.verifyAccess).toHaveBeenCalledWith('ghp_abc', 'a', 'b');
+    });
+
+    it('refuses a token GitHub rejects, with GitHub\'s reason, and saves nothing', async () => {
+      git.verifyAccess.mockRejectedValue(new Error('GitHub did not accept this token.'));
+      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' })).rejects.toThrow(/did not accept/);
+      expect(prisma.siteRepository.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses a token that can read but not write', async () => {
+      git.verifyAccess.mockResolvedValue({ defaultBranch: 'main', canPush: false });
+      await expect(service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't' })).rejects.toThrow(/cannot write/);
+      expect(prisma.siteRepository.upsert).not.toHaveBeenCalled();
     });
 
     it('rejects an incomplete connection', async () => {

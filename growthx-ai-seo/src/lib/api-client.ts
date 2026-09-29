@@ -4708,6 +4708,9 @@ export const api = {
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/content`, pieceIds ? { pieceIds } : {}),
   runFixes: (projectId: string, issueIds?: string[]) =>
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/fixes`, issueIds ? { issueIds } : {}),
+  /** Starts the engineer on a plain-words instruction. Returns at once with the run (RUNNING); poll the runs. */
+  runEngineer: (projectId: string, instruction: string) =>
+    post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, { instruction }),
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
 
   // ── Admin
