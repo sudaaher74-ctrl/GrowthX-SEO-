@@ -34,6 +34,12 @@ export enum AiProvider {
   ANTHROPIC = 'ANTHROPIC',
   GROQ = 'GROQ',
   OPENROUTER = 'OPENROUTER',
+  /**
+   * A search-grounded assistant we measure, not one we borrow for generation:
+   * it is in no TASK_PREFERENCE chain, so it only ever answers when a caller pins it
+   * (AI Visibility asking "what does Perplexity say").
+   */
+  PERPLEXITY = 'PERPLEXITY',
 }
 
 /**
@@ -188,6 +194,7 @@ export class MultiAiRouterService {
   private readonly anthropicModel: string;
   private readonly geminiModel: string;
   private readonly openaiModel: string;
+  private readonly perplexityModel: string;
   private readonly groqModel: string;
   private readonly groqTemperature: number;
   private readonly groqMaxTokens: number;
@@ -207,6 +214,7 @@ export class MultiAiRouterService {
   private openai?: OpenAI;
   private gemini?: GoogleGenAI;
   private groq?: Groq;
+  private perplexity?: OpenAI;
   private openrouter?: OpenAI;
   private mammouth?: OpenAI;
 
@@ -238,6 +246,7 @@ export class MultiAiRouterService {
     this.anthropicModel = this.config.get<string>('ANTHROPIC_MODEL') || 'claude-opus-5';
     this.geminiModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-2.5-pro';
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
+    this.perplexityModel = this.config.get<string>('PERPLEXITY_MODEL') || 'sonar';
     this.groqModel = this.config.get<string>('GROQ_MODEL') || 'llama-3.1-8b-instant';
     this.groqTemperature = Number(this.config.get<string>('GROQ_TEMPERATURE') ?? '0.2');
     this.groqMaxTokens = Number(this.config.get<string>('GROQ_MAX_TOKENS') ?? '2000');
@@ -264,6 +273,10 @@ export class MultiAiRouterService {
 
     const geminiKey = this.config.get<string>('GEMINI_API_KEY');
     if (this.isRealKey(geminiKey)) this.gemini = new GoogleGenAI({ apiKey: geminiKey });
+
+    // Perplexity's API is OpenAI-compatible.
+    const perplexityKey = configuredValue(this.config.get<string>('PERPLEXITY_API_KEY'));
+    if (perplexityKey) this.perplexity = new OpenAI({ apiKey: perplexityKey, baseURL: 'https://api.perplexity.ai' });
 
     const groqKey = this.config.get<string>('GROQ_API_KEY');
     if (this.isRealKey(groqKey)) this.groq = new Groq({ apiKey: groqKey });
@@ -307,6 +320,7 @@ export class MultiAiRouterService {
     if (this.anthropic) configured.push(AiProvider.ANTHROPIC);
     if (this.groq) configured.push(AiProvider.GROQ);
     if (this.openrouter) configured.push(AiProvider.OPENROUTER);
+    if (this.perplexity) configured.push(AiProvider.PERPLEXITY);
     return configured.filter((p) => isProviderAllowed(this.providerAllowlist, p));
   }
 
@@ -332,6 +346,7 @@ export class MultiAiRouterService {
       [AiProvider.SARVAM]: this.sarvamModel,
       [AiProvider.GROQ]: this.groqModel,
       [AiProvider.OPENROUTER]: this.openrouterModel,
+      [AiProvider.PERPLEXITY]: this.perplexityModel,
     };
 
     const configured = this.configuredProviders();
@@ -551,6 +566,8 @@ export class MultiAiRouterService {
         return this.callGroq(request);
       case AiProvider.OPENROUTER:
         return this.callOpenRouter(request, modelOverride);
+      case AiProvider.PERPLEXITY:
+        return this.callPerplexity(request);
     }
   }
 
@@ -737,6 +754,40 @@ export class MultiAiRouterService {
         response.usage?.completion_tokens ?? 0,
         this.envRate('GROQ'),
       ),
+      refused: false,
+    };
+  }
+
+  // ------------------------------------------------------------------ Perplexity
+
+  /**
+   * Perplexity answers from a live web search and returns the pages it used as
+   * `citations`. Those URLs are appended to the answer as a "Sources" list,
+   * because being one of the sources is exactly what a citation check for a
+   * search-grounded assistant has to see.
+   */
+  private async callPerplexity(request: AiRequest): Promise<AiCompletion> {
+    if (!this.perplexity) throw new ServiceUnavailableException('PERPLEXITY_API_KEY is not configured.');
+
+    const messages: { role: 'system' | 'user'; content: string }[] = [];
+    if (request.systemInstruction) messages.push({ role: 'system', content: request.systemInstruction });
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await this.perplexity.chat.completions.create({
+      model: this.perplexityModel,
+      messages,
+      ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
+    });
+
+    const citations = (response as unknown as { citations?: unknown }).citations;
+    const sources = Array.isArray(citations) ? citations.filter((c): c is string => typeof c === 'string') : [];
+    const answer = response.choices[0]?.message?.content ?? '';
+
+    return {
+      provider: AiProvider.PERPLEXITY,
+      model: response.model ?? this.perplexityModel,
+      text: sources.length > 0 ? `${answer}\n\nSources:\n${sources.map((u) => `- ${u}`).join('\n')}` : answer,
+      usage: this.usage(response.usage?.prompt_tokens ?? 0, response.usage?.completion_tokens ?? 0, this.envRate('PERPLEXITY')),
       refused: false,
     };
   }
@@ -983,7 +1034,7 @@ export class MultiAiRouterService {
   // -------------------------------------------------------------------- Costs
 
   /** Operator-supplied rates for vendors whose pricing we don't hard-code. */
-  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM' | 'MAMMOUTH'): Rate | undefined {
+  private envRate(prefix: 'GEMINI' | 'OPENAI' | 'GROQ' | 'OPENROUTER' | 'SARVAM' | 'MAMMOUTH' | 'PERPLEXITY'): Rate | undefined {
     const input = Number(this.config.get<string>(`${prefix}_RATE_INPUT_PER_MTOK`));
     const output = Number(this.config.get<string>(`${prefix}_RATE_OUTPUT_PER_MTOK`));
     return Number.isFinite(input) && Number.isFinite(output) && input > 0 ? { input, output } : undefined;

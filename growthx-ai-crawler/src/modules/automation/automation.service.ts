@@ -6,6 +6,7 @@ import {
   } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { isSafeFixType, unsafeFixReason } from './fix-safety';
 import { PrismaService } from '../../database/prisma.service';
 import { ImpactService } from '../impact/impact.service';
 import { changeClassForFixType } from '../impact/change-class';
@@ -92,7 +93,8 @@ export class AutomationService {
       defaultBranch: input.defaultBranch ?? 'main',
       framework: input.framework ?? 'unknown',
       contentDir: input.contentDir ?? null,
-      autoMerge: input.autoMerge ?? false,
+      // Never enabled from here: a fix is a pull request the customer reviews and merges.
+      autoMerge: false,
     };
 
     const repo = await this.prisma.siteRepository.upsert({
@@ -196,6 +198,12 @@ export class AutomationService {
         }
         if (!patch) {
           skipped.push(`${issue.issueType}: no usable patch could be generated`);
+          continue;
+        }
+
+        // Only low-risk changes are prepared; the rest are reported, not applied.
+        if (!isSafeFixType(patch.fixType)) {
+          skipped.push(`${issue.issueType}: ${unsafeFixReason(patch.fixType)}`);
           continue;
         }
 

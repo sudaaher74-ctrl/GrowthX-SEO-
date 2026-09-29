@@ -459,7 +459,7 @@ describe('AiVisibilityService', () => {
       const written = prisma.promptCheck.create.mock.calls.map((c: any) => c[0].data);
       expect(written.map((row: any) => row.assistant)).toEqual([AiAssistant.SARVAM]);
       expect(result.checksRun).toBe(1);
-      expect(result.skippedAssistants).toEqual([AiAssistant.CHATGPT, AiAssistant.CLAUDE, AiAssistant.GEMINI]);
+      expect(result.skippedAssistants).toEqual([AiAssistant.CHATGPT, AiAssistant.CLAUDE, AiAssistant.GEMINI, AiAssistant.PERPLEXITY]);
     });
 
     it('lists only the assistants whose vendor is configured as measurable', () => {

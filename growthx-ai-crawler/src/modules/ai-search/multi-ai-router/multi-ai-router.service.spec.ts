@@ -716,3 +716,34 @@ describe('MultiAiRouterService', () => {
     });
   });
 });
+
+describe('Perplexity', () => {
+  it('is measurable only when its key is set', () => {
+    expect(build().service.configuredProviders()).not.toContain(AiProvider.PERPLEXITY);
+    expect(build({ PERPLEXITY_API_KEY: 'pplx-real' }).service.configuredProviders()).toContain(AiProvider.PERPLEXITY);
+  });
+
+  it('is never borrowed as a fallback for other tasks', () => {
+    const { service } = build({ PERPLEXITY_API_KEY: 'pplx-real' });
+    for (const task of Object.values(AiTask)) {
+      expect(service.chainFor(task)).not.toContain(AiProvider.PERPLEXITY);
+    }
+  });
+
+  it('returns the pages it cited as part of the answer, so a citation check can see them', async () => {
+    const { service } = build({ PERPLEXITY_API_KEY: 'pplx-real' });
+    const create = jest.fn().mockResolvedValue({
+      model: 'sonar',
+      choices: [{ message: { content: 'Try Acme Ghee.' } }],
+      citations: ['https://acme.in/ghee', 'https://other.com/x'],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    });
+    (service as any).perplexity = { chat: { completions: { create } } };
+
+    const out = await (service as any).callPerplexity({ prompt: 'best ghee?' });
+
+    expect(out.provider).toBe(AiProvider.PERPLEXITY);
+    expect(out.text).toContain('Try Acme Ghee.');
+    expect(out.text).toContain('- https://acme.in/ghee');
+  });
+});

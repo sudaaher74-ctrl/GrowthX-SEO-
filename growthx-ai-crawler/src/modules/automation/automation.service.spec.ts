@@ -136,6 +136,11 @@ describe('AutomationService', () => {
       expect(prisma.siteRepository.upsert.mock.calls[0][0].create.autoMerge).toBe(false);
     });
 
+    it('never turns autoMerge on, even when asked', async () => {
+      await service.connectRepository('proj_1', { owner: 'a', name: 'b', accessToken: 't', autoMerge: true });
+      expect(prisma.siteRepository.upsert.mock.calls[0][0].create.autoMerge).toBe(false);
+    });
+
     it('rejects an incomplete connection', async () => {
       await expect(
         service.connectRepository('proj_1', { owner: 'a', name: '', accessToken: 't' }),
@@ -193,6 +198,18 @@ describe('AutomationService', () => {
       expect(patcher.applyFix).not.toHaveBeenCalled();
       expect(run.status).toBe(AutomationRunStatus.FAILED);
       expect(run.error).toMatch(/no matching file/);
+    });
+
+    it('does not touch the site for a change that can move rankings, and says why', async () => {
+      prisma.issue.findMany.mockResolvedValue([
+        issue({ id: 'c1', aiRecommendation: { recommendedFixPatch: JSON.stringify({ fixType: 'CANONICAL_URL', proposedValue: 'https://acme.com/' }) } }),
+      ]);
+
+      const run = await service.runFixes('proj_1', 'org_1');
+
+      expect(patcher.applyFix).not.toHaveBeenCalled();
+      expect(run.status).toBe(AutomationRunStatus.FAILED);
+      expect(run.error).toMatch(/person should make this change/);
     });
 
     it('generates the patch when the stored one is prose rather than JSON', async () => {

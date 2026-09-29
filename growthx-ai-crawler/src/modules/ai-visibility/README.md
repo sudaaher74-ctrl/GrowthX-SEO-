@@ -12,7 +12,7 @@ surface sits behind `Feature.AI_VISIBILITY`.
 | Claude | ✅ | Anthropic API |
 | Gemini | ✅ | Google GenAI API |
 | Sarvam (Indus) | ✅ | Sarvam API (`SARVAM_API_KEY`, `sarvam-105b`) |
-| Perplexity | ❌ | No adapter yet — has an API, not wired |
+| Perplexity | ✅ | Perplexity API (`PERPLEXITY_API_KEY`, model `sonar`); its cited sources are part of the answer checked |
 | Google AI Overviews | ❌ | No public API |
 | Copilot | ❌ | No public API |
 
