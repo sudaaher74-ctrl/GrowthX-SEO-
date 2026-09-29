@@ -193,9 +193,9 @@ export default function UnifiedDashboardPage() {
         }
         actions={
           <>
-            <Link href="/action-queue">
+            <Link href="/fix-engine">
               <ActionButton variant="primary" icon={<Zap size={12} className="fill-white" />}>
-                See my action plan
+                See my improvement plan
               </ActionButton>
             </Link>
             <ActionButton
@@ -307,7 +307,7 @@ export default function UnifiedDashboardPage() {
           }
           actions={
             hasGsc || hasGa ? (
-              <Link href="/search-performance" className="text-[12px] font-semibold text-accent-700 hover:underline">
+              <Link href="/google/search-performance" className="text-[12px] font-semibold text-accent-700 hover:underline">
                 More detail →
               </Link>
             ) : undefined
@@ -386,7 +386,7 @@ export default function UnifiedDashboardPage() {
         subtitle="Things you could add or change to get more customers from Google."
         actions={
           topOpportunities.length > 0 ? (
-            <Link href="/content-opportunities" className="text-[12px] font-semibold text-accent-700 hover:underline">
+            <Link href="/google/opportunities" className="text-[12px] font-semibold text-accent-700 hover:underline">
               See all ideas →
             </Link>
           ) : undefined
@@ -853,7 +853,7 @@ function IdeaCard({ idea }: { idea: GrowthOpportunity }) {
       <p className="line-clamp-2 text-[13px] font-semibold text-brand-950">{idea.title}</p>
       <p className="line-clamp-3 text-[12px] text-brand-600">{idea.recommendedAction || idea.summary}</p>
       <Link
-        href="/content-opportunities"
+        href="/google/opportunities"
         className="mt-auto inline-flex items-center gap-1 pt-1 text-[12px] font-semibold text-accent-700 hover:underline"
       >
         Let&apos;s do it <ArrowRight size={12} />

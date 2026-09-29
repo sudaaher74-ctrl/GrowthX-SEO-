@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { DesignStudioLink } from "@/components/design-studio/design-studio-link";
 import { api, type CrawlPage } from "@/lib/api-client";
 import {
   useCrawlHistory,
@@ -272,8 +271,6 @@ function WebsiteAuditClient() {
 
           {/* Action buttons toolbar */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <DesignStudioLink label="Visual Preview" />
-
             <button
               type="button"
               onClick={handleExportPdf}
@@ -303,11 +300,11 @@ function WebsiteAuditClient() {
             </button>
 
             <Link
-              href="/action-queue"
+              href="/fix-engine"
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
             >
               <Zap size={13} className="text-warning-500 fill-warning-500" />
-              <span>View SEO Roadmap</span>
+              <span>Open Fix Engine</span>
               <ArrowRight size={12} className="text-brand-400" />
             </Link>
           </div>

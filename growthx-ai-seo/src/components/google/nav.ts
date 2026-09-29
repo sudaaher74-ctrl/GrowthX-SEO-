@@ -1,10 +1,8 @@
 /**
  * The Google section's views, in the order they are shown.
  *
- * `built` views render real screens. The rest are listed so the section's shape
- * is visible, and say which release brings them; where an older page already
- * covers some of the same ground, `current` points at it so nothing is lost in
- * the meantime.
+ * Every view here is built. `built` stays on the type so a planned view can be
+ * listed, with a "soon" badge, before it exists.
  */
 export interface GoogleView {
   id: string;
@@ -99,6 +97,3 @@ export const GOOGLE_VIEWS: GoogleView[] = [
     will: "Build your own table or chart from the Google data, with filters.",
   },
 ];
-
-/** Views that are not built yet, keyed by the URL segment. */
-export const UNBUILT = new Map(GOOGLE_VIEWS.filter((v) => !v.built).map((v) => [v.id, v]));
