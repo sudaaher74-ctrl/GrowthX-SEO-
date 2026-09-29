@@ -160,6 +160,83 @@ function Freshness({ ga4 }: { ga4: Ga4Hook }) {
   );
 }
 
+// ── Where visitors are ──────────────────────────────────────────────────────
+
+interface ShareRow {
+  key: string;
+  label: string;
+  detail?: string;
+  sessions: number;
+  users: number;
+}
+
+/** A ranked list where each row's bar is its share of all sessions in the window. */
+function ShareList({ title, rows, total }: { title: string; rows: ShareRow[]; total: number }) {
+  return (
+    <div>
+      <p className="mb-2 text-[12px] font-semibold text-brand-950">{title}</p>
+      <ul className="space-y-2.5">
+        {rows.map((row) => {
+          const share = total > 0 ? row.sessions / total : 0;
+          return (
+            <li key={row.key}>
+              <div className="flex items-baseline justify-between gap-3 text-[12px]">
+                <span className="min-w-0 truncate text-brand-950">
+                  {row.label}
+                  {row.detail && <span className="ml-1.5 text-[11px] text-brand-400">{row.detail}</span>}
+                </span>
+                <span className="shrink-0 font-mono text-[11.5px] text-brand-600">
+                  {count(row.sessions)} sessions · {count(row.users)} users · {percent(share)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full rounded-full bg-brand-100">
+                <div className="h-1.5 rounded-full bg-primary-600" style={{ width: `${Math.max(2, share * 100)}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const place = (name: string) => (name === "(not set)" ? "Location unknown" : name);
+
+/**
+ * Where a website's visitors are, from Google Analytics 4 — countries and the
+ * cities within them. GA4 cannot place some visits at all; those rows are
+ * labelled "Location unknown" rather than dropped, so the shares add up.
+ */
+function Ga4Geography({ d }: { d: Ga4ReportData }) {
+  const total = d.totals.sessions;
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <ShareList
+        title="Countries"
+        total={total}
+        rows={d.countries.map((c) => ({ key: c.country, label: place(c.country), sessions: c.sessions, users: c.users }))}
+      />
+      {d.cities && d.cities.length > 0 ? (
+        <ShareList
+          title="Cities and towns"
+          total={total}
+          rows={d.cities.map((c) => ({
+            key: `${c.city}|${c.country}`,
+            label: place(c.city),
+            detail: c.city === "(not set)" ? undefined : place(c.country),
+            sessions: c.sessions,
+            users: c.users,
+          }))}
+        />
+      ) : (
+        <p className="self-center text-[12px] text-brand-500">
+          Cities and towns will appear after the next refresh. Press Refresh to load them now.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 /**
@@ -224,6 +301,12 @@ export function Ga4Overview({ projectId }: { projectId: string | null }) {
                   </ResponsiveContainer>
                 </div>
               </div>
+              {d.countries.length > 0 && (
+                <div className="border-t pt-4">
+                  <p className="mb-3 text-[13px] font-semibold text-brand-950">Where your visitors are</p>
+                  <Ga4Geography d={d} />
+                </div>
+              )}
             </div>
           )}
         </Ga4Gate>
@@ -320,11 +403,7 @@ export function Ga4Fallback({ projectId }: { projectId: string }) {
                   </tbody>
                 </Table>
               </div>
-              {d.countries.length > 0 && (
-                <p className="text-[11.5px] text-brand-500">
-                  Top countries: {d.countries.slice(0, 5).map((c) => `${c.country} (${count(c.sessions)})`).join(" · ")}
-                </p>
-              )}
+              {d.countries.length > 0 && <Ga4Geography d={d} />}
             </div>
           )}
         </Ga4Gate>

@@ -132,6 +132,7 @@ describe('AnalyticsReportService', () => {
       if (dimensions[0] === 'sessionDefaultChannelGroup') {
         return { metadata, rows: [row(['Organic Search'], [40, 12]), row(['Direct'], [60, 18])] };
       }
+      if (dimensions[0] === 'city') return { metadata, rows: [row(['Mumbai', 'India'], [70, 20]), row(['Navi Mumbai', 'India'], [30, 10])] };
       return { metadata, rows: [row(['India'], [100, 30])] };
     };
 
@@ -185,6 +186,8 @@ describe('AnalyticsReportService', () => {
       expect(data.organicSearchSessions).toBe(40);
       expect(data.channels[0]).toMatchObject({ channel: 'Organic Search', organic: true });
       expect(data.countries[0]).toMatchObject({ country: 'India', sessions: 100 });
+      expect(data.cities[0]).toEqual({ city: 'Mumbai', country: 'India', sessions: 70, users: 20 });
+      expect(data.cities).toHaveLength(2);
       expect(data.landingPages[0]).toMatchObject({ page: '/', sessions: 80 });
       expect(data.daily).toHaveLength(7); // every day present, zero where GA4 had no row
       expect(data.empty).toBe(false);
