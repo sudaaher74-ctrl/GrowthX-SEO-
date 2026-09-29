@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { expectedCtr } from './expected-ctr';
 
 /**
  * What the stored Search Console data means.
@@ -278,6 +279,73 @@ export class SearchConsoleInsightsService {
       .slice(0, limit);
   }
 
+  /**
+   * Every search the site was shown for over a window, each set against the
+   * window immediately before it. This is the rankings table.
+   *
+   * Position is the impression-weighted average Google reports: what
+   * searchers were shown over the window, not where a page sits this minute.
+   * A movement is reported only where both windows hold enough impressions for
+   * the average to mean something — position 40 on three impressions is not a
+   * ranking anyone lost — and a window with no stored history gives no
+   * movement at all rather than a comparison against zero.
+   */
+  async queriesWithMovement(projectId: string, options: { days?: number; limit?: number } = {}) {
+    const { days = 28, limit = 100 } = options;
+    const coverage = await this.coverage(projectId);
+    if (!coverage) return null;
+
+    const end = coverage.newestDate;
+    const start = shift(end, -(days - 1));
+    const priorEnd = shift(start, -1);
+    const priorStart = shift(priorEnd, -(days - 1));
+
+    const priorDays = await this.prisma.gscDailyMetric.count({
+      where: { projectId, grain: 'TOTAL', date: { gte: priorStart, lte: priorEnd } },
+    });
+    const [current, prior] = await Promise.all([
+      this.aggregateQueries(projectId, start, end),
+      priorDays > 0 ? this.aggregateQueries(projectId, priorStart, priorEnd) : Promise.resolve([]),
+    ]);
+    const priorByQuery = new Map(prior.map((row) => [row.key, row]));
+
+    const searches = current
+      .filter((row) => row.impressions > 0)
+      .map((row) => {
+        const before = priorByQuery.get(row.key) ?? null;
+        const measurable =
+          before !== null &&
+          before.impressions >= MIN_IMPRESSIONS_FOR_MOVEMENT &&
+          row.impressions >= MIN_IMPRESSIONS_FOR_MOVEMENT;
+        return {
+          query: row.key,
+          position: row.position,
+          previousPosition: before && before.impressions > 0 ? before.position : null,
+          // Positive is up the page (a smaller number), the way people say "moved up".
+          movement: measurable ? before.position - row.position : null,
+          clicks: row.clicks,
+          impressions: row.impressions,
+          ctr: row.clicks / row.impressions,
+        };
+      });
+
+    return {
+      range: { start, end },
+      comparisonRange: priorDays > 0 ? { start: priorStart, end: priorEnd } : null,
+      // Counted over every search, not only the rows returned below.
+      searches: searches.length,
+      top3: searches.filter((row) => row.position <= 3).length,
+      pageOne: searches.filter((row) => row.position > 3 && row.position <= 10).length,
+      pageTwo: searches.filter((row) => row.position > 10 && row.position <= 20).length,
+      beyond: searches.filter((row) => row.position > 20).length,
+      movedUp: searches.filter((row) => row.movement !== null && row.movement >= MEANINGFUL_MOVEMENT).length,
+      movedDown: searches.filter((row) => row.movement !== null && row.movement <= -MEANINGFUL_MOVEMENT).length,
+      rows: [...searches]
+        .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+        .slice(0, Math.min(limit, 500)),
+    };
+  }
+
   private async aggregateQueries(projectId: string, start: Date, end: Date) {
     return this.prisma.$queryRawUnsafe<{ key: string; clicks: bigint; impressions: bigint; position: number }[]>(
       `SELECT query AS key,
@@ -380,6 +448,12 @@ export class SearchConsoleInsightsService {
   }
 }
 
+/** Fewer impressions than this in either window and an average position is too noisy to call a movement. */
+export const MIN_IMPRESSIONS_FOR_MOVEMENT = 20;
+
+/** Positions a search must move, between two windows, to count as having moved. */
+export const MEANINGFUL_MOVEMENT = 1;
+
 /** A value with its change, or with no change when there is nothing to compare. */
 function metric(current: number, previous: number | null) {
   if (previous === null || previous === 0) {
@@ -391,25 +465,6 @@ function metric(current: number, previous: number | null) {
     change: current - previous,
     changePct: ((current - previous) / previous) * 100,
   };
-}
-
-/**
- * Roughly what click-through looks like at a given rank.
- *
- * Used only to decide which pages are worth surfacing, never shown as a
- * target. Real curves vary enormously by query intent, device and how much of
- * the page Google fills before the first organic result, so treating these as
- * benchmarks would be false precision.
- */
-function expectedCtr(position: number): number {
-  if (position <= 1) return 0.28;
-  if (position <= 2) return 0.15;
-  if (position <= 3) return 0.11;
-  if (position <= 5) return 0.07;
-  if (position <= 8) return 0.035;
-  if (position <= 10) return 0.025;
-  if (position <= 20) return 0.01;
-  return 0.005;
 }
 
 function shift(date: Date, days: number): Date {

@@ -29,6 +29,15 @@ export async function searchConsoleConnected(prisma: PrismaService, projectId: s
   return Boolean(integration?.selectedResourceId);
 }
 
+/** Whether the project has a Google Analytics 4 property selected. */
+export async function analyticsConnected(prisma: PrismaService, projectId: string): Promise<boolean> {
+  const integration = await prisma.integration.findUnique({
+    where: { projectId_provider: { projectId, provider: 'analytics' } },
+    select: { selectedResourceId: true },
+  });
+  return Boolean(integration?.selectedResourceId);
+}
+
 function totals(rows: Array<{ clicks: number; impressions: number; position: number }>): SearchTotals {
   let clicks = 0;
   let impressions = 0;
@@ -54,24 +63,30 @@ function samePage(url: string) {
 /**
  * One search's numbers over the last `days`, and which of the customer's
  * pages Google showed for it.
+ *
+ * `endedDaysAgo` moves the window back: 28 and 28 is the 28 days before the
+ * latest 28, which is what a change in position is read against.
  */
 export async function keywordInSearchConsole(
   prisma: PrismaService,
   projectId: string,
   keyword: string,
   days = 28,
+  endedDaysAgo = 0,
 ): Promise<(SearchTotals & { pages: PageForQuery[] }) | null> {
   if (!(await searchConsoleConnected(prisma, projectId))) return null;
-  const since = new Date(Date.now() - days * DAY);
+  const until = new Date(Date.now() - endedDaysAgo * DAY);
+  const since = new Date(until.getTime() - days * DAY);
+  const date = endedDaysAgo > 0 ? { gte: since, lt: until } : { gte: since };
   const query = { equals: keyword.trim(), mode: 'insensitive' as const };
 
   const [queryRows, pageRows] = await Promise.all([
     prisma.gscDailyMetric.findMany({
-      where: { projectId, grain: 'QUERY', query, date: { gte: since } },
+      where: { projectId, grain: 'QUERY', query, date },
       select: { clicks: true, impressions: true, position: true },
     }),
     prisma.gscDailyMetric.findMany({
-      where: { projectId, grain: 'QUERY_PAGE', query, date: { gte: since } },
+      where: { projectId, grain: 'QUERY_PAGE', query, date },
       select: { page: true, clicks: true, impressions: true, position: true },
     }),
   ]);

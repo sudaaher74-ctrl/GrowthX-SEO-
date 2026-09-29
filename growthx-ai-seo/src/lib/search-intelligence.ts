@@ -11,8 +11,15 @@ export interface SearchMarket {
 }
 
 export interface SearchIntelligenceStatus {
-  googleResultsConnected: boolean;
+  /** The customer's own Search Console, which most of this page runs on. */
   searchConsoleConnected: boolean;
+  /** Their Google Analytics 4, which adds visits and conversions. Absent from an API that predates it. */
+  analyticsConnected?: boolean;
+  /**
+   * Live Google results and competitor keywords: a paid source the platform
+   * provides, not something a customer connects. Everything else works without it.
+   */
+  googleResultsConnected: boolean;
   market: SearchMarket;
 }
 
@@ -95,21 +102,39 @@ export interface ComparedPage {
   keywordInOpening: boolean;
 }
 
+/** What GA4 recorded for visits that started on a page. Every source counts, not only Google. */
+export interface PageVisits {
+  days: number;
+  sessions: number;
+  /** Share of sessions GA4 counted as engaged, 0-1. */
+  engagementRate: number | null;
+  /** Null when the property has no key events configured, which is not zero. */
+  conversions: number | null;
+}
+
 export interface KeywordDiagnosis {
   id: string;
   createdAt: string;
   keyword: string;
   pageUrl: string;
-  market: SearchMarket;
+  /**
+   * LIVE_RESULTS read Google's results page and the pages that rank; SEARCH_CONSOLE
+   * used only the customer's own Search Console. Absent on a diagnosis saved before
+   * there were two kinds, which were all live.
+   */
+  mode?: "LIVE_RESULTS" | "SEARCH_CONSOLE";
+  /** The market results were checked in; null for a Search Console check, which is not market-specific. */
+  market: SearchMarket | null;
   checkedAt: string;
   verdict: "TOP_3" | "PAGE_ONE" | "PAGE_TWO" | "NOT_IN_TOP_20";
   verdictText: string;
   reasons: Reason[];
   confidence: { level: "HIGH" | "MEDIUM" | "LOW"; basis: string[]; missing: string[] };
   results: {
+    /** A place in Google's results (live), or the average position over 28 days (Search Console). */
     position: number | null;
     otherPageOfYours: { url: string; position: number | null } | null;
-    intent: { primary: string; primaryLabel: string; secondary: string | null; evidence: string[] };
+    intent: { primary: string; primaryLabel: string; secondary: string | null; evidence: string[] } | null;
     dominantFormat: { format: string; label: string; count: number; of: number; counts: Array<{ format: string; label: string; count: number }> } | null;
     features: Array<{ type: string; label: string }>;
     questions: string[];
@@ -118,7 +143,7 @@ export interface KeywordDiagnosis {
   comparison: {
     yours: ComparedPage;
     competitors: ComparedPage[];
-    typical: { wordCount: number | null; keywordInTitle: string; keywordInHeading: string };
+    typical: { wordCount: number | null; keywordInTitle: string; keywordInHeading: string } | null;
   };
   searchConsole: {
     clicks: number;
@@ -126,7 +151,11 @@ export interface KeywordDiagnosis {
     ctr: number;
     position: number | null;
     pages: Array<{ url: string; clicks: number; impressions: number; position: number | null }>;
+    /** The same search over the 28 days before; null when Search Console holds none. */
+    previous?: { clicks: number; impressions: number; position: number | null } | null;
   } | null;
+  /** GA4 visits to the page; null when GA4 is not connected or recorded none for it. */
+  visits?: PageVisits | null;
   indexStatus: { verdict: string | null; coverageState: string | null; inspectedAt: string } | null;
 }
 
@@ -137,6 +166,46 @@ export interface DiagnosisSummary {
   createdAt: string;
   verdictText: string | null;
   reasons: number;
+}
+
+// ── Rankings from Search Console ──────────────────────────────────────────
+
+export interface SearchRankingRow {
+  query: string;
+  /** Average position over the window, weighted by impressions. */
+  position: number;
+  previousPosition: number | null;
+  /** Places gained (positive) or lost (negative) against the window before; null when not measurable. */
+  movement: number | null;
+  clicks: number;
+  impressions: number;
+  /** Clicks over impressions, 0-1. */
+  ctr: number;
+  /** The page Google showed most for this search. */
+  page: string | null;
+  /** GA4 visits to that page, all sources; null when GA4 is not connected or holds nothing for it. */
+  visits: { sessions: number; conversions: number | null } | null;
+}
+
+export interface SearchRankingsReport {
+  connected: boolean;
+  analyticsConnected: boolean;
+  /** Search Console rows are stored. False straight after connecting, before the first fetch. */
+  hasData: boolean;
+  analyticsHasData: boolean;
+  days: number;
+  range: { start: string; end: string } | null;
+  comparisonRange: { start: string; end: string } | null;
+  summary: {
+    searches: number;
+    top3: number;
+    pageOne: number;
+    pageTwo: number;
+    beyond: number;
+    movedUp: number;
+    movedDown: number;
+  } | null;
+  rows: SearchRankingRow[];
 }
 
 // ── Rank tracking ─────────────────────────────────────────────────────────

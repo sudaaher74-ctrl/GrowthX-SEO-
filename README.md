@@ -83,6 +83,15 @@ and how to give tokens (`npx ts-node scripts/tokens.ts --list` in
 | --- | --- |
 | `TOKENS_ENFORCEMENT`, `TOKENS_MONTHLY_ALLOWANCE` | Optional. Whether limits apply, and the default monthly allowance (5,000,000). Set on the API and the worker alike. |
 
+### Google Search
+
+The Google Search page (rankings, why a page is not ranking, index status,
+change results) runs on each customer's own Search Console and Google Analytics
+4, connected from **Integrations**. It needs no paid third-party account.
+Connecting needs Google OAuth credentials on the API; see
+[docs/google-search.md](docs/google-search.md), which also covers the optional
+DataForSEO source of live Google results and competitor keywords.
+
 ## Development
 
 ```bash

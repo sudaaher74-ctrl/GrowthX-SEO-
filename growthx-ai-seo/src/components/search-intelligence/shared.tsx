@@ -1,7 +1,8 @@
 "use client";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Panel, Pill, StatusNote } from "@/components/ui/console";
-import { NotConfiguredState, NotConnectedState } from "@/components/ui/truthful-state";
+import { NotConnectedState } from "@/components/ui/truthful-state";
 import type { Evidence, Reason } from "@/lib/search-intelligence";
 
 const SEVERITY: Record<Reason["severity"], { label: string; tone: "bad" | "warn" | "default" }> = {
@@ -41,16 +42,41 @@ export function ReasonCard({ reason, index }: { reason: Reason; index?: number }
   );
 }
 
-/** Shown in place of any screen that needs Google results while DataForSEO is not set up. */
-export function GoogleResultsNotConnected() {
+/**
+ * Shown in place of a screen that runs on the customer's own Google data while
+ * neither Search Console nor Analytics is connected. Says what connecting gives
+ * and where to do it; the customer is never told about platform setup, which
+ * is not theirs to change.
+ */
+export function GoogleConnectGate({ analyticsConnected }: { analyticsConnected: boolean }) {
   return (
-    <NotConfiguredState
-      title="Google results are not connected yet"
-      missing="This needs real Google rankings, which come from DataForSEO. Nothing here is estimated or guessed while it is off."
-      whyItMatters="Create a DataForSEO account with credit (pay per use), then add its API login and password to the API service on Render as DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD."
-      actionRequired="Add the DataForSEO API credentials on Render."
-      action={{ label: "Get DataForSEO API access", href: "https://app.dataforseo.com/api-access" }}
+    <NotConnectedState
+      title="Connect Google Search Console"
+      missing={
+        analyticsConnected
+          ? "This page reads how Google shows your website, and it needs your Search Console for that."
+          : "This page reads how Google shows your website. It needs your Search Console, and works best with Google Analytics 4 as well."
+      }
+      whyItMatters="Rankings, the searches people use to find you and what Google has indexed all come from your own Search Console. Analytics adds the visits and conversions that follow. Nothing here is estimated while they are not connected."
+      actionRequired={
+        analyticsConnected
+          ? "Connect Search Console and choose your website."
+          : "Connect Search Console and Google Analytics 4, and choose your website in each."
+      }
+      action={{ label: "Connect Google", href: "/integrations" }}
     />
+  );
+}
+
+/** A quiet prompt under figures that Analytics would extend, for a customer who has Search Console only. */
+export function AnalyticsNudge({ what }: { what: string }) {
+  return (
+    <p className="text-[11.5px] text-brand-500">
+      {what}{" "}
+      <Link href="/integrations" className="font-medium text-primary-700 hover:underline">
+        Connect Google Analytics 4
+      </Link>
+    </p>
   );
 }
 

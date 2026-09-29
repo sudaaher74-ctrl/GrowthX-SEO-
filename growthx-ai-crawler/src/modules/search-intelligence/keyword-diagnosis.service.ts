@@ -3,17 +3,24 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { canonicalUrl } from '../crawler/canonical-url';
 import { FetcherService } from '../crawler/fetcher.service';
-import { NOT_CONFIGURED_MESSAGE, DataForSeoService, OrganicResult } from './dataforseo.service';
+import { AnalyticsInsightsService, pathKey } from '../integrations/google/analytics-insights.service';
+import { DataForSeoService, OrganicResult } from './dataforseo.service';
 import { diagnose, DiagnosisInput, ReadPage } from './diagnosis-rules';
 import { onDomain, OwnSite, ownSite } from './own-site';
 import { readPage } from './page-reader';
 import { RankTrackingService } from './rank-tracking.service';
-import { keywordInSearchConsole } from './search-console-facts';
+import { analyticsConnected, keywordInSearchConsole, searchConsoleConnected } from './search-console-facts';
 import { classifyPage, containsKeyword, dominantFormat, featureLabel, FORMAT_LABEL, intentFromResults, median } from './serp-analysis';
 
 /** Top-ranking pages read for the comparison. Each is a live fetch. */
 const COMPETITOR_PAGES = 5;
 const FETCH_TIMEOUT_MS = 25_000;
+
+/** The window Search Console and Analytics figures are read over, and compared with the one before. */
+const PERIOD_DAYS = 28;
+
+export const SEARCH_CONSOLE_REQUIRED_MESSAGE =
+  'Connect Google Search Console on the Integrations page to run this check. It reads how Google has been showing your pages for the search.';
 
 /**
  * Why a page does or does not rank for a keyword, from evidence.
@@ -24,6 +31,12 @@ const FETCH_TIMEOUT_MS = 25_000;
  * for the search, and whether Google has the page indexed. Each reason names
  * the observations it rests on; the confidence says which of these were
  * available and which were not.
+ *
+ * Live results come from a paid source the platform may not have. Without
+ * one the check runs from what every customer can connect for free — their own
+ * Search Console (and Analytics for visits) — and says so: it can report how
+ * Google has been showing the page and what is wrong with the page itself, but
+ * not what the pages that outrank it do differently, because it never saw them.
  */
 @Injectable()
 export class KeywordDiagnosisService {
@@ -34,6 +47,7 @@ export class KeywordDiagnosisService {
     private readonly dataforseo: DataForSeoService,
     private readonly ranks: RankTrackingService,
     private readonly fetcher: FetcherService,
+    private readonly analytics: AnalyticsInsightsService,
   ) {}
 
   async list(projectId: string) {
@@ -65,17 +79,31 @@ export class KeywordDiagnosisService {
   async run(projectId: string, input: { keyword: string; pageUrl?: string }) {
     const keyword = (input.keyword ?? '').trim().replace(/\s+/g, ' ');
     if (keyword.length < 2 || keyword.length > 120) throw new BadRequestException('Type the search you want to rank for (2 to 120 characters).');
-    if (!this.dataforseo.isConfigured()) throw new ServiceUnavailableException(NOT_CONFIGURED_MESSAGE);
+
+    // Live results make the fullest answer, but they come from a paid source
+    // the platform may not have. Without it the check runs from the customer's
+    // own Search Console, which needs nothing from the platform.
+    const live = this.dataforseo.isConfigured();
+    if (!live && !(await searchConsoleConnected(this.prisma, projectId))) {
+      throw new ServiceUnavailableException(SEARCH_CONSOLE_REQUIRED_MESSAGE);
+    }
 
     const site = await ownSite(this.prisma, projectId);
     if (!site) throw new NotFoundException('Add your website to this project first.');
 
+    return live
+      ? this.withLiveResults(projectId, site, keyword, input.pageUrl)
+      : this.fromSearchConsole(projectId, site, keyword, input.pageUrl);
+  }
+
+  /** Google's live results, the page and the pages that beat it, side by side. */
+  private async withLiveResults(projectId: string, site: OwnSite, keyword: string, requestedPage: string | undefined) {
     const { snapshot, results, market } = await this.ranks.checkKeyword(projectId, keyword);
     const searchConsole = await keywordInSearchConsole(this.prisma, projectId, keyword);
 
     // The page to diagnose: the one named, else the one Google already
     // associates with the search, else the one ranking for it.
-    const pageUrl = input.pageUrl?.trim() || searchConsole?.pages[0]?.url || snapshot.ownUrl || null;
+    const pageUrl = requestedPage?.trim() || searchConsole?.pages[0]?.url || snapshot.ownUrl || null;
     if (!pageUrl) {
       throw new BadRequestException(
         `None of your pages shows up for "${keyword}" yet, so there is no page to diagnose. Choose the page that should rank for it.`,
@@ -88,15 +116,12 @@ export class KeywordDiagnosisService {
     const top = results.organic.slice(0, 10).map((r) => ({ ...r, format: classifyPage(r.url, r.title) }));
     const rivals = results.organic.filter((r) => !onDomain(r.url, site.website.domain)).slice(0, COMPETITOR_PAGES);
 
-    const [page, competitors, crawlFacts, indexStatus] = await Promise.all([
+    const [page, competitors, crawlFacts, indexStatus, visits] = await Promise.all([
       this.readOne(pageUrl, keyword, null),
       Promise.all(rivals.map((r) => this.readOne(r.url, keyword, r))),
       this.crawlFacts(site, pageUrl),
-      this.prisma.urlIndexInspection.findFirst({
-        where: { projectId, url: { in: urlSpellings(pageUrl) }, error: null },
-        orderBy: { inspectedAt: 'desc' },
-        select: { verdict: true, coverageState: true, inspectedAt: true },
-      }),
+      this.indexStatusOf(projectId, pageUrl),
+      this.visitsFor(projectId, pageUrl),
     ]);
 
     // Our crawl typed the page more reliably than a URL pattern can.
@@ -121,6 +146,7 @@ export class KeywordDiagnosisService {
 
     const read = competitors.filter((c) => c.facts);
     const result = {
+      mode: 'LIVE_RESULTS' as const,
       keyword,
       pageUrl,
       market,
@@ -145,15 +171,129 @@ export class KeywordDiagnosisService {
         },
       },
       searchConsole,
+      visits,
       indexStatus,
       crawl: crawlFacts,
     };
 
+    return this.save(projectId, keyword, pageUrl, snapshot.id, result, outcome);
+  }
+
+  /**
+   * The same question answered from the customer's own Search Console: how
+   * Google has been showing the page for the search over the last 28 days and
+   * the 28 before, what is wrong with the page itself, and whether Google has
+   * it indexed. Nothing here claims to know what the pages above it look like.
+   */
+  private async fromSearchConsole(projectId: string, site: OwnSite, keyword: string, requestedPage: string | undefined) {
+    const [searchConsole, previous] = await Promise.all([
+      keywordInSearchConsole(this.prisma, projectId, keyword, PERIOD_DAYS),
+      keywordInSearchConsole(this.prisma, projectId, keyword, PERIOD_DAYS, PERIOD_DAYS),
+    ]);
+
+    // The page to diagnose: the one named, else the one Google shows most for the search.
+    const pageUrl = requestedPage?.trim() || searchConsole?.pages[0]?.url || null;
+    if (!pageUrl) {
+      throw new BadRequestException(
+        `Google has not shown any of your pages for "${keyword}" in the last ${PERIOD_DAYS} days, so there is no page to diagnose. Choose the page that should rank for it.`,
+      );
+    }
+    if (!onDomain(pageUrl, site.website.domain)) {
+      throw new BadRequestException(`${pageUrl} is not on ${site.website.domain}. Choose one of your own pages.`);
+    }
+
+    const [page, crawlFacts, indexStatus, visits] = await Promise.all([
+      this.readOne(pageUrl, keyword, null),
+      this.crawlFacts(site, pageUrl),
+      this.indexStatusOf(projectId, pageUrl),
+      this.visitsFor(projectId, pageUrl),
+    ]);
+    if (crawlFacts.pageType) page.format = classifyPage(pageUrl, page.facts?.title ?? null, crawlFacts.pageType);
+
+    const outcome = diagnose({
+      keyword,
+      page: { ...page, ...crawlFacts },
+      competitors: [],
+      serp: null,
+      intent: null,
+      dominant: null,
+      searchConsole: searchConsole && { ...searchConsole, previous: previous ? { pages: previous.pages } : null },
+      indexStatus,
+      ownUrlIsThisPage: false,
+    });
+
+    const key = canonicalUrl(pageUrl);
+    const own = searchConsole?.pages.find((p) => canonicalUrl(p.url) === key) ?? null;
+    const shownInstead = searchConsole?.pages.find((p) => canonicalUrl(p.url) !== key && p.impressions > 0) ?? null;
+    // Google prefers another page of yours when this one is not shown at all,
+    // or is shown less than the other.
+    const otherPreferred = shownInstead !== null && (own === null || shownInstead.impressions > own.impressions);
+    const result = {
+      mode: 'SEARCH_CONSOLE' as const,
+      keyword,
+      pageUrl,
+      market: null,
+      checkedAt: new Date(),
+      ...outcome,
+      results: {
+        // The average over the window, to one decimal, the way Search Console shows it.
+        position: own?.position != null ? Math.round(own.position * 10) / 10 : null,
+        otherPageOfYours: otherPreferred ? { url: shownInstead.url, position: shownInstead.position } : null,
+        intent: null,
+        dominantFormat: null,
+        features: [],
+        questions: [],
+        top: [],
+      },
+      comparison: { yours: summarise(page), competitors: [], typical: null },
+      searchConsole:
+        searchConsole && {
+          ...searchConsole,
+          previous: previous ? { clicks: previous.clicks, impressions: previous.impressions, position: previous.position } : null,
+        },
+      visits,
+      indexStatus,
+      crawl: crawlFacts,
+    };
+
+    return this.save(projectId, keyword, pageUrl, null, result, outcome);
+  }
+
+  private async save(
+    projectId: string,
+    keyword: string,
+    pageUrl: string,
+    serpSnapshotId: string | null,
+    result: object,
+    outcome: { reasons: unknown[]; confidence: { level: string } },
+  ) {
     const saved = await this.prisma.keywordDiagnosis.create({
-      data: { projectId, keyword, pageUrl, serpSnapshotId: snapshot.id, result: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue },
+      data: { projectId, keyword, pageUrl, serpSnapshotId, result: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue },
     });
     this.logger.log(`[${projectId}] Diagnosed "${keyword}" for ${pageUrl}: ${outcome.reasons.length} reason(s), ${outcome.confidence.level} confidence.`);
     return { id: saved.id, createdAt: saved.createdAt, ...result };
+  }
+
+  /** The latest URL Inspection answer for the page, if Google has been asked. */
+  private indexStatusOf(projectId: string, pageUrl: string) {
+    return this.prisma.urlIndexInspection.findFirst({
+      where: { projectId, url: { in: urlSpellings(pageUrl) }, error: null },
+      orderBy: { inspectedAt: 'desc' },
+      select: { verdict: true, coverageState: true, inspectedAt: true },
+    });
+  }
+
+  /**
+   * What GA4 recorded for visits that started on the page, over the same
+   * window. Null when GA4 is not connected or recorded none for this page; the
+   * caller knows which from whether it is connected. Every source counts, not
+   * only Google.
+   */
+  private async visitsFor(projectId: string, pageUrl: string) {
+    if (!(await analyticsConnected(this.prisma, projectId))) return null;
+    const visits = await this.analytics.visitsByPage(projectId, PERIOD_DAYS);
+    const found = visits?.get(pathKey(pageUrl)) ?? null;
+    return found ? { days: PERIOD_DAYS, ...found } : null;
   }
 
   /** Reads one page live, the same way for ours and theirs. */
