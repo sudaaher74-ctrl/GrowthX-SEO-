@@ -20,14 +20,14 @@ export class YoutubeController {
   @Get('callback')
   async handleCallback(@Query('code') code: string, @Query('state') state: string, @Res() res: Response) {
     if (!code || !state) {
-      return res.redirect(process.env.FRONTEND_URL + '/content?error=missing_code');
+      return res.redirect(process.env.FRONTEND_URL + '/integrations?error=missing_code');
     }
 
     try {
       await this.youtubeService.handleCallback(code, state);
-      return res.redirect(process.env.FRONTEND_URL + '/content?success=true');
+      return res.redirect(process.env.FRONTEND_URL + '/integrations?success=true');
     } catch (error) {
-      return res.redirect(process.env.FRONTEND_URL + '/content?error=callback_failed');
+      return res.redirect(process.env.FRONTEND_URL + '/integrations?error=callback_failed');
     }
   }
 }

@@ -33,30 +33,22 @@ import { AiVisibilityModule } from './modules/ai-visibility/ai-visibility.module
 import { StrategyModule } from './modules/strategy/strategy.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { AutomationModule } from './modules/automation/automation.module';
-import { ActivityModule } from './modules/activity/activity.module';
 import { GroqModule } from './modules/groq/groq.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { LocalSeoModule } from './modules/local-seo/local-seo.module';
 import { ImpactModule } from './modules/impact/impact.module';
-import { OutreachModule } from './modules/outreach/outreach.module';
-import { ReportingModule } from './modules/reporting/reporting.module';
 import { MarketIntelligenceModule } from './modules/market-intelligence/market-intelligence.module';
-import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { MarketResearchModule } from './modules/market-research/market-research.module';
 import { ContentIntelligenceModule } from './modules/content-intelligence/content-intelligence.module';
-import { DesignStudioModule } from './modules/design-studio/design-studio.module';
-import { DiscoveryPipelineModule } from './modules/discovery-pipeline/discovery-pipeline.module';
 import { SeoToolsModule } from './modules/seo-tools/seo-tools.module';
 import { AiEngineModule } from './modules/ai-engine/ai-engine.module';
 import { VoiceAgentModule } from './modules/voice-agent/voice-agent.module';
 import { RivalSnapshotsModule } from './modules/rival-snapshots/rival-snapshots.module';
 import { AutopilotModule } from './modules/autopilot/autopilot.module';
 import { AuditReportModule } from './modules/audit-report/audit-report.module';
-import { DiagnosticsModule } from './modules/diagnostics/diagnostics.module';
 import { CompetitorActionEngineModule } from './modules/competitor-action-engine/competitor-action-engine.module';
-import { BusinessModule } from './modules/business/business.module';
 import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
 import { TokensModule } from './modules/tokens/tokens.module';
@@ -67,7 +59,6 @@ import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-i
   imports: [
     CompetitorActionEngineModule,
     GrowthIntelligenceModule,
-    DiagnosticsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // `@nestjs/throttler` was a dependency but was never registered, so no
     // route had any rate limit at all. Two buckets: a burst ceiling and a
@@ -122,27 +113,20 @@ import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-i
     StrategyModule,
     PortfolioModule,
     AutomationModule,
-    ActivityModule,
     GroqModule,
     AdminModule,
     LocalSeoModule,
     ImpactModule,
-    OutreachModule,
-    ReportingModule,
     MarketIntelligenceModule,
-    MonitoringModule,
     IntegrationsModule,
     OpportunitiesModule,
     MarketResearchModule,
     ContentIntelligenceModule,
-    DiscoveryPipelineModule,
-    DesignStudioModule,
     SeoToolsModule,
     VoiceAgentModule,
     RivalSnapshotsModule,
     AutopilotModule,
     AuditReportModule,
-    BusinessModule,
     SavedPlansModule,
     SearchIntelligenceModule,
     TokensModule,
