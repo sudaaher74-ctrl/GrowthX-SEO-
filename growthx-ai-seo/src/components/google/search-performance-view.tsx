@@ -125,7 +125,7 @@ export function SearchPerformanceView() {
                   )
                 }
               </Gate>
-              <Caveat>Rising queries are not shown: Search Console history is compared only for queries that already had a position in the earlier period.</Caveat>
+              <Caveat>New and rising queries are on the Keywords tab.</Caveat>
             </Panel>
           </div>
         )

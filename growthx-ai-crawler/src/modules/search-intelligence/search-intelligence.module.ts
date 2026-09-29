@@ -4,6 +4,9 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { ChangeImpactService } from './change-impact.service';
 import { ChangeRiskService } from './change-risk.service';
 import { DataForSeoService } from './dataforseo.service';
+import { GoogleAlertsService } from './google-alerts.service';
+import { GoogleBreakdownService } from './google-breakdown.service';
+import { GoogleKeywordsService } from './google-keywords.service';
 import { GoogleOverviewController } from './google-overview.controller';
 import { GoogleOverviewService } from './google-overview.service';
 import { IndexStatusService } from './index-status.service';
@@ -27,6 +30,9 @@ import { SearchRankingsService } from './search-rankings.service';
   controllers: [SearchIntelligenceController, GoogleOverviewController],
   providers: [
     GoogleOverviewService,
+    GoogleKeywordsService,
+    GoogleBreakdownService,
+    GoogleAlertsService,
     DataForSeoService,
     IndexStatusService,
     RankTrackingService,

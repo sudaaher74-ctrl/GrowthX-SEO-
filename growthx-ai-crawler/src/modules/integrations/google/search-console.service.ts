@@ -141,6 +141,10 @@ export class SearchConsoleService {
         // is what Keyword Intelligence needs, and what a GA4 conversion later
         // joins to.
         { grain: 'QUERY_PAGE', dimensions: ['date', 'query', 'page'] },
+        // Where searchers are and what they search on. Small grains, and what
+        // the Google views' country and device filters read.
+        { grain: 'COUNTRY', dimensions: ['date', 'country'] },
+        { grain: 'DEVICE', dimensions: ['date', 'device'] },
       ];
 
       for (const { grain, dimensions } of grains) {

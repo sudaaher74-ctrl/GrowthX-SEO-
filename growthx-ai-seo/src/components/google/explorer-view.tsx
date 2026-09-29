@@ -4,11 +4,11 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { ActionButton, Panel, Table, Td, Th, Tr } from "@/components/ui/console";
 import { Caveat, Chip, EmptyNote, Gate } from "@/components/google/view-kit";
-import { useGooglePages, useGscPages, useGscQueries } from "@/hooks/use-google";
+import { useGoogleBreakdown, useGooglePages, useGscPages, useGscQueries } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { DASH, count, pathOf, percent, position } from "@/lib/google-format";
 
-type Dataset = "queries" | "pages" | "organic";
+type Dataset = "queries" | "pages" | "organic" | "countries" | "devices";
 interface Col {
   id: string;
   label: string;
@@ -47,6 +47,8 @@ export function ExplorerView() {
   const queries = useGscQueries(projectId, 1000);
   const gscPages = useGscPages(projectId, 1000);
   const organic = useGooglePages(projectId);
+  const countries = useGoogleBreakdown(projectId, "country");
+  const devices = useGoogleBreakdown(projectId, "device");
   const [filter, setFilter] = useState("");
   const [minImpr, setMinImpr] = useState(0);
   const [sort, setSort] = useState<{ id: string; dir: "asc" | "desc" }>({ id: "clicks", dir: "desc" });
@@ -54,6 +56,12 @@ export function ExplorerView() {
   const { rows, cols, label, loading } = useMemo(() => {
     if (dataset === "queries") return { rows: (queries.query.data ?? []).map((r) => ({ ...r })), cols: SEARCH_COLS, label: "Query", loading: queries.query.isLoading };
     if (dataset === "pages") return { rows: (gscPages.query.data ?? []).map((r) => ({ ...r })), cols: SEARCH_COLS, label: "Page", loading: gscPages.query.isLoading };
+    if (dataset === "countries" || dataset === "devices") {
+      const q = dataset === "countries" ? countries.query : devices.query;
+      // Search Console gives countries as lower-case ISO codes and devices as DESKTOP / MOBILE / TABLET.
+      const rows: Row[] = (q.data?.rows ?? []).map((r) => ({ ...r, key: r.key.toUpperCase() }));
+      return { rows, cols: SEARCH_COLS, label: dataset === "countries" ? "Country" : "Device", loading: q.isLoading };
+    }
     const rows: Row[] = (organic.query.data?.rows ?? []).map((r) => ({
       key: r.url,
       clicks: r.gsc?.clicks ?? null,
@@ -65,7 +73,7 @@ export function ExplorerView() {
       keyEvents: r.ga?.keyEvents ?? null,
     }));
     return { rows, cols: ORGANIC_COLS, label: "Page", loading: organic.query.isLoading };
-  }, [dataset, queries.query.data, queries.query.isLoading, gscPages.query.data, gscPages.query.isLoading, organic.query.data, organic.query.isLoading]);
+  }, [dataset, queries.query.data, queries.query.isLoading, gscPages.query.data, gscPages.query.isLoading, organic.query.data, organic.query.isLoading, countries.query.data, countries.query.isLoading, devices.query.data, devices.query.isLoading]);
 
   const shown = useMemo(() => {
     const col = cols.find((c) => c.id === sort.id) ?? cols[0];
@@ -99,7 +107,10 @@ export function ExplorerView() {
     sorted: sort.id === id ? sort.dir : null,
   });
 
-  const activeQuery = (dataset === "queries" ? queries.query : dataset === "pages" ? gscPages.query : organic.query) as UseQueryResult<unknown>;
+  const activeQuery = (
+    dataset === "queries" ? queries.query : dataset === "pages" ? gscPages.query : dataset === "countries" ? countries.query : dataset === "devices" ? devices.query : organic.query
+  ) as UseQueryResult<unknown>;
+  const needsRefresh = (dataset === "countries" || dataset === "devices") && !loading && rows.length === 0 && activeQuery.data !== undefined;
 
   return (
     <div className="space-y-4">
@@ -108,6 +119,8 @@ export function ExplorerView() {
           <Chip active={dataset === "queries"} onClick={() => setDataset("queries")}>Search queries</Chip>
           <Chip active={dataset === "pages"} onClick={() => setDataset("pages")}>Pages in search</Chip>
           <Chip active={dataset === "organic"} onClick={() => setDataset("organic")}>Organic pages + Analytics</Chip>
+          <Chip active={dataset === "countries"} onClick={() => setDataset("countries")}>Countries</Chip>
+          <Chip active={dataset === "devices"} onClick={() => setDataset("devices")}>Devices</Chip>
         </div>
         <input
           type="search"
@@ -133,7 +146,9 @@ export function ExplorerView() {
       <Panel title="Data explorer" subtitle={`${count(shown.length)} of ${count(rows.length)} rows. Click a column to sort.`}>
         <Gate query={activeQuery} what="data">
           {() =>
-            loading ? null : shown.length === 0 ? (
+            loading ? null : needsRefresh ? (
+              <EmptyNote>Country and device figures have not been fetched for this workspace yet. Use Refresh data above to fetch them from Search Console.</EmptyNote>
+            ) : shown.length === 0 ? (
               <EmptyNote>No rows match. Clear the filter, lower the impressions minimum, or use a longer range.</EmptyNote>
             ) : (
               <Table minWidth={cols.length > 4 ? 900 : 640}>
@@ -159,7 +174,7 @@ export function ExplorerView() {
             )
           }
         </Gate>
-        <Caveat>The table shows the first 200 rows; the download has every filtered row. “—” means not measured, never zero. Country and device breakdowns are not stored yet.</Caveat>
+        <Caveat>The table shows the first 200 rows; the download has every filtered row. “—” means not measured, never zero.</Caveat>
       </Panel>
     </div>
   );

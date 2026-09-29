@@ -70,7 +70,7 @@ export function useGoogleRefresh(projectId: string | null | undefined) {
       if (failures.length > 0) throw new Error(failures.join(" "));
     },
     onSettled: () => {
-      for (const key of ["google-overview", "google-pages", "google-page", "ga4-report", "google-gsc-summary", "google-gsc-timeseries", "google-gsc-queries", "google-gsc-pages", "google-gsc-declining", "google-gsc-striking", "google-gsc-ctr"]) {
+      for (const key of ["google-overview", "google-pages", "google-page", "ga4-report", "google-gsc-summary", "google-gsc-timeseries", "google-gsc-queries", "google-gsc-pages", "google-gsc-declining", "google-gsc-striking", "google-gsc-ctr", "google-keywords", "google-alerts", "google-breakdown"]) {
         queryClient.invalidateQueries({ queryKey: [key, projectId] });
       }
     },
@@ -151,6 +151,10 @@ export const useGscQueries = (p: string | null | undefined, limit = 200) =>
   useWindowQuery("gsc-queries", p, (id, d) => api.gscQueries(id, d, limit), [limit]);
 export const useGscPages = (p: string | null | undefined, limit = 200) =>
   useWindowQuery("gsc-pages", p, (id, d) => api.gscPages(id, d, limit), [limit]);
+export const useGoogleKeywords = (p: string | null | undefined) => useWindowQuery("keywords", p, api.googleKeywords);
+export const useGoogleAlerts = (p: string | null | undefined) => useWindowQuery("alerts", p, api.googleAlerts);
+export const useGoogleBreakdown = (p: string | null | undefined, dimension: "country" | "device") =>
+  useWindowQuery("breakdown", p, (id, d) => api.googleBreakdown(id, d, dimension), [dimension]);
 export const useGscDeclining = (p: string | null | undefined) => useWindowQuery("gsc-declining", p, api.gscDeclining);
 export const useGscStriking = (p: string | null | undefined) => useWindowQuery("gsc-striking", p, api.gscStrikingDistance);
 export const useGscCtrOpportunities = (p: string | null | undefined) => useWindowQuery("gsc-ctr", p, api.gscCtrOpportunities);

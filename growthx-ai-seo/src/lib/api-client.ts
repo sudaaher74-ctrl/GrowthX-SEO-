@@ -1042,7 +1042,8 @@ export interface Ga4ReportData {
   totals: Ga4ReportTotals;
   daily: { date: string; sessions: number; users: number }[];
   landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
-  channels: { channel: string; sessions: number; users: number; organic: boolean }[];
+  /** Engagement and key events are absent from snapshots stored before they were fetched per channel; the next refresh adds them. */
+  channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
   /** Absent until the first refresh after cities were added. */
@@ -1208,6 +1209,67 @@ export interface GooglePages {
   segmentCounts: Record<GooglePageSegment, number>;
   total: number;
   rows: GooglePageRow[];
+}
+
+export interface GoogleKeywordMovement {
+  days: 7 | 28 | 90;
+  range: { start: string; end: string };
+  comparisonRange: { start: string; end: string } | null;
+  /** Null when no earlier period is stored, so nothing can be called new or rising. */
+  new: { query: string; clicks: number; impressions: number; position: number }[] | null;
+  rising:
+    | {
+        query: string;
+        clicks: number;
+        previousClicks: number;
+        clicksChange: number;
+        clicksChangePct: number | null;
+        position: number;
+        previousPosition: number;
+        movement: number;
+      }[]
+    | null;
+  /** Null when the query-by-page data has not been fetched. */
+  cannibalization:
+    | {
+        query: string;
+        impressions: number;
+        clicks: number;
+        pages: { page: string; clicks: number; impressions: number; position: number; share: number }[];
+      }[]
+    | null;
+  rules: {
+    minImpressions: number;
+    risingMinExtraClicks: number;
+    risingMinPct: number;
+    risingMinPlaces: number;
+    cannibalMinQueryImpressions: number;
+    cannibalMinPageShare: number;
+  };
+}
+
+export interface GoogleBreakdown {
+  days: 7 | 28 | 90;
+  dimension: "country" | "device";
+  range: { start: string; end: string } | null;
+  /** Null when nothing is stored yet; one refresh fetches it. */
+  rows: GscRow[] | null;
+}
+
+export interface GoogleAlertsReport {
+  days: 7 | 28 | 90;
+  comparable: boolean;
+  alerts: {
+    id: string;
+    direction: "BAD" | "GOOD";
+    severity: "HIGH" | "MEDIUM";
+    title: string;
+    detail: string;
+    source: GoogleSource;
+    view: string;
+    segment?: string;
+  }[];
+  rules: { alertPct: number; minPrevious: number; ctrPoints: number; positionPlaces: number; pageDropPct: number; pageDropMinClicks: number };
 }
 
 export interface GoogleDiagnosisFinding {
@@ -4469,6 +4531,12 @@ export const api = {
     get<GooglePages>(
       `/api/projects/${projectId}/google/pages?days=${days}${segment ? `&segment=${encodeURIComponent(segment)}` : ""}`,
     ),
+  googleKeywords: (projectId: string, days: number) =>
+    get<GoogleKeywordMovement | null>(`/api/projects/${projectId}/google/keywords?days=${days}`),
+  googleBreakdown: (projectId: string, days: number, dimension: "country" | "device") =>
+    get<GoogleBreakdown>(`/api/projects/${projectId}/google/breakdown?days=${days}&dimension=${dimension}`),
+  googleAlerts: (projectId: string, days: number) =>
+    get<GoogleAlertsReport>(`/api/projects/${projectId}/google/alerts?days=${days}`),
   googlePage: (projectId: string, days: number, url: string) =>
     get<GooglePageDetail>(`/api/projects/${projectId}/google/page?days=${days}&url=${encodeURIComponent(url)}`),
   ga4PageValue: (projectId: string, days: number) =>

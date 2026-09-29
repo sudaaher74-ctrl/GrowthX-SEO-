@@ -125,13 +125,15 @@ export function TrafficView() {
         title="Organic Search against other channels"
         subtitle="Sessions by Google Analytics default channel group, combined into the groups people compare."
       >
-        <Table minWidth={640}>
+        <Table minWidth={820}>
           <thead>
             <tr>
               <Th>Channel</Th>
               <Th align="right">Sessions</Th>
               <Th align="right">Share</Th>
               <Th align="right">Users</Th>
+              <Th align="right">Engagement</Th>
+              <Th align="right">Key events</Th>
               <Th>Volume</Th>
             </tr>
           </thead>
@@ -150,6 +152,8 @@ export function TrafficView() {
                 <Td align="right">{count(g.sessions)}</Td>
                 <Td align="right">{percent(g.share)}</Td>
                 <Td align="right">{count(g.users)}</Td>
+                <Td align="right">{percent(g.engagementRate)}</Td>
+                <Td align="right">{count(g.keyEvents)}</Td>
                 <Td>
                   <div className="h-1.5 w-40 rounded-full bg-brand-100">
                     <div
@@ -164,7 +168,7 @@ export function TrafficView() {
         </Table>
         <p className="border-t px-4 py-2.5 text-[11px] text-brand-500">
           Users are counted per channel, so they add up to more than the {count(totals.activeUsers)} distinct active users: one person can arrive from two channels.
-          Engagement and key events by channel are not stored yet, so they are not shown here.
+          Engagement is weighted by sessions. “—” means the figure was not measured (no key events set up), or this report was stored before it was fetched per channel: use Refresh data above.
         </p>
       </Panel>
 
@@ -237,10 +241,18 @@ export function TrafficView() {
 
 function build(data: Ga4ReportData) {
   const total = data.channels.reduce((s, c) => s + c.sessions, 0) || data.totals.sessions;
-  const byGroup = new Map<Group, { sessions: number; users: number; channels: string[] }>();
+  const byGroup = new Map<Group, { sessions: number; users: number; channels: string[]; engaged: number; engagedSessions: number; keyEvents: number | null; hasKeyEvents: boolean }>();
   for (const c of data.channels) {
     const g = groupOf(c.channel, c.organic);
-    const entry = byGroup.get(g) ?? { sessions: 0, users: 0, channels: [] };
+    const entry = byGroup.get(g) ?? { sessions: 0, users: 0, channels: [], engaged: 0, engagedSessions: 0, keyEvents: null, hasKeyEvents: false };
+    if (c.engagementRate !== undefined) {
+      entry.engaged += c.engagementRate * c.sessions;
+      entry.engagedSessions += c.sessions;
+    }
+    if (c.keyEvents != null) {
+      entry.keyEvents = (entry.keyEvents ?? 0) + c.keyEvents;
+      entry.hasKeyEvents = true;
+    }
     entry.sessions += c.sessions;
     entry.users += c.users;
     entry.channels.push(c.channel);
@@ -251,7 +263,18 @@ function build(data: Ga4ReportData) {
     // Organic Search is always listed, so a site with none sees that plainly. Other empty groups are left out.
     if (!e && group !== "Organic Search") return [];
     const sessions = e?.sessions ?? 0;
-    return [{ group, sessions, users: e?.users ?? 0, channels: e?.channels ?? [], share: total > 0 ? sessions / total : null }];
+    return [
+      {
+        group,
+        sessions,
+        users: e?.users ?? 0,
+        channels: e?.channels ?? [],
+        share: total > 0 ? sessions / total : null,
+        // Null, not zero, when this report predates per-channel engagement or the property has no key events.
+        engagementRate: e && e.engagedSessions > 0 ? e.engaged / e.engagedSessions : null,
+        keyEvents: e?.hasKeyEvents ? e.keyEvents : null,
+      },
+    ];
   }).sort((a, b) => b.sessions - a.sessions);
   const organic = byGroup.get("Organic Search")?.sessions ?? 0;
   const pages = [...data.landingPages].sort((a, b) => b.sessions - a.sessions).slice(0, 25);

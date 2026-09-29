@@ -5,7 +5,7 @@ import { Panel, Pill } from "@/components/ui/console";
 import { NoDataState } from "@/components/ui/truthful-state";
 import { Caveat, EmptyNote, Gate } from "@/components/google/view-kit";
 import { SourceBadge } from "@/components/google/parts";
-import { useChangeLedger, useGoogleOverview } from "@/hooks/use-google";
+import { useChangeLedger, useGoogleAlerts, useGoogleOverview } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { formatKpi, pathOf } from "@/lib/google-format";
 
@@ -17,9 +17,45 @@ export function ChangesView() {
   const { projectId } = useWorkspace();
   const overview = useGoogleOverview(projectId);
   const ledger = useChangeLedger(projectId);
+  const alerts = useGoogleAlerts(projectId);
 
   return (
     <div className="space-y-4">
+      <Panel title="Alerts" subtitle="Changes worth attention, detected from two stored periods.">
+        <Gate query={alerts.query} what="alerts">
+          {(a) =>
+            !a.comparable ? (
+              <EmptyNote>No earlier {a.days}-day period is stored yet, so no change can be detected. Alerts appear as history builds.</EmptyNote>
+            ) : a.alerts.length === 0 ? (
+              <EmptyNote>Nothing moved enough to flag against the previous {a.days} days.</EmptyNote>
+            ) : (
+              <>
+                <ul className="divide-y">
+                  {a.alerts.map((x) => (
+                    <li key={x.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone={x.direction === "GOOD" ? "good" : x.severity === "HIGH" ? "bad" : "warn"}>{x.direction === "GOOD" ? "gain" : x.severity === "HIGH" ? "high" : "watch"}</Pill>
+                          <span className="text-[13px] font-semibold text-brand-950">{x.title}</span>
+                          <SourceBadge source={x.source} />
+                        </div>
+                        <p className="mt-1 text-[12px] text-brand-600">{x.detail}</p>
+                      </div>
+                      <Link href={x.view === "pages" ? `/google/pages${x.segment ? `?segment=${x.segment}` : ""}` : `/google/${x.view}`} className="shrink-0 text-[12px] font-semibold text-accent-700 hover:underline">
+                        Investigate →
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <Caveat>
+                  Flagged when a count moves {a.rules.alertPct}%+ (with {a.rules.minPrevious}+ before), CTR moves {a.rules.ctrPoints}+ point, position moves {a.rules.positionPlaces}+ place, or a page loses {a.rules.pageDropPct}%+ of {a.rules.pageDropMinClicks}+ clicks. Alerts are worked out when you open this tab from stored data, not sent as notifications.
+                </Caveat>
+              </>
+            )
+          }
+        </Gate>
+      </Panel>
+
       <Panel title="Movement against the previous period" subtitle={`Every measured figure that moved by ${ALERT_PCT}% or more is flagged.`}>
         <Gate query={overview.query} what="changes">
           {(o) => {
