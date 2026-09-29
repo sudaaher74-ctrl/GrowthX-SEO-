@@ -1045,6 +1045,8 @@ export interface Ga4ReportData {
   channels: { channel: string; sessions: number; users: number; organic: boolean }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
+  /** Absent until the first refresh after cities were added. */
+  cities?: { city: string; country: string; sessions: number; users: number }[];
 }
 
 /** One GA4 window for the workspace, or the reason there is none. */

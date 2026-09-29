@@ -18,6 +18,7 @@ export function parseGa4Range(value: string | undefined): Ga4Range {
 const ORGANIC_SEARCH = 'Organic Search';
 const TOP_PAGES = 25;
 const TOP_COUNTRIES = 10;
+const TOP_CITIES = 15;
 
 export interface Ga4Totals {
   sessions: number;
@@ -46,6 +47,8 @@ export interface Ga4ReportData {
   channels: { channel: string; sessions: number; users: number; organic: boolean }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
+  /** Absent from snapshots stored before cities were fetched; the next refresh adds it. */
+  cities?: { city: string; country: string; sessions: number; users: number }[];
 }
 
 export type Ga4ReportState =
@@ -263,7 +266,7 @@ export class AnalyticsReportService {
       const dateRange = rangeDates(days);
       const concrete = { startDate: shiftDay(yesterday, -(days - 1)), endDate: yesterday };
 
-      const [totalsResult, pageResult, channelResult, countryResult] = await Promise.all([
+      const [totalsResult, pageResult, channelResult, countryResult, cityResult] = await Promise.all([
         this.run(api, propertyId, {
           dimensions: [],
           metrics: [
@@ -299,6 +302,15 @@ export class AnalyticsReportService {
           dateRange,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           limit: TOP_COUNTRIES,
+        }),
+        // Where inside those countries visitors are. The country is fetched
+        // with the city because many city names repeat across countries.
+        this.run(api, propertyId, {
+          dimensions: ['city', 'country'],
+          metrics: ['sessions', 'activeUsers'],
+          dateRange,
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: TOP_CITIES,
         }),
       ]);
 
@@ -353,6 +365,12 @@ export class AnalyticsReportService {
           organicSearchSessions: channels.filter((c) => c.organic).reduce((sum, c) => sum + c.sessions, 0),
           countries: countryRows.map((row) => ({
             country: row.dimensions[0] || '(not set)',
+            sessions: row.metrics[0],
+            users: row.metrics[1],
+          })),
+          cities: cityResult.rows.map((row) => ({
+            city: row.dimensions[0] || '(not set)',
+            country: row.dimensions[1] || '(not set)',
             sessions: row.metrics[0],
             users: row.metrics[1],
           })),
