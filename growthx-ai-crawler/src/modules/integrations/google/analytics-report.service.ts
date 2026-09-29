@@ -19,6 +19,7 @@ const ORGANIC_SEARCH = 'Organic Search';
 const TOP_PAGES = 25;
 const TOP_COUNTRIES = 10;
 const TOP_CITIES = 15;
+const ORGANIC_PAGES = 100;
 
 export interface Ga4Totals {
   sessions: number;
@@ -35,6 +36,32 @@ export interface Ga4Totals {
   keyEvents: number | null;
 }
 
+/** Organic Search visits only, as GA4 attributes them. */
+export interface Ga4OrganicTotals extends Ga4Totals {
+  /** Null when the property records no revenue — never zero. */
+  revenue: number | null;
+}
+
+export interface Ga4OrganicData {
+  totals: Ga4OrganicTotals;
+  /** The equal window before this one; null when GA4 recorded nothing then. */
+  previous: Ga4OrganicTotals | null;
+  previousStart: string;
+  previousEnd: string;
+  daily: { date: string; sessions: number; users: number; keyEvents: number | null; revenue: number | null }[];
+  landingPages: {
+    page: string;
+    users: number;
+    sessions: number;
+    engagedSessions: number;
+    engagementRate: number;
+    averageEngagementTimeSec: number;
+    views: number;
+    keyEvents: number | null;
+    revenue: number | null;
+  }[];
+}
+
 export interface Ga4ReportData {
   /** Dates as GA4 was asked for them: the N days ending yesterday. */
   startDate: string;
@@ -49,6 +76,8 @@ export interface Ga4ReportData {
   countries: { country: string; sessions: number; users: number }[];
   /** Absent from snapshots stored before cities were fetched; the next refresh adds it. */
   cities?: { city: string; country: string; sessions: number; users: number }[];
+  /** Absent from snapshots stored before the Google section; the next refresh adds it. */
+  organic?: Ga4OrganicData;
 }
 
 export type Ga4ReportState =
@@ -252,12 +281,30 @@ export class AnalyticsReportService {
     });
     const dailyRows = daily.rows;
     const yesterday = yesterdayIn(daily.timeZone);
-    const keyEvents = await this.supportsKeyEvents(api, propertyId);
+    const keyEvents = await this.supportsMetric(api, propertyId, 'keyEvents');
+    const revenue = await this.supportsMetric(api, propertyId, 'totalRevenue');
     const dailyBy = new Map<string, { sessions: number; users: number }>();
     for (const row of dailyRows) {
-      const raw = row.dimensions[0];
-      const key = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-      dailyBy.set(key, { sessions: row.metrics[0], users: row.metrics[1] });
+      dailyBy.set(isoDay(row.dimensions[0]), { sessions: row.metrics[0], users: row.metrics[1] });
+    }
+
+    // Organic Search only, day by day, for the 90 days; the shorter windows are its tail.
+    const organicDaily = await this.run(api, propertyId, {
+      dimensions: ['date'],
+      metrics: ['sessions', 'activeUsers', ...(keyEvents ? ['keyEvents'] : []), ...(revenue ? ['totalRevenue'] : [])],
+      dateRange: rangeDates(90),
+      dimensionFilter: ORGANIC_FILTER,
+      orderBys: [{ dimension: { dimensionName: 'date' } }],
+      limit: 200,
+    });
+    const organicDailyBy = new Map<string, { sessions: number; users: number; keyEvents: number | null; revenue: number | null }>();
+    for (const row of organicDaily.rows) {
+      organicDailyBy.set(isoDay(row.dimensions[0]), {
+        sessions: row.metrics[0],
+        users: row.metrics[1],
+        keyEvents: keyEvents ? (row.metrics[2] ?? 0) : null,
+        revenue: revenue ? (row.metrics[keyEvents ? 3 : 2] ?? 0) : null,
+      });
     }
 
     const out: { range: Ga4Range; data: Ga4ReportData }[] = [];
@@ -266,7 +313,14 @@ export class AnalyticsReportService {
       const dateRange = rangeDates(days);
       const concrete = { startDate: shiftDay(yesterday, -(days - 1)), endDate: yesterday };
 
-      const [totalsResult, pageResult, channelResult, countryResult, cityResult] = await Promise.all([
+      const previous = {
+        startDate: shiftDay(concrete.startDate, -days),
+        endDate: shiftDay(concrete.startDate, -1),
+      };
+      const organicMetrics = organicMetricNames(keyEvents, revenue);
+
+      const [totalsResult, pageResult, channelResult, countryResult, cityResult, organicNow, organicBefore, organicPages] =
+        await Promise.all([
         this.run(api, propertyId, {
           dimensions: [],
           metrics: [
@@ -311,6 +365,30 @@ export class AnalyticsReportService {
           dateRange,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           limit: TOP_CITIES,
+        }),
+        // Organic Search only: this window, the equal window before it, and the
+        // pages those visits landed on.
+        this.run(api, propertyId, {
+          dimensions: [],
+          metrics: organicMetrics,
+          dateRange: concrete,
+          dimensionFilter: ORGANIC_FILTER,
+          limit: 1,
+        }),
+        this.run(api, propertyId, {
+          dimensions: [],
+          metrics: organicMetrics,
+          dateRange: previous,
+          dimensionFilter: ORGANIC_FILTER,
+          limit: 1,
+        }),
+        this.run(api, propertyId, {
+          dimensions: ['landingPage'],
+          metrics: organicMetrics,
+          dateRange: concrete,
+          dimensionFilter: ORGANIC_FILTER,
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: ORGANIC_PAGES,
         }),
       ]);
 
@@ -374,6 +452,37 @@ export class AnalyticsReportService {
             sessions: row.metrics[0],
             users: row.metrics[1],
           })),
+          organic: {
+            totals: organicTotals(organicNow.rows[0]?.metrics, keyEvents, revenue),
+            // Null when nothing was recorded before this window: there is then
+            // no baseline, and a comparison against zero would invent growth.
+            previous: hasTraffic(organicBefore.rows[0]?.metrics)
+              ? organicTotals(organicBefore.rows[0]?.metrics, keyEvents, revenue)
+              : null,
+            previousStart: previous.startDate,
+            previousEnd: previous.endDate,
+            daily: eachDay(concrete.startDate, concrete.endDate).map((date) => ({
+              date,
+              sessions: organicDailyBy.get(date)?.sessions ?? 0,
+              users: organicDailyBy.get(date)?.users ?? 0,
+              keyEvents: keyEvents ? (organicDailyBy.get(date)?.keyEvents ?? 0) : null,
+              revenue: revenue ? (organicDailyBy.get(date)?.revenue ?? 0) : null,
+            })),
+            landingPages: organicPages.rows.map((row) => {
+              const t = organicTotals(row.metrics, keyEvents, revenue);
+              return {
+                page: row.dimensions[0] || '(not set)',
+                users: t.activeUsers,
+                sessions: t.sessions,
+                engagedSessions: t.engagedSessions,
+                engagementRate: t.engagementRate,
+                averageEngagementTimeSec: t.averageEngagementTimeSec,
+                views: t.views,
+                keyEvents: t.keyEvents,
+                revenue: t.revenue,
+              };
+            }),
+          },
         },
       });
     }
@@ -381,15 +490,15 @@ export class AnalyticsReportService {
   }
 
   /**
-   * Whether this property reports key events.
+   * Whether this property reports an optional metric (key events, revenue).
    *
    * GA4 rejects a whole report that names a metric the property lacks, so this
    * is asked on its own. Only a 400 means "not available"; an auth or quota
    * error is rethrown so it is reported as itself and not as missing data.
    */
-  private async supportsKeyEvents(api: any, propertyId: string): Promise<boolean> {
+  private async supportsMetric(api: any, propertyId: string, metric: string): Promise<boolean> {
     try {
-      await this.run(api, propertyId, { dimensions: [], metrics: ['keyEvents'], dateRange: rangeDates(7), limit: 1 });
+      await this.run(api, propertyId, { dimensions: [], metrics: [metric], dateRange: rangeDates(7), limit: 1 });
       return true;
     } catch (error: any) {
       if ((error?.response?.status ?? error?.code) === 400) return false;
@@ -404,6 +513,7 @@ export class AnalyticsReportService {
       dimensions: string[];
       metrics: string[];
       dateRange: { startDate: string; endDate: string };
+      dimensionFilter?: object;
       orderBys?: object[];
       limit: number;
     },
@@ -414,6 +524,7 @@ export class AnalyticsReportService {
         dateRanges: [query.dateRange],
         dimensions: query.dimensions.map((name) => ({ name })),
         metrics: query.metrics.map((name) => ({ name })),
+        dimensionFilter: query.dimensionFilter,
         orderBys: query.orderBys,
         limit: query.limit,
       },
@@ -435,6 +546,62 @@ export class AnalyticsReportService {
     if (/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) return;
     await this.oauth.markNeedsReauth(projectId, 'analytics', `Google returned ${status} for Analytics.`);
   }
+}
+
+/** Restricts a report to visits GA4 attributes to Google's organic results. */
+const ORGANIC_FILTER = {
+  filter: {
+    fieldName: 'sessionDefaultChannelGroup',
+    stringFilter: { matchType: 'EXACT', value: ORGANIC_SEARCH },
+  },
+};
+
+/** The metrics of one organic report, in the fixed order `organicTotals` reads them back. */
+function organicMetricNames(keyEvents: boolean, revenue: boolean): string[] {
+  return [
+    'sessions',
+    'activeUsers',
+    'newUsers',
+    'engagedSessions',
+    'engagementRate',
+    'userEngagementDuration',
+    'screenPageViews',
+    ...(keyEvents ? ['keyEvents'] : []),
+    ...(revenue ? ['totalRevenue'] : []),
+  ];
+}
+
+/**
+ * Organic totals from one report row. A report with no rows means the property
+ * recorded nothing, which reads as zeros. Revenue is null — not zero — when the
+ * property reports none, so a business without ecommerce is not shown earning
+ * nothing.
+ */
+function organicTotals(metrics: number[] | undefined, keyEvents: boolean, revenue: boolean): Ga4OrganicTotals {
+  const m = metrics ?? [];
+  const activeUsers = m[1] ?? 0;
+  const revenueValue = revenue ? (m[keyEvents ? 8 : 7] ?? 0) : 0;
+  return {
+    sessions: m[0] ?? 0,
+    activeUsers,
+    newUsers: m[2] ?? 0,
+    engagedSessions: m[3] ?? 0,
+    engagementRate: m[4] ?? 0,
+    averageEngagementTimeSec: activeUsers > 0 ? (m[5] ?? 0) / activeUsers : 0,
+    views: m[6] ?? 0,
+    keyEvents: keyEvents ? (m[7] ?? 0) : null,
+    revenue: revenueValue > 0 ? revenueValue : null,
+  };
+}
+
+/** Whether a totals row recorded any visits at all. */
+function hasTraffic(metrics: number[] | undefined): boolean {
+  return Boolean(metrics && (metrics[0] > 0 || metrics[1] > 0 || metrics[6] > 0));
+}
+
+/** GA4 dates arrive as YYYYMMDD. */
+function isoDay(raw: string): string {
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 }
 
 /** The N days ending yesterday — what the GA4 interface calls "Last N days". */

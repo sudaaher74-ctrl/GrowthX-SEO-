@@ -33,6 +33,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/google-business-profile": { scope: "Workspace", title: "Google Business Profile" },
   "/monitoring": { scope: "Workspace", title: "Monitoring" },
   "/market-research": { scope: "Workspace", title: "Market Research" },
+  "/google": { scope: "Workspace", title: "Google" },
   "/search-intelligence": { scope: "Workspace", title: "Google Search" },
   "/search-performance": { scope: "Workspace", title: "Search Performance" },
   "/search/search-console": { scope: "Workspace", title: "Search Performance" },
@@ -90,7 +91,8 @@ export function TopNav({
     router.replace("/login");
   }
 
-  const meta = ROUTE_META[pathname] ?? {
+  // Every page under /google is the Google section; one entry per sub-page would go stale.
+  const meta = ROUTE_META[pathname] ?? (pathname.startsWith("/google/") ? ROUTE_META["/google"] : undefined) ?? {
     scope: selectedProject ? selectedProject.name : "Workspace",
     title: pathname.replace(/^\//, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Dashboard",
   };

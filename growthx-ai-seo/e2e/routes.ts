@@ -66,6 +66,8 @@ export const DASHBOARD_ROUTES = [
   "/schema-generator",
   "/search",
   "/search/search-console",
+  "/google",
+  "/google/pages",
   "/search-intelligence",
   "/search-performance",
   "/settings",
