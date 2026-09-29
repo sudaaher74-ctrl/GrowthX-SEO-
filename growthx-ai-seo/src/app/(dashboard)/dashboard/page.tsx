@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SEVERITY_ORDER, SEVERITY_PLAIN, asSentence } from "@/lib/plain-language";
 import { AutopilotStart } from "@/components/autopilot/autopilot-start";
+import { Ga4Overview } from "@/components/ga4/ga4-panels";
 
 /**
  * The first screen a business owner sees.
@@ -291,6 +292,9 @@ export default function UnifiedDashboardPage() {
           </ol>
         )}
       </Panel>
+
+      {/* GA4 traffic — real figures from the customer's own property, or the reason there are none. */}
+      <Ga4Overview projectId={projectId} />
 
       {/* 3. Are people finding me? / What do customers say? */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">

@@ -12,10 +12,23 @@ import {
   useWorkspace,
   useLocalSeo,
 } from "@/hooks/use-growthx";
-import { api } from "@/lib/api-client";
+import { api, type GoogleProviderStatus } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 import { PropertyPicker } from "@/components/ui/property-picker";
 import { MetricBadge } from "@/components/ui/truthful-state";
+
+/**
+ * Which Google account a card belongs to.
+ *
+ * "Not connected" was printed for every connection made before the email was
+ * recorded, including ones that were connected and syncing. A connection with
+ * no stored email says so instead; reconnecting records it.
+ */
+function accountLabel(provider: GoogleProviderStatus | undefined): string {
+  if (provider?.googleAccountEmail) return provider.googleAccountEmail;
+  if (!provider || provider.status === "NOT_CONNECTED" || provider.status === "DISCONNECTED") return "Not connected";
+  return "Connected (email not recorded — reconnect to show it)";
+}
 
 export default function IntegrationsPage() {
   return (
@@ -99,6 +112,7 @@ function IntegrationsClient() {
       qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
       qc.invalidateQueries({ queryKey: ["gsc-summary"] });
       qc.invalidateQueries({ queryKey: ["ga4-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-report"] });
     },
     onError: (err) => setNotice({ type: "error", text: errorMessage(err) }),
   });
@@ -114,6 +128,7 @@ function IntegrationsClient() {
       qc.invalidateQueries({ queryKey: ["google-connections", projectId] });
       qc.invalidateQueries({ queryKey: ["gsc-summary"] });
       qc.invalidateQueries({ queryKey: ["ga4-summary"] });
+      qc.invalidateQueries({ queryKey: ["ga4-report"] });
     },
     onError: (err) => setNotice({ type: "error", text: errorMessage(err) }),
   });
@@ -177,7 +192,7 @@ function IntegrationsClient() {
                   Provides authoritative organic search impressions, verified Google clicks, CTR, and keyword rankings.
                 </p>
                 <div className="flex flex-wrap gap-2 text-[11px] text-brand-500 font-mono mt-2">
-                  <span>Account: <strong>{gsc?.googleAccountEmail || "Not connected"}</strong></span>
+                  <span>Account: <strong>{accountLabel(gsc)}</strong></span>
                   <span>·</span>
                   <span>Property: <strong>{gsc?.selectedResourceName || "None selected"}</strong></span>
                   <span>·</span>
@@ -242,7 +257,7 @@ function IntegrationsClient() {
                   Synchronizes user sessions, engaged landing pages, conversion rates, and traffic channels.
                 </p>
                 <div className="flex flex-wrap gap-2 text-[11px] text-brand-500 font-mono mt-2">
-                  <span>Account: <strong>{ga4?.googleAccountEmail || "Not connected"}</strong></span>
+                  <span>Account: <strong>{accountLabel(ga4)}</strong></span>
                   <span>·</span>
                   <span>Stream / Property: <strong>{ga4?.selectedResourceName || "None selected"}</strong></span>
                   <span>·</span>

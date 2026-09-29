@@ -1019,6 +1019,47 @@ export interface Ga4Point {
   revenue: number | null;
 }
 
+export type Ga4RangeKey = "7d" | "28d" | "90d";
+
+export interface Ga4ReportTotals {
+  sessions: number;
+  activeUsers: number;
+  newUsers: number;
+  engagedSessions: number;
+  /** 0-1. */
+  engagementRate: number;
+  /** Seconds per active user. */
+  averageEngagementTimeSec: number;
+  views: number;
+  /** Null when the property has no key events reporting — never zero. */
+  keyEvents: number | null;
+}
+
+export interface Ga4ReportData {
+  startDate: string;
+  endDate: string;
+  empty: boolean;
+  totals: Ga4ReportTotals;
+  daily: { date: string; sessions: number; users: number }[];
+  landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
+  channels: { channel: string; sessions: number; users: number; organic: boolean }[];
+  organicSearchSessions: number;
+  countries: { country: string; sessions: number; users: number }[];
+}
+
+/** One GA4 window for the workspace, or the reason there is none. */
+export interface Ga4Report {
+  state: "NOT_CONNECTED" | "NEEDS_SELECTION" | "NEEDS_REAUTH" | "ERROR" | "NEVER_SYNCED" | "EMPTY" | "READY";
+  message: string | null;
+  range: Ga4RangeKey;
+  propertyName: string | null;
+  googleAccountEmail: string | null;
+  lastSyncedAt: string | null;
+  /** A refresh that failed after the data shown was fetched. */
+  lastError: string | null;
+  data: Ga4ReportData | null;
+}
+
 /** A page with its search performance and its business outcome side by side. */
 export interface PageValueRow {
   page: string;
@@ -4210,6 +4251,9 @@ export const api = {
       `/api/projects/${projectId}/analytics/sync${days ? `?days=${days}` : ""}`,
       {},
     ),
+  /** Cached exact GA4 report for one workspace and window. */
+  ga4Report: (projectId: string, range: Ga4RangeKey) =>
+    get<Ga4Report>(`/api/projects/${projectId}/analytics/report?range=${range}`),
   ga4Summary: (projectId: string, days: number) =>
     get<Ga4Summary | null>(`/api/projects/${projectId}/analytics/summary?days=${days}`),
   ga4Timeseries: (projectId: string, days: number) =>

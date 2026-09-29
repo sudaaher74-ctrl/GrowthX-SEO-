@@ -500,6 +500,7 @@ model Project {
   strategyRuns              StrategyRun[]
   ContentStrategy           ContentStrategy[]
   integrations              Integration[]
+  ga4ReportSnapshots        Ga4ReportSnapshot[]
   socialPosts               SocialPost[]
   gbpFixProposals           GbpFixProposal[]
   competitorChangeAlerts    CompetitorChangeAlert[]
@@ -2464,9 +2465,35 @@ model Ga4DailyMetric {
 
   createdAt DateTime @default(now())
 
-  @@unique([propertyId, date, grain, landingPage, channel, country, device])
+  /// projectId is part of the key. Keyed on the property alone, two workspaces
+  /// connected to the same GA4 property collided: the second one's rows were
+  /// skipped as duplicates and its dashboard stayed empty.
+  @@unique([projectId, propertyId, date, grain, landingPage, channel, country, device])
   @@index([projectId, grain, date])
   @@index([projectId, landingPage])
+}
+
+/// A cached GA4 report for one workspace and one of the 7d / 28d / 90d windows.
+///
+/// Unique visitors cannot be added up from daily rows (a person active on three
+/// days would count three times), so each window is asked of Google as a whole
+/// and stored as it came back. `data` holds aggregates only — totals, a daily
+/// series, top pages, channels and countries — never a token or a raw response.
+/// Deleted with the project, and on disconnect.
+model Ga4ReportSnapshot {
+  id         String   @id @default(uuid())
+  projectId  String
+  /// The property the numbers came from; a snapshot of a previously selected
+  /// property is never shown for the current one.
+  propertyId String
+  /// 7d | 28d | 90d
+  range      String
+  data       Json
+  syncedAt   DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, propertyId, range])
+  @@index([projectId])
 }
 
 // ─────────────────────────────────────────── Aiva Voice Agent

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { ActionButton, Kpi, Mono, Panel, Pill, StatusNote, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
+import { Ga4Fallback, Ga4SearchJoin } from "@/components/ga4/ga4-panels";
 import { NoDataState } from "@/components/ui/truthful-state";
 import { usePeriodDays } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
@@ -31,14 +32,24 @@ export function RankingsTab({
   liveResults: boolean;
   onDiagnose: (seed: DiagnoseSeed) => void;
 }) {
-  if (!searchConsoleConnected && !liveResults) return <GoogleConnectGate analyticsConnected={analyticsConnected} />;
+  if (!searchConsoleConnected && !liveResults) {
+    return (
+      <div className="space-y-6">
+        <GoogleConnectGate analyticsConnected={analyticsConnected} />
+        {analyticsConnected && <Ga4Fallback projectId={projectId} />}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
       {searchConsoleConnected ? (
         <SearchConsoleRankings projectId={projectId} analyticsConnected={analyticsConnected} onDiagnose={onDiagnose} />
       ) : (
-        <SearchConsoleNeeded what="Where Google shows your website for each search comes from Search Console." />
+        <div className="space-y-6">
+          <SearchConsoleNeeded what="Where Google shows your website for each search comes from Search Console." />
+          {analyticsConnected && <Ga4Fallback projectId={projectId} />}
+        </div>
       )}
       {liveResults && (
         <section className="space-y-4">
@@ -100,19 +111,28 @@ function SearchConsoleRankings({
   const data = report.data;
   if (report.isLoading || report.error) return <QueryState isLoading={report.isLoading} error={report.error} />;
   if (data && !data.connected) {
-    return <SearchConsoleNeeded what="Where Google shows your website for each search comes from Search Console." />;
+    return (
+      <div className="space-y-6">
+        <SearchConsoleNeeded what="Where Google shows your website for each search comes from Search Console." />
+        {analyticsConnected && <Ga4Fallback projectId={projectId} />}
+      </div>
+    );
   }
   if (data && !data.hasData) {
     return (
-      <div className="space-y-2">
-        <NoDataState
-          title="No search data has been fetched yet"
-          missing="Search Console is connected, but nothing has been read from it yet."
-          whyItMatters="The first fetch reads the last 90 days of searches and positions. After that it refreshes on its own every day."
-          actionRequired="Fetch your search data now."
-          action={{ label: fetchNow.isPending ? "Fetching…" : "Fetch now", onClick: () => fetchNow.mutate(), variant: "primary" }}
-        />
-        {fetchNow.error && <ErrorNote message={errorMessage(fetchNow.error)} />}
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <NoDataState
+            title="No search data has been fetched yet"
+            missing="Search Console is connected, but nothing has been read from it yet."
+            whyItMatters="The first fetch reads the last 90 days of searches and positions. After that it refreshes on its own every day."
+            actionRequired="Fetch your search data now."
+            action={{ label: fetchNow.isPending ? "Fetching…" : "Fetch now", onClick: () => fetchNow.mutate(), variant: "primary" }}
+          />
+          {fetchNow.error && <ErrorNote message={errorMessage(fetchNow.error)} />}
+        </div>
+        {/* Search Console has nothing yet, so show what Google Analytics does know rather than a blank tab. */}
+        {analyticsConnected && <Ga4Fallback projectId={projectId} />}
       </div>
     );
   }
@@ -223,6 +243,9 @@ function SearchConsoleRankings({
           )}
         </div>
       </Panel>
+
+      {/* Search Console has data, so line its clicks up with GA4's sessions and key events per page. */}
+      {analyticsConnected && <Ga4SearchJoin projectId={projectId} />}
     </div>
   );
 }
