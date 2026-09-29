@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/console";
 import { PlanView } from "@/components/fix-engine/plan-view";
+import { EngineerPanel, RunsPanel } from "@/components/fix-engine/engineer-panel";
 import { ShipPanel } from "@/components/fix-engine/ship-panel";
 
 /**
@@ -21,6 +22,8 @@ export default function FixEnginePage() {
         actions={<Link href="/reports/plan" className="rounded-lg border bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50">Download full report</Link>}
       />
       <ShipPanel />
+      <EngineerPanel />
+      <RunsPanel />
       <PlanView />
     </div>
   );

@@ -3,7 +3,8 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AutomationService } from './automation.service';
 import { ContentGenerationService } from './content-generation.service';
-import { IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
+import { EngineerAgentService } from './engineer-agent.service';
+import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength, MinLength } from 'class-validator';
 
 export class ConnectRepoDto {
   @IsString()
@@ -26,12 +27,19 @@ export class ConnectRepoDto {
   autoMerge?: boolean;
 }
 
+export class EngineerRunDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(2000)
+  instruction: string;
+}
+
 /**
  * The autonomous loop: crawl → analyse → plan content → edit the site's code →
  * open a pull request.
  *
- * Pro-only. A PR is the deliverable; publishing to the live site is a separate,
- * explicit opt-in on the repository.
+ * A pull request is the only deliverable. Nothing is merged or published by the
+ * platform; the customer reviews and merges.
  */
 @ApiTags('Autonomous engineer')
 @ApiBearerAuth()
@@ -41,6 +49,7 @@ export class AutomationController {
   constructor(
     private readonly automation: AutomationService,
     private readonly content: ContentGenerationService,
+    private readonly engineer: EngineerAgentService,
   ) {}
 
   // ── repository
@@ -115,6 +124,15 @@ export class AutomationController {
   @ApiBody({ required: false, schema: { type: 'object', properties: { issueIds: { type: 'array', items: { type: 'string' } } } } })
   runFixes(@Req() req: any, @Param('projectId') projectId: string, @Body() body?: { issueIds?: string[] }) {
     return this.automation.runFixes(projectId, req.organizationId, body?.issueIds);
+  }
+
+  @Post('runs/engineer')
+  @ApiOperation({ summary: 'Describe a change in words; the engineer edits the repo and opens a pull request' })
+  @ApiParam({ name: 'projectId' })
+  @ApiBody({ schema: { type: 'object', required: ['instruction'], properties: { instruction: { type: 'string', example: 'Change the homepage title to "Fresh A2 milk delivered in Pune"' } } } })
+  runEngineer(@Req() req: any, @Param('projectId') projectId: string, @Body() body: EngineerRunDto) {
+    // Returns at once with the run (RUNNING); it finishes in the background and shows in GET runs.
+    return this.engineer.start(projectId, req.organizationId, body.instruction).then((r) => r.run);
   }
 
   @Post('runs/content')

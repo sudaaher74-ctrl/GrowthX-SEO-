@@ -86,11 +86,32 @@ export class AutomationService {
       throw new BadRequestException('owner, name and accessToken are required.');
     }
 
+    // Tolerate what people paste: stray spaces or a line break, or the word "Bearer".
+    const accessToken = input.accessToken.replace(/^\s*(bearer|token)\s+/i, '').trim();
+    if (/\s/.test(accessToken)) {
+      throw new BadRequestException('The token contains spaces or line breaks. Paste only the token itself.');
+    }
+    const owner = input.owner.trim();
+    const name = input.name.trim().replace(/\.git$/i, '');
+
+    // Check it works now, not at the first run.
+    let verified: { defaultBranch: string; canPush: boolean };
+    try {
+      verified = await this.git.verifyAccess(accessToken, owner, name);
+    } catch (error: any) {
+      throw new BadRequestException(error.message);
+    }
+    if (!verified.canPush) {
+      throw new BadRequestException(
+        'This token can read the repository but cannot write to it. Give it Contents and Pull requests: read and write.',
+      );
+    }
+
     const data = {
-      owner: input.owner,
-      name: input.name,
-      accessTokenEncrypted: this.security.encryptCredentials(input.accessToken),
-      defaultBranch: input.defaultBranch ?? 'main',
+      owner,
+      name,
+      accessTokenEncrypted: this.security.encryptCredentials(accessToken),
+      defaultBranch: input.defaultBranch?.trim() || verified.defaultBranch,
       framework: input.framework ?? 'unknown',
       contentDir: input.contentDir ?? null,
       // Never enabled from here: a fix is a pull request the customer reviews and merges.
@@ -139,6 +160,7 @@ export class AutomationService {
 
     try {
       token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+      if (!token) throw new Error('The saved GitHub token could not be read. Reconnect the repository.');
       const issues = await this.selectIssues(projectId, issueIds);
 
       if (issues.length === 0) {
@@ -353,6 +375,7 @@ export class AutomationService {
       }
 
       token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+      if (!token) throw new Error('The saved GitHub token could not be read. Reconnect the repository.');
       workingDir = await this.git.cloneRepository(
         `https://github.com/${repo.owner}/${repo.name}.git`,
         token,

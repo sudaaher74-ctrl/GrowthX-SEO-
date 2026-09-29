@@ -14,6 +14,17 @@ const RUN_STATUS: Record<AutomationRun["status"], { label: string; tone: "good" 
   FAILED: { label: "Nothing was changed", tone: "bad" },
 };
 
+/** The runs, refreshed every few seconds while one is still going. */
+export function useAutomationRuns(projectId: string | null) {
+  return useQuery({
+    queryKey: ["automation-runs", projectId],
+    queryFn: () => api.listAutomationRuns(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.some((r) => r.status === "RUNNING") ? 4000 : false),
+  });
+}
+
 /**
  * From plan to pull request.
  *
@@ -27,7 +38,6 @@ export function ShipPanel() {
   const { projectId } = useWorkspace();
   const queryClient = useQueryClient();
   const repo = useQuery({ queryKey: ["automation-repo", projectId], queryFn: () => api.getRepository(projectId!), enabled: Boolean(projectId), retry: false });
-  const runs = useQuery({ queryKey: ["automation-runs", projectId], queryFn: () => api.listAutomationRuns(projectId!), enabled: Boolean(projectId), retry: false });
   const groups = useIssueGroups(projectId, { limit: 100 });
 
   const [confirming, setConfirming] = useState(false);
@@ -43,7 +53,6 @@ export function ShipPanel() {
   const ready = (groups.data?.groups ?? []).filter((g) => g.aiFixAvailable);
   const readyPages = ready.reduce((n, g) => n + g.affectedCount, 0);
   const connected = repo.data ?? null;
-  const latest = runs.data?.[0] ?? null;
 
   return (
     <Panel
@@ -103,25 +112,20 @@ export function ShipPanel() {
           </>
         )}
 
-        {latest && <RunCard run={latest} />}
-        {runs.data && runs.data.length > 1 && (
-          <details className="text-[12px]">
-            <summary className="cursor-pointer text-brand-500">Earlier runs ({runs.data.length - 1})</summary>
-            <div className="mt-2 space-y-2">{runs.data.slice(1, 6).map((r) => <RunCard key={r.id} run={r} />)}</div>
-          </details>
-        )}
       </div>
     </Panel>
   );
 }
 
-function RunCard({ run }: { run: AutomationRun }) {
+export function RunCard({ run }: { run: AutomationRun }) {
   const s = RUN_STATUS[run.status];
   return (
     <div className="rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone={s.tone}>{s.label}</Pill>
-        <span className="text-[11.5px] text-brand-500">{run.kind === "FIXES" ? "Website fixes" : "Content"} · {relativeTime(run.startedAt)}</span>
+        <span className="text-[11.5px] text-brand-500">
+          {run.steps[0]?.step === "instruction" ? `Engineer: “${run.steps[0].detail ?? ""}”` : run.kind === "FIXES" ? "Website fixes" : "Content"} · {relativeTime(run.startedAt)}
+        </span>
         {run.pullRequestUrl && (
           <a href={run.pullRequestUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline">
             Review the pull request <ExternalLink size={11} />
