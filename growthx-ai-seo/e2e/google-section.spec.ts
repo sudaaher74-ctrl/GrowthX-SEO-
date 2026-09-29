@@ -220,24 +220,24 @@ test.describe("Google section, Overview", () => {
     await expect(page.getByText("No revenue is recorded in this Google Analytics property.")).toBeVisible();
   });
 
-  test("lists all thirteen views, and marks the ones not built yet", async ({ page }) => {
+  test("lists all thirteen views, none marked as not built", async ({ page }) => {
     await open(page, "/google");
     const nav = page.getByRole("navigation", { name: "Google sections" });
     await expect(nav.getByRole("link")).toHaveCount(13, { timeout: 15_000 });
     expect(await nav.getByRole("link").allInnerTexts()).toEqual([
       "Overview",
       "Google Business Profile",
-      "Search Performance\nsoon",
-      "Keywords\nsoon",
+      "Search Performance",
+      "Keywords",
       "Pages",
       "Traffic & Acquisition",
-      "Engagement\nsoon",
-      "Conversions\nsoon",
-      "Google Index\nsoon",
-      "Opportunities\nsoon",
-      "Changes & Alerts\nsoon",
-      "Insights\nsoon",
-      "Data Explorer\nsoon",
+      "Engagement",
+      "Conversions",
+      "Google Index",
+      "Opportunities",
+      "Changes & Alerts",
+      "Insights",
+      "Data Explorer",
     ]);
   });
 
@@ -272,12 +272,6 @@ test.describe("Google section, Overview", () => {
 });
 
 test.describe("Google section, other views", () => {
-  test("a view that is not built says so and points at the page that covers part of it", async ({ page }) => {
-    await open(page, "/google/keywords");
-    await expect(page.getByText("This view is not built yet", { exact: false })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: /Open Keywords/ })).toBeVisible();
-  });
-
   test("an unknown view is a 404, not an empty page", async ({ page }) => {
     await open(page, "/google/nonsense");
     await expect(page.getByText(/could not be found|404/i).first()).toBeVisible({ timeout: 15_000 });
