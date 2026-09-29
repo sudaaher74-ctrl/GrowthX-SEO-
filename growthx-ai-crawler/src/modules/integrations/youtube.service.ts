@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { decodeState, encodeState } from './google/oauth-state';
 import { PrismaService } from '../../database/prisma.service';
 import { OAuth2Client } from 'google-auth-library';
@@ -30,9 +30,13 @@ export class YoutubeService {
       project &&
       (await this.prisma.organizationMember.findUnique({
         where: { userId_organizationId: { userId, organizationId: project.organizationId } },
-        select: { id: true },
+        select: { id: true, role: true },
       }));
     if (!project || !member) throw new NotFoundException('Project not found');
+    // Connecting a social account grants access to it: owners and admins only.
+    if (member.role !== 'OWNER' && member.role !== 'ADMIN') {
+      throw new ForbiddenException('Only an organization owner or admin can connect an account.');
+    }
     const state = encodeState({ projectId, organizationId: project.organizationId, provider: 'youtube' });
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',

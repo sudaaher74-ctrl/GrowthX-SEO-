@@ -3,8 +3,11 @@ import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaClient } from '@prisma/client';
 import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorator';
+import { ROLES_KEY } from './roles.decorator';
 
 const prisma = new PrismaClient();
+
+const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Authenticates the request and puts the caller's organization where the API
@@ -42,7 +45,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           if (membership) {
             request.user = { userId: user.id, email: user.email, organizationId: membership.organizationId };
             request.organizationId = membership.organizationId;
-            await this.assertProjectScope(request);
+            await this.assertProjectScope(request, context);
             return true;
           }
         }
@@ -72,7 +75,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       );
     }
 
-    await this.assertProjectScope(request);
+    await this.assertProjectScope(request, context);
     return true;
   }
 
@@ -87,7 +90,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
    * the project's own organization, which is also right for a member of
    * several organizations acting outside their default one.
    */
-  private async assertProjectScope(request: any): Promise<void> {
+  private async assertProjectScope(request: any, context: ExecutionContext): Promise<void> {
     const projectId = request.params?.projectId;
     if (!projectId) return;
 
@@ -100,12 +103,25 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       project && userId
         ? await prisma.organizationMember.findUnique({
             where: { userId_organizationId: { userId, organizationId: project.organizationId } },
-            select: { id: true },
+            select: { id: true, role: true },
           })
         : null;
 
     if (!project || !membership) {
       throw new NotFoundException('Project not found');
+    }
+
+    // A viewer may look but not change: every write on a project route is
+    // refused for that role. Reads are GET/HEAD/OPTIONS by convention here.
+    if (membership.role === 'VIEWER' && !READ_ONLY_METHODS.has(String(request.method).toUpperCase())) {
+      throw new ForbiddenException('Your role in this organization is view-only.');
+    }
+
+    // Actions marked @Roles(...) — deleting, approving a fix, publishing,
+    // connecting an account — need one of those roles in the project's org.
+    const required = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [context.getHandler(), context.getClass()]);
+    if (required?.length && !required.includes(membership.role)) {
+      throw new ForbiddenException('Only an organization owner or admin can do this.');
     }
 
     request.organizationId = project.organizationId;

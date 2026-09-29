@@ -35,6 +35,29 @@ export class OrgContextService {
     }
   }
 
+  /** Throws unless the user may change data in the organization (anyone but a viewer). */
+  async assertCanWrite(userId: string, organizationId: string): Promise<void> {
+    if (!userId) throw new ForbiddenException('Authentication is required for this operation.');
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+      select: { role: true },
+    });
+    if (!membership) throw new ForbiddenException('You do not have access to this organization.');
+    if (membership.role === 'VIEWER') throw new ForbiddenException('Your role in this organization is view-only.');
+  }
+
+  /** Throws unless the user is an owner or admin of the organization. */
+  async assertManager(userId: string, organizationId: string): Promise<void> {
+    if (!userId) throw new ForbiddenException('Authentication is required for this operation.');
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+      select: { role: true },
+    });
+    if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+      throw new ForbiddenException('Only owners and admins can do this.');
+    }
+  }
+
   /**
    * A resource whose owning organization cannot be traced is not a free-for-all.
    *

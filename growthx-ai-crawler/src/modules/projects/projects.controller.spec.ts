@@ -7,7 +7,7 @@ import { OrgContextService } from '../organizations/org-context.service';
 describe('ProjectsController', () => {
   let controller: ProjectsController;
   let projects: { createProject: jest.Mock; getProjectsByOrganization: jest.Mock; getProjectById: jest.Mock };
-  let orgContext: { assertMembership: jest.Mock };
+  let orgContext: { assertMembership: jest.Mock; assertCanWrite: jest.Mock };
 
   const alice = { user: { userId: 'user_alice' } };
 
@@ -17,7 +17,7 @@ describe('ProjectsController', () => {
       getProjectsByOrganization: jest.fn().mockResolvedValue([{ id: 'p1' }]),
       getProjectById: jest.fn().mockResolvedValue({ id: 'p1', organizationId: 'org_1' }),
     };
-    orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined) };
+    orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProjectsController],
@@ -32,6 +32,7 @@ describe('ProjectsController', () => {
   /** Every route took an id straight from the request and trusted it. */
   function denyMembership() {
     orgContext.assertMembership.mockRejectedValue(new ForbiddenException());
+    orgContext.assertCanWrite.mockRejectedValue(new ForbiddenException());
   }
 
   it('lists projects for an organization the caller belongs to', async () => {
@@ -48,7 +49,7 @@ describe('ProjectsController', () => {
 
   it('creates a project in an organization the caller belongs to', async () => {
     await controller.createProject(alice, { name: 'Acme', organizationId: 'org_1' });
-    expect(orgContext.assertMembership).toHaveBeenCalledWith('user_alice', 'org_1');
+    expect(orgContext.assertCanWrite).toHaveBeenCalledWith('user_alice', 'org_1');
     expect(projects.createProject).toHaveBeenCalledWith({
       name: 'Acme',
       tier: undefined,

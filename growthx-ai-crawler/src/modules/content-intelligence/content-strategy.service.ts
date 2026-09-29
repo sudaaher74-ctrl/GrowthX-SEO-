@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, HttpException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { buildFormatEvidence, describeFormats, FormatPost } from './format-evidence';
@@ -474,7 +474,7 @@ export class ContentStrategyService {
     return this.prisma.contentStrategy.findFirst({
       where: {
         id: strategyId,
-        ...(organizationId ? { organizationId } : {}),
+        organizationId: requireOrg(organizationId),
       },
     });
   }
@@ -483,7 +483,7 @@ export class ContentStrategyService {
     return this.prisma.contentStrategy.updateMany({
       where: {
         id: strategyId,
-        ...(organizationId ? { organizationId } : {}),
+        organizationId: requireOrg(organizationId),
       },
       data: { status: 'APPROVED' },
     });
@@ -515,4 +515,10 @@ export class ContentStrategyService {
     const valid = lines.filter((l) => l && l.trim().length > 0);
     return `${title}:\n${valid.length ? valid.join('\n') : 'None recorded yet.'}\n`;
   }
+}
+
+/** An id-addressed lookup must never lose its tenant filter to a missing org. */
+function requireOrg(organizationId: string | undefined): string {
+  if (!organizationId) throw new ForbiddenException('No organization is selected for this request.');
+  return organizationId;
 }

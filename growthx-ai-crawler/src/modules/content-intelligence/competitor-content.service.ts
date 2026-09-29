@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 /**
@@ -112,14 +112,14 @@ export class CompetitorContentService {
   /** Remove a competitor account and its content. */
   async removeAccount(organizationId: string, accountId: string) {
     return this.prisma.competitorAccount.deleteMany({
-      where: { id: accountId, ...(organizationId ? { organizationId } : {}) },
+      where: { id: accountId, organizationId: requireOrg(organizationId) },
     });
   }
 
   /** Pause / resume monitoring for an account. */
   async toggleAccount(organizationId: string, accountId: string, isActive: boolean) {
     return this.prisma.competitorAccount.updateMany({
-      where: { id: accountId, ...(organizationId ? { organizationId } : {}) },
+      where: { id: accountId, organizationId: requireOrg(organizationId) },
       data: { isActive },
     });
   }
@@ -211,4 +211,10 @@ export class CompetitorContentService {
     ]);
     return { totalAccounts, totalContent, classified, platforms };
   }
+}
+
+/** An id-addressed write must never lose its tenant filter to a missing org. */
+function requireOrg(organizationId: string | undefined): string {
+  if (!organizationId) throw new ForbiddenException('No organization is selected for this request.');
+  return organizationId;
 }

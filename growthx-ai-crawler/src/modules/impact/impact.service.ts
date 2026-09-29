@@ -108,8 +108,10 @@ export class ImpactService {
     changeClass: ChangeClass;
     summary?: string;
   }) {
-    const issue = await this.prisma.issue.findUnique({
-      where: { id: input.issueId },
+    // By project as well as id: another customer's issue reads as not found,
+    // never as ours to dismiss.
+    const issue = await this.prisma.issue.findFirst({
+      where: { id: input.issueId, crawlJob: { website: { projectId: input.projectId } } },
       select: { id: true, affectedUrl: true, issueType: true, status: true },
     });
     if (!issue) throw new NotFoundException(`Issue ${input.issueId} not found.`);
@@ -121,7 +123,7 @@ export class ImpactService {
 
     const [, intervention] = await this.prisma.$transaction([
       this.prisma.issue.update({
-        where: { id: input.issueId },
+        where: { id: issue.id },
         data: { status: IssueStatus.IGNORED },
       }),
       this.prisma.fixIntervention.create({

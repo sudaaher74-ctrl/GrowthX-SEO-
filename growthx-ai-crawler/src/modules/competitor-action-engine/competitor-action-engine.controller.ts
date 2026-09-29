@@ -4,6 +4,8 @@ import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ActionStatus, FindingLifecycle, Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { StrategyEngineService } from './strategy-engine.service';
 import { StrategyReadService } from './strategy-read.service';
 import { CompetitorSetupService } from './competitor-setup.service';
@@ -248,6 +250,7 @@ export class CompetitorActionEngineController {
     );
   }
 
+  @Roles(Role.OWNER, Role.ADMIN)
   @Delete('competitors/:competitorId')
   @ApiOperation({ summary: 'Stop tracking a competitor' })
   removeCompetitor(

@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, UnauthorizedException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { JobStatus, } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
@@ -17,6 +18,9 @@ import { VerificationEngineService } from './verification-engine.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { crawlToShow, USABLE_CRAWL } from './crawl-selection';
 import { OWN_SCOPE, websiteKey } from './website-scope';
+
+/** What a route needs: view, change data (not a viewer), or manage (owner/admin). */
+type Access = 'read' | 'write' | 'manage';
 
 @ApiTags('Crawlers & Audits')
 @ApiBearerAuth()
@@ -45,7 +49,13 @@ export class CrawlController {
    * Every one of them was readable by any logged-in user — and
    * `latest-crawl` takes a plain domain, so no id had to be guessed.
    */
-  private async websiteForCaller(req: any, where: { id: string } | { domain: string }) {
+  private async assertAccess(req: any, organizationId: string, level: Access) {
+    if (level === 'manage') return this.orgContext.assertManager(req.user?.userId, organizationId);
+    if (level === 'write') return this.orgContext.assertCanWrite(req.user?.userId, organizationId);
+    return this.orgContext.assertMembership(req.user?.userId, organizationId);
+  }
+
+  private async websiteForCaller(req: any, where: { id: string } | { domain: string }, level: Access = 'read') {
     // By domain, only ever a customer's own website: the same domain can also
     // be on file as a competitor for any number of other projects.
     const website = await this.prisma.website.findUnique({
@@ -63,7 +73,7 @@ export class CrawlController {
 
     // Resolving the owner proves who the record belongs to, not that the
     // caller is one of them. Both halves are the check.
-    await this.orgContext.assertMembership(req.user?.userId, organizationId);
+    await this.assertAccess(req, organizationId, level);
     return website;
   }
 
@@ -93,7 +103,7 @@ export class CrawlController {
   }
 
   /** Same, for a crawl job traced back through its website's project. */
-  private async crawlJobForCaller(req: any, jobId: string) {
+  private async crawlJobForCaller(req: any, jobId: string, level: Access = 'read') {
     const job = await this.prisma.crawlJob.findUnique({
       where: { id: jobId },
       include: { website: { include: { project: { select: { organizationId: true } } } } },
@@ -107,7 +117,7 @@ export class CrawlController {
       );
     }
 
-    await this.orgContext.assertMembership(req.user?.userId, organizationId);
+    await this.assertAccess(req, organizationId, level);
     return job;
   }
 
@@ -117,10 +127,10 @@ export class CrawlController {
    * analysis on, preview the repository behind, or approve a fix for another
    * customer's issue.
    */
-  private async issueForCaller(req: any, issueId: string) {
+  private async issueForCaller(req: any, issueId: string, level: Access = 'read') {
     const issue = await this.prisma.issue.findUnique({ where: { id: issueId }, select: { crawlJobId: true } });
     if (!issue) throw new NotFoundException('Issue not found');
-    await this.crawlJobForCaller(req, issue.crawlJobId);
+    await this.crawlJobForCaller(req, issue.crawlJobId, level);
   }
 
   @Post('websites')
@@ -135,6 +145,7 @@ export class CrawlController {
     // tenant's site and its crawl history into the caller's project.
     const domain = normalizeWebsiteDomain(body.domain || body.url);
     if (!domain) throw new BadRequestException('URL or domain is required.');
+    await this.orgContext.assertCanWrite(req.user?.userId, organizationId);
 
     const existing = await this.prisma.website.findUnique({
       where: websiteKey(domain, OWN_SCOPE),
@@ -168,11 +179,11 @@ export class CrawlController {
       }
     }
 
-    return this.registerWebsite({ ...body, domain });
+    return this.registerWebsite({ ...body, domain }, organizationId);
   }
 
   /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
-  private async registerWebsite(body: { url: string; domain: string; projectId?: string }) {
+  private async registerWebsite(body: { url: string; domain: string; projectId?: string }, organizationId?: string) {
     if (!body.url && !body.domain) {
       throw new BadRequestException('URL or domain is required.');
     }
@@ -182,12 +193,34 @@ export class CrawlController {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    const token = this.securityService.generateVerificationToken(domain);
-    const website = await this.prisma.website.upsert({
+    // Keep the token already issued: rotating it on every re-register would
+    // invalidate a DNS record the customer has already published.
+    const current = await this.prisma.website.findUnique({
       where: websiteKey(domain, OWN_SCOPE),
-      update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
-      create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
+      select: { verificationToken: true },
     });
+    const token = current?.verificationToken ?? this.securityService.generateVerificationToken(domain);
+    // The ownership check in the route runs before this write, so two
+    // organizations claiming a new domain at once could both pass it. The
+    // update is therefore conditional on the record being unowned or ours; if
+    // another organization got there first the update matches nothing, the
+    // create collides with the unique key, and the claim is refused.
+    let website;
+    try {
+      website = await this.prisma.website.upsert({
+        where: {
+          ...websiteKey(domain, OWN_SCOPE),
+          ...(organizationId ? { OR: [{ projectId: null }, { project: { organizationId } }] } : {}),
+        },
+        update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
+        create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ForbiddenException(`${domain} is already registered to another organization.`);
+      }
+      throw err;
+    }
     return {
       id: website.id,
       domain: website.domain,
@@ -203,7 +236,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Verify customer ownership of a domain via DNS TXT record' })
   @ApiParam({ name: 'id', description: 'Website ID' })
   async verifyDomain(@Req() req: any, @Param('id') id: string) {
-    const website = await this.websiteForCaller(req, { id });
+    const website = await this.websiteForCaller(req, { id }, 'write');
 
     const isVerified = await this.securityService.verifyDomainOwnership(website.domain, website.verificationToken || 'verified');
 
@@ -234,8 +267,8 @@ export class CrawlController {
     // allowance crawling another tenant's site, and the pages would land in
     // that tenant's crawl history.
     const website = body.websiteId
-      ? await this.websiteForCaller(req, { id: body.websiteId })
-      : await this.websiteForCaller(req, { domain: body.domain as string });
+      ? await this.websiteForCaller(req, { id: body.websiteId }, 'write')
+      : await this.websiteForCaller(req, { domain: body.domain as string }, 'write');
 
     await this.assertCrawlCapacity(website.id, website.project!.organizationId);
     const jobId = await this.crawlerService.startCrawlJob(website.id, body);
@@ -670,7 +703,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Trigger AI explanation (Why it matters, SEO/Business impact, Priority)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async analyzeIssue(@Req() req: any, @Param('id') id: string) {
-    await this.issueForCaller(req, id);
+    await this.issueForCaller(req, id, 'write');
     const result = await this.aiService.analyzeIssue(id, req.organizationId);
     // Charged only once the analysis actually came back.
     return result;
@@ -681,7 +714,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Generate code snippet / text patch for an automated fix (Pro plan)' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async generateAutoFix(@Req() req: any, @Param('id') id: string) {
-    await this.issueForCaller(req, id);
+    await this.issueForCaller(req, id, 'write');
     const result = await this.autoFixService.generateFixPatch(id, req.organizationId);
     return result;
   }
@@ -697,7 +730,7 @@ export class CrawlController {
   @ApiOperation({ summary: 'Real before/after, file location and evidence type for an issue fix' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   async fixPreview(@Req() req: any, @Param('id') id: string) {
-    await this.issueForCaller(req, id);
+    await this.issueForCaller(req, id, 'write');
     return this.fixPreviewService.buildPreview(id, req.organizationId);
   }
 
@@ -707,18 +740,25 @@ export class CrawlController {
   @ApiParam({ name: 'id', description: 'Issue ID' })
   @ApiBody({ schema: { type: 'object', properties: { userId: { type: 'string', example: 'user_123' } } } })
   async approveFix(@Req() req: any, @Param('id') id: string) {
-    await this.issueForCaller(req, id);
+    // Ships a change to the customer's repository: owners and admins only.
+    await this.issueForCaller(req, id, 'manage');
     // The approver is whoever is signed in — never a user id from the body,
     // which let a caller record the approval under someone else's name.
     return this.autoFixService.approveAndExecuteFix(id, req.user.userId);
   }
 
+  @Throttle({ sustained: { limit: 30, ttl: 60_000 } })
   @Post('webhooks/crawl-trigger')
   @ApiOperation({ summary: 'Webhook endpoint to trigger automated crawl upon CI/CD deployment or sitemap change' })
   @ApiBody({ schema: { type: 'object', properties: { domain: { type: 'string', example: 'growthx.ai' }, secret: { type: 'string' } } } })
   async triggerWebhook(@Body() body: { domain: string; secret?: string }) {
     if (!body.domain) throw new BadRequestException('domain parameter is required');
-    return this.schedulerService.handleWebhookTrigger(body.domain, body.secret);
+    const result = await this.schedulerService.handleWebhookTrigger(body.domain, body.secret);
+    // One answer for every refusal — unknown site, unverified, no secret, wrong
+    // secret — so an unauthenticated caller learns nothing about which domains
+    // are registered, and a CI job sees a real failure status, not a 200.
+    if (!result.success) throw new UnauthorizedException('Invalid webhook credentials.');
+    return result;
   }
 
   @Post('projects/:projectId/verification/run')
@@ -739,7 +779,7 @@ export class CrawlController {
     if (!project) throw new NotFoundException('Project not found');
 
     const orgId = project.organizationId;
-    await this.orgContext.assertMembership(req.user?.userId, orgId);
+    await this.orgContext.assertCanWrite(req.user?.userId, orgId);
 
     return this.verificationEngine.runVerification(orgId, projectId, body);
   }

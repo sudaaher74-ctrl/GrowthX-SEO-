@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
@@ -320,7 +320,7 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
     const item = await this.prisma.competitorContent.findFirst({
       where: {
         id: contentId,
-        ...(organizationId ? { organizationId } : {}),
+        organizationId: requireOrg(organizationId),
       },
       include: {
         account: {
@@ -344,4 +344,10 @@ Deconstruct this video's hook, speech transcript, representative scene breakdown
 
     return item;
   }
+}
+
+/** An id-addressed lookup must never lose its tenant filter to a missing org. */
+function requireOrg(organizationId: string | undefined): string {
+  if (!organizationId) throw new ForbiddenException('No organization is selected for this request.');
+  return organizationId;
 }

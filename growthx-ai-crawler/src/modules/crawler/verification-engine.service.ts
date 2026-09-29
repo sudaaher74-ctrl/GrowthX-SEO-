@@ -93,7 +93,9 @@ export class VerificationEngineService {
 
     if (options.issueIds && options.issueIds.length > 0) {
       issuesToVerify = await this.prisma.issue.findMany({
-        where: { id: { in: options.issueIds } },
+        // Only this project's own issues: ids from another tenant are ignored
+        // rather than read, verified or resolved.
+        where: { id: { in: options.issueIds }, crawlJob: { website: { projectId } } },
         select: {
           id: true,
           issueType: true,
@@ -148,13 +150,24 @@ export class VerificationEngineService {
         urlTargets.push({ url: fullUrl, issue });
       }
     } else if (options.urls && options.urls.length > 0) {
+      const siteHost = new URL(baseOrigin).hostname.toLowerCase();
       for (const u of options.urls) {
         let fullUrl = u;
         if (!fullUrl.startsWith('http')) {
           fullUrl = `${baseOrigin}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
         }
+        // Only this project's own site: the verifier is not a way to fetch, or
+        // to obtain a signed certificate for, someone else's pages.
+        let host: string;
+        try {
+          host = new URL(fullUrl).hostname.toLowerCase();
+        } catch {
+          continue;
+        }
+        if (host !== siteHost && host !== `www.${siteHost}` && `www.${host}` !== siteHost) continue;
         urlTargets.push({ url: fullUrl });
       }
+      if (urlTargets.length === 0) urlTargets.push({ url: baseOrigin });
     } else {
       urlTargets.push({ url: baseOrigin });
     }
@@ -270,7 +283,7 @@ export class VerificationEngineService {
     // 5. Update resolved issues in Prisma database
     if (resolvedIssueIds.length > 0) {
       await this.prisma.issue.updateMany({
-        where: { id: { in: resolvedIssueIds } },
+        where: { id: { in: resolvedIssueIds }, crawlJob: { website: { projectId } } },
         data: { status: 'RESOLVED' },
       });
 

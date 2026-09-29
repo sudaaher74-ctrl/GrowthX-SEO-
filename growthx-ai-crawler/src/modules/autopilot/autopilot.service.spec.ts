@@ -90,7 +90,7 @@ function setup(modelJson: string) {
   const competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j' }) };
   const report = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null, snapshotId: 'snap1' }) };
   const auditReport = { generate: jest.fn().mockResolvedValue({ analysis: {}, analysisError: null }) };
-  const orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined) };
+  const orgContext = { assertMembership: jest.fn().mockResolvedValue(undefined), assertCanWrite: jest.fn().mockResolvedValue(undefined) };
   const service = new AutopilotService(
     prisma as any,
     orgContext as any,

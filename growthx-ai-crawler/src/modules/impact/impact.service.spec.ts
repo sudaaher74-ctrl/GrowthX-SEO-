@@ -60,7 +60,7 @@ describe('ImpactService', () => {
         findMany: jest.fn().mockResolvedValue(options.holdChecks ?? []),
       },
       issue: {
-        findUnique: jest.fn().mockResolvedValue(
+        findFirst: jest.fn().mockResolvedValue(
           'issue' in options
             ? (options as any).issue
             : { id: 'iss-1', affectedUrl: 'https://example.com/held', issueType: 'MISSING_SCHEMA', status: 'OPEN' },
@@ -299,6 +299,16 @@ describe('ImpactService', () => {
         url: 'https://example.com/held',
         changeClass: ChangeClass.SCHEMA_MARKUP,
         arm: InterventionArm.HOLD,
+      });
+    });
+
+    it("only looks up the project's own issues, never another tenant's", async () => {
+      const { service, prisma } = build();
+      await service.holdIssue({ projectId: 'p1', issueId: 'iss-1', changeClass: ChangeClass.FAQ_BLOCK });
+
+      expect(prisma.issue.findFirst.mock.calls[0][0].where).toEqual({
+        id: 'iss-1',
+        crawlJob: { website: { projectId: 'p1' } },
       });
     });
 

@@ -52,11 +52,11 @@ describe('JwtAuthGuard — organization resolution', () => {
     };
   }
 
-  function guardWith(exempt: boolean) {
+  function guardWith(exempt: boolean, roles?: string[]) {
     const reflector = new Reflector();
     jest
       .spyOn(reflector, 'getAllAndOverride')
-      .mockImplementation((key: any) => (key === ALLOW_WITHOUT_ORGANIZATION ? exempt : undefined) as any);
+      .mockImplementation((key: any) => (key === ALLOW_WITHOUT_ORGANIZATION ? exempt : key === 'roles' ? roles : undefined) as any);
     return new JwtAuthGuard(reflector);
   }
 
@@ -114,6 +114,29 @@ describe('JwtAuthGuard — organization resolution', () => {
         expect.objectContaining({ where: { userId_organizationId: { userId: 'u1', organizationId: 'org_2' } } }),
       );
       expect(request.organizationId).toBe('org_2');
+    });
+
+    it('lets a viewer read a project but refuses their writes', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ organizationId: 'org_2' });
+      mockPrisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1', role: 'VIEWER' });
+
+      const read = contextFor(user(), { projectId: 'p2' });
+      read.request.method = 'GET';
+      await expect(guardWith(false).canActivate(read.context)).resolves.toBe(true);
+
+      const write = contextFor(user(), { projectId: 'p2' });
+      await expect(guardWith(false).canActivate(write.context)).rejects.toThrow('view-only');
+    });
+
+    it('enforces @Roles against the caller\'s role in the project organization', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ organizationId: 'org_2' });
+      mockPrisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1', role: 'MEMBER' });
+      const denied = contextFor(user(), { projectId: 'p2' });
+      await expect(guardWith(false, ['OWNER', 'ADMIN']).canActivate(denied.context)).rejects.toThrow('owner or admin');
+
+      mockPrisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1', role: 'ADMIN' });
+      const allowed = contextFor(user(), { projectId: 'p2' });
+      await expect(guardWith(false, ['OWNER', 'ADMIN']).canActivate(allowed.context)).resolves.toBe(true);
     });
 
     it('leaves routes without a project untouched', async () => {
