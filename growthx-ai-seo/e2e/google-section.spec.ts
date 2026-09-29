@@ -220,12 +220,13 @@ test.describe("Google section, Overview", () => {
     await expect(page.getByText("No revenue is recorded in this Google Analytics property.")).toBeVisible();
   });
 
-  test("lists all twelve views, and marks the ones not built yet", async ({ page }) => {
+  test("lists all thirteen views, and marks the ones not built yet", async ({ page }) => {
     await open(page, "/google");
     const nav = page.getByRole("navigation", { name: "Google sections" });
-    await expect(nav.getByRole("link")).toHaveCount(12, { timeout: 15_000 });
+    await expect(nav.getByRole("link")).toHaveCount(13, { timeout: 15_000 });
     expect(await nav.getByRole("link").allInnerTexts()).toEqual([
       "Overview",
+      "Google Business Profile",
       "Search Performance\nsoon",
       "Keywords\nsoon",
       "Pages",
