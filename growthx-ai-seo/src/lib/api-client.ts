@@ -4405,36 +4405,6 @@ export const api = {
     request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/status`, {
       method: 'PATCH', body: JSON.stringify({ status }),
     }),
-  matchCreatorsToCampaign: (projectId: string, campaignId: string) =>
-    post<{ matched: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/match-creators`, {}),
-
-  // Creators
-  listCreators: (projectId: string) =>
-    get<Creator[]>(`/api/projects/${projectId}/content-intelligence/creators`),
-  addCreator: (projectId: string, body: AddCreatorBody) =>
-    post<Creator>(`/api/projects/${projectId}/content-intelligence/creators`, body),
-  updateCreator: (projectId: string, creatorId: string, body: Partial<Creator>) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
-      method: 'PATCH', body: JSON.stringify(body),
-    }),
-  deleteCreator: (projectId: string, creatorId: string) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
-      method: 'DELETE',
-    }),
-
-  // Outreach
-  generateOutreachMessage: (projectId: string, body: GenerateOutreachBody) =>
-    post<{ outreach: CreatorOutreach; generated: { subject: string; messageBody: string } }>(
-      `/api/projects/${projectId}/content-intelligence/creators/outreach`, body),
-  listOutreach: (projectId: string) =>
-    get<CreatorOutreach[]>(`/api/projects/${projectId}/content-intelligence/creators/outreach`),
-  approveOutreach: (projectId: string, outreachId: string) =>
-    post<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/approve`, {}),
-  updateOutreachStage: (projectId: string, outreachId: string, stage: string) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/stage`, {
-      method: 'PATCH', body: JSON.stringify({ stage }),
-    }),
-
 };
 
 // ── Content Intelligence types ────────────────────────────────────────────
@@ -4941,29 +4911,6 @@ export interface CreatorMatch {
   status: string;
   createdAt: string;
   creator: Creator;
-}
-
-export interface CreatorOutreach {
-  id: string;
-  subject: string | null;
-  messageBody: string | null;
-  channel: string;
-  pipelineStage: string;
-  approvedToSend: boolean;
-  sentAt: string | null;
-  contactedAt: string | null;
-  createdAt: string;
-  creator?: { name: string; handle: string | null; category: string | null };
-}
-
-export interface GenerateOutreachBody {
-  creatorId: string;
-  campaignId?: string;
-  brandName: string;
-  campaignName?: string;
-  product?: string;
-  location?: string;
-  proposedDate?: string;
 }
 
 /**

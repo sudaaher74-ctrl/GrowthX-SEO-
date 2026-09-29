@@ -1445,37 +1445,6 @@ export function useTransitionFinding(projectId: string | null) {
   });
 }
 
-export function useCreators(projectId: string | null) {
-  return useQuery({
-    queryKey: ["creators", projectId],
-    queryFn: () => (projectId ? api.listCreators(projectId) : Promise.resolve([])),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useAddCreator(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AddCreatorBody) => api.addCreator(projectId!, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["creators"] });
-      qc.invalidateQueries({ queryKey: ["ci-creators"] });
-    },
-  });
-}
-
-export function useDeleteCreator(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (creatorId: string) => api.deleteCreator(projectId!, creatorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["creators"] });
-      qc.invalidateQueries({ queryKey: ["ci-creators"] });
-    },
-  });
-}
-
 
 // ─────────────────────────────────────────────────────────────── Business
 
