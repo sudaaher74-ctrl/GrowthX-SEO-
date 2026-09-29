@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Panel, PageHeader, Pill } from "@/components/ui/console";
 import { FailedState, LoadingState } from "@/components/ui/truthful-state";
-import { useGrowthIntelligence } from "@/hooks/use-google";
+import { useGrowthIntelligence, usePlanChange } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import type { GrowthIntelligenceReport, IntelligenceEvidence, IntelligenceFinding, IntelligencePage, IntelligenceSource } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
@@ -164,6 +164,9 @@ function EvidenceList({ items }: { items: IntelligenceEvidence[] }) {
 }
 
 function FindingList({ findings, evidence }: { findings: IntelligenceFinding[]; evidence: Record<string, IntelligenceEvidence> }) {
+  const { projectId } = useWorkspace();
+  const plan = usePlanChange(projectId);
+  const [tracked, setTracked] = useState<Set<string>>(new Set());
   return (
     <ul className="divide-y divide-line">
       {findings.map((f) => (
@@ -181,6 +184,21 @@ function FindingList({ findings, evidence }: { findings: IntelligenceFinding[]; 
           <Row label="Action">{f.action}</Row>
           {f.expectedImpact && <Row label="Expected impact">{f.expectedImpact}</Row>}
           <Row label="Measure">{f.measurement.join(" ")}</Row>
+          {f.category !== "RISK" && (
+            <button
+              type="button"
+              disabled={tracked.has(f.id) || plan.isPending}
+              onClick={() =>
+                plan.mutate(
+                  { url: f.url, findingType: f.type, action: f.action.slice(0, 500) },
+                  { onSuccess: () => setTracked((prev) => new Set(prev).add(f.id)) },
+                )
+              }
+              className="mr-3 text-[12px] font-semibold text-accent-700 hover:underline disabled:text-brand-400 disabled:no-underline"
+            >
+              {tracked.has(f.id) ? "Tracking — see SEO Impact" : "Track this change"}
+            </button>
+          )}
           {f.fixIssueId && (
             <Link href="/fix-engine" className={cn("inline-block text-[12px] font-semibold text-accent-700 hover:underline")}>
               An AI fix is available → open Fix Engine
