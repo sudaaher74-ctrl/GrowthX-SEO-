@@ -1,10 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationsController } from './integrations.controller';
-import { FacebookService } from './facebook.service';
-import { FacebookController } from './facebook.controller';
-import { YoutubeService } from './youtube.service';
-import { YoutubeController } from './youtube.controller';
 import { GoogleOAuthService } from './google/google-oauth.service';
 import { GoogleOAuthController, GoogleOAuthCallbackController } from './google/google-oauth.controller';
 import { SearchConsoleService } from './google/search-console.service';
@@ -46,8 +42,6 @@ import { DatabaseModule } from '../../database/database.module';
     BusinessProfileInsightsService,
     PlacesListingService,
     GoogleSyncScheduler,
-    FacebookService,
-    YoutubeService,
   ],
   controllers: [
     IntegrationsController,
@@ -56,8 +50,6 @@ import { DatabaseModule } from '../../database/database.module';
     SearchConsoleController,
     AnalyticsController,
     BusinessProfileController,
-    FacebookController,
-    YoutubeController,
   ],
   exports: [
     GoogleOAuthService,
@@ -78,8 +70,6 @@ import { DatabaseModule } from '../../database/database.module';
     // The public Maps listing: what Local SEO audits and searches from while
     // Business Profile access waits on Google's approval.
     PlacesListingService,
-    FacebookService,
-    YoutubeService,
   ],
 })
 export class IntegrationsModule {}

@@ -321,13 +321,6 @@ export interface UserProfile {
   businessDetails?: string | null;
 }
 
-export interface ActivityItem {
-  id: string;
-  status: "success" | "warning" | "pending" | "error";
-  message: string;
-  time: string;
-}
-
 /** Tokens spent on one feature since the current month began, net of refunds. */
 export interface TokenUsageLine {
   action: string;
@@ -1917,47 +1910,6 @@ export interface OutreachContact {
   lastContact: string | null;
 }
 
-export interface OutreachCampaign {
-  id: string;
-  projectId: string;
-  name: string;
-  status: string;
-  sentCount: number;
-  replyCount: number;
-  linkCount: number;
-  createdAt: string;
-  updatedAt: string;
-  _count?: {
-    contacts: number;
-  };
-}
-
-export interface CustomReport {
-  id: string;
-  projectId: string;
-  name: string;
-  frequency: string;
-  recipients: string[];
-  format: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ClientPortalConfig {
-  id: string;
-  projectId: string;
-  customDomain: string | null;
-  logoUrl: string | null;
-  themeColor: string | null;
-  isPublic: boolean;
-  updatedAt: string;
-}
-
-export interface ReportingConfig {
-  customReports: CustomReport[];
-  clientPortal: ClientPortalConfig;
-}
-
 export interface ApiCostStat {
   service: string;
   tokens: string;
@@ -2016,16 +1968,6 @@ export interface MarketIntelligenceData {
   sentimentScore: number;
   sentimentSummary: string | null;
   trendingTopics: string[];
-}
-
-export interface MonitoringConfigData {
-  uptimeStatus: string;
-  uptimePercentage: number;
-  avgResponseTimeMs: number;
-  sslStatus: string;
-  performanceScore: number;
-  mobileScore: number;
-  coreWebVitalsStatus: string;
 }
 
 export interface IntegrationConfigData {
@@ -3022,41 +2964,6 @@ export interface MarketOutcomeRow {
 // ──────────────────────────────────────────────────────────────── the API
 
 
-/** One step of the run from "website added" to "competitors tracked". */
-export interface DiscoveryStep {
-  state: "pending" | "running" | "done" | "skipped" | "failed";
-  /** What the step found, in plain words. Never a guess, never a filler zero. */
-  detail: string;
-  at?: string;
-}
-
-export interface DiscoveryStatus {
-  projectId: string;
-  domain: string | null;
-  steps: {
-    websiteAdded: DiscoveryStep;
-    websiteCrawled: DiscoveryStep;
-    businessIdentified: DiscoveryStep;
-    competitorsIdentified: DiscoveryStep;
-    competitorsCrawled: DiscoveryStep;
-    socialAccountsFound: DiscoveryStep;
-  };
-  competitors: {
-    id: string;
-    domain: string;
-    name: string | null;
-    status: string;
-    lastAnalyzedAt: string | null;
-    socialAccounts: { platform: string; handle: string }[];
-  }[];
-  ownSocialAccounts: {
-    platform: string;
-    handle: string | null;
-    profileUrl: string | null;
-    origin: "crawl" | "connected";
-  }[];
-}
-
 
 /** One problem the crawl found on a site, and where to see it. */
 export interface CompetitorIssueGroup {
@@ -3091,19 +2998,6 @@ export interface CompetitorSeoReport {
   issuesBySeverity: Record<string, number>;
   comparison: CompetitorSideBySide[];
   notes: string[];
-}
-
-/** One stage of the nightly analysis, and what it actually did. */
-export interface AnalysisStage {
-  stage: string;
-  outcome: "ran" | "nothing_to_do" | "failed";
-  detail: string;
-}
-
-export interface AnalysisRun {
-  projectId: string;
-  startedAt: string;
-  stages: AnalysisStage[];
 }
 
 // ── SEO tools ─────────────────────────────────────────────────────────────
@@ -3454,154 +3348,7 @@ export interface MammouthTestResult {
 // NOT_YET_CRAWLED means this catalog has no completed crawl at all yet.
 // Never render any of the three as a blank cell.
 
-export type CatalogFieldStatus = "FOUND" | "NOT_PUBLISHED" | "NOT_YET_CRAWLED";
-export type CatalogCrawlStatus = "NOT_STARTED" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-export type CatalogCtaType = "ADD_TO_CART" | "BUY_NOW" | "ENQUIRE" | "REQUEST_QUOTE";
-
-export interface CatalogProductRow {
-  id: string;
-  url: string;
-  name: string | null;
-  priceStatus: CatalogFieldStatus;
-  priceMinorUnits: number | null;
-  currency: string | null;
-  stockStatus: CatalogFieldStatus;
-  stockValue: string | null;
-  category: string | null;
-  ctaType: CatalogCtaType | null;
-  completenessScore: number;
-  /** Null on your own catalog — only a competitor's rows carry a confidence. */
-  matchConfidence: number | null;
-  detectedAt: string;
-  updatedAt: string;
-}
-
-export interface MyCatalogResponse {
-  crawlStatus: CatalogCrawlStatus;
-  crawledAt: string | null;
-  products: CatalogProductRow[];
-  /** Pages the crawl products are read from opened. */
-  pagesRead?: number;
-  /** True while products are being read from pages already stored. */
-  readingProducts?: boolean;
-}
-
-export interface CompetitorCatalogResult {
-  competitor: { id: string; domain: string; label: string };
-  crawlStatus: CatalogCrawlStatus;
-  crawledAt: string | null;
-  products: CatalogProductRow[];
-  pagesRead?: number;
-  readingProducts?: boolean;
-}
-
 // ── Business → Marketing Strategy (mirrors business-strategy.ts) ──────────
-
-export interface StrategyProduct {
-  name: string;
-  url: string;
-  price: string | null;
-  category: string | null;
-}
-
-export interface RivalPush {
-  url: string;
-  name: string;
-  source: "catalog" | "product-page" | "linked-page";
-  price: string | null;
-  linkedFrom: number;
-  onHomepage: boolean;
-  fromArticles: Array<{ title: string; url: string }>;
-  linkWords: string[];
-  headline: string | null;
-}
-
-export interface StrategyPriceBand {
-  min: number;
-  max: number;
-  count: number;
-  currency: string;
-}
-
-export interface StrategyPositioning {
-  valueProps: string[];
-  promos: string[];
-  tone: string | null;
-}
-
-export interface StrategyCompetitor {
-  id: string;
-  name: string;
-  domain: string;
-  pagesRead: number;
-  productCount: number;
-  pricedCount: number;
-  products: StrategyProduct[];
-  pushed: RivalPush[];
-  positioning: StrategyPositioning | null;
-}
-
-export interface StrategyFacts {
-  business: { name: string | null; domain: string | null };
-  you: { productCount: number; pricedCount: number; products: StrategyProduct[]; positioning: StrategyPositioning | null };
-  competitors: StrategyCompetitor[];
-  prices: Array<{ category: string; you: StrategyPriceBand | null; them: Array<{ competitor: string; band: StrategyPriceBand }> }>;
-  search?: SearchDemand;
-}
-
-export interface StrategyAction {
-  title: string;
-  why: string;
-  steps: string[];
-  priority: "high" | "medium" | "low";
-}
-
-export interface MarketingStrategy {
-  summary: string;
-  rivalProducts: Array<{ competitor: string; url: string; whyItWorks: string; keywords: string[]; counter: string[] }>;
-  pricing: string[];
-  keywords: Array<{ phrase: string; why: string; forProduct: string | null; measured?: MeasuredNumbers | null }>;
-  blogPosts: Array<{ title: string; covers: string; keyword: string }>;
-  positioning: { yourEdge: string; theirAngle: string; message: string } | null;
-  actions: StrategyAction[];
-}
-
-export interface BusinessStrategyReport {
-  generatedAt: string;
-  facts: StrategyFacts;
-  strategy: MarketingStrategy | null;
-  strategyError: string | null;
-  model: string | null;
-}
-
-export type CatalogGapKind = "MISSING_CATEGORY" | "PRICE_DELTA" | "PRICE_INCOMPARABLE" | "STOCK_TRANSPARENCY";
-
-export interface CategoryGapItem {
-  id: string;
-  kind: CatalogGapKind;
-  competitorId: string;
-  competitorLabel: string;
-  competitorDomain: string;
-  category: string;
-  headline: string;
-  why: string;
-  steps: string[];
-  weight: number;
-}
-
-export type MarketingSignalKind = "VALUE_PROP" | "PROMO" | "TONE";
-
-export interface MarketingSignalDto {
-  id: string;
-  kind: MarketingSignalKind;
-  text: string;
-  detectedAt: string;
-}
-
-export interface MarketingSignalsResult {
-  mine: MarketingSignalDto[];
-  competitors: { competitor: { id: string; domain: string; label: string }; signals: MarketingSignalDto[] }[];
-}
 
 export const api = {
   // Mammouth AI Orchestration
@@ -3855,15 +3602,6 @@ export const api = {
     get<CompetitorSeoReport>(
       `/api/projects/${projectId}/action-engine/competitors/${competitorId}/seo-report`,
     ),
-  runAnalysis: (projectId: string) =>
-    post<AnalysisRun>(`/api/projects/${projectId}/discovery/analyze`, {}),
-
-  // ── Discovery pipeline
-  getDiscoveryStatus: (projectId: string) =>
-    get<DiscoveryStatus>(`/api/projects/${projectId}/discovery/status`),
-  crawlPendingCompetitors: (projectId: string) =>
-    post<{ started: boolean }>(`/api/projects/${projectId}/discovery/crawl-pending-competitors`, {}),
-
   // ── Organizations & projects
   listOrganizations: async () => {
     try {
@@ -4462,24 +4200,11 @@ export const api = {
     get<StrategyReport>(`/api/projects/${projectId}/strategy/${reportId}`),
   generateStrategy: (projectId: string) => post<StrategyReport>(`/api/projects/${projectId}/strategy`, {}),
 
-  // ── PR & Outreach
-  getOutreachCampaigns: (projectId: string) => get<OutreachCampaign[]>(`/api/projects/${projectId}/outreach`),
-
-  // ── Reporting
-  getReportingConfig: (projectId: string) => get<ReportingConfig>(`/api/projects/${projectId}/reporting`),
-
   getMarketIntelligence: (projectId: string) => get<MarketIntelligenceData>(`/api/projects/${projectId}/market`),
   generateMarketIntelligence: (projectId: string) => post<MarketIntelligenceData>(`/api/projects/${projectId}/market/generate`, {}),
 
-  // ── Monitoring
-  getMonitoring: (projectId: string) => get<MonitoringConfigData>(`/api/projects/${projectId}/monitoring`),
-
   // ── Integrations
   getIntegrations: (projectId: string) => get<IntegrationConfigData>(`/api/projects/${projectId}/integrations`),
-
-  // ── Activity
-  getActivity: (projectId: string, limit = 30) =>
-    get<ActivityItem[]>(`/api/projects/${projectId}/activity?limit=${limit}`),
 
   // ── AI assistant chat (project-scoped, uses MultiAiRouter / plan routing)
   askAi: (projectId: string, question: string) =>
@@ -4680,60 +4405,6 @@ export const api = {
     request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/status`, {
       method: 'PATCH', body: JSON.stringify({ status }),
     }),
-  matchCreatorsToCampaign: (projectId: string, campaignId: string) =>
-    post<{ matched: number }>(`/api/projects/${projectId}/content-intelligence/campaigns/${campaignId}/match-creators`, {}),
-
-  // Creators
-  listCreators: (projectId: string) =>
-    get<Creator[]>(`/api/projects/${projectId}/content-intelligence/creators`),
-  addCreator: (projectId: string, body: AddCreatorBody) =>
-    post<Creator>(`/api/projects/${projectId}/content-intelligence/creators`, body),
-  updateCreator: (projectId: string, creatorId: string, body: Partial<Creator>) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
-      method: 'PATCH', body: JSON.stringify(body),
-    }),
-  deleteCreator: (projectId: string, creatorId: string) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/${creatorId}`, {
-      method: 'DELETE',
-    }),
-
-  // Outreach
-  generateOutreachMessage: (projectId: string, body: GenerateOutreachBody) =>
-    post<{ outreach: CreatorOutreach; generated: { subject: string; messageBody: string } }>(
-      `/api/projects/${projectId}/content-intelligence/creators/outreach`, body),
-  listOutreach: (projectId: string) =>
-    get<CreatorOutreach[]>(`/api/projects/${projectId}/content-intelligence/creators/outreach`),
-  approveOutreach: (projectId: string, outreachId: string) =>
-    post<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/approve`, {}),
-  updateOutreachStage: (projectId: string, outreachId: string, stage: string) =>
-    request<{ count: number }>(`/api/projects/${projectId}/content-intelligence/creators/outreach/${outreachId}/stage`, {
-      method: 'PATCH', body: JSON.stringify({ stage }),
-    }),
-
-  // ─────────────────────────────────────────────────────────── Business
-  //
-  // Catalog (You) / Catalog (Them). Extraction rides the crawl job Website
-  // Audit already runs — these calls only read what that job wrote, and
-  // queue the one crawl Competitor Intelligence already uses for a competitor.
-  business: {
-    myCatalog: (projectId: string) =>
-      get<MyCatalogResponse>(`/api/projects/${projectId}/business/catalog/mine`),
-    competitorCatalogs: (projectId: string) =>
-      get<CompetitorCatalogResult[]>(`/api/projects/${projectId}/business/catalog/competitors`),
-    crawlCompetitor: (projectId: string, competitorId: string) =>
-      post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
-        `/api/projects/${projectId}/business/catalog/competitors/${competitorId}/crawl`,
-        {},
-      ),
-    gaps: (projectId: string) => get<CategoryGapItem[]>(`/api/projects/${projectId}/business/gaps`),
-    marketingSignals: (projectId: string) =>
-      get<MarketingSignalsResult>(`/api/projects/${projectId}/business/marketing-signals`),
-    generateMarketingSignals: (projectId: string, competitorId?: string) =>
-      post<MarketingSignalDto[]>(`/api/projects/${projectId}/business/marketing-signals/generate`, competitorId ? { competitorId } : {}),
-    latestStrategy: (projectId: string) =>
-      get<BusinessStrategyReport | null>(`/api/projects/${projectId}/business/strategy/latest`),
-    generateStrategy: (projectId: string) => post<BusinessStrategyReport>(`/api/projects/${projectId}/business/strategy`, {}),
-  },
 };
 
 // ── Content Intelligence types ────────────────────────────────────────────
@@ -5240,29 +4911,6 @@ export interface CreatorMatch {
   status: string;
   createdAt: string;
   creator: Creator;
-}
-
-export interface CreatorOutreach {
-  id: string;
-  subject: string | null;
-  messageBody: string | null;
-  channel: string;
-  pipelineStage: string;
-  approvedToSend: boolean;
-  sentAt: string | null;
-  contactedAt: string | null;
-  createdAt: string;
-  creator?: { name: string; handle: string | null; category: string | null };
-}
-
-export interface GenerateOutreachBody {
-  creatorId: string;
-  campaignId?: string;
-  brandName: string;
-  campaignName?: string;
-  product?: string;
-  location?: string;
-  proposedDate?: string;
 }
 
 /**

@@ -171,15 +171,6 @@ export function useCreateProject(orgId: string | null) {
   });
 }
 
-export function useActivity(projectId: string | null) {
-  return useQuery({
-    queryKey: ["activity", projectId],
-    queryFn: () => api.getActivity(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
 export function useLocalSeo(projectId: string | null) {
   return useQuery({
     queryKey: ["local-seo", projectId],
@@ -485,15 +476,6 @@ export function useRejectGbpFix(projectId: string | null) {
   return useMutation({
     mutationFn: (proposalId: string) => api.rejectGbpFix(projectId!, proposalId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] }),
-  });
-}
-
-export function useOutreach(projectId: string | null) {
-  return useQuery({
-    queryKey: ["outreach", projectId],
-    queryFn: () => api.getOutreachCampaigns(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
   });
 }
 
@@ -1202,15 +1184,6 @@ export function useAutomationRuns(projectId: string | null) {
   });
 }
 
-export function useReporting(projectId: string | null) {
-  return useQuery({
-    queryKey: ["reporting", projectId],
-    queryFn: () => api.getReportingConfig(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
 export function useMarketIntelligence(projectId: string | null) {
   return useQuery({
     queryKey: ["market", projectId],
@@ -1225,15 +1198,6 @@ export function useGenerateMarket(projectId: string | null) {
   return useMutation({
     mutationFn: () => api.generateMarketIntelligence(projectId!),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["market", projectId] }),
-  });
-}
-
-export function useMonitoring(projectId: string | null) {
-  return useQuery({
-    queryKey: ["monitoring", projectId],
-    queryFn: () => api.getMonitoring(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
   });
 }
 
@@ -1481,97 +1445,8 @@ export function useTransitionFinding(projectId: string | null) {
   });
 }
 
-export function useCreators(projectId: string | null) {
-  return useQuery({
-    queryKey: ["creators", projectId],
-    queryFn: () => (projectId ? api.listCreators(projectId) : Promise.resolve([])),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useAddCreator(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AddCreatorBody) => api.addCreator(projectId!, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["creators"] });
-      qc.invalidateQueries({ queryKey: ["ci-creators"] });
-    },
-  });
-}
-
-export function useDeleteCreator(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (creatorId: string) => api.deleteCreator(projectId!, creatorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["creators"] });
-      qc.invalidateQueries({ queryKey: ["ci-creators"] });
-    },
-  });
-}
-
 
 // ─────────────────────────────────────────────────────────────── Business
-
-/** Catalog (You). Polls while a crawl is running, same as useLatestCrawl. */
-export function useBusinessMyCatalog(projectId: string | null) {
-  return useQuery({
-    queryKey: ["business-catalog-mine", projectId],
-    queryFn: () => api.business.myCatalog(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      const status = data?.crawlStatus;
-      return status === "RUNNING" || status === "PENDING" || data?.readingProducts ? 4000 : false;
-    },
-  });
-}
-
-/** Catalog (Them). Polls only while at least one tracked competitor is crawling. */
-export function useBusinessCompetitorCatalogs(projectId: string | null) {
-  return useQuery({
-    queryKey: ["business-catalog-competitors", projectId],
-    queryFn: () => api.business.competitorCatalogs(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    refetchInterval: (query) => {
-      const list = query.state.data ?? [];
-      const crawling = list.some((c) => c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING" || c.readingProducts);
-      return crawling ? 4000 : false;
-    },
-  });
-}
-
-export function useCrawlBusinessCompetitor(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (competitorId: string) => api.business.crawlCompetitor(projectId!, competitorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["business-catalog-competitors", projectId] });
-    },
-  });
-}
-
-export function useBusinessGaps(projectId: string | null) {
-  return useQuery({
-    queryKey: ["business-gaps", projectId],
-    queryFn: () => api.business.gaps(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useBusinessMarketingSignals(projectId: string | null) {
-  return useQuery({
-    queryKey: ["business-marketing-signals", projectId],
-    queryFn: () => api.business.marketingSignals(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
 
 /** The browser-only store the action plan's ticks lived in before they moved to the server. */
 const LEGACY_DONE_KEY = (projectId: string) => `growthx.actionPlan.done.${projectId}`;
@@ -1646,36 +1521,5 @@ export function useSearchDemand(projectId: string | null) {
     enabled: Boolean(projectId),
     retry: false,
     staleTime: 10 * 60_000,
-  });
-}
-
-/** Marketing Strategy: the last stored report, or null when none has been written. */
-export function useBusinessStrategy(projectId: string | null) {
-  return useQuery({
-    queryKey: ["business-strategy", projectId],
-    queryFn: () => api.business.latestStrategy(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGenerateBusinessStrategy(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.business.generateStrategy(projectId!),
-    onSuccess: (report) => {
-      qc.setQueryData(["business-strategy", projectId], report);
-      qc.invalidateQueries({ queryKey: ["business-marketing-signals", projectId] });
-    },
-  });
-}
-
-export function useGenerateBusinessMarketingSignals(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (competitorId?: string) => api.business.generateMarketingSignals(projectId!, competitorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["business-marketing-signals", projectId] });
-    },
   });
 }
