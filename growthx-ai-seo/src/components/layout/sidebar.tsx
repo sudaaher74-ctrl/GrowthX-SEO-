@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Sparkles, Wrench, Store, ShoppingBag, Zap, Wand2 } from "lucide-react";
+import { Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -19,7 +19,7 @@ import { TokensChip } from "@/components/tokens/tokens-chip";
  * Agency console sidebar.
  *
  * Scoped to the selected client with core workspace tabs:
- * Dashboard, Website Audit, Competitor Intelligence, AI Visibility, Fix Engine, Google Business Profile
+ * Website Audit, Google, Competitor Intelligence, Google Business Profile, Fix Engine
  */
 
 interface NavItem {
@@ -60,8 +60,8 @@ export function Sidebar({
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
   const issueCounts = useIssueCounts(projectId);
 
-  // The guided order: audit your own site, add the rivals, then ask the AI
-  // assistants — each step feeds the next (AI Visibility matches questions to
+  // The guided order: audit your own site, connect Google, add the rivals,
+  // connect the Business Profile, then ask the AI assistants — each step feeds the next (AI Visibility matches questions to
   // audited pages and explains a rival's win from its crawled page). Every
   // tick is read from real state, never from having visited the page.
   const competitorsQuery = useQuery({
@@ -73,13 +73,21 @@ export function Sidebar({
   const auditDone = Boolean(issueCounts.data?.crawledAt);
   const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
 
-  // Core Navigation Tabs strictly following Master Product Specification
+  const googleQuery = useQuery({
+    queryKey: ["google-connections", projectId],
+    queryFn: () => api.googleConnections(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+  const googleProviders = googleQuery.data?.providers ?? [];
+  const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
+  const googleDone = isConnected("search_console") || isConnected("analytics");
+  const profileDone = isConnected("business_profile");
+
+  // The workflow, in the order a client should work through it. Dashboard, AI
+  // Visibility, Business and Design Studio are hidden from the sidebar for now;
+  // their pages still exist and can be restored by adding the entries back.
   const mainNav: NavItem[] = [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: Activity,
-    },
     {
       label: "Website Audit",
       href: "/website",
@@ -90,42 +98,19 @@ export function Sidebar({
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
     },
     {
-      label: "Competitor Intelligence",
-      href: "/competitor-intelligence",
-      icon: Crosshair,
-      aliases: ["/competitors", "/market"],
-      step: { n: 2, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
-    },
-    {
       label: "Google",
       href: "/google",
       icon: SearchCheck,
       // The earlier Google Search page stays reachable while the new sections replace its tabs.
       aliases: ["/search-intelligence"],
+      step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
     },
     {
-      label: "Business",
-      href: "/business",
-      icon: ShoppingBag,
-    },
-    {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Sparkles,
-      aliases: ["/geo-tracking", "/search"],
-      // Switched off for now, like Fix Engine and Design Studio.
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
-    },
-    {
-      label: "Fix Engine",
-      href: "/fix-engine",
-      icon: Wrench,
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
-      aliases: ["/engineer"],
+      label: "Competitor Intelligence",
+      href: "/competitor-intelligence",
+      icon: Crosshair,
+      aliases: ["/competitors", "/market"],
+      step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
     },
     {
       label: "Google Business Profile",
@@ -133,14 +118,13 @@ export function Sidebar({
       icon: Store,
       tag: "Local",
       tagTone: "default",
+      step: { n: 4, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
     },
     {
-      label: "Design Studio",
-      href: "/design-studio",
-      icon: Wand2,
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
+      label: "Fix Engine",
+      href: "/fix-engine",
+      icon: Wrench,
+      aliases: ["/engineer"],
     },
   ];
 
