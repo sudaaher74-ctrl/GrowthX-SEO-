@@ -6,7 +6,6 @@ import {
   Check,
   ChevronDown,
   Globe,
-  Lightbulb,
   Loader2,
   PlugZap,
   RefreshCw,
@@ -33,7 +32,6 @@ import {
 } from "@/hooks/use-growthx";
 import {
   api,
-  type GrowthOpportunity,
   type IssueCounts,
   type IssueGroup,
   type IssueSeverity,
@@ -70,12 +68,6 @@ export default function UnifiedDashboardPage() {
   const issueCounts = useIssueCounts(projectId);
   const issueGroups = useIssueGroups(projectId, { limit: 5 });
 
-  const opportunities = useQuery({
-    queryKey: ["opportunities", projectId],
-    queryFn: () => api.opportunities(projectId!),
-    enabled: !!projectId,
-  });
-
   const trackedCompetitors = useQuery({
     queryKey: ["tracked-competitors", projectId],
     queryFn: () => api.listCompetitors(projectId!),
@@ -107,8 +99,6 @@ export default function UnifiedDashboardPage() {
   // defect crowding out everything else that is wrong.
   const priorityGroups = issueGroups.data?.groups ?? [];
   const reachAvailable = issueGroups.data?.reachAvailable ?? false;
-
-  const topOpportunities = (opportunities.data?.opportunities ?? []).slice(0, 3);
 
   const hasWebsite = Boolean(client?.domain);
   const hasCompetitors = Boolean((trackedCompetitors.data?.length ?? 0) > 0);
@@ -379,35 +369,6 @@ export default function UnifiedDashboardPage() {
           </div>
         </Panel>
       </div>
-
-      {/* 4. What could I do next? */}
-      <Panel
-        title="Ideas to grow"
-        subtitle="Things you could add or change to get more customers from Google."
-        actions={
-          topOpportunities.length > 0 ? (
-            <Link href="/google/opportunities" className="text-[12px] font-semibold text-accent-700 hover:underline">
-              See all ideas →
-            </Link>
-          ) : undefined
-        }
-      >
-        {opportunities.isLoading ? (
-          <div className="p-5">
-            <LoadingLine text="Loading ideas…" />
-          </div>
-        ) : topOpportunities.length === 0 ? (
-          <div className="p-8 text-center text-[13px] text-brand-500">
-            No ideas yet. They&apos;ll appear here once we&apos;ve checked your website and Google is connected.
-          </div>
-        ) : (
-          <ul className="grid grid-cols-1 divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
-            {topOpportunities.map((op) => (
-              <IdeaCard key={op.id} idea={op} />
-            ))}
-          </ul>
-        )}
-      </Panel>
     </div>
   );
 }
@@ -822,45 +783,6 @@ function ReviewsSummary({
 }
 
 /* ── Ideas ──────────────────────────────────────────────────────── */
-
-const IDEA_KIND: Record<GrowthOpportunity["category"], string> = {
-  SEO: "Google ranking",
-  CONTENT: "New content",
-  LOCAL: "Local customers",
-  TECHNICAL: "Website fix",
-  MARKETING: "Marketing",
-  BUSINESS: "Business",
-  COMPETITOR: "Competitors",
-};
-
-const POTENTIAL: Record<GrowthOpportunity["potential"], { label: string; tone: "good" | "info" | "default" }> = {
-  HIGH: { label: "Big impact", tone: "good" },
-  MEDIUM: { label: "Some impact", tone: "info" },
-  LOW: { label: "Small impact", tone: "default" },
-};
-
-function IdeaCard({ idea }: { idea: GrowthOpportunity }) {
-  const potential = POTENTIAL[idea.potential];
-  return (
-    <li className="flex flex-col gap-2 p-4">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500">
-          <Lightbulb size={12} className="text-warning-500" />
-          {IDEA_KIND[idea.category] ?? "Idea"}
-        </span>
-        {potential && <Pill tone={potential.tone}>{potential.label}</Pill>}
-      </div>
-      <p className="line-clamp-2 text-[13px] font-semibold text-brand-950">{idea.title}</p>
-      <p className="line-clamp-3 text-[12px] text-brand-600">{idea.recommendedAction || idea.summary}</p>
-      <Link
-        href="/google/opportunities"
-        className="mt-auto inline-flex items-center gap-1 pt-1 text-[12px] font-semibold text-accent-700 hover:underline"
-      >
-        Let&apos;s do it <ArrowRight size={12} />
-      </Link>
-    </li>
-  );
-}
 
 /* ── Shared bits ────────────────────────────────────────────────── */
 
