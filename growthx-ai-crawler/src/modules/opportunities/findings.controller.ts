@@ -161,7 +161,7 @@ export class FindingsController {
     return this.lifecycleService.transition(
       id,
       body.to,
-      { type: 'USER', id: req.user?.id },
+      { type: 'USER', id: req.user?.userId },
       {
         reason: body.reason,
         snoozeUntil: body.snoozeUntil ? new Date(body.snoozeUntil) : undefined,

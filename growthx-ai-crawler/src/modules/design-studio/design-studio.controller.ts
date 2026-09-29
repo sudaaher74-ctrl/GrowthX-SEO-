@@ -104,7 +104,7 @@ export class DesignStudioController {
     return this.designStudio.approve(projectId, body.suggestionId, {
       publishMethod: body.publishMethod,
       notes: body.notes,
-      userId: req.user?.id ?? req.user?.userId,
+      userId: req.user?.userId,
     });
   }
 

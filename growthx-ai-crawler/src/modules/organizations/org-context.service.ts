@@ -35,6 +35,18 @@ export class OrgContextService {
     }
   }
 
+  /** Throws unless the user is an owner or admin of the organization. */
+  async assertManager(userId: string, organizationId: string): Promise<void> {
+    if (!userId) throw new ForbiddenException('Authentication is required for this operation.');
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+      select: { role: true },
+    });
+    if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+      throw new ForbiddenException('Only owners and admins can do this.');
+    }
+  }
+
   /**
    * A resource whose owning organization cannot be traced is not a free-for-all.
    *

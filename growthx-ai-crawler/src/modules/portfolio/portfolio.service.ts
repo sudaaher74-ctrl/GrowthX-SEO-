@@ -260,9 +260,14 @@ export class PortfolioService {
 
   /** Lets an agency record what a client pays, so MRR is real rather than mocked. */
   async setRetainer(
+    organizationId: string,
     projectId: string,
     data: { tier?: string | null; retainerMonthlyMinor?: number | null; retainerCurrency?: string },
   ) {
+    // The project must belong to the organization in the URL, not merely to
+    // one the caller happens to be a member of.
+    const owned = await this.prisma.project.findFirst({ where: { id: projectId, organizationId }, select: { id: true } });
+    if (!owned) throw new NotFoundException('Project not found in this organization.');
     return this.prisma.project.update({
       where: { id: projectId },
       data: {

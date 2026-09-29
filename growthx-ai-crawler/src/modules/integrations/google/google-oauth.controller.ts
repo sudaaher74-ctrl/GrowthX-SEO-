@@ -110,6 +110,6 @@ export class GoogleOAuthController {
   @ApiOperation({ summary: 'Disconnect and revoke a Google service' })
   disconnect(@Req() req: any, @Param('projectId') projectId: string, @Param('provider') provider: string) {
     if (!isGoogleProvider(provider)) throw new BadRequestException(`Unknown Google service "${provider}".`);
-    return this.oauth.disconnect(projectId, provider, req.user?.id);
+    return this.oauth.disconnect(projectId, provider, req.user?.userId);
   }
 }

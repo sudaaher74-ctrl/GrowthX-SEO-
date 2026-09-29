@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PortfolioService } from './portfolio.service';
 import { OrgContextService } from '../organizations/org-context.service';
 
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class SetRetainerDto {
   @IsOptional()
@@ -12,11 +12,12 @@ export class SetRetainerDto {
   tier?: string | null;
 
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(0)
   retainerMonthlyMinor?: number | null;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^[A-Z]{3}$/)
   retainerCurrency?: string;
 }
 
@@ -53,7 +54,8 @@ export class PortfolioController {
     @Param('projectId') projectId: string,
     @Body() body: SetRetainerDto,
   ) {
-    await this.orgContext.assertMembership(req.user?.userId, orgId);
-    return this.portfolio.setRetainer(projectId, body);
+    // Revenue figures: owners and admins only.
+    await this.orgContext.assertManager(req.user?.userId, orgId);
+    return this.portfolio.setRetainer(orgId, projectId, body);
   }
 }

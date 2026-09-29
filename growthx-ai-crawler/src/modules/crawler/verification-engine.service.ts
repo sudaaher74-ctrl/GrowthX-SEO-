@@ -93,7 +93,9 @@ export class VerificationEngineService {
 
     if (options.issueIds && options.issueIds.length > 0) {
       issuesToVerify = await this.prisma.issue.findMany({
-        where: { id: { in: options.issueIds } },
+        // Only this project's own issues: ids from another tenant are ignored
+        // rather than read, verified or resolved.
+        where: { id: { in: options.issueIds }, crawlJob: { website: { projectId } } },
         select: {
           id: true,
           issueType: true,
@@ -270,7 +272,7 @@ export class VerificationEngineService {
     // 5. Update resolved issues in Prisma database
     if (resolvedIssueIds.length > 0) {
       await this.prisma.issue.updateMany({
-        where: { id: { in: resolvedIssueIds } },
+        where: { id: { in: resolvedIssueIds }, crawlJob: { website: { projectId } } },
         data: { status: 'RESOLVED' },
       });
 
