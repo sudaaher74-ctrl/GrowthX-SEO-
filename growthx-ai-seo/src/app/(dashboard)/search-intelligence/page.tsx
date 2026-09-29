@@ -6,6 +6,7 @@ import { PageHeader, Pill, Tabs } from "@/components/ui/console";
 import { QueryState } from "@/components/ui/query-state";
 import { useWorkspace } from "@/hooks/use-growthx";
 import { api } from "@/lib/api-client";
+import { Ga4OrganicPill } from "@/components/ga4/ga4-panels";
 import { DiagnosisTab } from "@/components/search-intelligence/diagnosis-tab";
 import { RankingsTab, type DiagnoseSeed } from "@/components/search-intelligence/rankings-tab";
 import { KeywordGapsTab } from "@/components/search-intelligence/keyword-gaps-tab";
@@ -118,6 +119,7 @@ export default function SearchIntelligencePage() {
         <div className="flex flex-wrap gap-2">
           <Pill tone={searchConsole ? "good" : "warn"}>Search Console {searchConsole ? "connected" : "not connected"}</Pill>
           <Pill tone={analytics ? "good" : "warn"}>Google Analytics 4 {analytics ? "connected" : "not connected"}</Pill>
+          {analytics && projectId && <Ga4OrganicPill projectId={projectId} />}
           {liveResults && <Pill tone="good">Live Google results on</Pill>}
         </div>
       )}

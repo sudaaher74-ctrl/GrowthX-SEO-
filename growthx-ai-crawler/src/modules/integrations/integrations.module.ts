@@ -18,6 +18,7 @@ import { PlacesListingService } from './google/places-listing.service';
 import { GoogleSyncScheduler } from './google/google-sync.scheduler';
 import { AnalyticsService } from './google/analytics.service';
 import { AnalyticsInsightsService } from './google/analytics-insights.service';
+import { AnalyticsReportService } from './google/analytics-report.service';
 import { AnalyticsController } from './google/analytics.controller';
 import { DatabaseModule } from '../../database/database.module';
 
@@ -40,6 +41,7 @@ import { DatabaseModule } from '../../database/database.module';
     SearchDemandService,
     AnalyticsService,
     AnalyticsInsightsService,
+    AnalyticsReportService,
     BusinessProfileService,
     BusinessProfileInsightsService,
     PlacesListingService,
@@ -68,6 +70,7 @@ import { DatabaseModule } from '../../database/database.module';
     SearchDemandService,
     AnalyticsService,
     AnalyticsInsightsService,
+    AnalyticsReportService,
     // Local SEO reads and writes the customer's profile through this — the
     // auditor to read it, the fix pusher to patch it.
     BusinessProfileService,

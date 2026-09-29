@@ -3,6 +3,7 @@ import { google } from './google-apis';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { googleApiClientError } from './google-api-error';
+import { AnalyticsReportService } from './analytics-report.service';
 
 /**
  * Reads Google Analytics 4 into the GrowthX data layer.
@@ -34,6 +35,7 @@ export class AnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly oauth: GoogleOAuthService,
+    private readonly report: AnalyticsReportService,
   ) {}
 
   /**
@@ -84,6 +86,9 @@ export class AnalyticsService {
       data: { projectId, provider: 'analytics', status: 'RUNNING' },
     });
 
+    // Declared outside the try so the catch below can tell "the report failed"
+    // (already recorded on the job, possibly as PARTIAL) from a crash.
+    let reportError: Error | null = null;
     try {
       const { start, end } = await this.windowFor(projectId, propertyId, options);
       await this.prisma.dataSyncJob.update({ where: { id: job.id }, data: { rangeStart: start, rangeEnd: end } });
@@ -125,16 +130,31 @@ export class AnalyticsService {
         }
       }
 
-      const status = failures.length === 0 ? 'SUCCEEDED' : failures.length === grains.length ? 'FAILED' : 'PARTIAL';
+      // The exact 7d / 28d / 90d report behind the Dashboard and Google Search
+      // pages. Its failure is kept and rethrown below so Sync Now says why,
+      // instead of reporting success over an unchanged screen.
+      try {
+        await this.report.refresh(projectId);
+      } catch (error: any) {
+        reportError = error;
+      }
+
+      const grainStatus = failures.length === 0 ? 'SUCCEEDED' : failures.length === grains.length ? 'FAILED' : 'PARTIAL';
+      const status = reportError && grainStatus === 'SUCCEEDED' ? 'PARTIAL' : grainStatus;
+      const problems = [
+        failures.length ? `Could not fetch: ${failures.join(', ')}.` : null,
+        reportError ? reportError.message : null,
+      ].filter(Boolean);
       await this.prisma.dataSyncJob.update({
         where: { id: job.id },
         data: {
           status,
           rowsWritten,
           finishedAt: new Date(),
-          errorMessage: failures.length ? `Could not fetch: ${failures.join(', ')}.` : null,
+          errorMessage: problems.length ? problems.join(' ').slice(0, 500) : null,
         },
       });
+      if (reportError) throw reportError;
 
       if (status !== 'FAILED') {
         await this.prisma.integration.update({
@@ -145,10 +165,12 @@ export class AnalyticsService {
 
       return { status, rowsWritten, start, end, failedGrains: failures, metricsAvailable: available };
     } catch (error: any) {
-      await this.prisma.dataSyncJob.update({
-        where: { id: job.id },
-        data: { status: 'FAILED', finishedAt: new Date(), errorMessage: error.message?.slice(0, 500) },
-      });
+      if (error !== reportError) {
+        await this.prisma.dataSyncJob.update({
+          where: { id: job.id },
+          data: { status: 'FAILED', finishedAt: new Date(), errorMessage: error.message?.slice(0, 500) },
+        });
+      }
       throw error;
     }
   }

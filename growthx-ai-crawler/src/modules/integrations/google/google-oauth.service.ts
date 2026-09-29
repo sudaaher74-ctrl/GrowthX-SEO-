@@ -90,7 +90,9 @@ export class GoogleOAuthService {
       // in an hour and no way to renew it.
       prompt: 'consent',
       include_granted_scopes: true,
-      scope: provider.scopes,
+      // `openid email` are identity-only scopes that let the connection show
+      // which Google account it belongs to. They grant no access to any data.
+      scope: [...provider.scopes, 'openid', 'email'],
       state: encodeState({
         provider: input.provider,
         projectId: input.projectId,
@@ -120,10 +122,12 @@ export class GoogleOAuthService {
     });
     if (!project) throw new NotFoundException('The project this authorization was started from no longer exists.');
 
-    const { tokens } = await this.client().getToken(input.code);
+    const oauthClient = this.client();
+    const { tokens } = await oauthClient.getToken(input.code);
     if (!tokens.access_token) {
       throw new BadRequestException('Google did not return an access token.');
     }
+    const accountEmail = await this.accountEmail(oauthClient, tokens.access_token);
 
     // Google returns a refresh token only when it feels like it. Reusing the
     // stored one keeps a reconnect from silently downgrading a durable
@@ -147,6 +151,7 @@ export class GoogleOAuthService {
         refreshToken,
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         grantedScopes: granted,
+        googleAccountEmail: accountEmail ?? existing?.googleAccountEmail ?? null,
         status: missingScopes.length > 0 ? 'ERROR' : 'NEEDS_SELECTION',
         statusMessage:
           missingScopes.length > 0
@@ -160,6 +165,7 @@ export class GoogleOAuthService {
         refreshToken,
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         grantedScopes: granted,
+        googleAccountEmail: accountEmail,
         status: missingScopes.length > 0 ? 'ERROR' : 'NEEDS_SELECTION',
         statusMessage:
           missingScopes.length > 0
@@ -171,6 +177,22 @@ export class GoogleOAuthService {
     await this.record(integration.id, state.projectId, 'CONNECTED', `${provider.label} authorized.`);
 
     return { integration, provider, returnTo: state.returnTo, missingScopes };
+  }
+
+  /**
+   * The Google account behind a fresh authorization, for display only.
+   *
+   * Best effort: an account that declined the email scope, or a tokeninfo
+   * hiccup, must not fail the connection — the email is a label, not a
+   * credential, and the card falls back to saying it was not recorded.
+   */
+  private async accountEmail(client: OAuth2Client, accessToken: string): Promise<string | null> {
+    try {
+      const info = await client.getTokenInfo(accessToken);
+      return info.email ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -343,6 +365,11 @@ export class GoogleOAuthService {
         statusMessage: null,
       },
     });
+    // Cached GA4 figures belong to the property they were read from; a
+    // different choice must not keep showing the old property's numbers.
+    if (providerId === 'analytics') {
+      await this.prisma.ga4ReportSnapshot.deleteMany({ where: { projectId, propertyId: { not: resource.id } } });
+    }
     await this.record(integration.id, projectId, 'RESOURCE_SELECTED', resource.name);
     return updated;
   }
@@ -381,6 +408,10 @@ export class GoogleOAuthService {
       actorUserId,
     );
 
+    // Disconnecting takes the cached GA4 report with it, not only the tokens.
+    if (providerId === 'analytics') {
+      await this.prisma.ga4ReportSnapshot.deleteMany({ where: { projectId } });
+    }
     await this.prisma.integration.delete({ where: { id: integration.id } });
     return { disconnected: true, revoked };
   }
