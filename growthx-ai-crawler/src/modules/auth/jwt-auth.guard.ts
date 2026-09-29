@@ -6,6 +6,8 @@ import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorat
 
 const prisma = new PrismaClient();
 
+const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 /**
  * Authenticates the request and puts the caller's organization where the API
  * expects to find it.
@@ -100,12 +102,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       project && userId
         ? await prisma.organizationMember.findUnique({
             where: { userId_organizationId: { userId, organizationId: project.organizationId } },
-            select: { id: true },
+            select: { id: true, role: true },
           })
         : null;
 
     if (!project || !membership) {
       throw new NotFoundException('Project not found');
+    }
+
+    // A viewer may look but not change: every write on a project route is
+    // refused for that role. Reads are GET/HEAD/OPTIONS by convention here.
+    if (membership.role === 'VIEWER' && !READ_ONLY_METHODS.has(String(request.method).toUpperCase())) {
+      throw new ForbiddenException('Your role in this organization is view-only.');
     }
 
     request.organizationId = project.organizationId;

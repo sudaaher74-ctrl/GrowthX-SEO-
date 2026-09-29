@@ -116,6 +116,18 @@ describe('JwtAuthGuard — organization resolution', () => {
       expect(request.organizationId).toBe('org_2');
     });
 
+    it('lets a viewer read a project but refuses their writes', async () => {
+      mockPrisma.project.findUnique.mockResolvedValue({ organizationId: 'org_2' });
+      mockPrisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1', role: 'VIEWER' });
+
+      const read = contextFor(user(), { projectId: 'p2' });
+      read.request.method = 'GET';
+      await expect(guardWith(false).canActivate(read.context)).resolves.toBe(true);
+
+      const write = contextFor(user(), { projectId: 'p2' });
+      await expect(guardWith(false).canActivate(write.context)).rejects.toThrow('view-only');
+    });
+
     it('leaves routes without a project untouched', async () => {
       mockPrisma.project.findUnique.mockClear();
       const { context } = contextFor(user());
