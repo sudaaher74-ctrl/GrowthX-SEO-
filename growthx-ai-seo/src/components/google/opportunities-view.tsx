@@ -28,8 +28,8 @@ export function OpportunitiesView() {
                   title="No opportunities detected yet"
                   missing="No open opportunity has been found from your Google data."
                   whyItMatters="Opportunities appear once Search Console and Analytics have data to reason from."
-                  actionRequired="Refresh data, then run detection from the Opportunities page."
-                  action={{ label: "Open Opportunities", href: "/opportunities", variant: "secondary" }}
+                  actionRequired="Refresh data, then press Refresh plan on the Fix Engine page."
+                  action={{ label: "Open Fix Engine", href: "/fix-engine", variant: "secondary" }}
                 />
               </div>
             ) : (

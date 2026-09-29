@@ -106,7 +106,6 @@ export function Sidebar({
       label: "Website Audit",
       href: "/website",
       icon: Globe,
-      aliases: ["/technical-seo"],
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
@@ -115,15 +114,12 @@ export function Sidebar({
       label: "Google",
       href: "/google",
       icon: SearchCheck,
-      // The earlier Google Search page stays reachable while the new sections replace its tabs.
-      aliases: ["/search-intelligence"],
       step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
     },
     {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
-      aliases: ["/competitors", "/market"],
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
     },
     {
@@ -144,7 +140,6 @@ export function Sidebar({
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
-      aliases: ["/engineer"],
     },
   ];
 

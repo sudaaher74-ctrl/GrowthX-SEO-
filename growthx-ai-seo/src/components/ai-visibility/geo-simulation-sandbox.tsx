@@ -324,10 +324,10 @@ export function GeoSimulationSandbox({ projectId, availableEngines = [], suggest
                     )}
                   </button>
                   <Link
-                    href="/action-queue"
+                    href="/fix-engine"
                     className="px-4 py-2.5 rounded-xl border bg-white hover:bg-brand-50 text-brand-700 text-xs font-semibold transition flex items-center gap-1.5"
                   >
-                    <span>Go to Action Queue</span>
+                    <span>Go to Fix Engine</span>
                     <ArrowRight size={13} />
                   </Link>
                 </div>

@@ -146,7 +146,7 @@ export class VoiceToolsService {
       tool: 'addCompetitor',
       data: competitor,
       spokenSummary: `Added ${cleanDomain} as a competitor. Say 'crawl competitor' to start analysing their site.`,
-      navigateTo: '/competitors',
+      navigateTo: '/competitor-intelligence',
     };
   }
 
@@ -230,7 +230,7 @@ export class VoiceToolsService {
       tool: 'compareWebsites',
       data: { competitorCount: competitors.length },
       spokenSummary: `Opening competitor comparison for ${competitors.length} competitor${competitors.length > 1 ? 's' : ''}.`,
-      navigateTo: '/competitors',
+      navigateTo: '/competitor-intelligence',
     };
   }
 
@@ -304,7 +304,7 @@ export class VoiceToolsService {
           tool: 'findContentGaps',
           data: [],
           spokenSummary: 'No critical content gaps found. You are outperforming your tracked competitors.',
-          navigateTo: '/competitors',
+          navigateTo: '/competitor-intelligence',
         };
       }
 
@@ -344,7 +344,7 @@ export class VoiceToolsService {
         tool: 'detectOpportunities',
         data: [],
         spokenSummary: 'No open opportunities found yet. Try running an audit first.',
-        navigateTo: '/opportunities',
+        navigateTo: '/fix-engine',
       };
     }
 
@@ -354,7 +354,7 @@ export class VoiceToolsService {
       tool: 'detectOpportunities',
       data: opps,
       spokenSummary: `You have ${opps.length} open opportunities. The top one is: ${topOpp.title}.`,
-      navigateTo: '/opportunities',
+      navigateTo: '/fix-engine',
     };
   }
 
@@ -373,7 +373,7 @@ export class VoiceToolsService {
         tool: 'getTopRecommendations',
         data: [],
         spokenSummary: "No recommendations yet. Run a full audit or content gap analysis first.",
-        navigateTo: '/opportunities',
+        navigateTo: '/fix-engine',
       };
     }
 
@@ -383,7 +383,7 @@ export class VoiceToolsService {
       tool: 'getTopRecommendations',
       data: recommendations,
       spokenSummary: `Top recommendation: ${top.title}. There are ${recommendations.length - 1} more high-priority items. Opening opportunities now.`,
-      navigateTo: '/opportunities',
+      navigateTo: '/fix-engine',
     };
   }
 

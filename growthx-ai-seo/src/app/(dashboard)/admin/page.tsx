@@ -812,11 +812,6 @@ export default function AdminPage() {
               subtitle="Register and manage creators shown in the public directory for brand collaborations."
               actions={
                 <div className="flex items-center gap-2">
-                  <Link href="/social-media?tab=creators">
-                    <ActionButton variant="secondary" icon={<ExternalLink size={12} />}>
-                      View in Social Media App
-                    </ActionButton>
-                  </Link>
                   <ActionButton
                     variant="primary"
                     icon={<Plus size={12} />}

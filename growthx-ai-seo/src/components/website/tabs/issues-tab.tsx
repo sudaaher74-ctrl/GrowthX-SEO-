@@ -145,11 +145,11 @@ export function IssuesTab({ issues, onExportPdf }: IssuesTabProps) {
             )}
 
             <Link
-              href="/action-queue"
+              href="/fix-engine"
               className="inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-lg border bg-white hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 text-brand-700 dark:bg-brand-900 dark:text-brand-200 text-xs font-semibold transition-all shadow-xs active:scale-95"
             >
               <Zap size={12} className="text-warning-500 fill-warning-500" />
-              <span>Review in SEO Roadmap ({filtered.length})</span>
+              <span>Review in Fix Engine ({filtered.length})</span>
               <ArrowRight size={12} className="text-brand-400" />
             </Link>
           </div>
