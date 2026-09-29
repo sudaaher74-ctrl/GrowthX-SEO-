@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Sparkles, Wrench, Store, ShoppingBag, Zap, Wand2 } from "lucide-react";
+import { Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -19,7 +19,7 @@ import { TokensChip } from "@/components/tokens/tokens-chip";
  * Agency console sidebar.
  *
  * Scoped to the selected client with core workspace tabs:
- * Dashboard, Website Audit, Google, Competitor Intelligence, Google Business Profile, AI Visibility
+ * Website Audit, Google, Competitor Intelligence, Google Business Profile, Fix Engine
  */
 
 interface NavItem {
@@ -84,16 +84,10 @@ export function Sidebar({
   const googleDone = isConnected("search_console") || isConnected("analytics");
   const profileDone = isConnected("business_profile");
 
-  // The workflow, in the order a client should work through it:
-  // Dashboard → Website Audit → Google → Competitor Intelligence →
-  // Google Business Profile → AI Visibility. Anything not part of that flow
-  // follows it.
+  // The workflow, in the order a client should work through it. Dashboard, AI
+  // Visibility, Business and Design Studio are hidden from the sidebar for now;
+  // their pages still exist and can be restored by adding the entries back.
   const mainNav: NavItem[] = [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: Activity,
-    },
     {
       label: "Website Audit",
       href: "/website",
@@ -127,36 +121,10 @@ export function Sidebar({
       step: { n: 4, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
     },
     {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Sparkles,
-      aliases: ["/geo-tracking", "/search"],
-      // Switched off for now, like Fix Engine and Design Studio.
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
-    },
-    {
-      label: "Business",
-      href: "/business",
-      icon: ShoppingBag,
-    },
-    {
       label: "Fix Engine",
       href: "/fix-engine",
       icon: Wrench,
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
       aliases: ["/engineer"],
-    },
-    {
-      label: "Design Studio",
-      href: "/design-studio",
-      icon: Wand2,
-      tag: "Disabled",
-      tagTone: "default",
-      disabled: true,
     },
   ];
 
