@@ -91,6 +91,7 @@ export function Sidebar({
   const googleProviders = googleQuery.data?.providers ?? [];
   const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
   const googleDone = isConnected("search_console") || isConnected("analytics");
+  const profileDone = isConnected("business_profile");
 
   // The workflow, in the order a client should work through it. AI Visibility,
   // Business and Design Studio are hidden from the sidebar for now;
@@ -137,7 +138,7 @@ export function Sidebar({
       icon: Store,
       tag: "Local",
       tagTone: "default",
-      // Not a numbered step: it is a local-business add-on, not part of the main workflow.
+      step: { n: 5, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
     },
     {
       label: "Fix Engine",
