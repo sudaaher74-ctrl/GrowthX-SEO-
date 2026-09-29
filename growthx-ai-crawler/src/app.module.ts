@@ -60,11 +60,13 @@ import { BusinessModule } from './modules/business/business.module';
 import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
 import { TokensModule } from './modules/tokens/tokens.module';
+import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-intelligence.module';
 
 
 @Module({
   imports: [
     CompetitorActionEngineModule,
+    GrowthIntelligenceModule,
     DiagnosticsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     // `@nestjs/throttler` was a dependency but was never registered, so no

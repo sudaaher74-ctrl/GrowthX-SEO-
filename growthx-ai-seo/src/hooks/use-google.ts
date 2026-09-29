@@ -76,3 +76,18 @@ export function useGoogleRefresh(projectId: string | null | undefined) {
     },
   });
 }
+
+/** GrowthX Intelligence for the workspace and the window chosen in the top bar. */
+export function useGrowthIntelligence(projectId: string | null | undefined) {
+  const days = usePeriodDays();
+  return {
+    days,
+    query: useQuery({
+      queryKey: ["growth-intelligence", projectId, days],
+      queryFn: () => api.growthIntelligence(projectId!, days),
+      enabled: Boolean(projectId),
+      retry: false,
+      staleTime: 60_000,
+    }),
+  };
+}

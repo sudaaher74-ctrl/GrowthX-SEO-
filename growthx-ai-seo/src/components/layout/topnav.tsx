@@ -34,6 +34,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/monitoring": { scope: "Workspace", title: "Monitoring" },
   "/market-research": { scope: "Workspace", title: "Market Research" },
   "/google": { scope: "Workspace", title: "Google" },
+  "/intelligence": { scope: "Workspace", title: "Intelligence" },
   "/search-intelligence": { scope: "Workspace", title: "Google Search" },
   "/search-performance": { scope: "Workspace", title: "Search Performance" },
   "/search/search-console": { scope: "Workspace", title: "Search Performance" },

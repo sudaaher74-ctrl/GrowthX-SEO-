@@ -4208,6 +4208,10 @@ export const api = {
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
     ),
 
+  // ── GrowthX Intelligence ─────────────────────────────────────────────────
+  growthIntelligence: (projectId: string, days: number) =>
+    get<GrowthIntelligenceReport>(`/api/projects/${projectId}/intelligence?days=${days}`),
+
   // ── Google connections ───────────────────────────────────────────────────
   googleConnections: (projectId: string) =>
     get<GoogleConnectionStatus>(`/api/projects/${projectId}/integrations/google`),
@@ -5498,4 +5502,61 @@ export async function askResearchStream(
     throw new ApiError(502, "The research connection closed before the answer arrived.");
   }
   return result;
+}
+
+// ── GrowthX Intelligence ───────────────────────────────────────────────────
+
+export type IntelligenceSource = "CRAWL" | "GSC" | "GA4" | "GBP" | "COMPETITORS" | "AI_VISIBILITY";
+
+export interface IntelligenceEvidence {
+  id: string;
+  source: IntelligenceSource;
+  text: string;
+  data?: Record<string, string | number | boolean | null>;
+}
+
+export interface IntelligenceFinding {
+  id: string;
+  type: string;
+  category: "PROBLEM" | "OPPORTUNITY" | "RISK";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  url: string | null;
+  what: string;
+  why: string;
+  evidenceIds: string[];
+  action: string;
+  expectedImpact: string | null;
+  measurement: string[];
+  potentialClicks: number | null;
+  fixIssueId?: string | null;
+}
+
+export interface IntelligencePage {
+  url: string;
+  path: string;
+  headline: string;
+  evidence: IntelligenceEvidence[];
+  findings: IntelligenceFinding[];
+  conclusion: string | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  corroboratingSources: IntelligenceSource[];
+  priority: { potentialClicks: number; reason: string };
+  notMeasured: { source: IntelligenceSource; reason: string }[];
+}
+
+export interface GrowthIntelligenceReport {
+  question: string;
+  windowDays: number;
+  generatedAt: string;
+  sources: Record<IntelligenceSource, { connected: boolean; note: string | null }>;
+  answer: { summary: string; confidenceNote: string };
+  counts: { problems: number; opportunities: number; risks: number };
+  estimatedExtraClicks: number;
+  risks: IntelligenceFinding[];
+  problems: IntelligenceFinding[];
+  opportunities: IntelligenceFinding[];
+  pages: IntelligencePage[];
+  evidence: Record<string, IntelligenceEvidence>;
+  notMeasured: { source: IntelligenceSource; reason: string | null }[];
+  methodology: { thresholds: Record<string, unknown>; notes: string[] };
 }
