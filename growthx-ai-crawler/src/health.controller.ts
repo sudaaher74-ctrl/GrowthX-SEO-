@@ -270,8 +270,9 @@ export class HealthController implements OnApplicationBootstrap {
       // Billing (RAZORPAY_KEY_ID) is deliberately absent. No code reads the
       // Razorpay keys and the billing tables were dropped, so the entry could
       // only ever read "unconfigured", and setting the key would have claimed
-      // a checkout that does not exist. Plans are provisioned with
-      // scripts/provision-subscription.ts.
+      // a checkout that does not exist. What an organization may use is its
+      // tokens instead (TOKENS_ENFORCEMENT and friends), given out with
+      // scripts/tokens.ts.
     ];
   }
 }

@@ -59,6 +59,7 @@ import { CompetitorActionEngineModule } from './modules/competitor-action-engine
 import { BusinessModule } from './modules/business/business.module';
 import { SavedPlansModule } from './modules/saved-plans/saved-plans.module';
 import { SearchIntelligenceModule } from './modules/search-intelligence/search-intelligence.module';
+import { TokensModule } from './modules/tokens/tokens.module';
 
 
 @Module({
@@ -142,6 +143,7 @@ import { SearchIntelligenceModule } from './modules/search-intelligence/search-i
     BusinessModule,
     SavedPlansModule,
     SearchIntelligenceModule,
+    TokensModule,
   ],
 
   controllers: [HealthController],

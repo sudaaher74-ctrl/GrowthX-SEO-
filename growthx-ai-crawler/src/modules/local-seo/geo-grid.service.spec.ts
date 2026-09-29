@@ -1,5 +1,9 @@
-import { BadGatewayException, ServiceUnavailableException } from '@nestjs/common';
+import { BadGatewayException, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { GeoGridService } from './geo-grid.service';
+import { InsufficientTokensException } from '../tokens/insufficient-tokens.exception';
+import { readTokenConfig } from '../tokens/token-rates';
+import { TokensService } from '../tokens/tokens.service';
+import { createFakePrisma } from '../tokens/tokens.testing';
 
 /**
  * The geo grid used to invent every number it displayed: ranks came from
@@ -21,7 +25,7 @@ describe('GeoGridService', () => {
     jest.restoreAllMocks();
   });
 
-  function build(options: { location?: any; places?: any[][]; createdRun?: any } = {}) {
+  function build(options: { location?: any; places?: any[][]; createdRun?: any; tokens?: TokensService } = {}) {
     const create = jest.fn().mockResolvedValue(
       options.createdRun ?? { id: 'run-1', ranAt: new Date('2026-09-07T00:00:00Z'), source: 'GOOGLE_PLACES' },
     );
@@ -37,8 +41,14 @@ describe('GeoGridService', () => {
       geoGridRun: { create, findMany: jest.fn(), findUnique: jest.fn() },
     };
     const router = { generate: jest.fn().mockRejectedValue(new Error('no model configured')) };
-    const service = new GeoGridService(prisma as any, router as any);
-    return { service, prisma, router, create };
+    // Scans are charged through the token service; most of these tests are about
+    // measuring, so by default the charge is a passthrough that only records.
+    const passthrough = {
+      config: () => readTokenConfig(),
+      withCharge: jest.fn(async (_request: unknown, work: () => Promise<unknown>) => work()),
+    };
+    const service = new GeoGridService(prisma as any, router as any, (options.tokens ?? passthrough) as any);
+    return { service, prisma, router, create, passthrough };
   }
 
   function stubPlaces(pages: any[][]) {
@@ -196,6 +206,128 @@ describe('GeoGridService', () => {
         bodies.map((b) => `${b.locationBias.circle.center.latitude},${b.locationBias.circle.center.longitude}`),
       );
       expect(centres.size).toBe(9);
+    });
+  });
+
+  describe('tokens', () => {
+    beforeEach(() => {
+      process.env.GOOGLE_PLACES_API_KEY = 'key';
+      jest.spyOn(Logger.prototype, 'log').mockImplementation();
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      delete process.env.TOKENS_ENFORCEMENT;
+      delete process.env.TOKENS_COST_GEO_GRID_POINT;
+      delete process.env.TOKENS_MONTHLY_ALLOWANCE;
+    });
+
+    afterEach(() => {
+      delete process.env.TOKENS_ENFORCEMENT;
+      delete process.env.TOKENS_COST_GEO_GRID_POINT;
+      delete process.env.TOKENS_MONTHLY_ALLOWANCE;
+    });
+
+    /** The real token service on the in-memory ledger, so charge and refund are exercised, not mocked. */
+    function withRealTokens() {
+      const fake = createFakePrisma();
+      fake.organizations.add('o1');
+      const tokens = new TokensService(fake.prisma);
+      return { ...build({ tokens }), fake };
+    }
+
+    it('charges a point\u2019s price for every point of the grid, and says what it was for', async () => {
+      const { service, passthrough } = build();
+      stubPlaces([[place('Bright Smile Dental')]]);
+
+      await service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 5, radiusKm: 8 });
+
+      expect(passthrough.withCharge).toHaveBeenCalledTimes(1);
+      expect(passthrough.withCharge.mock.calls[0][0]).toEqual({
+        organizationId: 'o1',
+        projectId: 'p1',
+        action: 'GEO_GRID_POINT',
+        tokens: 25 * 5_000,
+        detail: { keyword: 'dentist', gridSize: 5, radiusKm: 8, points: 25 },
+      });
+    });
+
+    it('follows the price an operator configured', async () => {
+      process.env.TOKENS_COST_GEO_GRID_POINT = '1200';
+      const { service, passthrough } = build();
+      stubPlaces([[place('Bright Smile Dental')]]);
+
+      await service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 3 });
+
+      expect(passthrough.withCharge.mock.calls[0][0]).toMatchObject({ tokens: 9 * 1_200 });
+    });
+
+    it('takes the tokens for a scan that completes', async () => {
+      const { service, fake } = withRealTokens();
+      stubPlaces([[place('Bright Smile Dental')]]);
+
+      await service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 3 });
+
+      expect(fake.wallets()[0].allowanceBalance).toBe(5_000_000 - 45_000);
+      expect(fake.ledger().at(-1)).toMatchObject({
+        kind: 'SPEND',
+        action: 'GEO_GRID_POINT',
+        allowanceDelta: -45_000,
+        projectId: 'p1',
+        detail: { keyword: 'dentist', gridSize: 3, points: 9 },
+      });
+    });
+
+    it('gives the tokens back when Google fails partway, because nothing is stored', async () => {
+      const { service, fake, create } = withRealTokens();
+      let call = 0;
+      global.fetch = jest.fn().mockImplementation(async () => {
+        if (call++ === 4) return { ok: false, status: 500, text: async () => 'boom' } as any;
+        return { ok: true, json: async () => ({ places: [place('Bright Smile Dental')] }) } as any;
+      });
+
+      await expect(service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 3 })).rejects.toBeInstanceOf(
+        BadGatewayException,
+      );
+
+      expect(create).not.toHaveBeenCalled();
+      expect(fake.wallets()[0].allowanceBalance).toBe(5_000_000);
+      expect(fake.ledger().map((row) => row.kind)).toEqual(['ALLOWANCE', 'SPEND', 'REFUND']);
+    });
+
+    it('refuses a scan the organization cannot pay for, before a single paid lookup', async () => {
+      process.env.TOKENS_MONTHLY_ALLOWANCE = '44999'; // one token short of a 3x3 scan
+      const { service } = withRealTokens();
+      stubPlaces([[place('Bright Smile Dental')]]);
+
+      const attempt = service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 3 });
+
+      await expect(attempt).rejects.toBeInstanceOf(InsufficientTokensException);
+      await expect(attempt).rejects.toMatchObject({ status: 402, response: { required: 45_000, available: 44_999 } });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('charges nothing for a request that was never going to run', async () => {
+      // No Places key: refused before the charge, so there is nothing to refund.
+      delete process.env.GOOGLE_PLACES_API_KEY;
+      const { service, fake } = withRealTokens();
+
+      await expect(service.runGeoGridScan('p1', 'o1', { keyword: 'dentist' })).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.runGeoGridScan('p1', 'o1', { keyword: '   ' })).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(fake.wallets()).toHaveLength(0);
+      expect(fake.ledger()).toHaveLength(0);
+    });
+
+    it('runs the scan without a charge when tokens are off', async () => {
+      process.env.TOKENS_ENFORCEMENT = 'off';
+      const { service, fake } = withRealTokens();
+      stubPlaces([[place('Bright Smile Dental')]]);
+
+      const result = await service.runGeoGridScan('p1', 'o1', { keyword: 'dentist', gridSize: 3 });
+
+      expect(result.nodes).toHaveLength(9);
+      expect(fake.wallets()).toHaveLength(0);
     });
   });
 

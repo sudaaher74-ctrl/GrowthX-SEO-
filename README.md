@@ -67,6 +67,21 @@ ones each product depends on:
 A feature whose provider is not configured reports itself as unavailable; it
 does not fall back to sample output.
 
+### Tokens
+
+Each workspace has a token balance that AI use and geo-grid scans draw down, a
+monthly allowance that refills on the 1st (UTC), and bonus tokens an operator can
+add. Customers see it on the **Tokens** screen. It is on by default with a
+generous starting allowance; set `TOKENS_ENFORCEMENT=shadow` to count usage
+without blocking anything while you decide the numbers, and see
+[docs/tokens.md](docs/tokens.md) for how it works, what is and is not metered,
+and how to give tokens (`npx ts-node scripts/tokens.ts --list` in
+`growthx-ai-crawler`).
+
+| Setting | Needed for |
+| --- | --- |
+| `TOKENS_ENFORCEMENT`, `TOKENS_MONTHLY_ALLOWANCE` | Optional. Whether limits apply, and the default monthly allowance (5,000,000). Set on the API and the worker alike. |
+
 ## Development
 
 ```bash

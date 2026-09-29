@@ -8,12 +8,12 @@ import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import {
-  useEntitlements,
   usePortfolio,
   useWorkspace,
   useProfile,
   useIssueCounts,
 } from "@/hooks/use-growthx";
+import { TokensChip } from "@/components/tokens/tokens-chip";
 
 /**
  * Agency console sidebar.
@@ -52,7 +52,6 @@ export function Sidebar({
   const queryClient = useQueryClient();
   const { orgId, projects, projectId, setProjectId } = useWorkspace();
   const portfolio = usePortfolio(orgId);
-  const entitlements = useEntitlements(orgId);
   const profile = useProfile();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -249,12 +248,14 @@ export function Sidebar({
           </div>
         </nav>
 
+        <TokensChip onNavigate={() => setMobileOpen?.(false)} />
+
         {/* User */}
         {(() => {
           const user = profile.data;
           const userFullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
           const displayName = userFullName || user?.email?.split("@")[0] || "Workspace";
-          const displayEmail = user?.email || (entitlements.data ? "Workspace Admin" : "User");
+          const displayEmail = user?.email || "User";
           const userInitials = user?.firstName
             ? (user.firstName[0] + (user.lastName?.[0] || "")).toUpperCase()
             : user?.email

@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import {
   api,
@@ -552,28 +552,36 @@ export function useProfile() {
   });
 }
 
-export function usePlans() {
-  return useQuery({ queryKey: ["plans"], queryFn: api.getPlans, staleTime: 5 * 60 * 1000 });
-}
-
-export function useEntitlements(orgId: string | null) {
+/**
+ * The workspace's tokens.
+ *
+ * Spending happens on the server, out of sight of whatever page is open, so any
+ * figure here is already slightly stale. Two things keep it honest: it is
+ * refetched every minute while the tab is in view, and everything that could
+ * have spent tokens (a finished mutation, or a request refused for want of
+ * them) invalidates the `["tokens"]` prefix — see `providers.tsx`.
+ */
+export function useTokens(orgId: string | null) {
   return useQuery({
-    queryKey: ["entitlements", orgId],
-    queryFn: () => api.getEntitlements(orgId!),
+    queryKey: ["tokens", orgId],
+    queryFn: () => api.getTokens(orgId!),
     enabled: Boolean(orgId),
+    retry: false,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 }
 
-/** Convenience: does the current plan include this feature? */
-export function useFeature(orgId: string | null, feature: string) {
-  const { data, isLoading } = useEntitlements(orgId);
-  return { enabled: Boolean(data?.features.includes(feature)), plan: data?.plan, isLoading };
-}
-
-export function useCheckout(orgId: string | null) {
-  return useMutation({
-    mutationFn: ({ plan, email, name }: { plan: string; email: string; name?: string }) =>
-      api.startCheckout(orgId!, plan, email, name),
+/** The token ledger, a page at a time, newest first. */
+export function useTokenTransactions(orgId: string | null) {
+  return useInfiniteQuery({
+    // Nested under "tokens" so invalidating the balance refreshes the ledger too.
+    queryKey: ["tokens", orgId, "transactions"],
+    queryFn: ({ pageParam }) => api.getTokenTransactions(orgId!, { cursor: pageParam, limit: 25 }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: Boolean(orgId),
+    retry: false,
   });
 }
 

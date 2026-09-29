@@ -8,6 +8,7 @@ import {
   profileFor,
 } from './multi-ai-router.service';
 import { AiUsageService } from './ai-usage.service';
+import { InsufficientTokensException } from '../../tokens/insufficient-tokens.exception';
 
 
 function build(env: Record<string, string> = {}, entitlementOverrides: any = {}) {
@@ -430,6 +431,184 @@ describe('MultiAiRouterService', () => {
       await expect(service.generate({ prompt: 'x' })).resolves.toMatchObject({
         provider: AiProvider.ANTHROPIC,
       });
+    });
+  });
+
+  describe('token metering', () => {
+    function withTokens(options: { ledger?: boolean; env?: Record<string, string> } = {}) {
+      const tokens = {
+        assertCanStart: jest.fn().mockResolvedValue(undefined),
+        settleAiUsage: jest.fn().mockResolvedValue(null),
+        resolveOrganization: jest.fn().mockImplementation(async (ref: any) => ref.organizationId ?? (ref.projectId === 'proj-1' ? 'org-9' : undefined)),
+      };
+      const ledger = { record: jest.fn(), assertWithinBudget: jest.fn().mockResolvedValue(undefined) };
+      const values: Record<string, string> = {
+        GEMINI_API_KEY: 'gem-real',
+        OPENAI_API_KEY: 'oai-real',
+        ANTHROPIC_API_KEY: 'ant-real',
+        ANTHROPIC_SERVER_SIDE_FALLBACK: 'false',
+        ...options.env,
+      };
+      const config = { get: (key: string) => values[key] } as any;
+      const service = new MultiAiRouterService(config, options.ledger === false ? undefined : (ledger as any), tokens as any);
+      return { service, tokens, ledger };
+    }
+
+    it('charges the organization for the tokens the answer used', async () => {
+      const { service, tokens } = withTokens();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await service.generate({
+        prompt: 'fix my canonical tags',
+        systemInstruction: 'be brief',
+        task: AiTask.SEO_ANALYSIS,
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+      });
+
+      expect(tokens.settleAiUsage).toHaveBeenCalledTimes(1);
+      expect(tokens.settleAiUsage).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        taskType: AiTask.SEO_ANALYSIS,
+        provider: AiProvider.ANTHROPIC,
+        model: 'claude-opus-5',
+        inputTokens: 1000,
+        outputTokens: 500,
+        promptChars: 'fix my canonical tags'.length + 'be brief'.length,
+        responseChars: 'claude answer'.length,
+      });
+    });
+
+    it('asks whether the organization can pay before it spends anything, and after the budget check', async () => {
+      const { service, tokens, ledger } = withTokens();
+      const anthropic = anthropicStub();
+      stubClients(service, { anthropic });
+
+      await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      expect(tokens.assertCanStart).toHaveBeenCalledWith('org-1');
+      const order = (mock: jest.Mock) => mock.mock.invocationCallOrder[0];
+      expect(order(ledger.assertWithinBudget)).toBeLessThan(order(tokens.assertCanStart));
+      expect(order(tokens.assertCanStart)).toBeLessThan(order(anthropic.create));
+    });
+
+    it('never calls a provider, and charges nothing, when the organization is out of tokens', async () => {
+      const { service, tokens } = withTokens();
+      tokens.assertCanStart.mockRejectedValue(new InsufficientTokensException({ required: 1, available: 0, resetsAt: new Date('2026-10-01T00:00:00Z') }));
+      const anthropic = anthropicStub();
+      stubClients(service, { anthropic });
+
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1' })).rejects.toMatchObject({ status: 402 });
+
+      expect(anthropic.create).not.toHaveBeenCalled();
+      expect(tokens.settleAiUsage).not.toHaveBeenCalled();
+    });
+
+    it('charges only the vendor whose answer was returned, not the ones that failed first', async () => {
+      // A vendor that errored is the platform's cost. Billing the customer for
+      // our fallback chain would make the price depend on our outages.
+      const { service, tokens } = withTokens();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('upstream 500'));
+      stubClients(service, { anthropic, openai: openAiStub(), gemini: geminiStub() });
+
+      const result = await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      expect(tokens.settleAiUsage).toHaveBeenCalledTimes(1);
+      expect(tokens.settleAiUsage.mock.calls[0][0]).toMatchObject({ provider: result.provider, model: result.model });
+      expect(result.provider).not.toBe(AiProvider.ANTHROPIC);
+    });
+
+    it('does not charge for a vendor whose JSON could not be used before another answered', async () => {
+      const { service, tokens } = withTokens();
+      const anthropic = anthropicStub({ content: [{ type: 'text', text: 'Sure! Here is some prose, not JSON.' }] });
+      stubClients(service, { anthropic, gemini: geminiStub('{"ok":true}'), openai: openAiStub('{"ok":true}') });
+
+      const result = await service.generate({ prompt: 'x', organizationId: 'org-1', jsonSchema: { type: 'object' } });
+
+      expect(result.provider).not.toBe(AiProvider.ANTHROPIC);
+      expect(tokens.settleAiUsage).toHaveBeenCalledTimes(1);
+      expect(tokens.settleAiUsage.mock.calls[0][0].provider).toBe(result.provider);
+    });
+
+    it('does not charge for an answer the vendor declined to give', async () => {
+      const { service, tokens } = withTokens({ env: { GEMINI_API_KEY: '', OPENAI_API_KEY: '' } });
+      stubClients(service, { anthropic: anthropicStub({ stop_reason: 'refusal', content: [] }) });
+
+      const result = await service.generate({ prompt: 'x', organizationId: 'org-1' });
+
+      expect(result.refused).toBe(true);
+      expect(tokens.settleAiUsage).not.toHaveBeenCalled();
+    });
+
+    it('does not charge when every vendor fails', async () => {
+      const { service, tokens } = withTokens();
+      const anthropic = anthropicStub();
+      anthropic.create.mockRejectedValue(new Error('down'));
+      const openai = openAiStub();
+      openai.create.mockRejectedValue(new Error('down'));
+      const gemini = geminiStub();
+      gemini.generateContent.mockRejectedValue(new Error('down'));
+      stubClients(service, { anthropic, openai, gemini });
+
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1' })).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(tokens.settleAiUsage).not.toHaveBeenCalled();
+    });
+
+    it('finds the organization from the project for callers that know only that, and uses it everywhere', async () => {
+      const { service, tokens, ledger } = withTokens();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await service.generate({ prompt: 'x', projectId: 'proj-1' });
+
+      expect(ledger.assertWithinBudget).toHaveBeenCalledWith('org-9');
+      expect(tokens.assertCanStart).toHaveBeenCalledWith('org-9');
+      expect(ledger.record).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 'org-9', projectId: 'proj-1' }));
+      expect(tokens.settleAiUsage).toHaveBeenCalledWith(expect.objectContaining({ organizationId: 'org-9', projectId: 'proj-1' }));
+    });
+
+    it('runs unattributed, rather than failing, if the project’s organization cannot be found', async () => {
+      const { service, tokens } = withTokens();
+      tokens.resolveOrganization.mockRejectedValue(new Error('database went away'));
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await expect(service.generate({ prompt: 'x', projectId: 'proj-1' })).resolves.toMatchObject({ provider: AiProvider.ANTHROPIC });
+      expect(tokens.assertCanStart).toHaveBeenCalledWith(undefined);
+    });
+
+    it('does not look anything up for a call with no project and no organization', async () => {
+      const { service, tokens } = withTokens();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await service.generate({ prompt: 'x' });
+
+      expect(tokens.resolveOrganization).not.toHaveBeenCalled();
+      expect(tokens.assertCanStart).toHaveBeenCalledWith(undefined);
+    });
+
+    it('still delivers the answer if charging for it blows up', async () => {
+      const { service, tokens } = withTokens();
+      tokens.settleAiUsage.mockRejectedValue(new Error('ledger exploded'));
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1' })).resolves.toMatchObject({ text: 'claude answer' });
+    });
+
+    it('charges a call to a vendor the caller pinned, exactly once', async () => {
+      const { service, tokens } = withTokens();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await service.generate({ prompt: 'x', organizationId: 'org-1', provider: AiProvider.ANTHROPIC });
+
+      expect(tokens.settleAiUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs normally, uncharged, when no token service is wired in', async () => {
+      const { service } = build();
+      stubClients(service, { anthropic: anthropicStub() });
+
+      await expect(service.generate({ prompt: 'x', organizationId: 'org-1' })).resolves.toMatchObject({ provider: AiProvider.ANTHROPIC });
     });
   });
 

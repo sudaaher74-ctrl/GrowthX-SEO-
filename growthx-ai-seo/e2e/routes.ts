@@ -30,7 +30,6 @@ export const DASHBOARD_ROUTES = [
   "/ai-assistant",
   "/ai-visibility",
   "/analytics",
-  "/billing",
   "/clients",
   "/competitor-intelligence",
   "/competitors",
@@ -73,6 +72,7 @@ export const DASHBOARD_ROUTES = [
   "/social-media",
   "/strategy",
   "/technical-seo",
+  "/tokens",
   "/website",
 ];
 

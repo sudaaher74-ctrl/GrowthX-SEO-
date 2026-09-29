@@ -131,7 +131,7 @@ function planBody(plan: StagedFixItem) {
 
 // ─────────────────────────────────────────────────────────────── errors
 
-/** The shape the billing layer returns on a 403. */
+/** A failed request: the HTTP status, the server's own message, and its full body. */
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -142,10 +142,14 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 
-  /** True when the backend refused because of the customer's plan. */
-  get isUpgradeRequired(): boolean {
+  /**
+   * True when the backend refused because the workspace has no tokens left.
+   * `message` is then already written for the customer (it says when tokens
+   * refill), so it can be shown as it is.
+   */
+  get isOutOfTokens(): boolean {
     const error = (this.body as { error?: string } | undefined)?.error;
-    return this.status === 403 && ["FEATURE_NOT_IN_PLAN", "QUOTA_EXCEEDED", "SITE_LIMIT_REACHED"].includes(error ?? "");
+    return this.status === 402 && error === "INSUFFICIENT_TOKENS";
   }
   get isUnauthorized(): boolean {
     return this.status === 401;
@@ -323,39 +327,68 @@ export interface ActivityItem {
   time: string;
 }
 
-export interface Plan {
-  plan: "FREE" | "STARTER" | "GROWTH" | "PRO" | "ENTERPRISE";
-  name: string;
-  tagline: string;
-  amountPaise: number;
-  price: string;
-  currency: string;
-  interval: string;
-  maxSites: number | null;
-  maxSeats: number | null;
-  features: string[];
-  quotas: Record<string, number | null>;
+/** Tokens spent on one feature since the current month began, net of refunds. */
+export interface TokenUsageLine {
+  action: string;
+  tokens: number;
+  /** Tokens the feature needed beyond what the workspace held. */
+  shortfall: number;
+  count: number;
 }
 
-export interface QuotaStatus {
-  metric: string;
-  limit: number | null;
-  used: number;
-  remaining: number | null;
+export interface TokenRates {
+  /** Tokens charged per piece of text the AI reads / writes. */
+  ai: { inputWeight: number; outputWeight: number };
+  actions: { action: string; tokensPerUnit: number; unit: string }[];
 }
 
-export interface Entitlements {
-  organizationId: string;
-  plan: string;
-  planName: string;
-  status: string;
-  subscriptionActive: boolean;
-  features: string[];
-  maxSites: number | null;
-  maxSeats: number | null;
-  periodStart: string;
-  periodEnd: string;
-  quotas: QuotaStatus[];
+/**
+ * A workspace's tokens. `enabled: false` means the deployment has tokens
+ * switched off, so there is nothing to show and nothing is limited.
+ */
+export type TokensOverview =
+  | { enabled: false; mode: "off" }
+  | {
+      enabled: true;
+      /** `shadow` counts usage but never blocks anything. */
+      mode: "enforce" | "shadow";
+      organizationId: string;
+      /** Everything spendable now: the monthly allowance left plus bonus tokens. */
+      available: number;
+      bonus: number;
+      allowance: {
+        remaining: number;
+        /** What this month's allowance was when it was granted: the "of" in "remaining of granted". */
+        granted: number;
+        /** What the next month will grant; differs from `granted` if the figure was changed mid-month. */
+        monthly: number;
+        periodStart: string;
+        periodEnd: string;
+      };
+      usage: { since: string; totalTokens: number; lines: TokenUsageLine[] };
+      rates: TokenRates;
+    };
+
+export type TokenTransactionKind = "ALLOWANCE" | "EXPIRY" | "GRANT" | "ADJUSTMENT" | "SPEND" | "REFUND";
+
+export interface TokenTransaction {
+  id: string;
+  kind: TokenTransactionKind;
+  action: string;
+  /** Net change to the balance: negative when tokens were used. */
+  tokens: number;
+  /** Tokens the work needed beyond what the workspace held. */
+  shortfall: number;
+  balanceAfter: number;
+  projectId: string | null;
+  createdAt: string;
+  /** For spends and refunds: what was done (model, token counts, grid size...). */
+  detail: Record<string, unknown> | null;
+}
+
+export interface TokenTransactionPage {
+  items: TokenTransaction[];
+  nextCursor: string | null;
 }
 
 export interface VisibilityReport {
@@ -1641,7 +1674,8 @@ export interface TenantStat {
   id: string;
   name: string;
   owner: string;
-  plan: string;
+  /** Null until the organization first uses a metered feature: its wallet is opened then. */
+  tokens: { available: number; monthly: number } | null;
   sites: number;
   health: number;
   quota: number;
@@ -3746,20 +3780,18 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // ── Billing
-  getPlans: () => get<{ plans: Plan[]; gateway: string; configured: boolean }>("/api/billing/plans"),
-  getEntitlements: (orgId: string) =>
-    get<Entitlements>(`/api/billing/organizations/${orgId}/entitlements`),
-  getSubscription: (orgId: string) => get<Record<string, unknown> | null>(`/api/billing/organizations/${orgId}/subscription`),
-  startCheckout: (orgId: string, plan: string, email: string, name?: string) =>
-    post<{
-      subscriptionId: string;
-      razorpayKeyId: string;
-      shortUrl: string | null;
-      planName: string;
-      price: string;
-    }>(`/api/billing/organizations/${orgId}/checkout`, { plan, email, name }),
-  cancelSubscription: (orgId: string) => post(`/api/billing/organizations/${orgId}/cancel`, {}),
+  // ── Tokens
+  /** Operators only: gives (positive) or takes back (negative) bonus tokens. */
+  adjustTokens: (orgId: string, amount: number, note?: string) =>
+    post<unknown>(`/api/admin/organizations/${orgId}/tokens/adjust`, { amount, note }),
+  getTokens: (orgId: string) => get<TokensOverview>(`/api/organizations/${orgId}/tokens`),
+  getTokenTransactions: (orgId: string, options: { cursor?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.limit) query.set("limit", String(options.limit));
+    if (options.cursor) query.set("cursor", options.cursor);
+    const suffix = query.toString();
+    return get<TokenTransactionPage>(`/api/organizations/${orgId}/tokens/transactions${suffix ? `?${suffix}` : ""}`);
+  },
 
   // ── Websites & crawls
   registerWebsite: (url: string, domain: string, projectId?: string) =>

@@ -106,7 +106,7 @@ export class ReviewsService {
       - Do not include any JSON wrapping, just the raw text of the reply.
     `;
 
-    const aiResponse = await this.router.generate({ prompt, task: AiTask.FAST });
+    const aiResponse = await this.router.generate({ prompt, task: AiTask.FAST, projectId });
     const replyText = aiResponse?.text?.trim();
     if (!replyText) {
       throw new Error('AI failed to generate a reply');

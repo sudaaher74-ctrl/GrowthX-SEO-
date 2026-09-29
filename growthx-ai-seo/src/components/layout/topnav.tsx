@@ -47,6 +47,7 @@ const ROUTE_META: Record<string, { scope: string; title: string }> = {
   "/reports": { scope: "Workspace", title: "Reports" },
   "/integrations": { scope: "Workspace", title: "Integrations" },
   "/settings": { scope: "Workspace", title: "Settings" },
+  "/tokens": { scope: "Workspace", title: "Tokens" },
   "/projects": { scope: "Workspace", title: "Add Business" },
 };
 
