@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -19,7 +19,7 @@ import { TokensChip } from "@/components/tokens/tokens-chip";
  * Agency console sidebar.
  *
  * Scoped to the selected client with core workspace tabs:
- * Dashboard, Website Audit, Google, Competitor Intelligence, Google Business Profile, Fix Engine
+ * Dashboard, Website Audit, Google, Competitor Intelligence, AI Visibility, Google Business Profile, Fix Engine
  */
 
 interface NavItem {
@@ -73,6 +73,15 @@ export function Sidebar({
   const auditDone = Boolean(issueCounts.data?.crawledAt);
   const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
 
+  // Done once at least one AI assistant has really been asked about the business.
+  const visibilityQuery = useQuery({
+    queryKey: ["ai-visibility-done", projectId],
+    queryFn: () => api.getVisibility(projectId!, 28),
+    enabled: Boolean(projectId),
+    retry: false,
+  });
+  const visibilityDone = (visibilityQuery.data?.summary.checked ?? 0) > 0;
+
   const googleQuery = useQuery({
     queryKey: ["google-connections", projectId],
     queryFn: () => api.googleConnections(projectId!),
@@ -82,7 +91,6 @@ export function Sidebar({
   const googleProviders = googleQuery.data?.providers ?? [];
   const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
   const googleDone = isConnected("search_console") || isConnected("analytics");
-  const profileDone = isConnected("business_profile");
 
   // The workflow, in the order a client should work through it. AI Visibility,
   // Business and Design Studio are hidden from the sidebar for now;
@@ -118,12 +126,18 @@ export function Sidebar({
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
     },
     {
+      label: "AI Visibility",
+      href: "/ai-visibility",
+      icon: Bot,
+      step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "See how ChatGPT, Gemini, Perplexity and Claude describe your business" },
+    },
+    {
       label: "Google Business Profile",
       href: "/google-business-profile",
       icon: Store,
       tag: "Local",
       tagTone: "default",
-      step: { n: 4, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
+      // Not a numbered step: it is a local-business add-on, not part of the main workflow.
     },
     {
       label: "Fix Engine",

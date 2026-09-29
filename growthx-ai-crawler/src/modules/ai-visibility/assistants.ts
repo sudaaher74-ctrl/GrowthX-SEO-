@@ -4,7 +4,7 @@ import { AiProvider, MultiAiRouterService } from '../ai-search/multi-ai-router/m
 /**
  * Which assistants we can genuinely query.
  *
- * Perplexity, Google AI Overviews, and Copilot have no API we can drive, so a
+ * Google AI Overviews and Copilot have no API we can drive, so a
  * check against them records an explicit error instead of a fabricated result.
  * Wiring one up later means adding an entry here and nothing else.
  *
@@ -17,6 +17,7 @@ export const ASSISTANT_PROVIDER: Readonly<Partial<Record<AiAssistant, AiProvider
   [AiAssistant.CLAUDE]: AiProvider.ANTHROPIC,
   [AiAssistant.GEMINI]: AiProvider.GEMINI,
   [AiAssistant.SARVAM]: AiProvider.SARVAM,
+  [AiAssistant.PERPLEXITY]: AiProvider.PERPLEXITY,
 };
 
 export const SUPPORTED_ASSISTANTS = Object.keys(ASSISTANT_PROVIDER) as AiAssistant[];
