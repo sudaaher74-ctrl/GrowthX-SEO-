@@ -71,7 +71,8 @@ export interface Ga4ReportData {
   totals: Ga4Totals;
   daily: { date: string; sessions: number; users: number }[];
   landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
-  channels: { channel: string; sessions: number; users: number; organic: boolean }[];
+  /** Engagement and key events are absent from snapshots stored before they were fetched per channel; the next refresh adds them. */
+  channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
   /** Absent from snapshots stored before cities were fetched; the next refresh adds it. */
@@ -345,7 +346,7 @@ export class AnalyticsReportService {
         }),
         this.run(api, propertyId, {
           dimensions: ['sessionDefaultChannelGroup'],
-          metrics: ['sessions', 'activeUsers'],
+          metrics: ['sessions', 'activeUsers', 'engagementRate', ...(keyEvents ? ['keyEvents'] : [])],
           dateRange,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           limit: 20,
@@ -417,6 +418,8 @@ export class AnalyticsReportService {
         sessions: row.metrics[0],
         users: row.metrics[1],
         organic: row.dimensions[0] === ORGANIC_SEARCH,
+        engagementRate: row.metrics[2] ?? 0,
+        keyEvents: keyEvents ? (row.metrics[3] ?? 0) : null,
       }));
 
       out.push({

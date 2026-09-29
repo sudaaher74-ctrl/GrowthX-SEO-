@@ -70,7 +70,7 @@ export function useGoogleRefresh(projectId: string | null | undefined) {
       if (failures.length > 0) throw new Error(failures.join(" "));
     },
     onSettled: () => {
-      for (const key of ["google-overview", "google-pages", "google-page", "ga4-report"]) {
+      for (const key of ["google-overview", "google-pages", "google-page", "ga4-report", "google-gsc-summary", "google-gsc-timeseries", "google-gsc-queries", "google-gsc-pages", "google-gsc-declining", "google-gsc-striking", "google-gsc-ctr", "google-keywords", "google-alerts", "google-breakdown"]) {
         queryClient.invalidateQueries({ queryKey: [key, projectId] });
       }
     },
@@ -124,5 +124,73 @@ export function useMarkImplemented(projectId: string | null | undefined) {
   return useMutation({
     mutationFn: (id: string) => api.seoImpactImplemented(projectId!, id),
     onSuccess: () => client.invalidateQueries({ queryKey: ["seo-impact", projectId] }),
+  });
+}
+
+/**
+ * A stored read for the Google views, keyed by workspace and window so a
+ * different workspace or range is never served the previous one's figures.
+ */
+function useWindowQuery<T>(name: string, projectId: string | null | undefined, fn: (projectId: string, days: number) => Promise<T>, extra: unknown[] = []) {
+  const days = usePeriodDays();
+  return {
+    days,
+    query: useQuery({
+      queryKey: [`google-${name}`, projectId, days, ...extra],
+      queryFn: () => fn(projectId!, days),
+      enabled: Boolean(projectId),
+      retry: false,
+      staleTime: 60_000,
+    }),
+  };
+}
+
+export const useGscSummary = (p: string | null | undefined) => useWindowQuery("gsc-summary", p, api.gscSummary);
+export const useGscTimeseries = (p: string | null | undefined) => useWindowQuery("gsc-timeseries", p, api.gscTimeseries);
+export const useGscQueries = (p: string | null | undefined, limit = 200) =>
+  useWindowQuery("gsc-queries", p, (id, d) => api.gscQueries(id, d, limit), [limit]);
+export const useGscPages = (p: string | null | undefined, limit = 200) =>
+  useWindowQuery("gsc-pages", p, (id, d) => api.gscPages(id, d, limit), [limit]);
+export const useGoogleKeywords = (p: string | null | undefined) => useWindowQuery("keywords", p, api.googleKeywords);
+export const useGoogleAlerts = (p: string | null | undefined) => useWindowQuery("alerts", p, api.googleAlerts);
+export const useGoogleBreakdown = (p: string | null | undefined, dimension: "country" | "device") =>
+  useWindowQuery("breakdown", p, (id, d) => api.googleBreakdown(id, d, dimension), [dimension]);
+export const useGscDeclining = (p: string | null | undefined) => useWindowQuery("gsc-declining", p, api.gscDeclining);
+export const useGscStriking = (p: string | null | undefined) => useWindowQuery("gsc-striking", p, api.gscStrikingDistance);
+export const useGscCtrOpportunities = (p: string | null | undefined) => useWindowQuery("gsc-ctr", p, api.gscCtrOpportunities);
+
+export function useIndexStatus(projectId: string | null | undefined) {
+  const client = useQueryClient();
+  const query = useQuery({
+    queryKey: ["google-index-status", projectId],
+    queryFn: () => api.searchIntelligence.indexStatus(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const inspect = useMutation({
+    mutationFn: () => api.searchIntelligence.inspect(projectId!, {}),
+    onSettled: () => client.invalidateQueries({ queryKey: ["google-index-status", projectId] }),
+  });
+  return { query, inspect };
+}
+
+export function useGrowthOpportunities(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["google-opportunities", projectId],
+    queryFn: () => api.opportunities(projectId!, { status: "OPEN" }),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useChangeLedger(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["google-change-ledger", projectId],
+    queryFn: () => api.searchIntelligence.changes(projectId!),
+    enabled: Boolean(projectId),
+    retry: false,
+    staleTime: 60_000,
   });
 }
