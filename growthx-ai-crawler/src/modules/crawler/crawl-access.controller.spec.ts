@@ -135,8 +135,19 @@ describe('CrawlController — cross-tenant access', () => {
 
       expect(prisma.website.findUnique.mock.calls[0][0].where).toEqual({ domain_scope: { domain: 'rival.com', scope: 'own' } });
       const upsert = prisma.website.upsert.mock.calls[0][0];
-      expect(upsert.where).toEqual({ domain_scope: { domain: 'rival.com', scope: 'own' } });
+      // Still keyed on the caller's own record, and only updatable while unowned or ours.
+      expect(upsert.where).toEqual({
+        domain_scope: { domain: 'rival.com', scope: 'own' },
+        OR: [{ projectId: null }, { project: { organizationId: 'org_1' } }],
+      });
       expect(upsert.create).toMatchObject({ domain: 'rival.com', scope: 'own' });
+    });
+
+    it('refuses the claim when another organization registered the domain in the meantime', async () => {
+      prisma.website.upsert.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }));
+      await expect(
+        controller.registerWebsiteRoute(REQ, { url: 'https://new.com', domain: 'new.com' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it("refuses to attach a site to a project in another organization", async () => {

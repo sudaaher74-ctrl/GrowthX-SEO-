@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, BadRequestException, ForbiddenException, UnauthorizedException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { JobStatus, } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from './crawler.service';
 import { SecurityService } from '../security/security.service';
@@ -178,11 +179,11 @@ export class CrawlController {
       }
     }
 
-    return this.registerWebsite({ ...body, domain });
+    return this.registerWebsite({ ...body, domain }, organizationId);
   }
 
   /** Shared by the route above and by auto-registration inside `startCrawlJob`. */
-  private async registerWebsite(body: { url: string; domain: string; projectId?: string }) {
+  private async registerWebsite(body: { url: string; domain: string; projectId?: string }, organizationId?: string) {
     if (!body.url && !body.domain) {
       throw new BadRequestException('URL or domain is required.');
     }
@@ -192,12 +193,34 @@ export class CrawlController {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    const token = this.securityService.generateVerificationToken(domain);
-    const website = await this.prisma.website.upsert({
+    // Keep the token already issued: rotating it on every re-register would
+    // invalidate a DNS record the customer has already published.
+    const current = await this.prisma.website.findUnique({
       where: websiteKey(domain, OWN_SCOPE),
-      update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
-      create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
+      select: { verificationToken: true },
     });
+    const token = current?.verificationToken ?? this.securityService.generateVerificationToken(domain);
+    // The ownership check in the route runs before this write, so two
+    // organizations claiming a new domain at once could both pass it. The
+    // update is therefore conditional on the record being unowned or ours; if
+    // another organization got there first the update matches nothing, the
+    // create collides with the unique key, and the claim is refused.
+    let website;
+    try {
+      website = await this.prisma.website.upsert({
+        where: {
+          ...websiteKey(domain, OWN_SCOPE),
+          ...(organizationId ? { OR: [{ projectId: null }, { project: { organizationId } }] } : {}),
+        },
+        update: { url: formattedUrl, verificationToken: token, ...(body.projectId ? { projectId: body.projectId } : {}) },
+        create: { url: formattedUrl, domain, scope: OWN_SCOPE, verificationToken: token, isVerified: false, projectId: body.projectId },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ForbiddenException(`${domain} is already registered to another organization.`);
+      }
+      throw err;
+    }
     return {
       id: website.id,
       domain: website.domain,
@@ -724,12 +747,18 @@ export class CrawlController {
     return this.autoFixService.approveAndExecuteFix(id, req.user.userId);
   }
 
+  @Throttle({ sustained: { limit: 30, ttl: 60_000 } })
   @Post('webhooks/crawl-trigger')
   @ApiOperation({ summary: 'Webhook endpoint to trigger automated crawl upon CI/CD deployment or sitemap change' })
   @ApiBody({ schema: { type: 'object', properties: { domain: { type: 'string', example: 'growthx.ai' }, secret: { type: 'string' } } } })
   async triggerWebhook(@Body() body: { domain: string; secret?: string }) {
     if (!body.domain) throw new BadRequestException('domain parameter is required');
-    return this.schedulerService.handleWebhookTrigger(body.domain, body.secret);
+    const result = await this.schedulerService.handleWebhookTrigger(body.domain, body.secret);
+    // One answer for every refusal — unknown site, unverified, no secret, wrong
+    // secret — so an unauthenticated caller learns nothing about which domains
+    // are registered, and a CI job sees a real failure status, not a 200.
+    if (!result.success) throw new UnauthorizedException('Invalid webhook credentials.');
+    return result;
   }
 
   @Post('projects/:projectId/verification/run')
