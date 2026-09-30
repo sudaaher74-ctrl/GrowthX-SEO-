@@ -71,6 +71,27 @@ describe('normaliseAnalysis', () => {
   });
 });
 
+describe('marketingStrategy', () => {
+  it('reads each channel, and an unknown verdict as maintain', () => {
+    const m = normaliseAnalysis({
+      marketingStrategy: {
+        summary: 's',
+        whereTrafficComesFrom: ['Organic Search is 100%'],
+        channels: [{ channel: 'Organic Search', verdict: 'GROW', share: '100%', actions: ['a', ''] }, { channel: 'Direct', verdict: 'whatever' }, { verdict: 'grow' }],
+        audience: ['Pune'],
+      },
+    }).marketingStrategy!;
+    expect(m.channels.map((c) => [c.channel, c.verdict])).toEqual([['Organic Search', 'grow'], ['Direct', 'maintain']]);
+    expect(m.channels[0].actions).toEqual(['a']);
+    expect(m.channels[1].share).toBe('not measured');
+    expect(m.audience).toEqual(['Pune']);
+  });
+
+  it('is empty, not missing, when the model returned none', () => {
+    expect(normaliseAnalysis({}).marketingStrategy).toEqual({ summary: '', whereTrafficComesFrom: [], channels: [], audience: [] });
+  });
+});
+
 describe('buildPrompt', () => {
   it('states measured figures and says plainly when something was not measured', () => {
     const p = buildPrompt(facts());
@@ -98,12 +119,25 @@ describe('buildPrompt', () => {
           keyEvents: null,
           channels: [{ channel: 'Organic Search', sessions: 6, share: 1, engagementRate: 1, keyEvents: null }],
           landingPages: [{ page: '/', sessions: 6, engagementRate: 1, keyEvents: null }],
+          sources: [{ source: 'google', medium: 'organic', channel: 'Organic Search', sessions: 6, share: 1, engagementRate: 1, keyEvents: null }],
           countries: [{ country: 'India', sessions: 6 }],
+          cities: [{ city: 'Pune', country: 'India', sessions: 4 }],
         },
       }),
     );
     expect(p).toContain('sessions 6, users 5, engagement rate 100.0%, key events none set up');
     expect(p).toContain('Organic Search: 6 sessions (100.0%)');
     expect(p).toContain('India 6');
+    expect(p).toContain('google / organic (Organic Search): 6 sessions (100.0%)');
+    expect(p).toContain('Pune, India 4');
+  });
+
+  it('says the named sources are not available yet when the data predates them', () => {
+    const p = buildPrompt(
+      facts({
+        traffic: { sessions: 6, users: 5, engagementRate: 1, keyEvents: null, channels: [], landingPages: [], sources: [], countries: [], cities: [] },
+      }),
+    );
+    expect(p).toContain('not available yet (the Analytics data needs a refresh to add sources)');
   });
 });

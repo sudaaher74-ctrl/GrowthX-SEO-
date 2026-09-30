@@ -2,10 +2,11 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Kpi, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
+import { Kpi, Panel, Table, Td, Th, Tr } from "@/components/ui/console";
 import { Ga4Gate } from "@/components/google/ga4-gate";
 import { Headlines, SourceBadge } from "@/components/google/parts";
 import { MoreLinks } from "@/components/google/more-links";
+import { TrafficOrigins } from "@/components/google/traffic-origins";
 import { buildTraffic } from "@/components/google/traffic-view";
 import { useGoogleOverview } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
@@ -20,7 +21,7 @@ export function AnalyticsView() {
 function AnalyticsBody({ report, data }: { report: Ga4Report; data: Ga4ReportData }) {
   const { projectId } = useWorkspace();
   const overview = useGoogleOverview(projectId);
-  const { groups, pages } = useMemo(() => buildTraffic(data), [data]);
+  const { pages } = useMemo(() => buildTraffic(data), [data]);
   const t = data.totals;
   const daily = data.daily;
   const headlines = (overview.query.data?.headlines ?? []).filter((h) => h.source === "GA4").slice(0, 1);
@@ -62,71 +63,39 @@ function AnalyticsBody({ report, data }: { report: Ga4Report; data: Ga4ReportDat
         </div>
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Traffic by channel" subtitle="Sessions by where the visit came from.">
-          <Table minWidth={360}>
+      <TrafficOrigins data={data} />
+
+      <Panel
+        title="Top landing pages"
+        subtitle="Where visits begin, by sessions."
+        actions={<Link href="/google/traffic" className="text-[12px] font-semibold text-accent-700 hover:underline">All landing pages →</Link>}
+      >
+        {pages.length === 0 ? (
+          <p className="p-4 text-[12px] text-brand-500">Google Analytics returned no landing pages for this period.</p>
+        ) : (
+          <Table minWidth={480}>
             <thead>
               <tr>
-                <Th>Channel</Th>
+                <Th>Page</Th>
                 <Th align="right">Sessions</Th>
-                <Th align="right">Share</Th>
-                <Th>Volume</Th>
+                <Th align="right">Engagement</Th>
+                <Th align="right">Conv.</Th>
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => (
-                <Tr key={g.group}>
-                  <Td>
-                    <span className="flex items-center gap-2 text-[12.5px] font-semibold text-brand-950">
-                      {g.group}
-                      {g.group === "Organic Search" && <Pill tone="good">Google</Pill>}
-                    </span>
-                  </Td>
-                  <Td align="right">{count(g.sessions)}</Td>
-                  <Td align="right">{percent(g.share)}</Td>
-                  <Td>
-                    <div className="h-1.5 w-24 rounded-full bg-brand-100">
-                      <div className={g.group === "Organic Search" ? "h-1.5 rounded-full bg-primary-600" : "h-1.5 rounded-full bg-brand-400"} style={{ width: `${Math.max((g.share ?? 0) * 100, g.sessions > 0 ? 1.5 : 0)}%` }} />
-                    </div>
-                  </Td>
+              {pages.slice(0, 10).map((p) => (
+                <Tr key={p.page}>
+                  <Td><span className="block max-w-[360px] truncate font-mono text-[11.5px] text-brand-950" title={p.page}>{pathOf(p.page)}</span></Td>
+                  <Td align="right">{count(p.sessions)}</Td>
+                  <Td align="right">{percent(p.engagementRate)}</Td>
+                  <Td align="right">{p.keyEvents == null ? DASH : count(p.keyEvents)}</Td>
                 </Tr>
               ))}
             </tbody>
           </Table>
-        </Panel>
-
-        <Panel
-          title="Top landing pages"
-          subtitle="Where visits begin, by sessions."
-          actions={<Link href="/google/traffic" className="text-[12px] font-semibold text-accent-700 hover:underline">All landing pages →</Link>}
-        >
-          {pages.length === 0 ? (
-            <p className="p-4 text-[12px] text-brand-500">Google Analytics returned no landing pages for this period.</p>
-          ) : (
-            <Table minWidth={360}>
-              <thead>
-                <tr>
-                  <Th>Page</Th>
-                  <Th align="right">Sessions</Th>
-                  <Th align="right">Engagement</Th>
-                  <Th align="right">Conv.</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {pages.slice(0, 10).map((p) => (
-                  <Tr key={p.page}>
-                    <Td><span className="block max-w-[200px] truncate font-mono text-[11.5px] text-brand-950" title={p.page}>{pathOf(p.page)}</span></Td>
-                    <Td align="right">{count(p.sessions)}</Td>
-                    <Td align="right">{percent(p.engagementRate)}</Td>
-                    <Td align="right">{p.keyEvents == null ? DASH : count(p.keyEvents)}</Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-          <p className="border-t px-4 py-2.5 text-[11px] text-brand-500">“—” means Google Analytics did not measure it, never a zero.</p>
-        </Panel>
-      </div>
+        )}
+        <p className="border-t px-4 py-2.5 text-[11px] text-brand-500">“—” means Google Analytics did not measure it, never a zero.</p>
+      </Panel>
 
       <MoreLinks group="analytics" />
     </div>

@@ -19,6 +19,7 @@ const ORGANIC_SEARCH = 'Organic Search';
 const TOP_PAGES = 25;
 const TOP_COUNTRIES = 10;
 const TOP_CITIES = 15;
+const TOP_SOURCES = 25;
 const ORGANIC_PAGES = 100;
 
 export interface Ga4Totals {
@@ -75,6 +76,20 @@ export interface Ga4ReportData {
   channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
+  /**
+   * Where visits came from, by source and medium ("google / organic",
+   * "instagram.com / referral"), with the channel group each belongs to.
+   * Absent from snapshots stored before sources were fetched; the next refresh adds it.
+   */
+  sources?: {
+    source: string;
+    medium: string;
+    channel: string;
+    sessions: number;
+    users: number;
+    engagementRate: number;
+    keyEvents: number | null;
+  }[];
   /** Absent from snapshots stored before cities were fetched; the next refresh adds it. */
   cities?: { city: string; country: string; sessions: number; users: number }[];
   /** Absent from snapshots stored before the Google section; the next refresh adds it. */
@@ -320,7 +335,7 @@ export class AnalyticsReportService {
       };
       const organicMetrics = organicMetricNames(keyEvents, revenue);
 
-      const [totalsResult, pageResult, channelResult, countryResult, cityResult, organicNow, organicBefore, organicPages] =
+      const [totalsResult, pageResult, channelResult, countryResult, cityResult, sourceResult, organicNow, organicBefore, organicPages] =
         await Promise.all([
         this.run(api, propertyId, {
           dimensions: [],
@@ -366,6 +381,16 @@ export class AnalyticsReportService {
           dateRange,
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
           limit: TOP_CITIES,
+        }),
+        // Where visits came from by name: the site, app or campaign behind each
+        // channel. The channel group is fetched with it so each source can be
+        // filed under Direct, Referral, Social and so on.
+        this.run(api, propertyId, {
+          dimensions: ['sessionSource', 'sessionMedium', 'sessionDefaultChannelGroup'],
+          metrics: ['sessions', 'activeUsers', 'engagementRate', ...(keyEvents ? ['keyEvents'] : [])],
+          dateRange,
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: TOP_SOURCES,
         }),
         // Organic Search only: this window, the equal window before it, and the
         // pages those visits landed on.
@@ -448,6 +473,15 @@ export class AnalyticsReportService {
             country: row.dimensions[0] || '(not set)',
             sessions: row.metrics[0],
             users: row.metrics[1],
+          })),
+          sources: sourceResult.rows.map((row) => ({
+            source: row.dimensions[0] || '(not set)',
+            medium: row.dimensions[1] || '(not set)',
+            channel: row.dimensions[2] || '(not set)',
+            sessions: row.metrics[0],
+            users: row.metrics[1],
+            engagementRate: row.metrics[2] ?? 0,
+            keyEvents: keyEvents ? (row.metrics[3] ?? 0) : null,
           })),
           cities: cityResult.rows.map((row) => ({
             city: row.dimensions[0] || '(not set)',

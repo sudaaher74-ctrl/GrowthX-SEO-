@@ -116,7 +116,12 @@ export class GoogleReportService {
               keyEvents: c.keyEvents ?? null,
             })),
           landingPages: [...data.landingPages].sort((a, b) => b.sessions - a.sessions).slice(0, TOP),
+          sources: [...(data.sources ?? [])]
+            .sort((a, b) => b.sessions - a.sessions)
+            .slice(0, 15)
+            .map((x) => ({ ...x, share: total > 0 ? x.sessions / total : 0 })),
           countries: [...data.countries].sort((a, b) => b.sessions - a.sessions).slice(0, 5).map((c) => ({ country: c.country, sessions: c.sessions })),
+          cities: [...(data.cities ?? [])].sort((a, b) => b.sessions - a.sessions).slice(0, 8).map((c) => ({ city: c.city, country: c.country, sessions: c.sessions })),
         }
       : null;
 

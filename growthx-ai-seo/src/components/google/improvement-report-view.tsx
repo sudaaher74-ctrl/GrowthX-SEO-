@@ -114,6 +114,8 @@ export function ImprovementReportView() {
             <WhereWeAre title="Analytics 4" source="GA4" side={a.whereWeAre.analytics} href="/google/analytics" />
           </div>
 
+          {a.marketingStrategy && <MarketingStrategyPanels strategy={a.marketingStrategy} />}
+
           <Panel title={`What to do, in order (${a.priorities.length})`} subtitle="First item first: high impact and low effort come before the rest." padded>
             {a.priorities.length === 0 && <p className="text-[12px] text-brand-500">No actions returned.</p>}
             <ol className="space-y-3">
@@ -196,6 +198,63 @@ export function ImprovementReportView() {
         </Panel>
       )}
     </div>
+  );
+}
+
+const VERDICT: Record<"grow" | "fix" | "start" | "maintain", { label: string; tone: "good" | "bad" | "warn" | "default" }> = {
+  grow: { label: "Grow", tone: "good" },
+  fix: { label: "Fix", tone: "bad" },
+  start: { label: "Start", tone: "warn" },
+  maintain: { label: "Keep going", tone: "default" },
+};
+
+type Strategy = NonNullable<NonNullable<GoogleReport["analysis"]>["marketingStrategy"]>;
+
+/** Where the traffic comes from, and the marketing plan that follows from it, channel by channel. */
+function MarketingStrategyPanels({ strategy: m }: { strategy: Strategy }) {
+  if (!m.summary && m.channels.length === 0 && m.whereTrafficComesFrom.length === 0) return null;
+  return (
+    <>
+      <Panel title="Where your traffic comes from" subtitle="Measured by Google Analytics 4, read by Sarvam" padded>
+        {m.summary && <p className="text-[13px] leading-relaxed text-brand-950">{m.summary}</p>}
+        {m.whereTrafficComesFrom.length > 0 && (
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[12px] text-brand-600">
+            {m.whereTrafficComesFrom.map((w) => <li key={w}>{w}</li>)}
+          </ul>
+        )}
+        {m.audience.length > 0 && (
+          <>
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-brand-400">Who and where</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12px] text-brand-600">
+              {m.audience.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          </>
+        )}
+      </Panel>
+
+      {m.channels.length > 0 && (
+        <Panel title={`Marketing strategy by channel (${m.channels.length})`} subtitle="What to do with each place your visitors come from, or should come from" padded>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {m.channels.map((c) => (
+              <div key={c.channel} className="rounded-xl border p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[13px] font-semibold text-brand-950">{c.channel}</p>
+                  <Pill tone={VERDICT[c.verdict].tone}>{VERDICT[c.verdict].label}</Pill>
+                  <span className="ml-auto font-mono text-[11px] text-brand-400">{c.share}</span>
+                </div>
+                {c.whatWeSee && <p className="mt-2 text-[12px] text-brand-600"><span className="font-semibold text-brand-950">What we see: </span>{c.whatWeSee}</p>}
+                {c.strategy && <p className="mt-1 text-[12px] text-brand-600"><span className="font-semibold text-brand-950">Strategy: </span>{c.strategy}</p>}
+                {c.actions.length > 0 && (
+                  <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-[12px] text-brand-950">
+                    {c.actions.map((x, n) => <li key={n}>{x}</li>)}
+                  </ol>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }
 

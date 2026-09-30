@@ -65,7 +65,10 @@ export interface GoogleReportFacts {
     keyEvents: number | null;
     channels: Array<{ channel: string; sessions: number; share: number; engagementRate: number | null; keyEvents: number | null }>;
     landingPages: Array<{ page: string; sessions: number; engagementRate: number; keyEvents: number | null }>;
+    /** The named sites, apps and campaigns behind the channels. Empty until the property is refreshed after sources were added. */
+    sources: Array<{ source: string; medium: string; channel: string; sessions: number; share: number; engagementRate: number; keyEvents: number | null }>;
     countries: Array<{ country: string; sessions: number }>;
+    cities: Array<{ city: string; country: string; sessions: number }>;
   };
   /** What could not be read, and why, so the report does not guess at it. */
   notMeasured: string[];
@@ -85,6 +88,28 @@ export interface PriorityItem {
   measureBy: string;
 }
 
+export type ChannelVerdict = 'grow' | 'fix' | 'start' | 'maintain';
+
+/** What to do with one traffic channel. */
+export interface ChannelStrategy {
+  channel: string;
+  verdict: ChannelVerdict;
+  /** Its share of sessions today, as measured, or "not measured". */
+  share: string;
+  whatWeSee: string;
+  strategy: string;
+  actions: string[];
+}
+
+export interface MarketingStrategy {
+  summary: string;
+  /** Plain findings on where the traffic comes from, with the numbers. */
+  whereTrafficComesFrom: string[];
+  channels: ChannelStrategy[];
+  /** Who the visitors are and where, and what to do about it. */
+  audience: string[];
+}
+
 export interface GoogleReportAnalysis {
   executiveSummary: string;
   whereWeAre: {
@@ -94,6 +119,8 @@ export interface GoogleReportAnalysis {
   /** What to do first, in order. */
   priorities: PriorityItem[];
   quickWins: string[];
+  /** Absent on reports written before the marketing strategy was added. */
+  marketingStrategy?: MarketingStrategy;
   plan: Array<{ week: string; actions: string[] }>;
   dataGaps: string[];
 }
@@ -121,6 +148,10 @@ const platform = (v: unknown): Platform => {
   if (p === 'GSC' || p === 'SEARCHCONSOLE') return 'GSC';
   if (p === 'GA4' || p === 'GA' || p === 'ANALYTICS' || p === 'GOOGLEANALYTICS') return 'GA4';
   return 'BOTH';
+};
+const verdict = (v: unknown): ChannelVerdict => {
+  const x = str(v).toLowerCase();
+  return x === 'grow' || x === 'fix' || x === 'start' || x === 'maintain' ? x : 'maintain';
 };
 const side = (v: any) => ({ verdict: str(v?.verdict), points: strList(v?.points) });
 
@@ -159,6 +190,21 @@ export function normaliseAnalysis(raw: unknown): GoogleReportAnalysis {
     whereWeAre: { searchConsole: side(r.whereWeAre?.searchConsole), analytics: side(r.whereWeAre?.analytics) },
     priorities,
     quickWins: strList(r.quickWins),
+    marketingStrategy: {
+      summary: str(r.marketingStrategy?.summary),
+      whereTrafficComesFrom: strList(r.marketingStrategy?.whereTrafficComesFrom),
+      channels: list(r.marketingStrategy?.channels)
+        .map((c): ChannelStrategy => ({
+          channel: str(c?.channel),
+          verdict: verdict(c?.verdict),
+          share: str(c?.share, 'not measured'),
+          whatWeSee: str(c?.whatWeSee),
+          strategy: str(c?.strategy),
+          actions: strList(c?.actions),
+        }))
+        .filter((c) => c.channel),
+      audience: strList(r.marketingStrategy?.audience),
+    },
     plan: list(r.plan).map((w, i) => ({ week: str(w?.week, `Week ${i + 1}`), actions: strList(w?.actions) })),
     dataGaps: strList(r.dataGaps),
   };
@@ -196,7 +242,10 @@ export function buildPrompt(f: GoogleReportFacts): string {
 ${t.channels.map((c) => `    - ${c.channel}: ${n(c.sessions)} sessions (${pct(c.share)}), engagement ${pct(c.engagementRate)}, key events ${n(c.keyEvents)}`).join('\n') || '    none'}
   top landing pages:
 ${t.landingPages.map((p) => `    - ${p.page}: ${n(p.sessions)} sessions, engagement ${pct(p.engagementRate)}, key events ${n(p.keyEvents)}`).join('\n') || '    none'}
-  top countries: ${t.countries.map((c) => `${c.country} ${n(c.sessions)}`).join(', ') || 'none'}`
+  where visits came from, by source / medium (channel):
+${t.sources.map((x) => `    - ${x.source} / ${x.medium} (${x.channel}): ${n(x.sessions)} sessions (${pct(x.share)}), engagement ${pct(x.engagementRate)}, key events ${n(x.keyEvents)}`).join('\n') || '    not available yet (the Analytics data needs a refresh to add sources)'}
+  top countries: ${t.countries.map((c) => `${c.country} ${n(c.sessions)}`).join(', ') || 'none'}
+  top cities: ${t.cities.map((c) => `${c.city}, ${c.country} ${n(c.sessions)}`).join('; ') || 'not available yet'}`
     : '  no Analytics data';
 
   const idx = f.index
@@ -255,6 +304,21 @@ Return JSON exactly in this shape:
     }
   ],
   "quickWins": ["things that take under an hour, with the exact page or query"],
+  "marketingStrategy": {
+    "summary": "3-5 sentences: where the visitors come from today, which source is carrying the site, which is missing, and the marketing approach that follows",
+    "whereTrafficComesFrom": ["plain findings with numbers, e.g. share of sessions by channel, the named sources (sites, apps, campaigns) behind them, and how well each engages"],
+    "channels": [
+      {
+        "channel": "Organic Search | Direct | Referral | Organic Social | Paid Search | Paid Social | Email | ... (only channels in the data, plus any important channel that has no traffic yet)",
+        "verdict": "grow | fix | start | maintain",
+        "share": "its share of sessions from the data, or 'not measured'",
+        "whatWeSee": "what the data shows for it, with numbers and named sources",
+        "strategy": "the marketing approach for this channel in 2-3 sentences",
+        "actions": ["concrete action 1", "concrete action 2", "concrete action 3"]
+      }
+    ],
+    "audience": ["where visitors are (countries, cities) and what to do about it, e.g. which locations to target"]
+  },
   "plan": [ { "week": "Week 1", "actions": ["..."] } ],
   "dataGaps": ["what could not be measured and what would measure it"]
 }
@@ -263,6 +327,8 @@ Rules:
 - Order "priorities" as the order to do them: high impact and low effort first. Give 5 to 8. Every one names its platform and cites figures from the data above.
 - Cover both platforms. If a platform has no data, say so in whereWeAre and put connecting or fixing it first.
 - Name the actual queries and page URLs to work on. Give 3 to 5 concrete steps each.
+- marketingStrategy is a marketing plan built from where the traffic comes from. Use "grow" for a channel that works and deserves more, "fix" for one that brings visits that do not engage or convert, "start" for a channel with no traffic that suits this business, and "maintain" otherwise. Cover every channel that has traffic, and name the actual sources (for example a referring site or a social app) from the data. Do not recommend spending a budget figure; say where effort or spend should go, in what order.
+- If sources are not available yet, work from the channels and say in dataGaps that refreshing Analytics adds the named sources.
 - The plan is 4 weeks, highest impact first.
 - Use only the data above. Never invent rankings, traffic, revenue, benchmarks or numbers. If something is "not measured", say it is not measured instead of guessing.
 - Small numbers are small: with only a handful of clicks, say the sample is too small to trust and prefer actions that build visibility over actions that tune it.`;
