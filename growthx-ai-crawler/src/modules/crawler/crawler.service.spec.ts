@@ -356,7 +356,7 @@ describe('CrawlerService', () => {
     it('stores each profile the page links to, against the site being crawled', async () => {
       const { service, upsert } = serviceWithSocialStore();
 
-      await (service as any).recordSocialLinks(
+      await (service as any).recorder.recordSocialLinks(
         'job1',
         linksTo('https://www.instagram.com/clientco/', 'https://www.youtube.com/@clientco'),
       );
@@ -378,7 +378,7 @@ describe('CrawlerService', () => {
     it('writes nothing for a page whose outbound links are not social', async () => {
       const { service, upsert } = serviceWithSocialStore();
 
-      await (service as any).recordSocialLinks('job1', linksTo('https://partner.com/', 'https://news.site/a'));
+      await (service as any).recorder.recordSocialLinks('job1', linksTo('https://partner.com/', 'https://news.site/a'));
 
       expect(upsert).not.toHaveBeenCalled();
     });
@@ -388,7 +388,7 @@ describe('CrawlerService', () => {
       const service = makeService({ prisma: { siteSocialLink: { upsert } } });
 
       await expect(
-        (service as any).recordSocialLinks('job1', linksTo('https://www.instagram.com/clientco/')),
+        (service as any).recorder.recordSocialLinks('job1', linksTo('https://www.instagram.com/clientco/')),
       ).resolves.toBeUndefined();
     });
   });
