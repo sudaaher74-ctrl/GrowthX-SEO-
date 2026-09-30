@@ -22,12 +22,12 @@ import { useProgrammaticMatrix } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { buildGapItems, buildGapPlan, type GapItem, type GapKind } from "@/lib/gaps-plain";
 import { stagingEngine } from "@/lib/staging-engine";
+import { cn } from "@/lib/utils";
 
 interface SectionTheme {
   icon: typeof FileText;
   badge: string;
   badgeClass: string;
-  headerBg: string;
   accentBar: string;
 }
 
@@ -35,43 +35,37 @@ const SECTION_THEMES: Record<GapKind, SectionTheme> = {
   topic: {
     icon: FileText,
     badge: "Missing Pages",
-    badgeClass: "bg-error-50 text-error-700 border-error-200",
-    headerBg: "from-error-50/40 via-white to-surface-1",
+    badgeClass: "bg-error-50 text-error-700 border-error-200/50",
     accentBar: "bg-error-500",
   },
   pageType: {
     icon: LayoutGrid,
     badge: "Page Architecture",
-    badgeClass: "bg-accent-50 text-accent-700 border-accent-200",
-    headerBg: "from-accent-50/40 via-white to-surface-1",
-    accentBar: "bg-accent-500",
+    badgeClass: "bg-brand-100 text-brand-700 border-brand-200/50",
+    accentBar: "bg-brand-400",
   },
   series: {
     icon: Layers,
     badge: "Programmatic Sets",
     badgeClass: "bg-series-6/10 text-series-6 border-series-6/20",
-    headerBg: "from-brand-50 via-white to-surface-1",
     accentBar: "bg-series-6",
   },
   question: {
     icon: HelpCircle,
     badge: "AI & Search Answers",
-    badgeClass: "bg-warning-50 text-warning-700 border-warning-200",
-    headerBg: "from-warning-50/40 via-white to-surface-1",
-    accentBar: "bg-warning-500",
+    badgeClass: "bg-signal-400/15 text-signal-400 border-signal-400/30",
+    accentBar: "bg-signal-400",
   },
   schema: {
     icon: Code2,
     badge: "Rich SERP Snippets",
-    badgeClass: "bg-success-50 text-success-700 border-success-200",
-    headerBg: "from-success-50/40 via-white to-surface-1",
+    badgeClass: "bg-success-50 text-success-700 border-success-200/50",
     accentBar: "bg-success-500",
   },
   depth: {
     icon: BookOpen,
     badge: "Content Depth",
     badgeClass: "bg-series-2/10 text-series-2 border-series-2/20",
-    headerBg: "from-accent-50/30 via-white to-surface-1",
     accentBar: "bg-series-2",
   },
 };
@@ -128,55 +122,31 @@ function GapMetricCard({
   icon: typeof FileText;
   variant: "error" | "accent" | "warning" | "success";
 }) {
-  const styles = {
-    error: {
-      border: "border-error-200/80 hover:border-error-300",
-      topBar: "bg-error-500",
-      iconBg: "bg-error-50 text-error-600 border-error-200",
-      numColor: "text-error-600",
-      tagClass: "bg-error-50 text-error-700 border-error-200",
-    },
-    accent: {
-      border: "border-accent-200/80 hover:border-accent-300",
-      topBar: "bg-accent-500",
-      iconBg: "bg-accent-50 text-accent-600 border-accent-200",
-      numColor: "text-accent-700",
-      tagClass: "bg-accent-50 text-accent-700 border-accent-200",
-    },
-    warning: {
-      border: "border-warning-200/80 hover:border-warning-300",
-      topBar: "bg-warning-500",
-      iconBg: "bg-warning-50 text-warning-700 border-warning-200",
-      numColor: "text-warning-700",
-      tagClass: "bg-warning-50 text-warning-700 border-warning-200",
-    },
-    success: {
-      border: "border-success-200/80 hover:border-success-300",
-      topBar: "bg-success-500",
-      iconBg: "bg-success-50 text-success-700 border-success-200",
-      numColor: "text-success-700",
-      tagClass: "bg-success-50 text-success-700 border-success-200",
-    },
+  const badgeStyle = {
+    error: "bg-error-50 text-error-700 border-error-200/50",
+    accent: "bg-brand-100 text-brand-700 border-brand-200/60",
+    warning: "bg-signal-400/15 text-signal-400 border-signal-400/30",
+    success: "bg-success-50 text-success-700 border-success-200/50",
   }[variant];
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border bg-white p-4 shadow-2xs transition-all hover:shadow-xs ${styles.border}`}
+      className="relative overflow-hidden rounded-xl border bg-surface-1 p-4 shadow-card hover:border-brand-300/50 transition-all"
+      style={{ borderColor: "var(--border-color)" }}
     >
-      <div className={`absolute top-0 inset-x-0 h-1 ${styles.topBar}`} />
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-brand-500">{label}</p>
-        <div className={`flex h-7 w-7 items-center justify-center rounded-lg border ${styles.iconBg}`}>
-          <Icon size={14} />
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-400">{label}</p>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-brand-200/50 bg-brand-100 text-brand-400">
+          <Icon size={13.5} />
         </div>
       </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className={`text-2xl font-bold tracking-tight ${styles.numColor}`}>{value}</span>
-        <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${styles.tagClass}`}>
+      <div className="mt-2.5 flex items-baseline gap-2">
+        <span className="text-2xl font-extrabold font-mono text-brand-950 tracking-tight">{value}</span>
+        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[9.5px] font-mono font-bold", badgeStyle)}>
           {tag}
         </span>
       </div>
-      <p className="mt-1 text-[11.5px] text-brand-500">{sub}</p>
+      <p className="mt-1 text-[11px] text-brand-400 truncate">{sub}</p>
     </div>
   );
 }
@@ -184,8 +154,8 @@ function GapMetricCard({
 /**
  * What competitors have that you don't, in plain words.
  *
- * Shows actionable gap categories with vivid visual hierarchy, color-coded
- * status tags, and distinctive primary action buttons for generating plans.
+ * Shows actionable gap categories with unified dark console design,
+ * crisp status tags, and distinctive lime primary action buttons for generating plans.
  */
 export function GapsTab({
   projectId,
@@ -223,60 +193,72 @@ export function GapsTab({
   return (
     <div className="space-y-4">
       {/* ── TOP BRIEFING & STRATEGY BOX ── */}
-      <div className="rounded-2xl border border-accent-200/80 bg-gradient-to-br from-accent-50/50 via-white to-surface-1 p-5 shadow-xs">
+      <div
+        className="rounded-2xl border bg-surface-1 p-5 shadow-card"
+        style={{ borderColor: "var(--border-color)" }}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-xs">
-              <Compass size={20} />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold shadow-xs">
+              <Compass size={18} />
             </div>
             <div>
-              <h1 className="text-[17px] font-bold text-brand-950 tracking-[-0.01em]">
+              <h1 className="text-[16px] font-bold text-brand-950 tracking-[-0.01em]">
                 What your competitors have that you don&apos;t
               </h1>
-              <p className="mt-0.5 text-[12.5px] text-brand-600">
+              <p className="mt-0.5 text-[12px] text-brand-400">
                 We read every page of your website and your competitors&apos; websites. Below is everything they offer that your website doesn&apos;t have yet.
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-1.5 self-start sm:self-center px-3 py-1 rounded-full text-xs font-bold bg-accent-100 text-accent-700 border border-accent-200 shrink-0">
-            <Sparkles size={12} className="text-accent-600" />
+          <div className="inline-flex items-center gap-1.5 self-start sm:self-center px-3 py-1 rounded-full text-[11px] font-mono font-semibold bg-signal-400/15 text-signal-400 border border-signal-400/30 shrink-0">
+            <Sparkles size={11} className="text-signal-400" />
             <span>AI Competitive Intelligence</span>
           </div>
         </div>
 
         {/* 3 Step Walkthrough */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="flex items-start gap-3 rounded-xl border border-accent-200/80 bg-white/95 p-3.5 shadow-2xs transition-all hover:border-accent-300">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-600 text-[11px] font-bold text-white shadow-xs">
+          <div
+            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
               1
             </span>
             <div>
-              <p className="text-[12px] font-bold text-accent-700">1. Review Opportunities</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-600 leading-snug">
+              <p className="text-[12px] font-bold text-brand-950">1. Review Opportunities</p>
+              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
                 Look through the list. Highest-impact gaps are ranked at the top of each category.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-xl border border-warning-200/80 bg-white/95 p-3.5 shadow-2xs transition-all hover:border-warning-300">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning-600 text-[11px] font-bold text-white shadow-xs">
+          <div
+            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
               2
             </span>
             <div>
-              <p className="text-[12px] font-bold text-warning-700">2. Generate Action Plan</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-600 leading-snug">
-                Click <span className="font-semibold text-accent-700">&quot;Get a plan&quot;</span> on anything you want to target. You get ready-to-use prompts and structure.
+              <p className="text-[12px] font-bold text-brand-950">2. Generate Action Plan</p>
+              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
+                Click <span className="font-semibold text-signal-400">&quot;Get a plan&quot;</span> on anything you want to target. You get ready-to-use prompts and structure.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 rounded-xl border border-success-200/80 bg-white/95 p-3.5 shadow-2xs transition-all hover:border-success-300">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success-600 text-[11px] font-bold text-white shadow-xs">
+          <div
+            className="flex items-start gap-3 rounded-xl border bg-brand-50/50 p-3.5 transition-colors hover:border-brand-300/40"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-200 font-mono text-[10px] font-bold text-brand-950">
               3
             </span>
             <div>
-              <p className="text-[12px] font-bold text-success-700">3. Outrank &amp; Capture Traffic</p>
-              <p className="mt-0.5 text-[11.5px] text-brand-600 leading-snug">
+              <p className="text-[12px] font-bold text-brand-950">3. Outrank &amp; Capture Traffic</p>
+              <p className="mt-0.5 text-[11.5px] text-brand-400 leading-snug">
                 Publish the content or send the plan straight to your web team to claim the search traffic.
               </p>
             </div>
@@ -285,9 +267,12 @@ export function GapsTab({
 
         {/* Competitor Filter Bar */}
         {competitors.length > 1 && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-accent-200/60 pt-3">
-            <span className="flex items-center gap-1 text-[11.5px] font-bold uppercase tracking-wider text-brand-500">
-              <SlidersHorizontal size={12} className="text-accent-600" />
+          <div
+            className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-brand-400">
+              <SlidersHorizontal size={12} className="text-brand-400" />
               Filter by Rival:
             </span>
             {[{ domain: "all", name: "All competitors" }, ...rivals].map((r) => {
@@ -298,16 +283,18 @@ export function GapsTab({
                   type="button"
                   onClick={() => setRivalFilter(r.domain)}
                   aria-pressed={isSelected}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-all ${
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all",
                     isSelected
-                      ? "border-primary-600 bg-primary-600 text-white shadow-xs scale-[1.02]"
-                      : "border-line bg-white text-brand-700 hover:border-accent-300 hover:bg-accent-50/40 hover:text-accent-700"
-                  }`}
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs scale-[1.02]"
+                      : "border bg-surface-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100/50",
+                  )}
+                  style={{ borderColor: isSelected ? undefined : "var(--border-color)" }}
                 >
                   {r.domain === "all" ? (
-                    <Layers size={11} className={isSelected ? "text-white" : "text-brand-400"} />
+                    <Layers size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
                   ) : (
-                    <Building2 size={11} className={isSelected ? "text-white" : "text-brand-400"} />
+                    <Building2 size={11} className={isSelected ? "text-signal-ink" : "text-brand-400"} />
                   )}
                   {r.name}
                 </button>
@@ -318,20 +305,27 @@ export function GapsTab({
       </div>
 
       {facts.isLoading ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-accent-200/70 bg-accent-50/30 p-8 shadow-xs">
-          <Loader2 size={24} className="animate-spin text-accent-600" />
+        <div
+          className="flex flex-col items-center justify-center gap-3 rounded-2xl border bg-surface-1 p-8 shadow-card"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <Loader2 size={24} className="animate-spin text-signal-400" />
           <p className="text-[13px] font-semibold text-brand-700">Comparing your website with your competitors…</p>
         </div>
       ) : facts.error ? (
-        <div className="rounded-2xl border border-error-200 bg-error-50/50 p-6 text-center shadow-xs">
+        <div
+          className="rounded-2xl border border-error-200 bg-error-50/50 p-6 text-center shadow-card"
+        >
           <p className="text-[13px] font-semibold text-error-700">
             Couldn&apos;t load the comparison: {(facts.error as Error).message}
           </p>
         </div>
       ) : !facts.data?.you?.crawledAt ? (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50/50 p-6 text-center shadow-xs">
+        <div
+          className="rounded-2xl border border-warning-200 bg-warning-50/50 p-6 text-center shadow-card"
+        >
           <p className="text-[13px] text-brand-700">
-            We haven&apos;t read your website yet. Click <span className="font-bold text-accent-700">Run audit</span> at the top, then come back here.
+            We haven&apos;t read your website yet. Click <span className="font-bold text-signal-400">Run audit</span> at the top, then come back here.
           </p>
         </div>
       ) : (
@@ -373,8 +367,11 @@ export function GapsTab({
           </div>
 
           {waiting.length > 0 && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-accent-200/80 bg-accent-50/50 p-3.5 text-[12px] text-accent-700 shadow-2xs">
-              <Loader2 size={14} className="animate-spin text-accent-600 shrink-0" />
+            <div
+              className="flex items-center gap-2.5 rounded-xl border bg-brand-50/50 p-3.5 text-[12px] text-brand-700 shadow-2xs"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <Loader2 size={14} className="animate-spin text-signal-400 shrink-0" />
               <span>
                 Still reading {waiting.join(", ")}&apos;s website. Their gaps will appear here once that finishes.
               </span>
@@ -382,7 +379,9 @@ export function GapsTab({
           )}
 
           {shown.length === 0 && waiting.length === 0 && (
-            <div className="rounded-2xl border border-success-200 bg-success-50/40 p-8 text-center shadow-xs">
+            <div
+              className="rounded-2xl border border-success-200 bg-success-50/40 p-8 text-center shadow-card"
+            >
               <p className="text-[13px] font-semibold text-success-700">
                 Good news: we found nothing your competitors have that you don&apos;t.
               </p>
@@ -401,32 +400,36 @@ export function GapsTab({
             return (
               <div
                 key={section.kind}
-                className="overflow-hidden rounded-2xl border border-line bg-white shadow-2xs transition-all"
+                className="overflow-hidden rounded-2xl border bg-surface-1 shadow-card transition-all"
+                style={{ borderColor: "var(--border-color)" }}
               >
-                {/* Section Header with dynamic color tint */}
-                <div className={`flex flex-col gap-2 border-b border-line bg-gradient-to-r ${theme.headerBg} p-4 sm:flex-row sm:items-center sm:justify-between`}>
+                {/* Section Header */}
+                <div
+                  className="flex flex-col gap-2 border-b bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${theme.badgeClass} shadow-2xs`}>
-                      <Icon size={17} />
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border shadow-2xs", theme.badgeClass)}>
+                      <Icon size={15} />
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-[14px] font-bold text-brand-950">{section.title}</h2>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${theme.badgeClass}`}>
+                        <span className="inline-flex items-center rounded-full bg-brand-100 border border-brand-200/50 px-2 py-0.2 font-mono text-[10.5px] font-bold text-brand-950">
                           {list.length}
                         </span>
-                        <span className={`hidden sm:inline-flex items-center rounded-md border px-2 py-0.5 text-[10.5px] font-semibold ${theme.badgeClass}`}>
+                        <span className={cn("hidden sm:inline-flex items-center rounded-md border px-2 py-0.2 font-mono text-[10px] font-semibold", theme.badgeClass)}>
                           {theme.badge}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[12px] text-brand-500">{section.explain}</p>
+                      <p className="mt-0.5 text-[11.5px] text-brand-400">{section.explain}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Gap List */}
                 <div className="p-4">
-                  <ul className="space-y-2.5">
+                  <ul className="space-y-2">
                     {visible.map((item) => (
                       <GapRow
                         key={item.id}
@@ -448,7 +451,8 @@ export function GapsTab({
                           return next;
                         })
                       }
-                      className="mt-3.5 inline-flex items-center gap-1.5 rounded-lg border border-accent-200 bg-accent-50/60 px-3.5 py-1.5 text-[12px] font-bold text-accent-700 hover:bg-accent-100 transition-colors shadow-2xs"
+                      className="mt-3.5 inline-flex items-center gap-1.5 rounded-lg border bg-surface-1 px-3.5 py-1.5 text-[12px] font-bold text-brand-700 hover:text-brand-950 hover:bg-brand-100 transition-colors shadow-2xs"
+                      style={{ borderColor: "var(--border-color)" }}
                     >
                       {open ? "Show fewer" : `Show all ${list.length} opportunities`}
                     </button>
@@ -500,21 +504,24 @@ function GapRow({
 }) {
   const href = item.example ? safeUrl(item.example.url) : undefined;
   return (
-    <li className="group relative flex flex-col justify-between gap-3 overflow-hidden rounded-xl border border-line bg-white p-3.5 pl-4 shadow-2xs transition-all hover:border-accent-300 hover:bg-accent-50/15 hover:shadow-xs md:flex-row md:items-center">
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${accentBarClass}`} />
+    <li
+      className="group relative flex flex-col justify-between gap-3 overflow-hidden rounded-xl border bg-brand-50/30 p-3.5 pl-4 shadow-2xs transition-all hover:border-brand-300/50 hover:bg-brand-50/60 md:flex-row md:items-center"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <div className={cn("absolute left-0 top-0 bottom-0 w-1", accentBarClass)} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[13px] font-bold text-brand-950 leading-snug group-hover:text-accent-700 transition-colors">
+          <p className="text-[13px] font-bold text-brand-950 leading-snug group-hover:text-signal-400 transition-colors">
             {item.headline}
           </p>
           {showRival && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-800">
-              <Globe size={11} className="text-brand-500" />
+            <span className="inline-flex items-center gap-1 rounded-md border border-brand-200/50 bg-brand-100 px-2 py-0.5 text-[10.5px] font-mono font-medium text-brand-400">
+              <Globe size={11} className="text-brand-400" />
               {item.rival}
             </span>
           )}
         </div>
-        <p className="mt-1 text-[12px] text-brand-600 leading-relaxed">{item.why}</p>
+        <p className="mt-1 text-[11.5px] text-brand-400 leading-relaxed">{item.why}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5 pt-1 md:pt-0">
         {href && (
@@ -522,18 +529,19 @@ function GapRow({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-lg border border-accent-200/70 bg-accent-50/50 px-2.5 py-1.5 text-[11.5px] font-semibold text-accent-700 hover:bg-accent-100 transition-colors"
+            className="inline-flex items-center gap-1 rounded-lg border bg-surface-1 px-2.5 py-1.5 text-[11px] font-mono text-brand-400 hover:text-signal-400 transition-colors"
+            style={{ borderColor: "var(--border-color)" }}
           >
             <span>{item.example!.label}</span>
-            <ExternalLink size={11} />
+            <ExternalLink size={10} />
           </a>
         )}
         <button
           type="button"
           onClick={onPlan}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-xs transition-all hover:bg-primary-700 active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-all hover:bg-signal-500 active:scale-[0.98]"
         >
-          <Sparkles size={13} className="text-accent-200" />
+          <Sparkles size={12} className="text-signal-ink" />
           <span>Get a plan</span>
         </button>
       </div>

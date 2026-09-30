@@ -94,40 +94,47 @@ function CrawlStatusStrip({
   if (crawling.length === 0) return null;
 
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-card">
+    <div
+      className="rounded-xl border bg-surface-1 p-4 shadow-card"
+      style={{ borderColor: "var(--border-color)" }}
+    >
       <div className="mb-3 flex items-center gap-2">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary-600" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal-400" />
         </span>
-        <Radar size={14} className="text-primary-600" />
+        <Radar size={14} className="text-signal-400" />
         <span className="text-[12px] font-semibold text-brand-950">
           Reading {crawling.length} competitor website{crawling.length > 1 ? "s" : ""}. This usually takes a few minutes.
         </span>
-        <Loader2 size={13} className="ml-auto animate-spin text-primary-600" />
+        <Loader2 size={13} className="ml-auto animate-spin text-signal-400" />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {crawling.map((c) => (
-          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border bg-white px-3 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-[10px] font-bold text-primary-700">
+          <div
+            key={c.id}
+            className="flex items-center gap-2.5 rounded-xl border bg-surface-2 px-3 py-2"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-[10px] font-bold text-brand-950">
               {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-brand-500">
+              <p className="text-[10.5px] text-brand-400">
                 {c.crawlStatus === "PENDING" ? "Waiting to start…" : "Reading their pages…"}
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin text-primary-600" />
+              <Loader2 size={11} className="animate-spin text-signal-400" />
               <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
             </div>
           </div>
         ))}
 
         {done.map((c) => (
-          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-success-200 bg-success-50 px-3 py-2">
+          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-success-200/50 bg-success-50/50 px-3 py-2">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-success-100 text-success-600">
               <CheckCircle2 size={14} />
             </div>
@@ -174,7 +181,7 @@ const DEFAULT_TAB = "battleground";
 
 export default function CompetitorIntelligencePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading Competitor Intelligence...</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-brand-400">Loading Competitor Intelligence...</div>}>
       <CompetitorIntelligenceClient />
     </Suspense>
   );
@@ -415,22 +422,28 @@ function CompetitorIntelligenceClient() {
 
       {/* ── ADD COMPETITOR MODAL ── */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div
+            className="w-full max-w-md rounded-2xl border bg-surface-1 p-6 shadow-2xl space-y-4"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div
+              className="flex items-center justify-between pb-3 border-b"
+              style={{ borderColor: "var(--border-color)" }}
+            >
               <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
+                <div className="h-9 w-9 rounded-xl bg-brand-100 flex items-center justify-center text-brand-950 font-bold">
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Add Tracked Competitor</h3>
-                  <p className="text-[11px] text-slate-500">Initiate automated crawl and cross-signal gap audit</p>
+                  <h3 className="text-base font-bold text-brand-950">Add Tracked Competitor</h3>
+                  <p className="text-[11px] text-brand-400">Initiate automated crawl and cross-signal gap audit</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-brand-400 hover:text-brand-950 p-1 rounded-lg"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -438,7 +451,7 @@ function CompetitorIntelligenceClient() {
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-brand-950 mb-1">
                   Competitor Domain *
                 </label>
                 <input
@@ -447,12 +460,13 @@ function CompetitorIntelligenceClient() {
                   placeholder="e.g. competitor.com"
                   value={competitorDomain}
                   onChange={(e) => setCompetitorDomain(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
+                  style={{ borderColor: "var(--border-color)" }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-brand-950 mb-1">
                   Brand / Company Name (Optional)
                 </label>
                 <input
@@ -460,12 +474,13 @@ function CompetitorIntelligenceClient() {
                   placeholder="e.g. Acme Corp"
                   value={competitorName}
                   onChange={(e) => setCompetitorName(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-950"
+                  className="w-full px-3.5 py-2 text-xs rounded-xl border bg-surface-2 text-brand-950 focus:outline-none focus:ring-2 focus:ring-signal-400/20 focus:border-signal-400"
+                  style={{ borderColor: "var(--border-color)" }}
                 />
               </div>
 
               {formError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                <div className="p-3 rounded-xl bg-error-50 border border-error-200 text-error-700 text-xs font-medium">
                   {formError}
                 </div>
               )}
@@ -474,14 +489,15 @@ function CompetitorIntelligenceClient() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border bg-surface-2 text-brand-400 text-xs font-semibold hover:bg-brand-100 hover:text-brand-950"
+                  style={{ borderColor: "var(--border-color)" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addCompetitorMutation.isPending}
-                  className="px-5 py-2 rounded-xl bg-primary-600 hover:bg-black text-white text-xs font-bold transition shadow-md shadow-slate-900/10 disabled:opacity-60"
+                  className="px-5 py-2 rounded-xl bg-signal-400 hover:bg-signal-500 text-signal-ink text-xs font-bold transition shadow-xs disabled:opacity-60"
                 >
                   {addCompetitorMutation.isPending ? "Starting Crawl..." : "Add & Start Crawl"}
                 </button>
@@ -493,11 +509,14 @@ function CompetitorIntelligenceClient() {
 
       {/* ── DELETE COMPETITOR CONFIRMATION ── */}
       {competitorToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Remove Competitor?</h3>
-            <p className="text-xs text-slate-600">
-              Stop tracking <strong>{competitorToDelete.name}</strong>? They&apos;ll be removed from every tab
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div
+            className="w-full max-w-sm rounded-2xl border bg-surface-1 p-6 shadow-2xl space-y-4"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <h3 className="text-base font-bold text-brand-950">Remove Competitor?</h3>
+            <p className="text-xs text-brand-400">
+              Stop tracking <strong className="text-brand-950">{competitorToDelete.name}</strong>? They&apos;ll be removed from every tab
               here. You can add them again later.
             </p>
             {deleteError && <StatusNote tone="bad">{deleteError}</StatusNote>}
@@ -505,7 +524,8 @@ function CompetitorIntelligenceClient() {
               <button
                 type="button"
                 onClick={() => setCompetitorToDelete(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50"
+                className="px-4 py-2 rounded-xl border bg-surface-2 text-brand-400 text-xs font-semibold hover:bg-brand-100 hover:text-brand-950"
+                style={{ borderColor: "var(--border-color)" }}
               >
                 Cancel
               </button>
@@ -513,7 +533,7 @@ function CompetitorIntelligenceClient() {
                 type="button"
                 onClick={() => removeCompetitorMutation.mutate(competitorToDelete.id)}
                 disabled={removeCompetitorMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-60"
+                className="px-4 py-2 rounded-xl bg-error-600 hover:bg-error-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-60"
               >
                 {removeCompetitorMutation.isPending ? "Removing..." : "Remove"}
               </button>

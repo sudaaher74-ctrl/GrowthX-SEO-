@@ -1,7 +1,6 @@
 {
   "app/(dashboard)/admin/page.tsx": 20,
   "app/(dashboard)/ai-visibility/page.tsx": 73,
-  "app/(dashboard)/competitor-intelligence/page.tsx": 30,
   "app/(dashboard)/error.tsx": 11,
   "app/(dashboard)/help/page.tsx": 9,
   "app/(dashboard)/integrations/page.tsx": 19,

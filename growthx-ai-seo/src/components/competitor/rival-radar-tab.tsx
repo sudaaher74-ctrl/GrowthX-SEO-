@@ -78,9 +78,14 @@ export function RivalRadarTab({
                     setRival(w.domain);
                     setKind("all");
                   }}
-                  className={`rounded-full border px-3 py-1 text-[12px] ${on ? "bg-primary-600 text-white" : "text-brand-700 hover:bg-brand-50"}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all ${
+                    on
+                      ? "bg-signal-400 text-signal-ink font-bold shadow-xs scale-[1.02]"
+                      : "border bg-surface-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100/50"
+                  }`}
+                  style={{ borderColor: on ? undefined : "var(--border-color)" }}
                 >
-                  {w.name} <span className={on ? "text-brand-300" : "text-brand-400"}>· {n}</span>
+                  {w.name} <span className={on ? "text-signal-ink/80" : "text-brand-400"}>· {n}</span>
                 </button>
               );
             })}
@@ -151,7 +156,12 @@ export function RivalRadarTab({
                     type="button"
                     onClick={() => setKind(k)}
                     aria-pressed={kind === k}
-                    className={`rounded-full border px-3 py-1 text-[12px] ${kind === k ? "bg-primary-600 text-white" : "text-brand-700 hover:bg-brand-50"}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-semibold transition-all ${
+                      kind === k
+                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs scale-[1.02]"
+                        : "border bg-surface-1 text-brand-400 hover:text-brand-950 hover:bg-brand-100/50"
+                    }`}
+                    style={{ borderColor: kind === k ? undefined : "var(--border-color)" }}
                   >
                     {k === "all" ? "All changes" : KIND_LABEL[k]}
                   </button>
@@ -160,7 +170,11 @@ export function RivalRadarTab({
             )}
             <ul className="space-y-2">
               {shown.map((item) => (
-                <li key={item.id} className="flex flex-col gap-2 rounded-xl border p-3 md:flex-row md:items-center">
+                <li
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-xl border bg-surface-1 p-3.5 shadow-2xs transition-all hover:border-brand-300/40 md:flex-row md:items-center"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Pill tone={KIND_TONE[item.kind]}>{KIND_LABEL[item.kind]}</Pill>
