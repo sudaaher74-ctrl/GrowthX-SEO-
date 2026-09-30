@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 // Loaded on demand. The TypeScript compiler is ~45MB of RSS the moment it is
 // required, and this service transpiles a customer's changed files to check
@@ -13,6 +14,41 @@ import type * as ts from 'typescript';
 import * as cheerio from 'cheerio';
 
 const execAsync = promisify(exec);
+
+/**
+ * Running a customer's install and `build` script executes code the customer
+ * (or anyone who can push to their repository) wrote. `--ignore-scripts` stops
+ * dependency lifecycle scripts, not the repository's own `build`. On the API
+ * host that code could read the process environment and everything the API can
+ * reach, so it is off unless the operator states the build runs somewhere
+ * isolated: no secrets, no route to the database or internal network.
+ */
+export function buildsEnabled(): boolean {
+  return process.env.AUTONOMOUS_ENGINEER_RUN_BUILDS === 'true';
+}
+
+/**
+ * The environment a customer build gets: a path to find tools, and nothing the
+ * API holds. Variables are listed, never inherited.
+ */
+export function sandboxEnv(home: string): NodeJS.ProcessEnv {
+  return {
+    PATH: process.env.PATH,
+    HOME: home,
+    TMPDIR: home,
+    CI: 'true',
+    NEXT_TELEMETRY_DISABLED: '1',
+    npm_config_ignore_scripts: 'true',
+  };
+}
+
+/**
+ * A build that fails because the runner lacks the customer's own configuration
+ * is not a fault in the patch. Matched on specific messages: the earlier test
+ * for words like "key" or "token" excused almost any failure.
+ */
+export const MISSING_CONFIGURATION =
+  /(?:missing|undefined|not set|required)[^\n]{0,60}(?:environment variable|env var|\benv\b)|\b(?:DATABASE_URL|DIRECT_URL)\b|ECONNREFUSED|getaddrinfo|P1001|PrismaClientInitializationError/i;
 
 export interface ValidationResult {
   success: boolean;
@@ -64,7 +100,14 @@ export class ValidationService {
       return { success: true, output: 'Syntax validation passed (no build script in package.json)' };
     }
 
-    // 3. Attempt sandbox build
+    // 3. Attempt sandbox build, only where the operator has isolated it
+    if (!buildsEnabled()) {
+      this.logger.log('Build validation is off (AUTONOMOUS_ENGINEER_RUN_BUILDS is not "true"); syntax verified only.');
+      return {
+        success: true,
+        output: 'Syntax validation passed. The build was not run here; the repository CI will build the change.',
+      };
+    }
     return this.attemptBuild(repoDir, packageManager, pkg, filesToCheck);
   }
 
@@ -206,10 +249,26 @@ export class ValidationService {
         break;
     }
 
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'growthx-build-'));
+    const env = sandboxEnv(home);
+    try {
+      return await this.runInstallAndBuild(repoDir, installCmd, buildCmd, env, filesToCheck);
+    } finally {
+      await fs.rm(home, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  private async runInstallAndBuild(
+    repoDir: string,
+    installCmd: string,
+    buildCmd: string,
+    env: NodeJS.ProcessEnv,
+    filesToCheck: string[],
+  ): Promise<ValidationResult> {
     // Step 1: Install dependencies
     try {
       this.logger.log(`Running dependency install: ${installCmd}...`);
-      await execAsync(installCmd, { cwd: repoDir, timeout: 120000 });
+      await execAsync(installCmd, { cwd: repoDir, timeout: 120000, env });
     } catch (installErr: any) {
       const summary = (installErr.stderr || installErr.message || '').slice(0, 300);
       this.logger.warn(`Dependency install failed in runner sandbox: ${summary}`);
@@ -224,7 +283,7 @@ export class ValidationService {
     // Step 2: Run build
     try {
       this.logger.log(`Running build: ${buildCmd}...`);
-      const { stdout } = await execAsync(buildCmd, { cwd: repoDir, timeout: 180000 });
+      const { stdout } = await execAsync(buildCmd, { cwd: repoDir, timeout: 180000, env });
       this.logger.log('Build validation successful.');
       return { success: true, output: stdout };
     } catch (buildErr: any) {
@@ -243,9 +302,7 @@ export class ValidationService {
 
       // Next.js and other frameworks often fail builds during static generation when
       // production database connections or required environment variables are absent.
-      const isEnvOrSecretsMissing = /env|database|prisma|connect|credential|key|secret|token|unauthorized|ECONNREFUSED|getaddrinfo/i.test(
-        errorText,
-      );
+      const isEnvOrSecretsMissing = MISSING_CONFIGURATION.test(errorText);
       if (isEnvOrSecretsMissing) {
         this.logger.log('Build failed due to missing environment variables/database in runner. Syntax is valid, proceeding with PR.');
         return {
