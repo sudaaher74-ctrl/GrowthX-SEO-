@@ -129,14 +129,14 @@ export function DonutChart({
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-1">
           <span
             className={cn(
-              "font-bold text-slate-900 dark:text-white leading-none tracking-tight",
+              "font-bold text-brand-950 leading-none tracking-tight",
               size >= 120 ? "text-xl" : size >= 95 ? "text-lg" : "text-sm"
             )}
           >
             {centerValue !== undefined ? centerValue : total}
           </span>
           {centerLabel && (
-            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5 truncate max-w-[80%]">
+            <span className="text-[10px] font-medium text-brand-400 mt-0.5 truncate max-w-[80%]">
               {centerLabel}
             </span>
           )}
@@ -161,7 +161,7 @@ export function DonutChart({
                 key={item.label}
                 className={cn(
                   "flex items-center justify-between text-xs py-0.5 px-1 rounded transition-colors cursor-pointer min-w-0 gap-1",
-                  isHovered ? "bg-slate-100 dark:bg-slate-800 font-semibold" : "text-slate-600 dark:text-slate-300"
+                  isHovered ? "bg-brand-100 font-semibold" : "text-brand-950"
                 )}
                 onMouseEnter={() => setHoveredIndex(i)}
                 onMouseLeave={() => setHoveredIndex(null)}
@@ -174,8 +174,8 @@ export function DonutChart({
                   <span className="truncate text-[11px]">{item.label}</span>
                 </div>
                 <div className="flex items-center gap-1 font-mono text-[11px] shrink-0 ml-1">
-                  <span className="font-semibold text-slate-900 dark:text-white">{item.value}</span>
-                  <span className="text-slate-400 text-[10px]">({pct}%)</span>
+                  <span className="font-semibold text-brand-950">{item.value}</span>
+                  <span className="text-brand-400 text-[10px]">({pct}%)</span>
                 </div>
               </div>
             );

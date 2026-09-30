@@ -109,10 +109,10 @@ export function GaugeScore({
 
           {/* Center Score */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+            <span className="text-2xl font-bold tracking-tight text-brand-950 leading-none">
               {effectiveScore != null ? effectiveScore : "—"}
             </span>
-            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+            <span className="text-[10px] font-medium text-brand-400 mt-0.5">
               / {maxScore}
             </span>
           </div>
@@ -132,7 +132,7 @@ export function GaugeScore({
 
         {/* Short description */}
         {description && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 text-center mt-1 w-full px-1">
+          <p className="text-xs text-brand-400 line-clamp-1 text-center mt-1 w-full px-1">
             {description}
           </p>
         )}
@@ -140,11 +140,14 @@ export function GaugeScore({
 
       {/* Action Link / Button */}
       {onButtonClick && (
-        <div className="w-full mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
+        <div
+          className="w-full mt-3 pt-2 border-t text-right"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <button
             type="button"
             onClick={onButtonClick}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 inline-flex items-center gap-1 transition-colors"
+            className="text-xs font-semibold text-signal-400 hover:text-signal-500 inline-flex items-center gap-1 transition-colors"
           >
             <span>{buttonText}</span>
             <ArrowRight size={12} />

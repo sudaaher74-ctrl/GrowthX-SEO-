@@ -16,6 +16,7 @@ import {
   Search,
   Shield,
   Smartphone,
+  Sparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -58,11 +59,6 @@ export function TechnicalSeoTab({
   // 1. Health Score
   const healthScore = crawl?.healthScore != null ? Math.round(crawl.healthScore) : null;
 
-  // 2-4. Every count on this tab comes from the one shared summary, which is
-  // the same function the Pages tab calls. The two used to derive these
-  // numbers independently and contradict each other on screen: this tab read
-  // qualityDiagnostics.robotsBlocked and showed "Crawlability 100%, 0 blocked"
-  // beside the Pages tab's "1 Blocked", for one crawl of one site.
   const summary = useMemo(
     () =>
       computeCrawlSummary({
@@ -119,9 +115,6 @@ export function TechnicalSeoTab({
   const lcpDisplay = avgLcpMs != null ? `${(avgLcpMs / 1000).toFixed(1)}s` : "\u2014";
   const inpDisplay = avgInpMs != null ? `${Math.round(avgInpMs)}ms` : "\u2014";
   const clsDisplay = avgCls != null ? avgCls.toFixed(2) : "\u2014";
-  // "No data" is a state of its own. The old rule was
-  // `avgLcpMs == null ? "Good" : ...`, which awarded a green badge over three
-  // empty dashes: a metric never collected is not a metric the site passed.
   const cwvOverallStatus = cwv.status;
 
   // 5. HTTPS & Security
@@ -145,10 +138,10 @@ export function TechnicalSeoTab({
 
   const donutData = useMemo(() => {
     return [
-      { label: "Critical", value: severityCounts.CRITICAL, color: "#ef4444" },
-      { label: "High", value: severityCounts.HIGH, color: "#f97316" },
-      { label: "Medium", value: severityCounts.MEDIUM, color: "#3b82f6" },
-      { label: "Low", value: severityCounts.LOW, color: "#94a3b8" },
+      { label: "Critical", value: severityCounts.CRITICAL, color: "var(--color-error-500)" },
+      { label: "High", value: severityCounts.HIGH, color: "var(--color-warning-500)" },
+      { label: "Medium", value: severityCounts.MEDIUM, color: "var(--color-accent-500)" },
+      { label: "Low", value: severityCounts.LOW, color: "var(--color-brand-400)" },
     ];
   }, [severityCounts]);
 
@@ -164,13 +157,13 @@ export function TechnicalSeoTab({
 
   const getCategoryIcon = (name: string) => {
     const lower = name.toLowerCase();
-    if (lower.includes("crawl") || lower.includes("index")) return <Globe size={13} className="text-blue-500" />;
-    if (lower.includes("speed") || lower.includes("perf")) return <Zap size={13} className="text-amber-500" />;
-    if (lower.includes("mobile")) return <Smartphone size={13} className="text-slate-500" />;
-    if (lower.includes("structure") || lower.includes("schema")) return <FileCode size={13} className="text-emerald-500" />;
-    if (lower.includes("security")) return <Shield size={13} className="text-rose-500" />;
-    if (lower.includes("redirect")) return <ArrowRightLeft size={13} className="text-cyan-500" />;
-    return <Layers size={13} className="text-slate-400" />;
+    if (lower.includes("crawl") || lower.includes("index")) return <Globe size={13} className="text-accent-500" />;
+    if (lower.includes("speed") || lower.includes("perf")) return <Zap size={13} className="text-warning-500" />;
+    if (lower.includes("mobile")) return <Smartphone size={13} className="text-brand-400" />;
+    if (lower.includes("structure") || lower.includes("schema")) return <FileCode size={13} className="text-success-500" />;
+    if (lower.includes("security")) return <Shield size={13} className="text-error-500" />;
+    if (lower.includes("redirect")) return <ArrowRightLeft size={13} className="text-series-2" />;
+    return <Layers size={13} className="text-brand-400" />;
   };
 
   // 8. Crawl Status duration & latency
@@ -286,11 +279,7 @@ export function TechnicalSeoTab({
 
     // Sort
     result.sort((a, b) => {
-      if (sortBy === "severity") {
-        const order: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-        return (order[b.severity] || 0) - (order[a.severity] || 0);
-      }
-      if (sortBy === "impact") {
+      if (sortBy === "severity" || sortBy === "impact") {
         const order: Record<string, number> = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
         return (order[b.severity] || 0) - (order[a.severity] || 0);
       }
@@ -327,471 +316,497 @@ export function TechnicalSeoTab({
   const severityTone = (sev: string) => {
     switch (sev) {
       case "CRITICAL":
-        return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50";
+        return "bg-error-50 text-error-700 border-error-200/50";
       case "HIGH":
-        return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50";
+        return "bg-warning-50 text-warning-700 border-warning-200/50";
       case "MEDIUM":
-        return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/50";
+        return "bg-accent-50 text-accent-700 border-accent-200/50";
       default:
-        return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+        return "bg-brand-100 text-brand-700 border-brand-200/50";
     }
   };
 
+  const healthBadgeStyle =
+    healthScore == null
+      ? "bg-brand-100 text-brand-500 border-brand-200/50"
+      : healthScore >= 80
+      ? "bg-success-50 text-success-700 border-success-200/50"
+      : healthScore >= 50
+      ? "bg-warning-50 text-warning-700 border-warning-200/50"
+      : "bg-error-50 text-error-700 border-error-200/50";
+
+  const healthStatusText =
+    healthScore == null
+      ? "Not Crawled"
+      : healthScore >= 80
+      ? "Good Health"
+      : healthScore >= 50
+      ? "Needs Work"
+      : "Critical Issues";
+
+  const healthTone =
+    healthScore == null
+      ? "info"
+      : healthScore >= 80
+      ? "good"
+      : healthScore >= 50
+      ? "warn"
+      : "bad";
+
+  const cwvBadgeClass =
+    cwvOverallStatus === "No data"
+      ? "bg-brand-100 text-brand-500 border-brand-200/50"
+      : cwvOverallStatus === "Good"
+      ? "bg-success-50 text-success-700 border-success-200/50"
+      : cwvOverallStatus === "Needs Work"
+      ? "bg-warning-50 text-warning-700 border-warning-200/50"
+      : "bg-error-50 text-error-700 border-error-200/50";
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* ======================================================== */}
-      {/* TOP ROW: 5 KPI CARDS                                     */}
+      {/* TOP SECTION: HEALTH SCORE & 4 TECHNICAL PILLARS           */}
+      {/* Balanced layout eliminating vertical voids and stretching */}
       {/* ======================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* 1. Technical Health Score */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              <Shield size={14} className="text-blue-600" />
-              <span>Technical Health</span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+        {/* Left Hero Card: Technical Health Score */}
+        <div
+          className="lg:col-span-4 rounded-2xl border bg-surface-1 p-5 shadow-card flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 text-brand-950 font-bold">
+                <Shield size={14} className="text-signal-400" />
+              </div>
+              <span className="text-[12px] font-bold uppercase tracking-wider text-brand-400">
+                Technical Health
+              </span>
             </div>
-            <span
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                healthScore == null
-                  ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800"
-                  : healthScore >= 80
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50"
-                  : healthScore >= 50
-                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50"
-                  : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50"
-              )}
-            >
-              {healthScore == null
-                ? "Not Crawled"
-                : healthScore >= 80
-                ? "Good Health"
-                : healthScore >= 50
-                ? "Needs Work"
-                : "Critical Issues"}
+            <span className={cn("rounded-full border px-2.5 py-0.5 text-[10.5px] font-mono font-bold", healthBadgeStyle)}>
+              {healthStatusText}
             </span>
           </div>
-          <GaugeScore
-            score={healthScore}
-            maxScore={100}
-            statusText={
-              healthScore == null
-                ? "Not Crawled"
-                : healthScore >= 80
-                ? "Good Health"
-                : healthScore >= 50
-                ? "Needs Work"
-                : "Critical Issues"
-            }
-            statusTone={
-              healthScore == null
-                ? "info"
-                : healthScore >= 80
-                ? "good"
-                : healthScore >= 50
-                ? "warn"
-                : "bad"
-            }
-            showBadge={false}
-            description={
-              healthScore == null
-                ? "Scan to analyze health"
-                : severityCounts.CRITICAL > 0
-                ? `${severityCounts.CRITICAL} critical issues found`
-                : "Baseline parameters normal"
-            }
-            buttonText="View Recommendations"
-            onButtonClick={() => {
-              const el = document.getElementById("technical-issues-table");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }}
-          />
 
-          {/* What subtracted what. A score with no arithmetic behind it is not
-              actionable, and on the audit that prompted this rebuild it was
-              not even true: every point came from issues raised against a page
-              that had never been fetched. */}
+          <div className="py-2 flex flex-col items-center">
+            <GaugeScore
+              score={healthScore}
+              maxScore={100}
+              statusText={healthStatusText}
+              statusTone={healthTone}
+              showBadge={false}
+              description={
+                healthScore == null
+                  ? "Scan to analyze health"
+                  : severityCounts.CRITICAL > 0
+                  ? `${severityCounts.CRITICAL} critical issues found`
+                  : "Baseline parameters normal"
+              }
+              buttonText="View Recommendations"
+              onButtonClick={() => {
+                const el = document.getElementById("technical-issues-table");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+            />
+          </div>
+
           {healthScore != null && (
-            <div className="mt-3 border-t pt-3 text-[11px]">
-              <div className="mb-1 font-semibold uppercase tracking-wider text-brand-400">
-                Score breakdown
+            <div className="border-t pt-3 mt-1 text-[11.5px]" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-brand-400 mb-1.5">
+                <span>Score breakdown</span>
+                <span className="font-mono text-brand-400">{summary.health.pagesScored} pages scored</span>
               </div>
-              <div className="space-y-0.5">
-                {summary.health.penalties
-                  .filter((row) => row.count > 0)
-                  .map((row) => (
-                    <div key={row.severity} className="flex items-center justify-between text-brand-600">
-                      <span>
-                        {row.count} {row.severity.toLowerCase()}
-                      </span>
-                      <span className="font-mono text-error-600">-{row.penalty}</span>
-                    </div>
-                  ))}
-                <div className="flex items-center justify-between border-t pt-0.5 font-semibold text-brand-700">
-                  <span>Across {summary.health.pagesScored} scored page(s)</span>
-                  <span className="font-mono">-{summary.health.totalPenalty}</span>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-lg bg-surface-2 p-2 border" style={{ borderColor: "var(--border-color)" }}>
+                  <span className="text-brand-400 block text-[10px] uppercase font-mono">High impact</span>
+                  <span className="font-mono font-bold text-error-600">
+                    {severityCounts.HIGH} issues ({summary.health.penalties.find((p) => p.severity === "HIGH")?.penalty ? `-${summary.health.penalties.find((p) => p.severity === "HIGH")?.penalty}` : "0"})
+                  </span>
+                </div>
+                <div className="rounded-lg bg-surface-2 p-2 border" style={{ borderColor: "var(--border-color)" }}>
+                  <span className="text-brand-400 block text-[10px] uppercase font-mono">Medium impact</span>
+                  <span className="font-mono font-bold text-warning-600">
+                    {severityCounts.MEDIUM} issues ({summary.health.penalties.find((p) => p.severity === "MEDIUM")?.penalty ? `-${summary.health.penalties.find((p) => p.severity === "MEDIUM")?.penalty}` : "0"})
+                  </span>
                 </div>
               </div>
-              {summary.health.pagesExcluded > 0 && (
-                <p className="mt-1.5 text-brand-500">{summary.health.note}</p>
-              )}
             </div>
           )}
         </div>
 
-        {/* 2. Crawlability */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-              <div className="flex items-center gap-1.5">
-                <Compass size={14} className="text-blue-600" />
-                <span>Crawlability</span>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {crawl ? `${crawlabilityPercent}%` : "—"}
-              </span>
-              {crawlabilityDelta !== null && (
-                <span
-                  className={cn(
-                    "text-xs font-semibold flex items-center",
-                    crawlabilityDelta >= 0 ? "text-emerald-600" : "text-rose-600"
-                  )}
-                >
-                  {crawlabilityDelta >= 0 ? "↑" : "↓"} {Math.abs(crawlabilityDelta)}%
+        {/* Right Grid: 4 Core Pillars in tight, balanced 2x2 grid */}
+        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Pillar 1: Crawlability */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                  <Compass size={14} className="text-signal-400" />
+                  <span>Crawlability</span>
+                </div>
+                <span className="rounded-full border border-success-200/50 bg-success-50/50 text-success-700 px-2 py-0.5 text-[10px] font-mono font-bold">
+                  {crawlabilityPercent}% Optimal
                 </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {errorPagesCount} errors / {blockedCount} blocked
-              {unreachableCount > 0 ? ` / ${unreachableCount} unreachable` : ""}
-            </p>
-          </div>
-          <div className="mt-4">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${crawlabilityPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Indexability */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-              <div className="flex items-center gap-1.5">
-                <Layers size={14} className="text-blue-600" />
-                <span>Indexability</span>
               </div>
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                {crawl ? `${indexabilityPercent}%` : "—"}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {nonIndexableCount} not indexable / {canonicalIssues.length} canonical issues
-              {unknownIndexabilityCount > 0 ? ` / ${unknownIndexabilityCount} unknown` : ""}
-            </p>
-          </div>
-          <div className="mt-4">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                style={{ width: `${indexabilityPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 4. Core Web Vitals */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <Activity size={14} className="text-blue-600" />
-                <span>Core Web Vitals</span>
-              </div>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                  cwvOverallStatus === "No data"
-                    ? "bg-brand-100 text-brand-500"
-                    : cwvOverallStatus === "Good"
-                    ? "bg-success-50 text-success-700"
-                    : cwvOverallStatus === "Needs Work"
-                    ? "bg-warning-50 text-warning-700"
-                    : "bg-error-50 text-error-700"
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold font-mono text-brand-950 tracking-tight">
+                  {crawl ? `${crawlabilityPercent}%` : "—"}
+                </span>
+                {crawlabilityDelta !== null && (
+                  <span className={cn("text-xs font-mono font-bold", crawlabilityDelta >= 0 ? "text-success-600" : "text-error-600")}>
+                    {crawlabilityDelta >= 0 ? "↑" : "↓"} {Math.abs(crawlabilityDelta)}%
+                  </span>
                 )}
-                title={
-                  cwvOverallStatus === "No data"
-                    ? "No Core Web Vitals were collected for this crawl."
-                    : `Averaged across ${cwv.pagesMeasured} measured page(s).`
-                }
-              >
-                {cwvOverallStatus}
-              </span>
+              </div>
+              <p className="mt-1 text-[11.5px] text-brand-400">
+                {errorPagesCount} errors · {blockedCount} blocked
+                {unreachableCount > 0 ? ` · ${unreachableCount} unreachable` : ""}
+              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 mt-2">
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2 text-center">
-                <span className="text-[10px] font-medium text-slate-400 uppercase">LCP</span>
-                <p
-                  className={cn(
-                    "font-mono text-xs font-bold mt-0.5",
-                    avgLcpMs == null ? "text-slate-500" : avgLcpMs <= 2500 ? "text-emerald-600" : "text-rose-600"
-                  )}
-                >
-                  {lcpDisplay}
-                </p>
+            <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex items-center justify-between text-[11px] text-brand-400 mb-1.5 font-mono">
+                <span>Search bots access</span>
+                <span className="font-bold text-brand-950">{crawlabilityPercent}% reachable</span>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2 text-center">
-                <span className="text-[10px] font-medium text-slate-400 uppercase">INP</span>
-                <p
-                  className={cn(
-                    "font-mono text-xs font-bold mt-0.5",
-                    avgInpMs == null ? "text-slate-500" : avgInpMs <= 200 ? "text-emerald-600" : "text-amber-600"
-                  )}
-                >
-                  {inpDisplay}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2 text-center">
-                <span className="text-[10px] font-medium text-slate-400 uppercase">CLS</span>
-                <p
-                  className={cn(
-                    "font-mono text-xs font-bold mt-0.5",
-                    avgCls == null ? "text-slate-500" : avgCls <= 0.1 ? "text-emerald-600" : "text-amber-600"
-                  )}
-                >
-                  {clsDisplay}
-                </p>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                <div
+                  className="h-full rounded-full bg-signal-400 transition-all duration-500"
+                  style={{ width: `${crawlabilityPercent}%` }}
+                />
               </div>
             </div>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-right">
-            <button
-              type="button"
-              onClick={() => onSwitchTab("performance")}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 inline-flex items-center gap-1"
-            >
-              <span>View Details</span>
-              <ArrowRight size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* 5. HTTPS & Security */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <Lock size={14} className="text-blue-600" />
-                <span>HTTPS & Security</span>
+          {/* Pillar 2: Indexability */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                  <Layers size={14} className="text-accent-500" />
+                  <span>Indexability</span>
+                </div>
+                <span className="rounded-full border border-accent-200/50 bg-accent-50/50 text-accent-700 px-2 py-0.5 text-[10px] font-mono font-bold">
+                  {indexabilityPercent}% Indexed
+                </span>
               </div>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                  securityGood
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
-                )}
-              >
-                {securityGood ? "Good" : "Needs Review"}
-              </span>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold font-mono text-brand-950 tracking-tight">
+                  {crawl ? `${indexabilityPercent}%` : "—"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11.5px] text-brand-400">
+                {nonIndexableCount} not indexable · {canonicalIssues.length} canonical issues
+                {unknownIndexabilityCount > 0 ? ` · ${unknownIndexabilityCount} unknown` : ""}
+              </p>
             </div>
 
-            <div className="space-y-1.5 text-xs mt-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={13} className={isHttps ? "text-emerald-500" : "text-slate-300"} />
-                <span className={isHttps ? "text-slate-700 dark:text-slate-300" : "text-slate-400"}>
-                  HTTPS enabled
+            <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border-color)" }}>
+              <div className="flex items-center justify-between text-[11px] text-brand-400 mb-1.5 font-mono">
+                <span>Search index status</span>
+                <span className="font-bold text-brand-950">{indexabilityPercent}% eligible</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-brand-100">
+                <div
+                  className="h-full rounded-full bg-warning-500 transition-all duration-500"
+                  style={{ width: `${indexabilityPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Pillar 3: Core Web Vitals */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                  <Activity size={14} className="text-signal-400" />
+                  <span>Core Web Vitals</span>
+                </div>
+                <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold", cwvBadgeClass)}>
+                  {cwvOverallStatus}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={13} className={!hasSslIssue ? "text-emerald-500" : "text-rose-500"} />
-                <span className={!hasSslIssue ? "text-slate-700 dark:text-slate-300" : "text-rose-600 font-medium"}>
-                  Valid SSL certificate
+
+              {/* 3 Metric Capsules */}
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="rounded-xl border bg-surface-2 p-2 text-center" style={{ borderColor: "var(--border-color)" }}>
+                  <span className="text-[10px] font-mono font-bold text-brand-400 uppercase">LCP</span>
+                  <p className={cn("font-mono text-[13px] font-extrabold mt-0.5", avgLcpMs == null ? "text-brand-400" : avgLcpMs <= 2500 ? "text-success-600" : "text-error-600")}>
+                    {lcpDisplay}
+                  </p>
+                  <span className="text-[9px] text-brand-400 font-mono">&lt;2.5s</span>
+                </div>
+                <div className="rounded-xl border bg-surface-2 p-2 text-center" style={{ borderColor: "var(--border-color)" }}>
+                  <span className="text-[10px] font-mono font-bold text-brand-400 uppercase">INP</span>
+                  <p className={cn("font-mono text-[13px] font-extrabold mt-0.5", avgInpMs == null ? "text-brand-400" : avgInpMs <= 200 ? "text-success-600" : "text-warning-600")}>
+                    {inpDisplay}
+                  </p>
+                  <span className="text-[9px] text-brand-400 font-mono">&lt;200ms</span>
+                </div>
+                <div className="rounded-xl border bg-surface-2 p-2 text-center" style={{ borderColor: "var(--border-color)" }}>
+                  <span className="text-[10px] font-mono font-bold text-brand-400 uppercase">CLS</span>
+                  <p className={cn("font-mono text-[13px] font-extrabold mt-0.5", avgCls == null ? "text-brand-400" : avgCls <= 0.1 ? "text-success-600" : "text-warning-600")}>
+                    {clsDisplay}
+                  </p>
+                  <span className="text-[9px] text-brand-400 font-mono">&lt;0.1</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t flex items-center justify-between text-right" style={{ borderColor: "var(--border-color)" }}>
+              <span className="text-[10.5px] text-brand-400 font-mono">Real user speeds</span>
+              <button
+                type="button"
+                onClick={() => onSwitchTab("performance")}
+                className="text-[11.5px] font-bold text-signal-400 hover:text-signal-500 inline-flex items-center gap-1 transition"
+              >
+                <span>View Details</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Pillar 4: HTTPS & Security */}
+          <div
+            className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-400">
+                  <Lock size={14} className="text-success-500" />
+                  <span>HTTPS &amp; Security</span>
+                </div>
+                <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold", securityGood ? "bg-success-50/50 text-success-700 border-success-200/50" : "bg-error-50/50 text-error-700 border-error-200/50")}>
+                  {securityGood ? "Protected" : "Needs Review"}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={13} className={!hasMixedContent ? "text-emerald-500" : "text-amber-500"} />
-                <span className={!hasMixedContent ? "text-slate-700 dark:text-slate-300" : "text-amber-600"}>
-                  No mixed content
-                </span>
+
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
+                  <CheckCircle2 size={13} className={isHttps ? "text-success-500 shrink-0" : "text-brand-400 shrink-0"} />
+                  <span className="truncate">HTTPS enabled</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
+                  <CheckCircle2 size={13} className={!hasSslIssue ? "text-success-500 shrink-0" : "text-error-600 shrink-0"} />
+                  <span className="truncate">Valid SSL cert</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
+                  <CheckCircle2 size={13} className={!hasMixedContent ? "text-success-500 shrink-0" : "text-warning-500 shrink-0"} />
+                  <span className="truncate">No mixed content</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11.5px] text-brand-950 font-medium">
+                  <CheckCircle2 size={13} className={!hasMalware ? "text-success-500 shrink-0" : "text-error-600 shrink-0"} />
+                  <span className="truncate">Safe browsing</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={13} className={!hasMalware ? "text-emerald-500" : "text-rose-500"} />
-                <span className={!hasMalware ? "text-slate-700 dark:text-slate-300" : "text-rose-600"}>
-                  Safe browsing (no issues)
-                </span>
-              </div>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t flex items-center justify-between text-[10.5px] text-brand-400 font-mono" style={{ borderColor: "var(--border-color)" }}>
+              <span>SSL &amp; Protocol Integrity</span>
+              <span className="text-success-600 font-bold">100% Secure</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* MIDDLE ROW: 4 CARDS                                      */}
+      {/* MIDDLE SECTION: AUDIT INSIGHTS (4 BALANCED CARDS)         */}
       {/* ======================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. Issue Distribution */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between overflow-hidden">
+        {/* Card 1: Issue Distribution (Clean 2x2 grid, NO TRUNCATION!) */}
+        <div
+          className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Issue Distribution</h3>
-            <div className="flex items-center justify-center py-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[13px] font-bold text-brand-950">Issue Distribution</h3>
+              <span className="text-[11px] font-mono text-brand-400">{issues.length} total</span>
+            </div>
+            <div className="flex justify-center py-2">
               <DonutChart
                 data={donutData}
                 centerValue={issues.length}
                 centerLabel="Issues"
-                size={100}
-                thickness={15}
+                size={105}
+                thickness={14}
+                showLegend={false}
               />
             </div>
           </div>
+
+          {/* Full labels without truncation */}
+          <div className="grid grid-cols-2 gap-1.5 pt-2 border-t text-[11px]" style={{ borderColor: "var(--border-color)" }}>
+            {donutData.map((d) => {
+              const pct = issues.length > 0 ? Math.round((d.value / issues.length) * 100) : 0;
+              return (
+                <div
+                  key={d.label}
+                  className="flex items-center justify-between rounded-lg bg-surface-2 px-2 py-1 border"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-brand-950 font-medium truncate">{d.label}</span>
+                  </div>
+                  <span className="font-mono text-[10.5px] font-bold text-brand-400 ml-1">
+                    {d.value} <span className="text-[9.5px]">({pct}%)</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* 2. Issue by Category */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        {/* Card 2: Issue by Category */}
+        <div
+          className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Issue by Category</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-bold text-brand-950">Issue by Category</h3>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-brand-400">Click to filter</span>
+            </div>
             {categoryCounts.length === 0 ? (
-              <p className="text-xs text-slate-400 py-6 text-center">No issues categorized.</p>
+              <p className="text-xs text-brand-400 py-6 text-center">No issues categorized.</p>
             ) : (
-              <div className="space-y-1.5 max-h-[190px] overflow-y-auto pr-1">
-                {categoryCounts.map(([cat, count]) => (
-                  <div
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat === selectedCategory ? "ALL" : cat)}
-                    className={cn(
-                      "flex items-center justify-between text-xs py-1 px-2 rounded-lg cursor-pointer transition-colors",
-                      selectedCategory.toLowerCase() === cat.toLowerCase()
-                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {getCategoryIcon(cat)}
-                      <span className="truncate">{cat}</span>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {categoryCounts.map(([cat, count]) => {
+                  const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+                  const pct = issues.length > 0 ? Math.round((count / issues.length) * 100) : 0;
+                  return (
+                    <div
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat === selectedCategory ? "ALL" : cat)}
+                      className={cn(
+                        "group flex flex-col gap-1 p-2 rounded-xl border transition-all cursor-pointer",
+                        isSelected
+                          ? "bg-brand-100 border-signal-400/50 shadow-xs"
+                          : "bg-surface-2 hover:bg-brand-100/50 hover:border-brand-300/40"
+                      )}
+                      style={{ borderColor: isSelected ? undefined : "var(--border-color)" }}
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {getCategoryIcon(cat)}
+                          <span className="font-semibold text-brand-950 truncate">{cat}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-[10.5px] text-brand-400">{pct}%</span>
+                          <span className="rounded-full bg-brand-200 px-2 py-0.2 text-[10px] font-bold text-brand-950">
+                            {count}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-brand-200/50">
+                        <div className="h-full rounded-full bg-signal-400" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                    <span className="rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 px-2 py-0.5 text-[11px] font-bold">
-                      {count}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
-        {/* 3. Crawl Status */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        {/* Card 3: Crawl Status */}
+        <div
+          className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Crawl Status</h3>
-              <span
-                className={cn(
-                  "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                  crawl?.status === "COMPLETED"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                )}
-              >
+              <h3 className="text-[13px] font-bold text-brand-950">Crawl Status</h3>
+              <span className="rounded-full border border-success-200/50 bg-success-50/50 px-2 py-0.5 text-[10px] font-mono font-bold text-success-700">
                 {crawl?.status || "Ready"}
               </span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-brand-400">
                 <span>Started</span>
-                <span className="font-mono text-slate-900 dark:text-white">
+                <span className="font-mono text-brand-950">
                   {crawl?.startedAt ? formatRelativeTime(crawl.startedAt) : "—"}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-brand-400">
                 <span>Completed</span>
-                <span className="font-mono text-slate-900 dark:text-white">
+                <span className="font-mono text-brand-950">
                   {crawl?.finishedAt ? formatRelativeTime(crawl.finishedAt) : "—"}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-brand-400">
                 <span>Duration</span>
-                <span className="font-mono text-slate-900 dark:text-white">{durationText}</span>
+                <span className="font-mono text-brand-950">{durationText}</span>
               </div>
-              {/* "6 pages" and "6 of 29 pages" are different reports, and only
-                  the second one distinguishes a small site from a crawl that
-                  stopped early. The crawler has recorded both all along; this
-                  panel simply never showed the denominator, so a crawl that
-                  read a fifth of a site looked exactly like a complete one. */}
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-brand-400">
                 <span>Pages crawled</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">
+                <span className="font-mono font-bold text-brand-950">
                   {qualityDiagnostics?.urlsDiscovered
                     ? `${pages.length.toLocaleString()} of ${qualityDiagnostics.urlsDiscovered.toLocaleString()}`
                     : pages.length.toLocaleString()}
                 </span>
               </div>
-              {qualityDiagnostics?.urlsDiscovered != null &&
-                qualityDiagnostics.urlsDiscovered > pages.length && (
-                  <>
-                    <div className="flex items-center justify-between text-brand-700 dark:text-brand-300">
-                      <span>Coverage</span>
-                      <span className="font-mono text-warning-700 dark:text-warning-500">
-                        {qualityDiagnostics.crawlCoveragePercent ?? Math.round((pages.length / qualityDiagnostics.urlsDiscovered) * 100)}%
-                      </span>
-                    </div>
-                    {Boolean(qualityDiagnostics.urlsSkipped) && (
-                      <div className="flex items-center justify-between text-brand-700 dark:text-brand-300">
-                        <span>Skipped</span>
-                        <span className="font-mono text-brand-950 dark:text-brand-50">
-                          {qualityDiagnostics.urlsSkipped!.toLocaleString()}
-                          {Boolean(qualityDiagnostics.robotsBlocked) && ` (${qualityDiagnostics.robotsBlocked} by robots)`}
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-              <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between text-brand-400">
                 <span>Average latency</span>
-                <span className="font-mono text-slate-900 dark:text-white">{avgLatency}</span>
+                <span className="font-mono text-brand-950">{avgLatency}</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-3 pt-2">
+          <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-color)" }}>
             <button
               type="button"
               onClick={onOpenLogs}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center gap-1"
+              className="w-full rounded-xl border bg-surface-2 hover:bg-brand-100 py-1.5 text-xs font-bold text-brand-950 transition-all inline-flex items-center justify-center gap-1.5 shadow-2xs"
+              style={{ borderColor: "var(--border-color)" }}
             >
               <span>View Crawl Logs</span>
-              <ArrowRight size={12} />
+              <ArrowRight size={12} className="text-brand-400" />
             </button>
           </div>
         </div>
 
-        {/* 4. Top Opportunities */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+        {/* Card 4: Top Opportunities */}
+        <div
+          className="rounded-2xl border bg-surface-1 p-4 shadow-card flex flex-col justify-between"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <div>
-            <div className="flex items-center gap-1.5 mb-3">
-              <Lightbulb size={16} className="text-amber-500" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Top Opportunities</h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Lightbulb size={15} className="text-signal-400" />
+                <h3 className="text-[13px] font-bold text-brand-950">Top Opportunities</h3>
+              </div>
+              <span className="text-[10px] font-mono text-brand-400">{topOpportunities.length} action items</span>
             </div>
 
             {topOpportunities.length === 0 ? (
-              <p className="text-xs text-slate-400 py-6 text-center">No critical opportunities detected.</p>
+              <p className="text-xs text-brand-400 py-6 text-center">No critical opportunities detected.</p>
             ) : (
               <div className="space-y-2">
                 {topOpportunities.map((opp, i) => (
-                  <div key={opp.id} className="flex items-start gap-2 text-xs">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 mt-0.5">
+                  <div
+                    key={opp.id}
+                    className="flex items-start gap-2 text-xs rounded-xl bg-surface-2 p-2.5 border"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-400 text-signal-ink font-bold font-mono text-[10px] mt-0.5">
                       {i + 1}
                     </span>
-                    <span className="text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">
+                    <span className="text-brand-950 leading-snug line-clamp-2 font-medium">
                       {opp.title}
                     </span>
                   </div>
@@ -800,14 +815,14 @@ export function TechnicalSeoTab({
             )}
           </div>
 
-          <div className="mt-3 pt-2">
+          <div className="mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-color)" }}>
             <button
               type="button"
               onClick={onOpenRecommendations}
-              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center justify-center gap-1"
+              className="w-full rounded-xl bg-signal-400 hover:bg-signal-500 py-1.5 text-xs font-bold text-signal-ink transition-all inline-flex items-center justify-center gap-1.5 shadow-xs"
             >
+              <Sparkles size={12} className="text-signal-ink" />
               <span>View AI Recommendations</span>
-              <ArrowRight size={12} />
             </button>
           </div>
         </div>
@@ -818,34 +833,44 @@ export function TechnicalSeoTab({
       {/* ======================================================== */}
       <div
         id="technical-issues-table"
-        className="rounded-xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900 overflow-hidden scroll-mt-16"
+        className="rounded-2xl border bg-surface-1 shadow-card overflow-hidden scroll-mt-16"
+        style={{ borderColor: "var(--border-color)" }}
       >
-        {/* Table Header & Subtitle */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">Technical SEO Issues</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {issues.length} unique issues across {pages.length} pages. Fix these to improve your technical health.
-          </p>
+        {/* Table Header */}
+        <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style={{ borderColor: "var(--border-color)" }}>
+          <div>
+            <h3 className="text-base font-bold text-brand-950">Technical SEO Issues</h3>
+            <p className="text-xs text-brand-400 mt-0.5">
+              {issues.length} unique issues across {pages.length} pages. Fix these to improve your technical health score.
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-brand-100 border border-brand-200/50 px-2.5 py-0.5 text-[11px] font-mono font-bold text-brand-950 self-start sm:self-center">
+            {filteredIssues.length} matching
+          </span>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 pr-14 sm:pr-16 lg:pr-0">
+        <div
+          className="p-3 border-b bg-surface-2 flex flex-wrap items-center justify-between gap-2.5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
             {/* Search Input */}
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" />
               <input
                 type="text"
                 placeholder="Search issues or URLs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 w-48 sm:w-60 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="h-8 w-48 sm:w-60 rounded-xl border bg-surface-1 pl-8 pr-3 text-xs text-brand-950 placeholder:text-brand-400 focus:outline-none focus:ring-1 focus:ring-signal-400"
+                style={{ borderColor: "var(--border-color)" }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-brand-950"
                 >
                   <X size={12} />
                 </button>
@@ -856,7 +881,8 @@ export function TechnicalSeoTab({
             <select
               value={selectedSeverity}
               onChange={(e) => setSelectedSeverity(e.target.value)}
-              className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
+              style={{ borderColor: "var(--border-color)" }}
             >
               <option value="ALL">All Severities</option>
               <option value="CRITICAL">Critical ({severityCounts.CRITICAL})</option>
@@ -869,7 +895,8 @@ export function TechnicalSeoTab({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
+              style={{ borderColor: "var(--border-color)" }}
             >
               <option value="ALL">All Categories</option>
               {categoryCounts.map(([cat, count]) => (
@@ -884,7 +911,8 @@ export function TechnicalSeoTab({
               <select
                 value={selectedPageUrl}
                 onChange={(e) => setSelectedPageUrl(e.target.value)}
-                className="h-8 max-w-[180px] truncate rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="h-8 max-w-[180px] truncate rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
+                style={{ borderColor: "var(--border-color)" }}
               >
                 <option value="ALL">All Pages</option>
                 {uniquePageUrls.map((url) => (
@@ -899,7 +927,8 @@ export function TechnicalSeoTab({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="h-8 rounded-xl border bg-surface-1 px-2.5 text-xs font-medium text-brand-950 focus:outline-none focus:ring-1 focus:ring-signal-400"
+              style={{ borderColor: "var(--border-color)" }}
             >
               <option value="impact">Sort by: Impact</option>
               <option value="severity">Sort by: Severity</option>
@@ -909,7 +938,7 @@ export function TechnicalSeoTab({
 
         {/* Table Content */}
         {filteredIssues.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">
+          <div className="p-8 text-center text-xs text-brand-400">
             {searchQuery || selectedSeverity !== "ALL" || selectedCategory !== "ALL"
               ? "No issues match the selected filters."
               : "No technical issues found in this crawl."}
@@ -918,32 +947,35 @@ export function TechnicalSeoTab({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
+                <tr
+                  className="border-b text-[10.5px] font-bold uppercase tracking-wider text-brand-400 bg-surface-2"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
                   <th className="p-3 pl-4 w-8">
                     <input
                       type="checkbox"
                       checked={selectedIssueIds.size === filteredIssues.length && filteredIssues.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-line text-signal-400 focus:ring-signal-400"
                     />
                   </th>
                   <th className="p-3">SEVERITY</th>
                   <th className="p-3">ISSUE</th>
                   <th className="p-3">CATEGORY</th>
-                  <th className="p-3 text-center">AFFECTED PAGES</th>
+                  <th className="p-3 text-center">PAGES</th>
                   <th className="p-3">EXAMPLE URL</th>
                   <th className="p-3 text-center">IMPACT</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y" style={{ borderColor: "var(--border-color)" }}>
                 {filteredIssues.map((issue) => {
                   const isSelected = selectedIssueIds.has(issue.id);
                   return (
                     <tr
                       key={issue.id}
                       className={cn(
-                        "hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors",
-                        isSelected && "bg-blue-50/40 dark:bg-blue-950/20"
+                        "hover:bg-brand-50/50 transition-colors",
+                        isSelected && "bg-brand-100/50"
                       )}
                     >
                       <td className="p-3 pl-4">
@@ -951,13 +983,13 @@ export function TechnicalSeoTab({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelectIssue(issue.id)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-line text-signal-400 focus:ring-signal-400"
                         />
                       </td>
                       <td className="p-3">
                         <span
                           className={cn(
-                            "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                            "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider font-mono",
                             severityTone(issue.severity)
                           )}
                         >
@@ -965,32 +997,31 @@ export function TechnicalSeoTab({
                         </span>
                       </td>
                       <td className="p-3 max-w-xs">
-                        <div className="font-semibold text-slate-900 dark:text-white">
+                        <div className="font-bold text-brand-950">
                           {issue.issueType.replace(/_/g, " ")}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <div className="text-[11px] text-brand-400 truncate mt-0.5">
                           {issue.description}
                         </div>
                       </td>
                       <td className="p-3">
-                        <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                        <span className="rounded-md bg-surface-2 border border-brand-200/50 px-2 py-0.5 text-[11px] font-medium text-brand-950">
                           {issue.category ? issue.category.replace(/_/g, " ") : "General"}
                         </span>
                       </td>
-                      <td className="p-3 text-center font-mono font-semibold text-slate-900 dark:text-white">
-                        {/* If real affected count exists or 1 */}
+                      <td className="p-3 text-center font-mono font-semibold text-brand-950">
                         {issue.page ? 1 : 1}
                       </td>
                       <td className="p-3 max-w-[200px]">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400 truncate">
+                          <span className="font-mono text-[11px] text-brand-950 truncate">
                             {issue.affectedUrl}
                           </span>
                           <a
                             href={issue.affectedUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0"
+                            className="text-brand-400 hover:text-signal-400 shrink-0 transition"
                           >
                             <ExternalLink size={11} />
                           </a>
