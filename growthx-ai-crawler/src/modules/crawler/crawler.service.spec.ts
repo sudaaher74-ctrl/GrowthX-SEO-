@@ -70,7 +70,7 @@ describe('CrawlerService', () => {
 
     beforeEach(() => {
       const service = makeService();
-      normalize = (url: string) => (service as any).normalizeUrl(url);
+      normalize = (url: string) => (service as any).state.normalizeUrl(url);
     });
 
     it('adds a scheme to a bare domain', () => {
@@ -123,7 +123,7 @@ describe('CrawlerService', () => {
 
     it('reports a URL as unvisited the first time and visited after', async () => {
       const service = makeService();
-      const mark = (url: string) => (service as any).markUrlVisited('job1', url);
+      const mark = (url: string) => (service as any).state.markUrlVisited('job1', url);
 
       expect((await mark('https://example.com/a')).alreadyVisited).toBe(false);
       expect((await mark('https://example.com/a')).alreadyVisited).toBe(true);
@@ -132,7 +132,7 @@ describe('CrawlerService', () => {
 
     it('tracks each URL separately', async () => {
       const service = makeService();
-      const mark = (url: string) => (service as any).markUrlVisited('job1', url);
+      const mark = (url: string) => (service as any).state.markUrlVisited('job1', url);
 
       expect((await mark('https://example.com/a')).alreadyVisited).toBe(false);
       expect((await mark('https://example.com/b')).alreadyVisited).toBe(false);
@@ -141,7 +141,7 @@ describe('CrawlerService', () => {
 
     it('keeps separate visited sets per job', async () => {
       const service = makeService();
-      const mark = (job: string, url: string) => (service as any).markUrlVisited(job, url);
+      const mark = (job: string, url: string) => (service as any).state.markUrlVisited(job, url);
 
       expect((await mark('job1', 'https://example.com/a')).alreadyVisited).toBe(false);
       expect((await mark('job2', 'https://example.com/a')).alreadyVisited).toBe(false);
@@ -156,7 +156,7 @@ describe('CrawlerService', () => {
           queue: { getRedisClient: () => ({ scard: jest.fn(), sadd, expire }), pageFetchQueue: null },
         });
 
-        const visited = await (service as any).markUrlVisited('job1', 'https://example.com/a');
+        const visited = await (service as any).state.markUrlVisited('job1', 'https://example.com/a');
 
         expect(visited.alreadyVisited).toBe(false);
         // The member is the canonical key, not the URL as linked, so the same
@@ -172,7 +172,7 @@ describe('CrawlerService', () => {
           queue: { getRedisClient: () => ({ scard: jest.fn(), sadd, expire }), pageFetchQueue: null },
         });
 
-        const visited = await (service as any).markUrlVisited('job1', 'https://example.com/a');
+        const visited = await (service as any).state.markUrlVisited('job1', 'https://example.com/a');
 
         expect(visited.alreadyVisited).toBe(true);
         expect(expire).not.toHaveBeenCalled();
@@ -192,7 +192,7 @@ describe('CrawlerService', () => {
         queue: { getRedisClient: () => null, pageFetchQueue: null },
         inventory,
       });
-      (service as any).bumpJobStat = jest.fn(async () => undefined);
+      (service as any).state.bumpJobStat = jest.fn(async () => undefined);
       (service as any).localJobQueues.set('job1', []);
       return { service: service as any, inventory };
     }
@@ -210,7 +210,7 @@ describe('CrawlerService', () => {
     it('does not enqueue another spelling of a page this crawl already claimed', async () => {
       const { service, inventory } = serviceWithQueue();
       // The sitemap's www spelling was fetched; the page links the bare domain.
-      await service.markUrlVisited('job1', 'https://www.aivaenterprises.com/products');
+      await service.state.markUrlVisited('job1', 'https://www.aivaenterprises.com/products');
 
       await service.discoverInternalLinksAndEnqueue(
         payload,
@@ -314,7 +314,7 @@ describe('CrawlerService', () => {
 
     it('does not fetch a URL already visited in this job', async () => {
       const { service, fetchPage } = serviceForPageFetch();
-      await (service as any).markUrlVisited('job1', 'https://example.com/seen');
+      await (service as any).state.markUrlVisited('job1', 'https://example.com/seen');
 
       await service.processPageFetch({
         jobId: 'job1',

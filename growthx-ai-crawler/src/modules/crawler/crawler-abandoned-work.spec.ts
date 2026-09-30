@@ -43,29 +43,29 @@ describe('CrawlerService — work for finished crawls', () => {
   it.each(['COMPLETED', 'FAILED', 'CANCELLED'])('drops queued work for a %s crawl before fetching', async (status) => {
     statuses['job1'] = status;
     // A fetch would have to go through this; reaching it is the failure.
-    service.markUrlVisited = jest.fn();
+    service.state.markUrlVisited = jest.fn();
 
     await service.processPageFetch(payload('job1'));
 
-    expect(service.markUrlVisited).not.toHaveBeenCalled();
+    expect(service.state.markUrlVisited).not.toHaveBeenCalled();
   });
 
   it('drops work whose crawl row no longer exists', async () => {
     statuses['gone'] = null;
-    service.markUrlVisited = jest.fn();
+    service.state.markUrlVisited = jest.fn();
 
     await service.processPageFetch(payload('gone'));
 
-    expect(service.markUrlVisited).not.toHaveBeenCalled();
+    expect(service.state.markUrlVisited).not.toHaveBeenCalled();
   });
 
   it.each(['RUNNING', 'PENDING'])('still fetches for a %s crawl', async (status) => {
     statuses['live'] = status;
-    service.markUrlVisited = jest.fn().mockResolvedValue({ alreadyVisited: true, limitReached: false });
+    service.state.markUrlVisited = jest.fn().mockResolvedValue({ alreadyVisited: true, limitReached: false });
 
     await service.processPageFetch(payload('live'));
 
-    expect(service.markUrlVisited).toHaveBeenCalled();
+    expect(service.state.markUrlVisited).toHaveBeenCalled();
   });
 
   /**
@@ -85,11 +85,11 @@ describe('CrawlerService — work for finished crawls', () => {
    */
   it('fetches anyway when the status lookup fails', async () => {
     prisma.crawlJob.findUnique.mockRejectedValue(new Error('connection reset'));
-    service.markUrlVisited = jest.fn().mockResolvedValue({ alreadyVisited: true, limitReached: false });
+    service.state.markUrlVisited = jest.fn().mockResolvedValue({ alreadyVisited: true, limitReached: false });
 
     await service.processPageFetch(payload('unknown'));
 
-    expect(service.markUrlVisited).toHaveBeenCalled();
+    expect(service.state.markUrlVisited).toHaveBeenCalled();
   });
 });
 
@@ -111,7 +111,7 @@ describe('CrawlerService — where the coverage denominator comes from', () => {
       { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null },
     );
     if (statsDiscovered !== undefined) {
-      service.jobStats.set(job.id, { urlsDiscovered: statsDiscovered, urlsSkipped: 0, robotsBlocked: 0, internalLinksFound: 0, crawlStatus: 'COMPLETED' });
+      service.state.jobStats.set(job.id, { urlsDiscovered: statsDiscovered, urlsSkipped: 0, robotsBlocked: 0, internalLinksFound: 0, crawlStatus: 'COMPLETED' });
     }
     return service;
   }
@@ -119,7 +119,7 @@ describe('CrawlerService — where the coverage denominator comes from', () => {
   it('prefers the persisted count over an empty in-memory map', () => {
     const service = diagnosticsFor({ id: 'j1', pagesDiscovered: 29 });
     const job = { pagesDiscovered: 29 };
-    const stats = service.jobStats.get('j1');
+    const stats = service.state.jobStats.get('j1');
 
     // The expression completeJob evaluates.
     expect(job.pagesDiscovered || stats?.urlsDiscovered || 0).toBe(29);
