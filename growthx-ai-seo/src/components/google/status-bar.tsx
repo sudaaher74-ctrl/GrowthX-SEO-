@@ -52,7 +52,7 @@ function windowText(o: GoogleOverview): string {
  * already applies to every page; it is not duplicated here, so there is one
  * place to change it and it cannot disagree with itself.
  */
-export function GoogleStatusBar({ projectId }: { projectId: string | null }) {
+export function GoogleStatusBar({ projectId, source }: { projectId: string | null; source?: "searchConsole" | "analytics" }) {
   const { query, days } = useGoogleOverview(projectId);
   const refresh = useGoogleRefresh(projectId);
   const o = query.data;
@@ -66,6 +66,33 @@ export function GoogleStatusBar({ projectId }: { projectId: string | null }) {
   }
 
   const canRefresh = o.sources.searchConsole.connected || o.sources.analytics.connected;
+  if (source) {
+    // One line for a single-source page: which source, its state and freshness, and a refresh.
+    const s = o.sources[source];
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white px-4 py-2.5">
+          <SourceLine name={source === "searchConsole" ? "Google Search Console" : "Google Analytics 4"} s={s} hint="last synced" />
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-brand-500">Last {o.days} days · change with 7d / 28d / 90d above</span>
+            <ActionButton
+              disabled={!s.connected || refresh.isPending}
+              icon={<RefreshCw size={12} className={refresh.isPending ? "animate-spin" : undefined} />}
+              onClick={() => refresh.mutate({ searchConsole: source === "searchConsole", analytics: source === "analytics" })}
+            >
+              {refresh.isPending ? "Refreshing…" : "Refresh data"}
+            </ActionButton>
+          </div>
+        </div>
+        {refresh.error && (
+          <StatusNote tone="bad">
+            {errorMessage(refresh.error)}{" "}
+            <Link href="/integrations" className="font-semibold underline">Open Integrations</Link>
+          </StatusNote>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="space-y-2">
       <div className="flex flex-col gap-3 rounded-xl border bg-white px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
