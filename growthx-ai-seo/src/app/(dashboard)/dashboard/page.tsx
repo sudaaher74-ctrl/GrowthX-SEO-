@@ -425,8 +425,8 @@ export default function UnifiedDashboardPage() {
         </Card>
       )}
 
-      {/* Row 3: what should I fix first? A light panel, as in the reference. */}
-      <section id="todo" className="dash-light flex flex-col gap-3.5 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
+      {/* Row 3: what should I fix first? */}
+      <section id="todo" className="flex flex-col gap-3.5 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
         <div className="flex flex-col justify-between gap-2.5 lg:flex-row lg:items-center">
           <div>
             <h2 className="text-[16px] font-bold tracking-tight text-brand-950">Your to-do list</h2>

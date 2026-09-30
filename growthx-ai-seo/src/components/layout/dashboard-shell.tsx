@@ -3,7 +3,6 @@ import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
-import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
