@@ -26,7 +26,7 @@ describe('CrawlerService — a crawl must not finish while URLs are still queued
     const service: any = new (CrawlerService as any)(prisma, {}, queue, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { record: async () => ({ added: 0, merged: 0, invalid: 0 }), markQueued: async () => undefined, markCrawled: async () => undefined, markExcluded: async () => undefined, metrics: async () => null });
     service.completeJob = overrides.onComplete || jest.fn();
     // The URL itself is beside the point here; every path below settles a task.
-    service.markUrlVisited = jest.fn(async () => ({ alreadyVisited: true, limitReached: false }));
+    service.state.markUrlVisited = jest.fn(async () => ({ alreadyVisited: true, limitReached: false }));
     return { service, queue, prisma };
   }
 
@@ -121,7 +121,7 @@ describe('CrawlerService — a failed attempt hands its URL back', () => {
 
     await expect(service.processPageFetch(payload)).rejects.toThrow();
 
-    expect(service.localVisited.get('job1')?.size ?? 0).toBe(0);
+    expect(service.state.localVisited.get('job1')?.size ?? 0).toBe(0);
   });
 });
 
@@ -165,14 +165,14 @@ describe('CrawlerService — crawl state outlives the process that discovered it
     const discoverer: any = worker(redis);
     const robots = { groups: [{ agents: ['*'], rules: [{ allow: false, path: '/admin/' }] }], sitemaps: [], raw: 'User-agent: *' };
 
-    await discoverer.saveCrawlState('job1', {
+    await discoverer.state.saveCrawlState('job1', {
       sitemapUrls: new Set(['https://example.test/', 'https://example.test/pricing']),
       robots,
       sitemapFindings: [{ kind: 'EMPTY', sitemapUrl: 'https://example.test/sitemap.xml', evidence: 'no urls' }],
     });
 
     const fetcher: any = worker(redis);
-    const state = await fetcher.loadCrawlState('job1');
+    const state = await fetcher.state.loadCrawlState('job1');
 
     expect([...state.sitemapUrls]).toEqual(['https://example.test/', 'https://example.test/pricing']);
     expect(state.robots).toEqual(robots);
@@ -182,7 +182,7 @@ describe('CrawlerService — crawl state outlives the process that discovered it
   it('reports an empty crawl state rather than failing when Redis has nothing', async () => {
     const fetcher: any = worker(fakeRedis());
 
-    const state = await fetcher.loadCrawlState('never-seen');
+    const state = await fetcher.state.loadCrawlState('never-seen');
 
     expect(state.sitemapUrls.size).toBe(0);
     expect(state.robots).toBeUndefined();
@@ -192,10 +192,10 @@ describe('CrawlerService — crawl state outlives the process that discovered it
     const redis = fakeRedis();
     const fetcher: any = worker(redis);
     redis.strings.set('job1:seeded', 'x');
-    await fetcher.saveCrawlState('job1', { sitemapUrls: new Set(['https://example.test/']), robots: undefined, sitemapFindings: [] });
+    await fetcher.state.saveCrawlState('job1', { sitemapUrls: new Set(['https://example.test/']), robots: undefined, sitemapFindings: [] });
 
-    await fetcher.loadCrawlState('job1');
-    await fetcher.loadCrawlState('job1');
+    await fetcher.state.loadCrawlState('job1');
+    await fetcher.state.loadCrawlState('job1');
 
     expect(redis.get).not.toHaveBeenCalled();
   });

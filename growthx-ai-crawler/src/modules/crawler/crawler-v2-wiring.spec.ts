@@ -266,14 +266,14 @@ describe('CrawlerService is polite to the site it reads', () => {
 
 describe('CrawlerService honours a crawl time budget', () => {
   function withStats(service: CrawlerService) {
-    (service as any).jobStats.set('job1', {
+    (service as any).state.jobStats.set('job1', {
       urlsDiscovered: 0,
       urlsSkipped: 0,
       robotsBlocked: 0,
       internalLinksFound: 0,
       crawlStatus: 'COMPLETED',
     });
-    return (service as any).jobStats.get('job1');
+    return (service as any).state.jobStats.get('job1');
   }
 
   it('fetches as normal before the deadline', async () => {
@@ -319,7 +319,7 @@ describe('CrawlerService honours a crawl time budget', () => {
 
     await service.processPageFetch({ ...payload, deadlineAt: Date.now() - 1 });
 
-    expect((service as any).localVisited.get('job1')?.size ?? 0).toBe(0);
+    expect((service as any).state.localVisited.get('job1')?.size ?? 0).toBe(0);
   });
 
   it('still records a duplicate as a duplicate after the deadline', async () => {

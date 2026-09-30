@@ -34,7 +34,7 @@ describe('CrawlerService — page ceiling', () => {
 
       const claimed: string[] = [];
       for (let i = 0; i < 10; i++) {
-        const result = await service.markUrlVisited('job1', `https://acme.com/p${i}`, 3);
+        const result = await service.state.markUrlVisited('job1', `https://acme.com/p${i}`, 3);
         if (!shouldSkip(result)) claimed.push(`p${i}`);
       }
 
@@ -44,8 +44,8 @@ describe('CrawlerService — page ceiling', () => {
     it('returns limitReached (not alreadyVisited) when the ceiling is hit', async () => {
       const service = build(null);
 
-      await service.markUrlVisited('job1', 'https://acme.com/p0', 1);
-      const result = await service.markUrlVisited('job1', 'https://acme.com/p1', 1);
+      await service.state.markUrlVisited('job1', 'https://acme.com/p0', 1);
+      const result = await service.state.markUrlVisited('job1', 'https://acme.com/p1', 1);
       expect(result.limitReached).toBe(true);
       expect(result.alreadyVisited).toBe(false);
     });
@@ -57,7 +57,7 @@ describe('CrawlerService — page ceiling', () => {
 
       let claimed = 0;
       for (let i = 0; i < 50; i++) {
-        if (!shouldSkip(await service.markUrlVisited('job1', `https://mine.com/p${i}`))) claimed++;
+        if (!shouldSkip(await service.state.markUrlVisited('job1', `https://mine.com/p${i}`))) claimed++;
       }
 
       expect(claimed).toBe(50);
@@ -66,11 +66,11 @@ describe('CrawlerService — page ceiling', () => {
     it('still skips a URL already seen', async () => {
       const service = build(null);
 
-      const first = await service.markUrlVisited('job1', 'https://acme.com/a', 10);
+      const first = await service.state.markUrlVisited('job1', 'https://acme.com/a', 10);
       expect(first.alreadyVisited).toBe(false);
       expect(first.limitReached).toBe(false);
 
-      const second = await service.markUrlVisited('job1', 'https://acme.com/a', 10);
+      const second = await service.state.markUrlVisited('job1', 'https://acme.com/a', 10);
       expect(second.alreadyVisited).toBe(true);
       expect(second.limitReached).toBe(false);
     });
@@ -80,9 +80,9 @@ describe('CrawlerService — page ceiling', () => {
       // not share one.
       const service = build(null);
 
-      expect(shouldSkip(await service.markUrlVisited('job1', 'https://a.com/1', 1))).toBe(false);
-      expect(shouldSkip(await service.markUrlVisited('job1', 'https://a.com/2', 1))).toBe(true);
-      expect(shouldSkip(await service.markUrlVisited('job2', 'https://b.com/1', 1))).toBe(false);
+      expect(shouldSkip(await service.state.markUrlVisited('job1', 'https://a.com/1', 1))).toBe(false);
+      expect(shouldSkip(await service.state.markUrlVisited('job1', 'https://a.com/2', 1))).toBe(true);
+      expect(shouldSkip(await service.state.markUrlVisited('job2', 'https://b.com/1', 1))).toBe(false);
     });
   });
 
@@ -110,7 +110,7 @@ describe('CrawlerService — page ceiling', () => {
 
       const claimed: string[] = [];
       for (let i = 0; i < 10; i++) {
-        const result = await service.markUrlVisited('job1', `https://acme.com/p${i}`, 3);
+        const result = await service.state.markUrlVisited('job1', `https://acme.com/p${i}`, 3);
         if (!shouldSkip(result)) claimed.push(`p${i}`);
       }
 
@@ -122,8 +122,8 @@ describe('CrawlerService — page ceiling', () => {
       const client = redis();
       const service = build(client);
 
-      await service.markUrlVisited('job1', 'https://acme.com/p0', 1);
-      const result = await service.markUrlVisited('job1', 'https://acme.com/p1', 1);
+      await service.state.markUrlVisited('job1', 'https://acme.com/p0', 1);
+      const result = await service.state.markUrlVisited('job1', 'https://acme.com/p1', 1);
       expect(result.limitReached).toBe(true);
       expect(result.alreadyVisited).toBe(false);
     });
@@ -134,7 +134,7 @@ describe('CrawlerService — page ceiling', () => {
       const client = redis();
       const service = build(client);
 
-      await service.markUrlVisited('job1', 'https://mine.com/a');
+      await service.state.markUrlVisited('job1', 'https://mine.com/a');
 
       expect(client.scard).not.toHaveBeenCalled();
       expect(client.sadd).toHaveBeenCalled();
@@ -165,15 +165,15 @@ describe('CrawlerService — one page, however it is linked', () => {
   it('does not fetch the same page under both host spellings', async () => {
     const service = build();
 
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://aivaenterprises.com/about'))).toBe(false);
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://www.aivaenterprises.com/about'))).toBe(true);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://aivaenterprises.com/about'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://www.aivaenterprises.com/about'))).toBe(true);
   });
 
   it('treats http and https as the same page', async () => {
     const service = build();
 
-    expect(shouldSkip(await service.markUrlVisited('j', 'http://x.com/a'))).toBe(false);
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://x.com/a'))).toBe(true);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'http://x.com/a'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://x.com/a'))).toBe(true);
   });
 
   it('keeps genuinely different pages apart', async () => {
@@ -181,10 +181,10 @@ describe('CrawlerService — one page, however it is linked', () => {
     // a different site, and a query string can be the whole page.
     const service = build();
 
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://x.com/a'))).toBe(false);
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://x.com/b'))).toBe(false);
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://shop.x.com/a'))).toBe(false);
-    expect(shouldSkip(await service.markUrlVisited('j', 'https://x.com/a?page=2'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://x.com/a'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://x.com/b'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://shop.x.com/a'))).toBe(false);
+    expect(shouldSkip(await service.state.markUrlVisited('j', 'https://x.com/a?page=2'))).toBe(false);
   });
 
   it('still fetches the URL the site actually published', async () => {
@@ -192,7 +192,7 @@ describe('CrawlerService — one page, however it is linked', () => {
     // break every site that serves one spelling and redirects the other.
     const service = build();
 
-    expect(service.visitKey('https://www.x.com/a')).toBe('x.com/a');
-    expect(service.normalizeUrl('https://www.x.com/a')).toBe('https://www.x.com/a');
+    expect(service.state.visitKey('https://www.x.com/a')).toBe('x.com/a');
+    expect(service.state.normalizeUrl('https://www.x.com/a')).toBe('https://www.x.com/a');
   });
 });

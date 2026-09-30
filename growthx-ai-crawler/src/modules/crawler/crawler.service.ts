@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { fingerprintFor, fingerprintScope, issueGroupKey } from '../issues/fingerprint.util';
 import { StorageService } from '../../storage/storage.service';
 import * as cheerio from 'cheerio';
 import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.service';
@@ -8,11 +7,8 @@ import { RobotsService } from '../robots/robots.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
-import { detectProductSignals, ProductSignal } from './product-detector';
-import { writeCatalogProduct } from './catalog-write';
-import { canonicalUrl } from './canonical-url';
+import { detectProductSignals } from './product-detector';
 import { isCrawlablePage, isHtmlResponse } from './crawlable';
-import { extractSocialProfiles } from './social-links';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -28,13 +24,13 @@ import { HostPacer } from './host-pacer';
 import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
 import { ParsedRobots } from './discovery/robots-txt';
 import { computeIndexability } from './indexability';
-import { evaluateSite } from './issue-rules';
-import { findDuplicateClusters } from './frontier/duplicate-clusters';
 import { computeCrawlSummary } from './crawl-summary';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { extractUrlsFromJsonLd } from './page-extract';
 import { isInternalTargetUrl } from './url/url-normalizer';
-import * as url from 'url';
+import { findAll, issueKey, responseStats } from './crawl-completion';
+import { CrawlJobState } from './crawl-job-state';
+import { CrawlFindingsRecorder } from './crawl-findings-recorder';
 
 /**
  * Ceiling on the HTML kept per page, per column.
@@ -57,33 +53,11 @@ export type CrawlCompletionHandler = (jobId: string, websiteId: string) => Promi
 @Injectable()
 export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CrawlerService.name);
-  private readonly localVisited = new Map<string, Set<string>>();
-  private readonly jobSitemapUrls = new Map<string, Set<string>>();
-  /** Sitemap defects found while seeding, raised as site-level issues at the end. */
-  private readonly jobSitemapFindings = new Map<string, SitemapFinding[]>();
-  /** Parsed robots.txt per job, so indexability can cite the rule that applied. */
-  private readonly jobRobots = new Map<string, Awaited<ReturnType<DiscoveryService['fetchRobots']>>>();
-  /**
-   * Pages rendered so far, per job.
-   *
-   * A browser page is by far the most expensive thing a crawl does, and the
-   * smallest deployment target has room for one at a time. Without a ceiling a
-   * 500-page crawl of a client-rendered site would launch 500 renders on a
-   * 512MB container. Pages past the budget are still fetched and still
-   * assessed; they are marked RENDER_UNAVAILABLE so the report says its
-   * coverage is partial rather than quietly reporting a shell as the page.
-   */
-  private readonly jobRendersUsed = new Map<string, number>();
   private readonly completionHandlers: CrawlCompletionHandler[] = [];
-
-  /** Per-job crawl statistics for richer qualityDiagnostics. */
-  private readonly jobStats = new Map<string, {
-    urlsDiscovered: number;
-    urlsSkipped: number;
-    robotsBlocked: number;
-    internalLinksFound: number;
-    crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL';
-  }>();
+  /** What the crawl remembers between pages; see CrawlJobState. */
+  private readonly state: CrawlJobState;
+  /** Writes the issues, catalog products and social profiles a crawl finds. */
+  private readonly recorder: CrawlFindingsRecorder;
 
   /**
    * How long a job may go without recording a page before it is treated as
@@ -145,7 +119,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     private readonly issueEngine: IssueEngineService,
     private readonly graphService: GraphService,
     private readonly crawlerGateway: CrawlerGateway,
-    private readonly inventory: UrlInventoryService,) {}
+    private readonly inventory: UrlInventoryService,
+  ) {
+    this.state = new CrawlJobState(queue);
+    this.recorder = new CrawlFindingsRecorder(prisma, this.state);
+  }
 
   /**
    * Initiates a new crawl job for a verified website
@@ -395,7 +373,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.metrics.activeCrawlJobs.inc();
 
     // Initialize per-job stats tracking
-    this.jobStats.set(payload.jobId, {
+    this.state.jobStats.set(payload.jobId, {
       urlsDiscovered: 0,
       urlsSkipped: 0,
       robotsBlocked: 0,
@@ -406,10 +384,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const seedUrls = new Set<string>();
     const sitemapSet = new Set<string>();
     const discoveredUrls: Array<{ url: string; normalizedUrl: string; source: string; foundIn?: string }> = [];
-    seedUrls.add(this.normalizeUrl(payload.startUrl));
+    seedUrls.add(this.state.normalizeUrl(payload.startUrl));
     discoveredUrls.push({
       url: payload.startUrl,
-      normalizedUrl: this.normalizeUrl(payload.startUrl),
+      normalizedUrl: this.state.normalizeUrl(payload.startUrl),
       source: 'seed',
     });
 
@@ -461,7 +439,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // Shared rather than remembered: the pages of this crawl are fetched by
     // workers that do not share this process's memory, and by this process
     // again after a restart.
-    await this.saveCrawlState(payload.jobId, { sitemapUrls: sitemapSet, robots: discoveredRobots, sitemapFindings });
+    await this.state.saveCrawlState(payload.jobId, { sitemapUrls: sitemapSet, robots: discoveredRobots, sitemapFindings });
 
     // The URL inventory, written before anything is fetched.
     //
@@ -485,7 +463,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       });
 
     // Update urlsDiscovered stat with seed count
-    const stats = this.jobStats.get(payload.jobId);
+    const stats = this.state.jobStats.get(payload.jobId);
     if (stats) stats.urlsDiscovered = seedUrls.size;
 
     // Recorded before any fetch, so the denominator survives whatever happens
@@ -651,62 +629,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // starves the one the customer is waiting on.
       if (!(await this.crawlStillWants(payload.jobId))) return;
 
-      const normUrl = this.normalizeUrl(payload.targetUrl);
+      const normUrl = this.state.normalizeUrl(payload.targetUrl);
 
-      // Every early return below leaves the URL in the inventory carrying the
-      // reason it was not fetched. Returning without one is what made a
-      // "discovered" URL disappear from the accounts entirely, so that the only
-      // self-consistent coverage the dashboard could print was 100%.
-      //
-      // Out of time is the same as out of pages: the crawl is capped, not
-      // done, and what is still queued drains without a fetch so the crawl
-      // finishes with what it has read. Checked before the URL is claimed, so
-      // a URL skipped here is not counted as a page read.
-      if (payload.deadlineAt && Date.now() > payload.deadlineAt) {
-        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
-        if (await this.isUrlClaimed(payload.jobId, normUrl)) {
-          await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
-          return;
-        }
-        await this.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
-        return;
-      }
-      const { alreadyVisited, limitReached } = await this.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
-      if (alreadyVisited) {
-        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
-        return;
-      }
-      if (limitReached) {
-        // Mark the job status as LIMIT_REACHED so the UI shows it correctly
-        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
-        return;
-      }
-
-      if (payload.depth > payload.maxDepth) {
-        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'skipped_by_configuration');
-        return;
-      }
-
-      const allowed = await this.robots.isUrlAllowed(normUrl);
-      if (!allowed) {
-        await this.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.bumpJobStat(payload.jobId, 'robotsBlocked');
-        // Excluded, never removed: a URL robots.txt forbids is still a URL the
-        // site published, and hiding it makes the sitemap and the crawl
-        // disagree with no way to see why.
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'robots_blocked', { robotsAllowed: false });
-        return;
-      }
+      if (!(await this.admitUrl(payload, normUrl))) return;
 
       // Read once per page from wherever the crawl's state actually lives, so
       // a page fetched by another worker — or by this one after a restart —
       // knows the same sitemap and the same robots.txt as the first page did.
-      const crawlState = await this.loadCrawlState(payload.jobId);
+      const crawlState = await this.state.loadCrawlState(payload.jobId);
 
       this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
       // The two-tier fetch. Beyond rendering client-side pages, the contract
@@ -718,14 +648,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // wait on. Keyed by the website's domain rather than the URL's host, so
       // the www and bare spellings of one site share one queue.
       await this.pacer.wait(payload.domain || new URL(normUrl).host, payload.rateLimitDelayMs);
-      const rendersUsed = await this.rendersUsed(payload.jobId);
-      // A crawl may ask for fewer renders than the deployment allows, never more.
-      const deploymentRenderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
-      const renderBudget =
-        payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentRenderBudget) : deploymentRenderBudget;
-      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed: rendersUsed < renderBudget });
+      const renderAllowed = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
+      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed });
       if (outcome.tier === 'rendered') {
-        await this.noteRenderUsed(payload.jobId);
+        await this.state.noteRenderUsed(payload.jobId);
       }
       const fetchRes = this.toLegacyFetchResult(outcome);
       const sitemapSetForJob = crawlState.sitemapUrls;
@@ -750,7 +676,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           httpStatus: fetchRes.statusCode,
         });
         return;
-
       }
 
       let snapshotUrl: string | undefined;
@@ -759,22 +684,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        // 1. Run Analysis Pipeline if HTML 200 OK
-        let $ = cheerio.load('');
-        let htmlData = this.htmlExtractor.extract($, normUrl);
-        let images = [] as any[];
-        let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
-        let schemas = [] as any[];
-        let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
-
-        if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
-          $ = cheerio.load(fetchRes.html);
-          htmlData = this.htmlExtractor.extract($, normUrl);
-          images = this.imageAnalyzer.analyzeImages($, normUrl);
-          links = this.linkAnalyzer.analyzeLinks($, normUrl);
-          schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
-          content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
-        }
+        // 1. Run the analysis pipeline (only a 200 HTML response has a body to read)
+        const { $, htmlData, images, links, schemas, content } = this.analysePage(fetchRes, normUrl);
 
         // 2. Upsert Page with full metrics
         // Derived once and written on both paths: a re-crawl that changed a
@@ -827,54 +738,34 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           fetchErrorKind: outcome.error?.kind ?? null,
         };
 
+        const pageData = {
+          pageType,
+          finalUrl: fetchRes.finalUrl,
+          statusCode: fetchRes.statusCode,
+          responseTimeMs: fetchRes.responseTimeMs,
+          contentType: fetchRes.contentType,
+          htmlSnapshotUrl: snapshotUrl,
+          ...v2Columns,
+          title: htmlData.title,
+          metaDescription: htmlData.metaDescription,
+          canonicalUrl: htmlData.canonicalUrl,
+          robotsMeta: htmlData.robotsMeta,
+          h1: htmlData.h1,
+          h2: htmlData.h2,
+          h3: htmlData.h3,
+          wordCount: content.wordCount,
+          readingTimeMin: content.readingTimeMin,
+          contentHash: content.contentHash,
+          simHash: content.simHash || undefined,
+        };
         const page = await this.prisma.page.upsert({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
-          update: {
-            pageType,
-            finalUrl: fetchRes.finalUrl,
-            statusCode: fetchRes.statusCode,
-            responseTimeMs: fetchRes.responseTimeMs,
-            contentType: fetchRes.contentType,
-            htmlSnapshotUrl: snapshotUrl,
-            ...v2Columns,
-            title: htmlData.title,
-            metaDescription: htmlData.metaDescription,
-            canonicalUrl: htmlData.canonicalUrl,
-            robotsMeta: htmlData.robotsMeta,
-            h1: htmlData.h1,
-            h2: htmlData.h2,
-            h3: htmlData.h3,
-            wordCount: content.wordCount,
-            readingTimeMin: content.readingTimeMin,
-            contentHash: content.contentHash,
-            simHash: content.simHash || undefined,
-          },
-          create: {
-            crawlJobId: payload.jobId,
-            url: normUrl,
-            pageType,
-            finalUrl: fetchRes.finalUrl,
-            statusCode: fetchRes.statusCode,
-            responseTimeMs: fetchRes.responseTimeMs,
-            contentType: fetchRes.contentType,
-            htmlSnapshotUrl: snapshotUrl,
-            ...v2Columns,
-            title: htmlData.title,
-            metaDescription: htmlData.metaDescription,
-            canonicalUrl: htmlData.canonicalUrl,
-            robotsMeta: htmlData.robotsMeta,
-            h1: htmlData.h1,
-            h2: htmlData.h2,
-            h3: htmlData.h3,
-            wordCount: content.wordCount,
-            readingTimeMin: content.readingTimeMin,
-            contentHash: content.contentHash,
-            simHash: content.simHash || undefined,
-          },
+          update: pageData,
+          create: { crawlJobId: payload.jobId, url: normUrl, ...pageData },
         });
 
         if (productSignal?.isProductPage) {
-          await this.recordCatalogProduct(payload.websiteId, page.id, normUrl, productSignal);
+          await this.recorder.recordCatalogProduct(payload.websiteId, page.id, normUrl, productSignal);
         }
 
         // The inventory's copy of the outcome. A 301 and a 404 are both crawl
@@ -901,7 +792,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           await this.prisma.internalGraph.create({
             data: {
               crawlJobId: payload.jobId,
-              sourceUrl: this.normalizeUrl(payload.sourceUrl),
+              sourceUrl: this.state.normalizeUrl(payload.sourceUrl),
               targetUrl: normUrl,
               crawlDepth: payload.depth,
             },
@@ -933,32 +824,32 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         const inSitemap = sitemapSetForJob.has(normUrl);
 
         if (outcome.error || outcome.blockedSuspected) {
-          await this.persistFetchFailureIssue(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
+          await this.recorder.persistFetchFailureIssue(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         } else {
-        await this.issueEngine.evaluateAndPersistIssues(
-          payload.jobId,
-          await this.resolveProjectId(payload.websiteId),
-          payload.websiteId,
-          page.id,
-          normUrl,
-          fetchRes.statusCode,
-          fetchRes.redirectChain || [],
-          fetchRes.html || '',
-          $,
-          htmlData,
-          images,
-          links,
-          content,
-          schemas,
-          inSitemap,
-          true
-        );
+          await this.issueEngine.evaluateAndPersistIssues(
+            payload.jobId,
+            await this.recorder.resolveProjectId(payload.websiteId),
+            payload.websiteId,
+            page.id,
+            normUrl,
+            fetchRes.statusCode,
+            fetchRes.redirectChain || [],
+            fetchRes.html || '',
+            $,
+            htmlData,
+            images,
+            links,
+            content,
+            schemas,
+            inSitemap,
+            true
+          );
 
-        // The legacy engine knows nothing about rendering, so the highest-value
-        // finding on a client-rendered site has to be raised here. Without
-        // this, a site that is blank to every AI answer engine passes its audit
-        // with nothing said about it.
-        await this.persistRenderFindings(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
+          // The legacy engine knows nothing about rendering, so the highest-value
+          // finding on a client-rendered site has to be raised here. Without
+          // this, a site that is blank to every AI answer engine passes its audit
+          // with nothing said about it.
+          await this.recorder.persistRenderFindings(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         }
 
         // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
@@ -968,46 +859,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
         // 6. Record the social profiles this page links out to
         if (fetchRes.statusCode === 200) {
-          await this.recordSocialLinks(payload.jobId, links.externalLinks);
+          await this.recorder.recordSocialLinks(payload.jobId, links.externalLinks);
         }
 
         // 7. Enqueue internal links for BFS crawling
         if (fetchRes.statusCode === 200 && fetchRes.html) {
-          const allInternalTargets = [...links.internalLinks];
-          const existingTargets = new Set(allInternalTargets.map((l: any) => l.targetUrl));
-
-          // JSON-LD structured data URLs
-          if (htmlData.jsonLd && htmlData.jsonLd.length > 0) {
-            const jsonUrls = extractUrlsFromJsonLd(htmlData.jsonLd, normUrl);
-            for (const jUrl of jsonUrls) {
-              if (!existingTargets.has(jUrl)) {
-                existingTargets.add(jUrl);
-                allInternalTargets.push({ targetUrl: jUrl, anchorText: 'structured_data' });
-              }
-            }
-          }
-
-          // Canonical target
-          if (htmlData.canonicalUrl && isInternalTargetUrl(htmlData.canonicalUrl, normUrl)) {
-            if (!existingTargets.has(htmlData.canonicalUrl)) {
-              existingTargets.add(htmlData.canonicalUrl);
-              allInternalTargets.push({ targetUrl: htmlData.canonicalUrl, anchorText: 'canonical' });
-            }
-          }
-
-          // Pagination links: link[rel="next"], link[rel="prev"]
-          $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
-            const href = $(el).attr('href');
-            if (href) {
-              try {
-                const abs = new URL(href, normUrl).toString();
-                if (isInternalTargetUrl(abs, normUrl) && !existingTargets.has(abs)) {
-                  existingTargets.add(abs);
-                  allInternalTargets.push({ targetUrl: abs, anchorText: 'pagination' });
-                }
-              } catch {}
-            }
-          });
+          const allInternalTargets = this.collectInternalTargets(links, htmlData, $, normUrl);
 
           // Which of these links exist only after JavaScript ran.
           //
@@ -1033,126 +890,162 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // without fetching, and the page is simply absent from a crawl that
       // reports itself complete. Handing the claim back lets the retry do the
       // work it was scheduled for.
-      await this.releaseUrlClaim(payload.jobId, this.normalizeUrl(payload.targetUrl));
+      await this.state.releaseUrlClaim(payload.jobId, this.state.normalizeUrl(payload.targetUrl));
       throw err;
     } finally {
-      if (this.queue.pageFetchQueue) {
-        // Settled by task identity, not by arrival: BullMQ runs a task again
-        // after a retry or a lapsed lock, and counting those re-runs as
-        // separate work is what drove the counter to zero with most of the
-        // site still queued. `alreadySettled` means this run is a duplicate of
-        // one already accounted for, so the crawl is not finished by it.
-        const { remaining, alreadySettled } = await this.queue.settlePageFetchTask(payload.jobId, payload.taskId);
-        if (!alreadySettled && remaining <= 0) {
-          const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
-          if (job && job.status === 'RUNNING') {
-            await this.completeJob(payload.jobId);
-          }
+      await this.settlePageFetchTask(payload);
+    }
+  }
+
+  /**
+   * Decides whether a queued URL is fetched at all: not out of time, not seen
+   * before, inside the page ceiling and depth, and allowed by robots.txt.
+   * False means it was skipped, and the URL is left in the inventory carrying
+   * the reason.
+   */
+  private async admitUrl(payload: PageFetchPayload, normUrl: string): Promise<boolean> {
+    // Every early return below leaves the URL in the inventory carrying the
+    // reason it was not fetched. Returning without one is what made a
+    // "discovered" URL disappear from the accounts entirely, so that the only
+    // self-consistent coverage the dashboard could print was 100%.
+    //
+    // Out of time is the same as out of pages: the crawl is capped, not
+    // done, and what is still queued drains without a fetch so the crawl
+    // finishes with what it has read. Checked before the URL is claimed, so
+    // a URL skipped here is not counted as a page read.
+    if (payload.deadlineAt && Date.now() > payload.deadlineAt) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      if (await this.state.isUrlClaimed(payload.jobId, normUrl)) {
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
+        return false;
+      }
+      await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
+      return false;
+    }
+    const { alreadyVisited, limitReached } = await this.state.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
+    if (alreadyVisited) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
+      return false;
+    }
+    if (limitReached) {
+      // Mark the job status as LIMIT_REACHED so the UI shows it correctly
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
+      return false;
+    }
+
+    if (payload.depth > payload.maxDepth) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'skipped_by_configuration');
+      return false;
+    }
+
+    const allowed = await this.robots.isUrlAllowed(normUrl);
+    if (!allowed) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.state.bumpJobStat(payload.jobId, 'robotsBlocked');
+      // Excluded, never removed: a URL robots.txt forbids is still a URL the
+      // site published, and hiding it makes the sitemap and the crawl
+      // disagree with no way to see why.
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'robots_blocked', { robotsAllowed: false });
+      return false;
+    }
+
+    return true;
+  }
+
+  /** A crawl may ask for fewer renders than the deployment allows, never more. */
+  private renderBudgetFor(payload: PageFetchPayload): number {
+    const deploymentBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
+    return payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentBudget) : deploymentBudget;
+  }
+
+  /** Runs every analyser over a fetched page. A response with no HTML body yields empty results. */
+  private analysePage(fetchRes: ReturnType<CrawlerService['toLegacyFetchResult']>, normUrl: string) {
+    let $ = cheerio.load('');
+    let htmlData = this.htmlExtractor.extract($, normUrl);
+    let images = [] as any[];
+    let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
+    let schemas = [] as any[];
+    let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
+
+    if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
+      $ = cheerio.load(fetchRes.html);
+      htmlData = this.htmlExtractor.extract($, normUrl);
+      images = this.imageAnalyzer.analyzeImages($, normUrl);
+      links = this.linkAnalyzer.analyzeLinks($, normUrl);
+      schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
+      content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
+    }
+
+    return { $, htmlData, images, links, schemas, content };
+  }
+
+  /**
+   * Every internal URL a page points at: its anchors, plus the ones only its
+   * structured data, canonical and pagination links name.
+   */
+  private collectInternalTargets(links: any, htmlData: any, $: cheerio.CheerioAPI, normUrl: string) {
+    const allInternalTargets = [...links.internalLinks];
+    const existingTargets = new Set(allInternalTargets.map((l: any) => l.targetUrl));
+
+    // JSON-LD structured data URLs
+    if (htmlData.jsonLd && htmlData.jsonLd.length > 0) {
+      const jsonUrls = extractUrlsFromJsonLd(htmlData.jsonLd, normUrl);
+      for (const jUrl of jsonUrls) {
+        if (!existingTargets.has(jUrl)) {
+          existingTargets.add(jUrl);
+          allInternalTargets.push({ targetUrl: jUrl, anchorText: 'structured_data' });
         }
       }
     }
+
+    // Canonical target
+    if (htmlData.canonicalUrl && isInternalTargetUrl(htmlData.canonicalUrl, normUrl)) {
+      if (!existingTargets.has(htmlData.canonicalUrl)) {
+        existingTargets.add(htmlData.canonicalUrl);
+        allInternalTargets.push({ targetUrl: htmlData.canonicalUrl, anchorText: 'canonical' });
+      }
+    }
+
+    // Pagination links: link[rel="next"], link[rel="prev"]
+    $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (href) {
+        try {
+          const abs = new URL(href, normUrl).toString();
+          if (isInternalTargetUrl(abs, normUrl) && !existingTargets.has(abs)) {
+            existingTargets.add(abs);
+            allInternalTargets.push({ targetUrl: abs, anchorText: 'pagination' });
+          }
+        } catch {}
+      }
+    });
+
+    return allInternalTargets;
   }
 
   /**
-   * Raises JS_RENDER_REQUIRED, or RENDER_UNAVAILABLE when the page needed
-   * rendering and we could not do it.
-   *
-   * The evidence is the raw-versus-rendered difference, so the claim is
-   * checkable rather than asserted: this many words and links before
-   * JavaScript ran, this many after.
+   * Counts this task off the crawl, and finishes the crawl when it was the last.
+   * Runs in `finally`, so a page that was skipped or failed still counts.
    */
-  private async persistRenderFindings(crawlJobId: string, websiteId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
-    if (outcome.jsRequired && outcome.renderDiff) {
-      const diff = outcome.renderDiff;
-      await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, {
-        issueType: 'JS_RENDER_REQUIRED',
-        severity: 'HIGH',
-        confidence: 'CONFIRMED',
-        description: 'Content is only available after JavaScript execution.',
-        explanation:
-          'The HTML the server sends is an empty shell. Everything that describes this page — its title, its copy and its links — is ' +
-          'written by JavaScript in the browser afterwards.',
-        impact:
-          'Googlebot renders JavaScript, so Google will eventually see this page, though on a slower second pass. Bingbot, GPTBot, ' +
-          'PerplexityBot, ClaudeBot and most social-preview scrapers largely do not, so to those engines this page is effectively blank. ' +
-          'That is the difference between being ranked late and not being quotable in an AI answer at all.',
-        recommendation:
-          'Server-render or pre-render this route so the title, meta description, copy and navigation are present in the initial HTML response.',
-        evidence:
-          `Raw HTML: ${diff.rawWordCount} words, ${diff.rawLinkCount} links, title "${diff.rawTitle ?? '(none)'}". ` +
-          `After rendering: ${diff.renderedWordCount} words, ${diff.renderedLinkCount} links, title "${diff.renderedTitle ?? '(none)'}". ` +
-          (diff.fingerprints.length ? `Build fingerprints: ${diff.fingerprints.join(', ')}.` : ''),
-      });
-      return;
-    }
-
-    if (outcome.renderUnavailable && outcome.escalationReasons.length > 0) {
-      await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, {
-        issueType: 'RENDER_UNAVAILABLE',
-        severity: 'MEDIUM',
-        confidence: 'CONFIRMED',
-        description: 'This page needs JavaScript to be read, and we could not render it on this crawl.',
-        explanation: 'The static response is an empty shell and the render tier was unavailable or out of budget.',
-        impact: 'Content findings for this page are incomplete and should not be trusted until it has been rendered.',
-        recommendation: 'Re-run the audit with the render budget raised for this site.',
-        evidence: `Escalation reasons: ${outcome.escalationReasons.join(', ')}`,
-      });
-    }
-  }
-
-  /**
-   * Raises the findings that are about the crawl rather than about one page:
-   * a sitemap on the wrong domain, sitemap URLs that do not resolve, and
-   * clusters of URLs serving identical content.
-   *
-   * Duplicate clusters are reported once for the cluster. Reporting them as
-   * one thin-content finding per copy both inflates the issue count and names
-   * the wrong fix — the answer is a canonical, not more words.
-   */
-  private async persistSiteFindings(jobId: string, websiteId: string): Promise<void> {
-    try {
-      const website = await this.prisma.website.findUnique({ where: { id: websiteId }, select: { url: true, domain: true } });
-      const siteUrl = website?.url?.startsWith('http') ? website.url : `https://${website?.domain ?? ''}`;
-      if (!siteUrl || siteUrl === 'https://') return;
-
-      const { sitemapUrls: sitemapSet, sitemapFindings } = await this.loadCrawlState(jobId);
-
-      const pages = await this.prisma.page.findMany({
-        where: { crawlJobId: jobId },
-        select: { url: true, statusCode: true, contentHash: true, fetchErrorKind: true },
-      });
-
-      const deadSitemapUrls = pages
-        .filter((p) => sitemapSet.has(p.url) && (p.statusCode === 0 || p.statusCode >= 400))
-        .map((p) => ({
-          url: p.url,
-          status: p.statusCode,
-          reason: p.statusCode === 0 ? `${p.fetchErrorKind ?? 'unknown'}: could not be fetched` : `HTTP ${p.statusCode}`,
-        }));
-
-      const duplicateClusters = findDuplicateClusters(pages.map((p) => ({ url: p.url, contentHash: p.contentHash })));
-
-      const findings = evaluateSite({ siteUrl, sitemapFindings, duplicateClusters, deadSitemapUrls });
-      for (const finding of findings) {
-        await this.persistIssue(jobId, websiteId, null, finding.affectedUrl, {
-          issueType: finding.id,
-          severity: finding.severity,
-          confidence: finding.confidence,
-          description: finding.description,
-          explanation: finding.explanation,
-          impact: finding.impact,
-          recommendation: finding.recommendation,
-          evidence: finding.evidence,
-        });
+  private async settlePageFetchTask(payload: PageFetchPayload): Promise<void> {
+    if (this.queue.pageFetchQueue) {
+      // Settled by task identity, not by arrival: BullMQ runs a task again
+      // after a retry or a lapsed lock, and counting those re-runs as
+      // separate work is what drove the counter to zero with most of the
+      // site still queued. `alreadySettled` means this run is a duplicate of
+      // one already accounted for, so the crawl is not finished by it.
+      const { remaining, alreadySettled } = await this.queue.settlePageFetchTask(payload.jobId, payload.taskId);
+      if (!alreadySettled && remaining <= 0) {
+        const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
+        if (job && job.status === 'RUNNING') {
+          await this.completeJob(payload.jobId);
+        }
       }
-
-      if (findings.length > 0) {
-        this.logger.log(`[JOB ${jobId}] Raised ${findings.length} site-level finding(s): ${findings.map((f) => f.id).join(', ')}`);
-      }
-    } catch (err) {
-      // Site-level findings are additional to a crawl that has already
-      // succeeded; failing to write one must not un-finish the job.
-      this.logger.error(`[JOB ${jobId}] Could not persist site-level findings`, err);
     }
   }
 
@@ -1192,268 +1085,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       engine: outcome.tier === 'rendered' ? ('playwright' as const) : ('cheerio' as const),
       errorMessage: outcome.error?.message,
     };
-  }
-
-  /**
-   * The one finding raised for a page we could not read.
-   *
-   * Everything the content rules would have said about such a page is a
-   * statement about a body that never arrived, so this replaces them rather
-   * than joining them.
-   */
-  private async persistFetchFailureIssue(crawlJobId: string, websiteId: string, pageId: string, pageUrl: string, outcome: FetchOutcome): Promise<void> {
-    const blocked = !outcome.error && outcome.blockedSuspected;
-    const issue = blocked
-      ? {
-          issueType: 'FETCH_BLOCKED_SUSPECTED',
-          severity: 'HIGH',
-          confidence: 'LIKELY',
-          description: `The origin answered HTTP ${outcome.statusCode} even with a full browser request.`,
-          explanation:
-            'A bot-protection layer appears to be refusing automated clients. We retried with a complete browser header set and then ' +
-            'through a real browser, and the refusal persisted, so this page could not be assessed.',
-          impact:
-            'Whatever refuses us may also refuse Bingbot, GPTBot, PerplexityBot and ClaudeBot. No content finding about this page can be ' +
-            'trusted until it can be fetched.',
-          recommendation: 'Allow our crawler in your WAF or CDN bot rules, then re-run the audit.',
-          evidence: outcome.blockedEvidence || `HTTP ${outcome.statusCode}`,
-        }
-      : {
-          issueType: 'FETCH_FAILED',
-          severity: this.isRootUrl(pageUrl) ? 'CRITICAL' : 'HIGH',
-          confidence: 'CONFIRMED',
-          description: `Could not fetch page: ${outcome.error?.label ?? 'no response'}.`,
-          explanation:
-            'No response was obtained from the origin, so nothing about this page could be assessed. This is a report of what happened ' +
-            'on our side, not a statement about the page itself.',
-          impact: 'A page we cannot reach may be a page search engines cannot reach. No other finding about it would be trustworthy.',
-          recommendation: `Check that ${pageUrl} resolves and responds from outside your own network.`,
-          evidence: `${outcome.error?.kind ?? 'unknown'}: ${outcome.error?.message ?? 'no response'}`,
-        };
-
-    await this.persistIssue(crawlJobId, websiteId, pageId, pageUrl, issue);
-  }
-
-  /**
-   * The project a website belongs to, cached for the life of the process.
-   *
-   * Resolved once per website rather than once per finding: a 10,000-page
-   * crawl raises findings in the thousands, and every one of them would
-   * otherwise repeat the same lookup. A website moving between projects
-   * mid-crawl would be read stale, which costs that one crawl's findings their
-   * project and is corrected by the next crawl — a trade worth making against
-   * thousands of redundant queries.
-   */
-  private readonly projectIdByWebsite = new Map<string, string | null>();
-
-  /**
-   * (project, competitor) pairs a crawled website's product pages should be
-   * written to for the Business module's catalogs.
-   *
-   * One entry with `competitorId: null` for the project's own site. One entry
-   * per `CompetitorDomain` row for a competitor's site — there can be several,
-   * because a competitor's `Website` is shared across every project tracking
-   * that domain (deduped by domain), and each of those projects needs its own
-   * catalog comparison.
-   *
-   * Cached briefly, not for the life of the process. It used to be kept
-   * forever, so a competitor linked to a website after the first lookup —
-   * a second project adding the same rival, or a crawl whose first page beat
-   * the link being written — never had a product recorded until a restart,
-   * and Business showed "No product pages found" for a site that had them.
-   */
-  private readonly catalogTargetsByWebsite = new Map<
-    string,
-    { at: number; targets: { projectId: string; competitorId: string | null; organizationId: string }[] }
-  >();
-  private static readonly CATALOG_TARGETS_TTL_MS = 60_000;
-
-  private async resolveProjectId(websiteId: string): Promise<string | null> {
-    const cached = this.projectIdByWebsite.get(websiteId);
-    if (cached !== undefined) return cached;
-
-    // Null is a real answer here, not a failure: competitor sites are stored
-    // with no project on purpose. A lookup that fails outright gets the same
-    // answer — a finding with no project is worth strictly more than a crawl
-    // that died resolving one.
-    try {
-      const website = await this.prisma.website.findUnique({
-        where: { id: websiteId },
-        select: { projectId: true },
-      });
-      const projectId = website?.projectId ?? null;
-      this.projectIdByWebsite.set(websiteId, projectId);
-      return projectId;
-    } catch {
-      // Deliberately not cached. A transient failure that poisoned the cache
-      // would strip the project from every remaining finding in the crawl,
-      // long after the database recovered.
-      this.logger.warn(`Could not resolve the project for website ${websiteId}; findings will carry none.`);
-      return null;
-    }
-  }
-
-  private async resolveCatalogTargets(
-    websiteId: string,
-  ): Promise<{ projectId: string; competitorId: string | null; organizationId: string }[]> {
-    const cached = this.catalogTargetsByWebsite.get(websiteId);
-    if (cached && Date.now() - cached.at < CrawlerService.CATALOG_TARGETS_TTL_MS) return cached.targets;
-
-    try {
-      const website = await this.prisma.website.findUnique({
-        where: { id: websiteId },
-        select: {
-          projectId: true,
-          project: { select: { organizationId: true } },
-          competitors: { select: { id: true, projectId: true, project: { select: { organizationId: true } } } },
-        },
-      });
-      if (!website) return [];
-
-      const targets: { projectId: string; competitorId: string | null; organizationId: string }[] = [];
-      if (website.projectId && website.project) {
-        targets.push({ projectId: website.projectId, competitorId: null, organizationId: website.project.organizationId });
-      }
-      for (const competitor of website.competitors) {
-        targets.push({ projectId: competitor.projectId, competitorId: competitor.id, organizationId: competitor.project.organizationId });
-      }
-
-      this.catalogTargetsByWebsite.set(websiteId, { at: Date.now(), targets });
-      return targets;
-    } catch {
-      // Not cached, same reasoning as resolveProjectId: a transient failure
-      // must not poison every later page of this crawl.
-      this.logger.warn(`Could not resolve catalog targets for website ${websiteId}; product pages on it will not be cataloged this crawl.`);
-      return [];
-    }
-  }
-
-  /**
-   * Writes one CatalogProduct row per (project, competitor) target for a page
-   * the product detector flagged. Never called for a page that isn't one —
-   * a page that stops looking like a product on a later crawl keeps its old
-   * row rather than being silently deleted, which the Business module's Gaps
-   * tab treats as "check this one" instead of a phantom drop in the catalog.
-   */
-  private async recordCatalogProduct(websiteId: string, pageId: string, pageUrl: string, signal: ProductSignal): Promise<void> {
-    const targets = await this.resolveCatalogTargets(websiteId);
-    if (targets.length === 0) return;
-
-    for (const target of targets) {
-      try {
-        await writeCatalogProduct(this.prisma, target, pageId, pageUrl, signal);
-      } catch (err) {
-        this.logger.warn(`Could not record catalog product ${pageUrl} for project ${target.projectId}: ${(err as Error).message}`);
-      }
-    }
-  }
-
-  /**
-   * Writes one finding, ignoring a duplicate already recorded for this crawl.
-   *
-   * Carries the same identity columns the issue engine writes. A finding that
-   * reached the database without a fingerprint is invisible to reconciliation,
-   * so it could never resolve and never regress — and the site-level findings
-   * that come through here are among the longest-lived a site has.
-   */
-  private async persistIssue(
-    crawlJobId: string,
-    websiteId: string,
-    pageId: string | null,
-    affectedUrl: string,
-    issue: { issueType: string; severity: string; confidence: string; description: string; explanation: string; impact: string; recommendation: string; evidence: string },
-  ): Promise<void> {
-    const dedupKey = `${affectedUrl}::${issue.issueType}`;
-    const projectId = await this.resolveProjectId(websiteId);
-    const scope = fingerprintScope(projectId, websiteId);
-    const fingerprint = fingerprintFor(scope, issue.issueType, affectedUrl);
-    const groupKey = issueGroupKey(scope, issue.issueType);
-    try {
-      const existing = await this.prisma.issue.findFirst({ where: { crawlJobId, dedupKey } });
-      if (existing) return;
-      await this.prisma.issue.create({
-        data: {
-          crawlJobId,
-          projectId,
-          fingerprint,
-          groupKey,
-          pageId: pageId ?? undefined,
-          issueType: issue.issueType,
-          severity: issue.severity as never,
-          confidence: issue.confidence as never,
-          category: 'TECHNICAL' as never,
-          affectedUrl,
-          description: issue.description,
-          explanation: issue.explanation,
-          impact: issue.impact,
-          recommendation: issue.recommendation,
-          evidence: issue.evidence,
-          dedupKey,
-          status: 'OPEN',
-          aiFixAvailable: false,
-        },
-      });
-      await this.prisma.crawlJob.update({ where: { id: crawlJobId }, data: { issuesFound: { increment: 1 } } });
-    } catch (err) {
-      this.logger.error(`[JOB ${crawlJobId}] Could not persist ${issue.issueType} for ${affectedUrl}`, err);
-    }
-  }
-
-  private isRootUrl(rawUrl: string): boolean {
-    try {
-      const parsed = new URL(rawUrl);
-      return parsed.pathname === '/' || parsed.pathname === '';
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Stores the social profiles a page links to, against the site being crawled.
-   *
-   * Written per page rather than once at the end because the page fetches are
-   * distributed across workers and no single process sees the whole crawl. The
-   * per-profile page count is the point: a business's own accounts sit in the
-   * footer and so arrive once per page, while a link to a partner's profile
-   * arrives once, and that difference is the only honest way to pick a site's
-   * own account when it publishes more than one. Counted against the job, so
-   * the figure stays comparable to that crawl's own page total.
-   *
-   * External links are otherwise not persisted at all, and deliberately still
-   * are not — a site's outbound links run to hundreds per page and none of the
-   * rest is read by anything.
-   */
-  private async recordSocialLinks(crawlJobId: string, externalLinks: { targetUrl: string }[]): Promise<void> {
-    if (!crawlJobId || !externalLinks?.length) return;
-
-    const profiles = extractSocialProfiles(externalLinks.map((link) => link.targetUrl));
-    if (profiles.length === 0) return;
-
-    for (const profile of profiles) {
-      try {
-        await this.prisma.siteSocialLink.upsert({
-          where: {
-            crawlJobId_platform_handle: {
-              crawlJobId,
-              platform: profile.platform,
-              handle: profile.handle,
-            },
-          },
-          update: { pageCount: { increment: 1 }, profileUrl: profile.profileUrl },
-          create: {
-            crawlJobId,
-            platform: profile.platform,
-            handle: profile.handle,
-            profileUrl: profile.profileUrl,
-            pageCount: 1,
-          },
-        });
-      } catch (err) {
-        // A profile that fails to store costs this site one discovery lead. It
-        // must not fail the page, which carries the crawl's actual findings.
-        this.logger.debug(`Could not record ${profile.platform} ${profile.handle}: ${err}`);
-      }
-    }
   }
 
   /**
@@ -1504,7 +1135,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const batchKeys = new Set<string>();
 
     for (const link of internalLinks) {
-      const targetClean = this.normalizeUrl(link.targetUrl);
+      const targetClean = this.state.normalizeUrl(link.targetUrl);
 
       this.prisma.link.create({
         data: {
@@ -1524,10 +1155,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // the HTML the limit was meant to protect.
       if (!isCrawlablePage(targetClean)) continue;
 
-      const key = this.visitKey(targetClean);
+      const key = this.state.visitKey(targetClean);
       if (batchKeys.has(key)) continue;
       batchKeys.add(key);
-      if (await this.isUrlClaimed(payload.jobId, targetClean)) {
+      if (await this.state.isUrlClaimed(payload.jobId, targetClean)) {
         alreadyClaimed.push(targetClean);
         continue;
       }
@@ -1554,12 +1185,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // It is not a URL count and must never be presented as one: a nav menu
       // repeated across 32 pages is 32 events over a handful of URLs. The
       // inventory below is where the unique URLs go.
-      await this.bumpJobStat(payload.jobId, 'internalLinksFound', internalLinks.length);
+      await this.state.bumpJobStat(payload.jobId, 'internalLinksFound', internalLinks.length);
       await this.inventory
         .record(
           payload.jobId,
           internalLinks.map((link) => {
-            const normalized = this.normalizeUrl(link.targetUrl);
+            const normalized = this.state.normalizeUrl(link.targetUrl);
             return {
               url: normalized,
               source: jsOnlyTargets.has(normalized) ? 'javascript_dom' : 'internal_link',
@@ -1600,294 +1231,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Crawl-wide facts that every page fetch needs and no single process owns.
-   *
-   * The sitemap's URL set, the parsed robots.txt and the sitemap's defects are
-   * established once, by whichever process runs `processCrawlJob`, and then
-   * read by every page fetch. Holding them in a field made them invisible to
-   * anyone else: the worker deployment runs page fetches in a second container
-   * (see docker-compose.yml), and a container that restarts mid-crawl — the
-   * ordinary outcome of Chromium meeting a 512MB instance — comes back with
-   * the maps empty and keeps fetching the same crawl's queued URLs.
-   *
-   * What that costs is not theoretical. Every page then fetched is recorded as
-   * `seed` rather than `sitemap`, so the audit misreports how its own URLs were
-   * found; `inSitemap` is false for all of them, so the issue engine raises
-   * "not in the sitemap" against pages the sitemap does list; and indexability
-   * is decided without the robots.txt rules. A crawl of milquufresh.in showed
-   * exactly that — its homepage labelled `sitemap` and every later page
-   * labelled `seed`, which is the signature of the state having been lost
-   * between the two fetches.
-   *
-   * Stored in Redis where there is one, since that is already the crawl's
-   * shared memory, and kept in the fields as a per-process cache and as the
-   * whole story when Redis is absent and one process does everything.
-   */
-  private async saveCrawlState(
-    jobId: string,
-    state: { sitemapUrls: Set<string>; robots: ParsedRobots | undefined; sitemapFindings: SitemapFinding[] },
-  ): Promise<void> {
-    this.jobSitemapUrls.set(jobId, state.sitemapUrls);
-    this.jobRobots.set(jobId, state.robots);
-    this.jobSitemapFindings.set(jobId, state.sitemapFindings);
-
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return;
-    try {
-      await redisClient.set(
-        `job:${jobId}:crawl_state`,
-        JSON.stringify({
-          sitemapUrls: [...state.sitemapUrls],
-          robots: state.robots,
-          sitemapFindings: state.sitemapFindings,
-        }),
-        'EX',
-        86400,
-      );
-    } catch (error) {
-      this.logger.warn(`[JOB ${jobId}] Crawl state could not be shared with the other workers: ${(error as Error).message}`);
-    }
-  }
-
-  private async loadCrawlState(
-    jobId: string,
-  ): Promise<{ sitemapUrls: Set<string>; robots: ParsedRobots | undefined; sitemapFindings: SitemapFinding[] }> {
-    const cached = this.jobSitemapUrls.get(jobId);
-    if (cached) {
-      return { sitemapUrls: cached, robots: this.jobRobots.get(jobId), sitemapFindings: this.jobSitemapFindings.get(jobId) || [] };
-    }
-
-    const empty = { sitemapUrls: new Set<string>(), robots: undefined, sitemapFindings: [] as SitemapFinding[] };
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return empty;
-
-    try {
-      const raw = await redisClient.get(`job:${jobId}:crawl_state`);
-      if (!raw) return empty;
-      const parsed = JSON.parse(raw) as {
-        sitemapUrls?: string[];
-        robots?: ParsedRobots;
-        sitemapFindings?: SitemapFinding[];
-      };
-      const state = {
-        sitemapUrls: new Set<string>(parsed.sitemapUrls || []),
-        robots: parsed.robots,
-        sitemapFindings: parsed.sitemapFindings || [],
-      };
-      // Cached in this process, so the rest of this worker's pages cost nothing.
-      this.jobSitemapUrls.set(jobId, state.sitemapUrls);
-      this.jobRobots.set(jobId, state.robots);
-      this.jobSitemapFindings.set(jobId, state.sitemapFindings);
-      return state;
-    } catch (error) {
-      this.logger.warn(`[JOB ${jobId}] Crawl state could not be read back: ${(error as Error).message}`);
-      return empty;
-    }
-  }
-
-  /** Drops a finished crawl's shared state, which nothing will read again. */
-  private async forgetCrawlState(jobId: string): Promise<void> {
-    await this.queue.forgetJobTasks?.(jobId);
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return;
-    try {
-      await redisClient.del(`job:${jobId}:crawl_state`, `job:${jobId}:stats`, `job:${jobId}:renders_used`);
-    } catch {
-      /* every one of these keys expires on its own within the day */
-    }
-  }
-
-  /**
-   * The crawl's render budget, counted where the whole crawl can see it.
-   *
-   * A budget held per process is no budget at all once there are two of them:
-   * each worker starts its own count from zero and the instance gets the sum.
-   */
-  private async rendersUsed(jobId: string): Promise<number> {
-    const redisClient = this.queue.getRedisClient?.();
-    if (redisClient) {
-      try {
-        const value = await redisClient.get(`job:${jobId}:renders_used`);
-        return value ? parseInt(value, 10) || 0 : 0;
-      } catch {
-        // Fall through to this process's own count rather than refusing to render.
-      }
-    }
-    return this.jobRendersUsed.get(jobId) ?? 0;
-  }
-
-  private async noteRenderUsed(jobId: string): Promise<void> {
-    this.jobRendersUsed.set(jobId, (this.jobRendersUsed.get(jobId) ?? 0) + 1);
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return;
-    try {
-      const key = `job:${jobId}:renders_used`;
-      await redisClient.incr(key);
-      await redisClient.expire(key, 86400);
-    } catch {
-      /* the in-process count above still bounds this worker */
-    }
-  }
-
-  /**
-   * A crawl's running totals, likewise kept where every worker can add to them.
-   *
-   * These are what the audit shows as coverage: how many URLs were skipped and
-   * how many robots.txt refused. Counted in one process's memory they came back
-   * as zero whenever the crawl was finished by another, which reads as "nothing
-   * was skipped" — the reassuring answer rather than the true one.
-   */
-  private async bumpJobStat(jobId: string, field: 'urlsSkipped' | 'robotsBlocked' | 'internalLinksFound', by = 1): Promise<void> {
-    const stats = this.jobStats.get(jobId);
-    if (stats) stats[field] += by;
-
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return;
-    try {
-      const key = `job:${jobId}:stats`;
-      await redisClient.hincrby(key, field, by);
-      await redisClient.expire(key, 86400);
-    } catch {
-      /* a lost counter must never cost a page */
-    }
-  }
-
-  private async setJobCrawlStatus(jobId: string, status: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL'): Promise<void> {
-    const stats = this.jobStats.get(jobId);
-    if (stats) stats.crawlStatus = status;
-
-    const redisClient = this.queue.getRedisClient?.();
-    if (!redisClient) return;
-    try {
-      const key = `job:${jobId}:stats`;
-      await redisClient.hset(key, 'crawlStatus', status);
-      await redisClient.expire(key, 86400);
-    } catch {
-      /* as above */
-    }
-  }
-
-  private async readJobStats(jobId: string): Promise<{
-    urlsSkipped: number;
-    robotsBlocked: number;
-    internalLinksFound: number;
-    crawlStatus: 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL';
-  }> {
-    const local = this.jobStats.get(jobId);
-    const redisClient = this.queue.getRedisClient?.();
-    if (redisClient) {
-      try {
-        const stored = (await redisClient.hgetall(`job:${jobId}:stats`)) as Record<string, string>;
-        if (stored && Object.keys(stored).length > 0) {
-          return {
-            urlsSkipped: Number(stored.urlsSkipped || 0),
-            robotsBlocked: Number(stored.robotsBlocked || 0),
-            internalLinksFound: Number(stored.internalLinksFound || 0),
-            crawlStatus: (stored.crawlStatus as 'COMPLETED' | 'LIMIT_REACHED' | 'PARTIAL') || 'COMPLETED',
-          };
-        }
-      } catch {
-        /* fall back to whatever this process saw */
-      }
-    }
-    return {
-      urlsSkipped: local?.urlsSkipped ?? 0,
-      robotsBlocked: local?.robotsBlocked ?? 0,
-      internalLinksFound: local?.internalLinksFound ?? 0,
-      crawlStatus: local?.crawlStatus ?? 'COMPLETED',
-    };
-  }
-
-  /**
-   * Claims a URL for this job, returning a result object describing why (if) it
-   * must not be fetched.
-   *
-   * `alreadyVisited` — the URL was seen before; skip silently (normal dedup).
-   * `limitReached`   — the page ceiling was hit; the crawl is capped, not done.
-   *
-   * Every fetch passes through here in both the Redis and in-memory paths,
-   * which is why the page ceiling is enforced here rather than at each of the
-   * places that enqueue work. A cap checked at enqueue time would not hold:
-   * links are discovered while the crawl runs, so the only number that can be
-   * trusted is the count of URLs already claimed.
-   *
-   * Under concurrency the count can be read by several workers before any of
-   * them adds, so a job may overshoot its ceiling by up to the worker count.
-   * That is deliberate — the alternative is a Lua script or a lock on the hot
-   * path of every fetch, and a handful of extra pages on a cap of a few
-   * hundred is not worth either.
-   */
-  private async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<{ alreadyVisited: boolean; limitReached: boolean }> {
-    const redisClient = this.queue.getRedisClient();
-    const key = `job:${jobId}:visited`;
-    const member = this.visitKey(targetUrl);
-
-    if (redisClient) {
-      if (pageLimit && (await redisClient.scard(key)) >= pageLimit) {
-        return { alreadyVisited: false, limitReached: true };
-      }
-      const added = await redisClient.sadd(key, member);
-      if (added === 1) {
-        await redisClient.expire(key, 86400);
-        return { alreadyVisited: false, limitReached: false };
-      }
-      return { alreadyVisited: true, limitReached: false };
-    }
-
-    let visitedSet = this.localVisited.get(jobId);
-    if (!visitedSet) {
-      visitedSet = new Set<string>();
-      this.localVisited.set(jobId, visitedSet);
-    }
-    if (pageLimit && visitedSet.size >= pageLimit) {
-      return { alreadyVisited: false, limitReached: true };
-    }
-    if (visitedSet.has(member)) {
-      return { alreadyVisited: true, limitReached: false };
-    }
-    visitedSet.add(member);
-    return { alreadyVisited: false, limitReached: false };
-  }
-
-  /**
-   * Whether this crawl has already claimed the page a URL names, in any
-   * spelling. Read-only: the claim itself is still taken by markUrlVisited at
-   * fetch time. A failed lookup answers "no", so the link is enqueued and the
-   * fetch-time check decides, exactly as before this existed.
-   */
-  private async isUrlClaimed(jobId: string, targetUrl: string): Promise<boolean> {
-    const member = this.visitKey(targetUrl);
-    const redisClient = this.queue.getRedisClient?.();
-    if (redisClient) {
-      if (typeof redisClient.sismember !== 'function') return false;
-      try {
-        return (await redisClient.sismember(`job:${jobId}:visited`, member)) === 1;
-      } catch {
-        return false;
-      }
-    }
-    return this.localVisited.get(jobId)?.has(member) ?? false;
-  }
-
-  /**
-   * Hands a claimed URL back, so another attempt may fetch it.
-   *
-   * Only for an attempt that recorded nothing. A URL whose page was stored
-   * keeps its claim, because re-fetching it would be duplicate work.
-   */
-  private async releaseUrlClaim(jobId: string, targetUrl: string): Promise<void> {
-    const member = this.visitKey(targetUrl);
-    // Optional, because this one runs while an error is already on its way out:
-    // a second failure here would replace the error the caller needs to see.
-    const redisClient = this.queue.getRedisClient?.();
-    if (redisClient) {
-      await redisClient.srem(`job:${jobId}:visited`, member).catch(() => undefined);
-      return;
-    }
-    this.localVisited.get(jobId)?.delete(member);
-  }
-
   async completeJob(jobId: string): Promise<void> {
     const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId } });
     // A cancelled crawl stays cancelled. The in-memory worker pool calls this
@@ -1903,11 +1246,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 1. Retrieve crawled pages and issues to calculate authoritative health score and diagnostics
-    const pages: any[] = [];
-    let pagesCursor: string | null = null;
-    let hasMorePages = true;
-    while (hasMorePages) {
-      const queryOptions: any = {
+    const pages = await findAll((paging) =>
+      this.prisma.page.findMany({
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1919,25 +1259,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           jsRequired: true,
           discoverySource: true,
         },
-        take: 10000,
-        orderBy: { id: 'asc' },
-      };
-      if (pagesCursor) {
-        queryOptions.skip = 1;
-        queryOptions.cursor = { id: pagesCursor };
-      }
-      const batch = await this.prisma.page.findMany(queryOptions);
-      pages.push(...batch);
-      if (batch.length < 10000) hasMorePages = false;
-      else pagesCursor = batch[batch.length - 1].id;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+        ...paging,
+      }),
+    );
 
-    const issues: any[] = [];
-    let issuesCursor: string | null = null;
-    let hasMoreIssues = true;
-    while (hasMoreIssues) {
-      const queryOptions: any = {
+    const issues = await findAll((paging) =>
+      this.prisma.issue.findMany({
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1948,32 +1275,22 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           dedupKey: true,
           page: { select: { url: true } },
         },
-        take: 10000,
-        orderBy: { id: 'asc' },
-      };
-      if (issuesCursor) {
-        queryOptions.skip = 1;
-        queryOptions.cursor = { id: issuesCursor };
-      }
-      const batch = await this.prisma.issue.findMany(queryOptions);
-      issues.push(...batch);
-      if (batch.length < 10000) hasMoreIssues = false;
-      else issuesCursor = batch[batch.length - 1].id;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+        ...paging,
+      }),
+    );
 
     // Site-level findings: defects about the site as a whole rather than about
     // any one page. A sitemap pointing at another domain is the reason a crawl
     // like dronaarchery.com's ends at one page, and it belongs to the crawl,
     // not to whichever URL happened to be fetched first.
-    await this.persistSiteFindings(jobId, job.websiteId);
+    await this.recorder.persistSiteFindings(jobId, job.websiteId);
 
     // Continuity across crawls. Runs after site findings so everything this
     // crawl has to say is on the table before it is compared with last time's;
     // reconciling first would read a site-level finding raised moments later
     // as absent, and resolve something that is still true.
     try {
-      const projectId = await this.resolveProjectId(job.websiteId);
+      const projectId = await this.recorder.resolveProjectId(job.websiteId);
       await this.issueEngine.reconcileAgainstPreviousCrawl(projectId, jobId);
     } catch (reconcileErr) {
       // A crawl that cannot be reconciled is still a crawl worth finishing.
@@ -1985,12 +1302,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const totalFindings = issues.length;
 
     // Deduplicate issues by dedupKey or (pageUrl + issueType)
-    const uniqueIssueMap = new Map<string, typeof issues[0]>();
+    const uniqueIssueMap = new Map<string, (typeof issues)[0]>();
     for (const issue of issues) {
-      const key = (issue as any).dedupKey || `${issue.page?.url || issue.affectedUrl}::${issue.issueType}`;
-      if (!uniqueIssueMap.has(key)) {
-        uniqueIssueMap.set(key, issue);
-      }
+      const key = issueKey(issue);
+      if (!uniqueIssueMap.has(key)) uniqueIssueMap.set(key, issue);
     }
     const uniqueIssuesCount = uniqueIssueMap.size;
 
@@ -2000,9 +1315,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // breakdown printed beside it cannot disagree. The previous scorer lived
     // only on this side and counted every page equally, including the ones we
     // never managed to fetch — which is how a site whose homepage we failed to
-    const { sitemapUrls: sitemapSet } = await this.loadCrawlState(jobId);
-    const stats = this.jobStats.get(jobId);
-    const sharedStats = await this.readJobStats(jobId);
+    const { sitemapUrls: sitemapSet } = await this.state.loadCrawlState(jobId);
+    const stats = this.state.jobStats.get(jobId);
+    const sharedStats = await this.state.readJobStats(jobId);
     // Read off the inventory rows, not off a counter.
     //
     // `job.pagesDiscovered` is written once, at seed time, so it cannot include
@@ -2059,7 +1374,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         renderedPages: inventoryMetrics?.renderedPages,
         // Whether the render tier ran at all, which the UI needs in order to
         // say "Not scanned" instead of printing a zero it cannot stand behind.
-        renderingEnabled: (await this.rendersUsed(jobId)) > 0 || (inventoryMetrics?.renderedPages ?? 0) > 0,
+        renderingEnabled: (await this.state.rendersUsed(jobId)) > 0 || (inventoryMetrics?.renderedPages ?? 0) > 0,
         discoveredNotCrawled: inventoryMetrics?.discoveredNotCrawled,
       },
     });
@@ -2080,31 +1395,16 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (previousJob) {
-        const prevIssues: any[] = [];
-        let prevCursor: string | null = null;
-        let hasMorePrev = true;
-        while (hasMorePrev) {
-          const queryOptions: any = {
+        const prevIssues = await findAll((paging) =>
+          this.prisma.issue.findMany({
             where: { crawlJobId: previousJob.id },
             select: { id: true, dedupKey: true, issueType: true, affectedUrl: true, page: { select: { url: true } } },
-            take: 10000,
-            orderBy: { id: 'asc' },
-          };
-          if (prevCursor) {
-            queryOptions.skip = 1;
-            queryOptions.cursor = { id: prevCursor };
-          }
-          const batch = await this.prisma.issue.findMany(queryOptions);
-          prevIssues.push(...batch);
-          if (batch.length < 10000) hasMorePrev = false;
-          else prevCursor = batch[batch.length - 1].id;
-          await new Promise((resolve) => setImmediate(resolve));
-        }
+            ...paging,
+          }),
+        );
 
         const currentKeys = new Set(uniqueIssueMap.keys());
-        const prevKeys = new Set(
-          prevIssues.map((i) => (i as any).dedupKey || `${i.page?.url || i.affectedUrl}::${i.issueType}`),
-        );
+        const prevKeys = new Set(prevIssues.map(issueKey));
 
         for (const prevKey of prevKeys) {
           if (!currentKeys.has(prevKey)) {
@@ -2117,18 +1417,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 4. Calculate quality diagnostics
-    const statusCodeDist: Record<string, number> = {};
-    let totalResponseTime = 0;
-    let validResponseCount = 0;
-    for (const p of pages) {
-      const bucket = p.statusCode ? `${Math.floor(p.statusCode / 100)}xx` : 'other';
-      statusCodeDist[bucket] = (statusCodeDist[bucket] || 0) + 1;
-      if (p.responseTimeMs && p.responseTimeMs > 0) {
-        totalResponseTime += p.responseTimeMs;
-        validResponseCount++;
-      }
-    }
-    const avgResponseTimeMs = validResponseCount > 0 ? Math.round(totalResponseTime / validResponseCount) : 0;
+    const { statusCodes: statusCodeDist, avgResponseTimeMs } = responseStats(pages);
 
     const startedAt = job.startedAt || new Date();
     const finishedAt = new Date();
@@ -2215,13 +1504,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.metrics.activeCrawlJobs.dec();
-    this.localVisited.delete(jobId);
-    this.jobSitemapUrls.delete(jobId);
-    this.jobSitemapFindings.delete(jobId);
-    this.jobRobots.delete(jobId);
-    this.jobRendersUsed.delete(jobId);
-    this.jobStats.delete(jobId);
-    await this.forgetCrawlState(jobId);
+    this.state.dropLocal(jobId);
+    await this.state.forgetCrawlState(jobId);
 
     await this.announceCompletion(jobId, job.websiteId);
   }
@@ -2264,46 +1548,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     this.completionHandlers.push(handler);
   }
 
-  /**
-   * The key a URL is deduplicated under within a crawl.
-   *
-   * Distinct from the URL we fetch. A site links itself both ways — the footer
-   * uses https://example.com/about, the nav uses https://www.example.com/about
-   * — and normalizeUrl treats those as two pages, so both were fetched and both
-   * were stored. On the site crawled here that turned 35 pages into 44 rows,
-   * and page-kind counts inflated with them: coverage read 12 product pages
-   * where there were 9. Because how often a site links itself each way varies
-   * per site, the inflation differs per site too, so a competitor comparison
-   * was comparing two differently-wrong numbers.
-   *
-   * Only the key is canonicalised, never the URL we request. Plenty of sites
-   * serve one host spelling and redirect the other, so rewriting the request
-   * would turn a working fetch into a redirect chase or a 404; the fetcher
-   * follows whatever redirect the site issues and records the result in
-   * finalUrl.
-   */
-  private visitKey(normalizedUrl: string): string {
-    return canonicalUrl(normalizedUrl);
-  }
-
-  private normalizeUrl(rawUrl: string): string {
-    try {
-      let formatted = rawUrl.trim();
-      if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
-        formatted = `https://${formatted}`;
-      }
-      const parsed = url.parse(formatted);
-      parsed.hash = null;
-      let pathname = parsed.pathname || '/';
-      if (pathname !== '/' && pathname.endsWith('/')) {
-        pathname = pathname.slice(0, -1);
-      }
-      parsed.pathname = pathname;
-      return url.format(parsed);
-    } catch {
-      return rawUrl;
-    }
-  }
 }
 
 /**
