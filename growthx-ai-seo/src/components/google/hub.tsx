@@ -14,7 +14,6 @@ import {
   Globe,
   Lightbulb,
   Play,
-  Plus,
   RefreshCw,
   Search,
   Settings,
@@ -1138,8 +1137,8 @@ export function GoogleHub() {
           </div>
         </div>
 
-        {/* Opportunities (2.5 cols) */}
-        <div className="lg:col-span-2 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
+        {/* Opportunities (3 cols) */}
+        <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
               <div>
@@ -1172,8 +1171,8 @@ export function GoogleHub() {
           </div>
         </div>
 
-        {/* Changes & alerts (2 cols) */}
-        <div className="lg:col-span-2 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
+        {/* Changes & alerts (3 cols) */}
+        <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
               <div>
@@ -1206,47 +1205,6 @@ export function GoogleHub() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Team & project (2 cols) */}
-        <div className="lg:col-span-2 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div>
-                <h3 className="text-xs font-bold text-brand-950">Team & project</h3>
-              </div>
-              <span className="text-brand-400 text-xs">•••</span>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between">
-              {/* Stacked avatars */}
-              <div className="flex -space-x-2 overflow-hidden">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-1 bg-signal-400 font-mono text-[10px] font-bold text-signal-ink">
-                  SA
-                </span>
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-1 bg-brand-300 font-mono text-[10px] font-bold text-brand-950">
-                  JD
-                </span>
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-1 bg-brand-200 font-mono text-[10px] font-bold text-brand-700">
-                  +5
-                </span>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] font-semibold text-brand-950">Sales team</p>
-                <p className="text-[10px] text-brand-400">7 people</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3">
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-400 hover:text-brand-950 transition"
-            >
-              <Plus size={11} />
-              <span>Add member</span>
-            </Link>
           </div>
         </div>
       </div>
