@@ -1249,6 +1249,59 @@ export interface GoogleBreakdown {
   rows: GscRow[] | null;
 }
 
+/** Mirrors the backend's GoogleReport: the Sarvam improvement report on Search Console and Analytics 4. */
+export type GoogleReportLevel = "high" | "medium" | "low";
+export interface GoogleReportPriority {
+  rank: number;
+  title: string;
+  platform: "GSC" | "GA4" | "BOTH";
+  priority: GoogleReportLevel;
+  effort: GoogleReportLevel;
+  impact: GoogleReportLevel;
+  evidence: string;
+  whyItMatters: string;
+  steps: string[];
+  measureBy: string;
+}
+export interface GoogleReportRow {
+  key: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+  extra?: string;
+}
+export interface GoogleReportFacts {
+  days: number;
+  site: string | null;
+  searchConsole: { connected: boolean; hasData: boolean; lastSyncedAt: string | null; propertyName: string | null };
+  analytics: { connected: boolean; hasData: boolean; lastSyncedAt: string | null; propertyName: string | null };
+  kpis: { label: string; source: "GSC" | "GA4"; format: string; value: number | null; previous: number | null; change: string | null; note: string | null }[];
+  topQueries: GoogleReportRow[];
+  topPages: GoogleReportRow[];
+  strikingDistance: GoogleReportRow[];
+  ctrOpportunities: GoogleReportRow[];
+  notMeasured: string[];
+}
+export interface GoogleReport {
+  generatedAt: string;
+  facts: GoogleReportFacts;
+  analysis: {
+    executiveSummary: string;
+    whereWeAre: {
+      searchConsole: { verdict: string; points: string[] };
+      analytics: { verdict: string; points: string[] };
+    };
+    priorities: GoogleReportPriority[];
+    quickWins: string[];
+    plan: { week: string; actions: string[] }[];
+    dataGaps: string[];
+  } | null;
+  model: string | null;
+  analysisError: string | null;
+  snapshotId?: string | null;
+}
+
 export interface GoogleAlertsReport {
   days: 7 | 28 | 90;
   comparable: boolean;
@@ -4100,6 +4153,9 @@ export const api = {
     get<GoogleBreakdown>(`/api/projects/${projectId}/google/breakdown?days=${days}&dimension=${dimension}`),
   googleAlerts: (projectId: string, days: number) =>
     get<GoogleAlertsReport>(`/api/projects/${projectId}/google/alerts?days=${days}`),
+  generateGoogleReport: (projectId: string, days: number) =>
+    post<GoogleReport>(`/api/projects/${projectId}/google/report?days=${days}`, {}),
+  getLatestGoogleReport: (projectId: string) => get<GoogleReport | null>(`/api/projects/${projectId}/google/report/latest`),
   googlePage: (projectId: string, days: number, url: string) =>
     get<GooglePageDetail>(`/api/projects/${projectId}/google/page?days=${days}&url=${encodeURIComponent(url)}`),
   ga4PageValue: (projectId: string, days: number) =>

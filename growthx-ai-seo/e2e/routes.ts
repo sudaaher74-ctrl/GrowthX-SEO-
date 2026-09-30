@@ -40,6 +40,7 @@ export const DASHBOARD_ROUTES = [
   "/google/search-console",
   "/google/analytics",
   "/google/overview",
+  "/google/report",
   "/google/pages",
   "/settings",
   "/tokens",

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui/console";
 import { GOOGLE_GROUPS, GOOGLE_VIEWS } from "@/components/google/nav";
 import { GoogleStatusBar } from "@/components/google/status-bar";
@@ -36,6 +36,12 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
         <PageHeader
           title={searchConsole ? "Search Console" : "Analytics 4"}
           subtitle={searchConsole ? "How Google shows your site: clicks, impressions, position, and the queries and pages behind them." : "What visitors do on your site: sessions, users, engagement, channels and landing pages."}
+          actions={
+            <Link href="/google/report" className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-primary-700">
+              <Sparkles size={13} />
+              Improvement report
+            </Link>
+          }
         />
         <GoogleStatusBar projectId={projectId} source={searchConsole ? "searchConsole" : "analytics"} />
         {children}

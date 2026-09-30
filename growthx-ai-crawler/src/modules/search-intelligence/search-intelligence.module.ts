@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+import { AiSearchModule } from '../ai-search/ai-search.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { ChangeImpactService } from './change-impact.service';
 import { ChangeRiskService } from './change-risk.service';
@@ -9,6 +10,7 @@ import { GoogleBreakdownService } from './google-breakdown.service';
 import { GoogleKeywordsService } from './google-keywords.service';
 import { GoogleOverviewController } from './google-overview.controller';
 import { GoogleOverviewService } from './google-overview.service';
+import { GoogleReportService } from './google-report.service';
 import { IndexStatusService } from './index-status.service';
 import { KeywordDiagnosisService } from './keyword-diagnosis.service';
 import { KeywordGapService } from './keyword-gap.service';
@@ -26,13 +28,14 @@ import { SearchRankingsService } from './search-rankings.service';
  * comes from the global CrawlerModule.
  */
 @Module({
-  imports: [DatabaseModule, IntegrationsModule],
+  imports: [DatabaseModule, IntegrationsModule, AiSearchModule],
   controllers: [SearchIntelligenceController, GoogleOverviewController],
   providers: [
     GoogleOverviewService,
     GoogleKeywordsService,
     GoogleBreakdownService,
     GoogleAlertsService,
+    GoogleReportService,
     DataForSeoService,
     IndexStatusService,
     RankTrackingService,

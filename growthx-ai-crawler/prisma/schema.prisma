@@ -3678,6 +3678,17 @@ model AutopilotRun {
   @@index([status])
 }
 
+/// A Google improvement report (Search Console + Analytics 4, written by Sarvam)
+/// as it was generated, so it can be read again later without spending tokens.
+model GoogleReportSnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  report    Json
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
 /// A competitor report as it was generated, so it can be read again later.
 model CompetitorReportSnapshot {
   id        String   @id @default(uuid())

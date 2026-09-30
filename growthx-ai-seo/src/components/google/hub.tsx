@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { Pill } from "@/components/ui/console";
 import { FailedState, LoadingState } from "@/components/ui/truthful-state";
 import { MoreLinks } from "@/components/google/more-links";
@@ -21,6 +21,16 @@ export function GoogleHub() {
 
   return (
     <div className="space-y-6">
+      <Link href="/google/report" className="group flex flex-wrap items-center gap-4 rounded-xl border border-primary-200 bg-primary-50 p-5 hover:bg-primary-100">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-white"><Sparkles size={18} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-brand-950">Improvement report</span>
+          <span className="block text-[12px] text-brand-600">Sarvam reads all your Search Console and Analytics 4 data, tells you where you stand, and lists what to do first.</span>
+        </span>
+        <span className="flex items-center gap-1 text-[12px] font-semibold text-primary-700">
+          Get the report <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </Link>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <SourceCard
           href="/google/search-console"
