@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
@@ -21,6 +21,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
+  // The dark skin is being trialled on the Dashboard tab only.
+  const dark = usePathname() === "/dashboard";
 
   useEffect(() => {
     try {
@@ -57,13 +59,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AivaProvider>
-      <div className="min-h-screen" style={{ background: "var(--color-canvas)" }}>
-        <Sidebar
-          collapsed={collapsed}
-          onToggle={() => toggleCollapsed()}
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-        />
+      <div className={cn("min-h-screen", dark && "dash-dark")} style={{ background: "var(--color-canvas)" }}>
+        {/* The sidebar reads the URL's ?tab= to mark the open sub-tab. */}
+        <Suspense fallback={null}>
+          <Sidebar
+            collapsed={collapsed}
+            onToggle={() => toggleCollapsed()}
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+          />
+        </Suspense>
         <TopNav
           collapsed={collapsed}
           onToggleCollapse={() => toggleCollapsed()}

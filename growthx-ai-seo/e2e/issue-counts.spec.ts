@@ -134,13 +134,15 @@ test.describe("dashboard issue counts", () => {
       .locator("xpath=ancestor::*[.//text()[contains(., 'Missing title')]][1]");
     await expect(queue).toBeVisible({ timeout: 15_000 });
 
+    // The list itself: the picked problem is repeated in the detail card beside it.
+    const list = queue.locator("ol");
     for (const title of ["Missing title", "Schema product offers", "Missing h1", "Missing meta description"]) {
-      await expect(queue.getByText(title, { exact: true })).toBeVisible();
+      await expect(list.getByText(title, { exact: true })).toBeVisible();
     }
     // The schema defect is one row reading 29 pages — not 29 rows, and not the
     // five rows of one defect that used to crowd everything else off the list.
-    await expect(queue.getByText("29 pages", { exact: true })).toBeVisible();
-    await expect(queue.getByText("Schema product offers", { exact: true })).toHaveCount(1);
+    await expect(list.getByText("29 pages", { exact: true })).toBeVisible();
+    await expect(list.getByText("Schema product offers", { exact: true })).toHaveCount(1);
   });
 
   test("says the order is not traffic-weighted when Search Console is not connected", async ({ page }) => {
