@@ -53,7 +53,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
     { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
-    { id: "nav-add-biz", title: "Add Business", category: "Navigation", icon: Plus, href: "/projects", subtitle: "Guided 5-step onboarding wizard" },
+    { id: "nav-add-biz", title: "Add Website", category: "Navigation", icon: Plus, href: "/dashboard", subtitle: "Add a website from the dashboard" },
 
     // Quick Actions
     // Subtitles describe what the action does. They deliberately carry no

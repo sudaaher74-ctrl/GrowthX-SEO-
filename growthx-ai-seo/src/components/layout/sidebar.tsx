@@ -12,7 +12,6 @@ import {
   useWorkspace,
   useProfile,
   useIssueCounts,
-  useCreateProject,
   useDeleteProject,
 } from "@/hooks/use-growthx";
 import { TokensChip } from "@/components/tokens/tokens-chip";
@@ -58,22 +57,31 @@ export function Sidebar({
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [newSite, setNewSite] = useState("");
   const [switcherError, setSwitcherError] = useState<string | null>(null);
-  const createProject = useCreateProject(orgId);
+  const [adding, setAdding] = useState(false);
   const deleteProject = useDeleteProject(orgId);
 
   async function handleAddWebsite() {
-    const name = newSite.trim();
-    if (!name) return;
+    const domain = newSite.trim();
+    if (!domain) return;
     setSwitcherError(null);
+    setAdding(true);
     try {
-      const created = await createProject.mutateAsync(name);
-      setProjectId(created.id);
+      // The same start the dashboard uses: it registers the website, creates
+      // the project for it and begins reading the site. A bare project with no
+      // website behind it leaves every audit page empty.
+      const run = await api.autopilot.start(domain, null);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      queryClient.setQueryData(["autopilot", run.projectId], run);
+      setProjectId(run.projectId);
       setNewSite("");
       setSwitcherOpen(false);
       setMobileOpen?.(false);
       router.push("/dashboard");
     } catch (err) {
       setSwitcherError(err instanceof Error ? err.message : "Could not add the website.");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -283,7 +291,7 @@ export function Sidebar({
                     />
                     <button
                       type="submit"
-                      disabled={!newSite.trim() || createProject.isPending}
+                      disabled={!newSite.trim() || adding}
                       title="Add website"
                       aria-label="Add website"
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-50"

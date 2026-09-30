@@ -82,10 +82,10 @@ export default function ClientsPage() {
             <Download size={13} /> Export CSV
           </button>
           <Link
-            href="/projects"
+            href="/dashboard"
             className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            <Plus size={13} /> Add project
+            <Plus size={13} /> Add website
           </Link>
         </div>
       </div>

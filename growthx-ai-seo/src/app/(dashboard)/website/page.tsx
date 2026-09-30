@@ -367,13 +367,13 @@ function WebsiteAuditClient() {
         error={client?.domain ? portfolio.error || crawl.error : null}
         isEmpty={!client?.domain}
         emptyTitle="No website registered"
-        emptyBody="This workspace has no client with a website attached yet. Add one from Projects, then run a crawl to populate audit data."
+        emptyBody="This workspace has no website attached yet. Add one from the dashboard and we will read it and build your audit."
         emptyAction={
           <Link
-            href="/projects"
+            href="/dashboard"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 transition-colors"
           >
-            Go to Projects to Add Website
+            Go to Dashboard to Add Website
           </Link>
         }
       >
