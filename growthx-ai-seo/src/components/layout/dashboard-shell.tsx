@@ -78,7 +78,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <main
           className={cn(
             "min-h-screen pt-[52px] transition-all duration-300 ease-in-out",
-            collapsed ? "md:ml-0" : "md:ml-[232px]",
+            collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]",
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">

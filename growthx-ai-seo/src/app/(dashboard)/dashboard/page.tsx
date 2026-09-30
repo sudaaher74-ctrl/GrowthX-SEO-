@@ -27,6 +27,7 @@ import {
 import {
   api,
   type FixClass,
+  type Ga4ReportData,
   type IssueCounts,
   type IssueGroup,
   type IssueSeverity,
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { SEVERITY_ORDER, SEVERITY_PLAIN, asSentence } from "@/lib/plain-language";
 import { AutopilotStart } from "@/components/autopilot/autopilot-start";
 import { Ga4Overview } from "@/components/ga4/ga4-panels";
+import { useGa4Report } from "@/hooks/use-ga4-report";
 
 type MetricKey = "searchClicks" | "impressions" | "sessions" | "conversions";
 
@@ -170,6 +172,11 @@ export default function UnifiedDashboardPage() {
   };
   const auditBusy = startCrawlMutation.isPending || crawlRunning;
 
+  // Where visitors come from, from the stored GA4 report. Shown only when the report has channels.
+  const ga4 = useGa4Report(projectId);
+  const ga4Data = ga4.report.data?.data ?? null;
+  const hasChannels = Boolean(ga4Data && !ga4Data.empty && ga4Data.channels.length > 0);
+
   const headline = executive.data?.headline;
   const metrics: { key: MetricKey; short: string; label: string; hint: string }[] = [
     { key: "searchClicks", short: "Clicks", label: "Clicks from Google", hint: "People who clicked your website in Google search" },
@@ -214,7 +221,7 @@ export default function UnifiedDashboardPage() {
       <div className="flex flex-col justify-between gap-4 pt-2 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-[44px] font-light leading-none tracking-[-0.035em] text-brand-950 sm:text-[56px]">
-            {project?.name ?? "Dashboard"}
+            Dashboard
           </h1>
           <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] font-medium text-brand-500">
             {client?.domain ? (
@@ -484,7 +491,8 @@ export default function UnifiedDashboardPage() {
         )}
       </section>
 
-      {/* Row 4: reviews, then the GA4 traffic. */}
+      {/* Row 4: reviews and where visitors come from, then the full GA4 traffic. */}
+      <div className={cn("grid gap-4", hasChannels && "lg:grid-cols-2")}>
       <Card id="reviews" className="flex flex-col gap-4">
         <CardHead title="Your Google reviews" subtitle="What customers say about you on Google." />
         {localSeo.isLoading ? (
@@ -505,6 +513,8 @@ export default function UnifiedDashboardPage() {
           />
         )}
       </Card>
+      {ga4Data && hasChannels && <ChannelShare data={ga4Data} days={ga4.days} />}
+      </div>
 
       {/* GA4 traffic — real figures from the customer's own property, or the reason there are none. */}
       <Ga4Overview projectId={projectId} />
@@ -767,7 +777,7 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
         {group.summary && <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-brand-500">{asSentence(group.summary)}</p>}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_120px]">
         <div className="rounded-[20px] bg-brand-100 p-4">
           <p className="text-[12px] font-semibold text-brand-400">Pages affected</p>
           <p className="mt-1 text-[32px] font-light tracking-[-0.03em]">{group.affectedCount}</p>
@@ -777,6 +787,13 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
           <p className="mt-2 text-[14px] font-bold leading-tight">{fix.label}</p>
           <p className="mt-1 text-[12px] leading-snug text-brand-500">{fix.hint}</p>
         </div>
+        <Link
+          href="/website?tab=issues"
+          className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-brand-300 text-center text-[12px] font-semibold text-brand-400 transition hover:border-brand-400 hover:text-brand-950"
+        >
+          <Plus size={20} />
+          See all issues
+        </Link>
       </div>
 
       {group.action && (
@@ -846,6 +863,49 @@ function DailyClicks({ points }: { points: { date: string; clicks: number | null
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * The busiest channels as share-of-sessions bars: the compact version of the
+ * "Where your traffic comes from" table on the Google Analytics page.
+ */
+function ChannelShare({ data, days }: { data: Ga4ReportData; days: number }) {
+  const total = data.channels.reduce((sum, c) => sum + c.sessions, 0) || data.totals.sessions;
+  const top = [...data.channels].sort((a, b) => b.sessions - a.sessions).slice(0, 4);
+  return (
+    <Card className="flex flex-col gap-4">
+      <CardHead
+        title="Where your visitors come from"
+        subtitle={`Last ${days} days · from Google Analytics`}
+        aside={
+          <Link
+            href="/google/analytics"
+            aria-label="Open Analytics"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-200 text-brand-700 transition hover:text-brand-950"
+          >
+            <ArrowUpRight size={16} />
+          </Link>
+        }
+      />
+      <ul className="space-y-3">
+        {top.map((c, i) => {
+          const pct = total > 0 ? (c.sessions / total) * 100 : 0;
+          return (
+            <li key={c.channel} className="flex items-center gap-3.5">
+              <span className="w-[130px] shrink-0 truncate text-[13px] font-semibold text-brand-700">{c.channel}</span>
+              <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-brand-100">
+                <span
+                  className={cn("block h-full rounded-full", i === 0 ? "bg-signal-400" : "bg-brand-400")}
+                  style={{ width: `${Math.max(pct, pct > 0 ? 1.5 : 0)}%` }}
+                />
+              </span>
+              <span className="w-12 shrink-0 text-right text-[14px] font-semibold text-brand-950">{Math.round(pct)}%</span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 

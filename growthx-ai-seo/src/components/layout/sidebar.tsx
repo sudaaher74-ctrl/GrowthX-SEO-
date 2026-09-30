@@ -208,8 +208,6 @@ export function Sidebar({
       label: "Google Business Profile",
       href: "/google-business-profile",
       icon: Store,
-      tag: "Local",
-      tagTone: "default",
       step: { n: 5, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
       children: [
         { id: "overview", label: "Overview", href: "/google-business-profile?tab=overview", tab: "overview", isDefault: true },
@@ -240,7 +238,7 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen w-[232px] flex-col border-r bg-white transition-all duration-300 ease-in-out",
+          "fixed left-0 top-0 z-50 flex h-screen w-[var(--sidebar-w,232px)] flex-col border-r bg-white transition-all duration-300 ease-in-out",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "md:-translate-x-full" : "md:translate-x-0",
         )}
@@ -352,7 +350,8 @@ export function Sidebar({
             </div>
 
             {/* Main Tabs */}
-            <div className="space-y-0.5 mt-2">
+            <SectionLabel>Workflow</SectionLabel>
+            <div className="space-y-0.5">
               {mainNav.map((item) => (
                 <NavLink key={item.href} item={item} pathname={pathname} onNavigate={() => setMobileOpen?.(false)} />
               ))}

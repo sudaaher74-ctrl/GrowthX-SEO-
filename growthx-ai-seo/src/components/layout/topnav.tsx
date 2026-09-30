@@ -82,7 +82,7 @@ export function TopNav({
     <header
       className={cn(
         "fixed left-0 right-0 top-0 z-30 flex h-[52px] items-center gap-3 border-b bg-white px-4 transition-all duration-300 ease-in-out",
-        collapsed ? "md:left-0" : "md:left-[232px]",
+        collapsed ? "md:left-0" : "md:left-[var(--sidebar-w,232px)]",
       )}
       style={{ borderColor: "var(--border-color)" }}
     >
