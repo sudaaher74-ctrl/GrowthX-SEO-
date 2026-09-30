@@ -100,6 +100,11 @@ const RULES = [
     except: /\b(href|placeholder)=|\byour-?(domain|website|site)\.com\b/,
     allow: [
       {
+        file: 'lib/site.ts',
+        line: 'SITE_URL',
+        reason: "GrowthX's own public origin, not a customer's domain.",
+      },
+      {
         file: 'lib/api-client.ts',
         line: 'const ORG_KEY',
         reason: 'A localStorage key that happens to end in ".org", not a domain.',
@@ -156,6 +161,22 @@ const RULES = [
           'Remove this entry when it is rebuilt on a real model call.',
       },
     ],
+  },
+  {
+    name: 'unbuilt publishing claim',
+    why:
+      'The Fix Engine opens a GitHub pull request and never merges. Copy that ' +
+      'promised one-click Shopify or WordPress publishing, "CMS Sync" or ' +
+      '"Auto-Deploy" described a publisher that was removed. Say what the ' +
+      'product does today.',
+    pattern: /(1-Click Shopify|CMS Sync|Auto-Deploy|goes live on (Next|Shopify|WordPress|plain)|ships? (it )?to (Shopify|WordPress))/i,
+  },
+  {
+    name: 'hardcoded usage counter',
+    why:
+      'A quoted "12,480+" is a stat nobody measured. Marketing counters have ' +
+      'to be read from live data; until then, state a fact instead of a count.',
+    pattern: /["'`]\d{1,3}(,\d{3})+\+["'`]/,
   },
   {
     name: 'unconditional bypass',

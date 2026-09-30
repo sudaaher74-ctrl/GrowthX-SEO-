@@ -5,7 +5,7 @@ import { Globe, Trophy, Sparkles, Wrench, MapPin } from "lucide-react";
 
 export function FeatureCards() {
   return (
-    <section className="py-24 bg-brand-950 border-t border-brand-900 relative overflow-hidden">
+    <section id="features" className="py-24 bg-brand-950 border-t border-brand-900 relative overflow-hidden scroll-mt-16">
       {/* Ambient background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-series-6/5 blur-[140px] rounded-full" />
@@ -19,10 +19,10 @@ export function FeatureCards() {
           </p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight tracking-tight">
             Find what&apos;s costing you traffic.<br />
-            <span className="text-series-6">Let GrowthX ship the fix.</span>
+            <span className="text-series-6">Approve it. We prepare the fix.</span>
           </h2>
           <p className="mt-4 text-base sm:text-lg text-brand-400 leading-relaxed">
-            From technical site audits and rival intelligence to AI citations and map rankings — all in one platform that writes and ships the work.
+            From technical audits and rival tracking to AI citations and map rankings, in one ranked queue. Every fix is prepared for you and waits for your approval.
           </p>
         </div>
 
@@ -57,7 +57,7 @@ export function FeatureCards() {
                     <span className="font-mono text-[10px]">Googlebot Mobile / 200 OK</span>
                   </div>
                   <span className="font-extrabold text-success-400 bg-success-500/10 border border-success-500/20 px-2 py-0.5 rounded text-[10px]">
-                    Health 96/100
+                    Example
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-brand-900 text-center font-mono text-[10px]">
@@ -76,6 +76,7 @@ export function FeatureCards() {
                 </div>
               </div>
 
+              <p className="text-[10px] font-bold uppercase tracking-wide text-warning-400">Example data</p>
               <p className="text-[11px] text-brand-500 font-medium pt-1 border-t border-brand-800/60">
                 Server speed &amp; canonicals · Schema checks · Thin content flags
               </p>
@@ -83,7 +84,7 @@ export function FeatureCards() {
 
             <div className="pt-4">
               <Link
-                href="/website"
+                href="/register"
                 className="inline-flex items-center gap-1 text-[13px] font-semibold text-series-6 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Audit my site</span>
@@ -106,10 +107,10 @@ export function FeatureCards() {
 
               <div>
                 <h3 className="text-lg font-bold text-white leading-snug">
-                  Don&apos;t just find problems. Ship the fix.
+                  Don&apos;t just find problems. Get the fix.
                 </h3>
                 <p className="text-xs sm:text-sm text-brand-400 leading-relaxed mt-1.5">
-                  GrowthX writes the actual code or content change. You approve it with one click and it goes live on Next.js, Shopify, WordPress or plain HTML.
+                  GrowthX prepares the actual code change and opens a pull request on your GitHub repository. You review the diff and merge it. We never merge for you.
                 </p>
               </div>
 
@@ -118,7 +119,7 @@ export function FeatureCards() {
                 <div className="flex items-center justify-between text-[10px] text-brand-400 pb-1.5 border-b border-brand-900">
                   <span className="text-brand-300">app/layout.tsx</span>
                   <span className="text-success-400 font-bold bg-success-500/10 px-2 py-0.5 rounded border border-success-500/20">
-                    PR #42 Ready
+                    Pull request ready
                   </span>
                 </div>
                 <div className="text-[10px] space-y-1">
@@ -130,19 +131,20 @@ export function FeatureCards() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-brand-400 pt-1">
-                  <span>1-Click Shopify / GitHub</span>
-                  <span className="text-brand-300 font-semibold">100% Verified</span>
+                  <span>Opens on GitHub</span>
+                  <span className="text-brand-300 font-semibold">Re-crawled after merge</span>
                 </div>
               </div>
 
+              <p className="text-[10px] font-bold uppercase tracking-wide text-warning-400">Example data</p>
               <p className="text-[11px] text-brand-500 font-medium pt-1 border-t border-brand-800/60">
-                AI-written code &amp; content · Ships as GitHub PR or CMS · Timestamped proof
+                Low-risk fixes prepared · Opens a GitHub PR · Never merged for you · Re-crawled after
               </p>
             </div>
 
             <div className="pt-4">
               <Link
-                href="/fix-engine"
+                href="/register"
                 className="inline-flex items-center gap-1 text-[13px] font-semibold text-success-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>See how fixes work</span>
@@ -168,10 +170,10 @@ export function FeatureCards() {
 
               <div>
                 <h3 className="text-[15px] font-bold text-white leading-snug">
-                  Know every move rivals make. Answer in one click.
+                  Know every move rivals make. Answer with a ready draft.
                 </h3>
                 <p className="text-[13px] text-brand-400 leading-relaxed mt-1.5">
-                  Track competitor pages, pricing changes, and keyword gains daily with ready counter-moves priced in ₹.
+                  Rival pages are checked every day. New pages and changes show up in a feed, each with a counter-move draft.
                 </p>
               </div>
 
@@ -192,21 +194,22 @@ export function FeatureCards() {
                   <p className="text-[10px] text-brand-400">Added new pricing &amp; feature comparison guides</p>
                 </div>
                 <div className="flex items-center justify-between text-[10px] pt-0.5">
-                  <span className="text-series-400 font-semibold font-mono">Valued: ₹45,000/mo</span>
+                  <span className="text-series-400 font-semibold font-mono">Counter-move draft ready</span>
                   <span className="text-[9px] bg-series-6/20 text-series-300 border border-series-6/30 px-1.5 py-0.5 rounded font-bold">
                     ⚡ Counter
                   </span>
                 </div>
               </div>
 
+              <p className="text-[10px] font-bold uppercase tracking-wide text-warning-400">Example data</p>
               <p className="text-[11px] text-brand-500 font-medium pt-1 border-t border-brand-800/60">
-                Gaps ranked by ₹ value · Rival Radar feed · Counter button
+                Gaps ranked by priority · Rival feed · Counter-move drafts
               </p>
             </div>
 
             <div className="pt-3">
               <Link
-                href="/competitor-intelligence"
+                href="/register"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-warning-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Track my competitors</span>
@@ -232,7 +235,7 @@ export function FeatureCards() {
                   When customers ask AI, does it recommend you?
                 </h3>
                 <p className="text-[13px] text-brand-400 leading-relaxed mt-1.5">
-                  We query buyer prompts across AI assistants in English and Indian languages to see who gets cited and why.
+                  We ask ChatGPT, Claude, Gemini, Perplexity and Sarvam the questions your buyers ask, to see who gets cited and why. AI Overviews and Copilot have no public API, so we say so instead of showing a zero.
                 </p>
               </div>
 
@@ -253,14 +256,15 @@ export function FeatureCards() {
                 </div>
               </div>
 
+              <p className="text-[10px] font-bold uppercase tracking-wide text-warning-400">Example data</p>
               <p className="text-[11px] text-brand-500 font-medium pt-1 border-t border-brand-800/60">
-                Share of AI answers vs rivals · Exact pages cited · Direct fixes
+                Share of AI answers vs rivals · Answers stored as evidence · Fixes for pages that miss out
               </p>
             </div>
 
             <div className="pt-3">
               <Link
-                href="/ai-visibility"
+                href="/register"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-series-6 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Check my AI visibility</span>
@@ -310,11 +314,12 @@ export function FeatureCards() {
                   <div className="bg-brand-950/80 border border-warning-500/30 text-warning-400 py-1 rounded">#3</div>
                 </div>
                 <div className="flex items-center justify-between text-[9px] text-brand-400">
-                  <span>Local 3-Pack Presence</span>
-                  <span className="text-brand-300 font-semibold">5km Radius Dominated</span>
+                  <span>Example grid</span>
+                  <span className="text-brand-300 font-semibold">Sample layout</span>
                 </div>
               </div>
 
+              <p className="text-[10px] font-bold uppercase tracking-wide text-warning-400">Example data</p>
               <p className="text-[11px] text-brand-500 font-medium pt-1 border-t border-brand-800/60">
                 Grid map of rankings · Profile &amp; reviews audit · Multi-location
               </p>
@@ -322,7 +327,7 @@ export function FeatureCards() {
 
             <div className="pt-3">
               <Link
-                href="/google-business-profile"
+                href="/register"
                 className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent-400 group-hover:gap-2 transition-all cursor-pointer"
               >
                 <span>Audit my Google profile</span>

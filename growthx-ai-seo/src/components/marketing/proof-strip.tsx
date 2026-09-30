@@ -11,30 +11,31 @@ const PARTNER_LOGOS = [
   "MilQuu Fresh",
 ];
 
-const STATS = [
+/** What the product does, stated as fact. No counters: a number belongs here only when it is read from live data. */
+const PRINCIPLES = [
   {
     icon: Activity,
-    label: "Pages crawled",
-    value: "12,480+",
+    label: "Crawled like Google",
+    detail: "JavaScript pages are rendered before they are audited.",
     color: "text-brand-300",
   },
   {
-    icon: ShieldCheck,
-    label: "Issues found",
-    value: "3,420+",
-    color: "text-warning-400",
+    icon: Target,
+    label: "5 AI assistants measured",
+    detail: "ChatGPT, Claude, Gemini, Perplexity and Sarvam, each through its own API.",
+    color: "text-series-400",
   },
   {
-    icon: Zap,
-    label: "Fixes shipped",
-    value: "1,890+",
+    icon: ShieldCheck,
+    label: "You approve every change",
+    detail: "Fixes arrive as a pull request. We never merge for you.",
     color: "text-success-400",
   },
   {
-    icon: Target,
-    label: "Competitors tracked",
-    value: "840+",
-    color: "text-series-400",
+    icon: Zap,
+    label: "Nothing invented",
+    detail: "If we could not measure it, the screen says so.",
+    color: "text-warning-400",
   },
 ];
 
@@ -59,24 +60,24 @@ export function ProofStrip() {
           </div>
         </div>
 
-        {/* Database Metric Counters */}
-        <div className="pt-6 border-t border-brand-900 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-          {STATS.map((stat) => {
+        {/* What the product does */}
+        <div className="pt-6 border-t border-brand-900 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+          {PRINCIPLES.map((stat) => {
             const Icon = stat.icon;
             return (
               <div
                 key={stat.label}
-                className="bg-brand-900/40 border border-brand-850 rounded-2xl p-4 flex items-center gap-3.5 hover:border-brand-750 transition-colors"
+                className="bg-brand-900/40 border border-brand-850 rounded-2xl p-4 flex items-start gap-3.5 hover:border-brand-750 transition-colors"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-950 border border-brand-800 flex items-center justify-center shrink-0">
                   <Icon size={18} className={stat.color} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl sm:text-2xl font-black text-white leading-none tracking-tight">
-                    {stat.value}
-                  </p>
-                  <p className="text-[11px] text-brand-400 font-medium mt-1 truncate">
+                  <p className="text-sm font-bold text-white leading-tight tracking-tight">
                     {stat.label}
+                  </p>
+                  <p className="text-[11px] text-brand-400 font-medium mt-1 leading-snug">
+                    {stat.detail}
                   </p>
                 </div>
               </div>

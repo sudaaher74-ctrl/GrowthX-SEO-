@@ -67,7 +67,7 @@ export function TrustSection() {
             <div className="bg-brand-900/30 border border-brand-800/80 rounded-xl px-4 py-3 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-series-6 shrink-0" />
               <p className="text-xs sm:text-sm font-semibold text-brand-300">
-                GrowthX is built to close the gap between knowing and doing.
+                Most tools stop at the report. GrowthX starts there.
               </p>
             </div>
           </div>
@@ -84,13 +84,13 @@ export function TrustSection() {
                 <p className="text-lg font-extrabold text-white">Full audit of your website</p>
               </div>
               <p className="text-[13px] text-brand-300 mb-5 leading-relaxed">
-                Log in to crawl your pages, track rivals and AI search, and let GrowthX write and ship the fixes.
+                Create a free account, paste your URL, and get a ranked fix list. Fixes arrive as pull requests you approve.
               </p>
               <Link
-                href="/dashboard"
+                href="/register"
                 className="w-full block text-center text-[12.5px] font-bold text-white bg-series-6 hover:bg-series-6/90 rounded-xl py-2.5 transition-colors shadow-sm"
               >
-                Go to Dashboard →
+                Start free audit →
               </Link>
             </div>
           </div>

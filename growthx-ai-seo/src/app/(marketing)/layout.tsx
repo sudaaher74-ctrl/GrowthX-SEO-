@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
+import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "GrowthX – AI SEO & Google Business Profile Automation",
-  description:
-    "Audit your site, track rivals and AI search, and let GrowthX ship the fixes. Built for Indian brands and agencies. Free audit, plans from ₹2,999/month.",
-  openGraph: {
-    title: "Find it. Fix it. Prove it. — GrowthX",
-    description:
-      "Audit your site, track rivals and AI search, and let GrowthX ship the fixes. Built for Indian brands and agencies.",
-  },
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: { title: SITE_TITLE, description: SITE_DESCRIPTION, url: SITE_URL },
 };
 
 export default function MarketingLayout({

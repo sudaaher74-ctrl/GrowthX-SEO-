@@ -6,6 +6,14 @@ says" line was read from `growthx-ai-seo/src/components/marketing/*` and
 `growthx-ai-crawler/` (schema, services, schedulers) or `docs/`. Nothing here is
 from memory of how the product is supposed to work.
 
+> **Status, 30 Sep 2026.** Decisions made: prices are ₹2,999 / ₹7,999 / ₹14,999
+> (Starter / Growth / Agency); main users are agencies and business owners; no
+> Shopify/WordPress publishing (Fix Engine stays GitHub-PR only). The P0 and P1
+> items in §11, and the new Prove-it and Safety-rules sections, are implemented
+> in `growthx-ai-seo`. Still open: real logo permissions, live counters, real
+> screenshots and a case study (§9), and whether the TREAT/HOLD measurement is
+> live (so the page makes no HOLD claim).
+
 - [1. Verdict](#1-verdict)
 - [2. What the page is today](#2-what-the-page-is-today)
 - [3. What the product actually is](#3-what-the-product-actually-is)

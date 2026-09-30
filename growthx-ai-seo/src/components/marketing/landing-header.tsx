@@ -3,8 +3,15 @@
 import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, ChevronDown, ArrowRight } from "lucide-react";
+import { Menu, X, ArrowRight } from "lucide-react";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
+
+const NAV_LINKS = [
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Features", href: "/#features" },
+  { label: "Who it's for", href: "/#who-its-for" },
+  { label: "FAQ", href: "/#faq" },
+];
 
 export function LandingHeader() {
   const pathname = usePathname();
@@ -47,14 +54,14 @@ export function LandingHeader() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-2">
-            {["Product", "Solutions", "Resources"].map((item) => (
-              <button
-                key={item}
-                className="flex items-center gap-0.5 px-3 py-2 text-[13.5px] font-medium text-brand-300 hover:text-white rounded-lg hover:bg-brand-900/50 transition-colors"
+            {NAV_LINKS.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="px-3 py-2 text-[13.5px] font-medium text-brand-300 hover:text-white rounded-lg hover:bg-brand-900/50 transition-colors"
               >
-                {item}
-                <ChevronDown size={13} className="text-brand-400 mt-0.5" />
-              </button>
+                {item.label}
+              </Link>
             ))}
 
             <Link
@@ -88,10 +95,10 @@ export function LandingHeader() {
                   Log in
                 </Link>
                 <Link
-                  href="/dashboard"
+                  href="/register"
                   className="flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 text-white text-[13.5px] font-semibold px-4 py-2 rounded-xl transition-all shadow-md cursor-pointer"
                 >
-                  Go to Dashboard
+                  Start free audit
                   <ArrowRight size={14} />
                 </Link>
               </>
@@ -111,13 +118,15 @@ export function LandingHeader() {
       {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden bg-brand-950 border-t border-brand-900 px-4 pb-4 pt-2 space-y-1 shadow-2xl">
-          {["Product", "Solutions", "Resources"].map((item) => (
-            <button
-              key={item}
-              className="w-full text-left px-3 py-2.5 text-sm font-medium text-brand-300 hover:text-white hover:bg-brand-900/60 rounded-lg transition-colors"
+          {NAV_LINKS.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              onClick={() => setMobileOpen(false)}
+              className="block px-3 py-2.5 text-sm font-medium text-brand-300 hover:text-white hover:bg-brand-900/60 rounded-lg transition-colors"
             >
-              {item}
-            </button>
+              {item.label}
+            </Link>
           ))}
           <Link
             href="/pricing"
@@ -138,10 +147,10 @@ export function LandingHeader() {
               </Link>
             )}
             <Link
-              href="/dashboard"
+              href={signedIn ? "/dashboard" : "/register"}
               className="flex items-center justify-center gap-2 bg-series-6 hover:bg-series-6/90 text-white text-sm font-semibold px-4 py-3 rounded-xl"
             >
-              Go to Dashboard <ArrowRight size={14} />
+              {signedIn ? "Go to Dashboard" : "Start free audit"} <ArrowRight size={14} />
             </Link>
           </div>
         </div>

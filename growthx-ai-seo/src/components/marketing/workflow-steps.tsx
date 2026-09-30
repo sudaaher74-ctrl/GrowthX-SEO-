@@ -19,8 +19,6 @@ import {
   FileSpreadsheet,
   Settings,
   Home,
-  Star,
-  Users2,
   Boxes,
   Sparkles,
 } from "lucide-react";
@@ -28,8 +26,8 @@ import {
 const PIPELINE_STEPS = [
   {
     num: "01",
-    title: "Enter your website",
-    description: "Add your URL and up to 5 competitors. That's the whole setup.",
+    title: "Paste your website",
+    description: "Add your URL and up to 5 rivals, or let us suggest them. That's the whole setup.",
     icon: Link2,
     iconBg: "bg-brand-900 border border-brand-800 text-series-6",
   },
@@ -37,23 +35,23 @@ const PIPELINE_STEPS = [
     num: "02",
     title: "We crawl and compare",
     description:
-      "Our crawler reads every page the way Google does. Then it compares you with your rivals and checks AI answers.",
+      "Every page is read the way Google reads it. Then we compare you with your rivals and ask AI assistants about you.",
     icon: Search,
     iconBg: "bg-brand-900 border border-brand-800 text-accent-400",
   },
   {
     num: "03",
-    title: "Get a 30-day plan",
+    title: "Get one ranked list",
     description:
-      "Every issue and gap gets a ₹ value, the effort involved and a priority. You see what to do first.",
+      "Each issue and gap shows the evidence, the effort involved and a priority. You see what to do first.",
     icon: ListChecks,
     iconBg: "bg-brand-900 border border-brand-800 text-success-400",
   },
   {
     num: "04",
-    title: "Approve, ship, verify",
+    title: "Approve, then we prove it",
     description:
-      "Approve a fix and GrowthX ships it (PR, Shopify or WordPress). Then it re-crawls to prove it worked.",
+      "Approve a fix and GrowthX opens a pull request on your repository. You merge it. Then we re-crawl to check it worked.",
     icon: TrendingUp,
     iconBg: "bg-brand-900 border border-brand-800 text-warning-400",
   },
@@ -132,9 +130,9 @@ function WorkflowAppPreview() {
                   yourwebsite.com
                 </span>
               </div>
-              <button className="bg-series-6 hover:bg-series-6/90 text-white text-[10px] font-bold px-3 py-1 rounded-lg shrink-0">
-                Analyze
-              </button>
+              <span className="shrink-0 px-2 py-0.5 rounded-full bg-warning-500/10 border border-warning-500/30 text-[9px] font-bold uppercase tracking-wide text-warning-400">
+                Example data
+              </span>
 
               <div className="flex items-center gap-2 pl-2 border-l border-brand-850">
                 <div className="relative">
@@ -159,7 +157,7 @@ function WorkflowAppPreview() {
                       Website Analysis Complete
                     </p>
                     <p className="text-[9px] text-brand-400 leading-tight truncate">
-                      We found 38 high-impact opportunities for your website.
+                      Sample result: 38 opportunities found.
                     </p>
                   </div>
                 </div>
@@ -175,8 +173,8 @@ function WorkflowAppPreview() {
                   <p className="text-[8px] font-semibold text-brand-400">SEO Health</p>
                   <div className="flex items-end justify-between mt-1">
                     <div>
-                      <p className="text-base font-black text-white leading-none">68</p>
-                      <p className="text-[8px] font-bold text-success-400 mt-0.5">↑ 22%</p>
+                      <p className="text-base font-black text-white leading-none">78</p>
+                      <p className="text-[8px] font-bold text-brand-400 mt-0.5">Example</p>
                     </div>
                     <svg className="w-9 h-4 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 16 Q 14 6, 26 12 T 48 3" />
@@ -190,7 +188,7 @@ function WorkflowAppPreview() {
                   <div className="flex items-end justify-between mt-1">
                     <div>
                       <p className="text-base font-black text-white leading-none">52</p>
-                      <p className="text-[8px] font-bold text-series-6 mt-0.5">↑ 28%</p>
+                      <p className="text-[8px] font-bold text-brand-400 mt-0.5">Example</p>
                     </div>
                     <svg className="w-9 h-4 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 17 Q 14 10, 26 13 T 48 4" />
@@ -258,10 +256,10 @@ function WorkflowAppPreview() {
                     </div>
                     <div>
                       <p className="text-[10px] font-extrabold text-white leading-tight">
-                        Let GrowthX do the work
+                        We prepare the fix
                       </p>
                       <p className="text-[8px] text-brand-400 leading-tight mt-0.5">
-                        Approve your plan and we&apos;ll automatically implement the fixes.
+                        Approve a fix and we open the pull request.
                       </p>
                     </div>
                   </div>
@@ -286,8 +284,8 @@ function WorkflowAppPreview() {
         </div>
         <div className="flex items-end justify-between mt-0.5">
           <div>
-            <p className="text-xl font-black text-white leading-none">68</p>
-            <p className="text-[9px] font-bold text-success-400 mt-0.5">↑ 22%</p>
+            <p className="text-xl font-black text-white leading-none">78</p>
+            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
           </div>
           <svg className="w-10 h-5 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 16 Q 14 6, 26 12 T 48 3" />
@@ -306,7 +304,7 @@ function WorkflowAppPreview() {
         <div className="flex items-end justify-between mt-0.5">
           <div>
             <p className="text-xl font-black text-white leading-none">52</p>
-            <p className="text-[9px] font-bold text-success-400 mt-0.5">↑ 28%</p>
+            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
           </div>
           <svg className="w-12 h-5 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 17 Q 14 10, 26 13 T 48 4" />
@@ -338,7 +336,7 @@ function WorkflowAppPreview() {
 
 export function WorkflowSteps() {
   return (
-    <section className="py-16 sm:py-20 bg-brand-950 border-t border-brand-900">
+    <section id="how-it-works" className="py-16 sm:py-20 bg-brand-950 border-t border-brand-900 scroll-mt-16 overflow-x-clip">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* 2-Column Main Section */}
         <div className="grid lg:grid-cols-[48%_52%] gap-8 lg:gap-12 items-center mb-10">
@@ -350,11 +348,11 @@ export function WorkflowSteps() {
                 How It Works
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-white leading-[1.12] tracking-tight">
-                From URL to results<br />
+                From URL to proof<br />
                 in four steps.
               </h2>
               <p className="mt-2 text-sm sm:text-base text-brand-400 leading-relaxed">
-                Add your URL and up to 5 competitors. GrowthX handles the crawling, comparisons, 30-day prioritization, and automated fix delivery.
+                Add your URL and up to 5 rivals. GrowthX does the crawling and comparing, ranks the work, prepares the fixes, and checks the results.
               </p>
             </div>
 
@@ -395,16 +393,16 @@ export function WorkflowSteps() {
             <div className="space-y-3 pt-1">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  href="/dashboard"
+                  href="/register"
                   className="inline-flex items-center gap-1.5 bg-series-6 hover:bg-series-6/90 active:scale-[0.98] text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer"
                 >
-                  <span>Run free audit →</span>
+                  <span>Start free audit →</span>
                 </Link>
               </div>
 
               {/* Trust Checkmarks */}
               <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-brand-400 pt-1">
-                {["Free", "No card needed", "Results in about 60 seconds"].map((item) => (
+                {["Free account", "No card needed", "Audit ready in minutes"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5">
                     <Check size={14} className="text-series-6 shrink-0 font-extrabold" />
                     <span>{item}</span>

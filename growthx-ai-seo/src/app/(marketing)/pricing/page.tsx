@@ -14,101 +14,26 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+import { PLANS, planPrice, YEARLY_DISCOUNT, type PlanId } from "@/lib/pricing";
 import { LandingHeader } from "@/components/marketing/landing-header";
 import { LandingFooter } from "@/components/marketing/landing-footer";
 
-interface PricingPlan {
-  id: string;
-  name: string;
-  badge: string;
-  icon: typeof Sprout;
-  iconColor: string;
-  iconBg: string;
-  description: string;
-  monthlyPrice: string;
-  yearlyPrice: string;
-  popular?: boolean;
-  features: string[];
-}
-
-const PRICING_TIERS: PricingPlan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    badge: "For small businesses",
-    icon: Sprout,
-    iconColor: "text-success-400",
-    iconBg: "bg-brand-900 border border-brand-800",
-    description: "Everything you need to get started with AI-powered SEO.",
-    monthlyPrice: "₹2,999",
-    yearlyPrice: "₹2,399",
-    features: [
-      "1 Website / Domain",
-      "Full Website Audit",
-      "Basic Competitor Analysis (up to 5)",
-      "AI Visibility Tracking (ChatGPT, Claude, Gemini)",
-      "Prioritized 30-Day Plan",
-      "Manual Implementation Guide",
-      "Email Support",
-    ],
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    badge: "For growing businesses",
-    icon: Crown,
-    iconColor: "text-series-6",
-    iconBg: "bg-brand-900 border border-brand-800",
-    description: "Go beyond insights — get a complete growth plan and automated execution.",
-    monthlyPrice: "₹4,999",
-    yearlyPrice: "₹3,999",
-    popular: true,
-    features: [
-      "5 Websites / Domains",
-      "Everything in Starter",
-      "Advanced Competitor Intelligence (up to 20)",
-      "AI Visibility Tracking (multiple AI platforms)",
-      "Prioritized 30-Day Plan with auto-execution",
-      "Fix Engine (Automatic Implementation)",
-      "Performance Tracking & Verification",
-      "Weekly Progress Reports",
-      "Priority Support",
-    ],
-  },
-  {
-    id: "scale",
-    name: "Scale",
-    badge: "For large businesses",
-    icon: BarChart3,
-    iconColor: "text-accent-400",
-    iconBg: "bg-brand-900 border border-brand-800",
-    description: "Advanced automation and intelligence for maximum growth.",
-    monthlyPrice: "₹7,999",
-    yearlyPrice: "₹6,399",
-    features: [
-      "20 Websites / Domains",
-      "Everything in Growth",
-      "Unlimited Competitor Tracking",
-      "Deep AI Visibility & Brand Analysis",
-      "Advanced Opportunity Engine",
-      "Full Fix Engine with Verification",
-      "Custom Reports & Integrations",
-      "Dedicated Account Manager",
-      "Priority Support",
-    ],
-  },
-];
+const PLAN_STYLE: Record<PlanId, { icon: typeof Sprout; iconColor: string }> = {
+  starter: { icon: Sprout, iconColor: "text-success-400" },
+  growth: { icon: Crown, iconColor: "text-series-6" },
+  agency: { icon: BarChart3, iconColor: "text-accent-400" },
+};
 
 const ASSURANCE_PILLARS = [
   {
     icon: Zap,
-    title: "No credit card required",
-    desc: "Start with a free analysis",
+    title: "No card to start",
+    desc: "Free account, free audit",
   },
   {
     icon: Clock,
     title: "Setup in minutes",
-    desc: "Get results quickly",
+    desc: "Paste your URL and go",
   },
   {
     icon: ShieldCheck,
@@ -117,27 +42,31 @@ const ASSURANCE_PILLARS = [
   },
   {
     icon: Headphones,
-    title: "Expert support",
-    desc: "We're here to help",
+    title: "Real support",
+    desc: "Email for all, priority on Growth and Agency",
   },
 ];
 
 const PRICING_FAQS = [
   {
     q: "Can I change or cancel my plan at any time?",
-    a: "Yes. You can upgrade, downgrade, or cancel your subscription directly from your billing settings at any time without penalty or cancellation fees.",
+    a: "Yes. You can upgrade, downgrade, or cancel from your billing settings at any time, with no cancellation fee.",
   },
   {
-    q: "How does the Fix Engine implement changes automatically?",
-    a: "GrowthX connects securely with your CMS or repository (WordPress, Webflow, Shopify, GitHub). Once you review and approve recommended fixes, our engine deploys the structured schema, meta tags, and content updates with zero developer backlog.",
+    q: "How does the Fix Engine ship changes?",
+    a: "GrowthX prepares the fixes and opens a pull request on your website's GitHub repository, with a before/after diff. Nothing is published until you review and merge it. GrowthX never merges for you.",
   },
   {
-    q: "What AI platforms are monitored under AI Visibility?",
-    a: "We continuously track multi-turn conversational prompt share and brand citation prominence across OpenAI ChatGPT, Anthropic Claude, Perplexity AI, and Google Gemini.",
+    q: "Which AI assistants do you measure?",
+    a: "ChatGPT, Claude, Gemini, Perplexity and Sarvam, each asked through its own official API. Google AI Overviews and Copilot have no public API, so we tell you we could not ask instead of showing a zero.",
+  },
+  {
+    q: "What are tokens?",
+    a: "AI analysis and map-grid scans draw from a token balance that refills every month. You can see your balance and what each feature costs on the Tokens screen.",
   },
   {
     q: "What payment methods do you accept?",
-    a: "We support UPI, Net Banking, credit/debit cards (Visa, MasterCard, RuPay, Amex), and international cards via secure encrypted checkout.",
+    a: "UPI, net banking, and Visa, MasterCard, RuPay and Amex cards.",
   },
 ];
 
@@ -173,7 +102,7 @@ export default function PricingPage() {
           </h1>
 
           <p className="text-sm sm:text-base text-brand-400 leading-relaxed max-w-2xl mx-auto">
-            Get powerful SEO and AI visibility tools with automated execution — at a price that grows with you.
+            Audit, rivals, AI answers and Google Maps in one place, with fixes you approve and we prove. Priced in rupees.
           </p>
 
           {/* Billing Cycle Switcher */}
@@ -201,7 +130,7 @@ export default function PricingPage() {
               >
                 <span>Yearly</span>
                 <span className="bg-success-950/60 text-success-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-success-800/60">
-                  Save 20%
+                  Save {Math.round(YEARLY_DISCOUNT * 100)}%
                 </span>
               </button>
             </div>
@@ -233,9 +162,9 @@ export default function PricingPage() {
 
         {/* Pricing Cards Grid */}
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch mb-12">
-          {PRICING_TIERS.map((tier) => {
-            const Icon = tier.icon;
-            const price = isYearly ? tier.yearlyPrice : tier.monthlyPrice;
+          {PLANS.map((tier) => {
+            const Icon = PLAN_STYLE[tier.id].icon;
+            const price = planPrice(tier.id, "INR", billingCycle);
 
             return (
               <div
@@ -256,7 +185,7 @@ export default function PricingPage() {
                 <div>
                   {/* Icon & Title Row */}
                   <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${tier.iconBg} ${tier.iconColor}`}>
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center bg-brand-900 border border-brand-800 ${PLAN_STYLE[tier.id].iconColor}`}>
                       <Icon size={20} />
                     </div>
                     <div>
@@ -264,14 +193,14 @@ export default function PricingPage() {
                         {tier.name}
                       </h3>
                       <span className="text-[11px] font-semibold text-brand-300 bg-brand-800/80 px-2 py-0.5 rounded-full inline-block mt-0.5 border border-brand-700/50">
-                        {tier.badge}
+                        {tier.audience}
                       </span>
                     </div>
                   </div>
 
                   {/* Description */}
                   <p className="text-xs text-brand-400 leading-relaxed min-h-[36px] mb-5">
-                    {tier.description}
+                    {tier.blurb}
                   </p>
 
                   {/* Price Block */}
@@ -285,7 +214,7 @@ export default function PricingPage() {
                       </span>
                     </div>
                     <p className="text-[11px] font-medium text-brand-500 mt-1">
-                      {isYearly ? "Billed annually (save 20%)" : "Billed monthly"}
+                      {isYearly ? `Billed annually (save ${Math.round(YEARLY_DISCOUNT * 100)}%)` : "Billed monthly"}
                     </p>
                   </div>
 
@@ -298,7 +227,7 @@ export default function PricingPage() {
                         : "bg-brand-800/80 hover:bg-brand-800 text-white border border-brand-700 hover:border-brand-600"
                     }`}
                   >
-                    <span>Get Started</span>
+                    <span>Start free</span>
                     <ArrowRight size={14} />
                   </Link>
 
