@@ -1,6 +1,9 @@
 /**
  * The Google section's views, in the order they are shown.
  *
+ * Google Business Profile is not listed: it has its own sidebar entry, and
+ * /google/business-profile stays only as the return address of its connect flow.
+ *
  * Every view here is built. `built` stays on the type so a planned view can be
  * listed, with a "soon" badge, before it exists.
  */
@@ -31,13 +34,6 @@ export interface GoogleView {
 
 export const GOOGLE_VIEWS: GoogleView[] = [
   { id: "overview", group: "analysis", label: "Combined overview", href: "/google/overview", built: true, will: "How Google visibility turns into traffic, engagement and results." },
-  {
-    id: "business-profile", group: "analysis",
-    label: "Google Business Profile",
-    href: "/google/business-profile",
-    built: true,
-    will: "Your Business Profile audit, reviews, photos, categories and Maps ranking.",
-  },
   {
     id: "search-performance", group: "search-console",
     label: "Search Performance",
