@@ -260,7 +260,7 @@ export function Sidebar({
                         disabled={deleteProject.isPending}
                         title={`Delete ${client.name}`}
                         aria-label={`Delete ${client.name}`}
-                        className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-400 transition hover:bg-error-50 hover:text-error-600 disabled:opacity-50"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -291,7 +291,7 @@ export function Sidebar({
                       <Plus size={13} />
                     </button>
                   </form>
-                  {switcherError && <p className="px-2 pb-2 text-[10.5px] text-red-600">{switcherError}</p>}
+                  {switcherError && <p className="px-2 pb-2 text-[10.5px] text-error-600">{switcherError}</p>}
                 </div>
               )}
             </div>
