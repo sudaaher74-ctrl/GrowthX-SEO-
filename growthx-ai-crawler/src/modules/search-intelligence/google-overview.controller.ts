@@ -1,10 +1,11 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GoogleAlertsService } from './google-alerts.service';
 import { GoogleBreakdownService, parseBreakdownDimension } from './google-breakdown.service';
 import { GoogleKeywordsService } from './google-keywords.service';
 import { GoogleOverviewService, parseGoogleWindow } from './google-overview.service';
+import { GoogleReportService } from './google-report.service';
 
 /**
  * The Google section: Search Console, Google Analytics and the crawl read as
@@ -21,6 +22,7 @@ export class GoogleOverviewController {
     private readonly keywords: GoogleKeywordsService,
     private readonly breakdowns: GoogleBreakdownService,
     private readonly alertService: GoogleAlertsService,
+    private readonly reportService: GoogleReportService,
   ) {}
 
   @Get('overview')
@@ -65,5 +67,17 @@ export class GoogleOverviewController {
   @ApiOperation({ summary: 'Everything known about one page: search, visits, funnel, index, crawl and diagnosis' })
   page(@Param('projectId') projectId: string, @Query('url') url: string, @Query('days') days?: string) {
     return this.google.pageDetail(projectId, parseGoogleWindow(days), url);
+  }
+
+  @Post('report')
+  @ApiOperation({ summary: 'Improvement report: Search Console and Analytics 4 read by Sarvam, with what to do first' })
+  report(@Param('projectId') projectId: string, @Req() req: any, @Query('days') days?: string) {
+    return this.reportService.generate(projectId, req.organizationId, parseGoogleWindow(days));
+  }
+
+  @Get('report/latest')
+  @ApiOperation({ summary: 'The most recently generated Google improvement report, or null' })
+  latestReport(@Param('projectId') projectId: string) {
+    return this.reportService.latest(projectId);
   }
 }
