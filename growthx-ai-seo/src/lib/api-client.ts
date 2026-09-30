@@ -36,13 +36,17 @@ export function getApiBase(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (configured) return configured.replace(/\/+$/, "");
 
-  const isLocalhost =
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
+  // Server render and `next build` prerender reach this too (the login page
+  // builds its Google link from it), so throwing there would fail the build.
+  // The browser is where a wrong base does damage, so that is where it throws.
+  if (typeof window === "undefined") return "http://localhost:3000";
 
+  const isLocalhost = ["localhost", "127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
   if (isLocalhost) return "http://localhost:3000";
 
-  return "https://growthx-crawler-api.onrender.com";
+  throw new Error(
+    "NEXT_PUBLIC_API_URL is not set for this build. Set it to the API's public URL and rebuild.",
+  );
 }
 
 // No module-level API_BASE constant: it would run getApiBase() at import time,
