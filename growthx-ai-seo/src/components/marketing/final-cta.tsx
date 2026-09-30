@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { ArrowRight, CheckCircle } from "lucide-react";
 
 export function FinalCTA() {
@@ -31,10 +30,10 @@ export function FinalCTA() {
               </p>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight tracking-tight">
                 Your competitors are already optimising.<br />
-                <span className="text-series-6">Let&apos;s catch up by Monday.</span>
+                <span className="text-series-6">Find out what to fix first.</span>
               </h2>
               <p className="mt-4 text-base sm:text-lg text-brand-300 leading-relaxed">
-                Get your free audit in about a minute. No card needed.
+                Get your free audit in minutes. Free account, no card needed.
               </p>
             </div>
 
@@ -61,7 +60,7 @@ export function FinalCTA() {
               </form>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-brand-400">
-                {["Free", "No card needed", "Results in ~60s"].map((item) => (
+                {["Free account", "No card needed", "Ready in minutes"].map((item) => (
                   <div key={item} className="flex items-center gap-1.5">
                     <CheckCircle size={13} className="text-series-6 shrink-0" />
                     <span>{item}</span>

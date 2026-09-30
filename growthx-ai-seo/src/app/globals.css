@@ -47,6 +47,12 @@
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
 
+  /* Signal - the single accent of the dashboard's dark theme (see .dash-dark).
+     `signal-ink` is the text colour that sits on it. */
+  --color-signal-400: #c8f53a;
+  --color-signal-500: #b3dd2a;
+  --color-signal-ink: #10130a;
+
   /* The page behind the panels. A faint cool tint, so white panels lift off it
      instead of sitting grey-on-grey. */
   --color-canvas: #f5f7fb;
@@ -556,4 +562,85 @@ body {
   .aiva-bubble {
     animation: none !important;
   }
+}
+
+
+/* ───── Dark theme, scoped to the Dashboard tab ─────
+   The dashboard is being trialled in a dark, lime-accent skin. Rather than fork
+   every component, this class re-points the token scales for everything inside
+   it, so the sidebar, top bar and page all follow. `.dash-light` puts the
+   original light scale back for a panel that should stay light. Nothing outside
+   the Dashboard route carries either class. */
+.dash-dark {
+  --color-brand-50: #171b22;
+  --color-brand-100: #1c2027;
+  --color-brand-200: #262b34;
+  --color-brand-300: #3a404a;
+  --color-brand-400: #8f97a4;
+  --color-brand-500: #a9b0bc;
+  --color-brand-600: #c4cad3;
+  --color-brand-700: #d5dae2;
+  --color-brand-800: #e6e9ee;
+  --color-brand-900: #f2f4f0;
+  --color-brand-950: #fafafa;
+
+  --color-primary-50: #232c0f;
+  --color-primary-100: #2c3811;
+  --color-primary-200: #45581a;
+  --color-primary-300: #7b9a22;
+  --color-primary-600: var(--color-signal-400);
+  --color-primary-700: var(--color-signal-400);
+
+  --color-surface-1: #12151a;
+  --color-surface-2: #171b22;
+  --color-surface-3: #1c2027;
+  --color-line: #1f242c;
+  --color-line-strong: #2c323c;
+  --color-canvas: #0a0c0f;
+  --border-color: #1f242c;
+
+  --color-success-50: #10261c;
+  --color-success-700: #34d399;
+  --color-warning-50: #2a2010;
+  --color-warning-700: #fbbf24;
+  --color-error-50: #2b1513;
+  --color-error-700: #f87171;
+  --color-accent-50: #142238;
+  --color-accent-700: #93c5fd;
+
+  color: var(--color-brand-950);
+}
+.dash-dark .bg-white { background-color: var(--color-surface-1); }
+/* A lime button carries dark text, not the white the light theme puts on indigo. */
+.dash-dark .bg-primary-600 { color: var(--color-signal-ink); }
+.dash-dark [data-nav-active="true"] {
+  background-color: var(--color-signal-400);
+  color: var(--color-signal-ink);
+}
+.dash-dark [data-nav-active="true"] * { color: inherit; }
+
+.dash-light {
+  --color-brand-50: #fafafa;
+  --color-brand-100: #f4f4f5;
+  --color-brand-200: #e4e4e7;
+  --color-brand-300: #d4d4d8;
+  --color-brand-400: #a1a1aa;
+  --color-brand-500: #71717a;
+  --color-brand-600: #52525b;
+  --color-brand-700: #3f3f46;
+  --color-brand-800: #27272a;
+  --color-brand-900: #18181b;
+  --color-brand-950: #09090b;
+  --color-line: #e5e7eb;
+  --color-line-strong: #d1d5db;
+  --color-success-50: #ecfdf5;
+  --color-success-700: #047857;
+  --color-warning-50: #fffbeb;
+  --color-warning-700: #b45309;
+  --color-error-50: #fef2f2;
+  --color-error-700: #b91c1c;
+  --color-accent-50: #eff6ff;
+  --color-accent-700: #1d4ed8;
+  --border-color: #e5e7eb;
+  color: var(--color-brand-950);
 }

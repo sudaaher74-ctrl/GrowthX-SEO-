@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Sparkles, Check, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
+import { PLANS, planPrice, YEARLY_DISCOUNT, type Currency, type BillingCycle } from "@/lib/pricing";
 
 interface ComparisonRow {
   what: string;
@@ -18,7 +19,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     usualWay: "SEO agency retainer",
     costInr: "₹40,000–1,00,000",
     costUsd: "$500–1,200",
-    growthx: "Included, fixes shipped automatically",
+    growthx: "Included, fixes ready as pull requests",
   },
   {
     what: "Keyword & competitor research",
@@ -43,52 +44,23 @@ const COMPARISON_ROWS: ComparisonRow[] = [
   },
   {
     what: "Someone to actually do the work",
-    usualWay: "Freelancer or in-house hire",
+    usualWay: "Freelancer or in-house hire (for the routine fixes)",
     costInr: "₹25,000+",
     costUsd: "$300+",
-    growthx: "Fix Engine",
+    growthx: "Fix Engine opens the pull request",
   },
 ];
 
 export function CostComparison() {
-  const [currency, setCurrency] = useState<"INR" | "USD">("INR");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [currency, setCurrency] = useState<Currency>("INR");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const yearlyPct = Math.round(YEARLY_DISCOUNT * 100);
 
-  const badgeText =
-    currency === "INR"
-      ? "An SEO team and four tools, from ₹2,999/mo"
-      : "An SEO team and four tools, from $39/mo";
-
-  const totalWithout = currency === "INR" ? "₹80,000+" : "$955+";
-  const starterPrice =
-    billingCycle === "yearly"
-      ? currency === "INR"
-        ? "₹2,399"
-        : "$31"
-      : currency === "INR"
-      ? "₹2,999"
-      : "$39";
-
-  const growthPrice =
-    billingCycle === "yearly"
-      ? currency === "INR"
-        ? "₹6,399"
-        : "$79"
-      : currency === "INR"
-      ? "₹7,999"
-      : "$99";
-
-  const agencyPrice =
-    billingCycle === "yearly"
-      ? currency === "INR"
-        ? "₹15,999"
-        : "$199"
-      : currency === "INR"
-      ? "₹19,999"
-      : "$249";
-
+  const starterPrice = planPrice("starter", currency, billingCycle);
+  const badgeText = `Audit, rivals, AI answers and Maps, from ${planPrice("starter", currency, "monthly")}/mo`;
+  const totalWithout = currency === "INR" ? "₹80,500+" : "$985+";
+  const saving = currency === "INR" ? "₹77,500" : "$946";
   const totalWith = `From ${starterPrice}`;
-
   return (
     <section className="bg-brand-950 text-brand-50 py-20 sm:py-28 relative overflow-hidden border-y border-brand-900">
       {/* Ambient glowing backdrop */}
@@ -108,11 +80,11 @@ export function CostComparison() {
 
           {/* Headline */}
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] mb-4">
-            An SEO team and four tools, from {starterPrice}/month.
+            Five tools and a freelancer, from {starterPrice}/month.
           </h2>
 
           <p className="text-sm sm:text-base text-brand-400 leading-relaxed max-w-2xl mx-auto mb-8">
-            Most businesses stitch together an agency and a pile of subscriptions. GrowthX does the same job in one place, and actually ships the work.
+            Most teams stitch together an agency and a pile of subscriptions. GrowthX covers the same ground in one place, prepares the fixes, and checks they worked.
           </p>
 
           {/* Dual Controls: Billing Cycle + Currency Switcher */}
@@ -141,7 +113,7 @@ export function CostComparison() {
               >
                 <span>Yearly</span>
                 <span className="bg-success-500/20 text-success-400 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full border border-success-500/30">
-                  Save 20%
+                  Save {yearlyPct}%
                 </span>
               </button>
             </div>
@@ -183,15 +155,15 @@ export function CostComparison() {
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
-                  Save over {currency === "INR" ? "₹77,000/mo" : "$916/mo"} in monthly overhead
+                  If you replaced all five, you would save about {saving} a month
                 </h3>
                 <p className="text-xs sm:text-sm text-brand-300 mt-1 leading-snug">
-                  Replacing an agency retainer (₹40,000+) and 4 software subscriptions with one automated platform.
+                  Adds up the low end of each line in the table below. You may only need some of them.
                 </p>
               </div>
             </div>
             <div className="shrink-0 bg-success-500/15 border border-success-500/30 text-success-400 font-extrabold text-xs px-3.5 py-1.5 rounded-full">
-              Save up to 96%
+              Illustrative
             </div>
           </div>
         </div>
@@ -252,100 +224,60 @@ export function CostComparison() {
 
         {/* Pricing Teaser Cards */}
         <div className="mt-12 max-w-4xl mx-auto grid sm:grid-cols-3 gap-5">
-          {/* Starter Plan */}
-          <div className="bg-brand-900/40 border border-brand-800 hover:border-brand-700 rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between transition-all">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-series-400">Starter</span>
-                <span className="text-[11px] text-brand-400 font-medium">1 website</span>
-              </div>
-              <p className="text-3xl font-black text-white mt-2">
-                {starterPrice}
-                <span className="text-xs font-normal text-brand-400">/mo</span>
-              </p>
-              {billingCycle === "yearly" && (
-                <p className="text-[10px] text-success-400 font-semibold mt-0.5">
-                  Billed annually (Save 20%)
-                </p>
-              )}
-              <p className="text-xs text-brand-300 mt-3 leading-relaxed">
-                Full technical site audit, automated Fix Engine PRs, 3 competitors, and AI search visibility basics.
-              </p>
-            </div>
-            <Link
-              href="/pricing"
-              className="block text-center py-2.5 px-3 rounded-xl bg-brand-850 hover:bg-brand-800 text-white text-xs font-bold transition-all border border-brand-700 cursor-pointer"
+          {PLANS.map((plan) => (
+            <div
+              key={plan.id}
+              className={
+                plan.popular
+                  ? "bg-gradient-to-b from-brand-900 via-brand-900/90 to-brand-950 border-2 border-series-6/60 shadow-2xl shadow-series-6/20 ring-1 ring-series-6/40 rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between relative"
+                  : "bg-brand-900/40 border border-brand-800 hover:border-brand-700 rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between transition-all"
+              }
             >
-              Choose Starter
-            </Link>
-          </div>
-
-          {/* Growth Plan (Popular) */}
-          <div className="bg-gradient-to-b from-brand-900 via-brand-900/90 to-brand-950 border-2 border-series-6/60 shadow-2xl shadow-series-6/20 ring-1 ring-series-6/40 rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between relative">
-            <span className="absolute -top-3 right-4 bg-series-6 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
-              <Sparkles size={11} />
-              <span>Popular</span>
-            </span>
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-series-300">Growth</span>
-                <span className="text-[11px] text-brand-300 font-medium">Growing brands</span>
-              </div>
-              <p className="text-3xl font-black text-white mt-2">
-                {growthPrice}
-                <span className="text-xs font-normal text-brand-400">/mo</span>
-              </p>
-              {billingCycle === "yearly" && (
-                <p className="text-[10px] text-success-400 font-semibold mt-0.5">
-                  Billed annually (Save 20%)
-                </p>
+              {plan.popular && (
+                <span className="absolute -top-3 right-4 bg-series-6 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                  <Sparkles size={11} />
+                  <span>Popular</span>
+                </span>
               )}
-              <p className="text-xs text-brand-300 mt-3 leading-relaxed">
-                5 competitors with daily Rival Radar alerts, Google Business Profile for 1 location with 3×3 geo-grid, and weekly executive briefs.
-              </p>
-            </div>
-            <Link
-              href="/pricing"
-              className="block text-center py-2.5 px-3 rounded-xl bg-series-6 hover:bg-series-6/90 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              Choose Growth
-            </Link>
-          </div>
-
-          {/* Agency Plan */}
-          <div className="bg-brand-900/40 border border-brand-800 hover:border-brand-700 rounded-2xl p-5 sm:p-6 space-y-4 flex flex-col justify-between transition-all">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-series-400">Agency</span>
-                <span className="text-[11px] text-brand-400 font-medium">Agencies</span>
-              </div>
-              <p className="text-3xl font-black text-white mt-2">
-                {agencyPrice}
-                <span className="text-xs font-normal text-brand-400">/mo</span>
-              </p>
-              {billingCycle === "yearly" && (
-                <p className="text-[10px] text-success-400 font-semibold mt-0.5">
-                  Billed annually (Save 20%)
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-series-400">{plan.name}</span>
+                  <span className="text-[11px] text-brand-400 font-medium">{plan.audience}</span>
+                </div>
+                <p className="text-3xl font-black text-white mt-2">
+                  {planPrice(plan.id, currency, billingCycle)}
+                  <span className="text-xs font-normal text-brand-400">/mo</span>
                 </p>
-              )}
-              <p className="text-xs text-brand-300 mt-3 leading-relaxed">
-                Multiple client domains, white-label PDF reports, bulk fix deployment, and multi-location Google Business Profiles.
-              </p>
+                {billingCycle === "yearly" && (
+                  <p className="text-[10px] text-success-400 font-semibold mt-0.5">
+                    Billed annually (save {yearlyPct}%)
+                  </p>
+                )}
+                <p className="text-xs text-brand-300 mt-3 leading-relaxed">{plan.blurb}</p>
+              </div>
+              <Link
+                href="/pricing"
+                className={
+                  plan.popular
+                    ? "block text-center py-2.5 px-3 rounded-xl bg-series-6 hover:bg-series-6/90 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                    : "block text-center py-2.5 px-3 rounded-xl bg-brand-850 hover:bg-brand-800 text-white text-xs font-bold transition-all border border-brand-700 cursor-pointer"
+                }
+              >
+                See {plan.name}
+              </Link>
             </div>
-            <Link
-              href="/pricing"
-              className="block text-center py-2.5 px-3 rounded-xl bg-brand-850 hover:bg-brand-800 text-white text-xs font-bold transition-all border border-brand-700 cursor-pointer"
-            >
-              Choose Agency
-            </Link>
-          </div>
+          ))}
         </div>
+
+        <p className="mt-6 max-w-4xl mx-auto text-[11px] text-brand-500 text-center">
+          Other vendors&apos; figures are approximate list prices and change often.
+        </p>
 
         {/* CTA Bar below teaser */}
         <div className="mt-8 max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-brand-400 px-2">
           <p className="flex items-center gap-2">
             <CheckCircle2 size={14} className="text-success-400" />
-            <span>Free audit. No card needed. Cancel anytime.</span>
+            <span>Free account, free audit. No card needed. Cancel anytime.</span>
           </p>
           <Link
             href="/pricing"

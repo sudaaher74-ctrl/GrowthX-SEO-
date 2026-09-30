@@ -2,6 +2,7 @@
 import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 
 import { Suspense, useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Sparkles,
@@ -93,7 +94,14 @@ function AiVisibilityClient() {
     enabled: !!projectId,
   });
 
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  // The tab follows the URL's ?tab= (the sidebar's sub-tabs link to it) and
+  // keeps working when it is clicked in the page. A new ?tab= replaces the choice.
+  const tabParam = useSearchParams().get("tab");
+  const tabFromUrl = TABS.some((t) => t.id === tabParam) ? (tabParam as string) : "overview";
+  const [tabState, setTabState] = useState({ param: tabParam, tab: tabFromUrl });
+  if (tabState.param !== tabParam) setTabState({ param: tabParam, tab: tabFromUrl });
+  const activeTab = tabState.tab;
+  const setActiveTab = (tab: string) => setTabState({ param: tabParam, tab });
   const [showAddQueryModal, setShowAddQueryModal] = useState(false);
   const [showAddCompModal, setShowAddCompModal] = useState(false);
   const [newQueryText, setNewQueryText] = useState("");

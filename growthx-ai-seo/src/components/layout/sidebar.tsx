@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Plus, Trash2, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot, FileText } from "lucide-react";
+import { Activity, Check, ChevronRight, ChevronsUpDown, Plus, Trash2, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -32,7 +32,8 @@ interface NavItem {
   tag?: string;
   tagTone?: "default" | "danger" | "success";
   disabled?: boolean;
-  children?: { label: string; href: string; id: string }[];
+  /** Sub-tabs, shown under the item when it is open. `tab` is its ?tab= value. */
+  children?: { label: string; href: string; id: string; tab?: string; isDefault?: boolean }[];
   /** A step of the guided workflow, ticked once it has really been done. */
   step?: { n: number; done: boolean; hint: string };
 }
@@ -151,24 +152,57 @@ export function Sidebar({
       tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
       tagTone: "danger",
       step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
+      children: [
+        { id: "overview", label: "Overview", href: "/website?tab=overview", tab: "overview" },
+        { id: "technical-seo", label: "Technical health", href: "/website?tab=technical-seo", tab: "technical-seo", isDefault: true },
+        { id: "performance", label: "Speed", href: "/website?tab=performance", tab: "performance" },
+        { id: "pages", label: "Pages", href: "/website?tab=pages", tab: "pages" },
+        { id: "content", label: "Content", href: "/website?tab=content", tab: "content" },
+        { id: "geo", label: "Ready for AI answers", href: "/website?tab=geo", tab: "geo" },
+        { id: "issues", label: "Problems to fix", href: "/website?tab=issues", tab: "issues" },
+        { id: "report", label: "Full Report", href: "/website?tab=report", tab: "report" },
+      ],
     },
     {
       label: "Google",
       href: "/google",
       icon: SearchCheck,
       step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
+      children: [
+        { id: "search-console", label: "Search Console", href: "/google/search-console" },
+        { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
+        { id: "insights", label: "Insights & tools", href: "/google" },
+        { id: "report", label: "Improvement report", href: "/google/report" },
+      ],
     },
     {
       label: "Competitor Intelligence",
       href: "/competitor-intelligence",
       icon: Crosshair,
       step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
+      children: [
+        { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
+        { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
+        { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
+        { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
+        { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
+      ],
     },
     {
       label: "AI Visibility",
       href: "/ai-visibility",
       icon: Bot,
       step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "See how ChatGPT, Gemini, Perplexity and Claude describe your business" },
+      children: [
+        { id: "overview", label: "Overview", href: "/ai-visibility?tab=overview", tab: "overview", isDefault: true },
+        { id: "questions", label: "Questions", href: "/ai-visibility?tab=questions", tab: "questions" },
+        { id: "sandbox", label: "GEO Sandbox & Simulation", href: "/ai-visibility?tab=sandbox", tab: "sandbox" },
+        { id: "insights", label: "AI Insights", href: "/ai-visibility?tab=insights", tab: "insights" },
+        { id: "citations", label: "Citations", href: "/ai-visibility?tab=citations", tab: "citations" },
+        { id: "competitors", label: "Competitors", href: "/ai-visibility?tab=competitors", tab: "competitors" },
+        { id: "gaps", label: "Content Gaps", href: "/ai-visibility?tab=gaps", tab: "gaps" },
+        { id: "recommendations", label: "Recommendations", href: "/ai-visibility?tab=recommendations", tab: "recommendations" },
+      ],
     },
     {
       label: "Google Business Profile",
@@ -177,6 +211,19 @@ export function Sidebar({
       tag: "Local",
       tagTone: "default",
       step: { n: 5, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
+      children: [
+        { id: "overview", label: "Overview", href: "/google-business-profile?tab=overview", tab: "overview", isDefault: true },
+        { id: "audit", label: "Profile Audit", href: "/google-business-profile?tab=audit", tab: "audit" },
+        { id: "reviews", label: "Reviews", href: "/google-business-profile?tab=reviews", tab: "reviews" },
+        { id: "photos", label: "Photos", href: "/google-business-profile?tab=photos", tab: "photos" },
+        { id: "services", label: "Services", href: "/google-business-profile?tab=services", tab: "services" },
+        { id: "categories", label: "Categories", href: "/google-business-profile?tab=categories", tab: "categories" },
+        { id: "rankings", label: "Local Rankings", href: "/google-business-profile?tab=rankings", tab: "rankings" },
+        { id: "competitors", label: "Competitors", href: "/google-business-profile?tab=competitors", tab: "competitors" },
+        { id: "posts", label: "Posts", href: "/google-business-profile?tab=posts", tab: "posts" },
+        { id: "ai-recommendations", label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", tab: "ai-recommendations" },
+        { id: "action-plan", label: "Action Plan", href: "/google-business-profile?tab=action-plan", tab: "action-plan" },
+      ],
     },
     {
       label: "Fix Engine",
@@ -460,18 +507,50 @@ function NavLink({
     pathname.startsWith(`${item.href}/`) ||
     (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
 
-  const showChildren = (active || pathname.startsWith(item.href)) && Boolean(item.children);
+  return <NavLinkEnabled item={item} pathname={pathname} active={active} onNavigate={onNavigate} />;
+}
+
+/**
+ * A nav item that can open. Clicking it goes to its page and opens its sub-tabs
+ * underneath; the chevron opens or closes them without leaving the page. An
+ * item whose page is showing starts open.
+ */
+function NavLinkEnabled({
+  item,
+  pathname,
+  active,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const hasChildren = Boolean(item.children?.length);
+  // null = follow the page: open while it is the current one.
+  const [manual, setManual] = useState<boolean | null>(null);
+  const showChildren = hasChildren && (manual ?? active);
+  const currentTab = searchParams.get("tab");
 
   return (
     <div className="space-y-0.5">
-      <Link href={item.href} onClick={onNavigate}>
-        <div
-          className={cn(
-            "flex items-center gap-[9px] rounded-lg px-2 py-[7px] text-[12.5px] transition-colors",
-            active
-              ? "bg-primary-50 font-semibold text-primary-700"
-              : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
-          )}
+      <div
+        data-nav-active={active}
+        className={cn(
+          "flex items-center rounded-lg text-[12.5px] transition-colors",
+          active
+            ? "bg-primary-50 font-semibold text-primary-700"
+            : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+        )}
+      >
+        <Link
+          href={item.href}
+          onClick={() => {
+            if (hasChildren) setManual(true);
+            onNavigate();
+          }}
+          className="flex min-w-0 flex-1 items-center gap-[9px] px-2 py-[7px]"
         >
           <item.icon size={15} className={active ? "text-primary-600" : "text-brand-400"} />
           <span className="flex-1 truncate">{item.label}</span>
@@ -509,30 +588,41 @@ function NavLink({
               {item.tag}
             </span>
           )}
-        </div>
-      </Link>
+        </Link>
+        {hasChildren && (
+          <button
+            type="button"
+            onClick={() => setManual(!showChildren)}
+            aria-expanded={showChildren}
+            aria-label={`${showChildren ? "Close" : "Open"} ${item.label} tabs`}
+            className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-400 transition hover:text-brand-950"
+          >
+            <ChevronRight size={13} className={cn("transition-transform duration-200", showChildren && "rotate-90")} />
+          </button>
+        )}
+      </div>
 
-      {/* Sub-items for navigation children */}
       {showChildren && (
-        <div className="ml-5 pl-2 border-l border-brand-200 space-y-0.5 py-1">
+        <div className="ml-5 space-y-0.5 border-l border-brand-200 py-1 pl-2">
           {item.children?.map((sub) => {
-            const currentSearch = typeof window !== "undefined" ? window.location.search : "";
-            const isSubActive = sub.href.includes("?")
-              ? currentSearch.includes(sub.href.split("?")[1])
+            const isSubActive = sub.tab
+              ? active && (currentTab === sub.tab || (!currentTab && Boolean(sub.isDefault)))
               : pathname === sub.href;
             return (
               <Link
                 key={sub.id}
                 href={sub.href}
                 onClick={onNavigate}
+                aria-current={isSubActive ? "page" : undefined}
                 className={cn(
-                  "block py-1 px-2 text-[11.5px] rounded transition truncate",
+                  "flex items-center gap-2 truncate rounded px-2 py-1 text-[11.5px] transition",
                   isSubActive
-                    ? "bg-slate-100 text-slate-800 font-bold"
-                    : "text-brand-600 hover:text-brand-950 font-medium hover:bg-brand-100/60"
+                    ? "bg-brand-100 font-bold text-brand-950"
+                    : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
                 )}
               >
-                {sub.label}
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isSubActive ? "bg-primary-600" : "bg-brand-300")} />
+                <span className="truncate">{sub.label}</span>
               </Link>
             );
           })}

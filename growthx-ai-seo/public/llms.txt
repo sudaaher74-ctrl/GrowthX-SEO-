@@ -1,0 +1,20 @@
+# GrowthX
+
+> GrowthX audits your website, tracks your rivals and how AI assistants describe you, and prepares the fixes as pull requests you approve. It is built for agencies and business owners in India.
+
+## What it does
+- Website Audit: crawls every page the way Google does (JavaScript rendered) and ranks the issues found.
+- Competitor Intelligence: tracks up to 5 rival sites per website and checks their pages daily.
+- AI Visibility: asks ChatGPT, Claude, Gemini, Perplexity and Sarvam the questions buyers ask, and records who is cited. Google AI Overviews and Copilot cannot be measured (no public API) and are reported as not measured.
+- Google Search Console and Analytics 4 reports; Google Business Profile audit, reviews and map-grid rankings.
+- Fix Engine: prepares low-risk fixes and opens a pull request on your GitHub repository. It never merges. Each merged fix is re-crawled to confirm it worked.
+
+## Pricing (per month, INR)
+- Starter: 2,999. One website.
+- Growth: 7,999. Up to 5 websites.
+- Agency: 14,999. Up to 20 websites, client-ready PDF reports.
+Yearly billing is 20% cheaper.
+
+## Links
+- Home: https://growthx.in/
+- Pricing: https://growthx.in/pricing

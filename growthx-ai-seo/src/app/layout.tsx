@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { SITE_DESCRIPTION, SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -11,27 +12,24 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "GrowthX AI SEO — AI SEO Automation Platform",
-    template: "%s | GrowthX AI SEO",
+    default: "GrowthX: find what's costing you customers, then fix it",
+    template: "%s | GrowthX",
   },
-  description:
-    "The world's most advanced AI-powered SEO automation platform. Automate technical SEO, generate optimized content, track rankings, and dominate search — for agencies, e-commerce, and local businesses.",
-  keywords: ["SEO", "AI SEO", "SEO automation", "rank tracking", "content AI", "local SEO", "GrowthX"],
+  description: SITE_DESCRIPTION,
+  keywords: ["SEO audit", "AI search visibility", "competitor tracking", "Google Business Profile", "SEO for agencies", "GrowthX"],
   authors: [{ name: "GrowthX" }],
   creator: "GrowthX",
-  metadataBase: new URL("https://growthx.in"),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
-    locale: "en_US",
-    url: "https://growthx.in",
-    title: "GrowthX AI SEO — AI SEO Automation Platform",
-    description: "AI-powered SEO automation for agencies, local businesses & e-commerce brands.",
-    siteName: "GrowthX AI SEO",
+    locale: "en_IN",
+    url: SITE_URL,
+    siteName: "GrowthX",
+    description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "GrowthX AI SEO",
-    description: "AI-powered SEO automation platform.",
+    description: SITE_DESCRIPTION,
   },
   robots: {
     index: true,

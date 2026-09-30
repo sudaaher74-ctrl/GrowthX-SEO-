@@ -5,21 +5,13 @@ import Link from "next/link";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import {
   ArrowRight,
-  Check,
-  FileText,
-  BarChart3,
   Sparkles,
-  Settings,
-  Bell,
-  ChevronDown,
   Calendar,
-  Search,
   Zap,
   RotateCcw,
   Target,
   Wrench,
   FileSpreadsheet,
-  Home,
 } from "lucide-react";
 
 function DashboardMockup() {
@@ -30,7 +22,7 @@ function DashboardMockup() {
     e.preventDefault();
     setCounterStatus("Drafting counter move...");
     setTimeout(() => {
-      setCounterStatus("✓ Ready in Fix Engine");
+      setCounterStatus("✓ Draft ready to review");
     }, 700);
   };
 
@@ -47,7 +39,7 @@ function DashboardMockup() {
         <div className="flex items-end justify-between mt-0.5">
           <div>
             <p className="text-xl font-black text-white leading-none">78</p>
-            <p className="text-[9px] font-bold text-success-400 mt-0.5">↑ 22%</p>
+            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
           </div>
           <svg className="w-10 h-5 text-success-400" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 16 Q 14 6, 26 12 T 48 3" />
@@ -137,17 +129,13 @@ function DashboardMockup() {
                       : "text-brand-400 hover:text-brand-200"
                   }`}
                 >
-                  Fixes (3)
+                  Fixes
                 </button>
               </div>
 
-              {/* Pulsing Active Radar Indicator */}
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-success-500/10 border border-success-500/20 text-[9px] font-bold text-success-400">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success-500" />
-                </span>
-                <span>Active Sweep</span>
+              {/* Marks the whole mockup as illustrative */}
+              <div className="px-2 py-0.5 rounded-full bg-warning-500/10 border border-warning-500/30 text-[9px] font-bold uppercase tracking-wide text-warning-400">
+                Example data
               </div>
             </div>
 
@@ -161,7 +149,7 @@ function DashboardMockup() {
                       yoursite.com vs rival.com
                     </h3>
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-900 rounded-md text-[9px] font-semibold text-brand-300 border border-brand-800">
-                      <span>Updated 2m ago</span>
+                      <span>Sample</span>
                     </div>
                   </div>
 
@@ -245,7 +233,7 @@ function DashboardMockup() {
                         </div>
                       </div>
 
-                      <Link href="/dashboard" className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
+                      <Link href="/register" className="inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-md border border-brand-700 bg-brand-850 text-white hover:bg-brand-800 text-[10px] font-bold transition-all w-fit cursor-pointer">
                         <span>View Plan</span>
                         <ArrowRight size={9} />
                       </Link>
@@ -262,7 +250,7 @@ function DashboardMockup() {
                             <h4 className="text-[11px] font-extrabold text-white leading-tight">
                               This week&apos;s move
                             </h4>
-                            <span className="text-[9px] font-bold text-success-400">+₹24K/mo</span>
+                            
                           </div>
                           <p className="text-[9px] text-brand-400 leading-snug mt-0.5 truncate">
                             Rival added: /mumbai/milk-delivery
@@ -335,16 +323,16 @@ function DashboardMockup() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-black text-white tracking-tight">
-                      3 AI Fixes Ready to Ship
+                      3 fixes ready for your review
                     </h3>
-                    <span className="text-[9px] font-bold text-success-400">+₹39,700/mo potential</span>
+                    <span className="text-[9px] font-bold text-series-400">Opens a pull request</span>
                   </div>
 
                   <div className="space-y-1.5">
                     {[
-                      { title: "Product JSON-LD Schema", value: "+₹24,000/mo", tag: "PR #48" },
-                      { title: "Canonical Tag Normalization", value: "+₹9,500/mo", tag: "CMS Sync" },
-                      { title: "LocalBusiness Schema Markup", value: "+₹6,200/mo", tag: "Auto-Deploy" },
+                      { title: "Product JSON-LD schema", value: "Low risk", tag: "Pull request" },
+                      { title: "Canonical tag cleanup", value: "Low risk", tag: "Pull request" },
+                      { title: "Heading structure on 4 pages", value: "You review", tag: "Pull request" },
                     ].map((fix) => (
                       <div key={fix.title} className="bg-brand-900/60 border border-brand-800 rounded-xl p-2 flex items-center justify-between">
                         <div>
@@ -354,10 +342,10 @@ function DashboardMockup() {
                         <div className="text-right flex items-center gap-2">
                           <span className="text-[10px] font-bold text-success-400">{fix.value}</span>
                           <Link
-                            href="/dashboard"
+                            href="/register"
                             className="px-2 py-1 rounded bg-series-6 text-white text-[9px] font-bold hover:bg-series-6/90"
                           >
-                            Ship
+                            Review
                           </Link>
                         </div>
                       </div>
@@ -381,7 +369,7 @@ function DashboardMockup() {
         <div className="flex items-end justify-between mt-0.5">
           <div>
             <p className="text-xl font-black text-white leading-none">52</p>
-            <p className="text-[9px] font-bold text-series-6 mt-0.5">↑ 28%</p>
+            <p className="text-[9px] font-bold text-brand-400 mt-0.5">Example</p>
           </div>
           <svg className="w-10 h-5 text-series-6" viewBox="0 0 50 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 17 Q 14 10, 26 13 T 48 4" />
@@ -390,7 +378,7 @@ function DashboardMockup() {
       </div>
 
       {/* Cursive annotation */}
-      <div className="absolute -bottom-14 right-4 sm:right-8 z-20 flex flex-col items-center text-series-6">
+      <div className="absolute -bottom-16 left-2 sm:left-6 z-20 flex flex-col items-center text-series-6">
         <svg
           className="w-6 h-6 text-series-6 transform rotate-45 -translate-x-2 translate-y-1"
           fill="none"
@@ -433,22 +421,22 @@ export function HeroSection() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 bg-brand-900/80 border border-brand-800 text-brand-300 text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full backdrop-blur-sm">
               <div className="w-1.5 h-1.5 rounded-full bg-series-6 animate-pulse" />
-              AI SEO + GOOGLE BUSINESS PROFILE, ON AUTOPILOT
+              SEO, AI SEARCH AND GOOGLE MAPS, IN ONE QUEUE
             </div>
 
             {/* Headline */}
             <div>
               <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-extrabold text-white leading-[1.1] tracking-tight">
                 Find what&apos;s costing you customers.<br />
-              </h1>
-              <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-extrabold leading-[1.1] tracking-tight bg-gradient-to-r from-series-6 via-accent-300 to-accent-400 bg-clip-text text-transparent mt-1">
-                Fix it before your competitors do.
+                <span className="block bg-gradient-to-r from-series-6 via-accent-300 to-accent-400 bg-clip-text text-transparent mt-1">
+                  Fix it before your competitors do.
+                </span>
               </h1>
             </div>
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-brand-400 leading-relaxed max-w-xl">
-              GrowthX crawls your website, tracks your rivals and checks how AI assistants talk about you. Then it writes and ships the fixes, and proves they worked.
+              GrowthX crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
             </p>
 
             {/* URL Box CTA */}
@@ -482,7 +470,7 @@ export function HeroSection() {
               <div className="flex flex-wrap items-center justify-between gap-2 max-w-md px-1 text-xs text-brand-400">
                 <p className="flex items-center gap-1.5 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-success-400" />
-                  Free &middot; No card needed &middot; Results in about 60 seconds
+                  Free account &middot; No card needed &middot; Audit ready in minutes
                 </p>
                 <Link
                   href="/login"

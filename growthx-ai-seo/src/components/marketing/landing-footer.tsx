@@ -2,34 +2,6 @@
 
 import Link from "next/link";
 
-function XIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" {...props}>
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
-
-function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" {...props}>
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-      />
-    </svg>
-  );
-}
-
-function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" {...props}>
-      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.3a1.6 1.6 0 1 0 1.6 1.6 1.6 1.6 0 0 0-1.6-1.6z" />
-    </svg>
-  );
-}
-
 function OpenAiSpiralIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" {...props}>
@@ -65,78 +37,32 @@ interface FooterColumn {
 
 const FOOTER_COLUMNS: FooterColumn[] = [
   {
-    title: "Tools",
+    title: "Product",
     links: [
-      { label: "Technical Website Audit", href: "/website" },
-      { label: "Meta Tag Checker", href: "/website" },
-      { label: "Sitemap.xml Generator", href: "/website" },
-      { label: "AI Search Visibility Tracker", href: "/ai-visibility" },
-    ],
-  },
-  {
-    title: "Use Cases",
-    links: [
-      { label: "SaaS", href: "/pricing" },
-      { label: "Startups", href: "/pricing" },
-      { label: "Ecommerce", href: "/pricing" },
-      { label: "Agencies", href: "/pricing" },
-      { label: "Professional Services", href: "/pricing" },
-      { label: "Real Estate", href: "/pricing" },
-      { label: "Financial Advisors", href: "/pricing" },
-      { label: "Healthcare", href: "/pricing" },
-      { label: "Small Business", href: "/pricing" },
-      { label: "More Use Cases", href: "/pricing" },
+      { label: "Website Audit", href: "/register" },
+      { label: "Competitor Intelligence", href: "/register" },
+      { label: "AI Search Visibility", href: "/register" },
+      { label: "Google Business Profile", href: "/register" },
+      { label: "Fix Engine", href: "/register" },
     ],
     subSection: {
-      title: "Resources",
+      title: "Connects to",
       links: [
-        { label: "Skills & Engine Docs", href: "/help" },
-        { label: "SEO Prompts", href: "/help" },
-        { label: "Launch Library", href: "/pricing" },
-      ],
-    },
-  },
-  {
-    title: "Learn",
-    links: [
-      { label: "Blog & Research", href: "/help" },
-      { label: "Documentation", href: "/help" },
-      { label: "LLMs.txt Generator", href: "/ai-visibility" },
-      { label: "Contact Us", href: "/help" },
-    ],
-    subSection: {
-      title: "Integrations",
-      links: [
-        { label: "WordPress & WooCommerce", href: "/integrations" },
-        { label: "Webflow", href: "/integrations" },
-        { label: "Framer & Next.js", href: "/integrations" },
-        { label: "Wix & Shopify", href: "/integrations" },
-        { label: "Google Search Console", href: "/integrations" },
-        { label: "Google Analytics (GA4)", href: "/integrations" },
-        { label: "Google Business Profile", href: "/google-business-profile" },
-        { label: "GitHub", href: "/integrations" },
+        { label: "Google Search Console", href: "/register" },
+        { label: "Google Analytics (GA4)", href: "/register" },
+        { label: "Google Business Profile", href: "/register" },
+        { label: "GitHub", href: "/register" },
       ],
     },
   },
   {
     title: "Company",
     links: [
-      { label: "Customers", href: "/pricing" },
       { label: "Pricing", href: "/pricing" },
-      { label: "Agency Partners", href: "/pricing" },
-      { label: "Affiliates", href: "/help" },
-      { label: "Careers", href: "/help" },
-      { label: "Refund Policy", href: "/legal/terms" },
+      { label: "Help", href: "/help" },
+      { label: "Log in", href: "/login" },
+      { label: "Start free audit", href: "/register" },
     ],
-    subSection: {
-      title: "Agents",
-      links: [
-        { label: "GEO & Perplexity Agent", href: "/ai-visibility" },
-        { label: "Technical SEO Crawler", href: "/website" },
-        { label: "Competitor Intelligence", href: "/competitor-intelligence" },
-        { label: "Local Search & GBP Agent", href: "/google-business-profile" },
-      ],
-    },
   },
 ];
 
@@ -176,41 +102,11 @@ export function LandingFooter() {
               <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight mb-2 max-w-sm">
                 Find it. Fix it. Prove it.
               </h3>
-              <p className="text-xs text-brand-400 mb-6 max-w-xs leading-relaxed">
+              <p className="text-xs text-brand-400 mb-2 max-w-xs leading-relaxed">
                 sudarshan@growthx.in &bull; +91 8767067884<br />
                 New Panvel, Navi Mumbai, India
               </p>
 
-              {/* Social Channels */}
-              <div className="flex items-center gap-4 text-brand-400 mb-8">
-                <a
-                  href="https://twitter.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg bg-brand-900/60 border border-brand-800 flex items-center justify-center text-brand-400 hover:text-white hover:border-brand-700 transition-colors"
-                  aria-label="X (Twitter)"
-                >
-                  <XIcon />
-                </a>
-                <a
-                  href="https://github.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg bg-brand-900/60 border border-brand-800 flex items-center justify-center text-brand-400 hover:text-white hover:border-brand-700 transition-colors"
-                  aria-label="GitHub"
-                >
-                  <GithubIcon />
-                </a>
-                <a
-                  href="https://linkedin.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-lg bg-brand-900/60 border border-brand-800 flex items-center justify-center text-brand-400 hover:text-white hover:border-brand-700 transition-colors"
-                  aria-label="LinkedIn"
-                >
-                  <LinkedinIcon />
-                </a>
-              </div>
             </div>
 
             {/* Request AI Summary of GrowthX */}
@@ -251,7 +147,7 @@ export function LandingFooter() {
           </div>
 
           {/* Categorized Columns */}
-          <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-8">
+          <div className="lg:col-span-8 grid grid-cols-2 gap-8">
             {FOOTER_COLUMNS.map((col) => (
               <div key={col.title} className="flex flex-col">
                 {/* Primary Section */}
@@ -304,15 +200,6 @@ export function LandingFooter() {
             &copy; {currentYear} GrowthX AI SEO. All rights reserved.
           </p>
 
-          {/* Operational status indicator */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-brand-900/40 border border-brand-800 text-[11px] text-brand-400">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-success-500" />
-            </span>
-            <span>All systems operational</span>
-          </div>
-
           {/* Legal Links */}
           <div className="flex items-center gap-5 text-xs">
             <Link
@@ -326,12 +213,6 @@ export function LandingFooter() {
               className="text-brand-500 hover:text-brand-300 transition-colors"
             >
               Terms of Service
-            </Link>
-            <Link
-              href="/help"
-              className="text-brand-500 hover:text-brand-300 transition-colors"
-            >
-              Security
             </Link>
           </div>
         </div>
