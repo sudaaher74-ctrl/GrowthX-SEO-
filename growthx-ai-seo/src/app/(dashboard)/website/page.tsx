@@ -3,30 +3,10 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  Activity,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Copy,
-  Download,
-  ExternalLink,
-  FileDown,
-  Globe,
-  Home,
-  Layers,
-  Layout,
-  LayoutGrid,
-  Loader2,
-  RefreshCw,
-  Share2,
-  Sparkles,
-  X,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Copy, FileDown, Home, Loader2, RefreshCw, Share2, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
-import { api, type CrawlPage } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import {
   useCrawlHistory,
   useCrawlIssues,

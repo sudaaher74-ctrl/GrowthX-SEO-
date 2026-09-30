@@ -1,26 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import {
-  Users,
-  Trophy,
-  Crown,
-  FileText,
-  Search,
-  MoreVertical,
-  ArrowRight,
-  ShieldCheck,
-  Target,
-  Compass,
-  MessageSquare,
-  Code2,
-  Sparkles,
-  ExternalLink,
-  Settings,
-  Layers,
-  Plus,
-  Bot,
-} from "lucide-react";
+import { Users, Trophy, Crown, FileText, ArrowRight, Target, MessageSquare, Code2, Sparkles, Plus, Bot } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
 import type { VisibilityReport, TrackedCompetitor, CrawlJob } from "@/lib/api-client";
 import { assistantList } from "@/lib/ai-assistants";

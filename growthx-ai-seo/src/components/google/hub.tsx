@@ -2,27 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  BarChart2,
-  CheckCircle2,
-  ChevronRight,
-  Compass,
-  Eye,
-  FileText,
-  Globe,
-  Lightbulb,
-  Play,
-  RefreshCw,
-  Search,
-  Settings,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  Users,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, BarChart2, ChevronRight, Compass, Eye, FileText, Globe, Lightbulb, Play, Settings, Sparkles } from "lucide-react";
 import {
   CartesianGrid,
   Line,
@@ -48,8 +28,7 @@ import {
   useGscQueries,
 } from "@/hooks/use-google";
 import { useGa4Report } from "@/hooks/use-ga4-report";
-import { relativeTime } from "@/components/ui/console";
-import { count, formatKpi, percent, position } from "@/lib/google-format";
+import { position } from "@/lib/google-format";
 
 interface VisibilityLocation {
   code: string;

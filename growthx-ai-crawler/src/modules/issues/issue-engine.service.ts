@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
-import * as url from 'url';
 import { PrismaService } from '../../database/prisma.service';
 import { ExtractedHtmlData } from '../extractor/html-extractor.service';
 import { ExtractedImage } from '../analyzer/image-analyzer.service';

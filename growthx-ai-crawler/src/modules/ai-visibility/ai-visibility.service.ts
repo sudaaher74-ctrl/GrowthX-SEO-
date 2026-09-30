@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AiAssistant, } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
-import { AiProvider, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { CompetitorRef, detectCitation, normalizeDomain } from './citation/citation-detector';
 import { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS, measurableAssistantsFor } from './assistants';
 import { brandTerms, questionGroup } from './questions/question-group';

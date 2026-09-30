@@ -1,21 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Compass,
-  ExternalLink,
-  Globe,
-  Layers,
-  Lightbulb,
-  Shield,
-  Sparkles,
-  Zap,
-} from "lucide-react";
-import { cn, formatRelativeTime } from "@/lib/utils";
+import React from "react";
+import { Activity, AlertTriangle, ArrowRight, Globe, Shield, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
 import { GaugeScore } from "../gauge-score";

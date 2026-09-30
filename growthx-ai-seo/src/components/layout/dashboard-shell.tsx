@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";

@@ -1,14 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Sparkles, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue, CrawlPage } from "@/lib/api-client";
 

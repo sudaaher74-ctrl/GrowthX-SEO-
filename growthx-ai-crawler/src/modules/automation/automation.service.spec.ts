@@ -2,7 +2,7 @@ jest.mock('@octokit/rest', () => ({ Octokit: jest.fn() }));
 jest.mock('simple-git', () => ({ simpleGit: jest.fn() }));
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { AutomationRunStatus, } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as os from 'os';

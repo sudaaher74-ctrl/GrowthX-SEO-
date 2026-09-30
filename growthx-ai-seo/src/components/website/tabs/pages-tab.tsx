@@ -1,25 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Compass,
-  ExternalLink,
-  Filter,
-  Globe,
-  Layers,
-  Link as LinkIcon,
-  MoreHorizontal,
-  Search,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Compass, ExternalLink, Globe, Layers, Link as LinkIcon, MoreHorizontal, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";

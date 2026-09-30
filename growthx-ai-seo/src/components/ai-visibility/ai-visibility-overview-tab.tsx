@@ -1,21 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import {
-  Radio,
-  Link2,
-  PieChart,
-  Search,
-  Sparkles,
-  Info,
-  ArrowRight,
-  TrendingUp,
-  TrendingDown,
-  Lightbulb,
-  Users,
-  Bot,
-  ExternalLink,
-} from "lucide-react";
+import { Radio, Link2, PieChart, Search, Sparkles, ArrowRight, Bot } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
 import { AiVisibilityGauge } from "./ai-visibility-gauge";
 import type { VisibilityReport } from "@/lib/api-client";

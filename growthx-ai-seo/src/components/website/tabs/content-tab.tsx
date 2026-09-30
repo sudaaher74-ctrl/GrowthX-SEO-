@@ -1,17 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  FileText,
-  Heading,
-  Layers,
-  Search,
-  Type,
-  X,
-} from "lucide-react";
+import { AlertTriangle, ExternalLink, FileText, Heading, Layers, Search, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";

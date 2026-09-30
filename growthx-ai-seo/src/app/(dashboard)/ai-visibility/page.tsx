@@ -1,25 +1,10 @@
 "use client";
 import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Sparkles,
-  Plus,
-  RefreshCw,
-  Loader2,
-  Calendar,
-  ChevronDown,
-  ArrowRight,
-  X,
-  Bot,
-  MessageSquare,
-  Building2,
-  Globe,
-  CheckCircle2,
-  AlertTriangle,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Sparkles, Plus, Loader2, Calendar, ChevronDown, ArrowRight, X, Bot, Building2, Globe, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
   useWorkspace,
   useVisibility,
@@ -30,7 +15,7 @@ import {
   useLatestCrawl,
   usePortfolio,
 } from "@/hooks/use-growthx";
-import { api, type TrackedCompetitor } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
 // New AI Visibility Components
