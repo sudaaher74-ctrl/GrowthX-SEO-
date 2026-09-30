@@ -3,12 +3,9 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Kpi, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
-import { FailedState, LoadingState, NoDataState, NotConnectedState } from "@/components/ui/truthful-state";
 import { SourceBadge } from "@/components/google/parts";
-import { useGa4Report } from "@/hooks/use-ga4-report";
-import { useWorkspace } from "@/hooks/use-growthx";
-import type { Ga4ReportData } from "@/lib/api-client";
-import { errorMessage } from "@/lib/error-message";
+import { Ga4Gate } from "@/components/google/ga4-gate";
+import type { Ga4Report, Ga4ReportData } from "@/lib/api-client";
 import { DASH, count, duration, percent, shortDay } from "@/lib/google-format";
 
 /** The five groups the view compares; anything else Google Analytics reports lands in "Other". */
@@ -43,60 +40,11 @@ function pathOf(page: string): string {
  * a figure Analytics did not measure shows "—", never zero.
  */
 export function TrafficView() {
-  const { projectId } = useWorkspace();
-  const { report, sync, days } = useGa4Report(projectId);
-  const r = report.data;
+  return <Ga4Gate>{({ report, data }) => <TrafficBody report={report} data={data} />}</Ga4Gate>;
+}
 
-  const reportData = report.data?.data ?? null;
-  const view = useMemo(() => (reportData ? build(reportData) : null), [reportData]);
-
-  if (!projectId || report.isLoading) {
-    return <LoadingState compact title="Loading traffic…" message="Reading the stored Google Analytics report for this workspace." />;
-  }
-  if (report.error || !r) {
-    return <FailedState title="Could not load traffic" error={errorMessage(report.error)} onRetry={() => report.refetch()} />;
-  }
-
-  if (r.state === "NOT_CONNECTED") {
-    return (
-      <NotConnectedState
-        title="Connect Google Analytics to see your traffic"
-        missing="Google Analytics is not connected for this workspace."
-        whyItMatters="Analytics is the only source that knows which channel each visit came from. Nothing is estimated."
-        actionRequired="Connect Google Analytics, and choose your website's property."
-        action={{ label: "Open Integrations", href: "/integrations" }}
-      />
-    );
-  }
-  if (r.state === "NEEDS_SELECTION" || r.state === "NEEDS_REAUTH" || r.state === "ERROR") {
-    return (
-      <FailedState
-        title={r.state === "NEEDS_SELECTION" ? "Choose a Google Analytics property" : r.state === "NEEDS_REAUTH" ? "Reconnect Google Analytics" : "Google Analytics returned an error"}
-        error={r.message ?? "Open Integrations to fix the Google Analytics connection."}
-      />
-    );
-  }
-  if (r.state === "NEVER_SYNCED" && !r.data) {
-    return (
-      <LoadingState
-        compact
-        title={sync.isPending ? "Fetching from Google Analytics…" : "Nothing fetched yet"}
-        message={sync.error ? errorMessage(sync.error) : "The first fetch reads channels, landing pages and daily visits. Use Refresh data above if it does not start."}
-      />
-    );
-  }
-  if (!view || r.data?.empty) {
-    return (
-      <NoDataState
-        compact
-        title="No traffic recorded for this period"
-        missing={`Google Analytics reported no sessions in the last ${days} days.`}
-        whyItMatters="Channels and landing pages are built from sessions, so there is nothing to compare yet."
-        actionRequired="Try a longer range, or press Refresh data above."
-      />
-    );
-  }
-
+function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data: Ga4ReportData }) {
+  const view = useMemo(() => buildTraffic(reportData), [reportData]);
   const { data, groups, total, organic, organicShare, pages } = view;
   const totals = data.totals;
 
@@ -239,7 +187,7 @@ export function TrafficView() {
   );
 }
 
-function build(data: Ga4ReportData) {
+export function buildTraffic(data: Ga4ReportData) {
   const total = data.channels.reduce((s, c) => s + c.sessions, 0) || data.totals.sessions;
   const byGroup = new Map<Group, { sessions: number; users: number; channels: string[]; engaged: number; engagedSessions: number; keyEvents: number | null; hasKeyEvents: boolean }>();
   for (const c of data.channels) {
