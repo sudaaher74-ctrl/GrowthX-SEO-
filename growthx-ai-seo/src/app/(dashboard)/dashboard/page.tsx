@@ -197,7 +197,7 @@ export default function UnifiedDashboardPage() {
   return (
     <div className="space-y-3.5 pb-10">
       {/* Jump links */}
-      <nav aria-label="On this page" className="inline-flex items-center gap-1 rounded-full bg-brand-950/80 border border-brand-800/40 p-1 text-[11.5px] font-semibold">
+      <nav aria-label="On this page" className="inline-flex items-center gap-1 rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold">
         {[
           ["#health", "Overview"],
           ["#visitors", "Visitors"],
@@ -209,7 +209,7 @@ export default function UnifiedDashboardPage() {
             href={href}
             className={cn(
               "rounded-full px-3 py-1.5 transition-colors",
-              i === 0 ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-200",
+              i === 0 ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-950",
             )}
           >
             {label}
@@ -416,7 +416,7 @@ export default function UnifiedDashboardPage() {
             <Link
               href={nextStep.href}
               title={nextStep.why}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:opacity-90 shadow-sm"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
             >
               {nextStep.cta}
               <ArrowRight size={12} />
@@ -426,7 +426,7 @@ export default function UnifiedDashboardPage() {
       )}
 
       {/* Row 3: what should I fix first? A light panel, as in the reference. */}
-      <section id="todo" className="dash-light flex flex-col gap-3.5 rounded-2xl bg-white border border-brand-200/80 p-4 sm:p-5 text-brand-950 shadow-sm">
+      <section id="todo" className="dash-light flex flex-col gap-3.5 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
         <div className="flex flex-col justify-between gap-2.5 lg:flex-row lg:items-center">
           <div>
             <h2 className="text-[16px] font-bold tracking-tight text-brand-950">Your to-do list</h2>
@@ -437,7 +437,7 @@ export default function UnifiedDashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div role="tablist" aria-label="Filter by how serious" className="dash-dark flex items-center gap-0.5 rounded-full bg-brand-950 p-1 shadow-xs">
+            <div role="tablist" aria-label="Filter by how serious" className="dash-dark flex items-center gap-0.5 rounded-full bg-brand-50 border border-brand-200/60 p-1 shadow-xs">
               {(["ALL", ...SEVERITY_ORDER] as const).map((sev) => {
                 const n = sev === "ALL" ? priorityGroups.length : groupCount(sev);
                 if (sev !== "ALL" && n === 0) return null;
@@ -454,11 +454,11 @@ export default function UnifiedDashboardPage() {
                     }}
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                      on ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-200",
+                      on ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-950",
                     )}
                   >
                     {sev === "ALL" ? "All" : SEVERITY[sev].label}
-                    <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", on ? "bg-signal-ink text-signal-400" : "bg-brand-800 text-brand-300")}>{n}</span>
+                    <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", on ? "bg-signal-ink text-signal-400" : "bg-brand-200 text-brand-400")}>{n}</span>
                   </button>
                 );
               })}
@@ -724,7 +724,7 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
         className={cn(
           "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
           // Selected row gets sleek dark pill styling matching the reference image selected invoice!
-          selected ? "dash-dark bg-brand-950 text-white shadow-xs" : "bg-transparent hover:bg-brand-100 text-brand-900",
+          selected ? "dash-dark bg-brand-50 border border-brand-200/60 text-brand-950 shadow-xs" : "bg-transparent hover:bg-brand-200/60 text-brand-950",
         )}
       >
         <span
@@ -737,7 +737,7 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
           {rank}
         </span>
         <span className="min-w-0 flex-1">
-          <span className={cn("block text-[12.5px] font-semibold truncate leading-tight", selected ? "text-white" : "text-brand-950")}>
+          <span className="block text-[12.5px] font-semibold truncate leading-tight text-brand-950">
             {group.title}
           </span>
           <span className="mt-1 flex items-center gap-1.5">
@@ -747,7 +747,7 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
           </span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="block whitespace-nowrap text-[11px] font-medium text-brand-400">
+          <span className={cn("block whitespace-nowrap text-[11px] font-medium", selected ? "text-brand-400" : "text-brand-500")}>
             {group.affectedCount} {group.affectedCount === 1 ? "page" : "pages"}
           </span>
         </span>
@@ -770,40 +770,40 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
 
   return (
-    <div className="dash-dark flex flex-col justify-between gap-3.5 rounded-xl border border-brand-800/40 bg-brand-950 p-4 sm:p-4.5 text-brand-950 shadow-md">
+    <div className="dash-dark flex flex-col justify-between gap-3.5 rounded-xl border border-brand-200/60 bg-brand-50 p-4 sm:p-4.5 text-brand-950 shadow-md">
       <div>
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">Problem details</p>
           <div className="flex items-center gap-1.5">
             <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-bold", severityChip(group.severity))}>{sev.label}</span>
-            <span className="rounded-full bg-brand-800 px-2 py-0.5 text-[10.5px] font-bold text-brand-300">{fix.label}</span>
+            <span className="rounded-full bg-brand-200 px-2 py-0.5 text-[10.5px] font-bold text-brand-400">{fix.label}</span>
           </div>
         </div>
-        <h3 className="mt-1 text-[17px] sm:text-[18px] font-semibold leading-snug tracking-tight text-white">{group.title}</h3>
+        <h3 className="mt-1 text-[17px] sm:text-[18px] font-semibold leading-snug tracking-tight text-brand-950">{group.title}</h3>
         {group.summary && <p className="mt-1 text-[11.5px] leading-relaxed text-brand-400 max-w-xl">{asSentence(group.summary)}</p>}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.3fr_110px] gap-2">
-        <div className="rounded-lg bg-brand-900/70 border border-brand-800/40 p-2.5">
+        <div className="rounded-lg bg-brand-100 border border-brand-200/50 p-2.5">
           <div className="flex items-center justify-between text-brand-400">
             <p className="text-[10px] font-medium uppercase tracking-wider">Pages affected</p>
             <ArrowUpRight size={12} className="text-brand-500" />
           </div>
-          <p className="mt-0.5 text-[18px] font-bold tracking-tight text-white leading-tight">{group.affectedCount}</p>
+          <p className="mt-0.5 text-[18px] font-bold tracking-tight text-brand-950 leading-tight">{group.affectedCount}</p>
         </div>
 
-        <div className="rounded-lg bg-brand-900/70 border border-brand-800/40 p-2.5">
+        <div className="rounded-lg bg-brand-100 border border-brand-200/50 p-2.5">
           <div className="flex items-center justify-between text-brand-400">
             <p className="text-[10px] font-medium uppercase tracking-wider">How it gets fixed</p>
             <ArrowUpRight size={12} className="text-brand-500" />
           </div>
-          <p className="mt-0.5 text-[12.5px] font-bold text-white truncate leading-tight">{fix.label}</p>
+          <p className="mt-0.5 text-[12.5px] font-bold text-brand-950 truncate leading-tight">{fix.label}</p>
           <p className="mt-0.5 text-[10.5px] text-brand-400 truncate leading-snug">{fix.hint}</p>
         </div>
 
         <Link
           href="/website?tab=issues"
-          className="flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-700/60 p-2 text-center text-[10.5px] font-semibold text-brand-400 transition hover:border-brand-500 hover:text-white"
+          className="flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-300 text-center text-[10.5px] font-semibold text-brand-400 transition hover:border-brand-400 hover:text-brand-950"
         >
           <Plus size={14} />
           See all issues
@@ -811,13 +811,13 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
       </div>
 
       {group.action && (
-        <div className="rounded-lg bg-brand-900/50 border border-brand-800/30 px-3 py-2">
+        <div className="rounded-lg bg-brand-100 border border-brand-200/40 px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">How do I fix this?</p>
-          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-300">{asSentence(group.action)}</p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-700">{asSentence(group.action)}</p>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 border-t border-brand-800/40">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 border-t border-brand-200/50">
         <p className="text-[11px] text-brand-400 leading-tight">{fix.note}</p>
         <Link
           href={fix.href}
