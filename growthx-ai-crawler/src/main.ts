@@ -27,8 +27,9 @@ function corsOrigins(): string[] {
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  // rawBody is required to verify the Razorpay webhook HMAC, which is computed
-  // over the exact bytes sent rather than the re-serialised JSON.
+  // rawBody exposes the exact bytes of each request, which a signature check
+  // needs (it is computed over the bytes sent, not the re-serialised JSON). No
+  // webhook consumes it since billing was removed; it is kept for the next one.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
 
   // Render terminates TLS at its own proxy. Without this, `req.ip` is the
