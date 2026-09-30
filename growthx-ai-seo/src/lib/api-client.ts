@@ -3691,6 +3691,7 @@ export const api = {
     request<{ success: boolean }>(`/organizations/${orgId}/members/${memberId}`, { method: "DELETE" }),
   createProject: (name: string, organizationId: string) =>
     post<{ id: string; name: string }>("/projects", { name, organizationId }),
+  deleteProject: (projectId: string) => del<{ success: boolean }>(`/projects/${projectId}`),
 
   // ── Agency portfolio
   getPortfolio: (orgId: string, days = 28) =>
