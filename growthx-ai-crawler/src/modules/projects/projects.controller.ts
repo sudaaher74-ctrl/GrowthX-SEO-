@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -62,5 +62,17 @@ export class ProjectsController {
     // decides who may read it.
     await this.orgContext.assertMembership(req.user.userId, project.organizationId);
     return project;
+  }
+
+  @Delete(':id')
+  async deleteProject(@Req() req: any, @Param('id') id: string) {
+    const project = await this.projectsService.getProjectById(id);
+    if (!project) throw new NotFoundException('Project not found');
+
+    // Irreversible and takes the project's crawls, findings and integrations
+    // with it, so an owner or admin only, not any member who can write.
+    await this.orgContext.assertManager(req.user.userId, project.organizationId);
+    await this.projectsService.deleteProject(id);
+    return { success: true };
   }
 }

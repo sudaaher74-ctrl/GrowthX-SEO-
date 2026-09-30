@@ -171,6 +171,17 @@ export function useCreateProject(orgId: string | null) {
   });
 }
 
+export function useDeleteProject(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (projectId: string) => api.deleteProject(projectId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["portfolio", orgId] });
+    },
+  });
+}
+
 export function useLocalSeo(projectId: string | null) {
   return useQuery({
     queryKey: ["local-seo", projectId],

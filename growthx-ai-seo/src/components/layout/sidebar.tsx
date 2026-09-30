@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot, FileText } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Plus, Trash2, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -12,6 +12,8 @@ import {
   useWorkspace,
   useProfile,
   useIssueCounts,
+  useCreateProject,
+  useDeleteProject,
 } from "@/hooks/use-growthx";
 import { TokensChip } from "@/components/tokens/tokens-chip";
 
@@ -54,6 +56,38 @@ export function Sidebar({
   const portfolio = usePortfolio(orgId);
   const profile = useProfile();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [newSite, setNewSite] = useState("");
+  const [switcherError, setSwitcherError] = useState<string | null>(null);
+  const createProject = useCreateProject(orgId);
+  const deleteProject = useDeleteProject(orgId);
+
+  async function handleAddWebsite() {
+    const name = newSite.trim();
+    if (!name) return;
+    setSwitcherError(null);
+    try {
+      const created = await createProject.mutateAsync(name);
+      setProjectId(created.id);
+      setNewSite("");
+      setSwitcherOpen(false);
+      setMobileOpen?.(false);
+      router.push("/dashboard");
+    } catch (err) {
+      setSwitcherError(err instanceof Error ? err.message : "Could not add the website.");
+    }
+  }
+
+  async function handleDeleteWebsite(id: string, name: string) {
+    if (!window.confirm(`Delete "${name}"? All its audits, reports and settings will be permanently removed. This cannot be undone.`)) return;
+    setSwitcherError(null);
+    try {
+      await deleteProject.mutateAsync(id);
+      if (id === projectId) setProjectId("");
+      queryClient.removeQueries({ predicate: (q) => q.queryKey.includes(id) });
+    } catch (err) {
+      setSwitcherError(err instanceof Error ? err.message : "Could not delete the website.");
+    }
+  }
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
@@ -182,8 +216,7 @@ export function Sidebar({
             <div className="relative px-1 mb-3">
               <button
                 onClick={() => setSwitcherOpen((v) => !v)}
-                disabled={projects.length === 0}
-                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-brand-50 disabled:opacity-60"
+                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-brand-50"
                 style={{ borderColor: "var(--border-color)" }}
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[9px] font-semibold text-brand-700">
@@ -200,29 +233,65 @@ export function Sidebar({
                 <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
               </button>
 
-              {switcherOpen && projects.length > 0 && (
+              {switcherOpen && (
                 <div
                   className="absolute left-1 right-1 z-10 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg"
                   style={{ borderColor: "var(--border-color)" }}
                 >
                   {portfolio.data?.clients.map((client) => (
-                    <button
-                      key={client.projectId}
-                      onClick={() => {
-                        setProjectId(client.projectId);
-                        setSwitcherOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 px-2 py-2 text-left hover:bg-brand-100"
-                    >
-                      <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[8px] font-semibold text-brand-700">
-                        {client.initials}
-                      </span>
-                      <span className="flex-1 truncate text-[11.5px] text-brand-950">{client.name}</span>
-                      <span className="font-mono text-[9.5px] text-brand-500">
-                        {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
-                      </span>
-                    </button>
+                    <div key={client.projectId} className="group flex items-center hover:bg-brand-100">
+                      <button
+                        onClick={() => {
+                          setProjectId(client.projectId);
+                          setSwitcherOpen(false);
+                        }}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[8px] font-semibold text-brand-700">
+                          {client.initials}
+                        </span>
+                        <span className="flex-1 truncate text-[11.5px] text-brand-950">{client.name}</span>
+                        <span className="font-mono text-[9.5px] text-brand-500">
+                          {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWebsite(client.projectId, client.name)}
+                        disabled={deleteProject.isPending}
+                        title={`Delete ${client.name}`}
+                        aria-label={`Delete ${client.name}`}
+                        className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   ))}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleAddWebsite();
+                    }}
+                    className="flex items-center gap-1 border-t p-1.5"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <input
+                      value={newSite}
+                      onChange={(e) => setNewSite(e.target.value)}
+                      placeholder="Add website, e.g. yoursite.com"
+                      className="min-w-0 flex-1 rounded-md border bg-white px-2 py-1.5 text-[11.5px] text-brand-950 outline-none focus:border-brand-400"
+                      style={{ borderColor: "var(--border-color)" }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newSite.trim() || createProject.isPending}
+                      title="Add website"
+                      aria-label="Add website"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-50"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </form>
+                  {switcherError && <p className="px-2 pb-2 text-[10.5px] text-red-600">{switcherError}</p>}
                 </div>
               )}
             </div>

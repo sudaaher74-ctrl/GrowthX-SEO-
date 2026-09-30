@@ -21,5 +21,18 @@ export class ProjectsService {
       where: { id },
     });
   }
-}
 
+  /**
+   * Deletes a project and everything hung off it. Every project-owned table
+   * cascades from the project row; the exception is a tracked competitor's
+   * website, which is stored with a null projectId and a `competitor:<id>`
+   * scope so it stays out of the customer's own analysis, and so would be
+   * left behind as orphaned crawl data.
+   */
+  async deleteProject(id: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.website.deleteMany({ where: { scope: `competitor:${id}` } }),
+      this.prisma.project.delete({ where: { id } }),
+    ]);
+  }
+}
