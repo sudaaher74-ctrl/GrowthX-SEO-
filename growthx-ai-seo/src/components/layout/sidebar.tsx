@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronRight, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, FileText } from "lucide-react";
+import { Check, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -84,7 +84,7 @@ export function Sidebar({
               ))}
             </div>
 
-            <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--color-brand-100)" }}>
+            <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border-color)" }}>
               <NavLink 
                 item={{ label: "Integrations", href: "/integrations", icon: LayoutGrid }} 
                 pathname={pathname} 
@@ -127,7 +127,7 @@ export function Sidebar({
           }
 
           return (
-            <div className="relative border-t p-2" style={{ borderColor: "var(--color-brand-100)" }}>
+            <div className="relative border-t p-2" style={{ borderColor: "var(--border-color)" }}>
               {userMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setUserMenuOpen(false)} />
@@ -135,7 +135,7 @@ export function Sidebar({
                     className="absolute bottom-full left-2 right-2 z-30 mb-2 overflow-hidden rounded-xl border bg-white p-1.5 shadow-xl transition-all"
                     style={{ borderColor: "var(--border-color)" }}
                   >
-                    <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--color-brand-100)" }}>
+                    <div className="border-b px-3 py-2.5" style={{ borderColor: "var(--border-color)" }}>
                       <p className="text-[12px] font-semibold text-brand-950 truncate">{displayName}</p>
                       <p className="text-[10.5px] text-brand-500 truncate">{displayEmail}</p>
                       {user?.googleId && (
@@ -233,130 +233,74 @@ function NavLink({
     pathname.startsWith(`${item.href}/`) ||
     (item.aliases ? item.aliases.some((a) => pathname === a || pathname.startsWith(`${a}/`)) : false);
 
-  return <NavLinkEnabled item={item} pathname={pathname} active={active} onNavigate={onNavigate} />;
+  return <NavLinkEnabled item={item} active={active} onNavigate={onNavigate} />;
 }
 
 /**
- * A nav item that can open. Clicking it goes to its page and opens its sub-tabs
- * underneath; the chevron opens or closes them without leaving the page. An
- * item whose page is showing starts open.
+ * Clean, single-level workflow link without nested child lists in the sidebar,
+ * since every section's tabs are already directly accessible inside the page.
  */
 function NavLinkEnabled({
   item,
-  pathname,
   active,
   onNavigate,
 }: {
   item: NavItem;
-  pathname: string;
   active: boolean;
   onNavigate: () => void;
 }) {
-  const searchParams = useSearchParams();
-  const hasChildren = Boolean(item.children?.length);
-  // null = follow the page: open while it is the current one.
-  const [manual, setManual] = useState<boolean | null>(null);
-  const showChildren = hasChildren && (manual ?? active);
-  const currentTab = searchParams.get("tab");
-
   return (
-    <div className="space-y-0.5">
-      <div
-        data-nav-active={active}
-        className={cn(
-          "flex items-center rounded-lg text-[12.5px] transition-colors",
-          active
-            ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
-            : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
-        )}
+    <div
+      data-nav-active={active}
+      className={cn(
+        "flex items-center rounded-lg text-[12.5px] transition-colors",
+        active
+          ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
+          : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
+      )}
+    >
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        className="flex min-w-0 flex-1 items-center gap-[9px] px-2.5 py-[7px]"
       >
-        <Link
-          href={item.href}
-          onClick={() => {
-            if (hasChildren) setManual(true);
-            onNavigate();
-          }}
-          className="flex min-w-0 flex-1 items-center gap-[9px] px-2 py-[7px]"
-        >
-          <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-400"} />
-          <span className="flex-1 truncate">{item.label}</span>
-          {item.step && (
-            <span
-              title={`Step ${item.step.n}: ${item.step.hint}`}
-              aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
-              className={cn(
-                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold",
-                item.step.done
-                  ? active
-                    ? "bg-signal-ink text-signal-400"
-                    : "bg-success-500 text-white"
-                  : active
-                    ? "border border-signal-ink/40 text-signal-ink"
-                    : "border text-brand-500",
-              )}
-            >
-              {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
-            </span>
-          )}
-          {item.tag && (
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-[6px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
-                active
-                  ? "bg-signal-ink/15 text-signal-ink"
-                  : item.tagTone === "danger"
-                    ? "bg-error-50 text-error-700"
-                    : item.tagTone === "success"
-                      ? "bg-success-50 text-success-700 border border-success-200"
-                      : "bg-brand-200 text-brand-600",
-              )}
-            >
-              {item.tag}
-            </span>
-          )}
-        </Link>
-        {hasChildren && (
-          <button
-            type="button"
-            onClick={() => setManual(!showChildren)}
-            aria-expanded={showChildren}
-            aria-label={`${showChildren ? "Close" : "Open"} ${item.label} tabs`}
+        <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-400"} />
+        <span className="flex-1 truncate">{item.label}</span>
+        {item.step && (
+          <span
+            title={`Step ${item.step.n}: ${item.step.hint}`}
+            aria-label={`Step ${item.step.n}${item.step.done ? ", done" : ""}`}
             className={cn(
-              "mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition",
-              active ? "text-signal-ink/80 hover:text-signal-ink" : "text-brand-400 hover:text-brand-950",
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold",
+              item.step.done
+                ? active
+                  ? "bg-signal-ink text-signal-400"
+                  : "bg-success-500 text-white"
+                : active
+                  ? "border border-signal-ink/40 text-signal-ink"
+                  : "border text-brand-500",
             )}
           >
-            <ChevronRight size={13} className={cn("transition-transform duration-200", showChildren && "rotate-90")} />
-          </button>
+            {item.step.done ? <Check size={10} strokeWidth={3} /> : item.step.n}
+          </span>
         )}
-      </div>
-
-      {showChildren && (
-        <div className="ml-5 space-y-0.5 border-l border-brand-200/50 py-1 pl-2">
-          {item.children?.map((sub) => {
-            const isSubActive = sub.tab
-              ? active && (currentTab === sub.tab || (!currentTab && Boolean(sub.isDefault)))
-              : pathname === sub.href;
-            return (
-              <Link
-                key={sub.id}
-                href={sub.href}
-                onClick={onNavigate}
-                aria-current={isSubActive ? "page" : undefined}
-                className={cn(
-                  "flex items-center gap-2 truncate rounded px-2 py-1 text-[11.5px] transition",
-                  isSubActive
-                    ? "bg-signal-400/15 font-bold text-signal-400"
-                    : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isSubActive ? "bg-signal-400" : "bg-brand-300")} />
-                <span className="truncate">{sub.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+        {item.tag && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-[6px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
+              active
+                ? "bg-signal-ink/15 text-signal-ink"
+                : item.tagTone === "danger"
+                  ? "bg-error-50 text-error-700"
+                  : item.tagTone === "success"
+                    ? "bg-success-50 text-success-700 border border-success-200"
+                    : "bg-brand-200 text-brand-600",
+            )}
+          >
+            {item.tag}
+          </span>
+        )}
+      </Link>
     </div>
   );
 }
