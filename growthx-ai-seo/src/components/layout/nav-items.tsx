@@ -87,7 +87,6 @@ export function useMainNav(): { mainNav: NavItem[] } {
         { id: "performance", label: "Speed", href: "/website?tab=performance", tab: "performance" },
         { id: "pages", label: "Pages", href: "/website?tab=pages", tab: "pages" },
         { id: "content", label: "Content", href: "/website?tab=content", tab: "content" },
-        { id: "geo", label: "Ready for AI answers", href: "/website?tab=geo", tab: "geo" },
         { id: "issues", label: "Problems to fix", href: "/website?tab=issues", tab: "issues" },
         { id: "report", label: "Full Report", href: "/website?tab=report", tab: "report" },
       ],

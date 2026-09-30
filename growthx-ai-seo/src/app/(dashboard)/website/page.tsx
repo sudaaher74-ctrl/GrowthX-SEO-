@@ -45,7 +45,6 @@ import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
 import { PerformanceTab } from "@/components/website/tabs/performance-tab";
 import { PagesTab } from "@/components/website/tabs/pages-tab";
 import { ContentTab } from "@/components/website/tabs/content-tab";
-import { GeoTab } from "@/components/website/tabs/geo-tab";
 import { IssuesTab } from "@/components/website/tabs/issues-tab";
 import { OverviewTab } from "@/components/website/tabs/overview-tab";
 
@@ -79,7 +78,19 @@ function WebsiteAuditClient() {
   // True affected-page counts per problem, for the printed report.
   const issueGroups = useIssueGroups(projectId);
 
-  const [activeTab, setActiveTab] = useState<TabId>(tabParam || "technical-seo");
+  const VALID_TABS: TabId[] = [
+    "overview",
+    "technical-seo",
+    "performance",
+    "pages",
+    "content",
+    "issues",
+    "report",
+  ];
+
+  const [activeTab, setActiveTab] = useState<TabId>(
+    tabParam && (VALID_TABS as string[]).includes(tabParam) ? tabParam : "technical-seo",
+  );
   const [crawling, setCrawling] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -174,12 +185,6 @@ function WebsiteAuditClient() {
       badgeTone: "info",
     },
     { id: "content", label: "Content" },
-    {
-      id: "geo",
-      label: "Ready for AI answers",
-      badge: allPages.length > 0 ? `${allPages.filter(p => p.wordCount >= 350).length}/${allPages.length}` : undefined,
-      badgeTone: "default",
-    },
     { id: "issues", label: "Problems to fix" },
     { id: "report", label: "Full Report" },
   ];
@@ -205,10 +210,6 @@ function WebsiteAuditClient() {
     content: {
       title: "Content",
       subtitle: "Your page titles, the descriptions Google shows, headlines, and how much useful text each page has.",
-    },
-    geo: {
-      title: "Ready for AI answers",
-      subtitle: "Whether your pages are written so ChatGPT, Google's AI answers and other assistants can quote them.",
     },
     issues: {
       title: "Problems to fix",
@@ -430,13 +431,6 @@ function WebsiteAuditClient() {
 
         {activeTab === "content" && (
           <ContentTab
-            pages={allPages}
-            issues={allIssues}
-          />
-        )}
-
-        {activeTab === "geo" && (
-          <GeoTab
             pages={allPages}
             issues={allIssues}
           />
