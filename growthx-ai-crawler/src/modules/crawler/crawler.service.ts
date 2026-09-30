@@ -631,55 +631,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       const normUrl = this.state.normalizeUrl(payload.targetUrl);
 
-      // Every early return below leaves the URL in the inventory carrying the
-      // reason it was not fetched. Returning without one is what made a
-      // "discovered" URL disappear from the accounts entirely, so that the only
-      // self-consistent coverage the dashboard could print was 100%.
-      //
-      // Out of time is the same as out of pages: the crawl is capped, not
-      // done, and what is still queued drains without a fetch so the crawl
-      // finishes with what it has read. Checked before the URL is claimed, so
-      // a URL skipped here is not counted as a page read.
-      if (payload.deadlineAt && Date.now() > payload.deadlineAt) {
-        await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
-        if (await this.state.isUrlClaimed(payload.jobId, normUrl)) {
-          await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
-          return;
-        }
-        await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
-        return;
-      }
-      const { alreadyVisited, limitReached } = await this.state.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
-      if (alreadyVisited) {
-        await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
-        return;
-      }
-      if (limitReached) {
-        // Mark the job status as LIMIT_REACHED so the UI shows it correctly
-        await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
-        return;
-      }
-
-      if (payload.depth > payload.maxDepth) {
-        await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'skipped_by_configuration');
-        return;
-      }
-
-      const allowed = await this.robots.isUrlAllowed(normUrl);
-      if (!allowed) {
-        await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
-        await this.state.bumpJobStat(payload.jobId, 'robotsBlocked');
-        // Excluded, never removed: a URL robots.txt forbids is still a URL the
-        // site published, and hiding it makes the sitemap and the crawl
-        // disagree with no way to see why.
-        await this.inventory.markExcluded(payload.jobId, normUrl, 'robots_blocked', { robotsAllowed: false });
-        return;
-      }
+      if (!(await this.admitUrl(payload, normUrl))) return;
 
       // Read once per page from wherever the crawl's state actually lives, so
       // a page fetched by another worker — or by this one after a restart —
@@ -696,12 +648,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       // wait on. Keyed by the website's domain rather than the URL's host, so
       // the www and bare spellings of one site share one queue.
       await this.pacer.wait(payload.domain || new URL(normUrl).host, payload.rateLimitDelayMs);
-      const rendersUsed = await this.state.rendersUsed(payload.jobId);
-      // A crawl may ask for fewer renders than the deployment allows, never more.
-      const deploymentRenderBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
-      const renderBudget =
-        payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentRenderBudget) : deploymentRenderBudget;
-      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed: rendersUsed < renderBudget });
+      const renderAllowed = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
+      const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed });
       if (outcome.tier === 'rendered') {
         await this.state.noteRenderUsed(payload.jobId);
       }
@@ -728,7 +676,6 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           httpStatus: fetchRes.statusCode,
         });
         return;
-
       }
 
       let snapshotUrl: string | undefined;
@@ -737,22 +684,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       }
 
       try {
-        // 1. Run Analysis Pipeline if HTML 200 OK
-        let $ = cheerio.load('');
-        let htmlData = this.htmlExtractor.extract($, normUrl);
-        let images = [] as any[];
-        let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
-        let schemas = [] as any[];
-        let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
-
-        if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
-          $ = cheerio.load(fetchRes.html);
-          htmlData = this.htmlExtractor.extract($, normUrl);
-          images = this.imageAnalyzer.analyzeImages($, normUrl);
-          links = this.linkAnalyzer.analyzeLinks($, normUrl);
-          schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
-          content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
-        }
+        // 1. Run the analysis pipeline (only a 200 HTML response has a body to read)
+        const { $, htmlData, images, links, schemas, content } = this.analysePage(fetchRes, normUrl);
 
         // 2. Upsert Page with full metrics
         // Derived once and written on both paths: a re-crawl that changed a
@@ -805,50 +738,30 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           fetchErrorKind: outcome.error?.kind ?? null,
         };
 
+        const pageData = {
+          pageType,
+          finalUrl: fetchRes.finalUrl,
+          statusCode: fetchRes.statusCode,
+          responseTimeMs: fetchRes.responseTimeMs,
+          contentType: fetchRes.contentType,
+          htmlSnapshotUrl: snapshotUrl,
+          ...v2Columns,
+          title: htmlData.title,
+          metaDescription: htmlData.metaDescription,
+          canonicalUrl: htmlData.canonicalUrl,
+          robotsMeta: htmlData.robotsMeta,
+          h1: htmlData.h1,
+          h2: htmlData.h2,
+          h3: htmlData.h3,
+          wordCount: content.wordCount,
+          readingTimeMin: content.readingTimeMin,
+          contentHash: content.contentHash,
+          simHash: content.simHash || undefined,
+        };
         const page = await this.prisma.page.upsert({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
-          update: {
-            pageType,
-            finalUrl: fetchRes.finalUrl,
-            statusCode: fetchRes.statusCode,
-            responseTimeMs: fetchRes.responseTimeMs,
-            contentType: fetchRes.contentType,
-            htmlSnapshotUrl: snapshotUrl,
-            ...v2Columns,
-            title: htmlData.title,
-            metaDescription: htmlData.metaDescription,
-            canonicalUrl: htmlData.canonicalUrl,
-            robotsMeta: htmlData.robotsMeta,
-            h1: htmlData.h1,
-            h2: htmlData.h2,
-            h3: htmlData.h3,
-            wordCount: content.wordCount,
-            readingTimeMin: content.readingTimeMin,
-            contentHash: content.contentHash,
-            simHash: content.simHash || undefined,
-          },
-          create: {
-            crawlJobId: payload.jobId,
-            url: normUrl,
-            pageType,
-            finalUrl: fetchRes.finalUrl,
-            statusCode: fetchRes.statusCode,
-            responseTimeMs: fetchRes.responseTimeMs,
-            contentType: fetchRes.contentType,
-            htmlSnapshotUrl: snapshotUrl,
-            ...v2Columns,
-            title: htmlData.title,
-            metaDescription: htmlData.metaDescription,
-            canonicalUrl: htmlData.canonicalUrl,
-            robotsMeta: htmlData.robotsMeta,
-            h1: htmlData.h1,
-            h2: htmlData.h2,
-            h3: htmlData.h3,
-            wordCount: content.wordCount,
-            readingTimeMin: content.readingTimeMin,
-            contentHash: content.contentHash,
-            simHash: content.simHash || undefined,
-          },
+          update: pageData,
+          create: { crawlJobId: payload.jobId, url: normUrl, ...pageData },
         });
 
         if (productSignal?.isProductPage) {
@@ -913,30 +826,30 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         if (outcome.error || outcome.blockedSuspected) {
           await this.recorder.persistFetchFailureIssue(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         } else {
-        await this.issueEngine.evaluateAndPersistIssues(
-          payload.jobId,
-          await this.recorder.resolveProjectId(payload.websiteId),
-          payload.websiteId,
-          page.id,
-          normUrl,
-          fetchRes.statusCode,
-          fetchRes.redirectChain || [],
-          fetchRes.html || '',
-          $,
-          htmlData,
-          images,
-          links,
-          content,
-          schemas,
-          inSitemap,
-          true
-        );
+          await this.issueEngine.evaluateAndPersistIssues(
+            payload.jobId,
+            await this.recorder.resolveProjectId(payload.websiteId),
+            payload.websiteId,
+            page.id,
+            normUrl,
+            fetchRes.statusCode,
+            fetchRes.redirectChain || [],
+            fetchRes.html || '',
+            $,
+            htmlData,
+            images,
+            links,
+            content,
+            schemas,
+            inSitemap,
+            true
+          );
 
-        // The legacy engine knows nothing about rendering, so the highest-value
-        // finding on a client-rendered site has to be raised here. Without
-        // this, a site that is blank to every AI answer engine passes its audit
-        // with nothing said about it.
-        await this.recorder.persistRenderFindings(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
+          // The legacy engine knows nothing about rendering, so the highest-value
+          // finding on a client-rendered site has to be raised here. Without
+          // this, a site that is blank to every AI answer engine passes its audit
+          // with nothing said about it.
+          await this.recorder.persistRenderFindings(payload.jobId, payload.websiteId, page.id, normUrl, outcome);
         }
 
         // 5. Asynchronously trigger Core Web Vitals for Homepage or depth 0 pages
@@ -951,41 +864,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
         // 7. Enqueue internal links for BFS crawling
         if (fetchRes.statusCode === 200 && fetchRes.html) {
-          const allInternalTargets = [...links.internalLinks];
-          const existingTargets = new Set(allInternalTargets.map((l: any) => l.targetUrl));
-
-          // JSON-LD structured data URLs
-          if (htmlData.jsonLd && htmlData.jsonLd.length > 0) {
-            const jsonUrls = extractUrlsFromJsonLd(htmlData.jsonLd, normUrl);
-            for (const jUrl of jsonUrls) {
-              if (!existingTargets.has(jUrl)) {
-                existingTargets.add(jUrl);
-                allInternalTargets.push({ targetUrl: jUrl, anchorText: 'structured_data' });
-              }
-            }
-          }
-
-          // Canonical target
-          if (htmlData.canonicalUrl && isInternalTargetUrl(htmlData.canonicalUrl, normUrl)) {
-            if (!existingTargets.has(htmlData.canonicalUrl)) {
-              existingTargets.add(htmlData.canonicalUrl);
-              allInternalTargets.push({ targetUrl: htmlData.canonicalUrl, anchorText: 'canonical' });
-            }
-          }
-
-          // Pagination links: link[rel="next"], link[rel="prev"]
-          $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
-            const href = $(el).attr('href');
-            if (href) {
-              try {
-                const abs = new URL(href, normUrl).toString();
-                if (isInternalTargetUrl(abs, normUrl) && !existingTargets.has(abs)) {
-                  existingTargets.add(abs);
-                  allInternalTargets.push({ targetUrl: abs, anchorText: 'pagination' });
-                }
-              } catch {}
-            }
-          });
+          const allInternalTargets = this.collectInternalTargets(links, htmlData, $, normUrl);
 
           // Which of these links exist only after JavaScript ran.
           //
@@ -1014,18 +893,157 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       await this.state.releaseUrlClaim(payload.jobId, this.state.normalizeUrl(payload.targetUrl));
       throw err;
     } finally {
-      if (this.queue.pageFetchQueue) {
-        // Settled by task identity, not by arrival: BullMQ runs a task again
-        // after a retry or a lapsed lock, and counting those re-runs as
-        // separate work is what drove the counter to zero with most of the
-        // site still queued. `alreadySettled` means this run is a duplicate of
-        // one already accounted for, so the crawl is not finished by it.
-        const { remaining, alreadySettled } = await this.queue.settlePageFetchTask(payload.jobId, payload.taskId);
-        if (!alreadySettled && remaining <= 0) {
-          const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
-          if (job && job.status === 'RUNNING') {
-            await this.completeJob(payload.jobId);
+      await this.settlePageFetchTask(payload);
+    }
+  }
+
+  /**
+   * Decides whether a queued URL is fetched at all: not out of time, not seen
+   * before, inside the page ceiling and depth, and allowed by robots.txt.
+   * False means it was skipped, and the URL is left in the inventory carrying
+   * the reason.
+   */
+  private async admitUrl(payload: PageFetchPayload, normUrl: string): Promise<boolean> {
+    // Every early return below leaves the URL in the inventory carrying the
+    // reason it was not fetched. Returning without one is what made a
+    // "discovered" URL disappear from the accounts entirely, so that the only
+    // self-consistent coverage the dashboard could print was 100%.
+    //
+    // Out of time is the same as out of pages: the crawl is capped, not
+    // done, and what is still queued drains without a fetch so the crawl
+    // finishes with what it has read. Checked before the URL is claimed, so
+    // a URL skipped here is not counted as a page read.
+    if (payload.deadlineAt && Date.now() > payload.deadlineAt) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      if (await this.state.isUrlClaimed(payload.jobId, normUrl)) {
+        await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
+        return false;
+      }
+      await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
+      return false;
+    }
+    const { alreadyVisited, limitReached } = await this.state.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
+    if (alreadyVisited) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
+      return false;
+    }
+    if (limitReached) {
+      // Mark the job status as LIMIT_REACHED so the UI shows it correctly
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.state.setJobCrawlStatus(payload.jobId, 'LIMIT_REACHED');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
+      return false;
+    }
+
+    if (payload.depth > payload.maxDepth) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'skipped_by_configuration');
+      return false;
+    }
+
+    const allowed = await this.robots.isUrlAllowed(normUrl);
+    if (!allowed) {
+      await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
+      await this.state.bumpJobStat(payload.jobId, 'robotsBlocked');
+      // Excluded, never removed: a URL robots.txt forbids is still a URL the
+      // site published, and hiding it makes the sitemap and the crawl
+      // disagree with no way to see why.
+      await this.inventory.markExcluded(payload.jobId, normUrl, 'robots_blocked', { robotsAllowed: false });
+      return false;
+    }
+
+    return true;
+  }
+
+  /** A crawl may ask for fewer renders than the deployment allows, never more. */
+  private renderBudgetFor(payload: PageFetchPayload): number {
+    const deploymentBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
+    return payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentBudget) : deploymentBudget;
+  }
+
+  /** Runs every analyser over a fetched page. A response with no HTML body yields empty results. */
+  private analysePage(fetchRes: ReturnType<CrawlerService['toLegacyFetchResult']>, normUrl: string) {
+    let $ = cheerio.load('');
+    let htmlData = this.htmlExtractor.extract($, normUrl);
+    let images = [] as any[];
+    let links: any = { internalLinks: [], externalLinks: [], brokenAnchors: [], nofollowLinks: [], internalCount: 0, externalCount: 0, totalCount: 0 };
+    let schemas = [] as any[];
+    let content: any = { wordCount: 0, readingTimeMin: 0, contentHash: '', simHash: '', headingStructureErrors: [], imageCount: 0, internalLinkDensity: 0, externalLinkDensity: 0 };
+
+    if (fetchRes.statusCode === 200 && fetchRes.html && (fetchRes.contentType?.includes('html') || !fetchRes.contentType)) {
+      $ = cheerio.load(fetchRes.html);
+      htmlData = this.htmlExtractor.extract($, normUrl);
+      images = this.imageAnalyzer.analyzeImages($, normUrl);
+      links = this.linkAnalyzer.analyzeLinks($, normUrl);
+      schemas = this.schemaValidator.validateSchemas(htmlData.jsonLd);
+      content = this.contentAnalyzer.analyzeContent(fetchRes.html, htmlData.h1, htmlData.h2, htmlData.h3, images.length, links.internalCount, links.externalCount);
+    }
+
+    return { $, htmlData, images, links, schemas, content };
+  }
+
+  /**
+   * Every internal URL a page points at: its anchors, plus the ones only its
+   * structured data, canonical and pagination links name.
+   */
+  private collectInternalTargets(links: any, htmlData: any, $: cheerio.CheerioAPI, normUrl: string) {
+    const allInternalTargets = [...links.internalLinks];
+    const existingTargets = new Set(allInternalTargets.map((l: any) => l.targetUrl));
+
+    // JSON-LD structured data URLs
+    if (htmlData.jsonLd && htmlData.jsonLd.length > 0) {
+      const jsonUrls = extractUrlsFromJsonLd(htmlData.jsonLd, normUrl);
+      for (const jUrl of jsonUrls) {
+        if (!existingTargets.has(jUrl)) {
+          existingTargets.add(jUrl);
+          allInternalTargets.push({ targetUrl: jUrl, anchorText: 'structured_data' });
+        }
+      }
+    }
+
+    // Canonical target
+    if (htmlData.canonicalUrl && isInternalTargetUrl(htmlData.canonicalUrl, normUrl)) {
+      if (!existingTargets.has(htmlData.canonicalUrl)) {
+        existingTargets.add(htmlData.canonicalUrl);
+        allInternalTargets.push({ targetUrl: htmlData.canonicalUrl, anchorText: 'canonical' });
+      }
+    }
+
+    // Pagination links: link[rel="next"], link[rel="prev"]
+    $('link[rel="next" i], link[rel="prev" i]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (href) {
+        try {
+          const abs = new URL(href, normUrl).toString();
+          if (isInternalTargetUrl(abs, normUrl) && !existingTargets.has(abs)) {
+            existingTargets.add(abs);
+            allInternalTargets.push({ targetUrl: abs, anchorText: 'pagination' });
           }
+        } catch {}
+      }
+    });
+
+    return allInternalTargets;
+  }
+
+  /**
+   * Counts this task off the crawl, and finishes the crawl when it was the last.
+   * Runs in `finally`, so a page that was skipped or failed still counts.
+   */
+  private async settlePageFetchTask(payload: PageFetchPayload): Promise<void> {
+    if (this.queue.pageFetchQueue) {
+      // Settled by task identity, not by arrival: BullMQ runs a task again
+      // after a retry or a lapsed lock, and counting those re-runs as
+      // separate work is what drove the counter to zero with most of the
+      // site still queued. `alreadySettled` means this run is a duplicate of
+      // one already accounted for, so the crawl is not finished by it.
+      const { remaining, alreadySettled } = await this.queue.settlePageFetchTask(payload.jobId, payload.taskId);
+      if (!alreadySettled && remaining <= 0) {
+        const job = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId } });
+        if (job && job.status === 'RUNNING') {
+          await this.completeJob(payload.jobId);
         }
       }
     }
