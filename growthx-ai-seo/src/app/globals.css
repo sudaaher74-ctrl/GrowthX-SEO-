@@ -608,9 +608,6 @@ body {
   --color-accent-50: #142238;
   --color-accent-700: #93c5fd;
 
-  /* A little wider than the light layout, so long tab names are not cut off. */
-  --sidebar-w: 264px;
-
   color: var(--color-brand-950);
 }
 .dash-dark .bg-white { background-color: var(--color-surface-1); }

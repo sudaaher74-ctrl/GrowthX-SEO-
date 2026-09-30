@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
+import { DashboardNavbar } from "@/components/layout/dashboard-navbar";
 import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
@@ -60,25 +61,35 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AivaProvider>
       <div className={cn("min-h-screen", dark && "dash-dark")} style={{ background: "var(--color-canvas)" }}>
-        {/* The sidebar reads the URL's ?tab= to mark the open sub-tab. */}
-        <Suspense fallback={null}>
-          <Sidebar
-            collapsed={collapsed}
-            onToggle={() => toggleCollapsed()}
-            mobileOpen={mobileOpen}
-            setMobileOpen={setMobileOpen}
-          />
-        </Suspense>
-        <TopNav
-          collapsed={collapsed}
-          onToggleCollapse={() => toggleCollapsed()}
-          setMobileOpen={setMobileOpen}
-        />
+        {dark ? (
+          // The Dashboard trial: the workflow lives in the top bar as icons, so there is no sidebar.
+          <Suspense fallback={null}>
+            <DashboardNavbar />
+          </Suspense>
+        ) : (
+          <>
+            {/* The sidebar reads the URL's ?tab= to mark the open sub-tab. */}
+            <Suspense fallback={null}>
+              <Sidebar
+                collapsed={collapsed}
+                onToggle={() => toggleCollapsed()}
+                mobileOpen={mobileOpen}
+                setMobileOpen={setMobileOpen}
+              />
+            </Suspense>
+            <TopNav
+              collapsed={collapsed}
+              onToggleCollapse={() => toggleCollapsed()}
+              setMobileOpen={setMobileOpen}
+            />
+          </>
+        )}
         {/* 232px sidebar + 52px header, per the design's measurements. */}
         <main
           className={cn(
-            "min-h-screen pt-[52px] transition-all duration-300 ease-in-out",
-            collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]",
+            "min-h-screen transition-all duration-300 ease-in-out",
+            dark ? "pt-[76px]" : "pt-[52px]",
+            !dark && (collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]"),
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">

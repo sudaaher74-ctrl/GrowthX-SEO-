@@ -118,7 +118,8 @@ async function open(page: Page, path: string, tokens: () => unknown, extra?: Par
   await page.goto(path, { waitUntil: "domcontentloaded" });
 }
 
-const sidebarChip = (page: Page) => page.locator('aside a[href="/tokens"]');
+// The sidebar's chip on every page but the Dashboard, whose top bar carries it instead.
+const sidebarChip = (page: Page) => page.locator('aside a[href="/tokens"], header a[href="/tokens"]');
 
 test.describe("Tokens page", () => {
   test("shows the balance in full precision, and says what it is out of", async ({ page }) => {

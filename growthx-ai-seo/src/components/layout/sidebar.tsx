@@ -2,19 +2,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronRight, ChevronsUpDown, Plus, Trash2, Crosshair, Globe, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, SearchCheck, Settings, Wrench, Store, Bot, FileText } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronRight, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import {
-  usePortfolio,
-  useWorkspace,
-  useProfile,
-  useIssueCounts,
-  useDeleteProject,
-} from "@/hooks/use-growthx";
+import { useProfile } from "@/hooks/use-growthx";
 import { TokensChip } from "@/components/tokens/tokens-chip";
+import { SiteSwitcher } from "@/components/layout/site-switcher";
+import { useMainNav, type NavItem } from "@/components/layout/nav-items";
 
 /**
  * Agency console sidebar.
@@ -23,20 +19,6 @@ import { TokensChip } from "@/components/tokens/tokens-chip";
  * Dashboard, Website Audit, Google, Competitor Intelligence, AI Visibility, Google Business Profile, Fix Engine
  */
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  aliases?: string[];
-  /** Small right-aligned counter or metric. */
-  tag?: string;
-  tagTone?: "default" | "danger" | "success";
-  disabled?: boolean;
-  /** Sub-tabs, shown under the item when it is open. `tab` is its ?tab= value. */
-  children?: { label: string; href: string; id: string; tab?: string; isDefault?: boolean }[];
-  /** A step of the guided workflow, ticked once it has really been done. */
-  step?: { n: number; done: boolean; hint: string };
-}
 
 export function Sidebar({
   collapsed = false,
@@ -52,183 +34,10 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { orgId, projects, projectId, setProjectId } = useWorkspace();
-  const portfolio = usePortfolio(orgId);
   const profile = useProfile();
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [newSite, setNewSite] = useState("");
-  const [switcherError, setSwitcherError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const deleteProject = useDeleteProject(orgId);
-
-  async function handleAddWebsite() {
-    const domain = newSite.trim();
-    if (!domain) return;
-    setSwitcherError(null);
-    setAdding(true);
-    try {
-      // The same start the dashboard uses: it registers the website, creates
-      // the project for it and begins reading the site. A bare project with no
-      // website behind it leaves every audit page empty.
-      const run = await api.autopilot.start(domain, null);
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
-      queryClient.setQueryData(["autopilot", run.projectId], run);
-      setProjectId(run.projectId);
-      setNewSite("");
-      setSwitcherOpen(false);
-      setMobileOpen?.(false);
-      router.push("/dashboard");
-    } catch (err) {
-      setSwitcherError(err instanceof Error ? err.message : "Could not add the website.");
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  async function handleDeleteWebsite(id: string, name: string) {
-    if (!window.confirm(`Delete "${name}"? All its audits, reports and settings will be permanently removed. This cannot be undone.`)) return;
-    setSwitcherError(null);
-    try {
-      await deleteProject.mutateAsync(id);
-      if (id === projectId) setProjectId("");
-      queryClient.removeQueries({ predicate: (q) => q.queryKey.includes(id) });
-    } catch (err) {
-      setSwitcherError(err instanceof Error ? err.message : "Could not delete the website.");
-    }
-  }
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const selected = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
-  const clientRow = portfolio.data?.clients.find((c) => c.projectId === selected?.id) ?? null;
-  const issueCounts = useIssueCounts(projectId);
-
-  // The guided order: audit your own site, connect Google, add the rivals,
-  // connect the Business Profile, then ask the AI assistants — each step feeds the next (AI Visibility matches questions to
-  // audited pages and explains a rival's win from its crawled page). Every
-  // tick is read from real state, never from having visited the page.
-  const competitorsQuery = useQuery({
-    queryKey: ["action-engine-competitors", projectId],
-    queryFn: () => api.actionEngineCompetitors(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-  const auditDone = Boolean(issueCounts.data?.crawledAt);
-  const competitorsDone = (competitorsQuery.data?.competitors.length ?? 0) > 0;
-
-  // Done once at least one AI assistant has really been asked about the business.
-  const visibilityQuery = useQuery({
-    queryKey: ["ai-visibility-done", projectId],
-    queryFn: () => api.getVisibility(projectId!, 28),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-  const visibilityDone = (visibilityQuery.data?.summary.checked ?? 0) > 0;
-
-  const googleQuery = useQuery({
-    queryKey: ["google-connections", projectId],
-    queryFn: () => api.googleConnections(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-  const googleProviders = googleQuery.data?.providers ?? [];
-  const isConnected = (id: string) => googleProviders.some((p) => p.id === id && p.status === "CONNECTED");
-  const googleDone = isConnected("search_console") || isConnected("analytics");
-  const profileDone = isConnected("business_profile");
-
-  // The workflow, in the order a client should work through it. AI Visibility,
-  // Business and Design Studio are hidden from the sidebar for now;
-  // their pages still exist and can be restored by adding the entries back.
-  const mainNav: NavItem[] = [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: Activity,
-    },
-    {
-      label: "Website Audit",
-      href: "/website",
-      icon: Globe,
-      tag: clientRow?.criticalIssues ? String(clientRow.criticalIssues) : undefined,
-      tagTone: "danger",
-      step: { n: 1, done: auditDone, hint: auditDone ? "Audit done" : "Run your first website audit" },
-      children: [
-        { id: "overview", label: "Overview", href: "/website?tab=overview", tab: "overview" },
-        { id: "technical-seo", label: "Technical health", href: "/website?tab=technical-seo", tab: "technical-seo", isDefault: true },
-        { id: "performance", label: "Speed", href: "/website?tab=performance", tab: "performance" },
-        { id: "pages", label: "Pages", href: "/website?tab=pages", tab: "pages" },
-        { id: "content", label: "Content", href: "/website?tab=content", tab: "content" },
-        { id: "geo", label: "Ready for AI answers", href: "/website?tab=geo", tab: "geo" },
-        { id: "issues", label: "Problems to fix", href: "/website?tab=issues", tab: "issues" },
-        { id: "report", label: "Full Report", href: "/website?tab=report", tab: "report" },
-      ],
-    },
-    {
-      label: "Google",
-      href: "/google",
-      icon: SearchCheck,
-      step: { n: 2, done: googleDone, hint: googleDone ? "Google connected" : "Connect Search Console or Analytics" },
-      children: [
-        { id: "search-console", label: "Search Console", href: "/google/search-console" },
-        { id: "analytics", label: "Analytics 4", href: "/google/analytics" },
-        { id: "insights", label: "Insights & tools", href: "/google" },
-        { id: "report", label: "Improvement report", href: "/google/report" },
-      ],
-    },
-    {
-      label: "Competitor Intelligence",
-      href: "/competitor-intelligence",
-      icon: Crosshair,
-      step: { n: 3, done: competitorsDone, hint: competitorsDone ? "Competitors added" : "Add your competitors" },
-      children: [
-        { id: "battleground", label: "Battleground", href: "/competitor-intelligence?tab=battleground", tab: "battleground", isDefault: true },
-        { id: "gaps", label: "Gaps", href: "/competitor-intelligence?tab=gaps", tab: "gaps" },
-        { id: "radar", label: "Rival Radar", href: "/competitor-intelligence?tab=radar", tab: "radar" },
-        { id: "counter-moves", label: "Your Plans", href: "/competitor-intelligence?tab=counter-moves", tab: "counter-moves" },
-        { id: "report", label: "Full Report", href: "/competitor-intelligence?tab=report", tab: "report" },
-      ],
-    },
-    {
-      label: "AI Visibility",
-      href: "/ai-visibility",
-      icon: Bot,
-      step: { n: 4, done: visibilityDone, hint: visibilityDone ? "AI assistants checked" : "See how ChatGPT, Gemini, Perplexity and Claude describe your business" },
-      children: [
-        { id: "overview", label: "Overview", href: "/ai-visibility?tab=overview", tab: "overview", isDefault: true },
-        { id: "questions", label: "Questions", href: "/ai-visibility?tab=questions", tab: "questions" },
-        { id: "sandbox", label: "GEO Sandbox & Simulation", href: "/ai-visibility?tab=sandbox", tab: "sandbox" },
-        { id: "insights", label: "AI Insights", href: "/ai-visibility?tab=insights", tab: "insights" },
-        { id: "citations", label: "Citations", href: "/ai-visibility?tab=citations", tab: "citations" },
-        { id: "competitors", label: "Competitors", href: "/ai-visibility?tab=competitors", tab: "competitors" },
-        { id: "gaps", label: "Content Gaps", href: "/ai-visibility?tab=gaps", tab: "gaps" },
-        { id: "recommendations", label: "Recommendations", href: "/ai-visibility?tab=recommendations", tab: "recommendations" },
-      ],
-    },
-    {
-      label: "Google Business Profile",
-      href: "/google-business-profile",
-      icon: Store,
-      step: { n: 5, done: profileDone, hint: profileDone ? "Business Profile connected" : "Connect your Google Business Profile" },
-      children: [
-        { id: "overview", label: "Overview", href: "/google-business-profile?tab=overview", tab: "overview", isDefault: true },
-        { id: "audit", label: "Profile Audit", href: "/google-business-profile?tab=audit", tab: "audit" },
-        { id: "reviews", label: "Reviews", href: "/google-business-profile?tab=reviews", tab: "reviews" },
-        { id: "photos", label: "Photos", href: "/google-business-profile?tab=photos", tab: "photos" },
-        { id: "services", label: "Services", href: "/google-business-profile?tab=services", tab: "services" },
-        { id: "categories", label: "Categories", href: "/google-business-profile?tab=categories", tab: "categories" },
-        { id: "rankings", label: "Local Rankings", href: "/google-business-profile?tab=rankings", tab: "rankings" },
-        { id: "competitors", label: "Competitors", href: "/google-business-profile?tab=competitors", tab: "competitors" },
-        { id: "posts", label: "Posts", href: "/google-business-profile?tab=posts", tab: "posts" },
-        { id: "ai-recommendations", label: "AI Recommendations", href: "/google-business-profile?tab=ai-recommendations", tab: "ai-recommendations" },
-        { id: "action-plan", label: "Action Plan", href: "/google-business-profile?tab=action-plan", tab: "action-plan" },
-      ],
-    },
-    {
-      label: "Fix Engine",
-      href: "/fix-engine",
-      icon: Wrench,
-    },
-  ];
+  const { mainNav } = useMainNav();
 
   return (
     <>
@@ -265,89 +74,7 @@ export function Sidebar({
           <div>
             <SectionLabel>Workspace</SectionLabel>
 
-            {/* Client switcher */}
-            <div className="relative px-1 mb-3">
-              <button
-                onClick={() => setSwitcherOpen((v) => !v)}
-                className="flex w-full items-center gap-2 rounded-lg border bg-white px-2 py-2 text-left transition hover:bg-brand-50"
-                style={{ borderColor: "var(--border-color)" }}
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-100 font-mono text-[9px] font-semibold text-brand-700">
-                  {selected ? initialsOf(selected.name) : "—"}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-semibold text-brand-950">
-                    {selected?.name ?? "No projects yet"}
-                  </span>
-                  <span className="block truncate font-mono text-[9.5px] text-brand-400">
-                    {clientRow?.domain ?? "add a website"}
-                  </span>
-                </span>
-                <ChevronsUpDown size={13} className="shrink-0 text-brand-400" />
-              </button>
-
-              {switcherOpen && (
-                <div
-                  className="absolute left-1 right-1 z-10 mt-1 overflow-hidden rounded-lg border bg-white shadow-lg"
-                  style={{ borderColor: "var(--border-color)" }}
-                >
-                  {portfolio.data?.clients.map((client) => (
-                    <div key={client.projectId} className="group flex items-center hover:bg-brand-100">
-                      <button
-                        onClick={() => {
-                          setProjectId(client.projectId);
-                          setSwitcherOpen(false);
-                        }}
-                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left"
-                      >
-                        <span className="flex h-5 w-5 items-center justify-center rounded bg-brand-100 font-mono text-[8px] font-semibold text-brand-700">
-                          {client.initials}
-                        </span>
-                        <span className="flex-1 truncate text-[11.5px] text-brand-950">{client.name}</span>
-                        <span className="font-mono text-[9.5px] text-brand-500">
-                          {client.aiCitationSharePct != null ? `${client.aiCitationSharePct}%` : "—"}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteWebsite(client.projectId, client.name)}
-                        disabled={deleteProject.isPending}
-                        title={`Delete ${client.name}`}
-                        aria-label={`Delete ${client.name}`}
-                        className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-400 transition hover:bg-error-50 hover:text-error-600 disabled:opacity-50"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ))}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void handleAddWebsite();
-                    }}
-                    className="flex items-center gap-1 border-t p-1.5"
-                    style={{ borderColor: "var(--border-color)" }}
-                  >
-                    <input
-                      value={newSite}
-                      onChange={(e) => setNewSite(e.target.value)}
-                      placeholder="Add website, e.g. yoursite.com"
-                      className="min-w-0 flex-1 rounded-md border bg-white px-2 py-1.5 text-[11.5px] text-brand-950 outline-none focus:border-brand-400"
-                      style={{ borderColor: "var(--border-color)" }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newSite.trim() || adding}
-                      title="Add website"
-                      aria-label="Add website"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-50"
-                    >
-                      <Plus size={13} />
-                    </button>
-                  </form>
-                  {switcherError && <p className="px-2 pb-2 text-[10.5px] text-error-600">{switcherError}</p>}
-                </div>
-              )}
-            </div>
+            <SiteSwitcher onDone={() => setMobileOpen?.(false)} />
 
             {/* Main Tabs */}
             <SectionLabel>Workflow</SectionLabel>
@@ -631,9 +358,3 @@ function NavLinkEnabled({
   );
 }
 
-function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}

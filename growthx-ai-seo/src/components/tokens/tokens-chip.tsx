@@ -13,7 +13,7 @@ import { TokenMeter } from "@/components/tokens/token-meter";
  * failed, or when the deployment has tokens switched off — rather than a
  * placeholder balance that would be wrong for someone.
  */
-export function TokensChip({ onNavigate }: { onNavigate?: () => void }) {
+export function TokensChip({ onNavigate, variant = "card" }: { onNavigate?: () => void; variant?: "card" | "bar" }) {
   const { orgId } = useWorkspace();
   const tokens = useTokens(orgId);
   const data = tokens.data;
@@ -30,6 +30,31 @@ export function TokensChip({ onNavigate }: { onNavigate?: () => void }) {
         : standing === "tracking"
           ? "Usage is counted, not limited"
           : `Refills ${refills}`;
+
+  if (variant === "bar") {
+    // The top bar's compact form: the balance and the same caption, on two lines.
+    return (
+      <Link
+        href="/tokens"
+        onClick={onNavigate}
+        title={`${formatTokensExact(data.available)} tokens available`}
+        className="hidden h-11 shrink-0 flex-col justify-center rounded-2xl bg-brand-100 px-3.5 transition-colors hover:bg-brand-200 lg:flex"
+      >
+        <span className="flex items-center gap-1.5">
+          <Coins size={12} className={standing === "out" ? "text-error-600" : standing === "low" ? "text-warning-600" : "text-brand-400"} />
+          <span
+            className={cn(
+              "font-mono text-[12px] font-semibold leading-none",
+              standing === "out" ? "text-error-600" : standing === "low" ? "text-warning-700" : "text-brand-950",
+            )}
+          >
+            {formatTokens(data.available)}
+          </span>
+        </span>
+        <span className="mt-1 text-[10px] leading-none text-brand-400">{caption}</span>
+      </Link>
+    );
+  }
 
   return (
     <Link
