@@ -1,30 +1,7 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import {
-  api,
-  ApiError,
-  auth,
-  askResearchStream,
-  type ResearchProgressEvent,
-  type Role,
-  type AddCreatorBody,
-  type SprintExecutionResult,
-  type VerificationCertificate,
-  type GeoSimulationResult,
-  type SimulateGeoBody,
-  type InterceptAnalysisResponse,
-  type InterceptBlueprint,
-  type GenerateBlueprintBody,
-  type ProgrammaticMatrixResponse,
-  type DispatchFindingBody,
-  type InternalLinkingMeshResponse,
-  type GenerateLinkPatchBody,
-  type LinkSculptingPatch,
-  type CrawlJob,
-  type StrategyPlan,
-  type IssueGroupFilters,
-} from "@/lib/api-client";
+import { api, ApiError, auth, type Role, type GeoSimulationResult, type SimulateGeoBody, type ProgrammaticMatrixResponse, type IssueGroupFilters } from "@/lib/api-client";
 import { stagingEngine, EMPTY_STAGED_ITEMS, type StagedFixItem } from "@/lib/staging-engine";
 
 const orgListeners = new Set<() => void>();
@@ -45,7 +22,7 @@ const periodListeners = new Set<() => void>();
  * is a per-session lens, not a setting to restore weeks later.
  */
 export const PERIOD_DAYS = [7, 28, 90] as const;
-export type PeriodDays = (typeof PERIOD_DAYS)[number];
+type PeriodDays = (typeof PERIOD_DAYS)[number];
 
 const DEFAULT_PERIOD: PeriodDays = 28;
 let activePeriod: PeriodDays = DEFAULT_PERIOD;
@@ -160,17 +137,6 @@ export function useWorkspace() {
   };
 }
 
-export function useCreateProject(orgId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => api.createProject(name, orgId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects", orgId] });
-      qc.invalidateQueries({ queryKey: ["portfolio", orgId] });
-    },
-  });
-}
-
 export function useDeleteProject(orgId: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -236,42 +202,6 @@ export function useGeoGridHistory(projectId: string | null, keyword?: string) {
   });
 }
 
-export function useLocalReviews(projectId: string | null) {
-  return useQuery({
-    queryKey: ["local-reviews", projectId],
-    queryFn: () => api.getLocalReviews(projectId!),
-    enabled: Boolean(projectId),
-  });
-}
-
-export function useSyncLocalReviews(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.syncLocalReviews(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
-  });
-}
-
-export function useDraftReviewReply(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (args: string | { reviewId: string; tone?: string }) => {
-      const reviewId = typeof args === "string" ? args : args.reviewId;
-      const tone = typeof args === "string" ? undefined : args.tone;
-      return api.draftReviewReply(projectId!, reviewId, tone);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
-  });
-}
-
-export function usePublishReviewReply(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ reviewId, replyText }: { reviewId: string; replyText: string }) => api.publishReviewReply(projectId!, reviewId, replyText),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["local-reviews", projectId] }),
-  });
-}
-
 // ── Google Business Profile (the real Google connector)
 //
 // Every read here serves from the backend's synced tables and carries the
@@ -298,15 +228,6 @@ const GBP_QUERY_KEYS = [
 
 function invalidateGbp(qc: ReturnType<typeof useQueryClient>, projectId: string | null) {
   for (const key of GBP_QUERY_KEYS) qc.invalidateQueries({ queryKey: [key, projectId] });
-}
-
-export function useGoogleIntegrations(projectId: string | null) {
-  return useQuery({
-    queryKey: ["google-integrations", projectId],
-    queryFn: () => api.getGoogleIntegrations(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
 }
 
 export function useGbpOverview(projectId: string | null) {
@@ -631,16 +552,6 @@ export function useQuestionSuggestions(projectId: string | null) {
   });
 }
 
-/** AI Visibility findings as SEO Roadmap tasks. */
-export function useAiVisibilityRoadmapTasks(projectId: string | null) {
-  return useQuery({
-    queryKey: ["aivis-roadmap", projectId],
-    queryFn: () => api.getAiVisibilityRoadmapTasks(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
 /**
  * AI-written analysis of the measured citation data. Keyed on the report, so
  * it refreshes after a sweep. `question` asks something specific of the data.
@@ -652,112 +563,6 @@ export function useVisibilityInsights(projectId: string | null, question?: strin
     enabled: Boolean(projectId),
     staleTime: 10 * 60 * 1000,
     retry: false,
-  });
-}
-
-export function useAeo(projectId: string | null) {
-  return useQuery({
-    queryKey: ["aeo", projectId],
-    queryFn: () => api.getAeo(projectId!),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-    retry: false,
-  });
-}
-
-export function useAutonomousPlanStatus(projectId: string | null) {
-  return useQuery({
-    queryKey: ["autonomous-plan-status", projectId],
-    queryFn: () => api.actionEngineAutonomousPlanStatus(projectId!),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useApproveAutonomousPlan(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.actionEngineApproveAutonomousPlan(projectId!),
-    onSuccess: (data) => {
-      qc.setQueryData(["autonomous-plan-status", projectId], data);
-      qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
-    },
-  });
-}
-
-export function useExecuteSprint(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<
-    SprintExecutionResult,
-    Error,
-    { sprintWeek?: number; actionIds?: string[] } | undefined
-  >({
-    mutationFn: (params?: { sprintWeek?: number; actionIds?: string[] }) => {
-      if (!projectId) {
-        return Promise.resolve({
-          success: true,
-          sprintWeek: params?.sprintWeek ?? 1,
-          executedCount: 0,
-          executedIds: [],
-          planStatus: {
-            projectId: projectId || "",
-            isApproved: true,
-            approvedAt: new Date().toISOString(),
-            currentDay: Math.min(30, (params?.sprintWeek ?? 1) * 7),
-            totalDays: 30,
-            runId: null,
-            status: "ACTIVE_AUTONOMOUS",
-            actionsCount: 0,
-            completedActionsCount: 0,
-          },
-        });
-      }
-      return api.actionEngineExecuteSprint(projectId, params ?? {});
-    },
-    onSuccess: (data) => {
-      if (projectId) {
-        qc.setQueryData(["autonomous-plan-status", projectId], data.planStatus);
-        qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
-        qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
-      }
-      qc.invalidateQueries({ queryKey: ["crawl-issues"] });
-    },
-  });
-}
-
-export function useRunVerification(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<
-    VerificationCertificate,
-    Error,
-    { issueIds?: string[]; urls?: string[]; sprintWeek?: number } | undefined
-  >({
-    mutationFn: (body) => {
-      // Without a project there is nothing to re-fetch, so there is no
-      // certificate. This used to return a PASSED one for aivaenterprises.com.
-      if (!projectId) {
-        throw new Error("Select a project before running verification.");
-      }
-      return api.runVerification(projectId, body ?? {});
-    },
-    onSuccess: (data) => {
-      if (projectId) {
-        qc.setQueryData(["verification-latest", projectId], data);
-        qc.invalidateQueries({ queryKey: ["verification-latest", projectId] });
-      }
-      qc.invalidateQueries({ queryKey: ["crawl-issues"] });
-      qc.invalidateQueries({ queryKey: ["latest-crawl"] });
-      qc.invalidateQueries({ queryKey: ["autonomous-plan-status"] });
-    },
-  });
-}
-
-export function useLatestVerification(projectId?: string | null) {
-  return useQuery<VerificationCertificate | null>({
-    queryKey: ["verification-latest", projectId],
-    queryFn: () => (projectId ? api.getLatestVerification(projectId) : null),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
   });
 }
 
@@ -777,145 +582,12 @@ export function useSimulateGeo(projectId?: string | null) {
   });
 }
 
-export function useCompetitorIntercepts(projectId?: string | null, competitorId?: string) {
-  return useQuery<InterceptAnalysisResponse>({
-    queryKey: ["competitor-intercepts", projectId, competitorId],
-    queryFn: () => (projectId ? api.getCompetitorIntercepts(projectId, competitorId) : Promise.resolve({
-      scoreboard: {
-        totalPoachable: 0,
-        primeTargetsCount: 0,
-        searchImpressionsAtStake: 0,
-        averageVulnerabilityScore: 0,
-        topDefectArea: null,
-      },
-      opportunities: [],
-    })),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useGenerateCounterAttackBlueprint(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<InterceptBlueprint, Error, GenerateBlueprintBody>({
-    mutationFn: (body) => {
-      if (!projectId) {
-        throw new Error("projectId required to generate blueprint");
-      }
-      return api.generateCounterAttackBlueprint(projectId, body);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["competitor-intercepts", projectId] });
-    },
-  });
-}
-
 export function useProgrammaticMatrix(projectId?: string | null, competitorId?: string) {
   return useQuery<ProgrammaticMatrixResponse>({
     queryKey: ["competitor-programmatic-matrix", projectId, competitorId],
     queryFn: () => api.getProgrammaticMatrix(projectId!, competitorId),
     enabled: Boolean(projectId),
     staleTime: 60 * 1000,
-  });
-}
-
-export function useDispatchFindingToQueue(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<{ success: boolean; message: string; opportunityId: string; fingerprint: string }, Error, DispatchFindingBody>({
-    mutationFn: (body) => {
-      if (!projectId) {
-        throw new Error("projectId required to dispatch finding");
-      }
-      return api.dispatchFindingToQueue(projectId, body);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["opportunities", projectId] });
-      qc.invalidateQueries({ queryKey: ["action-queue", projectId] });
-      qc.invalidateQueries({ queryKey: ["findings", projectId] });
-    },
-  });
-}
-
-
-export function useInternalLinkingMesh(projectId?: string | null) {
-  return useQuery<InternalLinkingMeshResponse>({
-    queryKey: ["internal-linking-mesh", projectId],
-    queryFn: () => api.getInternalLinkingMesh(projectId!),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useGenerateLinkSculptingPatch(projectId?: string | null) {
-  const qc = useQueryClient();
-  return useMutation<LinkSculptingPatch, Error, GenerateLinkPatchBody>({
-    mutationFn: (body) => {
-      if (!projectId) throw new Error("projectId required to generate link sculpting patch");
-      return api.generateLinkSculptingPatch(projectId, body);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["internal-linking-mesh", projectId] });
-    },
-  });
-}
-
-export function useTopicClusters(projectId?: string | null) {
-  return useQuery({
-    queryKey: ["topic-clusters", projectId],
-    queryFn: () => api.getTopicClusters(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useCannibalizationReport(projectId?: string | null) {
-  return useQuery({
-    queryKey: ["cannibalization-report", projectId],
-    queryFn: () => api.detectCannibalization(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useContentVelocityCalendar(projectId?: string | null) {
-  return useQuery({
-    queryKey: ["content-velocity-calendar", projectId],
-    queryFn: () => api.getContentVelocityCalendar(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useActionEngineStrategy(projectId: string | null) {
-  return useQuery({
-    queryKey: ["action-engine-strategy", projectId],
-    queryFn: () => api.actionEngineStrategy(projectId!),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useActionEngineFindings(projectId: string | null, category?: string) {
-  return useQuery({
-    queryKey: ["action-engine-findings", projectId, category],
-    queryFn: () => api.actionEngineFindings(projectId!, category),
-    enabled: Boolean(projectId),
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useActionEngineGenerate(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.actionEngineGenerate(projectId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["action-engine-strategy", projectId] });
-      qc.invalidateQueries({ queryKey: ["action-engine-findings", projectId] });
-      qc.invalidateQueries({ queryKey: ["autonomous-plan-status", projectId] });
-    },
   });
 }
 
@@ -960,31 +632,6 @@ export function useRunSweep(projectId: string | null) {
       qc.invalidateQueries({ queryKey: ["question-analysis", projectId] });
       qc.invalidateQueries({ queryKey: ["aivis-roadmap", projectId] });
     },
-  });
-}
-
-export function useStrategies(projectId: string | null) {
-  return useQuery({
-    queryKey: ["strategies", projectId],
-    queryFn: () => api.listStrategies(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useStrategy(projectId: string | null, reportId: string | null) {
-  return useQuery({
-    queryKey: ["strategy", projectId, reportId],
-    queryFn: () => api.getStrategy(projectId!, reportId!),
-    enabled: Boolean(projectId && reportId),
-  });
-}
-
-export function useGenerateStrategy(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.generateStrategy(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["strategies", projectId] }),
   });
 }
 
@@ -1067,40 +714,12 @@ export function useCrawlIssues(
   });
 }
 
-export function useAnalyzeIssue() {
-  return useMutation({
-    mutationFn: (issueId: string) => api.analyzeIssue(issueId),
-  });
-}
-
-export function useAutoFixIssue() {
-  return useMutation({
-    mutationFn: (issueId: string) => api.autoFixIssue(issueId),
-  });
-}
-
-export function useApproveFix() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (issueId: string) => api.approveFix(issueId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crawl-issues"] });
-    }
-  });
-}
-
 export function useCrawlPages(jobId: string | null, status?: string) {
   return useQuery({
     queryKey: ["crawl-pages", jobId],
     queryFn: () => api.getCrawlPages(jobId!, { limit: 100 }),
     enabled: Boolean(jobId),
     refetchInterval: status === "RUNNING" || status === "PENDING" ? 3000 : false,
-  });
-}
-
-export function useAskAi(projectId: string | null) {
-  return useMutation({
-    mutationFn: (question: string) => api.askAi(projectId!, question),
   });
 }
 
@@ -1122,23 +741,6 @@ export function useConnectRepository(projectId: string | null) {
   });
 }
 
-export function useContentPieces(projectId: string | null) {
-  return useQuery({
-    queryKey: ["content-pieces", projectId],
-    queryFn: () => api.listContent(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function usePlanContent(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.planContent(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["content-pieces", projectId] }),
-  });
-}
-
 export function useCreateContentPiece(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -1156,163 +758,7 @@ export function useDraftContent(projectId: string | null) {
   });
 }
 
-export function useRunContent(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (pieceIds?: string[]) => api.runContentPieces(projectId!, pieceIds),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["content-pieces", projectId] });
-      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
-    },
-  });
-}
-
-/**
- * Applies fixes to the connected repository and opens a pull request.
- *
- * The run clones, patches, installs and builds before it pushes, so this is
- * minutes rather than milliseconds. It resolves with the finished run — the
- * pull request URL when one was opened, or the step log saying where it
- * stopped.
- */
-export function useRunFixes(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (issueIds?: string[]) => api.runFixes(projectId!, issueIds),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["automation-runs", projectId] });
-      qc.invalidateQueries({ queryKey: ["crawl-issues", projectId] });
-    },
-  });
-}
-
-export function useAutomationRuns(projectId: string | null) {
-  return useQuery({
-    queryKey: ["automation-runs", projectId],
-    queryFn: () => api.listAutomationRuns(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useMarketIntelligence(projectId: string | null) {
-  return useQuery({
-    queryKey: ["market", projectId],
-    queryFn: () => api.getMarketIntelligence(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGenerateMarket(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.generateMarketIntelligence(projectId!),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["market", projectId] }),
-  });
-}
-
-export function useIntegrations(projectId: string | null) {
-  return useQuery({
-    queryKey: ["integrations", projectId],
-    queryFn: () => api.getIntegrations(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
 // ── Market research
-
-export function useResearchThreads(projectId: string | null) {
-  return useQuery({
-    queryKey: ["research-threads", projectId],
-    queryFn: () => api.listResearchThreads(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useResearchThread(projectId: string | null, threadId: string | null) {
-  return useQuery({
-    queryKey: ["research-thread", projectId, threadId],
-    queryFn: () => api.getResearchThread(projectId!, threadId!),
-    enabled: Boolean(projectId && threadId),
-    retry: false,
-  });
-}
-
-/**
- * Runs a research question over the streaming route, reporting each stage to
- * `onProgress` as the backend reaches it.
- *
- * Still a mutation, so `isPending` and the thread invalidation behave exactly
- * as they did; the streaming happens inside `mutationFn` and the resolved
- * value is the same finished result the one-shot route returns. Against an API
- * without the streaming route the client falls back to that route, and the run
- * simply reports no progress.
- */
-export function useAskResearch(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      onProgress,
-      ...body
-    }: {
-      question: string;
-      threadId?: string;
-      deepResearch?: boolean;
-      onProgress?: (event: ResearchProgressEvent) => void;
-    }) =>
-      askResearchStream(projectId!, body, (event) => {
-        if (event.type === "progress") onProgress?.(event);
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["research-threads", projectId] });
-    },
-  });
-}
-
-export function useMarketActions(projectId: string | null, status?: "PROPOSED" | "APPROVED" | "REJECTED" | "CONVERTED") {
-  return useQuery({
-    queryKey: ["market-actions", projectId, status ?? "all"],
-    queryFn: () => api.listMarketActions(projectId!, status),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useMarketOpportunities(projectId: string | null) {
-  return useQuery({
-    queryKey: ["market-opportunities", projectId],
-    queryFn: () => api.listMarketOpportunities(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-/** Approve, reject, or convert — all invalidate the queue so it reflects reality. */
-export function useMarketActionDecision(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ actionId, decision }: { actionId: string; decision: "approve" | "reject" | "convert" }) => {
-      if (decision === "approve") return api.approveMarketAction(projectId!, actionId);
-      if (decision === "reject") return api.rejectMarketAction(projectId!, actionId);
-      return api.convertMarketAction(projectId!, actionId);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["market-actions", projectId] });
-    },
-  });
-}
-
-export function useMarketOutcomes(projectId: string | null) {
-  return useQuery({
-    queryKey: ["market-outcomes", projectId],
-    queryFn: () => api.listMarketOutcomes(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
 
 /**
  * The headline figures, computed on the server.
@@ -1374,23 +820,6 @@ export function useIssueGroups(
   });
 }
 
-/**
- * Every affected page of one group. Only fetched once a row is expanded, so
- * the queue does not pay for page lists nobody opens.
- */
-export function useIssueGroupPages(
-  projectId: string | null,
-  groupKey: string | null,
-  cursor?: string,
-) {
-  return useQuery({
-    queryKey: ["issue-group-pages", projectId, groupKey, cursor ?? null],
-    queryFn: () => api.issueGroupPages(projectId!, groupKey!, 100, cursor),
-    enabled: Boolean(projectId && groupKey),
-    retry: false,
-  });
-}
-
 /** Unified ranked findings across all detector modules. */
 export function useFindings(
   projectId: string | null,
@@ -1422,18 +851,6 @@ export function useFindings(
   });
 }
 
-export function useSyncFindings(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.syncFindings(projectId!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["findings", projectId] });
-      qc.invalidateQueries({ queryKey: ["issue-groups", projectId] });
-      qc.invalidateQueries({ queryKey: ["issue-counts", projectId] });
-    },
-  });
-}
-
 export function useTransitionFinding(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -1459,78 +876,3 @@ export function useTransitionFinding(projectId: string | null) {
 
 // ─────────────────────────────────────────────────────────────── Business
 
-/** The browser-only store the action plan's ticks lived in before they moved to the server. */
-const LEGACY_DONE_KEY = (projectId: string) => `growthx.actionPlan.done.${projectId}`;
-
-/**
- * When each action-plan step was marked done, from the server. Ticks this
- * browser saved before they lived on the server are uploaded the first time,
- * with the time they were made, and then forgotten locally.
- */
-export function useActionPlanDone(projectId: string | null) {
-  return useQuery({
-    queryKey: ["action-plan-done", projectId],
-    queryFn: async () => {
-      const server = await api.actionPlanDone.get(projectId!);
-      let legacy: Record<string, string> = {};
-      try {
-        legacy = JSON.parse(window.localStorage.getItem(LEGACY_DONE_KEY(projectId!)) ?? "{}") ?? {};
-      } catch {
-        legacy = {};
-      }
-      const missing = Object.entries(legacy).filter(([key]) => !(key in server));
-      if (missing.length === 0) return server;
-      let merged = server;
-      for (const [stepKey, doneAt] of missing) {
-        merged = await api.actionPlanDone.mark(projectId!, { stepKey, done: true, doneAt });
-      }
-      try {
-        window.localStorage.removeItem(LEGACY_DONE_KEY(projectId!));
-      } catch {
-        // Uploaded either way; a leftover copy is only uploaded again, harmlessly.
-      }
-      return merged;
-    },
-    enabled: Boolean(projectId),
-    retry: 1,
-  });
-}
-
-/** Marks a step done or not done: on screen at once, on the server behind it, and put back if the server refuses. */
-export function useMarkActionStep(projectId: string | null) {
-  const qc = useQueryClient();
-  const key = ["action-plan-done", projectId];
-  return useMutation({
-    mutationFn: (input: { stepKey: string; done: boolean }) =>
-      api.actionPlanDone.mark(projectId!, { ...input, ...(input.done ? { doneAt: new Date().toISOString() } : {}) }),
-    onMutate: async (input) => {
-      await qc.cancelQueries({ queryKey: key });
-      const before = qc.getQueryData<Record<string, string>>(key);
-      const next = { ...(before ?? {}) };
-      if (input.done) next[input.stepKey] = new Date().toISOString();
-      else delete next[input.stepKey];
-      qc.setQueryData(key, next);
-      return { before };
-    },
-    onError: (_err, _input, context) => {
-      if (context) qc.setQueryData(key, context.before);
-    },
-    onSuccess: (map) => {
-      qc.setQueryData(key, map);
-    },
-  });
-}
-
-/**
- * Real Google search numbers for the project (Search Console): its top
- * searches, the ones it almost wins, and whether it is connected at all.
- */
-export function useSearchDemand(projectId: string | null) {
-  return useQuery({
-    queryKey: ["search-demand", projectId],
-    queryFn: () => api.searchDemand(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-    staleTime: 10 * 60_000,
-  });
-}

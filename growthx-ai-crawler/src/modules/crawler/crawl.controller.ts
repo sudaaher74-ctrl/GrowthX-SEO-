@@ -11,7 +11,7 @@ import { AiService } from '../ai/ai.service';
 import { AutoFixService } from '../ai/auto-fix.service';
 import { FixPreviewService } from '../ai/fix-preview.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
-import { calculateHealthScore, HealthScoreCalculator } from '../issues/health-score.util';
+import { HealthScoreCalculator } from '../issues/health-score.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrgContextService } from '../organizations/org-context.service';
 import { VerificationEngineService } from './verification-engine.service';

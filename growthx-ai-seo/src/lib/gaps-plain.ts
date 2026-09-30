@@ -62,7 +62,7 @@ const PAGE_KIND: Record<string, { one: string; many: string; why: string }> = {
   OTHER: { one: "page", many: "pages", why: "Every extra useful page is another way for customers to find the business." },
 };
 
-export function pageKind(pageType: string) {
+function pageKind(pageType: string) {
   return PAGE_KIND[pageType] ?? PAGE_KIND.OTHER;
 }
 
@@ -104,7 +104,7 @@ const SERIES: Record<ProgrammaticCluster["category"], { name: string; why: strin
   CATEGORY_HUBS: { name: "category pages", why: "A page per category helps people browsing a whole range find the business." },
 };
 
-export function seriesName(category: ProgrammaticCluster["category"]) {
+function seriesName(category: ProgrammaticCluster["category"]) {
   return SERIES[category] ?? { name: "similar pages", why: "A family of similar pages each catches its own searches." };
 }
 

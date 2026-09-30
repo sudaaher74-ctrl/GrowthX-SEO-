@@ -32,7 +32,7 @@ import {
   technicalChecks,
 } from "./audit-report-data";
 
-export interface SeoAuditReportDocumentProps {
+interface SeoAuditReportDocumentProps {
   clientName?: string | null;
   domain?: string | null;
   crawledAt?: string | null;

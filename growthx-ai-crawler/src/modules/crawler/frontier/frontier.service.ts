@@ -25,15 +25,6 @@ export interface AddResult {
   atCapacity: number;
 }
 
-/** Defaults, all overridable per crawl. */
-export const DEFAULT_LIMITS = {
-  maxPages: Number(process.env.CRAWL_MAX_PAGES || 500),
-  maxDepth: Number(process.env.CRAWL_MAX_DEPTH || 10),
-  maxDurationMs: Number(process.env.CRAWL_MAX_DURATION_MS || 30 * 60 * 1000),
-  maxRenderedPages: Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100),
-  concurrency: Number(process.env.CRAWL_CONCURRENCY || 5),
-};
-
 /**
  * The crawl's URL frontier, held in PostgreSQL.
  *

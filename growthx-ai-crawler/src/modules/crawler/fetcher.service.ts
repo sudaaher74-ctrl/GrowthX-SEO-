@@ -1,4 +1,4 @@
-import { browserMayLoad, publicAxios } from '../security/ssrf';
+import { assertPublicUrl, SsrfBlockedError, browserMayLoad, publicAxios } from '../security/ssrf';
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { chromium, Browser, BrowserContext } from 'playwright';
@@ -123,20 +123,11 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
     const startTime = Date.now();
     const redirectChain: string[] = [targetUrl];
 
-    // Basic SSRF protection
+    // Literal internal addresses are refused before any request. Names that
+    // resolve to one are refused later, as the connection is made (publicAxios).
     try {
-      const urlObj = new URL(targetUrl);
-      const hostname = urlObj.hostname;
-      if (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname.startsWith('10.') ||
-        hostname.startsWith('192.168.') ||
-        hostname.startsWith('172.') ||
-        hostname.startsWith('169.254.')
-      ) {
-        throw new Error('SSRF Protection: Cannot crawl internal or reserved IP addresses.');
-      }
+      new URL(targetUrl);
+      assertPublicUrl(targetUrl);
     } catch (e: any) {
       return {
         url: targetUrl,
@@ -146,7 +137,7 @@ export class FetcherService implements OnModuleInit, OnModuleDestroy {
         html: '',
         redirectChain,
         engine: 'cheerio',
-        errorMessage: e.message || 'Invalid URL',
+        errorMessage: e instanceof SsrfBlockedError ? `SSRF Protection: ${e.message}` : e.message || 'Invalid URL',
       };
     }
 

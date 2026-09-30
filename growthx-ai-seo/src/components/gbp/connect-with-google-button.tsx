@@ -8,7 +8,7 @@ import { errorMessage } from "@/lib/error-message";
 import type { GbpConnection } from "@/lib/api-client";
 
 /** Where Google sends the browser back to once consent is done. */
-export const GBP_RETURN_TO = "/google/business-profile";
+const GBP_RETURN_TO = "/google/business-profile";
 
 interface ConnectWithGoogleButtonProps {
   projectId: string | null;

@@ -41,7 +41,7 @@ export interface RivalInput {
   lastAnalyzedAt: string | null;
 }
 
-export interface YouInput {
+interface YouInput {
   domain: string;
   pagesCrawled: number | null;
   healthScore: number | null;
@@ -136,13 +136,13 @@ const UTILITY_TOPIC = /^(home|homepage|login|sign in|register|cart|checkout|my a
  * Whole names only — a rival called "Milk Delivery" must not hide every milk
  * topic from a dairy brand.
  */
-export function brandTerms(rival: { name: string; domain: string }): string[] {
+function brandTerms(rival: { name: string; domain: string }): string[] {
   const root = (rival.domain.replace(/^www\./, "").split(".")[0] ?? "").toLowerCase();
   const name = rival.name.toLowerCase().trim();
   return [...new Set([root, name].filter((t) => t.length > 2))];
 }
 
-export function isJunkGap(gap: GapCandidate, rivalName: string): boolean {
+function isJunkGap(gap: GapCandidate, rivalName: string): boolean {
   const topic = gap.topic.trim();
   if (topic.length < 4 || !/\s/.test(topic)) return true; // single generic words
   if (UTILITY_TOPIC.test(topic)) return true;
@@ -255,7 +255,7 @@ export function buildMoves(
 
 export type ThreatLevel = "High" | "Medium" | "Low" | "Not measured";
 
-export interface Threat {
+interface Threat {
   id: string;
   name: string;
   domain: string;

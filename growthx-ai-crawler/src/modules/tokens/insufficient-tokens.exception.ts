@@ -36,10 +36,6 @@ export class InsufficientTokensException extends HttpException {
   }
 }
 
-export function isInsufficientTokens(error: unknown): error is InsufficientTokensException {
-  return error instanceof InsufficientTokensException;
-}
-
 function insufficientTokensMessage({ required, available, resetsAt }: InsufficientTokensDetail): string {
   const refills = resetsAt.toLocaleDateString('en-GB', {
     day: 'numeric',

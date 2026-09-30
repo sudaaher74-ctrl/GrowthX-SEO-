@@ -109,33 +109,6 @@ export function classifyPageType({ url, title, h1 }: PageTypeInput): PageType {
   return 'OTHER';
 }
 
-export function toDisplayPageType(type: string): string {
-  switch (type?.toUpperCase()) {
-    case 'HOME':
-      return 'Homepage';
-    case 'PRODUCT':
-      return 'Product page';
-    case 'CATEGORY':
-      return 'Category page';
-    case 'BLOG':
-      return 'Blog/article';
-    case 'SERVICE':
-      return 'Service page';
-    case 'LANDING':
-      return 'Landing page';
-    case 'CONTACT':
-      return 'Contact page';
-    case 'ABOUT':
-      return 'About page';
-    case 'STATIC':
-    case 'LEGAL':
-    case 'FAQ':
-      return 'Static page';
-    default:
-      return 'Other';
-  }
-}
-
 /**
  * Plural, customer-facing names for each kind of page, for counts such as
  * "24 Product pages". Every PageType has one, so no screen falls back to

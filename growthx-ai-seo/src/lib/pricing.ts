@@ -11,7 +11,7 @@ export type PlanId = "starter" | "growth" | "agency";
 export type Currency = "INR" | "USD";
 export type BillingCycle = "monthly" | "yearly";
 
-export interface Plan {
+interface Plan {
   id: PlanId;
   name: string;
   audience: string;
@@ -25,7 +25,7 @@ export interface Plan {
 export const YEARLY_DISCOUNT = 0.2;
 
 /** Every plan tracks up to this many rivals per website (the product's hard cap). */
-export const COMPETITORS_PER_SITE = 5;
+const COMPETITORS_PER_SITE = 5;
 
 export const PLANS: readonly Plan[] = [
   {
@@ -78,12 +78,12 @@ export const PLANS: readonly Plan[] = [
   },
 ] as const;
 
-export function priceFor(plan: Plan, currency: Currency, cycle: BillingCycle): number {
+function priceFor(plan: Plan, currency: Currency, cycle: BillingCycle): number {
   const monthly = plan.monthly[currency];
   return cycle === "yearly" ? Math.round(monthly * (1 - YEARLY_DISCOUNT)) : monthly;
 }
 
-export function formatPrice(amount: number, currency: Currency): string {
+function formatPrice(amount: number, currency: Currency): string {
   return currency === "INR" ? `₹${amount.toLocaleString("en-IN")}` : `$${amount.toLocaleString("en-US")}`;
 }
 
@@ -93,5 +93,4 @@ export function planPrice(id: PlanId, currency: Currency, cycle: BillingCycle): 
 }
 
 /** The cheapest plan, for "from ₹X" copy and structured data. */
-export const ENTRY_PLAN = PLANS[0];
-export const ENTRY_PRICE_INR = formatPrice(ENTRY_PLAN.monthly.INR, "INR");
+const ENTRY_PLAN = PLANS[0];

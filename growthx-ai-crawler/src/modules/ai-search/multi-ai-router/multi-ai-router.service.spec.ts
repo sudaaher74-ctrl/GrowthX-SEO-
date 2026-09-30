@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { ServiceUnavailableException } from '@nestjs/common';
 import {
   AiProvider,
   AiTask,

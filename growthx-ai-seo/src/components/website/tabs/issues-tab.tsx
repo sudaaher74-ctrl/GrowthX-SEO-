@@ -2,20 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowRight,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  FileDown,
-  Filter,
-  MoreHorizontal,
-  Search,
-  Sparkles,
-  X,
-  Zap,
-} from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, FileDown, Search, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue } from "@/lib/api-client";
 

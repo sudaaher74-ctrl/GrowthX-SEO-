@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, api } from "@/lib/api-client";
 
@@ -7,16 +7,21 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
+  // The code is single-use, and Strict Mode runs effects twice in development.
+  const started = useRef(false);
 
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
+    // The redirect carries a one-time code, never the tokens: a URL lands in
+    // history and logs. Drop it from the address bar as soon as it is read.
+    const code = searchParams.get("code");
+    if (code) window.history.replaceState(null, "", window.location.pathname);
 
-    if (accessToken && refreshToken) {
-      auth.setToken(accessToken);
-      auth.setRefreshToken(refreshToken);
-
+    if (started.current) return;
+    if (code) {
+      started.current = true;
       // Auto-select an organization if possible
+      api.exchangeLoginCode(code).then(
+        () =>
       api.listOrganizations()
         .then(async (orgs) => {
           const orgId = orgs?.[0]?.id;
@@ -50,9 +55,16 @@ function CallbackContent() {
           console.error("Failed to list orgs after google login", err);
           // Fall back to dashboard on any error so user still lands somewhere useful
           router.push("/dashboard");
-        });
+        }),
+        (err) => {
+          // The code was refused (expired or already used): there is no session to land on.
+          console.error("Could not complete Google sign-in", err);
+          setError("That sign-in link has expired. Please sign in again.");
+          setTimeout(() => router.push("/login"), 3000);
+        },
+      );
     } else {
-      setError("Authentication failed. Tokens not found.");
+      setError("Authentication failed. Sign-in code not found.");
       setTimeout(() => {
         router.push("/login");
       }, 3000);

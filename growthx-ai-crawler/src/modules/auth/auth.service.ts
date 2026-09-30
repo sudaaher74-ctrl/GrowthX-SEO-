@@ -3,6 +3,24 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { OrganizationsService } from '../organizations/organizations.service';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
+import { PrismaService } from '../../database/prisma.service';
+
+/** How long the Google sign-in redirect's one-time code may be exchanged. */
+const LOGIN_CODE_TTL_MS = 60_000;
+
+/**
+ * A refresh token presented again this soon after it was rotated is taken for
+ * two tabs racing, not theft: that request is refused, nothing else is revoked.
+ */
+const ROTATION_GRACE_MS = 10_000;
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+
+function refreshLifetimeDays(): number {
+  const parsed = parseInt(process.env.JWT_REFRESH_EXPIRES_IN || '30', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+}
 
 @Injectable()
 export class AuthService {
@@ -10,6 +28,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private organizationsService: OrganizationsService,
+    private prisma: PrismaService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -33,8 +52,22 @@ export class AuthService {
     return this.issueTokens({ id: user.id, email: user.email });
   }
 
-  private issueTokens(user: { id: string; email: string }) {
+  /**
+   * Each refresh token is backed by a RefreshSession row whose id is the token's
+   * `jti`, so it can be rotated and revoked. Without that row a stolen token
+   * worked for its whole 30 days with no way to end it.
+   */
+  private async issueTokens(user: { id: string; email: string }) {
     const payload = { email: user.email, sub: user.id };
+    const days = refreshLifetimeDays();
+    const session = await this.prisma.refreshSession.create({
+      data: { userId: user.id, expiresAt: new Date(Date.now() + days * 86_400_000) },
+    });
+    // Housekeeping only; a failure here must not fail a sign-in.
+    void this.prisma.refreshSession
+      .deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86_400_000) } } })
+      .catch(() => undefined);
+
     return {
       access_token: this.jwtService.sign(payload),
       // `type` distinguishes the two: a refresh token must not be accepted as
@@ -42,21 +75,23 @@ export class AuthService {
       refresh_token: this.jwtService.sign(
         { ...payload, type: 'refresh' },
         // `expiresIn` is typed as a `ms` template-literal rather than a plain
-        // string, so a value read from the environment needs the assertion.
-        { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '30d') as `${number}d` },
+        // string, so a computed value needs the assertion.
+        { expiresIn: `${days}d` as `${number}d`, jwtid: session.id },
       ),
       expires_in: 3600,
     };
   }
 
   /**
-   * Exchanges a valid refresh token for a fresh pair.
+   * Exchanges a valid refresh token for a fresh pair, and retires the one used.
    *
    * The user is re-read on every refresh so an account deleted or disabled
-   * since sign-in cannot keep minting access tokens for a month.
+   * since sign-in cannot keep minting access tokens for a month. A token that
+   * was already rotated and comes back after the grace period has been copied,
+   * so every session of that user is revoked.
    */
   async refresh(refreshToken: string) {
-    let payload: { sub?: string; email?: string; type?: string };
+    let payload: { sub?: string; email?: string; type?: string; jti?: string };
     try {
       payload = this.jwtService.verify(refreshToken);
     } catch {
@@ -67,11 +102,70 @@ export class AuthService {
       throw new UnauthorizedException('An access token cannot be used to refresh a session.');
     }
 
+    // A token with no `jti` predates session tracking and cannot be checked.
+    const session = payload.jti
+      ? await this.prisma.refreshSession.findUnique({ where: { id: payload.jti } })
+      : null;
+    if (!session || session.userId !== payload.sub) {
+      throw new UnauthorizedException('That session has ended. Please sign in again.');
+    }
+
+    // Claimed atomically: of two requests carrying the same token, one wins.
+    const claimed = await this.prisma.refreshSession.updateMany({
+      where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      const fresh = await this.prisma.refreshSession.findUnique({ where: { id: session.id } });
+      const revokedAgo = fresh?.revokedAt ? Date.now() - fresh.revokedAt.getTime() : Infinity;
+      if (revokedAgo > ROTATION_GRACE_MS) await this.revokeAllSessions(session.userId);
+      throw new UnauthorizedException('That session has ended. Please sign in again.');
+    }
+
     const user = payload.sub ? await this.usersService.findById(payload.sub) : null;
     if (!user) {
       throw new UnauthorizedException('That account no longer exists.');
     }
 
+    return this.issueTokens({ id: user.id, email: user.email });
+  }
+
+  /** Ends every refresh session of a user. Access tokens lapse within the hour. */
+  async revokeAllSessions(userId: string): Promise<void> {
+    await this.prisma.refreshSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  /**
+   * The Google redirect carries this code, never the tokens: a URL is kept in
+   * browser history, proxy logs and Referer headers. It is single-use and
+   * short-lived, and only its hash is stored.
+   */
+  async createLoginCode(userId: string): Promise<string> {
+    const code = randomBytes(32).toString('base64url');
+    await this.prisma.loginCode.create({
+      data: { id: sha256(code), userId, expiresAt: new Date(Date.now() + LOGIN_CODE_TTL_MS) },
+    });
+    void this.prisma.loginCode
+      .deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 3_600_000) } } })
+      .catch(() => undefined);
+    return code;
+  }
+
+  async exchangeLoginCode(code: string) {
+    const id = sha256(typeof code === 'string' ? code : '');
+    const claimed = await this.prisma.loginCode.updateMany({
+      where: { id, usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new UnauthorizedException('That sign-in link has expired. Please sign in again.');
+    }
+    const row = await this.prisma.loginCode.findUnique({ where: { id } });
+    const user = row ? await this.usersService.findById(row.userId) : null;
+    if (!user) throw new UnauthorizedException('That account no longer exists.');
     return this.issueTokens({ id: user.id, email: user.email });
   }
 
@@ -116,7 +210,7 @@ export class AuthService {
     if (!user) {
       // Create user with a random dummy password since they authenticate via Google
       const saltOrRounds = 10;
-      const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      const randomPassword = randomBytes(32).toString('hex');
       const passwordHash = await bcrypt.hash(randomPassword, saltOrRounds);
       
       user = await this.usersService.createUser({

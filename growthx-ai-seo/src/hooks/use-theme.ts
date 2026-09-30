@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-export type ThemeMode = "dark" | "light";
+type ThemeMode = "dark" | "light";
 
 const themeListeners = new Set<() => void>();
 let currentTheme: ThemeMode = "dark";
@@ -16,12 +16,12 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
-export function subscribeToThemeChange(listener: () => void) {
+function subscribeToThemeChange(listener: () => void) {
   themeListeners.add(listener);
   return () => themeListeners.delete(listener);
 }
 
-export function setTheme(theme: ThemeMode) {
+function setTheme(theme: ThemeMode) {
   if (theme === currentTheme) return;
   currentTheme = theme;
   try {
@@ -37,7 +37,7 @@ export function setTheme(theme: ThemeMode) {
   themeListeners.forEach((fn) => fn());
 }
 
-export function toggleTheme() {
+function toggleTheme() {
   setTheme(currentTheme === "dark" ? "light" : "dark");
 }
 

@@ -88,7 +88,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.redisConnection = new IORedis(redisUrl, {
           maxRetriesPerRequest: null, // Required by BullMQ
           lazyConnect: true,
-          tls: isTls ? { rejectUnauthorized: false } : undefined,
+          // Certificates are verified. A managed Redis presents a valid one, and
+          // skipping the check lets anyone on the path read and alter the queue.
+          // REDIS_TLS_INSECURE=true exists only for a self-signed instance.
+          tls: isTls ? { rejectUnauthorized: process.env.REDIS_TLS_INSECURE !== 'true' } : undefined,
         });
       } else {
         this.redisConnection = new IORedis({

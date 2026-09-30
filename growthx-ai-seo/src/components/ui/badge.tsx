@@ -1,6 +1,5 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -29,33 +28,6 @@ export function Badge({ children, variant = "default", size = "sm", className }:
       )}
     >
       {children}
-    </span>
-  );
-}
-
-interface TrendBadgeProps {
-  value: number;
-  suffix?: string;
-  invertColor?: boolean;
-  className?: string;
-}
-
-export function TrendBadge({ value, suffix = "%", invertColor = false, className }: TrendBadgeProps) {
-  const isPositive = value > 0;
-  const isNegative = value < 0;
-  const good = invertColor ? isNegative : isPositive;
-  const bad = invertColor ? isPositive : isNegative;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 text-xs font-medium",
-        good ? "text-emerald-600 dark:text-emerald-400" : bad ? "text-red-600 dark:text-red-400" : "text-zinc-400",
-        className
-      )}
-    >
-      {isPositive ? <TrendingUp size={11} /> : isNegative ? <TrendingDown size={11} /> : <Minus size={11} />}
-      {isPositive ? "+" : ""}{value}{suffix}
     </span>
   );
 }

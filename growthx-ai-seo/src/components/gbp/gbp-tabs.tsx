@@ -29,7 +29,7 @@ export type GbpTabKey =
   | "ai-recommendations"
   | "action-plan";
 
-export interface GbpTabItem {
+interface GbpTabItem {
   id: GbpTabKey;
   label: string;
   icon: React.ElementType;

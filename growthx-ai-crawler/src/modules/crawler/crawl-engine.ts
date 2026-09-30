@@ -6,7 +6,6 @@ import { extractPage, ExtractedPage } from './page-extract';
 import { computeIndexability, IndexabilityResult } from './indexability';
 import { evaluatePage, evaluateSite, Finding } from './issue-rules';
 import { normalizeUrl, inferTrailingSlashPolicy, TrailingSlashPolicy, isInternalTargetUrl } from './url/url-normalizer';
-import { sameRegistrableDomain } from './url/registrable-domain';
 import { computeCrawlSummary, CrawlSummary } from './crawl-summary';
 import { isCrawlablePage } from './crawlable';
 

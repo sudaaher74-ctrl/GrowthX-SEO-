@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ValidationService } from './validation.service';
+import { MISSING_CONFIGURATION, sandboxEnv, ValidationService } from './validation.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -18,6 +18,7 @@ describe('ValidationService', () => {
   });
 
   afterEach(async () => {
+    delete process.env.AUTONOMOUS_ENGINEER_RUN_BUILDS;
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
     } catch {
@@ -77,6 +78,40 @@ describe('ValidationService', () => {
     expect(result.output).toContain('no build script in package.json');
   });
 
+  it('does not run the repository build unless the operator has enabled it', async () => {
+    await fs.writeFile(path.join(tempDir, 'package.json'), JSON.stringify({ scripts: { build: 'node evil.js' } }), 'utf8');
+    await fs.writeFile(path.join(tempDir, 'page.tsx'), 'export default function Page() { return <div>Ok</div>; }', 'utf8');
+    const attempt = jest.spyOn(service as any, 'attemptBuild');
+
+    const result = await service.validateRepository(tempDir, 'npm', ['page.tsx']);
+
+    expect(attempt).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.output).toContain('build was not run');
+  });
+
+  it('gives a customer build a listed environment, none of the API secrets', () => {
+    process.env.JWT_SECRET = 'api-secret';
+    process.env.DATABASE_URL = 'postgresql://api';
+    try {
+      const env = sandboxEnv('/tmp/home');
+      expect(Object.keys(env).sort()).toEqual(
+        ['CI', 'HOME', 'NEXT_TELEMETRY_DISABLED', 'PATH', 'TMPDIR', 'npm_config_ignore_scripts'].sort(),
+      );
+      expect(JSON.stringify(env)).not.toContain('api-secret');
+    } finally {
+      delete process.env.JWT_SECRET;
+      delete process.env.DATABASE_URL;
+    }
+  });
+
+  it('excuses a build only for missing configuration, not for any message that mentions a key or token', () => {
+    expect(MISSING_CONFIGURATION.test('Error: Missing environment variable DATABASE_URL')).toBe(true);
+    expect(MISSING_CONFIGURATION.test('connect ECONNREFUSED 127.0.0.1:5432')).toBe(true);
+    expect(MISSING_CONFIGURATION.test("Type error: Property 'key' does not exist on type 'Token'")).toBe(false);
+    expect(MISSING_CONFIGURATION.test('Unexpected token < in JSON at position 0')).toBe(false);
+  });
+
   it('allows PR to proceed when dependency install fails in runner sandbox but file syntax is verified valid', async () => {
     const pkgPath = path.join(tempDir, 'package.json');
     await fs.writeFile(pkgPath, JSON.stringify({ name: 'test-site', scripts: { build: 'next build' } }), 'utf8');
@@ -84,6 +119,7 @@ describe('ValidationService', () => {
     const pageFile = path.join(tempDir, 'page.tsx');
     await fs.writeFile(pageFile, 'export default function Page() { return <div>Ok</div>; }', 'utf8');
 
+    process.env.AUTONOMOUS_ENGINEER_RUN_BUILDS = 'true';
     // Spy on attemptBuild to simulate dependency install failure
     jest.spyOn(service as any, 'attemptBuild').mockResolvedValueOnce({
       success: true,
@@ -103,6 +139,7 @@ describe('ValidationService', () => {
     const pageFile = path.join(tempDir, 'page.tsx');
     await fs.writeFile(pageFile, 'export default function Page() { return <div>Ok</div>; }', 'utf8');
 
+    process.env.AUTONOMOUS_ENGINEER_RUN_BUILDS = 'true';
     jest.spyOn(service as any, 'attemptBuild').mockResolvedValueOnce({
       success: false,
       output: 'Build error caused by modified file: Type error in page.tsx: Cannot find name foo',

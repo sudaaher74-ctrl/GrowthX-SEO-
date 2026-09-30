@@ -13,7 +13,7 @@ type Group = "Organic Search" | "Direct" | "Referral" | "Social" | "Paid" | "Oth
 const GROUPS: Group[] = ["Organic Search", "Direct", "Referral", "Social", "Paid", "Other"];
 
 /** Maps a GA4 default channel group onto a comparison group. Unknown names are kept as "Other", never dropped. */
-export function groupOf(channel: string, organic: boolean): Group {
+function groupOf(channel: string, organic: boolean): Group {
   if (organic) return "Organic Search";
   const c = channel.toLowerCase();
   if (c.startsWith("paid") || c === "display" || c === "cross-network" || c === "affiliates") return "Paid";

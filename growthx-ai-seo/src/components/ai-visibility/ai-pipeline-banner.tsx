@@ -5,7 +5,7 @@ import { Globe, ArrowRight, Sparkles, Loader2, AlertTriangle, CircleDashed, Chec
 import type { TrackedCompetitor, VisibilityReport } from "@/lib/api-client";
 import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
-export interface AiPipelineBannerProps {
+interface AiPipelineBannerProps {
   mode?: "overview" | "competitors" | "recommendations";
   domain?: string;
   crawledPages?: number | null;

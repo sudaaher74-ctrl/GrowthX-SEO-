@@ -20,11 +20,7 @@ import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { configuredValue, isConfiguredValue } from '../../../config/optional-env';
 import { AiUsageService } from './ai-usage.service';
 import { TokensService } from '../../tokens/tokens.service';
-import {
-  MammouthCapability,
-  MAMMOUTH_MODELS,
-  resolveMammouthModelForCapability,
-} from './mammouth-models.config';
+import { MammouthCapability, resolveMammouthModelForCapability } from './mammouth-models.config';
 
 export enum AiProvider {
   MAMMOUTH = 'MAMMOUTH',

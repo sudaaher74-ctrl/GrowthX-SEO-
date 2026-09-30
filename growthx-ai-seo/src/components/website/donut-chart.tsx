@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
-export interface DonutSlice {
+interface DonutSlice {
   label: string;
   value: number;
   color: string;

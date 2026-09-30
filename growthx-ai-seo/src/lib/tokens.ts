@@ -94,7 +94,7 @@ export function costOf(entry: { tokens: number; shortfall: number }, mode: Activ
 const ACRONYMS = new Set(["SEO", "AI", "GBP", "URL", "FAQ", "GEO", "API"]);
 
 /** SEO_ANALYSIS -> "SEO analysis". */
-export function humanize(code: string): string {
+function humanize(code: string): string {
   const words = code
     .split(/[_\s]+/)
     .filter(Boolean)

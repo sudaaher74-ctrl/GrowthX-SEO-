@@ -11,15 +11,15 @@
 
 import type { CrawlIssue, CrawlPage, IssueCounts, IssueGroup, IssueSeverity } from "@/lib/api-client";
 
-export const SEVERITIES: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const SEVERITIES: IssueSeverity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 /** The thresholds the crawler's own issue rules apply (issue-rules.ts). */
-export const TITLE_MAX = 65;
-export const META_MAX = 160;
-export const THIN_CONTENT_WORDS = 250;
+const TITLE_MAX = 65;
+const META_MAX = 160;
+const THIN_CONTENT_WORDS = 250;
 /** Google's "good" LCP boundary. */
-export const LCP_GOOD_MS = 2500;
-export const SLOW_RESPONSE_MS = 1000;
+const LCP_GOOD_MS = 2500;
+const SLOW_RESPONSE_MS = 1000;
 
 export interface ReportGroup {
   issueType: string;
@@ -41,7 +41,7 @@ export interface CheckRow {
   detail: string;
 }
 
-export function humanizeIssueType(issueType: string): string {
+function humanizeIssueType(issueType: string): string {
   const words = issueType.toLowerCase().replace(/_/g, " ").trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : issueType;
 }

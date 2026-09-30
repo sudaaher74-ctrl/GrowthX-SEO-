@@ -19,7 +19,7 @@ export const GOOGLE_GROUPS: Record<GoogleGroup, { label: string; href: string }>
   analysis: { label: "Insights & tools", href: "/google" },
 };
 
-export interface GoogleView {
+interface GoogleView {
   id: string;
   group: GoogleGroup;
   label: string;

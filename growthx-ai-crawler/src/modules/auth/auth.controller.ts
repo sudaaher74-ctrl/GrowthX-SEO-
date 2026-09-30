@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res, UseFilters } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { LoginDto, RegisterDto } from './auth.dto';
+import { ExchangeCodeDto, LoginDto, RefreshDto, RegisterDto } from './auth.dto';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GoogleAuthGuard } from './google-auth.guard';
@@ -30,8 +30,16 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Body() body: { refresh_token?: string }) {
-    return this.authService.refresh(body?.refresh_token ?? '');
+  @Throttle({ burst: { limit: 5, ttl: 1_000 }, sustained: { limit: 30, ttl: 60_000 } })
+  async refresh(@Body() body: RefreshDto) {
+    return this.authService.refresh(body.refresh_token);
+  }
+
+  /** Trades the one-time code from the Google redirect for the session tokens. */
+  @Post('exchange')
+  @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
+  async exchange(@Body() body: ExchangeCodeDto) {
+    return this.authService.exchangeLoginCode(body.code);
   }
 
   /** Sign-ups from one address, capped so a script cannot mass-create accounts. */
@@ -58,10 +66,8 @@ export class AuthController {
       if (!req.user) {
         throw new UnauthorizedException('No user information received from Google');
       }
-      const tokens = await this.authService.login(req.user);
-      return res.redirect(
-        `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
-      );
+      const code = await this.authService.createLoginCode(req.user.id);
+      return res.redirect(`${frontendUrl}/auth/callback?code=${encodeURIComponent(code)}`);
     } catch (err: any) {
       const message = err?.message || 'Google authentication failed';
       return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(message)}`);
@@ -87,7 +93,9 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @AllowWithoutOrganization()
-  async logout() {
+  async logout(@Req() req: any) {
+    const userId = req?.user?.userId || req?.user?.id;
+    if (userId) await this.authService.revokeAllSessions(userId);
     return { success: true, message: 'Logged out successfully' };
   }
 }

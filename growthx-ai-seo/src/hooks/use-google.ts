@@ -92,41 +92,6 @@ export function useGrowthIntelligence(projectId: string | null | undefined) {
   };
 }
 
-/** Planned and implemented changes, and the before/after for each. */
-export function useSeoImpact(projectId: string | null | undefined) {
-  return useQuery({
-    queryKey: ["seo-impact", projectId],
-    queryFn: () => api.seoImpactList(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useSeoImpactResult(projectId: string | null | undefined, id: string | null) {
-  return useQuery({
-    queryKey: ["seo-impact", projectId, id],
-    queryFn: () => api.seoImpactMeasure(projectId!, id!),
-    enabled: Boolean(projectId && id),
-    retry: false,
-  });
-}
-
-export function usePlanChange(projectId: string | null | undefined) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { url?: string | null; findingType: string; action: string }) => api.seoImpactPlan(projectId!, body),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["seo-impact", projectId] }),
-  });
-}
-
-export function useMarkImplemented(projectId: string | null | undefined) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.seoImpactImplemented(projectId!, id),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["seo-impact", projectId] }),
-  });
-}
-
 /**
  * A stored read for the Google views, keyed by workspace and window so a
  * different workspace or range is never served the previous one's figures.

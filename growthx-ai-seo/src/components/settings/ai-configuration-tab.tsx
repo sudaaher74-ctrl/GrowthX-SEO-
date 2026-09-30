@@ -1,23 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { 
-  Cpu, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  Key, 
-  Sparkles, 
-  RefreshCw, 
-  Check, 
-  ShieldCheck,
-  Server,
-  AlertTriangle
-} from "lucide-react";
+import { Cpu, Loader2, Key, Sparkles, RefreshCw, Check, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { api, type MammouthConfig, type MammouthModelInfo } from "@/lib/api-client";
+import { api, type MammouthConfig } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
 export function AiConfigurationTab() {

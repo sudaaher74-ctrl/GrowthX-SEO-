@@ -4,7 +4,7 @@ import { Injectable, Logger } from '@nestjs/common';
 // only when the autonomous engineer is asked to change a customer repository,
 // so on the 512MB instance that memory sat held for a feature that never ran,
 // while the crawler beside it was being OOM-killed.
-import type { Project, ObjectLiteralExpression, ReturnStatement } from 'ts-morph';
+import type { ObjectLiteralExpression, ReturnStatement } from 'ts-morph';
 
 /**
  * The loaded module, cached after the first use.

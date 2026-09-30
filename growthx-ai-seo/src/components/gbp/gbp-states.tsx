@@ -28,15 +28,6 @@ import type { GbpConnection, GbpEnvelope, GbpPlacesMeta, GbpSource } from "@/lib
  * into an empty list.
  */
 
-/** Human-readable name for a source the backend reports by its internal key. */
-export const GBP_SOURCE_LABELS: Record<string, string> = {
-  profile: "Profile details",
-  performance: "Performance metrics",
-  reviews: "Reviews",
-  media: "Photos",
-  posts: "Posts",
-};
-
 export function formatGbpTimestamp(value: string | null | undefined): string | null {
   if (!value) return null;
   const parsed = new Date(value);
@@ -144,7 +135,7 @@ interface ConnectionNoticeProps {
  * for days or weeks while Google reviews the Business Profile API request, and
  * it is not something the customer's own setup can fix.
  */
-export function GbpConnectionNotice({
+function GbpConnectionNotice({
   connection,
   places,
   onConnect,
@@ -412,7 +403,7 @@ function placesDetail(places: GbpPlacesMeta | null | undefined): string | null {
  * Profile would give and are not the same thing: they are what anyone can see
  * on Maps, and the private parts of the profile are still locked.
  */
-export function PlacesDataBanner({
+function PlacesDataBanner({
   connection,
   places,
   lockedNote,
@@ -454,14 +445,6 @@ export function PlacesDataBanner({
       )}
     </div>
   );
-}
-
-/**
- * True when a tab should render its own data rather than a connection notice.
- * NEVER_SYNCED is deliberately excluded: it has no data yet, only a next step.
- */
-export function gbpHasSyncedData(connection: GbpConnection | null | undefined): boolean {
-  return connection?.state === "SYNCED";
 }
 
 interface TabGateProps<T extends GbpEnvelope> {

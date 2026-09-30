@@ -1,35 +1,10 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  Sparkles,
-  Plus,
-  RefreshCw,
-  Globe,
-  ExternalLink,
-  ShieldAlert,
-  CheckCircle2,
-  Building2,
-  Clock,
-  Award,
-  Star,
-  Swords,
-  Zap,
-  Check,
-  Activity,
-  Layers,
-  Loader2,
-  Radar,
-  Trash2,
-  ArrowRight,
-  X,
-  SlidersHorizontal,
-  Home,
-  FileText,
-} from "lucide-react";
+import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText } from "lucide-react";
 import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { StatusNote } from "@/components/ui/console";

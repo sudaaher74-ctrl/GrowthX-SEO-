@@ -4,7 +4,7 @@ import React from "react";
 import { Info, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface AiKpiCardProps {
+interface AiKpiCardProps {
   label: string;
   value: string | number;
   trend?: string;

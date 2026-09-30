@@ -30,9 +30,6 @@ export function formatKpi(kpi: Pick<GoogleKpi, "format" | "value">): string {
   }
 }
 
-/** A signed change, rounded to one decimal. */
-export const signed = (n: number, digits = 1) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(digits)}`;
-
 export const shortDay = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 

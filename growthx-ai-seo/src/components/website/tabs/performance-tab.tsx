@@ -1,24 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import {
-  Activity,
-  ArrowDown,
-  ArrowRight,
-  ArrowUp,
-  Clock,
-  ExternalLink,
-  Gauge,
-  Info,
-  Laptop,
-  Layers,
-  Search,
-  Smartphone,
-  X,
-  Zap,
-} from "lucide-react";
+import { Activity, Clock, ExternalLink, Gauge, Info, Layers, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
+import type { CrawlJob, CrawlPage } from "@/lib/api-client";
 import { DonutChart } from "../donut-chart";
 import { GaugeScore } from "../gauge-score";
 import { CWVBenchmarkCard } from "../cwv-benchmark-bar";
