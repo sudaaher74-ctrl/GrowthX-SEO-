@@ -151,7 +151,7 @@ export function TopNav({
               title={`Show the last ${p} days`}
               className={cn(
                 "rounded-md px-2.5 py-1 font-mono text-[11px] transition-colors",
-                period === p ? "bg-primary-50 font-semibold text-primary-700" : "text-brand-500 hover:text-brand-950",
+                period === p ? "bg-signal-400 font-bold text-signal-ink shadow-xs" : "text-brand-500 hover:text-brand-950",
               )}
             >
               {p}d
@@ -178,7 +178,7 @@ export function TopNav({
               ? `Crawl ${auditDomain} and refresh the audit`
               : "Add a project with a website before running an audit"
           }
-          className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink shadow-xs transition-colors hover:bg-signal-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {startCrawl.isPending ? (
             <RefreshCw size={12} className="animate-spin" />

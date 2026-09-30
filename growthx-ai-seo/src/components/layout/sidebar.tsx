@@ -54,17 +54,17 @@ export function Sidebar({
         style={{ borderColor: "var(--border-color)" }}
       >
         {/* Brand */}
-        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--color-brand-100)" }}>
-          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-gradient-to-br from-primary-500 to-primary-700 shadow-sm">
-            <LayoutGrid size={13} className="text-white" />
+        <div className="flex h-[52px] shrink-0 items-center gap-[9px] border-b px-[14px]" style={{ borderColor: "var(--border-color)" }}>
+          <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-signal-400 text-signal-ink shadow-xs">
+            <LayoutGrid size={13} className="text-signal-ink" />
           </div>
-          <span className="text-[13.5px] font-semibold tracking-[-0.02em] text-brand-950">GrowthX</span>
-          <span className="text-[9.5px] font-semibold uppercase tracking-[0.09em] text-brand-400">AI SEO</span>
+          <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">GrowthX</span>
+          <span className="rounded-full bg-signal-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-signal-400">AI SEO</span>
           
           <button
             onClick={onToggle}
             title="Collapse sidebar"
-            className="hidden md:flex ml-auto items-center justify-center h-6 w-6 rounded-md text-brand-400 hover:text-brand-950 hover:bg-brand-50 transition"
+            className="hidden md:flex ml-auto items-center justify-center h-6 w-6 rounded-md text-brand-400 hover:text-brand-950 hover:bg-brand-100/40 transition"
           >
             <PanelLeftClose size={13} />
           </button>
@@ -171,9 +171,9 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-50 transition"
+                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-brand-100/40 transition"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 font-mono text-[10px] font-semibold text-white">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-signal-400 font-mono text-[10px] font-bold text-signal-ink shadow-xs">
                   {userInitials}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -266,8 +266,8 @@ function NavLinkEnabled({
         className={cn(
           "flex items-center rounded-lg text-[12.5px] transition-colors",
           active
-            ? "bg-primary-50 font-semibold text-primary-700"
-            : "font-medium text-brand-600 hover:bg-brand-100 hover:text-brand-950",
+            ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
+            : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
         )}
       >
         <Link
@@ -278,7 +278,7 @@ function NavLinkEnabled({
           }}
           className="flex min-w-0 flex-1 items-center gap-[9px] px-2 py-[7px]"
         >
-          <item.icon size={15} className={active ? "text-primary-600" : "text-brand-400"} />
+          <item.icon size={15} className={active ? "text-signal-ink" : "text-brand-400"} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.step && (
             <span
@@ -287,9 +287,11 @@ function NavLinkEnabled({
               className={cn(
                 "flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-[9px] font-bold",
                 item.step.done
-                  ? "bg-success-500 text-white"
+                  ? active
+                    ? "bg-signal-ink text-signal-400"
+                    : "bg-success-500 text-white"
                   : active
-                    ? "border border-primary-300 text-primary-700"
+                    ? "border border-signal-ink/40 text-signal-ink"
                     : "border text-brand-500",
               )}
             >
@@ -300,14 +302,12 @@ function NavLinkEnabled({
             <span
               className={cn(
                 "shrink-0 rounded-full px-[6px] py-px font-mono text-[9.5px] font-semibold leading-[14px]",
-                item.tagTone === "danger"
-                  ? "bg-error-50 text-error-700"
-                  : item.tagTone === "success"
-                    ? active
-                      ? "bg-success-100 text-success-700 border border-success-200"
-                      : "bg-success-50 text-success-700 border border-success-200"
-                    : active
-                      ? "bg-primary-100 text-primary-700"
+                active
+                  ? "bg-signal-ink/15 text-signal-ink"
+                  : item.tagTone === "danger"
+                    ? "bg-error-50 text-error-700"
+                    : item.tagTone === "success"
+                      ? "bg-success-50 text-success-700 border border-success-200"
                       : "bg-brand-200 text-brand-600",
               )}
             >
@@ -321,7 +321,10 @@ function NavLinkEnabled({
             onClick={() => setManual(!showChildren)}
             aria-expanded={showChildren}
             aria-label={`${showChildren ? "Close" : "Open"} ${item.label} tabs`}
-            className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-400 transition hover:text-brand-950"
+            className={cn(
+              "mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition",
+              active ? "text-signal-ink/80 hover:text-signal-ink" : "text-brand-400 hover:text-brand-950",
+            )}
           >
             <ChevronRight size={13} className={cn("transition-transform duration-200", showChildren && "rotate-90")} />
           </button>
@@ -329,7 +332,7 @@ function NavLinkEnabled({
       </div>
 
       {showChildren && (
-        <div className="ml-5 space-y-0.5 border-l border-brand-200 py-1 pl-2">
+        <div className="ml-5 space-y-0.5 border-l border-brand-200/50 py-1 pl-2">
           {item.children?.map((sub) => {
             const isSubActive = sub.tab
               ? active && (currentTab === sub.tab || (!currentTab && Boolean(sub.isDefault)))
@@ -343,11 +346,11 @@ function NavLinkEnabled({
                 className={cn(
                   "flex items-center gap-2 truncate rounded px-2 py-1 text-[11.5px] transition",
                   isSubActive
-                    ? "bg-brand-100 font-bold text-brand-950"
+                    ? "bg-signal-400/15 font-bold text-signal-400"
                     : "font-medium text-brand-600 hover:bg-brand-100/60 hover:text-brand-950",
                 )}
               >
-                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isSubActive ? "bg-primary-600" : "bg-brand-300")} />
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isSubActive ? "bg-signal-400" : "bg-brand-300")} />
                 <span className="truncate">{sub.label}</span>
               </Link>
             );

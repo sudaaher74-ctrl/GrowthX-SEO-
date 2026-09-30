@@ -61,35 +61,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AivaProvider>
       <div className={cn("min-h-screen", dark && "dash-dark dark")} style={{ background: "var(--color-canvas)" }}>
-        {dark ? (
-          // The Dashboard trial: the workflow lives in the top bar as icons, so there is no sidebar.
-          <Suspense fallback={null}>
-            <DashboardNavbar />
-          </Suspense>
-        ) : (
-          <>
-            {/* The sidebar reads the URL's ?tab= to mark the open sub-tab. */}
-            <Suspense fallback={null}>
-              <Sidebar
-                collapsed={collapsed}
-                onToggle={() => toggleCollapsed()}
-                mobileOpen={mobileOpen}
-                setMobileOpen={setMobileOpen}
-              />
-            </Suspense>
-            <TopNav
-              collapsed={collapsed}
-              onToggleCollapse={() => toggleCollapsed()}
-              setMobileOpen={setMobileOpen}
-            />
-          </>
-        )}
-        {/* 232px sidebar + 52px header, per the design's measurements. */}
+        {/* The sidebar navigation */}
+        <Suspense fallback={null}>
+          <Sidebar
+            collapsed={collapsed}
+            onToggle={() => toggleCollapsed()}
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+          />
+        </Suspense>
+        <TopNav
+          collapsed={collapsed}
+          onToggleCollapse={() => toggleCollapsed()}
+          setMobileOpen={setMobileOpen}
+        />
+        {/* 232px sidebar + 52px header */}
         <main
           className={cn(
-            "min-h-screen transition-all duration-300 ease-in-out",
-            dark ? "pt-[76px]" : "pt-[52px]",
-            !dark && (collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]"),
+            "min-h-screen transition-all duration-300 ease-in-out pt-[52px]",
+            collapsed ? "md:ml-0" : "md:ml-[var(--sidebar-w,232px)]",
           )}
         >
           <div className="mx-auto max-w-[1600px] p-5 md:p-6 pb-24">
