@@ -3,15 +3,26 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   Check,
+  CheckCircle2,
+  ChevronRight,
+  Code2,
+  FileText,
   Globe,
+  Heading,
+  Layers,
+  Link2,
   Loader2,
   Plus,
   PlugZap,
   RefreshCw,
+  Sparkles,
   Star,
+  Wrench,
+  Zap,
 } from "lucide-react";
 import { StatusNote, relativeTime } from "@/components/ui/console";
 import {
@@ -119,6 +130,8 @@ export default function UnifiedDashboardPage() {
   // defect crowding out everything else that is wrong.
   const priorityGroups = issueGroups.data?.groups ?? [];
   const reachAvailable = issueGroups.data?.reachAvailable ?? false;
+  const totalAffectedPages = priorityGroups.reduce((acc, g) => acc + g.affectedCount, 0);
+  const aiReadyCount = priorityGroups.filter((g) => g.aiFixAvailable || g.fixClass === "AUTO").length;
 
   const hasWebsite = Boolean(client?.domain);
   const hasCompetitors = Boolean((trackedCompetitors.data?.length ?? 0) > 0);
@@ -470,17 +483,22 @@ export default function UnifiedDashboardPage() {
       )}
 
       {/* Row 3: what should I fix first? */}
-      <section id="todo" className="flex flex-col gap-3.5 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
-        <div className="flex flex-col justify-between gap-2.5 lg:flex-row lg:items-center">
+      <section id="todo" className="flex flex-col gap-4 rounded-2xl bg-brand-100 border border-brand-200 p-4 sm:p-5 text-brand-950 shadow-sm">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
-            <h2 className="text-[16px] font-bold tracking-tight text-brand-950">Your to-do list</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[17px] font-bold tracking-tight text-brand-950">Your to-do list</h2>
+              <span className="rounded-full bg-brand-200 px-2 py-0.5 text-[10.5px] font-bold text-brand-700">
+                {priorityGroups.length} prioritized
+              </span>
+            </div>
             <p className="mt-0.5 max-w-lg text-[11.5px] text-brand-500 leading-normal">
               {reachAvailable
                 ? "The most important fixes first — sorted by how many of your Google visitors each one affects."
                 : "The most important fixes first — sorted by how serious each problem is. Connect Search Console to sort by how many visitors each one affects."}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <div role="tablist" aria-label="Filter by how serious" className="flex items-center gap-0.5 rounded-full bg-brand-50 border border-brand-200/60 p-1 shadow-xs">
               {(["ALL", ...SEVERITY_ORDER] as const).map((sev) => {
                 const n = sev === "ALL" ? priorityGroups.length : groupCount(sev);
@@ -515,6 +533,47 @@ export default function UnifiedDashboardPage() {
           </div>
         </div>
 
+        {/* 3-metric KPI micro-ribbon */}
+        {priorityGroups.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+                <AlertTriangle size={15} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Action Queue</p>
+                <p className="text-[14px] font-bold text-brand-950 leading-tight">
+                  {priorityGroups.length} {priorityGroups.length === 1 ? "defect prioritized" : "defects prioritized"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+                <Layers size={15} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">Total Reach</p>
+                <p className="text-[14px] font-bold text-brand-950 leading-tight">
+                  {totalAffectedPages} {totalAffectedPages === 1 ? "page affected" : "pages affected"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl bg-brand-50 border border-brand-200/70 p-3 shadow-2xs">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-signal-400/15 text-signal-ink border border-signal-400/30">
+                <Sparkles size={15} className="text-signal-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-brand-400">AI Automation</p>
+                <p className="text-[14px] font-bold text-brand-950 leading-tight">
+                  {aiReadyCount} {aiReadyCount === 1 ? "fix AI ready" : "fixes AI ready"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {issueGroups.isLoading ? (
           <LoadingLine text="Loading your to-do list…" />
         ) : priorityGroups.length === 0 ? (
@@ -524,8 +583,8 @@ export default function UnifiedDashboardPage() {
               : "Your to-do list will appear here after we check your website."}
           </div>
         ) : (
-          <div className="grid gap-3.5 lg:grid-cols-[330px_1fr] items-start">
-            <ol className="space-y-1">
+          <div className="grid gap-3.5 lg:grid-cols-[360px_1fr] items-start">
+            <ol className="space-y-2">
               {shownGroups.map((group, i) => (
                 <TodoRow key={group.groupKey} group={group} rank={i + 1} selected={group.groupKey === picked?.groupKey} onPick={() => setPickedGroup(group.groupKey)} />
               ))}
@@ -735,30 +794,87 @@ function explainHealthScore(
 
 const FIX_CLASS_COPY: Record<FixClass, { label: string; hint: string; cta: string; href: string; note: string }> = {
   AUTO: {
-    label: "Low-risk fix",
-    hint: "A safe change (like a title or description) that can be prepared for your approval.",
-    cta: "Prepare the fix",
+    label: "1-Click AI Fix",
+    hint: "Safe automated fix (e.g. metadata, canonicals) ready to deploy via AI.",
+    cta: "Prepare AI Fix",
     href: "/fix-engine",
-    note: "Opens a pull request on your website's repository. Nothing is published until you review and merge it.",
+    note: "Opens an automated pull request. Nothing is deployed until you review and merge it.",
   },
   APPROVAL: {
-    label: "Needs your approval",
-    hint: "A change that must be reviewed by you before anything is applied.",
-    cta: "Review the change",
+    label: "AI Assisted · Needs Review",
+    hint: "AI generated change requiring your review before applying.",
+    cta: "Review Proposed Change",
     href: "/fix-engine",
-    note: "Shown as a before and after. Nothing changes on your website until you approve it.",
+    note: "Shown as before-and-after preview. Changes take effect only upon approval.",
   },
   MANUAL: {
-    label: "Do it yourself",
-    hint: "Needs a person, such as writing content or contacting a developer.",
-    cta: "Show me the pages",
+    label: "Manual Optimization",
+    hint: "Requires architectural or content edits by you or your developer.",
+    cta: "Inspect Affected Pages",
     href: "/website?tab=issues",
-    note: "We explain the problem and what to do next. You decide.",
+    note: "We provide full technical diagnostics and reproduction steps for your team.",
   },
 };
 
+function getIssueMeta(group: IssueGroup) {
+  const type = (group.issueType || "").toLowerCase();
+  const cat = (group.category || "").toLowerCase();
+
+  if (type.includes("render") || type.includes("js") || cat.includes("render") || cat.includes("code")) {
+    return {
+      icon: Code2,
+      label: "JS & Rendering",
+      badgeClass: "bg-warning-50 text-warning-700",
+    };
+  }
+  if (type.includes("head") || type.includes("h1") || type.includes("h2") || cat.includes("heading") || cat.includes("structure")) {
+    return {
+      icon: Heading,
+      label: "Heading Hierarchy",
+      badgeClass: "bg-brand-200 text-brand-700",
+    };
+  }
+  if (type.includes("canonical") || type.includes("index") || type.includes("crawl") || type.includes("robot") || type.includes("sitemap") || cat.includes("index")) {
+    return {
+      icon: Layers,
+      label: "Indexing & Canonicals",
+      badgeClass: "bg-accent-50 text-accent-700",
+    };
+  }
+  if (type.includes("link") || type.includes("orphan") || type.includes("anchor") || cat.includes("link")) {
+    return {
+      icon: Link2,
+      label: "Internal Links",
+      badgeClass: "bg-brand-200 text-brand-700",
+    };
+  }
+  if (type.includes("title") || type.includes("meta") || type.includes("desc") || cat.includes("meta") || cat.includes("content")) {
+    return {
+      icon: FileText,
+      label: "Metadata & Titles",
+      badgeClass: "bg-accent-50 text-accent-700",
+    };
+  }
+  if (type.includes("speed") || type.includes("perf") || type.includes("lcp") || type.includes("cls") || cat.includes("perf")) {
+    return {
+      icon: Zap,
+      label: "Core Web Vitals",
+      badgeClass: "bg-error-50 text-error-700",
+    };
+  }
+  return {
+    icon: AlertTriangle,
+    label: group.category || "Technical SEO",
+    badgeClass: "bg-brand-200 text-brand-700",
+  };
+}
+
 function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: number; selected: boolean; onPick: () => void }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
+  const meta = getIssueMeta(group);
+  const Icon = meta.icon;
+  const isAiReady = group.aiFixAvailable || group.fixClass === "AUTO";
+
   return (
     <li>
       <button
@@ -766,35 +882,57 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
         onClick={onPick}
         aria-pressed={selected}
         className={cn(
-          "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
-          // Selected row gets sleek pill styling matching the theme!
-          selected ? "bg-brand-50 border border-brand-200/60 text-brand-950 shadow-xs" : "bg-transparent hover:bg-brand-200/60 text-brand-950",
+          "group flex w-full flex-col gap-2 rounded-xl p-3 text-left transition relative border",
+          selected
+            ? "bg-brand-50 border-brand-300 shadow-sm ring-1 ring-signal-400/40"
+            : "bg-brand-50/50 hover:bg-brand-50 border-brand-200/60 hover:border-brand-300",
         )}
       >
-        <span
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-            selected ? "bg-signal-400 text-signal-ink" : "bg-brand-200 text-brand-600",
-          )}
-          aria-hidden
-        >
-          {rank}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[12.5px] font-semibold truncate leading-tight text-brand-950">
-            {group.title}
-          </span>
-          <span className="mt-1 flex items-center gap-1.5">
-            <span className={cn("inline-block rounded-full px-2 py-0.2 text-[10px] font-bold", severityChip(group.severity))}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-bold",
+                selected ? "bg-signal-400 text-signal-ink" : "bg-brand-200 text-brand-600",
+              )}
+              aria-hidden
+            >
+              #{rank}
+            </span>
+            <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold truncate", meta.badgeClass)}>
+              <Icon size={11} className="shrink-0" />
+              <span className="truncate">{meta.label}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {isAiReady && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-signal-400/15 text-signal-ink px-1.5 py-0.2 text-[9.5px] font-bold border border-signal-400/30">
+                <Sparkles size={10} className="text-signal-400" />
+                AI
+              </span>
+            )}
+            <span className={cn("rounded-md px-1.5 py-0.2 text-[10px] font-bold", severityChip(group.severity))}>
               {sev.label}
             </span>
+          </div>
+        </div>
+
+        <p className="text-[12.5px] font-semibold text-brand-950 leading-snug line-clamp-2">
+          {group.title}
+        </p>
+
+        <div className="flex items-center justify-between pt-1 border-t border-brand-200/50 text-[11px]">
+          <span className="inline-flex items-center gap-1 font-medium text-brand-500">
+            <Layers size={11} className="text-brand-400 shrink-0" />
+            {group.affectedCount} {group.affectedCount === 1 ? "affected page" : "affected pages"}
           </span>
-        </span>
-        <span className="shrink-0 text-right">
-          <span className={cn("block whitespace-nowrap text-[11px] font-medium", selected ? "text-brand-400" : "text-brand-500")}>
-            {group.affectedCount} {group.affectedCount === 1 ? "page" : "pages"}
+
+          <span className={cn("inline-flex items-center gap-0.5 text-[10.5px] font-semibold transition", selected ? "text-brand-950" : "text-brand-400 group-hover:text-brand-700")}>
+            {selected ? "Active" : "Inspect"}
+            <ChevronRight size={11} className={selected ? "text-signal-400" : ""} />
           </span>
-        </span>
+        </div>
       </button>
     </li>
   );
@@ -812,63 +950,150 @@ function severityChip(sev: IssueSeverity): string {
 function ProblemDetail({ group }: { group: IssueGroup }) {
   const fix = FIX_CLASS_COPY[group.fixClass] ?? FIX_CLASS_COPY.MANUAL;
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
+  const meta = getIssueMeta(group);
+  const Icon = meta.icon;
+  const isAiReady = group.aiFixAvailable || group.fixClass === "AUTO";
 
   return (
-    <div className="flex flex-col justify-between gap-3.5 rounded-xl border border-brand-200/60 bg-brand-50 p-4 sm:p-4.5 text-brand-950 shadow-md">
+    <div className="flex flex-col gap-4 rounded-xl border border-brand-200/70 bg-brand-50 p-4 sm:p-5 text-brand-950 shadow-sm">
+      {/* Header with category, severity, and AI badges */}
       <div>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">Problem details</p>
-          <div className="flex items-center gap-1.5">
-            <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-bold", severityChip(group.severity))}>{sev.label}</span>
-            <span className="rounded-full bg-brand-200 px-2 py-0.5 text-[10.5px] font-bold text-brand-400">{fix.label}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold", meta.badgeClass)}>
+              <Icon size={13} className="shrink-0" />
+              {meta.label}
+            </span>
+            <span className={cn("rounded-lg px-2 py-1 text-[11px] font-bold", severityChip(group.severity))}>
+              {sev.label}
+            </span>
           </div>
+
+          {isAiReady ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-signal-400/15 border border-signal-400/30 px-2.5 py-1 text-[11px] font-bold text-signal-ink">
+              <Sparkles size={12} className="text-signal-400 shrink-0" />
+              1-Click AI Fix Ready
+            </span>
+          ) : group.fixClass === "APPROVAL" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-50 border border-accent-200 px-2.5 py-1 text-[11px] font-bold text-accent-700">
+              Assisted Approval
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-200 border border-brand-300 px-2.5 py-1 text-[11px] font-bold text-brand-600">
+              Manual Resolution
+            </span>
+          )}
         </div>
-        <h3 className="mt-1 text-[17px] sm:text-[18px] font-semibold leading-snug tracking-tight text-brand-950">{group.title}</h3>
-        {group.summary && <p className="mt-1 text-[11.5px] leading-relaxed text-brand-400 max-w-xl">{asSentence(group.summary)}</p>}
+
+        <h3 className="mt-2 text-[17px] sm:text-[19px] font-bold leading-snug tracking-tight text-brand-950">
+          {group.title}
+        </h3>
+        {group.summary && (
+          <p className="mt-1.5 text-[12px] leading-relaxed text-brand-500 max-w-2xl">
+            {asSentence(group.summary)}
+          </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.3fr_110px] gap-2">
-        <div className="rounded-lg bg-brand-100 border border-brand-200/50 p-2.5">
+      {/* 3 Metric / Scope Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
           <div className="flex items-center justify-between text-brand-400">
-            <p className="text-[10px] font-medium uppercase tracking-wider">Pages affected</p>
-            <ArrowUpRight size={12} className="text-brand-500" />
+            <p className="text-[10px] font-bold uppercase tracking-wider">Affected Footprint</p>
+            <Layers size={13} className="text-brand-500" />
           </div>
-          <p className="mt-0.5 text-[18px] font-bold tracking-tight text-brand-950 leading-tight">{group.affectedCount}</p>
+          <p className="mt-1 text-[20px] font-extrabold tracking-tight text-brand-950 leading-tight">
+            {group.affectedCount}
+          </p>
+          <p className="mt-0.5 text-[10.5px] text-brand-500">
+            {group.affectedCount === 1 ? "Isolated single page" : "Sitewide defect pattern"}
+          </p>
         </div>
 
-        <div className="rounded-lg bg-brand-100 border border-brand-200/50 p-2.5">
+        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
           <div className="flex items-center justify-between text-brand-400">
-            <p className="text-[10px] font-medium uppercase tracking-wider">How it gets fixed</p>
-            <ArrowUpRight size={12} className="text-brand-500" />
+            <p className="text-[10px] font-bold uppercase tracking-wider">Resolution Path</p>
+            <ArrowUpRight size={13} className="text-brand-500" />
           </div>
-          <p className="mt-0.5 text-[12.5px] font-bold text-brand-950 truncate leading-tight">{fix.label}</p>
-          <p className="mt-0.5 text-[10.5px] text-brand-400 truncate leading-snug">{fix.hint}</p>
+          <p className="mt-1 text-[13px] font-bold text-brand-950 truncate leading-tight">
+            {fix.label}
+          </p>
+          <p className="mt-0.5 text-[10.5px] text-brand-500 truncate">
+            {fix.hint}
+          </p>
         </div>
 
-        <Link
-          href="/website?tab=issues"
-          className="flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-300 text-center text-[10.5px] font-semibold text-brand-400 transition hover:border-brand-400 hover:text-brand-950"
-        >
-          <Plus size={14} />
-          See all issues
-        </Link>
+        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
+          <div className="flex items-center justify-between text-brand-400">
+            <p className="text-[10px] font-bold uppercase tracking-wider">Audit Confidence</p>
+            <CheckCircle2 size={13} className="text-success-600" />
+          </div>
+          <p className="mt-1 text-[13px] font-bold text-brand-950 leading-tight">
+            {group.confidence === "CONFIRMED" ? "Confirmed Defect" : group.confidence === "LIKELY" ? "Probable Issue" : "Advisory"}
+          </p>
+          <p className="mt-0.5 text-[10.5px] text-brand-500">
+            Verified by Crawler Engine
+          </p>
+        </div>
       </div>
 
-      {group.action && (
-        <div className="rounded-lg bg-brand-100 border border-brand-200/40 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">How do I fix this?</p>
-          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-700">{asSentence(group.action)}</p>
+      {/* Affected Sample URLs Preview */}
+      {group.sampleUrls && group.sampleUrls.length > 0 && (
+        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5 text-brand-700">
+              <Globe size={13} className="text-brand-500" />
+              <p className="text-[11px] font-bold uppercase tracking-wider">
+                Sample Affected Pages ({group.sampleUrls.length})
+              </p>
+            </div>
+            <Link
+              href="/website?tab=issues"
+              className="text-[10.5px] font-semibold text-brand-500 hover:text-brand-950 hover:underline"
+            >
+              View in Audit →
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto">
+            {group.sampleUrls.map((url, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 border border-brand-200/80 px-2.5 py-1 font-mono text-[11px] text-brand-700 shadow-2xs"
+                title={url}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-signal-400 shrink-0" />
+                <span className="max-w-[260px] sm:max-w-[340px] truncate">{url}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 border-t border-brand-200/50">
-        <p className="text-[11px] text-brand-400 leading-tight">{fix.note}</p>
+      {/* AI Resolution Blueprint */}
+      {group.action && (
+        <div className="rounded-xl bg-brand-100 border border-brand-200/60 p-3.5">
+          <div className="flex items-center gap-1.5 text-brand-950 mb-1">
+            <Wrench size={13} className="text-brand-500" />
+            <p className="text-[11px] font-bold uppercase tracking-wider">How To Fix This</p>
+          </div>
+          <p className="text-[11.5px] leading-relaxed text-brand-600">
+            {asSentence(group.action)}
+          </p>
+        </div>
+      )}
+
+      {/* Bottom CTA Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-brand-200/60">
+        <p className="text-[11px] text-brand-500 leading-snug max-w-sm">
+          {fix.note}
+        </p>
         <Link
           href={fix.href}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-4 py-2 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
         >
+          {isAiReady && <Sparkles size={13} className="text-signal-ink" />}
           {fix.cta}
-          <ArrowRight size={12} />
+          <ArrowRight size={13} />
         </Link>
       </div>
     </div>
