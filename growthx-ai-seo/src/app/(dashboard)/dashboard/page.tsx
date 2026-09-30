@@ -355,7 +355,7 @@ export default function UnifiedDashboardPage() {
           )}
         </Card>
 
-        <Card id="visitors" className="flex flex-col justify-between gap-4">
+        <Card id="visitors" className="flex flex-col justify-between gap-4 overflow-hidden">
           <CardHead
             title="Visitors from Google"
             subtitle={
@@ -386,18 +386,15 @@ export default function UnifiedDashboardPage() {
             />
           ) : (
             <>
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 py-0.5">
-                <div className="shrink-0 max-w-[210px]">
-                  <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
-                </div>
+              <div className="flex flex-col gap-3.5 min-w-0">
+                <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
+
                 {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
-                  <div className="flex-1 sm:max-w-[320px] lg:max-w-[360px]">
-                    <DailyCandles
-                      points={activeSeriesPoints}
-                      unit={metric.short.toLowerCase()}
-                      days={rangeDays}
-                    />
-                  </div>
+                  <DailyCandles
+                    points={activeSeriesPoints}
+                    unit={metric.short.toLowerCase()}
+                    days={rangeDays}
+                  />
                 )}
               </div>
               <div className="flex items-center gap-1.5 p-1 rounded-xl bg-brand-100/50 border border-brand-200/40" role="tablist" aria-label="Choose a figure">
@@ -981,20 +978,20 @@ function DailyCandles({
 
   return (
     <div
-      className="flex w-full flex-col gap-1.5"
+      className="flex w-full min-w-0 flex-col gap-1.5 overflow-hidden"
       role="img"
       aria-label={`${unit} each day, last ${days} days`}
     >
       <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-400">
         <span className="uppercase tracking-wider">Daily activity</span>
         {hasActivity && (
-          <span className="rounded-full bg-brand-200/60 px-2 py-0.5 text-[9.5px] font-bold text-brand-700">
+          <span className="rounded-full bg-brand-200/60 px-2 py-0.5 text-[9.5px] font-bold text-brand-700 truncate max-w-[150px]">
             Peak: {max.toLocaleString()} {unit}
           </span>
         )}
       </div>
 
-      <div className="flex h-[92px] sm:h-[108px] w-full items-end gap-[3px] sm:gap-1 pt-1">
+      <div className="flex h-[76px] sm:h-[84px] w-full min-w-0 items-end justify-between gap-[2px] sm:gap-[3px] pt-1">
         {points.map((p) => {
           const val = p.value ?? 0;
           const isZero = val === 0;
@@ -1004,7 +1001,7 @@ function DailyCandles({
           return (
             <div
               key={p.date}
-              className="group relative flex h-full flex-1 min-w-[5px] sm:min-w-[6px] max-w-[12px] flex-col items-center justify-end"
+              className="group relative flex h-full flex-1 min-w-0 max-w-[14px] flex-col items-center justify-end"
             >
               <div className="pointer-events-none absolute -top-8 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-brand-950 px-2 py-0.5 text-[10px] font-medium text-brand-50 shadow-md group-hover:block">
                 {dateLabel}: {val.toLocaleString()} {unit}
@@ -1012,12 +1009,12 @@ function DailyCandles({
 
               {isZero ? (
                 <div
-                  className="h-[4px] w-full rounded-full bg-brand-200/80 transition-colors group-hover:bg-brand-300"
+                  className="h-[3px] sm:h-[4px] w-full rounded-full bg-brand-200/80 transition-colors group-hover:bg-brand-300"
                   title={`${dateLabel}: 0 ${unit}`}
                 />
               ) : (
                 <div
-                  className="w-full rounded-t-[3px] sm:rounded-t-sm bg-signal-400 opacity-90 shadow-xs transition-all duration-150 origin-bottom group-hover:opacity-100 group-hover:scale-y-[1.03]"
+                  className="w-full rounded-t-[2px] sm:rounded-t-[3px] bg-signal-400 opacity-90 shadow-xs transition-all duration-150 origin-bottom group-hover:opacity-100 group-hover:scale-y-[1.03]"
                   style={{ height: `${heightPct}%` }}
                   title={`${dateLabel}: ${val.toLocaleString()} ${unit}`}
                 />
