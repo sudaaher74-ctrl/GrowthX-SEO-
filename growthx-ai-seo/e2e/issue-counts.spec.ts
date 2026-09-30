@@ -139,9 +139,9 @@ test.describe("dashboard issue counts", () => {
     for (const title of ["Missing title", "Schema product offers", "Missing h1", "Missing meta description"]) {
       await expect(list.getByText(title, { exact: true })).toBeVisible();
     }
-    // The schema defect is one row reading 29 pages — not 29 rows, and not the
+    // The schema defect is one row reading 29 affected pages — not 29 rows, and not the
     // five rows of one defect that used to crowd everything else off the list.
-    await expect(list.getByText("29 pages", { exact: true })).toBeVisible();
+    await expect(list.getByText("29 affected pages", { exact: true })).toBeVisible();
     await expect(list.getByText("Schema product offers", { exact: true })).toHaveCount(1);
   });
 
