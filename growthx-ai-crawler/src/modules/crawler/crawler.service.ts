@@ -28,6 +28,7 @@ import { computeCrawlSummary } from './crawl-summary';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { extractUrlsFromJsonLd } from './page-extract';
 import { isInternalTargetUrl } from './url/url-normalizer';
+import { findAll, issueKey, responseStats } from './crawl-completion';
 import { CrawlJobState } from './crawl-job-state';
 import { CrawlFindingsRecorder } from './crawl-findings-recorder';
 
@@ -1227,11 +1228,8 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 1. Retrieve crawled pages and issues to calculate authoritative health score and diagnostics
-    const pages: any[] = [];
-    let pagesCursor: string | null = null;
-    let hasMorePages = true;
-    while (hasMorePages) {
-      const queryOptions: any = {
+    const pages = await findAll((paging) =>
+      this.prisma.page.findMany({
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1243,25 +1241,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           jsRequired: true,
           discoverySource: true,
         },
-        take: 10000,
-        orderBy: { id: 'asc' },
-      };
-      if (pagesCursor) {
-        queryOptions.skip = 1;
-        queryOptions.cursor = { id: pagesCursor };
-      }
-      const batch = await this.prisma.page.findMany(queryOptions);
-      pages.push(...batch);
-      if (batch.length < 10000) hasMorePages = false;
-      else pagesCursor = batch[batch.length - 1].id;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+        ...paging,
+      }),
+    );
 
-    const issues: any[] = [];
-    let issuesCursor: string | null = null;
-    let hasMoreIssues = true;
-    while (hasMoreIssues) {
-      const queryOptions: any = {
+    const issues = await findAll((paging) =>
+      this.prisma.issue.findMany({
         where: { crawlJobId: jobId },
         select: {
           id: true,
@@ -1272,19 +1257,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           dedupKey: true,
           page: { select: { url: true } },
         },
-        take: 10000,
-        orderBy: { id: 'asc' },
-      };
-      if (issuesCursor) {
-        queryOptions.skip = 1;
-        queryOptions.cursor = { id: issuesCursor };
-      }
-      const batch = await this.prisma.issue.findMany(queryOptions);
-      issues.push(...batch);
-      if (batch.length < 10000) hasMoreIssues = false;
-      else issuesCursor = batch[batch.length - 1].id;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+        ...paging,
+      }),
+    );
 
     // Site-level findings: defects about the site as a whole rather than about
     // any one page. A sitemap pointing at another domain is the reason a crawl
@@ -1309,12 +1284,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     const totalFindings = issues.length;
 
     // Deduplicate issues by dedupKey or (pageUrl + issueType)
-    const uniqueIssueMap = new Map<string, typeof issues[0]>();
+    const uniqueIssueMap = new Map<string, (typeof issues)[0]>();
     for (const issue of issues) {
-      const key = (issue as any).dedupKey || `${issue.page?.url || issue.affectedUrl}::${issue.issueType}`;
-      if (!uniqueIssueMap.has(key)) {
-        uniqueIssueMap.set(key, issue);
-      }
+      const key = issueKey(issue);
+      if (!uniqueIssueMap.has(key)) uniqueIssueMap.set(key, issue);
     }
     const uniqueIssuesCount = uniqueIssueMap.size;
 
@@ -1404,31 +1377,16 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (previousJob) {
-        const prevIssues: any[] = [];
-        let prevCursor: string | null = null;
-        let hasMorePrev = true;
-        while (hasMorePrev) {
-          const queryOptions: any = {
+        const prevIssues = await findAll((paging) =>
+          this.prisma.issue.findMany({
             where: { crawlJobId: previousJob.id },
             select: { id: true, dedupKey: true, issueType: true, affectedUrl: true, page: { select: { url: true } } },
-            take: 10000,
-            orderBy: { id: 'asc' },
-          };
-          if (prevCursor) {
-            queryOptions.skip = 1;
-            queryOptions.cursor = { id: prevCursor };
-          }
-          const batch = await this.prisma.issue.findMany(queryOptions);
-          prevIssues.push(...batch);
-          if (batch.length < 10000) hasMorePrev = false;
-          else prevCursor = batch[batch.length - 1].id;
-          await new Promise((resolve) => setImmediate(resolve));
-        }
+            ...paging,
+          }),
+        );
 
         const currentKeys = new Set(uniqueIssueMap.keys());
-        const prevKeys = new Set(
-          prevIssues.map((i) => (i as any).dedupKey || `${i.page?.url || i.affectedUrl}::${i.issueType}`),
-        );
+        const prevKeys = new Set(prevIssues.map(issueKey));
 
         for (const prevKey of prevKeys) {
           if (!currentKeys.has(prevKey)) {
@@ -1441,18 +1399,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 4. Calculate quality diagnostics
-    const statusCodeDist: Record<string, number> = {};
-    let totalResponseTime = 0;
-    let validResponseCount = 0;
-    for (const p of pages) {
-      const bucket = p.statusCode ? `${Math.floor(p.statusCode / 100)}xx` : 'other';
-      statusCodeDist[bucket] = (statusCodeDist[bucket] || 0) + 1;
-      if (p.responseTimeMs && p.responseTimeMs > 0) {
-        totalResponseTime += p.responseTimeMs;
-        validResponseCount++;
-      }
-    }
-    const avgResponseTimeMs = validResponseCount > 0 ? Math.round(totalResponseTime / validResponseCount) : 0;
+    const { statusCodes: statusCodeDist, avgResponseTimeMs } = responseStats(pages);
 
     const startedAt = job.startedAt || new Date();
     const finishedAt = new Date();
