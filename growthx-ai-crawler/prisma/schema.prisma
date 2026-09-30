@@ -407,6 +407,34 @@ model User {
   updatedAt    DateTime             @updatedAt
   auditLogs    AuditLog[]
   memberships  OrganizationMember[]
+  sessions     RefreshSession[]
+}
+
+/// One row per refresh token issued. The token's `jti` is this id, so a token
+/// is only honoured while its row exists and is not revoked. Refreshing revokes
+/// the row and issues a new one; logging out revokes them all.
+model RefreshSession {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// A one-time code the Google sign-in redirect carries instead of tokens, so
+/// credentials never sit in a URL. `id` is the SHA-256 of the code.
+model LoginCode {
+  id        String    @id
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
 }
 
 model Organization {

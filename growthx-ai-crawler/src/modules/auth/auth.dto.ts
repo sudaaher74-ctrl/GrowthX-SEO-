@@ -37,3 +37,17 @@ export class RegisterDto {
   @MaxLength(80)
   lastName?: string;
 }
+
+export class RefreshDto {
+  @IsString({ message: 'A refresh token is required.' })
+  @MinLength(1, { message: 'A refresh token is required.' })
+  @MaxLength(4096)
+  refresh_token!: string;
+}
+
+export class ExchangeCodeDto {
+  @IsString({ message: 'A sign-in code is required.' })
+  @MinLength(1, { message: 'A sign-in code is required.' })
+  @MaxLength(256)
+  code!: string;
+}

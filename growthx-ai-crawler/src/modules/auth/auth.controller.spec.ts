@@ -6,7 +6,7 @@ import { UsersService } from '../users/users.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let auth: { validateUser: jest.Mock; login: jest.Mock; register: jest.Mock };
+  let auth: { validateUser: jest.Mock; login: jest.Mock; register: jest.Mock; revokeAllSessions: jest.Mock };
   let users: { findById: jest.Mock };
 
   beforeEach(async () => {
@@ -14,6 +14,7 @@ describe('AuthController', () => {
       validateUser: jest.fn(),
       login: jest.fn().mockResolvedValue({ access_token: 'token' }),
       register: jest.fn().mockResolvedValue({ access_token: 'token' }),
+      revokeAllSessions: jest.fn().mockResolvedValue(undefined),
     };
 
     users = {
@@ -71,7 +72,8 @@ describe('AuthController', () => {
   });
 
   it('returns success on logout', async () => {
-    const result = await controller.logout();
+    const result = await controller.logout({ user: { userId: 'u1' } });
+    expect(auth.revokeAllSessions).toHaveBeenCalledWith('u1');
     expect(result).toEqual({ success: true, message: 'Logged out successfully' });
   });
 });

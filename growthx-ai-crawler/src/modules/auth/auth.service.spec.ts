@@ -6,6 +6,35 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { PrismaService } from '../../database/prisma.service';
+
+/** The two tables the auth service writes, enough to exercise rotation and single use. */
+function fakeTable(idField = 'id') {
+  const rows: any[] = [];
+  const matches = (row: any, where: any) =>
+    Object.entries(where).every(([key, cond]: [string, any]) => {
+      if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
+        if ('gt' in cond) return row[key] > cond.gt;
+        if ('lt' in cond) return row[key] < cond.lt;
+      }
+      return (row[key] ?? null) === cond;
+    });
+  return {
+    rows,
+    create: jest.fn(async ({ data }: any) => {
+      const row = { [idField]: data[idField] ?? `id_${rows.length + 1}`, revokedAt: null, usedAt: null, ...data };
+      rows.push(row);
+      return row;
+    }),
+    findUnique: jest.fn(async ({ where }: any) => rows.find((r) => matches(r, where)) ?? null),
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      const hit = rows.filter((r) => matches(r, where));
+      hit.forEach((r) => Object.assign(r, data));
+      return { count: hit.length };
+    }),
+    deleteMany: jest.fn(async () => ({ count: 0 })),
+  };
+}
 
 /** Built at runtime so no credential-shaped literal sits in the source. */
 const TEST_PASSWORD = 'x'.repeat(12);
@@ -14,6 +43,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let users: any;
   let jwt: { sign: jest.Mock; verify: jest.Mock };
+  let prisma: { refreshSession: ReturnType<typeof fakeTable>; loginCode: ReturnType<typeof fakeTable> };
 
   beforeEach(async () => {
     users = { findByEmail: jest.fn(), createUser: jest.fn(), findById: jest.fn() };
@@ -24,6 +54,8 @@ describe('AuthService', () => {
       verify: jest.fn(),
     };
 
+    prisma = { refreshSession: fakeTable(), loginCode: fakeTable() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -31,6 +63,7 @@ describe('AuthService', () => {
         { provide: OrganizationsService, useValue: { createOrganization: jest.fn().mockResolvedValue({ id: 'org_1' }) } },
         { provide: UsersService, useValue: users },
         { provide: JwtService, useValue: jwt },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -139,14 +172,69 @@ describe('AuthService', () => {
       );
     });
 
-    it('exchanges a valid refresh token for a new pair', async () => {
-      jwt.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com', type: 'refresh' });
+    it('ties each refresh token to a stored session through its jti', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+
+      expect(prisma.refreshSession.rows).toHaveLength(1);
+      expect(jwt.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh' }),
+        expect.objectContaining({ jwtid: prisma.refreshSession.rows[0].id }),
+      );
+    });
+
+    it('exchanges a valid refresh token for a new pair and retires the old session', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      const oldId = prisma.refreshSession.rows[0].id;
+      jwt.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com', type: 'refresh', jti: oldId });
       users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 
       const result = await service.refresh('good.refresh.token');
 
       expect(result.access_token).toBeDefined();
       expect(users.findById).toHaveBeenCalledWith('u1');
+      expect(prisma.refreshSession.rows[0].revokedAt).toBeInstanceOf(Date);
+      expect(prisma.refreshSession.rows).toHaveLength(2);
+    });
+
+    it('refuses a token that has no stored session, such as one issued before sessions were tracked', async () => {
+      jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh' });
+      await expect(service.refresh('old.token')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('refuses to reuse a rotated token, and past the grace period revokes every session of the user', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      const [first, second] = prisma.refreshSession.rows;
+      jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: first.id });
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+
+      await service.refresh('t');
+      // Inside the grace period: refused, but the other session survives.
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      expect(second.revokedAt).toBeNull();
+
+      // After it: treated as a copied token.
+      first.revokedAt = new Date(Date.now() - 60_000);
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      expect(second.revokedAt).toBeInstanceOf(Date);
+    });
+
+    it('refuses an expired session', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      const row = prisma.refreshSession.rows[0];
+      row.expiresAt = new Date(Date.now() - 1000);
+      jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: row.id });
+
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('revokes every session on logout', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      await service.login({ id: 'u1', email: 'a@b.com' });
+
+      await service.revokeAllSessions('u1');
+
+      expect(prisma.refreshSession.rows.every((r) => r.revokedAt instanceof Date)).toBe(true);
     });
 
     // Otherwise a short access expiry would be pointless: the long-lived token
@@ -167,10 +255,32 @@ describe('AuthService', () => {
 
     // A month-long token must not outlive the account it belongs to.
     it('refuses to refresh for a user that no longer exists', async () => {
-      jwt.verify.mockReturnValue({ sub: 'gone', email: 'a@b.com', type: 'refresh' });
+      await service.login({ id: 'gone', email: 'a@b.com' });
+      jwt.verify.mockReturnValue({ sub: 'gone', email: 'a@b.com', type: 'refresh', jti: prisma.refreshSession.rows[0].id });
       users.findById.mockResolvedValue(null);
 
       await expect(service.refresh('good.refresh.token')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('login codes', () => {
+    it('stores only a hash of the code and exchanges it once for tokens', async () => {
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+
+      const code = await service.createLoginCode('u1');
+
+      expect(prisma.loginCode.rows[0].id).not.toBe(code);
+      await expect(service.exchangeLoginCode(code)).resolves.toEqual(
+        expect.objectContaining({ access_token: 'signed.jwt.token' }),
+      );
+      await expect(service.exchangeLoginCode(code)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('refuses an unknown or expired code', async () => {
+      await expect(service.exchangeLoginCode('nope')).rejects.toThrow(UnauthorizedException);
+      const code = await service.createLoginCode('u1');
+      prisma.loginCode.rows[0].expiresAt = new Date(Date.now() - 1000);
+      await expect(service.exchangeLoginCode(code)).rejects.toThrow(UnauthorizedException);
     });
   });
 });
