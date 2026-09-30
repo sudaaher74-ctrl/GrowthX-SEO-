@@ -195,9 +195,9 @@ export default function UnifiedDashboardPage() {
   const nextStep = setupSteps.find((s) => !s.done);
 
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-3.5 pb-10">
       {/* Jump links */}
-      <nav aria-label="On this page" className="inline-flex gap-0.5 rounded-full bg-brand-950 p-1 text-[12.5px] font-semibold">
+      <nav aria-label="On this page" className="inline-flex items-center gap-1 rounded-full bg-brand-950/80 border border-brand-800/40 p-1 text-[11.5px] font-semibold">
         {[
           ["#health", "Overview"],
           ["#visitors", "Visitors"],
@@ -208,8 +208,8 @@ export default function UnifiedDashboardPage() {
             key={href}
             href={href}
             className={cn(
-              "rounded-full px-4 py-2 transition-colors",
-              i === 0 ? "bg-signal-400 text-signal-ink" : "text-brand-400 hover:text-signal-ink",
+              "rounded-full px-3 py-1.5 transition-colors",
+              i === 0 ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-200",
             )}
           >
             {label}
@@ -218,15 +218,15 @@ export default function UnifiedDashboardPage() {
       </nav>
 
       {/* Title */}
-      <div className="flex flex-col justify-between gap-4 pt-2 sm:flex-row sm:items-end">
+      <div className="flex flex-col justify-between gap-3 pt-1 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-[44px] font-light leading-none tracking-[-0.035em] text-brand-950 sm:text-[56px]">
+          <h1 className="text-[26px] sm:text-[30px] font-bold leading-none tracking-tight text-brand-950">
             Dashboard
           </h1>
-          <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] font-medium text-brand-500">
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-medium text-brand-400">
             {client?.domain ? (
               <>
-                <Globe size={13} className="text-brand-400" />
+                <Globe size={12} className="text-brand-400" />
                 <span>{client.domain}</span>
                 <span className="text-brand-300">·</span>
                 <span>
@@ -243,7 +243,7 @@ export default function UnifiedDashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Link
             href="/fix-engine"
-            className="inline-flex items-center gap-2 rounded-full border px-5 py-3 text-[13.5px] font-bold text-brand-950 transition hover:bg-brand-100"
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[12px] font-semibold text-brand-950 transition hover:bg-brand-100"
           >
             See my improvement plan
           </Link>
@@ -251,9 +251,9 @@ export default function UnifiedDashboardPage() {
             type="button"
             onClick={runAudit}
             disabled={auditBusy || !client?.domain}
-            className="inline-flex items-center gap-2 rounded-full bg-signal-400 px-5 py-3 text-[13.5px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[12px] font-bold text-signal-ink transition hover:bg-signal-500 disabled:opacity-50 shadow-sm"
           >
-            <RefreshCw size={14} className={auditBusy ? "animate-spin" : undefined} />
+            <RefreshCw size={12} className={auditBusy ? "animate-spin" : undefined} />
             {auditBusy ? "Checking…" : "Check my website again"}
           </button>
         </div>
@@ -272,8 +272,8 @@ export default function UnifiedDashboardPage() {
       )}
 
       {/* Row 1: how is my website doing / are people finding me */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <Card id="health" className="flex flex-col justify-between gap-6">
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">
+        <Card id="health" className="flex flex-col justify-between gap-4">
           <CardHead
             title="How healthy is your website?"
             subtitle="A score out of 100 for how easily Google can find, read and show your pages. Higher is better."
@@ -281,7 +281,7 @@ export default function UnifiedDashboardPage() {
               healthScore != null && crawlCompleted ? (
                 <span
                   className={cn(
-                    "rounded-full px-3.5 py-1.5 text-[12px] font-bold",
+                    "rounded-full px-2.5 py-0.5 text-[10.5px] font-bold",
                     gradeScore(healthScore).tone === "good" && "bg-success-50 text-success-700",
                     gradeScore(healthScore).tone === "warn" && "bg-warning-50 text-warning-700",
                     gradeScore(healthScore).tone === "bad" && "bg-error-50 text-error-700",
@@ -316,7 +316,7 @@ export default function UnifiedDashboardPage() {
           )}
         </Card>
 
-        <Card id="visitors" className="flex flex-col justify-between gap-5">
+        <Card id="visitors" className="flex flex-col justify-between gap-4">
           <CardHead
             title="Visitors from Google"
             subtitle={
@@ -329,9 +329,9 @@ export default function UnifiedDashboardPage() {
                 <Link
                   href="/google/search-performance"
                   aria-label="More detail on visitors"
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-200 text-brand-700 transition hover:text-brand-950"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-200/60 text-brand-600 transition hover:bg-brand-200 hover:text-brand-950"
                 >
-                  <ArrowUpRight size={16} />
+                  <ArrowUpRight size={13} />
                 </Link>
               ) : undefined
             }
@@ -347,13 +347,13 @@ export default function UnifiedDashboardPage() {
             />
           ) : (
             <>
-              <div className="flex items-end justify-between gap-4">
+              <div className="flex items-end justify-between gap-3">
                 <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
                 {metric.key === "searchClicks" && gscSeries.data && gscSeries.data.length >= 2 && (
                   <DailyClicks points={gscSeries.data} />
                 )}
               </div>
-              <div className="flex items-end gap-2" role="tablist" aria-label="Choose a figure">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-brand-100/50 border border-brand-200/40" role="tablist" aria-label="Choose a figure">
                 {metrics.map((m) => (
                   <button
                     key={m.key}
@@ -362,10 +362,10 @@ export default function UnifiedDashboardPage() {
                     aria-selected={m.key === metricKey}
                     onClick={() => setMetricKey(m.key)}
                     className={cn(
-                      "min-w-0 flex-1 rounded-2xl px-3.5 py-3 text-left text-[12px] font-semibold transition",
+                      "min-w-0 flex-1 rounded-lg py-1.5 px-2 text-center text-[11px] font-semibold transition",
                       m.key === metricKey
-                        ? "-translate-y-3 bg-signal-400 text-signal-ink"
-                        : "bg-brand-100 text-brand-500 hover:bg-brand-200",
+                        ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                        : "text-brand-400 hover:text-brand-700 hover:bg-brand-200/40",
                     )}
                   >
                     {m.short}
@@ -379,33 +379,33 @@ export default function UnifiedDashboardPage() {
 
       {/* Row 2: finish setting up */}
       {setupIncomplete && (
-        <Card className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
-          <div className="w-full shrink-0 lg:w-[190px]">
-            <p className="text-[15px] font-bold text-brand-950">Finish setting up</p>
-            <p className="mt-0.5 text-[13px] text-brand-400">
+        <Card className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-5 p-4 sm:p-4.5">
+          <div className="w-full shrink-0 lg:w-[170px]">
+            <p className="text-[13px] font-bold text-brand-950">Finish setting up</p>
+            <p className="mt-0.5 text-[11.5px] text-brand-400">
               {doneCount} of {setupSteps.length} steps done
             </p>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-200">
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-brand-200/50">
               <div className="h-full rounded-full bg-signal-400" style={{ width: `${(doneCount / setupSteps.length) * 100}%` }} />
             </div>
           </div>
-          <ul className="flex flex-1 flex-wrap gap-2">
+          <ul className="flex flex-1 flex-wrap gap-1.5">
             {setupSteps.map((step) => (
               <li key={step.label}>
                 <Link
                   href={step.href}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-xl bg-brand-100 px-3.5 py-2 text-[13px] font-semibold transition hover:bg-brand-200",
+                    "inline-flex items-center gap-1.5 rounded-lg bg-brand-100/70 border border-brand-200/40 px-2.5 py-1 text-[11.5px] font-medium transition hover:bg-brand-200/60",
                     step.done ? "text-brand-950" : "text-brand-500",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-[18px] w-[18px] items-center justify-center rounded-full",
+                      "flex h-4 w-4 items-center justify-center rounded-full",
                       step.done ? "bg-signal-400 text-signal-ink" : "bg-brand-300 text-brand-100",
                     )}
                   >
-                    {step.done ? <Check size={11} strokeWidth={3.2} /> : <Plus size={11} strokeWidth={3.2} />}
+                    {step.done ? <Check size={9} strokeWidth={3.2} /> : <Plus size={9} strokeWidth={3.2} />}
                   </span>
                   {step.label}
                 </Link>
@@ -416,28 +416,28 @@ export default function UnifiedDashboardPage() {
             <Link
               href={nextStep.href}
               title={nextStep.why}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-brand-950 px-5 py-3 text-[13.5px] font-bold text-signal-ink transition hover:opacity-90"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand-950 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:opacity-90 shadow-sm"
             >
               {nextStep.cta}
-              <ArrowRight size={14} />
+              <ArrowRight size={12} />
             </Link>
           )}
         </Card>
       )}
 
       {/* Row 3: what should I fix first? A light panel, as in the reference. */}
-      <section id="todo" className="dash-light flex flex-col gap-4 rounded-[34px] bg-brand-100 p-5 text-brand-950 sm:p-6">
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+      <section id="todo" className="dash-light flex flex-col gap-3.5 rounded-2xl bg-white border border-brand-200/80 p-4 sm:p-5 text-brand-950 shadow-sm">
+        <div className="flex flex-col justify-between gap-2.5 lg:flex-row lg:items-center">
           <div>
-            <h2 className="text-[20px] font-bold tracking-[-0.01em]">Your to-do list</h2>
-            <p className="mt-0.5 max-w-xl text-[13px] text-brand-500">
+            <h2 className="text-[16px] font-bold tracking-tight text-brand-950">Your to-do list</h2>
+            <p className="mt-0.5 max-w-lg text-[11.5px] text-brand-500 leading-normal">
               {reachAvailable
                 ? "The most important fixes first — sorted by how many of your Google visitors each one affects."
                 : "The most important fixes first — sorted by how serious each problem is. Connect Search Console to sort by how many visitors each one affects."}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div role="tablist" aria-label="Filter by how serious" className="dash-dark flex gap-1 rounded-full bg-brand-50 p-1.5">
+            <div role="tablist" aria-label="Filter by how serious" className="dash-dark flex items-center gap-0.5 rounded-full bg-brand-950 p-1 shadow-xs">
               {(["ALL", ...SEVERITY_ORDER] as const).map((sev) => {
                 const n = sev === "ALL" ? priorityGroups.length : groupCount(sev);
                 if (sev !== "ALL" && n === 0) return null;
@@ -453,18 +453,18 @@ export default function UnifiedDashboardPage() {
                       setPickedGroup(null);
                     }}
                     className={cn(
-                      "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12.5px] font-semibold transition",
-                      on ? "bg-signal-400 text-signal-ink" : "text-brand-500 hover:text-brand-950",
+                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                      on ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-400 hover:text-brand-200",
                     )}
                   >
                     {sev === "ALL" ? "All" : SEVERITY[sev].label}
-                    <span className={cn("rounded-full px-1.5 text-[11px]", on ? "bg-signal-ink text-signal-400" : "bg-brand-200")}>{n}</span>
+                    <span className={cn("rounded-full px-1.5 py-0.2 text-[10px]", on ? "bg-signal-ink text-signal-400" : "bg-brand-800 text-brand-300")}>{n}</span>
                   </button>
                 );
               })}
             </div>
             {counts && counts.openGroups > 0 && (
-              <Link href="/website?tab=issues" className="text-[12.5px] font-bold text-brand-700 hover:underline">
+              <Link href="/website?tab=issues" className="text-[11.5px] font-bold text-brand-700 hover:underline shrink-0">
                 See all {counts.openGroups} →
               </Link>
             )}
@@ -474,13 +474,13 @@ export default function UnifiedDashboardPage() {
         {issueGroups.isLoading ? (
           <LoadingLine text="Loading your to-do list…" />
         ) : priorityGroups.length === 0 ? (
-          <div className="rounded-3xl bg-brand-50 p-8 text-center text-[13px] text-brand-500">
+          <div className="rounded-xl bg-brand-50 p-6 text-center text-[12px] text-brand-500">
             {crawlCompleted
               ? "Nothing to fix right now — your website is in good shape."
               : "Your to-do list will appear here after we check your website."}
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[400px_1fr]">
+          <div className="grid gap-3.5 lg:grid-cols-[330px_1fr] items-start">
             <ol className="space-y-1">
               {shownGroups.map((group, i) => (
                 <TodoRow key={group.groupKey} group={group} rank={i + 1} selected={group.groupKey === picked?.groupKey} onPick={() => setPickedGroup(group.groupKey)} />
@@ -492,8 +492,8 @@ export default function UnifiedDashboardPage() {
       </section>
 
       {/* Row 4: reviews and where visitors come from, then the full GA4 traffic. */}
-      <div className={cn("grid gap-4", hasChannels && "lg:grid-cols-2")}>
-      <Card id="reviews" className="flex flex-col gap-4">
+      <div className={cn("grid gap-3.5", hasChannels && "lg:grid-cols-2")}>
+      <Card id="reviews" className="flex flex-col gap-3.5">
         <CardHead title="Your Google reviews" subtitle="What customers say about you on Google." />
         {localSeo.isLoading ? (
           <LoadingLine text="Loading your reviews…" />
@@ -530,7 +530,7 @@ function Card({ id, className, children }: { id?: string; className?: string; ch
   return (
     <section
       id={id}
-      className={cn("rounded-[32px] border bg-brand-50 p-6", className)}
+      className={cn("rounded-2xl border border-brand-200/50 bg-brand-50/90 p-4.5 sm:p-5 shadow-sm", className)}
     >
       {children}
     </section>
@@ -539,10 +539,10 @@ function Card({ id, className, children }: { id?: string; className?: string; ch
 
 function CardHead({ title, subtitle, aside }: { title: string; subtitle?: string; aside?: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-[15px] font-bold text-brand-950">{title}</h2>
-        {subtitle && <p className="mt-1 max-w-md text-[13px] leading-snug text-brand-400">{subtitle}</p>}
+        <h2 className="text-[14px] font-bold text-brand-950 tracking-tight">{title}</h2>
+        {subtitle && <p className="mt-0.5 max-w-md text-[11.5px] leading-normal text-brand-400">{subtitle}</p>}
       </div>
       {aside}
     </div>
@@ -572,37 +572,37 @@ function HealthSummary({
   const grade = score != null ? gradeScore(score) : null;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+    <div className="space-y-3.5">
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-0.5">
         <div>
-          <p className="text-[12px] font-semibold text-brand-400">Health score</p>
-          <p className="text-[60px] font-light leading-none tracking-[-0.04em] text-brand-950">
+          <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Health score</p>
+          <p className="mt-1 flex items-baseline gap-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">
             {score != null ? score : "—"}
-            <span className="ml-1 text-[18px] tracking-normal text-brand-400">/100</span>
+            <span className="text-[12px] font-medium text-brand-400 tracking-normal">/100</span>
           </p>
         </div>
         {counts && (
           <div>
-            <p className="text-[12px] font-semibold text-brand-400">Problems to fix</p>
-            <p className="text-[38px] font-light leading-[1.1] tracking-[-0.03em] text-brand-950">{counts.openGroups}</p>
+            <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Problems to fix</p>
+            <p className="mt-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">{counts.openGroups}</p>
           </div>
         )}
         {pagesChecked != null && (
           <div>
-            <p className="text-[12px] font-semibold text-brand-400">Pages checked</p>
-            <p className="text-[38px] font-light leading-[1.1] tracking-[-0.03em] text-brand-950">{pagesChecked}</p>
+            <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">Pages checked</p>
+            <p className="mt-1 text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">{pagesChecked}</p>
           </div>
         )}
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2 pt-2 border-t border-brand-200/30">
         {grade ? (
-          <p className="text-[13px] text-brand-500">{grade.line}</p>
+          <p className="text-[12px] text-brand-400">{grade.line}</p>
         ) : (
-          <p className="text-[13px] text-brand-500">We checked your website but couldn&apos;t work out a score this time.</p>
+          <p className="text-[12px] text-brand-400">We checked your website but couldn&apos;t work out a score this time.</p>
         )}
         {counts && (
-          <p className="text-[13px] text-brand-700">
+          <p className="text-[12px] text-brand-700 leading-snug">
             {counts.openFindings === 0 ? (
               <>
                 We found <strong>nothing to fix</strong>
@@ -622,7 +622,7 @@ function HealthSummary({
         )}
         {counts && counts.openFindings > 0 && <SeverityBreakdown bySeverity={counts.bySeverity} total={counts.openFindings} />}
         {counts && score != null && counts.openFindings > 0 && (
-          <p className="text-[11.5px] leading-snug text-brand-400">
+          <p className="text-[11px] leading-relaxed text-brand-400">
             {explainHealthScore(score, counts.openFindings, counts.bySeverity)}
           </p>
         )}
@@ -635,19 +635,19 @@ function HealthSummary({
 function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<IssueSeverity, number>; total: number }) {
   return (
     <div>
-      <div className="flex h-2 gap-1 overflow-hidden rounded-full" aria-hidden>
+      <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-brand-200/40" aria-hidden>
         {SEVERITY_ORDER.map((sev) =>
           bySeverity[sev] > 0 ? (
             <div key={sev} className={cn("rounded-full", SEVERITY[sev].bar)} style={{ width: `${(bySeverity[sev] / total) * 100}%` }} />
           ) : null,
         )}
       </div>
-      <ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1">
+      <ul className="mt-2 flex flex-wrap gap-x-3.5 gap-y-1">
         {SEVERITY_ORDER.map((sev) => (
-          <li key={sev} className="flex items-center gap-1.5 text-[12px] font-semibold text-brand-500">
-            <span className={cn("h-2 w-2 rounded-full", SEVERITY[sev].bar)} />
+          <li key={sev} className="flex items-center gap-1.5 text-[11px] font-medium text-brand-400">
+            <span className={cn("h-1.5 w-1.5 rounded-full", SEVERITY[sev].bar)} />
             <span>{SEVERITY[sev].label}</span>
-            <span className="text-brand-950">{bySeverity[sev]}</span>
+            <span className="text-brand-950 font-semibold">{bySeverity[sev]}</span>
           </li>
         ))}
       </ul>
@@ -722,28 +722,32 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
         onClick={onPick}
         aria-pressed={selected}
         className={cn(
-          "flex w-full items-center gap-3.5 rounded-[20px] px-3.5 py-3 text-left transition",
-          // Only the picked row is dark; the rest stay on the light panel's own scale.
-          selected ? "dash-dark bg-brand-50" : "bg-transparent hover:bg-brand-200",
+          "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+          // Selected row gets sleek dark pill styling matching the reference image selected invoice!
+          selected ? "dash-dark bg-brand-950 text-white shadow-xs" : "bg-transparent hover:bg-brand-100 text-brand-900",
         )}
       >
         <span
           className={cn(
-            "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-bold",
-            selected ? "bg-signal-400 text-signal-ink" : "bg-brand-200 text-brand-700",
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+            selected ? "bg-signal-400 text-signal-ink" : "bg-brand-200 text-brand-600",
           )}
           aria-hidden
         >
           {rank}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[14px] font-bold leading-tight text-brand-950">{group.title}</span>
-          <span className={cn("mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold", severityChip(group.severity))}>
-            {sev.label}
+          <span className={cn("block text-[12.5px] font-semibold truncate leading-tight", selected ? "text-white" : "text-brand-950")}>
+            {group.title}
+          </span>
+          <span className="mt-1 flex items-center gap-1.5">
+            <span className={cn("inline-block rounded-full px-2 py-0.2 text-[10px] font-bold", severityChip(group.severity))}>
+              {sev.label}
+            </span>
           </span>
         </span>
         <span className="shrink-0 text-right">
-          <span className="block whitespace-nowrap text-[12px] font-semibold text-brand-400">
+          <span className="block whitespace-nowrap text-[11px] font-medium text-brand-400">
             {group.affectedCount} {group.affectedCount === 1 ? "page" : "pages"}
           </span>
         </span>
@@ -766,51 +770,61 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
 
   return (
-    <div className="dash-dark flex flex-col justify-between gap-6 rounded-[28px] bg-brand-50 p-6 text-brand-950">
+    <div className="dash-dark flex flex-col justify-between gap-3.5 rounded-xl border border-brand-800/40 bg-brand-950 p-4 sm:p-4.5 text-brand-950 shadow-md">
       <div>
-        <p className="text-[12px] font-semibold text-brand-400">Problem details</p>
-        <h3 className="mt-1 max-w-xl text-[26px] font-light leading-[1.15] tracking-[-0.03em]">{group.title}</h3>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-full px-2.5 py-0.5 text-[11.5px] font-bold", severityChip(group.severity))}>{sev.label}</span>
-          <span className="rounded-full bg-brand-200 px-2.5 py-0.5 text-[11.5px] font-bold text-brand-700">{fix.label}</span>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">Problem details</p>
+          <div className="flex items-center gap-1.5">
+            <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-bold", severityChip(group.severity))}>{sev.label}</span>
+            <span className="rounded-full bg-brand-800 px-2 py-0.5 text-[10.5px] font-bold text-brand-300">{fix.label}</span>
+          </div>
         </div>
-        {group.summary && <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-brand-500">{asSentence(group.summary)}</p>}
+        <h3 className="mt-1 text-[17px] sm:text-[18px] font-semibold leading-snug tracking-tight text-white">{group.title}</h3>
+        {group.summary && <p className="mt-1 text-[11.5px] leading-relaxed text-brand-400 max-w-xl">{asSentence(group.summary)}</p>}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr_120px]">
-        <div className="rounded-[20px] bg-brand-100 p-4">
-          <p className="text-[12px] font-semibold text-brand-400">Pages affected</p>
-          <p className="mt-1 text-[32px] font-light tracking-[-0.03em]">{group.affectedCount}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.3fr_110px] gap-2">
+        <div className="rounded-lg bg-brand-900/70 border border-brand-800/40 p-2.5">
+          <div className="flex items-center justify-between text-brand-400">
+            <p className="text-[10px] font-medium uppercase tracking-wider">Pages affected</p>
+            <ArrowUpRight size={12} className="text-brand-500" />
+          </div>
+          <p className="mt-0.5 text-[18px] font-bold tracking-tight text-white leading-tight">{group.affectedCount}</p>
         </div>
-        <div className="rounded-[20px] bg-brand-100 p-4">
-          <p className="text-[12px] font-semibold text-brand-400">How it gets fixed</p>
-          <p className="mt-2 text-[14px] font-bold leading-tight">{fix.label}</p>
-          <p className="mt-1 text-[12px] leading-snug text-brand-500">{fix.hint}</p>
+
+        <div className="rounded-lg bg-brand-900/70 border border-brand-800/40 p-2.5">
+          <div className="flex items-center justify-between text-brand-400">
+            <p className="text-[10px] font-medium uppercase tracking-wider">How it gets fixed</p>
+            <ArrowUpRight size={12} className="text-brand-500" />
+          </div>
+          <p className="mt-0.5 text-[12.5px] font-bold text-white truncate leading-tight">{fix.label}</p>
+          <p className="mt-0.5 text-[10.5px] text-brand-400 truncate leading-snug">{fix.hint}</p>
         </div>
+
         <Link
           href="/website?tab=issues"
-          className="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-[20px] border-[1.5px] border-dashed border-brand-300 text-center text-[12px] font-semibold text-brand-400 transition hover:border-brand-400 hover:text-brand-950"
+          className="flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-700/60 p-2 text-center text-[10.5px] font-semibold text-brand-400 transition hover:border-brand-500 hover:text-white"
         >
-          <Plus size={20} />
+          <Plus size={14} />
           See all issues
         </Link>
       </div>
 
       {group.action && (
-        <div className="rounded-[20px] bg-brand-100 px-4 py-3">
-          <p className="text-[12px] font-semibold text-brand-400">How do I fix this?</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-brand-700">{asSentence(group.action)}</p>
+        <div className="rounded-lg bg-brand-900/50 border border-brand-800/30 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">How do I fix this?</p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-300">{asSentence(group.action)}</p>
         </div>
       )}
 
-      <div className="flex flex-col justify-between gap-3 rounded-[22px] bg-brand-100 px-4 py-3.5 sm:flex-row sm:items-center">
-        <p className="max-w-md text-[12.5px] leading-snug text-brand-500">{fix.note}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 border-t border-brand-800/40">
+        <p className="text-[11px] text-brand-400 leading-tight">{fix.note}</p>
         <Link
           href={fix.href}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-signal-400 px-5 py-3 text-[13.5px] font-bold text-signal-ink transition hover:bg-signal-500"
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-signal-400 px-3.5 py-1.5 text-[11.5px] font-bold text-signal-ink transition hover:bg-signal-500 shadow-sm"
         >
           {fix.cta}
-          <ArrowRight size={14} />
+          <ArrowRight size={12} />
         </Link>
       </div>
     </div>
@@ -825,22 +839,22 @@ function BigMeasure({ label, hint, measure }: { label: string; hint: string; mea
 
   return (
     <div className="min-w-0">
-      <p className="text-[12px] font-semibold text-brand-400">{label}</p>
+      <p className="text-[10.5px] font-medium uppercase tracking-wider text-brand-400">{label}</p>
       {measured ? (
-        <p className="flex flex-wrap items-baseline gap-x-2.5 text-[52px] font-light leading-[1.05] tracking-[-0.04em] text-brand-950">
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-[24px] sm:text-[28px] font-bold leading-none tracking-tight text-brand-950">
           {measured.value.toLocaleString()}
           {change != null && (
-            <span className={cn("text-[13px] font-bold tracking-normal", change >= 0 ? "text-success-700" : "text-error-700")}>
+            <span className={cn("text-[11px] font-bold tracking-normal", change >= 0 ? "text-success-700" : "text-error-700")}>
               {change >= 0 ? "▲" : "▼"} {Math.abs(change)}%
             </span>
           )}
         </p>
       ) : (
-        <p className="mt-2 text-[20px] text-brand-400">
+        <p className="mt-1.5 text-[16px] font-semibold text-brand-400">
           {measure?.state === "NOT_CONNECTED" ? "Not connected" : "No data yet"}
         </p>
       )}
-      <p className="mt-1 max-w-[220px] text-[12px] leading-snug text-brand-400">{hint}</p>
+      <p className="mt-1 max-w-[240px] text-[11px] leading-snug text-brand-400">{hint}</p>
     </div>
   );
 }
@@ -853,11 +867,11 @@ function BigMeasure({ label, hint, measure }: { label: string; hint: string; mea
 function DailyClicks({ points }: { points: { date: string; clicks: number | null }[] }) {
   const max = Math.max(...points.map((p) => p.clicks ?? 0), 1);
   return (
-    <div className="flex h-[72px] shrink-0 items-end gap-[3px]" role="img" aria-label={`Clicks from Google each day, last ${points.length} days`}>
+    <div className="flex h-[52px] shrink-0 items-end gap-[2px]" role="img" aria-label={`Clicks from Google each day, last ${points.length} days`}>
       {points.map((p) => (
         <div
           key={p.date}
-          className="w-[6px] rounded-full bg-signal-400 opacity-85"
+          className="w-[4px] sm:w-[5px] rounded-full bg-signal-400 opacity-85 transition hover:opacity-100"
           style={{ height: `${Math.max(8, ((p.clicks ?? 0) / max) * 100)}%` }}
           title={`${p.date}: ${(p.clicks ?? 0).toLocaleString()} clicks`}
         />
@@ -874,7 +888,7 @@ function ChannelShare({ data, days }: { data: Ga4ReportData; days: number }) {
   const total = data.channels.reduce((sum, c) => sum + c.sessions, 0) || data.totals.sessions;
   const top = [...data.channels].sort((a, b) => b.sessions - a.sessions).slice(0, 4);
   return (
-    <Card className="flex flex-col gap-4">
+    <Card className="flex flex-col gap-3">
       <CardHead
         title="Where your visitors come from"
         subtitle={`Last ${days} days · from Google Analytics`}
@@ -882,25 +896,25 @@ function ChannelShare({ data, days }: { data: Ga4ReportData; days: number }) {
           <Link
             href="/google/analytics"
             aria-label="Open Analytics"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-200 text-brand-700 transition hover:text-brand-950"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-200/60 text-brand-600 transition hover:bg-brand-200 hover:text-brand-950"
           >
-            <ArrowUpRight size={16} />
+            <ArrowUpRight size={13} />
           </Link>
         }
       />
-      <ul className="space-y-3">
+      <ul className="space-y-2.5">
         {top.map((c, i) => {
           const pct = total > 0 ? (c.sessions / total) * 100 : 0;
           return (
-            <li key={c.channel} className="flex items-center gap-3.5">
-              <span className="w-[130px] shrink-0 truncate text-[13px] font-semibold text-brand-700">{c.channel}</span>
-              <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-brand-100">
+            <li key={c.channel} className="flex items-center gap-3">
+              <span className="w-[120px] shrink-0 truncate text-[12px] font-semibold text-brand-700">{c.channel}</span>
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
                 <span
                   className={cn("block h-full rounded-full", i === 0 ? "bg-signal-400" : "bg-brand-400")}
                   style={{ width: `${Math.max(pct, pct > 0 ? 1.5 : 0)}%` }}
                 />
               </span>
-              <span className="w-12 shrink-0 text-right text-[14px] font-semibold text-brand-950">{Math.round(pct)}%</span>
+              <span className="w-10 shrink-0 text-right text-[12px] font-semibold text-brand-950">{Math.round(pct)}%</span>
             </li>
           );
         })}
@@ -925,16 +939,16 @@ function ReviewsSummary({
   if (reviewCount === 0) {
     return (
       <div className="space-y-2">
-        <p className="text-[13px] font-semibold text-brand-950">{businessName}</p>
-        <p className="text-[18px] font-bold text-brand-950">No reviews yet</p>
-        <p className="text-[12.5px] text-brand-500">
+        <p className="text-[12.5px] font-semibold text-brand-950">{businessName}</p>
+        <p className="text-[16px] font-bold text-brand-950">No reviews yet</p>
+        <p className="text-[11.5px] text-brand-500">
           Reviews help new customers trust you. Ask happy customers to leave one on Google.
         </p>
         <Link
           href="/google-business-profile"
-          className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline"
+          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-accent-700 hover:underline"
         >
-          Get more reviews <ArrowRight size={12} />
+          Get more reviews <ArrowRight size={11} />
         </Link>
       </div>
     );
@@ -942,34 +956,34 @@ function ReviewsSummary({
 
   const rounded = Math.round(rating);
   return (
-    <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
       <div>
-        <p className="text-[13px] font-semibold text-brand-950">{businessName}</p>
-        <div className="mt-1 flex items-center gap-3">
-          <span className="text-[40px] font-light leading-none tracking-[-0.03em] text-brand-950">{rating.toFixed(1)}</span>
+        <p className="text-[12.5px] font-semibold text-brand-950">{businessName}</p>
+        <div className="mt-0.5 flex items-center gap-2.5">
+          <span className="text-[24px] sm:text-[26px] font-bold leading-none tracking-tight text-brand-950">{rating.toFixed(1)}</span>
           <div>
             <div className="flex gap-0.5" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
                   key={n}
-                  size={15}
+                  size={13}
                   className={n <= rounded ? "fill-warning-400 text-warning-400" : "text-brand-300"}
                 />
               ))}
             </div>
-            <p className="mt-0.5 text-[12px] text-brand-400">
+            <p className="mt-0.5 text-[11px] text-brand-400">
               from {reviewCount.toLocaleString()} {reviewCount === 1 ? "review" : "reviews"}
             </p>
           </div>
         </div>
       </div>
-      <div className="flex flex-col gap-1">
-        {updatedAt && <p className="text-[11px] text-brand-400">Updated {relativeTime(updatedAt)}</p>}
+      <div className="flex flex-col gap-0.5">
+        {updatedAt && <p className="text-[10.5px] text-brand-400">Updated {relativeTime(updatedAt)}</p>}
         <Link
           href="/google-business-profile"
-          className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent-700 hover:underline"
+          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-accent-700 hover:underline"
         >
-          See your reviews <ArrowRight size={12} />
+          See your reviews <ArrowRight size={11} />
         </Link>
       </div>
     </div>
