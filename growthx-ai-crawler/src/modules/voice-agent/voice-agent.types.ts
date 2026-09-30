@@ -1,14 +1,3 @@
-export type AivaState =
-  | 'idle'
-  | 'listening'
-  | 'transcribing'
-  | 'thinking'
-  | 'confirming'
-  | 'working'
-  | 'speaking'
-  | 'completed'
-  | 'error';
-
 export type VoiceToolName =
   | 'crawlWebsite'
   | 'getCrawlStatus'
@@ -112,9 +101,3 @@ export interface VoiceChatRequest {
   context?: { path?: string };
 }
 
-export interface VoiceSessionDto {
-  sessionId: string;
-  projectId: string | null;
-  orgId: string;
-  createdAt: string;
-}

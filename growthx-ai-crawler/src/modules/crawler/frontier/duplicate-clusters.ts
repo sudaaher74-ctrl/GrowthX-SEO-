@@ -38,9 +38,3 @@ export function findDuplicateClusters(pages: Array<{ url: string; contentHash?: 
     .map(([contentHash, urls]) => ({ contentHash, urls: [...urls].sort() }));
 }
 
-/** URLs that belong to a cluster of more than one, for issue suppression. */
-export function urlsInDuplicateClusters(clusters: DuplicateCluster[]): Set<string> {
-  const urls = new Set<string>();
-  for (const cluster of clusters) for (const url of cluster.urls) urls.add(url);
-  return urls;
-}
