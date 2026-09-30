@@ -23,7 +23,6 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
   if (pathname === "/google") {
     return (
       <div className="space-y-4 pb-12">
-        <PageHeader title="Google Performance" subtitle="Choose the source you want to look at." />
         {children}
       </div>
     );
