@@ -37,6 +37,23 @@ describe('FetcherService', () => {
   });
 
   describe('SSRF protection', () => {
+    // jest-setup opens private targets so fixture servers on loopback work, and a
+    // proxy in the environment is allow-listed as a host. Neither may apply here.
+    const guarded = ['ALLOW_PRIVATE_CRAWL_TARGETS', 'SSRF_ALLOWED_HOSTS', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'];
+    const saved: Record<string, string | undefined> = {};
+    beforeEach(() => {
+      for (const key of guarded) {
+        saved[key] = process.env[key];
+        delete process.env[key];
+      }
+    });
+    afterEach(() => {
+      for (const key of guarded) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
+    });
+
     // The crawler fetches URLs supplied by customers. Without this, a customer
     // could point it at the metadata endpoint or another service on our network
     // and read the response back out of the crawl results.
@@ -46,6 +63,8 @@ describe('FetcherService', () => {
       ['private 10.x', 'http://10.0.0.5/internal'],
       ['private 192.168.x', 'http://192.168.1.1/router'],
       ['private 172.x', 'http://172.16.0.1/'],
+      ['unspecified address', 'http://0.0.0.0/'],
+      ['IPv6 loopback', 'http://[::1]/'],
       ['link-local metadata', 'http://169.254.169.254/latest/meta-data/'],
     ])('refuses to fetch %s', async (_label, url) => {
       const result = await service.fetchPage(url);
@@ -61,6 +80,14 @@ describe('FetcherService', () => {
 
       expect(result.statusCode).toBe(403);
       expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
+    it('allows a public address that merely starts with 172.', async () => {
+      mockedAxios.get.mockResolvedValue(response());
+
+      const result = await service.fetchPage('http://172.217.14.206/');
+
+      expect(result.statusCode).toBe(200);
     });
 
     it('allows a normal public URL', async () => {
