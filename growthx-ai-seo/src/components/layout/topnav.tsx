@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Zap } from "lucide-react";
+import { LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Sun, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 
@@ -15,6 +15,7 @@ import {
   useStartCrawl,
   useWorkspace,
 } from "@/hooks/use-growthx";
+import { useTheme } from "@/hooks/use-theme";
 import { CommandPalette } from "@/components/ui/command-palette";
 
 /** Breadcrumb scope + title for each route, matching workspace architecture. */
@@ -50,6 +51,7 @@ export function TopNav({
   // Reads the shared window rather than a private copy, so the highlighted
   // pill is the window the queries are actually using.
   const period = usePeriodDays();
+  const { theme, setTheme } = useTheme();
   // The palette was built, complete, and imported by nothing, while this bar
   // advertised ⌘K. It binds the shortcut itself once mounted.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -157,6 +159,45 @@ export function TopNav({
               {p}d
             </button>
           ))}
+        </div>
+
+        {/* Day / Night Theme Toggle */}
+        <div
+          role="group"
+          aria-label="Theme mode"
+          className="flex items-center rounded-lg border p-0.5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setTheme("light")}
+            aria-pressed={theme === "light"}
+            title="Switch to Day mode"
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors",
+              theme === "light"
+                ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
+                : "text-brand-400 hover:text-brand-950",
+            )}
+          >
+            <Sun size={12} className={theme === "light" ? "text-signal-ink" : "text-brand-400"} />
+            <span className="hidden sm:inline font-semibold">Day</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme("dark")}
+            aria-pressed={theme === "dark"}
+            title="Switch to Night mode"
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors",
+              theme === "dark"
+                ? "bg-signal-400 font-bold text-signal-ink shadow-xs"
+                : "text-brand-400 hover:text-brand-950",
+            )}
+          >
+            <Moon size={12} className={theme === "dark" ? "text-signal-ink fill-signal-ink" : "text-brand-400"} />
+            <span className="hidden sm:inline font-semibold">Night</span>
+          </button>
         </div>
 
         {/* This was a black primary button with no onClick — the most

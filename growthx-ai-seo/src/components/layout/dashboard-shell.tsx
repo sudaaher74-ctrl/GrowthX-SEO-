@@ -11,6 +11,8 @@ import { AivaPanel } from "@/components/voice/aiva-panel";
 import { AutopilotCard } from "@/components/autopilot/autopilot-card";
 import { TokenBanner } from "@/components/tokens/token-banner";
 
+import { useTheme } from "@/hooks/use-theme";
+
 /**
  * Every dashboard route renders inside this shell, so it is where the session
  * check belongs.
@@ -22,8 +24,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
-  // Dark skin with the workflow top bar applies across all tabs in the console.
-  const dark = true;
+  const { theme, isDark } = useTheme();
 
   useEffect(() => {
     try {
@@ -60,7 +61,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AivaProvider>
-      <div className={cn("min-h-screen", dark && "dash-dark dark")} style={{ background: "var(--color-canvas)" }}>
+      <div
+        className={cn(
+          "min-h-screen transition-colors duration-200",
+          isDark ? "dash-dark dark" : "dash-light",
+        )}
+        style={{ background: "var(--color-canvas)" }}
+      >
         {/* The sidebar navigation */}
         <Suspense fallback={null}>
           <Sidebar

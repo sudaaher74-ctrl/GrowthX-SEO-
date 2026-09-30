@@ -38,7 +38,7 @@
   "components/gbp/tabs/profile-audit-tab.tsx": 58,
   "components/gbp/tabs/reviews-tab.tsx": 22,
   "components/gbp/tabs/services-tab.tsx": 1,
-  "components/layout/sidebar.tsx": 6,
+  "components/layout/sidebar.tsx": 2,
   "components/settings/ai-configuration-tab.tsx": 16,
   "components/ui/badge.tsx": 46,
   "components/ui/button.tsx": 28,

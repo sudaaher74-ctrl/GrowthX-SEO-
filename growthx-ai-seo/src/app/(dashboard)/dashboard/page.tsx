@@ -437,7 +437,7 @@ export default function UnifiedDashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div role="tablist" aria-label="Filter by how serious" className="dash-dark flex items-center gap-0.5 rounded-full bg-brand-50 border border-brand-200/60 p-1 shadow-xs">
+            <div role="tablist" aria-label="Filter by how serious" className="flex items-center gap-0.5 rounded-full bg-brand-50 border border-brand-200/60 p-1 shadow-xs">
               {(["ALL", ...SEVERITY_ORDER] as const).map((sev) => {
                 const n = sev === "ALL" ? priorityGroups.length : groupCount(sev);
                 if (sev !== "ALL" && n === 0) return null;
@@ -723,8 +723,8 @@ function TodoRow({ group, rank, selected, onPick }: { group: IssueGroup; rank: n
         aria-pressed={selected}
         className={cn(
           "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
-          // Selected row gets sleek dark pill styling matching the reference image selected invoice!
-          selected ? "dash-dark bg-brand-50 border border-brand-200/60 text-brand-950 shadow-xs" : "bg-transparent hover:bg-brand-200/60 text-brand-950",
+          // Selected row gets sleek pill styling matching the theme!
+          selected ? "bg-brand-50 border border-brand-200/60 text-brand-950 shadow-xs" : "bg-transparent hover:bg-brand-200/60 text-brand-950",
         )}
       >
         <span
@@ -770,7 +770,7 @@ function ProblemDetail({ group }: { group: IssueGroup }) {
   const sev = SEVERITY[group.severity] ?? SEVERITY.LOW;
 
   return (
-    <div className="dash-dark flex flex-col justify-between gap-3.5 rounded-xl border border-brand-200/60 bg-brand-50 p-4 sm:p-4.5 text-brand-950 shadow-md">
+    <div className="flex flex-col justify-between gap-3.5 rounded-xl border border-brand-200/60 bg-brand-50 p-4 sm:p-4.5 text-brand-950 shadow-md">
       <div>
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400">Problem details</p>

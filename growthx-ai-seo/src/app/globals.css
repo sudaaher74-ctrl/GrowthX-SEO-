@@ -620,19 +620,38 @@ body {
 .dash-dark [data-nav-active="true"] * { color: inherit; }
 
 .dash-light {
-  --color-brand-50: #fafafa;
-  --color-brand-100: #f4f4f5;
-  --color-brand-200: #e4e4e7;
-  --color-brand-300: #d4d4d8;
-  --color-brand-400: #a1a1aa;
-  --color-brand-500: #71717a;
-  --color-brand-600: #52525b;
-  --color-brand-700: #3f3f46;
-  --color-brand-800: #27272a;
-  --color-brand-900: #18181b;
-  --color-brand-950: #09090b;
-  --color-line: #e5e7eb;
-  --color-line-strong: #d1d5db;
+  --color-canvas: #f6f8fb;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #fcfdfe;
+  --color-surface-3: #f1f5f9;
+
+  --color-brand-50: #ffffff;
+  --color-brand-100: #f1f5f9;
+  --color-brand-200: #e2e8f0;
+  --color-brand-300: #cbd5e1;
+  --color-brand-400: #64748b;
+  --color-brand-500: #475569;
+  --color-brand-600: #334155;
+  --color-brand-700: #1e293b;
+  --color-brand-800: #0f172a;
+  --color-brand-900: #09090b;
+  --color-brand-950: #020617;
+
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-600: #16a34a;
+  --color-primary-700: #15803d;
+
+  --color-signal-400: #16a34a;
+  --color-signal-500: #15803d;
+  --color-signal-ink: #ffffff;
+
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  --border-color: #e2e8f0;
+
   --color-success-50: #ecfdf5;
   --color-success-700: #047857;
   --color-warning-50: #fffbeb;
@@ -641,6 +660,19 @@ body {
   --color-error-700: #b91c1c;
   --color-accent-50: #eff6ff;
   --color-accent-700: #1d4ed8;
-  --border-color: #e5e7eb;
+
   color: var(--color-brand-950);
 }
+.dash-light .bg-white { background-color: #ffffff; }
+.dash-light [data-nav-active="true"] {
+  background-color: var(--color-signal-400);
+  color: var(--color-signal-ink);
+}
+.dash-light [data-nav-active="true"] * { color: inherit; }
+.dash-light .shadow-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+}
+.dash-light .shadow-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+}
+

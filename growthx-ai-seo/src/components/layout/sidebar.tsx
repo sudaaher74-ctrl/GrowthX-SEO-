@@ -3,11 +3,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, LayoutGrid, LogOut, MoreHorizontal, PanelLeftClose, Settings, FileText } from "lucide-react";
+import { Check, LayoutGrid, LogOut, Moon, MoreHorizontal, PanelLeftClose, Settings, Sun, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useProfile } from "@/hooks/use-growthx";
+import { useTheme } from "@/hooks/use-theme";
 import { TokensChip } from "@/components/tokens/tokens-chip";
 import { SiteSwitcher } from "@/components/layout/site-switcher";
 import { useMainNav, type NavItem } from "@/components/layout/nav-items";
@@ -36,6 +37,7 @@ export function Sidebar({
   const queryClient = useQueryClient();
   const profile = useProfile();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const { mainNav } = useMainNav();
 
@@ -145,6 +147,20 @@ export function Sidebar({
                       )}
                     </div>
                     <div className="py-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleTheme()}
+                        className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12px] font-medium text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {theme === "dark" ? <Sun size={14} className="text-brand-400" /> : <Moon size={14} className="text-brand-400" />}
+                          <span>{theme === "dark" ? "Day mode" : "Night mode"}</span>
+                        </div>
+                        <span className="rounded-full bg-signal-400/20 px-2 py-0.5 font-mono text-[9.5px] font-bold text-signal-400">
+                          {theme === "dark" ? "Night" : "Day"}
+                        </span>
+                      </button>
+
                       <Link
                         href="/settings"
                         onClick={() => {
@@ -158,9 +174,9 @@ export function Sidebar({
                       </Link>
                       <button
                         onClick={handleLogout}
-                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition"
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-error-600 hover:bg-error-50 hover:text-error-700 transition"
                       >
-                        <LogOut size={14} className="text-red-500" />
+                        <LogOut size={14} className="text-error-500" />
                         Log out
                       </button>
                     </div>
