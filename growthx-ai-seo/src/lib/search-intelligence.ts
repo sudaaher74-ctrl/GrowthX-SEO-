@@ -23,7 +23,7 @@ export interface SearchIntelligenceStatus {
   market: SearchMarket;
 }
 
-export interface Evidence {
+interface Evidence {
   label: string;
   value: string;
   source: string;
@@ -338,14 +338,6 @@ export interface ChangeLedger {
 
 export type ChangeKind = "DELETE" | "REDIRECT" | "CANONICAL" | "URL_CHANGE" | "NOINDEX";
 
-export const CHANGE_KINDS: Array<{ id: ChangeKind; label: string; needsTarget: boolean }> = [
-  { id: "DELETE", label: "Delete the page", needsTarget: false },
-  { id: "REDIRECT", label: "Redirect it to another page", needsTarget: true },
-  { id: "URL_CHANGE", label: "Move it to a new address", needsTarget: true },
-  { id: "CANONICAL", label: "Point its canonical tag at another page", needsTarget: true },
-  { id: "NOINDEX", label: "Hide it from Google (noindex)", needsTarget: false },
-];
-
 export interface ChangeRiskReport {
   url: string;
   change: ChangeKind;
@@ -370,15 +362,3 @@ export interface ChangeRiskReport {
   };
 }
 
-/** A position as people say it: "#4", or "not in top 20". */
-export function positionText(position: number | null | undefined, depth = 20): string {
-  return typeof position === "number" ? `#${position}` : `not in top ${depth}`;
-}
-
-/** Movement between two checks. Positive is up (a smaller number). */
-export function positionMove(previous: number | null, current: number | null): number | null {
-  if (previous === null && current === null) return null;
-  if (previous === null) return current !== null ? 21 - current : null;
-  if (current === null) return -(21 - previous);
-  return previous - current;
-}

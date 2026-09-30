@@ -48,7 +48,7 @@ const LD_TO_TYPE: Record<string, string> = {
   Event: "EVENT",
 };
 
-export function extraName(ldType: string): string {
+function extraName(ldType: string): string {
   const mapped = LD_TO_TYPE[ldType];
   return mapped ? googleExtra(mapped).name : ldType.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }

@@ -1,12 +1,12 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, Database, Info, Loader2, PlugZap, RefreshCw, Settings2 } from "lucide-react";
+import { AlertCircle, Database, Info, Loader2, PlugZap, RefreshCw, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type MetricState = "MEASURED" | "ESTIMATED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "NOT_CONNECTED";
+type MetricState = "MEASURED" | "ESTIMATED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "NOT_CONNECTED";
 
-export interface StateAction {
+interface StateAction {
   label: string;
   href?: string;
   onClick?: () => void;
@@ -32,7 +32,7 @@ interface TruthfulStateProps {
  * 3. What action to take
  * 4. Which button to click
  */
-export function TruthfulState({
+function TruthfulState({
   icon: Icon = Info,
   title,
   missing,
@@ -253,67 +253,6 @@ export function FailedState({
   );
 }
 
-/** 6. Completed State */
-export function CompletedState({
-  title = "Setup Complete",
-  message = "All data sources are connected and up to date.",
-  action,
-}: {
-  title?: string;
-  message?: string;
-  action?: StateAction;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-success-200 bg-success-50/30 p-6 text-center">
-      <CheckCircle2 size={24} className="text-success-600 mb-2" />
-      <h4 className="text-[13.5px] font-semibold text-success-950">{title}</h4>
-      <p className="text-[12px] text-success-700 mt-0.5 max-w-md">{message}</p>
-      {action && (
-        <div className="mt-4">
-          {action.href ? (
-            <Link
-              href={action.href}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-success-700 px-3.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-success-800 transition"
-            >
-              {action.label}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={action.onClick}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-success-700 px-3.5 py-1.5 text-[11.5px] font-semibold text-white hover:bg-success-800 transition"
-            >
-              {action.label}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 7. Partial Data State (e.g. Authorized but property not selected) */
-export function PartialDataState({
-  title = "Action Needed: Property Selection Required",
-  missing = "Google authorized your account, but you have not selected a specific property yet.",
-  whyItMatters = "GrowthX cannot pull rankings or traffic until you specify which website property to sync.",
-  actionRequired = "Select your Google property from the dropdown.",
-  action = { label: "Select Property", href: "/integrations" },
-  compact,
-}: Partial<TruthfulStateProps>) {
-  return (
-    <TruthfulState
-      icon={AlertCircle}
-      title={title}
-      missing={missing}
-      whyItMatters={whyItMatters}
-      actionRequired={actionRequired}
-      action={action}
-      compact={compact}
-    />
-  );
-}
-
 /** Metric truthfulness badge */
 export function MetricBadge({ state }: { state: MetricState }) {
   switch (state) {
@@ -353,97 +292,3 @@ export function MetricBadge({ state }: { state: MetricState }) {
   }
 }
 
-/** Truthful Metric KPI Card */
-export function TruthfulKpiCard({
-  label,
-  value,
-  sub,
-  state = "MEASURED",
-  source,
-  dateRange,
-  lastUpdated,
-  actionHref,
-  actionLabel,
-  trend,
-  className,
-}: {
-  label: string;
-  value?: string | number | null;
-  sub?: string;
-  state?: MetricState;
-  source?: string;
-  dateRange?: string;
-  lastUpdated?: string;
-  actionHref?: string;
-  actionLabel?: string;
-  trend?: { delta: number; positiveIsGood?: boolean };
-  className?: string;
-}) {
-  const isAvailable = state === "MEASURED" || state === "ESTIMATED";
-
-  return (
-    <div
-      className={cn(
-        "flex flex-col justify-between rounded-xl border bg-white p-4 transition-all shadow-2xs",
-        className
-      )}
-      style={{ borderColor: "var(--border-color)" }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[12px] font-semibold text-brand-500">{label}</span>
-        <MetricBadge state={state} />
-      </div>
-
-      <div className="my-2.5">
-        {isAvailable && value != null ? (
-          <div className="flex items-baseline gap-2">
-            <span className="text-[26px] font-bold tracking-[-0.03em] text-brand-950 font-mono">
-              {value}
-            </span>
-            {trend && (
-              <span
-                className={cn(
-                  "text-[11.5px] font-semibold font-mono",
-                  trend.delta > 0
-                    ? (trend.positiveIsGood ?? true) ? "text-success-600" : "text-error-600"
-                    : trend.delta < 0
-                      ? (trend.positiveIsGood ?? true) ? "text-error-600" : "text-success-600"
-                      : "text-brand-400"
-                )}
-              >
-                {trend.delta > 0 ? `+${trend.delta}%` : `${trend.delta}%`}
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="py-1">
-            <span className="text-[14px] font-medium text-brand-400 italic">
-              {state === "NOT_CONNECTED"
-                ? "Connect to view"
-                : state === "NOT_CONFIGURED"
-                  ? "Not configured"
-                  : "No data available"}
-            </span>
-            {actionHref && (
-              <div className="mt-1.5">
-                <Link
-                  href={actionHref}
-                  className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-accent-700 hover:text-accent-800 underline underline-offset-2"
-                >
-                  {actionLabel || "Configure now →"}
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {sub && <p className="text-[11px] text-brand-400 mt-0.5">{sub}</p>}
-      </div>
-
-      <div className="border-t pt-2 mt-auto flex items-center justify-between text-[10px] text-brand-400 font-mono" style={{ borderColor: "var(--color-brand-100)" }}>
-        <span>{source ? `Source: ${source}` : "Source: N/A"}</span>
-        <span>{dateRange || (lastUpdated ? `Sync: ${lastUpdated}` : "Realtime")}</span>
-      </div>
-    </div>
-  );
-}

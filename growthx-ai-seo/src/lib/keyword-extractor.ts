@@ -1,7 +1,7 @@
 import type { CrawlPage } from "@/lib/api-client";
 
 /** Stopwords and web generic boilerplate to exclude from keyword extraction */
-export const STOPWORDS = new Set([
+const STOPWORDS = new Set([
   "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
   "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being",
   "below", "between", "both", "but", "by", "can", "cannot", "could", "did", "do",
@@ -24,7 +24,7 @@ export const STOPWORDS = new Set([
   "click", "view", "more", "learn", "menu", "search", "filter", "close", "open"
 ]);
 
-export interface ExtractedKeywordProfile {
+interface ExtractedKeywordProfile {
   keyword: string;
   tokensCount: number;
   totalOccurrences: number;
@@ -46,7 +46,7 @@ export interface ExtractedKeywordProfile {
 }
 
 /** Tokenize text into clean 1-word and 2-word key phrases */
-export function extractPhrasesFromText(text: string | null | undefined): string[] {
+function extractPhrasesFromText(text: string | null | undefined): string[] {
   if (!text) return [];
   const clean = text
     .toLowerCase()
@@ -71,7 +71,7 @@ export function extractPhrasesFromText(text: string | null | undefined): string[
 }
 
 /** Determine likely search intent */
-export function inferIntent(keyword: string): "COMMERCIAL" | "TRANSACTIONAL" | "INFORMATIONAL" {
+function inferIntent(keyword: string): "COMMERCIAL" | "TRANSACTIONAL" | "INFORMATIONAL" {
   const kw = keyword.toLowerCase();
   if (/buy|price|cost|quote|order|purchase|hire|export|supplier|manufacturer|vendor/i.test(kw)) {
     return "TRANSACTIONAL";
@@ -90,7 +90,7 @@ export function titleCase(str: string): string {
     .join(" ");
 }
 
-export type KeywordSourcePage = Pick<CrawlPage, "url" | "title" | "metaDescription" | "pageType" | "h1"> &
+type KeywordSourcePage = Pick<CrawlPage, "url" | "title" | "metaDescription" | "pageType" | "h1"> &
   Partial<Pick<CrawlPage, "h2">>;
 
 /** Aggregate extracted page data into structured keyword profiles */

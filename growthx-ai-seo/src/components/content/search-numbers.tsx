@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  */
 
 /** "page 2 of Google", from an average position. */
-export function googlePage(position: number): string {
+function googlePage(position: number): string {
   const page = Math.max(1, Math.ceil(position / 10));
   return page === 1 ? "page 1 of Google" : `page ${page} of Google`;
 }
@@ -24,7 +24,7 @@ const fmt = (n: number) => n.toLocaleString("en-IN");
 const pos = (p: number) => (Math.round(p * 10) / 10).toString();
 
 /** The numbers for one phrase, in words: "Seen 340 times · 12 clicks · position 14 (page 2)". */
-export function measuredText(m: Pick<MeasuredNumbers, "impressions" | "clicks" | "position">): string {
+function measuredText(m: Pick<MeasuredNumbers, "impressions" | "clicks" | "position">): string {
   return `Seen ${fmt(m.impressions)} time${m.impressions === 1 ? "" : "s"} · ${fmt(m.clicks)} click${m.clicks === 1 ? "" : "s"} · position ${pos(m.position)} (${googlePage(m.position)})`;
 }
 

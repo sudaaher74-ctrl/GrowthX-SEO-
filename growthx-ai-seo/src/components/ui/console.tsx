@@ -383,37 +383,6 @@ export function Sparkline({ values, width = 68, height = 22 }: { values: number[
   );
 }
 
-/**
- * Shown where the design specifies a screen we cannot populate from real data
- * yet. An explicit "not connected" beats a page of invented numbers.
- */
-export function NotConnected({
-  title,
-  what,
-  needs,
-}: {
-  title: string;
-  what: string;
-  needs: string[];
-}) {
-  return (
-    <div className="rounded-xl border border-dashed bg-white p-10 text-center">
-      <p className="text-[14px] font-semibold text-brand-950">{title}</p>
-      <p className="mx-auto mt-1.5 max-w-md text-[12.5px] text-brand-500">{what}</p>
-      <div className="mx-auto mt-5 max-w-sm rounded-lg bg-brand-50 p-3 text-left">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.07em] text-brand-400">Needs</p>
-        <ul className="mt-1.5 space-y-1">
-          {needs.map((need) => (
-            <li key={need} className="text-[11.5px] text-brand-600">
-              • {need}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "never";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);

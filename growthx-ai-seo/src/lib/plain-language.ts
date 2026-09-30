@@ -23,26 +23,3 @@ export function asSentence(text: string): string {
   return /[.!?]$/.test(t) ? t : `${t}.`;
 }
 
-/**
- * Who can make this fix, read off the fix's own instructions.
- *
- * The audit's copy for each problem already says it in words — "You can do
- * this yourself" or "Ask your web developer" — so this only surfaces that
- * sentence as a label. Null when the instructions don't say.
- */
-export function whoCanFix(action: string | null | undefined): "yourself" | "developer" | null {
-  const text = action ?? "";
-  if (/\bask your (web )?developer\b/i.test(text)) return "developer";
-  if (/\byou can (do|write|add|change|fix|update)\b[^.]*\byourself\b/i.test(text)) return "yourself";
-  return null;
-}
-
-/** "/products/milk" from "https://www.example.in/products/milk" — the part a person recognises. */
-export function pagePath(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.pathname}${u.search}` || "/";
-  } catch {
-    return url;
-  }
-}

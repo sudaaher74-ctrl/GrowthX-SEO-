@@ -1,8 +1,7 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { RefreshCw } from "lucide-react";
-import { ActionButton, Kpi, Panel, Pill, StatusNote, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
+import { ActionButton, Kpi, Panel, StatusNote, relativeTime } from "@/components/ui/console";
 import {
   FailedState,
   LoadingState,
@@ -11,8 +10,7 @@ import {
   NotConnectedState,
 } from "@/components/ui/truthful-state";
 import { useGa4Report } from "@/hooks/use-ga4-report";
-import { usePeriodDays } from "@/hooks/use-growthx";
-import { api, type Ga4Report, type Ga4ReportData } from "@/lib/api-client";
+import { type Ga4Report, type Ga4ReportData } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
 const count = (n: number) => Math.round(n).toLocaleString();
@@ -317,159 +315,3 @@ export function Ga4Overview({ projectId }: { projectId: string | null }) {
 
 // ── Google Search page ──────────────────────────────────────────────────────
 
-/** Organic Search sessions, for the header beside "Google Analytics 4 connected". */
-export function Ga4OrganicPill({ projectId }: { projectId: string }) {
-  const { report, days } = useGa4Report(projectId);
-  const r = report.data;
-  if (!r || report.isLoading) return null;
-  if (r.state === "READY" && r.data) {
-    return (
-      <Pill tone="info">
-        Organic Search: {count(r.data.organicSearchSessions)} sessions · {days}d
-      </Pill>
-    );
-  }
-  if (r.state === "NOT_CONNECTED" || r.state === "NEVER_SYNCED") return null;
-  // Connected but unreadable: say so here, and the Rankings tab says why.
-  return (
-    <span title={r.message ?? undefined}>
-      <Pill tone="warn">GA4 data unavailable</Pill>
-    </span>
-  );
-}
-
-/**
- * Landing pages and channels straight from GA4, for the Rankings tab while
- * Search Console has nothing to show. Labelled as GA4 so it is never mistaken
- * for search positions.
- */
-export function Ga4Fallback({ projectId }: { projectId: string }) {
-  const ga4 = useGa4Report(projectId);
-  return (
-    <Panel
-      title="From Google Analytics 4"
-      subtitle={`Where visits land and how they arrive, last ${ga4.days} days. Search Console positions appear here once it has data.`}
-      actions={<Freshness ga4={ga4} />}
-    >
-      <div className="p-4">
-        <Ga4Gate ga4={ga4}>
-          {(d) => (
-            <div className="space-y-6">
-              <div>
-                <p className="mb-2 text-[12px] font-semibold text-brand-950">Top landing pages</p>
-                <Table minWidth={520}>
-                  <thead>
-                    <tr>
-                      <Th>Landing page</Th>
-                      <Th align="right">Sessions</Th>
-                      <Th align="right">Engagement rate</Th>
-                      <Th align="right">Key events</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.landingPages.map((p) => (
-                      <Tr key={p.page}>
-                        <Td>
-                          <span className="font-mono text-[11.5px]">{p.page}</span>
-                        </Td>
-                        <Td align="right">{count(p.sessions)}</Td>
-                        <Td align="right">{percent(p.engagementRate)}</Td>
-                        <Td align="right">{p.keyEvents === null ? "—" : count(p.keyEvents)}</Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </div>
-              <div>
-                <p className="mb-2 text-[12px] font-semibold text-brand-950">Sessions by channel</p>
-                <Table minWidth={420}>
-                  <thead>
-                    <tr>
-                      <Th>Channel</Th>
-                      <Th align="right">Sessions</Th>
-                      <Th align="right">Users</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.channels.map((c) => (
-                      <Tr key={c.channel}>
-                        <Td>
-                          {c.channel} {c.organic && <Pill tone="good">Google organic</Pill>}
-                        </Td>
-                        <Td align="right">{count(c.sessions)}</Td>
-                        <Td align="right">{count(c.users)}</Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </div>
-              {d.countries.length > 0 && <Ga4Geography d={d} />}
-            </div>
-          )}
-        </Ga4Gate>
-      </div>
-    </Panel>
-  );
-}
-
-/**
- * Search Console clicks beside GA4 sessions and conversions, matched by
- * landing page. Only shown once Search Console has data to match.
- */
-export function Ga4SearchJoin({ projectId }: { projectId: string }) {
-  const days = usePeriodDays();
-  const join = useQuery({
-    queryKey: ["ga4-page-value", projectId, days],
-    queryFn: () => api.ga4PageValue(projectId, days),
-    retry: false,
-  });
-
-  return (
-    <Panel
-      title="Clicks and visits by page"
-      subtitle={`Search Console clicks beside Google Analytics 4 sessions and key events, matched by landing page, last ${days} days.`}
-    >
-      <div className="p-4">
-        {join.isLoading ? (
-          <LoadingState compact title="Matching pages…" message="Joining Search Console and Google Analytics 4." />
-        ) : join.error ? (
-          <FailedState compact title="Could not match pages" error={errorMessage(join.error)} onRetry={() => join.refetch()} />
-        ) : !join.data?.hasAnalyticsData ? (
-          <NoDataState
-            compact
-            title="No Google Analytics page data yet"
-            missing="Search Console has data, but no Google Analytics landing-page rows have been fetched to match it."
-            whyItMatters="Without them the two cannot be shown side by side."
-            actionRequired="Fetch Google Analytics from the Integrations page."
-            action={{ label: "Open Integrations", href: "/integrations", variant: "secondary" }}
-          />
-        ) : join.data.rows.length === 0 ? (
-          <NoDataState compact title="No pages to match" missing="Neither source has pages for this period." />
-        ) : (
-          <Table minWidth={640}>
-            <thead>
-              <tr>
-                <Th>Page</Th>
-                <Th align="right">Search clicks</Th>
-                <Th align="right">GA4 sessions</Th>
-                <Th align="right">Key events</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {join.data.rows.map((row) => (
-                <Tr key={row.page}>
-                  <Td>
-                    <span className="font-mono text-[11.5px]">{row.page}</span>
-                  </Td>
-                  <Td align="right">{count(row.clicks)}</Td>
-                  <Td align="right">{row.sessions === null ? "—" : count(row.sessions)}</Td>
-                  <Td align="right">{row.conversions === null ? "—" : count(row.conversions)}</Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </div>
-    </Panel>
-  );
-}

@@ -6,7 +6,7 @@ import { AiKpiCard } from "./ai-kpi-card";
 import type { VisibilityReport, TrackedCompetitor, CrawlJob } from "@/lib/api-client";
 import { assistantList } from "@/lib/ai-assistants";
 
-export interface AiVisibilityCompetitorsTabProps {
+interface AiVisibilityCompetitorsTabProps {
   report?: VisibilityReport | null;
   /** The rivals tracked in Competitor Intelligence, with their crawl results. */
   competitors?: TrackedCompetitor[];

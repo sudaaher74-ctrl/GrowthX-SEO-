@@ -1257,10 +1257,6 @@ function DailyCandles({
   );
 }
 
-function DailyClicks({ points }: { points: { date: string; clicks: number | null }[] }) {
-  return <DailyCandles points={points.map((p) => ({ date: p.date, value: p.clicks }))} />;
-}
-
 /**
  * The busiest channels as share-of-sessions bars: the compact version of the
  * "Where your traffic comes from" table on the Google Analytics page.

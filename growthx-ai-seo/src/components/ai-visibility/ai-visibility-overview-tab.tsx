@@ -7,7 +7,7 @@ import { AiVisibilityGauge } from "./ai-visibility-gauge";
 import type { VisibilityReport } from "@/lib/api-client";
 import { assistantLabel, assistantList } from "@/lib/ai-assistants";
 
-export interface AiVisibilityOverviewTabProps {
+interface AiVisibilityOverviewTabProps {
   report?: VisibilityReport | null;
   trackedPromptsCount?: number;
   domain?: string;

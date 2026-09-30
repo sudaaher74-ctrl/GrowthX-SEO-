@@ -11,7 +11,7 @@
  */
 type Indexability = 'INDEXABLE' | 'NOT_INDEXABLE' | 'UNKNOWN';
 
-export interface SummaryPage {
+interface SummaryPage {
   url: string;
   statusCode?: number | null;
   indexability?: string | null;
@@ -21,7 +21,7 @@ export interface SummaryPage {
   fetchFailed?: boolean;
 }
 
-export interface SummaryIssue {
+interface SummaryIssue {
   issueType: string;
   severity: string;
   confidence?: string | null;
@@ -53,7 +53,7 @@ export interface DiscoveredNotCrawledUrl {
   sources?: string[];
 }
 
-export interface CrawlDiscoveryMetrics {
+interface CrawlDiscoveryMetrics {
   urlsDiscovered?: number;
   urlsQueued?: number;
   urlsCrawled?: number;
@@ -261,7 +261,7 @@ export function computeCrawlSummary(params: {
  * measurements at all was awarded a green badge over three empty dashes. A
  * metric we never collected is not a metric the site passed.
  */
-export function summariseCoreWebVitals(rows: Array<{ lcpMs?: number | null; inpMs?: number | null; clsScore?: number | null }>): CoreWebVitals {
+function summariseCoreWebVitals(rows: Array<{ lcpMs?: number | null; inpMs?: number | null; clsScore?: number | null }>): CoreWebVitals {
   const measured = rows.filter((r) => r.lcpMs != null || r.inpMs != null || r.clsScore != null);
   const average = (pick: (r: (typeof rows)[number]) => number | null | undefined): number | null => {
     const values = measured.map(pick).filter((v): v is number => typeof v === 'number');
@@ -295,7 +295,7 @@ export function summariseCoreWebVitals(rows: Array<{ lcpMs?: number | null; inpM
  * with no explanation is not actionable, and on the audit that prompted this
  * rebuild it was not even true.
  */
-export function computeHealth(issues: SummaryIssue[], pagesScored: number, pagesExcluded: number): HealthScoreBreakdown {
+function computeHealth(issues: SummaryIssue[], pagesScored: number, pagesExcluded: number): HealthScoreBreakdown {
   const pages = Math.max(1, pagesScored);
 
   // Deduplicate, then cap per URL, so one badly broken page cannot sink a site.

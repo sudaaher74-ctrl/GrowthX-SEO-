@@ -11,7 +11,7 @@ import { SeoAuditReportDocument } from "./seo-audit-report-document";
 import type { CrawlIssue, CrawlPage, IssueCounts, IssueGroup } from "@/lib/api-client";
 import "./audit-report-print.css";
 
-export interface SeoAuditReportModalProps {
+interface SeoAuditReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   clientName?: string | null;

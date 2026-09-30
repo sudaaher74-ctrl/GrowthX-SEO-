@@ -1,7 +1,7 @@
 /**
  * Page classification rules shared with crawler backend.
  */
-export type PageType =
+type PageType =
   | 'HOME'
   | 'SERVICE'
   | 'PRODUCT'
@@ -46,7 +46,7 @@ const HEADING_RULES: { type: PageType; pattern: RegExp }[] = [
   { type: 'CASE_STUDY', pattern: /\b(case study|our work|portfolio)\b/i },
 ];
 
-export interface PageTypeInput {
+interface PageTypeInput {
   url: string;
   title?: string | null;
   h1?: string[] | null;
