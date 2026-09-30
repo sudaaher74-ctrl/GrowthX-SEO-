@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -60,6 +60,8 @@ interface SetupStep {
  * honest "not connected yet". The detailed, technical views live one click
  * away on their own pages.
  */
+const DEFAULT_WINDOW_DAYS = 28;
+
 export default function UnifiedDashboardPage() {
   const { orgId, projectId, projects } = useWorkspace();
   const [metricKey, setMetricKey] = useState<MetricKey>("searchClicks");
@@ -88,11 +90,18 @@ export default function UnifiedDashboardPage() {
   const hasGsc = Boolean(executive.data?.connections?.searchConsole);
   const hasGa = Boolean(executive.data?.connections?.analytics);
 
-  // 28-day daily clicks, for the small trend line under "Visitors from Google".
+  // 28-day daily clicks and visits, for the trend chart under "Visitors from Google".
   const gscSeries = useQuery({
     queryKey: ["gsc-dash-series", projectId],
     queryFn: () => api.gscTimeseries(projectId!, 28),
     enabled: !!projectId && hasGsc,
+    retry: false,
+  });
+
+  const gaSeries = useQuery({
+    queryKey: ["ga4-dash-series", projectId],
+    queryFn: () => api.ga4Timeseries(projectId!, 28),
+    enabled: !!projectId && hasGa,
     retry: false,
   });
 
@@ -185,6 +194,36 @@ export default function UnifiedDashboardPage() {
     { key: "conversions", short: "Goals", label: "Goals reached", hint: "Enquiries, sign-ups or sales you track" },
   ];
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
+
+  const rangeDays = executive.data?.range?.days ? executive.data.range.days : DEFAULT_WINDOW_DAYS;
+
+  const activeSeriesPoints = useMemo(() => {
+    if (metricKey === "searchClicks" && gscSeries.data && gscSeries.data.length > 0) {
+      return normalizeTrend(
+        gscSeries.data.map((p) => ({ date: p.date, value: p.clicks })),
+        rangeDays,
+      );
+    }
+    if (metricKey === "impressions" && gscSeries.data && gscSeries.data.length > 0) {
+      return normalizeTrend(
+        gscSeries.data.map((p) => ({ date: p.date, value: p.impressions })),
+        rangeDays,
+      );
+    }
+    if (metricKey === "sessions" && gaSeries.data && gaSeries.data.length > 0) {
+      return normalizeTrend(
+        gaSeries.data.map((p) => ({ date: p.date, value: p.sessions })),
+        rangeDays,
+      );
+    }
+    if (metricKey === "conversions" && gaSeries.data && gaSeries.data.length > 0) {
+      return normalizeTrend(
+        gaSeries.data.map((p) => ({ date: p.date, value: p.conversions ?? 0 })),
+        rangeDays,
+      );
+    }
+    return null;
+  }, [metricKey, gscSeries.data, gaSeries.data, rangeDays]);
 
   // The to-do list: filter by how serious, and show the picked problem beside it.
   const shownGroups = severityTab === "ALL" ? priorityGroups : priorityGroups.filter((g) => g.severity === severityTab);
@@ -347,10 +386,18 @@ export default function UnifiedDashboardPage() {
             />
           ) : (
             <>
-              <div className="flex items-end justify-between gap-3">
-                <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
-                {metric.key === "searchClicks" && gscSeries.data && gscSeries.data.length >= 2 && (
-                  <DailyClicks points={gscSeries.data} />
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 py-0.5">
+                <div className="shrink-0 max-w-[210px]">
+                  <BigMeasure label={metric.label} hint={metric.hint} measure={headline?.[metric.key]} />
+                </div>
+                {activeSeriesPoints && activeSeriesPoints.length >= 2 && (
+                  <div className="flex-1 sm:max-w-[320px] lg:max-w-[360px]">
+                    <DailyCandles
+                      points={activeSeriesPoints}
+                      unit={metric.short.toLowerCase()}
+                      days={rangeDays}
+                    />
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-1.5 p-1 rounded-xl bg-brand-100/50 border border-brand-200/40" role="tablist" aria-label="Choose a figure">
@@ -859,25 +906,137 @@ function BigMeasure({ label, hint, measure }: { label: string; hint: string; mea
   );
 }
 
+function formatCandleDate(isoOrDateStr: string): string {
+  try {
+    if (/^\d{4}-\d{2}-\d{2}/.test(isoOrDateStr)) {
+      const [y, m, d] = isoOrDateStr.slice(0, 10).split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+    return new Date(isoOrDateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return isoOrDateStr;
+  }
+}
+
+function normalizeTrend(rawPoints: { date: string; value: number | null }[], windowDays = DEFAULT_WINDOW_DAYS) {
+  if (!rawPoints || rawPoints.length === 0) return [];
+
+  if (rawPoints.length >= windowDays) {
+    return rawPoints.slice(-windowDays);
+  }
+
+  const lastPoint = rawPoints[rawPoints.length - 1];
+  let anchor = new Date();
+  if (lastPoint?.date) {
+    if (/^\d{4}-\d{2}-\d{2}/.test(lastPoint.date)) {
+      const [y, m, d] = lastPoint.date.slice(0, 10).split("-").map(Number);
+      anchor = new Date(y, m - 1, d);
+    } else {
+      const parsed = new Date(lastPoint.date);
+      if (!isNaN(parsed.getTime())) anchor = parsed;
+    }
+  }
+
+  const lookup = new Map<string, number | null>();
+  for (const pt of rawPoints) {
+    const key = pt.date.slice(0, 10);
+    lookup.set(key, pt.value);
+  }
+
+  const result: { date: string; value: number | null }[] = [];
+  for (let i = windowDays - 1; i >= 0; i--) {
+    const d = new Date(anchor);
+    d.setDate(d.getDate() - i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const key = `${y}-${m}-${day}`;
+    result.push({
+      date: key,
+      value: lookup.has(key) ? lookup.get(key)! : 0,
+    });
+  }
+
+  return result;
+}
+
 /**
- * Daily clicks as plain bars. Neutral on purpose: a day-to-day dip is normal,
- * and a red line would read as bad news to someone who can't tell noise from
- * a trend.
+ * Daily activity candlesticks: well-proportioned, substantial bars displaying
+ * daily performance across the selected window, with baseline marks for zero days
+ * and prominent signal candles for active days.
  */
-function DailyClicks({ points }: { points: { date: string; clicks: number | null }[] }) {
-  const max = Math.max(...points.map((p) => p.clicks ?? 0), 1);
+function DailyCandles({
+  points,
+  unit = "clicks",
+  days = DEFAULT_WINDOW_DAYS,
+}: {
+  points: { date: string; value: number | null }[];
+  unit?: string;
+  days?: number;
+}) {
+  const max = Math.max(...points.map((p) => p.value ?? 0), 1);
+  const total = points.reduce((sum, p) => sum + (p.value ?? 0), 0);
+  const hasActivity = total > 0;
+
   return (
-    <div className="flex h-[52px] shrink-0 items-end gap-[2px]" role="img" aria-label={`Clicks from Google each day, last ${points.length} days`}>
-      {points.map((p) => (
-        <div
-          key={p.date}
-          className="w-[4px] sm:w-[5px] rounded-full bg-signal-400 opacity-85 transition hover:opacity-100"
-          style={{ height: `${Math.max(8, ((p.clicks ?? 0) / max) * 100)}%` }}
-          title={`${p.date}: ${(p.clicks ?? 0).toLocaleString()} clicks`}
-        />
-      ))}
+    <div
+      className="flex w-full flex-col gap-1.5"
+      role="img"
+      aria-label={`${unit} each day, last ${days} days`}
+    >
+      <div className="flex items-center justify-between text-[10.5px] font-semibold text-brand-400">
+        <span className="uppercase tracking-wider">Daily activity</span>
+        {hasActivity && (
+          <span className="rounded-full bg-brand-200/60 px-2 py-0.5 text-[9.5px] font-bold text-brand-700">
+            Peak: {max.toLocaleString()} {unit}
+          </span>
+        )}
+      </div>
+
+      <div className="flex h-[92px] sm:h-[108px] w-full items-end gap-[3px] sm:gap-1 pt-1">
+        {points.map((p) => {
+          const val = p.value ?? 0;
+          const isZero = val === 0;
+          const heightPct = isZero ? 0 : Math.max(14, (val / max) * 100);
+          const dateLabel = formatCandleDate(p.date);
+
+          return (
+            <div
+              key={p.date}
+              className="group relative flex h-full flex-1 min-w-[5px] sm:min-w-[6px] max-w-[12px] flex-col items-center justify-end"
+            >
+              <div className="pointer-events-none absolute -top-8 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-brand-950 px-2 py-0.5 text-[10px] font-medium text-brand-50 shadow-md group-hover:block">
+                {dateLabel}: {val.toLocaleString()} {unit}
+              </div>
+
+              {isZero ? (
+                <div
+                  className="h-[4px] w-full rounded-full bg-brand-200/80 transition-colors group-hover:bg-brand-300"
+                  title={`${dateLabel}: 0 ${unit}`}
+                />
+              ) : (
+                <div
+                  className="w-full rounded-t-[3px] sm:rounded-t-sm bg-signal-400 opacity-90 shadow-xs transition-all duration-150 origin-bottom group-hover:opacity-100 group-hover:scale-y-[1.03]"
+                  style={{ height: `${heightPct}%` }}
+                  title={`${dateLabel}: ${val.toLocaleString()} ${unit}`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex w-full items-center justify-between border-t border-brand-200/50 pt-1 text-[10px] font-medium text-brand-400">
+        <span>{days}d ago</span>
+        <span>Today</span>
+      </div>
     </div>
   );
+}
+
+function DailyClicks({ points }: { points: { date: string; clicks: number | null }[] }) {
+  return <DailyCandles points={points.map((p) => ({ date: p.date, value: p.clicks }))} />;
 }
 
 /**
