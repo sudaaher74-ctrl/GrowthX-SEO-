@@ -27,6 +27,24 @@ export function googleReportMarkdown(report: GoogleReport): string {
       for (const p of side.points) lines.push(`- ${p}`);
       if (side.points.length) lines.push("");
     }
+    const m = a.marketingStrategy;
+    if (m && (m.summary || m.channels.length || m.whereTrafficComesFrom.length)) {
+      lines.push("## Where your traffic comes from", "");
+      if (m.summary) lines.push(m.summary, "");
+      for (const w of m.whereTrafficComesFrom) lines.push(`- ${w}`);
+      if (m.whereTrafficComesFrom.length) lines.push("");
+      if (m.audience.length) lines.push("### Who and where", "", ...m.audience.map((w) => `- ${w}`), "");
+      if (m.channels.length) {
+        lines.push("## Marketing strategy by channel", "");
+        for (const c of m.channels) {
+          lines.push(`### ${c.channel} (${c.verdict}, ${c.share})`, "");
+          if (c.whatWeSee) lines.push(`**What we see:** ${c.whatWeSee}`, "");
+          if (c.strategy) lines.push(`**Strategy:** ${c.strategy}`, "");
+          c.actions.forEach((x, i) => lines.push(`${i + 1}. ${x}`));
+          if (c.actions.length) lines.push("");
+        }
+      }
+    }
     lines.push("## What to do, in order", "");
     for (const p of a.priorities) {
       lines.push(`### ${p.rank}. ${p.title}`, "", `${PLATFORM[p.platform]} · priority ${p.priority} · impact ${p.impact} · effort ${p.effort}`, "");

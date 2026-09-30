@@ -1039,6 +1039,8 @@ export interface Ga4ReportData {
   channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];
   organicSearchSessions: number;
   countries: { country: string; sessions: number; users: number }[];
+  /** Where visits came from, by source and medium. Absent until the first refresh after sources were added. */
+  sources?: { source: string; medium: string; channel: string; sessions: number; users: number; engagementRate: number; keyEvents: number | null }[];
   /** Absent until the first refresh after cities were added. */
   cities?: { city: string; country: string; sessions: number; users: number }[];
 }
@@ -1294,6 +1296,13 @@ export interface GoogleReport {
     };
     priorities: GoogleReportPriority[];
     quickWins: string[];
+    /** Absent on reports written before the marketing strategy was added. */
+    marketingStrategy?: {
+      summary: string;
+      whereTrafficComesFrom: string[];
+      channels: { channel: string; verdict: "grow" | "fix" | "start" | "maintain"; share: string; whatWeSee: string; strategy: string; actions: string[] }[];
+      audience: string[];
+    };
     plan: { week: string; actions: string[] }[];
     dataGaps: string[];
   } | null;
