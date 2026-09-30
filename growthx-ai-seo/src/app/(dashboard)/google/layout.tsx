@@ -37,7 +37,10 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
           title={searchConsole ? "Search Console" : "Analytics 4"}
           subtitle={searchConsole ? "How Google shows your site: clicks, impressions, position, and the queries and pages behind them." : "What visitors do on your site: sessions, users, engagement, channels and landing pages."}
           actions={
-            <Link href="/google/report" className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-primary-700">
+            <Link
+              href="/google/report"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 transition-all"
+            >
               <Sparkles size={13} />
               Improvement report
             </Link>
@@ -59,8 +62,14 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
       <PageHeader title="Google Performance" subtitle="Understand how Google visibility turns into traffic, engagement and business results." />
       <GoogleStatusBar projectId={projectId} source={source} />
       {group && (
-        <nav aria-label="Google sections" className="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
-          <Link href={group.href} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap text-primary-700 hover:bg-primary-50">
+        <nav
+          aria-label="Google sections"
+          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <Link
+            href={group.href}
+            className="inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold text-brand-400 hover:text-brand-950 transition-colors"
+          >
             <ArrowLeft size={12} />
             {group.label}
           </Link>
@@ -72,8 +81,10 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
                 href={v.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-colors",
-                  active ? "border-primary-600 bg-primary-600 text-white shadow-sm" : "border-line bg-white text-brand-600 hover:bg-primary-50 hover:text-primary-700",
+                  "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                  active
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "text-brand-400 hover:text-brand-950",
                 )}
               >
                 {v.label}

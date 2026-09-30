@@ -225,13 +225,13 @@ function WebsiteAuditClient() {
       {/* Top Header & Breadcrumb */}
       <div className="space-y-2">
         {/* Breadcrumb row */}
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <Home size={13} className="text-slate-400" />
-          <span className="font-medium text-slate-700 dark:text-slate-200">{clientName}</span>
-          <ChevronRight size={12} className="text-slate-400" />
+        <div className="flex items-center gap-1.5 text-xs text-brand-400">
+          <Home size={13} className="text-brand-400" />
+          <span className="font-medium text-brand-300">{clientName}</span>
+          <ChevronRight size={12} className="text-brand-400" />
           <span>Website Audit</span>
-          <ChevronRight size={12} className="text-slate-400" />
-          <span className="font-semibold text-slate-900 dark:text-white capitalize">
+          <ChevronRight size={12} className="text-brand-400" />
+          <span className="font-semibold text-brand-950 capitalize">
             {activeTab.replace(/-/g, " ")}
           </span>
         </div>
@@ -239,21 +239,21 @@ function WebsiteAuditClient() {
         {/* Main Title & Action Buttons Row */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-1">
           <div className="space-y-1.5 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-brand-950 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-brand-950">
               {headerContent.title}
             </h1>
-            <p className="text-xs text-brand-500 dark:text-brand-400 max-w-2xl leading-relaxed">
+            <p className="text-xs text-brand-400 max-w-2xl leading-relaxed">
               {headerContent.subtitle}
             </p>
             {crawl.data?.finishedAt && (
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-brand-500 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-brand-400 pt-0.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-500" />
-                <span className="font-medium text-brand-700 dark:text-brand-300">
+                <span className="font-medium text-brand-300">
                   Last checked: {formatRelativeTime(crawl.data.finishedAt)}
                 </span>
-                <span className="text-brand-300 dark:text-brand-700">·</span>
+                <span className="text-brand-400">·</span>
                 <span>{counts?.pagesCrawled ?? allPages.length} pages</span>
-                <span className="text-brand-300 dark:text-brand-700">·</span>
+                <span className="text-brand-400">·</span>
                 <span>
                   {counts
                     ? `${counts.openGroups} problem${counts.openGroups === 1 ? "" : "s"} found`
@@ -261,7 +261,7 @@ function WebsiteAuditClient() {
                 </span>
                 {crawlDuration && (
                   <>
-                    <span className="text-brand-300 dark:text-brand-700">·</span>
+                    <span className="text-brand-400">·</span>
                     <span>Completed in {crawlDuration}</span>
                   </>
                 )}
@@ -274,18 +274,18 @@ function WebsiteAuditClient() {
             <button
               type="button"
               onClick={handleExportPdf}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:bg-brand-100 active:scale-95 transition-all"
             >
-              <FileDown size={13.5} className="text-brand-500" />
+              <FileDown size={13.5} className="text-brand-400" />
               <span>Export PDF</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowShareModal(true)}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:bg-brand-100 active:scale-95 transition-all"
             >
-              <Share2 size={13.5} className="text-brand-500" />
+              <Share2 size={13.5} className="text-brand-400" />
               <span>Share Report</span>
             </button>
 
@@ -293,7 +293,7 @@ function WebsiteAuditClient() {
               type="button"
               onClick={handleReCrawl}
               disabled={crawling || !client?.domain}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 active:scale-95 disabled:opacity-50 transition-all dark:bg-white dark:text-brand-950 dark:hover:bg-brand-100"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
             >
               <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
               <span>{crawling ? "Checking…" : "Check my website again"}</span>
@@ -301,7 +301,7 @@ function WebsiteAuditClient() {
 
             <Link
               href="/fix-engine"
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-xs hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 active:scale-95 transition-all dark:bg-brand-900 dark:text-brand-200 dark:hover:bg-brand-800"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:border-brand-300 hover:bg-brand-100 active:scale-95 transition-all"
             >
               <Zap size={13} className="text-warning-500 fill-warning-500" />
               <span>Open Fix Engine</span>
@@ -312,18 +312,25 @@ function WebsiteAuditClient() {
       </div>
 
       {/* Navigation Sub-tabs Bar */}
-      <div className="border-b border-slate-200/80 dark:border-slate-800 flex overflow-x-auto no-scrollbar gap-2 pt-2">
+      <div
+        role="tablist"
+        aria-label="Website audit tabs"
+        className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px",
+                "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
                 isActive
-                  ? "border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400"
-                  : "border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                  : "text-brand-400 hover:text-brand-950",
               )}
             >
               <span>{tab.label}</span>
@@ -331,11 +338,9 @@ function WebsiteAuditClient() {
                 <span
                   className={cn(
                     "rounded-full px-1.5 py-0.2 text-[10px] font-bold leading-tight",
-                    tab.badgeTone === "danger"
-                      ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400"
-                      : tab.badgeTone === "info"
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    isActive
+                      ? "bg-signal-ink text-signal-400"
+                      : "bg-brand-200 text-brand-400",
                   )}
                 >
                   {tab.badge}

@@ -22,8 +22,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
-  // The dark skin is being trialled on the Dashboard tab only.
-  const dark = usePathname() === "/dashboard";
+  // Dark skin with the workflow top bar applies across all tabs in the console.
+  const dark = true;
 
   useEffect(() => {
     try {
@@ -60,7 +60,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AivaProvider>
-      <div className={cn("min-h-screen", dark && "dash-dark")} style={{ background: "var(--color-canvas)" }}>
+      <div className={cn("min-h-screen", dark && "dash-dark dark")} style={{ background: "var(--color-canvas)" }}>
         {dark ? (
           // The Dashboard trial: the workflow lives in the top bar as icons, so there is no sidebar.
           <Suspense fallback={null}>

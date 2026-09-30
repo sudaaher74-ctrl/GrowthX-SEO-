@@ -18,8 +18,17 @@ import { ShipPanel } from "@/components/fix-engine/ship-panel";
 export default function FixEnginePage() {
   return (
     <div className="space-y-4 pb-12">
-      <PageHeader title="Fix Engine" subtitle="Everything found across your website, Google, competitors, AI visibility and Business Profile, ranked, with what to do about it."
-        actions={<Link href="/reports/plan" className="rounded-lg border bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50">Download full report</Link>}
+      <PageHeader
+        title="Fix Engine"
+        subtitle="Everything found across your website, Google, competitors, AI visibility and Business Profile, ranked, with what to do about it."
+        actions={
+          <Link
+            href="/reports/plan"
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+          >
+            Download full report
+          </Link>
+        }
       />
       <ShipPanel />
       <EngineerPanel />

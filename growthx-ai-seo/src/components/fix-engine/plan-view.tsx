@@ -87,7 +87,11 @@ export function PlanView() {
       </StatusNote>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show findings from">
+        <div
+          role="group"
+          aria-label="Show findings from"
+          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           <Chip active={group === "ALL"} onClick={() => setGroup("ALL")}>All <span className="ml-1 font-mono text-[10px] opacity-70">{items.length}</span></Chip>
           {GROUPS.map((g) => (
             <Chip key={g.id} active={group === g.id} onClick={() => setGroup(g.id)}>
@@ -221,7 +225,12 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={cn("rounded-lg border px-2.5 py-1 text-[11.5px] font-medium", active ? "border-primary-500 bg-primary-50 text-primary-700" : "bg-white text-brand-600 hover:bg-brand-50")}
+      className={cn(
+        "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+        active
+          ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+          : "text-brand-400 hover:text-brand-950"
+      )}
     >
       {children}
     </button>

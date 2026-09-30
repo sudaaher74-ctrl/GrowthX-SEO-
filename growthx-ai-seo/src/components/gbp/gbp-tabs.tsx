@@ -66,57 +66,61 @@ export function GbpTabs({
   issuesCount,
 }: GbpTabsProps) {
   return (
-    <div className="relative border-b overflow-x-auto no-scrollbar" style={{ borderColor: "var(--border-color)" }}>
-      <div className="flex items-center gap-1 min-w-max pb-px">
-        {GBP_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+    <div
+      role="tablist"
+      aria-label="Google Business Profile tabs"
+      className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {GBP_TABS.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
 
-          let badgeContent: string | number | undefined = tab.badge;
-          if (tab.id === "reviews" && reviewCount != null && reviewCount > 0) {
-            badgeContent = reviewCount;
-          } else if (tab.id === "ai-recommendations" && proposalsCount != null && proposalsCount > 0) {
-            badgeContent = proposalsCount;
-          } else if (tab.id === "audit" && issuesCount != null && issuesCount > 0) {
-            badgeContent = issuesCount;
-          }
+        let badgeContent: string | number | undefined = tab.badge;
+        if (tab.id === "reviews" && reviewCount != null && reviewCount > 0) {
+          badgeContent = reviewCount;
+        } else if (tab.id === "ai-recommendations" && proposalsCount != null && proposalsCount > 0) {
+          badgeContent = proposalsCount;
+        } else if (tab.id === "audit" && issuesCount != null && issuesCount > 0) {
+          badgeContent = issuesCount;
+        }
 
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onChange(tab.id)}
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+              isActive
+                ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                : "text-brand-400 hover:text-brand-950"
+            )}
+          >
+            <Icon
+              size={13.5}
               className={cn(
-                "group relative flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold transition-all whitespace-nowrap border-b-2",
-                isActive
-                  ? "border-brand-950 text-brand-950 bg-brand-50/50 rounded-t-lg"
-                  : "border-transparent text-brand-500 hover:text-brand-900 hover:border-brand-200"
+                "shrink-0 transition-colors",
+                isActive ? "text-signal-ink" : "text-brand-400"
               )}
-            >
-              <Icon
-                size={14}
+            />
+            <span>{tab.label}</span>
+            {badgeContent != null && (
+              <span
                 className={cn(
-                  "shrink-0 transition-colors",
-                  isActive ? "text-brand-950" : "text-brand-400 group-hover:text-brand-700"
+                  "ml-0.5 rounded-full px-1.5 py-0.2 font-mono text-[10px] font-bold leading-tight",
+                  isActive
+                    ? "bg-signal-ink/15 text-signal-ink"
+                    : "bg-brand-200/60 text-brand-700"
                 )}
-              />
-              <span>{tab.label}</span>
-              {badgeContent != null && (
-                <span
-                  className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.2 font-mono text-[10px] font-bold leading-tight",
-                    isActive
-                      ? "bg-primary-600 text-white"
-                      : "bg-brand-100 text-brand-700 group-hover:bg-brand-200"
-                  )}
-                >
-                  {badgeContent}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+              >
+                {badgeContent}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

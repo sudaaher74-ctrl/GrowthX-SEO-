@@ -6,7 +6,7 @@
   "app/(dashboard)/help/page.tsx": 9,
   "app/(dashboard)/integrations/page.tsx": 19,
   "app/(dashboard)/settings/page.tsx": 17,
-  "app/(dashboard)/website/page.tsx": 74,
+  "app/(dashboard)/website/page.tsx": 44,
   "app/auth/callback/page.tsx": 11,
   "app/error.tsx": 12,
   "app/global-error.tsx": 9,

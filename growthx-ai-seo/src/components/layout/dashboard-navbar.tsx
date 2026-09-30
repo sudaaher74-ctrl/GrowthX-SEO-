@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,16 +29,33 @@ export function DashboardNavbar() {
   const { mainNav } = useMainNav();
   const profile = useProfile();
   const period = usePeriodDays();
-  // Which section's tabs are showing. Nothing is open until one is tapped.
-  const [openHref, setOpenHref] = useState<string | null>(null);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const scrollTabs = (dir: 1 | -1) => tabsRef.current?.scrollBy({ left: dir * 240, behavior: "smooth" });
-
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // Which section's tabs are showing. Auto-opens the current section if it has tabs.
+  const [userClosedHref, setUserClosedHref] = useState<string | null>(null);
   const currentTab = searchParams.get("tab");
   const isCurrent = (item: NavItem) =>
     pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const activeSection = mainNav.find(isCurrent);
+  const autoHref = activeSection?.children && activeSection.children.length > 0 ? activeSection.href : null;
+  const [openHref, setOpenHref] = useState<string | null>(autoHref);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollTabs(direction: -1 | 1) {
+    if (!tabsRef.current) return;
+    tabsRef.current.scrollBy({ left: direction * 160, behavior: "smooth" });
+  }
+
+  useEffect(() => {
+    const current = mainNav.find(isCurrent);
+    if (current?.children && current.children.length > 0) {
+      if (userClosedHref !== current.href) {
+        setOpenHref(current.href);
+      }
+    } else {
+      setOpenHref(null);
+    }
+  }, [pathname, userClosedHref]);
 
   const user = profile.data;
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
@@ -85,14 +102,17 @@ export function DashboardNavbar() {
               return (
                 <div
                   key={item.href}
-                  className="dash-light flex min-w-0 shrink items-center gap-1 rounded-full bg-brand-50 p-1 pr-2"
+                  className="dash-light flex min-w-0 shrink items-center gap-1 rounded-full bg-brand-50 border border-brand-200/80 p-1 pr-2 shadow-xs"
                 >
                   <button
                     type="button"
-                    onClick={() => setOpenHref(null)}
+                    onClick={() => {
+                      setOpenHref(null);
+                      setUserClosedHref(item.href);
+                    }}
                     aria-label={`Close ${item.label} tabs`}
                     title={`${item.label} (tap to close)`}
-                    className="dash-dark flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-950"
+                    className="dash-dark flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-950 transition hover:bg-brand-100"
                   >
                     <Icon size={18} />
                   </button>
@@ -109,7 +129,7 @@ export function DashboardNavbar() {
                           aria-selected={active}
                           className={cn(
                             "shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-[13px] font-semibold transition-colors",
-                            active ? "bg-signal-400 text-signal-ink" : "text-brand-600 hover:text-brand-950",
+                            active ? "bg-signal-400 text-signal-ink font-bold shadow-xs" : "text-brand-600 hover:text-brand-950",
                           )}
                         >
                           {sub.label}
@@ -146,7 +166,7 @@ export function DashboardNavbar() {
               </>
             );
             const tone = current
-              ? "bg-signal-400 text-signal-ink"
+              ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
               : "bg-brand-100 text-brand-500 hover:bg-brand-200 hover:text-brand-950";
 
             // A section with tabs opens them here; one without goes to its page.
@@ -154,7 +174,10 @@ export function DashboardNavbar() {
               <button
                 key={item.href}
                 type="button"
-                onClick={() => setOpenHref(item.href)}
+                onClick={() => {
+                  setOpenHref(item.href);
+                  setUserClosedHref(null);
+                }}
                 aria-label={item.label}
                 aria-expanded={false}
                 title={hint}
@@ -166,7 +189,10 @@ export function DashboardNavbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpenHref(null)}
+                onClick={() => {
+                  setOpenHref(null);
+                  setUserClosedHref(null);
+                }}
                 aria-label={item.label}
                 aria-current={current ? "page" : undefined}
                 title={hint}

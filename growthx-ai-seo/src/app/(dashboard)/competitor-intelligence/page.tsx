@@ -320,7 +320,7 @@ function CompetitorIntelligenceClient() {
       {/* ── BREADCRUMB & SUB-NAVIGATION BAR ── */}
       <div className="space-y-4">
         {/* Breadcrumb row */}
-        <div className="flex items-center gap-2 text-xs font-semibold text-brand-500">
+        <div className="flex items-center gap-2 text-xs font-semibold text-brand-400">
           <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
             <Home className="h-3.5 w-3.5" />
             <span>Dashboard</span>
@@ -335,16 +335,20 @@ function CompetitorIntelligenceClient() {
             <button
               type="button"
               onClick={() => setActiveTab("report")}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-accent-200 bg-accent-50/70 px-3 py-1.5 text-[12px] font-semibold text-accent-700 hover:bg-accent-100 transition-colors shadow-2xs"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
             >
               <span>Full report</span>
-              <span className="text-accent-500">↓</span>
+              <span className="text-brand-400">↓</span>
             </button>
           )}
         </div>
 
         {/* Global Horizontal Sub-navigation Pill Strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-line">
+        <div
+          role="tablist"
+          aria-label="Competitor intelligence tabs"
+          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-brand-50 border border-brand-200/60 p-1 text-[11.5px] font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
@@ -352,14 +356,16 @@ function CompetitorIntelligenceClient() {
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors ${
                   isActive
-                    ? "bg-primary-600 text-white shadow-xs"
-                    : "text-brand-600 hover:text-brand-950 hover:bg-brand-100 font-semibold"
+                    ? "bg-signal-400 text-signal-ink font-bold shadow-xs"
+                    : "text-brand-400 hover:text-brand-950"
                 }`}
               >
-                <Icon size={14} className={isActive ? "text-white" : "text-brand-400"} />
+                <Icon size={13.5} className={isActive ? "text-signal-ink" : "text-brand-400"} />
                 <span>{tab.label}</span>
               </button>
             );
