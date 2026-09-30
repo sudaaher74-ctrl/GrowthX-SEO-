@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Kpi, Panel, Table, Td, Th, Tr } from "@/components/ui/console";
-import { NoDataState, NotConnectedState } from "@/components/ui/truthful-state";
+import { LoadingState, NoDataState, NotConnectedState } from "@/components/ui/truthful-state";
 import { EmptyNote, Gate } from "@/components/google/view-kit";
 import { Headlines, SourceBadge } from "@/components/google/parts";
 import { MoreLinks } from "@/components/google/more-links";
@@ -24,6 +24,8 @@ export function SearchConsoleView() {
   const series = useGscTimeseries(projectId);
   const queries = useGscQueries(projectId, 50);
   const pages = useGscPages(projectId, 50);
+
+  if (!projectId) return <LoadingState compact title="Loading Search Console…" message="Reading the stored Search Console data for this workspace." />;
 
   if (overview.query.data && !overview.query.data.sources.searchConsole.connected) {
     return (
