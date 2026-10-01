@@ -229,8 +229,9 @@ test.describe("Google section, Overview", () => {
 
     await open(page, "/google/keywords");
     const nav = page.getByRole("navigation", { name: "Google sections" });
-    await expect(nav.getByRole("link").first()).toHaveText("Search Console", { timeout: 15_000 });
-    expect(await nav.getByRole("link").allInnerTexts()).toEqual(["Search Console", "Search Performance", "Keywords", "Pages", "Google Index"]);
+    // A retrying list assertion, not a one-shot allInnerTexts() read: a snapshot
+    // taken while the page was still rendering saw 3 of the 5 links in CI.
+    await expect(nav.getByRole("link")).toHaveText(["Search Console", "Search Performance", "Keywords", "Pages", "Google Index"], { timeout: 15_000 });
   });
 
   test("shows Search Console as connected but empty, with blanks instead of zeros", async ({ page }) => {
