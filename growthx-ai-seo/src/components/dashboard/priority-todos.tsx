@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 const SEVERITY = SEVERITY_PLAIN;
 
-export const FIX_CLASS_COPY: Record<FixClass, { label: string; hint: string; cta: string; href: string; note: string }> = {
+const FIX_CLASS_COPY: Record<FixClass, { label: string; hint: string; cta: string; href: string; note: string }> = {
   AUTO: {
     label: "1-Click AI Fix",
     hint: "Safe automated fix (e.g. metadata, canonicals) ready to deploy via AI.",
@@ -46,7 +46,7 @@ export const FIX_CLASS_COPY: Record<FixClass, { label: string; hint: string; cta
   },
 };
 
-export function getIssueMeta(group: IssueGroup) {
+function getIssueMeta(group: IssueGroup) {
   const type = (group.issueType || "").toLowerCase();
   const cat = (group.category || "").toLowerCase();
 
@@ -99,7 +99,7 @@ export function getIssueMeta(group: IssueGroup) {
   };
 }
 
-export function severityChip(sev: IssueSeverity): string {
+function severityChip(sev: IssueSeverity): string {
   return {
     CRITICAL: "bg-error-50 text-error-700",
     HIGH: "bg-warning-50 text-warning-700",

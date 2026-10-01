@@ -33,7 +33,7 @@ export function BigMeasure({ label, hint, measure }: { label: string; hint: stri
   );
 }
 
-export function formatCandleDate(isoOrDateStr: string): string {
+function formatCandleDate(isoOrDateStr: string): string {
   try {
     if (/^\d{4}-\d{2}-\d{2}/.test(isoOrDateStr)) {
       const [y, m, d] = isoOrDateStr.slice(0, 10).split("-").map(Number);

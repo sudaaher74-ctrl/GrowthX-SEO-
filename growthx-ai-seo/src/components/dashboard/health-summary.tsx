@@ -17,7 +17,7 @@ export function gradeScore(score: number): { label: string; tone: "good" | "warn
 }
 
 /** One bar split by how serious each finding is, with a plain-word legend. */
-export function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<IssueSeverity, number>; total: number }) {
+function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<IssueSeverity, number>; total: number }) {
   return (
     <div>
       <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-brand-200/40" aria-hidden>
@@ -53,7 +53,7 @@ export function SeverityBreakdown({ bySeverity, total }: { bySeverity: Record<Is
  */
 const PENALTY_CAP_PER_PAGE = 20;
 
-export function explainHealthScore(
+function explainHealthScore(
   score: number,
   openFindings: number,
   bySeverity: Record<IssueSeverity, number>,
