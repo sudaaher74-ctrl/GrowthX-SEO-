@@ -40,7 +40,7 @@
   "components/gbp/tabs/services-tab.tsx": 1,
   "components/layout/sidebar.tsx": 2,
   "components/settings/ai-configuration-tab.tsx": 16,
-  "components/ui/badge.tsx": 46,
+  "components/ui/badge.tsx": 41,
   "components/ui/button.tsx": 28,
   "components/ui/command-palette.tsx": 11,
   "components/ui/query-state.tsx": 1,
@@ -51,11 +51,13 @@
   "components/website/cwv-benchmark-bar.tsx": 51,
   "components/website/donut-chart.tsx": 5,
   "components/website/gauge-score.tsx": 30,
+  "components/website/pages/discovered-not-crawled-panel.tsx": 41,
+  "components/website/pages/pages-distributions.tsx": 34,
+  "components/website/pages/pages-kpis.tsx": 74,
+  "components/website/pages/pages-table.tsx": 139,
   "components/website/tabs/content-tab.tsx": 110,
-  "components/website/tabs/geo-tab.tsx": 136,
   "components/website/tabs/issues-tab.tsx": 82,
   "components/website/tabs/overview-tab.tsx": 81,
-  "components/website/tabs/pages-tab.tsx": 310,
-  "components/website/tabs/performance-tab.tsx": 146,
-  "lib/utils.ts": 6
+  "components/website/tabs/pages-tab.tsx": 22,
+  "components/website/tabs/performance-tab.tsx": 146
 }
