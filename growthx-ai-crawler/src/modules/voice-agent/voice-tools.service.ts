@@ -6,7 +6,7 @@ import { VoiceAgentResult } from './voice-agent.types';
 import { MultiAiRouterService, AiTask } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { ContentStrategyService } from '../content-intelligence/content-strategy.service';
 import { SeoCompetitorsService } from '../seo-tools/seo-competitors.service';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { competitorScope, websiteKey } from '../crawler/website-scope';
 import * as cheerio from 'cheerio';
@@ -40,7 +40,7 @@ export class VoiceToolsService {
     private readonly aiRouter: MultiAiRouterService,
     private readonly contentStrategy: ContentStrategyService,
     private readonly seoCompetitors: SeoCompetitorsService,
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
     private readonly crawler: CrawlerService,
   ) {}
 
@@ -558,7 +558,9 @@ export class VoiceToolsService {
         targetUrl = 'https://' + targetUrl;
       }
       
-      const fetchResult = await this.fetcher.fetchPage(targetUrl, true);
+      const fetchResult = typeof (this.fetcher as any).fetch === 'function'
+        ? await this.fetcher.fetch(targetUrl, { forceRender: true })
+        : await (this.fetcher as any).fetchPage(targetUrl, true);
       
       const $ = cheerio.load(fetchResult.html);
       $('script, style, noscript, svg, img').remove();

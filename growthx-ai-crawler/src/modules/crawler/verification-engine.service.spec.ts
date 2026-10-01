@@ -18,6 +18,14 @@ describe('VerificationEngineService — tenant scope', () => {
       },
     };
     const fetcher: any = {
+      fetch: jest.fn().mockResolvedValue({
+        url: '',
+        finalUrl: '',
+        statusCode: 200,
+        totalMs: 10,
+        html: '<html><head><title>t</title></head><body></body></html>',
+        statusChain: [],
+      }),
       fetchPage: jest.fn().mockResolvedValue({
         url: '',
         finalUrl: '',
@@ -68,7 +76,8 @@ describe('VerificationEngineService — tenant scope', () => {
       urls: ['https://mine.com/a', 'https://www.mine.com/b', 'http://169.254.169.254/latest', 'https://rival.com/x'],
     });
 
-    const fetched = fetcher.fetchPage.mock.calls.map((c: any[]) => c[0]);
+    const callSource = fetcher.fetch.mock.calls.length ? fetcher.fetch : fetcher.fetchPage;
+    const fetched = callSource.mock.calls.map((c: any[]) => c[0]);
     expect(fetched).toEqual(['https://mine.com/a', 'https://www.mine.com/b']);
   });
 
@@ -76,6 +85,7 @@ describe('VerificationEngineService — tenant scope', () => {
     const { service, fetcher } = build();
     await service.runVerification('org_1', 'p1', { urls: ['https://rival.com/x'] });
 
-    expect(fetcher.fetchPage.mock.calls.map((c: any[]) => c[0])).toEqual(['https://mine.com']);
+    const callSource = fetcher.fetch.mock.calls.length ? fetcher.fetch : fetcher.fetchPage;
+    expect(callSource.mock.calls.map((c: any[]) => c[0])).toEqual(['https://mine.com']);
   });
 });

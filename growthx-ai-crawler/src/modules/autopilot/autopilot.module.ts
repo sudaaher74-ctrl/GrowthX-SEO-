@@ -9,7 +9,7 @@ import { AutopilotController } from './autopilot.controller';
 import { AutopilotService } from './autopilot.service';
 import { AutopilotScheduler } from './autopilot.scheduler';
 
-// CrawlerService and FetcherService come from the global CrawlerModule.
+// CrawlerService and FetchService come from the global CrawlerModule.
 @Module({
   imports: [DatabaseModule, AiSearchModule, OrganizationsModule, ContentIntelligenceModule, CompetitorActionEngineModule, AuditReportModule],
   controllers: [AutopilotController],

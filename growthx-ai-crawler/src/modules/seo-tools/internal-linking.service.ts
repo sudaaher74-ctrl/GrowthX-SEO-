@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
@@ -41,7 +41,7 @@ export class InternalLinkingService {
   private readonly logger = new Logger(InternalLinkingService.name);
 
   constructor(
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
     private readonly prisma: PrismaService,
     private readonly router: MultiAiRouterService,
   ) {}
@@ -50,7 +50,9 @@ export class InternalLinkingService {
     this.logger.log(`Analyzing internal links for ${url} in project ${projectId}`);
 
     const [pageData, projectPages] = await Promise.all([
-      this.fetcher.fetchPage(url),
+      typeof (this.fetcher as any).fetch === 'function'
+        ? this.fetcher.fetch(url)
+        : (this.fetcher as any).fetchPage(url),
       this.fetchProjectPages(projectId),
     ]);
 

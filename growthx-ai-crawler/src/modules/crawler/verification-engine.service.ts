@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { FetcherService } from './fetcher.service';
+import { FetchService } from './fetch/fetch.service';
 import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 import { verdictFor } from './verification-verdict';
@@ -52,7 +52,7 @@ export class VerificationEngineService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
   ) {}
 
   /**
@@ -185,16 +185,45 @@ export class VerificationEngineService {
 
       // A fetch that threw has no status and no latency. It used to be
       // recorded as HTTP 200 in 85ms.
-      const fetchResult = await this.fetcher.fetchPage(targetUrl).catch((err) => ({
-        url: targetUrl,
-        finalUrl: targetUrl,
-        statusCode: 0,
-        responseTimeMs: 0,
-        html: '',
-        redirectChain: [targetUrl],
-        engine: 'cheerio' as const,
-        errorMessage: err.message as string,
-      }));
+      let fetchResult: {
+        url: string;
+        finalUrl: string;
+        statusCode: number;
+        responseTimeMs: number;
+        html: string;
+        redirectChain: string[];
+        engine: 'cheerio' | 'playwright';
+        errorMessage?: string;
+      };
+
+      try {
+        if (typeof (this.fetcher as any).fetch === 'function') {
+          const outcome = await this.fetcher.fetch(targetUrl);
+          fetchResult = {
+            url: outcome.url || targetUrl,
+            finalUrl: outcome.finalUrl || targetUrl,
+            statusCode: outcome.statusCode ?? 0,
+            responseTimeMs: outcome.totalMs ?? 0,
+            html: outcome.html || '',
+            redirectChain: outcome.statusChain?.map((h) => h.url) || [targetUrl],
+            engine: 'cheerio',
+            errorMessage: outcome.error?.message,
+          };
+        } else {
+          fetchResult = await (this.fetcher as any).fetchPage(targetUrl);
+        }
+      } catch (err: any) {
+        fetchResult = {
+          url: targetUrl,
+          finalUrl: targetUrl,
+          statusCode: 0,
+          responseTimeMs: 0,
+          html: '',
+          redirectChain: [targetUrl],
+          engine: 'cheerio',
+          errorMessage: err.message as string,
+        };
+      }
 
       if (fetchResult.statusCode > 0) {
         totalLatency += fetchResult.responseTimeMs;

@@ -5,7 +5,7 @@ import { OWN_SCOPE, competitorScope, websiteKey } from '../crawler/website-scope
 import { PrismaService } from '../../database/prisma.service';
 import { OrgContextService } from '../organizations/org-context.service';
 import { CrawlerService } from '../crawler/crawler.service';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { AiProvider, AiRequest, AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { extractAndParseJson } from '../ai-engine/utils/json-extractor.util';
 import { CompetitorCrawlService } from '../content-intelligence/competitor-crawl.service';
@@ -99,7 +99,7 @@ export class AutopilotService {
     private readonly prisma: PrismaService,
     private readonly orgContext: OrgContextService,
     private readonly crawler: CrawlerService,
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
     private readonly router: MultiAiRouterService,
     private readonly competitorCrawl: CompetitorCrawlService,
     private readonly report: CompetitorIntelReportService,
@@ -256,8 +256,10 @@ export class AutopilotService {
   async findCompetitors(domain: string, projectId: string, organizationId: string): Promise<CompetitorSuggestion[]> {
     let site = null;
     try {
-      const res = await this.fetcher.fetchPage(`https://${domain}`, false);
-      if (res.statusCode >= 200 && res.statusCode < 400 && res.html) site = summariseHomepage(res.html);
+      const res = typeof (this.fetcher as any).fetch === 'function'
+        ? await this.fetcher.fetch(`https://${domain}`)
+        : await (this.fetcher as any).fetchPage(`https://${domain}`, false);
+      if (res.statusCode && res.statusCode >= 200 && res.statusCode < 400 && res.html) site = summariseHomepage(res.html);
     } catch {
       // Carry on with whatever the crawl knows.
     }
@@ -375,8 +377,10 @@ export class AutopilotService {
   /** Whether a website exists and serves a page, so no invented site is ever offered. */
   protected async answers(domain: string): Promise<boolean> {
     try {
-      const res = await this.fetcher.fetchPage(`https://${domain}`, false);
-      return res.statusCode >= 200 && res.statusCode < 400;
+      const res = typeof (this.fetcher as any).fetch === 'function'
+        ? await this.fetcher.fetch(`https://${domain}`)
+        : await (this.fetcher as any).fetchPage(`https://${domain}`, false);
+      return (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 400;
     } catch {
       return false;
     }

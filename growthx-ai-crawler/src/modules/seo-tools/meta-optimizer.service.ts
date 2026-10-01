@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
 import { parseModelJson } from '../ai-engine/utils/json-extractor.util';
 
@@ -33,14 +33,16 @@ export class MetaOptimizerService {
   private readonly logger = new Logger(MetaOptimizerService.name);
 
   constructor(
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
     private readonly router: MultiAiRouterService,
   ) {}
 
   async analyzeAndOptimize(url: string, organizationId: string) {
     this.logger.log(`Fetching ${url} for meta tag optimization`);
     
-    const pageData = await this.fetcher.fetchPage(url);
+    const pageData = typeof (this.fetcher as any).fetch === 'function'
+      ? await this.fetcher.fetch(url)
+      : await (this.fetcher as any).fetchPage(url);
     if (!pageData || !pageData.html) {
       throw new Error('Failed to fetch the URL content.');
     }

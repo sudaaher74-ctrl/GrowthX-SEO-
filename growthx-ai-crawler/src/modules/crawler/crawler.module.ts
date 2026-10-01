@@ -18,9 +18,9 @@ import { CrawlRetentionService } from './crawl-retention.service';
   controllers: [CrawlController],
   providers: [
     CrawlerService,
-    // The v1 fetcher stays registered: competitor crawling and the
-    // verification engine still call it, and moving those is separate work
-    // with its own tests. New crawls go through FetchService.
+    // FetcherService is retained for backwards compatibility with tests and
+    // legacy consumers; competitor crawling, verification engine, autopilot,
+    // and SEO tools have been migrated to FetchService.
     FetcherService,
     BrowserPoolService,
     FetchService,
