@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Eye, FileText, MousePointerClick, Search, Users } from "lucide-react";
 import { Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
 import { FailedState, LoadingState, NoDataState } from "@/components/ui/truthful-state";
 import { ChangeText, SourceBadge, TrendCell } from "@/components/google/parts";
@@ -50,6 +51,7 @@ export function PagesView() {
 
   const { query, days } = useGooglePages(projectId, segment);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  const [search, setSearch] = useState("");
 
   const setParam = (next: Record<string, string | null>) => {
     const p = new URLSearchParams(params.toString());
@@ -62,13 +64,24 @@ export function PagesView() {
   };
 
   const data = query.data;
+  const rawRows = useMemo(() => data?.rows ?? [], [data?.rows]);
+
+  const totalPages = data?.total ?? 0;
+  const totalClicks = useMemo(() => rawRows.reduce((acc, r) => acc + (r.gsc?.clicks || 0), 0), [rawRows]);
+  const totalImpressions = useMemo(() => rawRows.reduce((acc, r) => acc + (r.gsc?.impressions || 0), 0), [rawRows]);
+  const totalUsers = useMemo(() => rawRows.reduce((acc, r) => acc + (r.ga?.users || 0), 0), [rawRows]);
+
   const rows = useMemo(() => {
     if (!data) return [];
-    if (!sort) return data.rows;
+    let list = [...data.rows];
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      list = list.filter((r) => r.url.toLowerCase().includes(q) || pathOf(r.url).toLowerCase().includes(q));
+    }
+    if (!sort) return list;
     const get = SORTERS[sort.key];
     const factor = sort.dir === "desc" ? -1 : 1;
-    // A page with no value for the column goes last either way, so a gap is never ranked as a zero.
-    return [...data.rows].sort((a, b) => {
+    return list.sort((a, b) => {
       const av = get(a);
       const bv = get(b);
       if (av === null && bv === null) return 0;
@@ -76,7 +89,7 @@ export function PagesView() {
       if (bv === null) return -1;
       return (av - bv) * factor;
     });
-  }, [data, sort]);
+  }, [data, sort, search]);
 
   if (selected) {
     return <PageDetail projectId={projectId} url={selected} onBack={() => setParam({ page: null })} />;
@@ -92,17 +105,75 @@ export function PagesView() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show pages">
-        <Chip active={!segment} onClick={() => setParam({ segment: null })}>
-          All organic pages <span className="ml-1 font-mono text-[10px] opacity-70">{data.total}</span>
-        </Chip>
-        {SEGMENTS.map((s) => (
-          <Chip key={s.id} active={segment === s.id} title={data.criteria[s.id]} onClick={() => setParam({ segment: s.id })}>
-            {s.label} <span className="ml-1 font-mono text-[10px] opacity-70">{data.segmentCounts[s.id]}</span>
-          </Chip>
-        ))}
+    <div className="space-y-5">
+      {/* ── TOP KPI SUMMARY GRID ── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+            <FileText size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold text-brand-400">Total Ranked Pages</p>
+            <p className="font-mono text-xl font-bold text-brand-950">{totalPages}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-500/20 text-accent-600 font-bold">
+            <MousePointerClick size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold text-brand-400">Total Organic Clicks</p>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(totalClicks)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-200/60 text-brand-950 font-bold">
+            <Eye size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold text-brand-400">Total Impressions</p>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(totalImpressions)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400/20 text-signal-ink font-bold">
+            <Users size={18} />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold text-brand-400">GA4 Organic Users</p>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(totalUsers)}</p>
+          </div>
+        </div>
       </div>
+
+      {/* ── SEGMENTS & LIVE SEARCH BAR ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show pages">
+          <Chip active={!segment} onClick={() => setParam({ segment: null })}>
+            All organic pages <span className="ml-1 font-mono text-[10px] opacity-70">{data.total}</span>
+          </Chip>
+          {SEGMENTS.map((s) => (
+            <Chip key={s.id} active={segment === s.id} title={data.criteria[s.id]} onClick={() => setParam({ segment: s.id })}>
+              {s.label} <span className="ml-1 font-mono text-[10px] opacity-70">{data.segmentCounts[s.id]}</span>
+            </Chip>
+          ))}
+        </div>
+
+        <div className="relative min-w-[220px]">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search pages by URL path…"
+            className="w-full rounded-xl border border-brand-200/70 bg-brand-100/40 py-1.5 pl-7 pr-3 text-[11.5px] text-brand-950 placeholder:text-brand-400 focus:outline-hidden focus:ring-1 focus:ring-brand-400"
+          />
+        </div>
+      </div>
+
       {segment && data.criteria[segment] && <p className="text-[11.5px] text-brand-500">{data.criteria[segment]}</p>}
 
       <Panel
@@ -117,17 +188,23 @@ export function PagesView() {
           <div className="p-4">
             <NoDataState
               compact
-              title={segment ? "No pages match this segment" : "No organic pages for this period"}
+              title={search ? "No pages match your search" : segment ? "No pages match this segment" : "No organic pages for this period"}
               missing={
-                segment
-                  ? "None of your pages meet this segment's rule for the period."
-                  : !data.sources.searchConsole.hasData
-                    ? "Search Console has nothing fetched yet, and Google Analytics has no organic landing pages."
-                    : "Neither source recorded organic traffic to any page in this period."
+                search
+                  ? `No page paths match "${search}". Try clearing your search.`
+                  : segment
+                    ? "None of your pages meet this segment's rule for the period."
+                    : !data.sources.searchConsole.hasData
+                      ? "Search Console has nothing fetched yet, and Google Analytics has no organic landing pages."
+                      : "Neither source recorded organic traffic to any page in this period."
               }
-              whyItMatters="The rule is shown above; a page appears here only when its real figures meet it."
-              actionRequired="Try a longer range, or press Refresh data."
-              action={{ label: "Show all pages", onClick: () => setParam({ segment: null }), variant: "secondary" }}
+              whyItMatters="A page appears here only when its real measured figures match."
+              actionRequired={search ? "Clear the search input above." : "Try a longer range, or press Refresh data."}
+              action={
+                search
+                  ? { label: "Clear search", onClick: () => setSearch(""), variant: "secondary" }
+                  : { label: "Show all pages", onClick: () => setParam({ segment: null }), variant: "secondary" }
+              }
             />
           </div>
         ) : (
@@ -151,7 +228,7 @@ export function PagesView() {
               {rows.map((r) => (
                 <Tr
                   key={r.key}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-brand-100/40 transition"
                   tabIndex={0}
                   onClick={() => setParam({ page: r.url })}
                   onKeyDown={(e) => {
@@ -160,7 +237,7 @@ export function PagesView() {
                 >
                   <Td>
                     <div className="flex max-w-[280px] items-center gap-2">
-                      <span className="truncate font-mono text-[11.5px] text-brand-950" title={r.url}>{pathOf(r.url)}</span>
+                      <span className="truncate font-mono text-[11.5px] font-medium text-brand-950" title={r.url}>{pathOf(r.url)}</span>
                       {r.technicalRisk && (
                         <span title={r.technicalRisk}>
                           <Pill tone="warn">risk</Pill>
@@ -207,11 +284,14 @@ function Chip({ active, onClick, children, title }: { active: boolean; onClick: 
       title={title}
       onClick={onClick}
       className={cn(
-        "rounded-lg border px-2.5 py-1 text-[11.5px] font-medium",
-        active ? "border-primary-500 bg-primary-50 text-primary-700" : "bg-white text-brand-600 hover:bg-brand-50",
+        "rounded-xl border px-3 py-1.5 text-[11.5px] font-medium transition",
+        active
+          ? "border-signal-400 bg-signal-400/15 text-brand-950 font-semibold shadow-xs"
+          : "border-brand-200/60 bg-brand-50/50 text-brand-500 hover:border-brand-300 hover:text-brand-950 hover:bg-brand-100/50",
       )}
     >
       {children}
     </button>
   );
 }
+

@@ -49,10 +49,10 @@ export function QueriesOpportunitiesPanel({
       <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-xs font-bold text-brand-950">Top queries</h3>
+            <Link href="/google/keywords" className="group flex-1">
+              <h3 className="text-xs font-bold text-brand-950 group-hover:text-signal-400 transition">Top queries</h3>
               <p className="text-[11px] text-brand-400">By clicks, then impressions.</p>
-            </div>
+            </Link>
             <Link href="/google/keywords" className="text-[11px] font-bold text-signal-400 hover:underline">
               All keywords →
             </Link>
@@ -69,8 +69,10 @@ export function QueriesOpportunitiesPanel({
             </thead>
             <tbody className="divide-y divide-brand-200/40">
               {queries.map((q) => (
-                <tr key={q.query} className="text-brand-950">
-                  <td className="py-2 font-mono truncate max-w-[100px]">{q.query}</td>
+                <tr key={q.query} className="text-brand-950 hover:bg-brand-100/50 transition cursor-pointer">
+                  <td className="py-2 font-mono truncate max-w-[100px]">
+                    <Link href="/google/keywords" className="hover:underline">{q.query}</Link>
+                  </td>
                   <td className="py-2 font-mono text-right">{q.clicks}</td>
                   <td className="py-2 font-mono text-right text-brand-400">{q.impressions}</td>
                   <td className="py-2 font-mono text-right text-brand-400">{q.position}</td>
@@ -85,10 +87,10 @@ export function QueriesOpportunitiesPanel({
       <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-xs font-bold text-brand-950">Top pages</h3>
+            <Link href="/google/pages" className="group flex-1">
+              <h3 className="text-xs font-bold text-brand-950 group-hover:text-signal-400 transition">Top pages</h3>
               <p className="text-[11px] text-brand-400">By clicks, then impressions.</p>
-            </div>
+            </Link>
             <Link href="/google/pages" className="text-[11px] font-bold text-signal-400 hover:underline">
               All pages →
             </Link>
@@ -105,8 +107,10 @@ export function QueriesOpportunitiesPanel({
             </thead>
             <tbody className="divide-y divide-brand-200/40">
               {pages.map((p) => (
-                <tr key={p.page} className="text-brand-950">
-                  <td className="py-2 font-mono truncate max-w-[100px]">{p.page}</td>
+                <tr key={p.page} className="text-brand-950 hover:bg-brand-100/50 transition cursor-pointer">
+                  <td className="py-2 font-mono truncate max-w-[100px]">
+                    <Link href="/google/pages" className="hover:underline">{p.page}</Link>
+                  </td>
                   <td className="py-2 font-mono text-right">{p.clicks}</td>
                   <td className="py-2 font-mono text-right text-brand-400">{p.impressions}</td>
                   <td className="py-2 font-mono text-right text-brand-400">{p.position}</td>
@@ -121,10 +125,10 @@ export function QueriesOpportunitiesPanel({
       <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-xs font-bold text-brand-950">Opportunities</h3>
+            <Link href="/google/opportunities" className="group flex-1">
+              <h3 className="text-xs font-bold text-brand-950 group-hover:text-signal-400 transition">Opportunities</h3>
               <p className="text-[10.5px] text-brand-400">Top SEO opportunities.</p>
-            </div>
+            </Link>
             <Link href="/google/opportunities" className="text-brand-400 hover:text-brand-950 transition">
               <ChevronRight size={13} />
             </Link>
@@ -132,12 +136,16 @@ export function QueriesOpportunitiesPanel({
 
           <div className="space-y-2 mt-2">
             {opportunities.map((op, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 rounded-lg p-1.5 hover:bg-brand-100/60 transition text-xs">
+              <Link
+                key={i}
+                href="/google/opportunities"
+                className="flex items-center justify-between gap-2 rounded-lg p-1.5 hover:bg-brand-100/60 transition text-xs group"
+              >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-error-500/20 text-error-500 font-bold text-[9px]">
                     !
                   </span>
-                  <span className="truncate font-medium text-brand-950 text-[11px]">{op.title}</span>
+                  <span className="truncate font-medium text-brand-950 text-[11px] group-hover:text-signal-400 transition">{op.title}</span>
                 </div>
                 <span className={cn(
                   "rounded-full px-2 py-0.5 font-bold text-[9.5px] shrink-0",
@@ -145,7 +153,7 @@ export function QueriesOpportunitiesPanel({
                 )}>
                   {op.severity}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -155,10 +163,10 @@ export function QueriesOpportunitiesPanel({
       <div className="lg:col-span-3 rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-xs font-bold text-brand-950">Changes & alerts</h3>
+            <Link href="/google/changes" className="group flex-1">
+              <h3 className="text-xs font-bold text-brand-950 group-hover:text-signal-400 transition">Changes & alerts</h3>
               <p className="text-[10.5px] text-brand-400">From Google.</p>
-            </div>
+            </Link>
             <Link href="/google/changes" className="text-brand-400 hover:text-brand-950 transition">
               <ChevronRight size={13} />
             </Link>
@@ -166,7 +174,11 @@ export function QueriesOpportunitiesPanel({
 
           <div className="space-y-2 mt-2">
             {alerts.map((al, i) => (
-              <div key={i} className="flex items-center justify-between gap-1.5 rounded-lg p-1.5 hover:bg-brand-100/60 transition text-xs">
+              <Link
+                key={i}
+                href="/google/changes"
+                className="flex items-center justify-between gap-1.5 rounded-lg p-1.5 hover:bg-brand-100/60 transition text-xs group"
+              >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className={cn(
                     "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px]",
@@ -174,7 +186,7 @@ export function QueriesOpportunitiesPanel({
                   )}>
                     {al.up ? "↑" : "↓"}
                   </span>
-                  <span className="truncate font-medium text-brand-950 text-[11px]">{al.text}</span>
+                  <span className="truncate font-medium text-brand-950 text-[11px] group-hover:text-signal-400 transition">{al.text}</span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0 text-[10px]">
                   <span className={cn("font-mono font-bold", al.up ? "text-success-500" : "text-error-500")}>
@@ -182,7 +194,7 @@ export function QueriesOpportunitiesPanel({
                   </span>
                   <span className="text-brand-400">{al.time}</span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

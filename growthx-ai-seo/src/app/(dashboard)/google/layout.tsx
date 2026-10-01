@@ -55,10 +55,34 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
   const group = view ? GOOGLE_GROUPS[view.group] : null;
   const siblings = view ? GOOGLE_VIEWS.filter((v) => v.group === view.group) : [];
   const source = view?.group === "search-console" ? "searchConsole" : view?.group === "analytics" ? "analytics" : undefined;
+  const pageTitle = view?.label ?? "Google Performance";
+  const pageSubtitle = view?.will ?? "Understand how Google visibility turns into traffic, engagement and business results.";
 
   return (
     <div className="space-y-4 pb-12">
-      <PageHeader title="Google Performance" subtitle="Understand how Google visibility turns into traffic, engagement and business results." />
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/google"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-400 hover:text-brand-950 transition-colors"
+        >
+          <ArrowLeft size={13} />
+          <span>Google Overview</span>
+        </Link>
+      </div>
+
+      <PageHeader
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        actions={
+          <Link
+            href="/google/report"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 transition-all"
+          >
+            <Sparkles size={13} />
+            Improvement report
+          </Link>
+        }
+      />
       <GoogleStatusBar projectId={projectId} source={source} />
       {group && (
         <nav

@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Activity, Globe, Percent, Search, Users } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Kpi, Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
+import { Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
 import { SourceBadge } from "@/components/google/parts";
 import { Ga4Gate } from "@/components/google/ga4-gate";
 import type { Ga4Report, Ga4ReportData } from "@/lib/api-client";
@@ -44,29 +45,78 @@ export function TrafficView() {
 }
 
 function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data: Ga4ReportData }) {
+  const [pageSearch, setPageSearch] = useState("");
   const view = useMemo(() => buildTraffic(reportData), [reportData]);
   const { data, groups, total, organic, organicShare, pages } = view;
   const totals = data.totals;
 
+  const filteredPages = useMemo(() => {
+    if (!pageSearch.trim()) return pages;
+    const q = pageSearch.toLowerCase().trim();
+    return pages.filter((p) => p.page.toLowerCase().includes(q) || pathOf(p.page).toLowerCase().includes(q));
+  }, [pages, pageSearch]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {r.lastError && <p className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-[12px] text-warning-700">Latest refresh failed, showing the last good data: {r.lastError}</p>}
 
+      {/* ── TOP KPI SUMMARY GRID ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Sessions" value={count(total)} aside={<SourceBadge source="GA4" />} sub={`${shortDay(data.startDate)} – ${shortDay(data.endDate)}`} />
-        <Kpi
-          label="Organic Search sessions"
-          value={count(organic)}
-          aside={<SourceBadge source="GA4" />}
-          sub={organicShare === null ? undefined : `${percent(organicShare)} of all sessions`}
-        />
-        <Kpi label="Active users" value={count(totals.activeUsers)} aside={<SourceBadge source="GA4" />} sub={`${count(totals.newUsers)} new`} />
-        <Kpi
-          label="Engagement rate"
-          value={percent(totals.engagementRate)}
-          aside={<SourceBadge source="GA4" />}
-          sub={`${duration(totals.averageEngagementTimeSec)} average engagement per user`}
-        />
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400 text-signal-ink font-bold">
+            <Activity size={18} />
+          </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-brand-400">Total Sessions</p>
+              <SourceBadge source="GA4" />
+            </div>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(total)}</p>
+            <p className="text-[10px] text-brand-400">{shortDay(data.startDate)} – {shortDay(data.endDate)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success-500/20 text-success-600 font-bold">
+            <Globe size={18} />
+          </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-brand-400">Organic Sessions</p>
+              <SourceBadge source="GA4" />
+            </div>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(organic)}</p>
+            <p className="text-[10px] text-brand-400">{organicShare === null ? "—" : `${percent(organicShare)} of all sessions`}</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-200/60 text-brand-950 font-bold">
+            <Users size={18} />
+          </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-brand-400">Active Users</p>
+              <SourceBadge source="GA4" />
+            </div>
+            <p className="font-mono text-xl font-bold text-brand-950">{count(totals.activeUsers)}</p>
+            <p className="text-[10px] text-brand-400">{count(totals.newUsers)} new users</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-signal-400/20 text-signal-ink font-bold">
+            <Percent size={18} />
+          </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-brand-400">Engagement Rate</p>
+              <SourceBadge source="GA4" />
+            </div>
+            <p className="font-mono text-xl font-bold text-brand-950">{percent(totals.engagementRate)}</p>
+            <p className="text-[10px] text-brand-400">{duration(totals.averageEngagementTimeSec)} avg time</p>
+          </div>
+        </div>
       </div>
 
       <Panel
@@ -87,7 +137,7 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
           </thead>
           <tbody>
             {groups.map((g) => (
-              <Tr key={g.group}>
+              <Tr key={g.group} className="hover:bg-brand-100/40 transition">
                 <Td>
                   <div className="flex items-center gap-2">
                     <span className="text-[12.5px] font-semibold text-brand-950">{g.group}</span>
@@ -103,9 +153,9 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
                 <Td align="right">{percent(g.engagementRate)}</Td>
                 <Td align="right">{count(g.keyEvents)}</Td>
                 <Td>
-                  <div className="h-1.5 w-40 rounded-full bg-brand-100">
+                  <div className="h-2 w-36 rounded-full bg-brand-100 overflow-hidden">
                     <div
-                      className={g.group === "Organic Search" ? "h-1.5 rounded-full bg-primary-600" : "h-1.5 rounded-full bg-brand-400"}
+                      className={g.group === "Organic Search" ? "h-2 rounded-full bg-signal-400" : "h-2 rounded-full bg-brand-400"}
                       style={{ width: `${Math.max((g.share ?? 0) * 100, g.sessions > 0 ? 1.5 : 0)}%` }}
                     />
                   </div>
@@ -146,13 +196,27 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
         title="Landing pages"
         subtitle="Where sessions from every channel begin, top pages by sessions."
         actions={
-          <Link href="/google/pages" className="text-[12px] font-semibold text-accent-700 hover:underline">
-            Organic page performance →
-          </Link>
+          <div className="flex items-center gap-3">
+            <div className="relative min-w-[200px]">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400 pointer-events-none" />
+              <input
+                type="text"
+                value={pageSearch}
+                onChange={(e) => setPageSearch(e.target.value)}
+                placeholder="Search landing pages…"
+                className="w-full rounded-xl border border-brand-200/70 bg-brand-100/40 py-1 pl-7 pr-3 text-[11px] text-brand-950 placeholder:text-brand-400 focus:outline-hidden focus:ring-1 focus:ring-brand-400"
+              />
+            </div>
+            <Link href="/google/pages" className="text-[12px] font-semibold text-accent-700 hover:underline">
+              Organic page performance →
+            </Link>
+          </div>
         }
       >
-        {pages.length === 0 ? (
-          <p className="p-4 text-[12px] text-brand-500">Google Analytics returned no landing pages for this period.</p>
+        {filteredPages.length === 0 ? (
+          <p className="p-4 text-[12px] text-brand-500">
+            {pageSearch ? `No landing pages match "${pageSearch}".` : "Google Analytics returned no landing pages for this period."}
+          </p>
         ) : (
           <Table minWidth={640}>
             <thead>
@@ -165,10 +229,10 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
               </tr>
             </thead>
             <tbody>
-              {pages.map((p) => (
-                <Tr key={p.page}>
+              {filteredPages.map((p) => (
+                <Tr key={p.page} className="hover:bg-brand-100/40 transition">
                   <Td>
-                    <span className="block max-w-[360px] truncate font-mono text-[11.5px] text-brand-950" title={p.page}>{pathOf(p.page)}</span>
+                    <span className="block max-w-[360px] truncate font-mono text-[11.5px] font-medium text-brand-950" title={p.page}>{pathOf(p.page)}</span>
                   </Td>
                   <Td align="right">{count(p.sessions)}</Td>
                   <Td align="right">{total > 0 ? percent(p.sessions / total) : DASH}</Td>

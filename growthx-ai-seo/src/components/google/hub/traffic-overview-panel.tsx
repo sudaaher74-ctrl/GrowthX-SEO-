@@ -136,10 +136,10 @@ export function TrafficOverviewPanel({
       {/* Where your traffic comes from */}
       <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <div>
-            <h3 className="text-sm font-bold text-brand-950">Where your traffic comes from</h3>
+          <Link href="/google/traffic" className="group flex-1">
+            <h3 className="text-sm font-bold text-brand-950 group-hover:text-signal-400 transition">Where your traffic comes from</h3>
             <p className="text-xs text-brand-400">Sessions in the last {days} days, by channel.</p>
-          </div>
+          </Link>
           <Link href="/google/traffic" className="text-brand-400 hover:text-brand-950 transition">
             <ChevronRight size={14} />
           </Link>
@@ -147,17 +147,17 @@ export function TrafficOverviewPanel({
 
         <div className="space-y-2.5 pt-1">
           {channels.map((c) => (
-            <div key={c.name} className="flex items-center gap-3 text-xs">
+            <Link key={c.name} href="/google/traffic" className="flex items-center gap-3 text-xs group hover:bg-brand-100/50 p-1 rounded-lg transition">
               <div className="flex items-center gap-2 w-32 shrink-0">
                 <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", c.color)} />
-                <span className="font-medium text-brand-950 truncate">{c.name}</span>
+                <span className="font-medium text-brand-950 group-hover:text-signal-400 transition truncate">{c.name}</span>
               </div>
               <span className="font-mono text-brand-400 w-8 text-right">{c.count}</span>
               <span className="font-mono text-brand-950 w-12 text-right font-semibold">{c.pct}</span>
               <div className="flex-1 h-2 rounded-full bg-brand-100 overflow-hidden">
                 <div className={cn("h-full rounded-full", c.color)} style={{ width: `${c.barPct}%` }} />
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
@@ -165,25 +165,25 @@ export function TrafficOverviewPanel({
       {/* Top landing pages */}
       <div className="rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md flex flex-col justify-between">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <div>
-            <h3 className="text-sm font-bold text-brand-950">Top landing pages</h3>
+          <Link href="/google/traffic" className="group flex-1">
+            <h3 className="text-sm font-bold text-brand-950 group-hover:text-signal-400 transition">Top landing pages</h3>
             <p className="text-xs text-brand-400">Where visits begin, by sessions.</p>
-          </div>
-          <Link href="/google/pages" className="text-brand-400 hover:text-brand-950 transition">
+          </Link>
+          <Link href="/google/traffic" className="text-brand-400 hover:text-brand-950 transition" title="View landing pages and traffic">
             <ChevronRight size={14} />
           </Link>
         </div>
 
         <div className="space-y-2.5 pt-1">
           {landingPages.map((p) => (
-            <div key={p.path} className="flex items-center gap-3 text-xs">
-              <span className="font-mono text-brand-950 w-36 truncate font-medium">{p.path}</span>
+            <Link key={p.path} href="/google/traffic" className="flex items-center gap-3 text-xs group hover:bg-brand-100/50 p-1 rounded-lg transition">
+              <span className="font-mono text-brand-950 group-hover:text-signal-400 transition w-36 truncate font-medium">{p.path}</span>
               <span className="font-mono text-brand-400 w-8 text-right">{p.count}</span>
               <span className="font-mono text-brand-950 w-12 text-right font-semibold">{p.pct}</span>
               <div className="flex-1 h-2 rounded-full bg-brand-100 overflow-hidden">
                 <div className={cn("h-full rounded-full", p.color)} style={{ width: `${p.barPct}%` }} />
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
