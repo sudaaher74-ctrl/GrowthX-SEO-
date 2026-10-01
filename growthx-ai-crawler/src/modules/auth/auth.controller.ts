@@ -52,7 +52,7 @@ export class AuthController {
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   @UseFilters(GoogleAuthExceptionFilter)
-  async googleAuth(@Req() req: any) {
+  async googleAuth(@Req() _req: any) {
     // Initiates the Google OAuth flow
   }
 

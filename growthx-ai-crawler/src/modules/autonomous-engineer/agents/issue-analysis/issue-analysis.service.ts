@@ -55,7 +55,7 @@ The searchKeywords should be a list of code snippets or semantic concepts to sea
       const result: IssueAnalysisResult = JSON.parse(completion.text);
       this.logger.log(`AI Strategy: ${result.strategy}`);
       return result;
-    } catch (e) {
+    } catch (_e) {
       this.logger.error(`Failed to parse AI issue analysis: ${completion.text}`);
       throw new Error('AI returned invalid JSON for issue analysis.');
     }

@@ -18,8 +18,8 @@ export function CircularScoreGauge({
   max = 100,
   size = 110,
   strokeWidth = 10,
-  statusLabel,
-  statusTone = "good",
+  statusLabel: _statusLabel,
+  statusTone: _statusTone = "good",
   className,
 }: CircularScoreGaugeProps) {
   const radius = (size - strokeWidth) / 2;

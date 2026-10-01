@@ -56,11 +56,13 @@ export function ExplorerView() {
   const { rows, cols, label, loading } = useMemo(() => {
     if (dataset === "queries") return { rows: (queries.query.data ?? []).map((r) => ({ ...r })), cols: SEARCH_COLS, label: "Query", loading: queries.query.isLoading };
     if (dataset === "pages") return { rows: (gscPages.query.data ?? []).map((r) => ({ ...r })), cols: SEARCH_COLS, label: "Page", loading: gscPages.query.isLoading };
-    if (dataset === "countries" || dataset === "devices") {
-      const q = dataset === "countries" ? countries.query : devices.query;
-      // Search Console gives countries as lower-case ISO codes and devices as DESKTOP / MOBILE / TABLET.
-      const rows: Row[] = (q.data?.rows ?? []).map((r) => ({ ...r, key: r.key.toUpperCase() }));
-      return { rows, cols: SEARCH_COLS, label: dataset === "countries" ? "Country" : "Device", loading: q.isLoading };
+    if (dataset === "countries") {
+      const rows: Row[] = (countries.query.data?.rows ?? []).map((r) => ({ ...r, key: r.key.toUpperCase() }));
+      return { rows, cols: SEARCH_COLS, label: "Country", loading: countries.query.isLoading };
+    }
+    if (dataset === "devices") {
+      const rows: Row[] = (devices.query.data?.rows ?? []).map((r) => ({ ...r, key: r.key.toUpperCase() }));
+      return { rows, cols: SEARCH_COLS, label: "Device", loading: devices.query.isLoading };
     }
     const rows: Row[] = (organic.query.data?.rows ?? []).map((r) => ({
       key: r.url,

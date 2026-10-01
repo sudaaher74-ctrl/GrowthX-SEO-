@@ -97,14 +97,19 @@ function WebsiteAuditClient() {
   }, [crawl.data, qualityDiagnostics]);
 
   // Sync refetch when completed
+  const { refetch: refetchHistory } = history;
+  const { refetch: refetchIssues } = issues;
+  const { refetch: refetchPages } = pages;
+  const { refetch: refetchPortfolio } = portfolio;
+
   useEffect(() => {
     if (crawl.data?.status === "COMPLETED") {
-      history.refetch();
-      issues.refetch();
-      pages.refetch();
-      portfolio.refetch();
+      refetchHistory();
+      refetchIssues();
+      refetchPages();
+      refetchPortfolio();
     }
-  }, [crawl.data?.status]);
+  }, [crawl.data?.status, refetchHistory, refetchIssues, refetchPages, refetchPortfolio]);
 
   async function handleReCrawl() {
     if (!client?.domain) return;

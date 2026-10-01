@@ -117,7 +117,7 @@ Respond strictly with a JSON object.
       await fs.writeFile(filePath, result.updatedContent, 'utf-8');
       this.logger.log(`Successfully generated and applied AI patch to ${filePath}`);
       return { applied: true };
-    } catch (e) {
+    } catch (_e) {
       this.logger.error(`Failed to parse AI patch generation: ${completion.text}`);
       return { applied: false, reason: 'AI returned invalid JSON for code generation.' };
     }
@@ -391,7 +391,7 @@ Respond strictly with a JSON object.
    * orphan page. A page that already links to `href` is left alone.
    */
   async injectNextJsInternalLink(filePath: string, anchorText: string, href?: string): Promise<PatchOutcome> {
-    const { Project, SyntaxKind, Node } = await tsMorph();
+    const { Project, Node } = await tsMorph();
     if (!href) {
       return { applied: false, reason: 'Missing the URL to link to.' };
     }

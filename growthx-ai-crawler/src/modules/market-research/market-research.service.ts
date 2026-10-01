@@ -566,7 +566,7 @@ export class MarketResearchService {
         const outcome = await this.verification.verify(merged, domain, nicheText, normalizedRegion);
         // `matchedTerms` is dropped: it is how the check was made, not
         // something the operator needs on the card.
-        candidates = outcome.verified.map(({ matchedTerms, ...rest }) => ({
+        candidates = outcome.verified.map(({ matchedTerms: _matchedTerms, ...rest }) => ({
           ...rest,
           verified: true as const,
           source: sourceOf.get(normalizeDomain(rest.domain)) ?? 'ai',
@@ -893,7 +893,7 @@ export class MarketResearchService {
   private sanitizeCompetitor(
     raw: any,
     targetDomain: string,
-    region: 'worldwide' | 'india' | 'maharashtra' = 'worldwide',
+    _region: 'worldwide' | 'india' | 'maharashtra' = 'worldwide',
   ): AutoIdentifiedCompetitor | null {
     if (!raw || typeof raw !== 'object') return null;
     const cleanDomain = normalizeDomain(String(raw.domain || ''));

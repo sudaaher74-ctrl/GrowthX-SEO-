@@ -25,7 +25,10 @@ export default [
       ...tsPlugin.configs.recommended.rules,
       // Nest DI and Prisma JSON payloads make `any` unavoidable in places.
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
       // Handled by the TypeScript compiler, which we run separately.
       'no-undef': 'off',
       'no-unused-vars': 'off',

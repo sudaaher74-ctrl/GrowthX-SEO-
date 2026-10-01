@@ -31,18 +31,14 @@ function getNodeColor(rank: number | null) {
 
 export function LocalRankingsTab({ localSeo, projectId, onEditLocation }: LocalRankingsTabProps) {
   const [keyword, setKeyword] = useState("");
-  const [locationQuery, setLocationQuery] = useState(localSeo?.address || "");
+  const [userLocationQuery, setUserLocationQuery] = useState<string | null>(null);
+  const locationQuery = userLocationQuery ?? localSeo?.address ?? "";
+  const setLocationQuery = (val: string) => setUserLocationQuery(val);
   const [radius, setRadius] = useState(5);
   const [gridSize, setGridSize] = useState<3 | 5>(5);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<GeoGridScanResult | null>(null);
   const [selectedHistoryKeyword, setSelectedHistoryKeyword] = useState<string | undefined>(undefined);
-
-  React.useEffect(() => {
-    if (localSeo?.address && !locationQuery) {
-      setLocationQuery(localSeo.address);
-    }
-  }, [localSeo?.address]);
 
   const scanMutation = useRunGeoGridScan(projectId);
   const { data: allHistory = [], refetch: refetchHistory, isLoading: historyLoading } = useGeoGridHistory(projectId);

@@ -46,7 +46,7 @@ export class VoiceToolsService {
 
   // ─── Crawl ───────────────────────────────────────────────────────────────────
 
-  async crawlWebsite(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async crawlWebsite(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
 
     const website = await this.prisma.website.findFirst({
@@ -74,7 +74,7 @@ export class VoiceToolsService {
     };
   }
 
-  async getCrawlStatus(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async getCrawlStatus(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
 
     const website = await this.prisma.website.findFirst({ where: { projectId }, select: { id: true, domain: true } });
@@ -114,7 +114,7 @@ export class VoiceToolsService {
     };
   }
 
-  async cancelCrawl(jobId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async cancelCrawl(jobId: string, _userId: string, _orgId: string): Promise<VoiceAgentResult> {
     if (!jobId) {
       return { success: false, tool: 'cancelCrawl', data: null, spokenSummary: "I need a crawl job ID to cancel. Say 'check crawl status' first." };
     }
@@ -129,7 +129,7 @@ export class VoiceToolsService {
 
   // ─── Competitors ─────────────────────────────────────────────────────────────
 
-  async addCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async addCompetitor(projectId: string, domain: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const cleanDomain = validateDomain(domain);
 
@@ -150,7 +150,7 @@ export class VoiceToolsService {
     };
   }
 
-  async listCompetitors(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async listCompetitors(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const competitors = await this.prisma.competitorDomain.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } });
     if (!competitors.length) {
@@ -169,7 +169,7 @@ export class VoiceToolsService {
     };
   }
 
-  async removeCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async removeCompetitor(projectId: string, domain: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const cleanDomain = validateDomain(domain);
     const existing = await this.prisma.competitorDomain.findFirst({ where: { projectId, domain: cleanDomain } });
@@ -180,7 +180,7 @@ export class VoiceToolsService {
     return { success: true, tool: 'removeCompetitor', data: { domain: cleanDomain }, spokenSummary: `Removed ${cleanDomain} from your competitors.` };
   }
 
-  async crawlCompetitor(projectId: string, domain: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async crawlCompetitor(projectId: string, domain: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const cleanDomain = validateDomain(domain);
     const competitor = await this.prisma.competitorDomain.findFirst({ where: { projectId, domain: cleanDomain } });
@@ -219,7 +219,7 @@ export class VoiceToolsService {
 
   // ─── Analysis ────────────────────────────────────────────────────────────────
 
-  async compareWebsites(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async compareWebsites(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const competitors = await this.prisma.competitorDomain.findMany({ where: { projectId } });
     if (!competitors.length) {
@@ -234,7 +234,7 @@ export class VoiceToolsService {
     };
   }
 
-  async runSeoAudit(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async runSeoAudit(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const website = await this.prisma.website.findFirst({ where: { projectId }, select: { id: true, domain: true } });
     if (!website) {
@@ -254,7 +254,7 @@ export class VoiceToolsService {
     };
   }
 
-  async getAuditSummary(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async getAuditSummary(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const website = await this.prisma.website.findFirst({ where: { projectId }, select: { id: true, domain: true } });
     if (!website) {
@@ -320,7 +320,7 @@ export class VoiceToolsService {
           missingKeywords: missing.map(m => m.keyword),
         }
       };
-    } catch (err: any) {
+    } catch (_err: any) {
       return {
         success: false,
         tool: 'findContentGaps',
@@ -330,7 +330,7 @@ export class VoiceToolsService {
     }
   }
 
-  async detectOpportunities(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async detectOpportunities(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     const opps = await this.prisma.growthOpportunity.findMany({
       where: { projectId, status: 'OPEN' },
@@ -358,7 +358,7 @@ export class VoiceToolsService {
     };
   }
 
-  async getTopRecommendations(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async getTopRecommendations(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
 
     const recommendations = await this.prisma.recommendation.findMany({
@@ -389,7 +389,7 @@ export class VoiceToolsService {
 
   // ─── Reports & Strategy ──────────────────────────────────────────────────────
 
-  async generateReport(projectId: string, userId: string, orgId: string): Promise<VoiceAgentResult> {
+  async generateReport(projectId: string, userId: string, _orgId: string): Promise<VoiceAgentResult> {
     await this.assertProjectAccess(projectId, userId);
     return {
       success: true,
@@ -456,7 +456,7 @@ export class VoiceToolsService {
           items,
         }
       };
-    } catch (e) {
+    } catch (_e) {
       return { success: false, tool: 'generateBlogIdeas', data: null, spokenSummary: "I had trouble generating those ideas right now." };
     }
   }
@@ -501,7 +501,7 @@ export class VoiceToolsService {
           description: items.description,
         }
       };
-    } catch (e) {
+    } catch (_e) {
       return { success: false, tool: 'optimizeMetaTags', data: null, spokenSummary: "I had trouble generating meta tags right now. Please try again." };
     }
   }
@@ -649,7 +649,7 @@ Respond ONLY with a JSON array of objects, like this:
         // an object ({"competitors": [...]}) despite being asked for an array.
         const parsed = extractAndParseJson<any>(res.text);
         competitors = Array.isArray(parsed) ? parsed : parsed?.competitors ?? [];
-      } catch (e) {
+      } catch (_e) {
         throw new Error("Failed to parse AI output into a competitor list.");
       }
 
@@ -723,7 +723,7 @@ Respond ONLY with a JSON object, like this:
       let draftData;
       try {
         draftData = extractAndParseJson(res.text);
-      } catch (e) {
+      } catch (_e) {
         throw new Error("Failed to parse AI output into a social post.");
       }
 

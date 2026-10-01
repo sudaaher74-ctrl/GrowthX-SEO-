@@ -19,7 +19,6 @@ import {
   useWorkspace,
 } from "@/hooks/use-growthx";
 import {
-  useChangeLedger,
   useGoogleAlerts,
   useGoogleBreakdown,
   useGoogleOverview,
@@ -83,7 +82,6 @@ export function GoogleHub() {
   const ga4Data = ga4ReportQuery.data?.data;
   const opportunitiesQuery = useGrowthOpportunities(projectId);
   const alertsQuery = useGoogleAlerts(projectId);
-  const changesQuery = useChangeLedger(projectId);
 
   // Country breakdown & Global Customer Visibility Map
   const countryBreakdownQuery = useGoogleBreakdown(projectId, "country");
@@ -175,9 +173,9 @@ export function GoogleHub() {
   const rawCtr = overview?.kpis.find((k) => k.key === "ctr")?.value;
   const rawPosition = overview?.kpis.find((k) => k.key === "position")?.value;
 
-  const gscClicks = rawClicks !== undefined && rawClicks !== null ? rawClicks : (isGscConnected ? 2 : 0);
+  const _gscClicks = rawClicks !== undefined && rawClicks !== null ? rawClicks : (isGscConnected ? 2 : 0);
   const gscImpressions = rawImpressions !== undefined && rawImpressions !== null ? rawImpressions : (isGscConnected ? 15 : 0);
-  const gscCtr = rawCtr !== undefined && rawCtr !== null ? rawCtr : 0.133;
+  const _gscCtr = rawCtr !== undefined && rawCtr !== null ? rawCtr : 0.133;
   const gscPosition = rawPosition !== undefined && rawPosition !== null ? rawPosition : 1.5;
 
   // GA4 values

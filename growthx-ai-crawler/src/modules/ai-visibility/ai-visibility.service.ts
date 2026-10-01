@@ -606,7 +606,7 @@ export class AiVisibilityService {
                   data: { healthScore, uniqueIssuesCount: uniqueMap.size },
                 })
                 .catch(() => {});
-            } catch (err) {}
+            } catch (_err) {}
           }
         }
 

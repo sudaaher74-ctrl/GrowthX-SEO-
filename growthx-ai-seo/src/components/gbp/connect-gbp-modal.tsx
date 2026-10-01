@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search, Loader2, MapPin, Star, Check, AlertCircle, X } from "lucide-react";
 import { GoogleGLogo } from "./gbp-icons";
 import { ConnectWithGoogleButton } from "./connect-with-google-button";
@@ -21,8 +21,12 @@ interface ConnectGbpModalProps {
   suggestedQuery?: string | null;
 }
 
-export function ConnectGbpModal({
-  open,
+export function ConnectGbpModal(props: ConnectGbpModalProps) {
+  if (!props.open) return null;
+  return <ConnectGbpModalDialog {...props} />;
+}
+
+function ConnectGbpModalDialog({
   onOpenChange,
   projectId,
   connection,
@@ -32,25 +36,12 @@ export function ConnectGbpModal({
   suggestedQuery,
 }: ConnectGbpModalProps) {
   const [activeMode, setActiveMode] = useState<"search" | "manual">(defaultMode);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [manualName, setManualName] = useState("");
-  const [manualAddress, setManualAddress] = useState("");
-  const [manualRating, setManualRating] = useState("");
-  const [manualReviews, setManualReviews] = useState("");
+  const [searchQuery, setSearchQuery] = useState(suggestedQuery || "");
+  const [manualName, setManualName] = useState(localSeo?.businessName || "");
+  const [manualAddress, setManualAddress] = useState(localSeo?.address || "");
+  const [manualRating, setManualRating] = useState(localSeo?.rating && localSeo.rating > 0 ? String(localSeo.rating) : "");
+  const [manualReviews, setManualReviews] = useState(localSeo?.reviewCount && localSeo.reviewCount > 0 ? String(localSeo.reviewCount) : "");
   const [errorText, setErrorText] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setActiveMode(defaultMode);
-      if (suggestedQuery) setSearchQuery((current) => current || suggestedQuery);
-      if (localSeo?.businessName) {
-        setManualName(localSeo.businessName);
-        setManualAddress(localSeo.address || "");
-        setManualRating(localSeo.rating > 0 ? String(localSeo.rating) : "");
-        setManualReviews(localSeo.reviewCount > 0 ? String(localSeo.reviewCount) : "");
-      }
-    }
-  }, [open, defaultMode, localSeo, suggestedQuery]);
 
   const searchMutation = useSearchLocalBusiness(projectId);
   const connectMutation = useConnectLocalBusiness(projectId);
@@ -124,8 +115,6 @@ export function ConnectGbpModal({
       }
     );
   };
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

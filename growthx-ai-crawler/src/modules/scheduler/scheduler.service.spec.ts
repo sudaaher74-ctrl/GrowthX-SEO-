@@ -13,7 +13,6 @@ function site(domain: string, organizationId: string | null = 'org_1') {
 describe('SchedulerService', () => {
   let prisma: any;
   let crawler: { startCrawlJob: jest.Mock };
-  let entitlements: { hasFeature: jest.Mock };
   let scheduler: SchedulerService;
 
   beforeEach(() => {
@@ -22,7 +21,6 @@ describe('SchedulerService', () => {
       crawlJob: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     crawler = { startCrawlJob: jest.fn().mockResolvedValue('job_1') };
-    entitlements = { hasFeature: jest.fn().mockResolvedValue(true) };
     scheduler = new SchedulerService(prisma as any, crawler as any);
   });
 

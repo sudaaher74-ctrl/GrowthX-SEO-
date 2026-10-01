@@ -91,7 +91,7 @@ export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
 function SiteCard({
   site,
   yourPages,
-  yourHealth,
+  yourHealth: _yourHealth,
 }: {
   site: CompetitorWebsite;
   yourPages: number | null;

@@ -368,7 +368,7 @@ export class CrawlController {
             data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueKeys.size },
           })
           .catch(() => {});
-      } catch (err) {}
+      } catch (_err) {}
     }
 
     // The URL reconciliation stored with a finished crawl is a snapshot of how

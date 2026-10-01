@@ -6,7 +6,9 @@ import { auth, api } from "@/lib/api-client";
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get("code") ? null : "Authentication failed. Sign-in code not found.",
+  );
   // The code is single-use, and Strict Mode runs effects twice in development.
   const started = useRef(false);
 
@@ -64,10 +66,10 @@ function CallbackContent() {
         },
       );
     } else {
-      setError("Authentication failed. Sign-in code not found.");
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         router.push("/login");
       }, 3000);
+      return () => clearTimeout(timer);
     }
   }, [router, searchParams]);
 

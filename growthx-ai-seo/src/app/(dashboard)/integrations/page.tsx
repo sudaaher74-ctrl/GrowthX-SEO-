@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,34 +57,44 @@ function IntegrationsClient() {
     contentDir: "src/app",
   });
 
-  const [notice, setNotice] = useState<{ type: "success" | "warn" | "error"; text: string } | null>(null);
-
-  // Read URL params from OAuth callback redirects
-  useEffect(() => {
+  const urlNotice = useMemo<{ type: "success" | "warn" | "error"; text: string } | null>(() => {
     const googleStatus = searchParams?.get("google");
     const provider = searchParams?.get("provider");
     if (googleStatus === "select") {
-      setNotice({
+      return {
         type: "warn",
         text: `Google authorization succeeded! Please choose which ${provider === "search_console" ? "Search Console" : "Analytics"} property to read below.`,
-      });
-    } else if (googleStatus === "scopes") {
-      setNotice({
+      };
+    }
+    if (googleStatus === "scopes") {
+      return {
         type: "warn",
         text: "Google authorized your login, but some requested permissions were not checked on the consent screen.",
-      });
-    } else if (googleStatus === "cancelled") {
-      setNotice({
+      };
+    }
+    if (googleStatus === "cancelled") {
+      return {
         type: "warn",
         text: "Google connection was cancelled on the consent screen.",
-      });
-    } else if (googleStatus === "failed") {
-      setNotice({
+      };
+    }
+    if (googleStatus === "failed") {
+      return {
         type: "error",
         text: "Google authorization failed or the verification state expired.",
-      });
+      };
     }
+    return null;
   }, [searchParams]);
+
+  const [actionNotice, setActionNotice] = useState<{ type: "success" | "warn" | "error"; text: string } | null>(null);
+  const [dismissedUrlNotice, setDismissedUrlNotice] = useState(false);
+
+  const notice = actionNotice ?? (!dismissedUrlNotice ? urlNotice : null);
+  const setNotice = (n: { type: "success" | "warn" | "error"; text: string } | null) => {
+    setActionNotice(n);
+    if (n === null) setDismissedUrlNotice(true);
+  };
 
   // Google connections query
   const googleQuery = useQuery({

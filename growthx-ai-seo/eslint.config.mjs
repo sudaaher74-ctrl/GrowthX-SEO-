@@ -18,6 +18,19 @@ const eslintConfig = defineConfig([
     // The count must only go down. When it reaches zero, delete this block.
     rules: {
       "react-hooks/set-state-in-effect": "warn",
+      // Allow intentionally-unused identifiers prefixed with `_`.
+      // This mirrors the crawler's convention and avoids noise from params
+      // that are kept for documentation / future use.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          vars: "all",
+          args: "after-used",
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
 

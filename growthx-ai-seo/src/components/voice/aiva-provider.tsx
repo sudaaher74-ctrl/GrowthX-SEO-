@@ -533,10 +533,14 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     speak('Action cancelled.');
   };
 
+  // Keep confirm/cancel refs current (same no-deps pattern as speakRef above).
+  // Both functions close over state that changes; refs let the recognition
+  // callback always call the latest version without needing to be in its
+  // dependency array.
   useEffect(() => {
     confirmActionRef.current = confirmAction;
     cancelActionRef.current = cancelAction;
-  }, [confirmAction, cancelAction]);
+  });
 
   const toggleOpen = () => setIsOpen((prev) => !prev);
   const close = () => {

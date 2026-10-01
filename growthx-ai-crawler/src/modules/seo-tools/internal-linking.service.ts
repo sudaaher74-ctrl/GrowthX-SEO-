@@ -225,7 +225,7 @@ Generate the internal linking strategy and actionable suggestions.`;
    * discovers orphan pages (InDegree = 0), starved conversion pages, and generates
    * context-aware link injection patches.
    */
-  async getInternalLinkingMesh(projectId: string, organizationId?: string): Promise<InternalLinkingMeshResponse> {
+  async getInternalLinkingMesh(projectId: string, _organizationId?: string): Promise<InternalLinkingMeshResponse> {
     const website = await this.prisma.website.findFirst({
       where: { projectId },
       select: { id: true, domain: true },
@@ -501,7 +501,7 @@ Generate the internal linking strategy and actionable suggestions.`;
     targetUrl: string,
     targetTitle: string,
     cleanAnchor: string,
-    isOrphan: boolean,
+    _isOrphan: boolean,
   ): { sentence: string; htmlAfter: string } {
     const urlLower = targetUrl.toLowerCase();
 

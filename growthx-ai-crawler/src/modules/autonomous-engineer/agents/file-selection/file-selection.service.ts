@@ -84,7 +84,7 @@ Respond with a JSON object.
       const result: FileSelectionResult = JSON.parse(completion.text);
       this.logger.log(`AI Selected File: ${result.selectedFilePath} - ${result.reasoning}`);
       return result;
-    } catch (e) {
+    } catch (_e) {
       this.logger.error(`Failed to parse AI file selection: ${completion.text}`);
       throw new Error('AI returned invalid JSON for file selection.');
     }

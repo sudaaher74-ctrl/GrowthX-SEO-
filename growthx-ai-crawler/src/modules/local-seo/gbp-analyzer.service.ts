@@ -111,7 +111,7 @@ Identify any missing elements, weakly optimized descriptions, or missing service
         const fenced = result.text.match(/```(?:json)?\s*([\s\S]*?)```/);
         const candidate = fenced ? fenced[1] : result.text.slice(result.text.indexOf('{'), result.text.lastIndexOf('}') + 1);
         parsed = JSON.parse(candidate);
-      } catch (e) {
+      } catch (_e) {
         throw new Error('Failed to parse AI response as JSON');
       }
 

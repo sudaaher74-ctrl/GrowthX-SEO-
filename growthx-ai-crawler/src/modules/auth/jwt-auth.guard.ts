@@ -49,7 +49,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             return true;
           }
         }
-      } catch (err) {}
+      } catch (_err) {}
     }
 
     const allowed = (await super.canActivate(context)) as boolean;

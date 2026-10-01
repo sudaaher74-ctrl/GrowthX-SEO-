@@ -22,11 +22,11 @@ export function AiVisibilityOverviewTab({
   report,
   trackedPromptsCount = 0,
   domain = "",
-  businessName = "Your Brand",
+  businessName: _businessName = "Your Brand",
   onViewCompetitorsTab,
   onViewInsightsTab,
-  onViewRecommendationsTab,
-  onGenerateRecommendations,
+  onViewRecommendationsTab: _onViewRecommendationsTab,
+  onGenerateRecommendations: _onGenerateRecommendations,
 }: AiVisibilityOverviewTabProps) {
   // Real measurements from the AI Visibility engine. Before the first sweep
   // nothing has been measured, which reads as "—", not as 0%.
@@ -51,9 +51,9 @@ export function AiVisibilityOverviewTab({
 
   // Derive donut chart segments from real byAssistant data
   const totalCircumference = 2 * Math.PI * 46; // r=46 -> ~289.02
-  const byAssistant = report?.byAssistant || [];
 
   const segments = useMemo(() => {
+    const byAssistant = report?.byAssistant || [];
     if (byAssistant.length === 0) {
       return [
         { label: "Pending Sweep", pct: 100, color: "#cbd5e1", strokeDash: `${totalCircumference} ${totalCircumference}`, offset: 0 },
@@ -78,7 +78,7 @@ export function AiVisibilityOverviewTab({
         offset: currentOffset,
       };
     });
-  }, [byAssistant, totalCircumference]);
+  }, [report?.byAssistant, totalCircumference]);
 
   // Derive top competitors from real shareOfVoice
   const topCompetitors = useMemo(() => {
@@ -94,7 +94,7 @@ export function AiVisibilityOverviewTab({
       barColor: item.domain === null ? "bg-emerald-500" : barColors[idx % barColors.length],
       isYou: item.domain === null,
     }));
-  }, [report?.shareOfVoice, domain, report?.summary?.citationSharePct]);
+  }, [report?.shareOfVoice, domain]);
 
   return (
     <div className="space-y-6">

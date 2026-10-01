@@ -93,4 +93,4 @@ export function planPrice(id: PlanId, currency: Currency, cycle: BillingCycle): 
 }
 
 /** The cheapest plan, for "from ₹X" copy and structured data. */
-const ENTRY_PLAN = PLANS[0];
+const _ENTRY_PLAN = PLANS[0];
