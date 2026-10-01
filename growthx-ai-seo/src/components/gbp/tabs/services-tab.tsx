@@ -44,6 +44,7 @@ export function ServicesTab({
     <GbpTabGate
       query={query}
       label="Services"
+      keepTabOnError
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}

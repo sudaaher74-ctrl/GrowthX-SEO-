@@ -34,6 +34,7 @@ export function PhotosTab({
     <GbpTabGate
       query={query}
       label="Photos"
+      keepTabOnError
       placesLockedNote={
         <>
           Google shares up to 10 photos publicly, without view counts. Your full media library unlocks once
