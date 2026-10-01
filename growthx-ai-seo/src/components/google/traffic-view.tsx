@@ -7,7 +7,7 @@ import { Panel, Pill, Table, Td, Th, Tr } from "@/components/ui/console";
 import { SourceBadge } from "@/components/google/parts";
 import { Ga4Gate } from "@/components/google/ga4-gate";
 import type { Ga4Report, Ga4ReportData } from "@/lib/api-client";
-import { DASH, count, duration, percent, shortDay } from "@/lib/google-format";
+import { DASH, count, duration, formatDayLabel, percent, shortDay } from "@/lib/google-format";
 
 /** The five groups the view compares; anything else Google Analytics reports lands in "Other". */
 type Group = "Organic Search" | "Direct" | "Referral" | "Social" | "Paid" | "Other";
@@ -180,7 +180,7 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
                 <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => count(Number(v))} width={48} />
                 <Tooltip
                   formatter={(v, name) => [count(Number(v)), name === "sessions" ? "Sessions" : "Users"]}
-                  labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()}
+                  labelFormatter={(l) => formatDayLabel(l)}
                 />
                 <Line type="monotone" dataKey="sessions" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="users" stroke="var(--color-series-2)" strokeWidth={2} dot={false} />

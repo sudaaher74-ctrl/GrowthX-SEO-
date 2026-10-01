@@ -7,7 +7,7 @@ import { ChangeText, EvidenceChips, Funnel, SourceBadge } from "@/components/goo
 import { useGooglePage } from "@/hooks/use-google";
 import type { GoogleDiagnosisFinding, GooglePageDetail } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
-import { DASH, count, duration, money, pathOf, percent, position, shortDay } from "@/lib/google-format";
+import { DASH, count, duration, formatDayLabel, money, pathOf, percent, position, shortDay } from "@/lib/google-format";
 import { cn } from "@/lib/utils";
 
 const TONE = {
@@ -151,7 +151,7 @@ function SearchSection({ d, days }: { d: GooglePageDetail; days: number }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
                   <YAxis reversed tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => position(Number(v))} width={36} />
-                  <Tooltip formatter={(v) => [position(Number(v)), "Average position"]} labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()} />
+                  <Tooltip formatter={(v) => [position(Number(v)), "Average position"]} labelFormatter={(l) => formatDayLabel(l)} />
                   <Line type="monotone" dataKey="position" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>

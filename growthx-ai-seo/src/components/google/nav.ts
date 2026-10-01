@@ -30,6 +30,8 @@ interface GoogleView {
   phase?: 2 | 3 | 4;
   /** An existing page that covers part of this today. */
   current?: { label: string; href: string };
+  /** If true, hidden from navigation tabs and "See more" card listings */
+  hidden?: boolean;
 }
 
 export const GOOGLE_VIEWS: GoogleView[] = [
@@ -54,9 +56,10 @@ export const GOOGLE_VIEWS: GoogleView[] = [
     label: "Keywords",
     href: "/google/keywords",
     built: true,
+    hidden: true,
     will: "Top, new, rising and declining keywords, page-2 opportunities, cannibalization and a detail view per keyword.",
   },
-  { id: "pages", group: "search-console", label: "Pages", href: "/google/pages", built: true, will: "Every organic page with its search and visit figures side by side." },
+  { id: "pages", group: "search-console", label: "Pages", href: "/google/pages", built: true, hidden: true, will: "Every organic page with its search and visit figures side by side." },
   {
     id: "traffic", group: "analytics",
     label: "Traffic & Acquisition",
@@ -83,6 +86,7 @@ export const GOOGLE_VIEWS: GoogleView[] = [
     label: "Google Index",
     href: "/google/index",
     built: true,
+    hidden: true,
     will: "Crawled, indexable, indexed, ranking and receiving traffic, with every indexing issue.",
   },
   {

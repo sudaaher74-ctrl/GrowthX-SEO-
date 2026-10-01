@@ -13,7 +13,7 @@ import type {
   GoogleSource,
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { DASH, count, formatKpi, money, percent, position, shortDay } from "@/lib/google-format";
+import { DASH, count, formatDayLabel, formatKpi, money, percent, position, shortDay } from "@/lib/google-format";
 
 // ── Sources ─────────────────────────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ export function TrendChart({ overview }: { overview: GoogleOverview }) {
                   />
                   <Tooltip
                     formatter={(v) => [active.metric.fmt(Number(v)), active.metric.label]}
-                    labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()}
+                    labelFormatter={(l) => formatDayLabel(l)}
                   />
                   <Line type="monotone" dataKey="value" stroke="var(--color-series-1)" strokeWidth={2} dot={false} connectNulls={false} />
                 </LineChart>

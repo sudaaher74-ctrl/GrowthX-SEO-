@@ -44,7 +44,7 @@ export default function GoogleLayout({ children }: { children: React.ReactNode }
 
   const view = GOOGLE_VIEWS.find((v) => inside(pathname, v.href));
   const group = view ? GOOGLE_GROUPS[view.group] : null;
-  const siblings = view ? GOOGLE_VIEWS.filter((v) => v.group === view.group) : [];
+  const siblings = view ? GOOGLE_VIEWS.filter((v) => v.group === view.group && (!v.hidden || v.id === view.id)) : [];
   const source = view?.group === "search-console" ? "searchConsole" : view?.group === "analytics" ? "analytics" : undefined;
   const pageTitle = view?.label ?? "Google Performance";
   const pageSubtitle = view?.will ?? "Understand how Google visibility turns into traffic, engagement and business results.";

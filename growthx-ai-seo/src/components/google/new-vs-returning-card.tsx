@@ -13,7 +13,7 @@ import {
 import { CheckCircle2, UserCheck, UserPlus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Ga4ReportData } from "@/lib/api-types";
-import { count, percent, shortDay } from "@/lib/google-format";
+import { count, parseDateSafe, percent, shortDay } from "@/lib/google-format";
 
 export interface NewVsReturningCardProps {
   data: Ga4ReportData;
@@ -133,7 +133,7 @@ export function NewVsReturningCard({ data }: { data: Ga4ReportData }) {
                   return (
                     <div className="rounded-xl border border-brand-200/80 bg-brand-50 p-2.5 shadow-xl text-[11px] backdrop-blur-md">
                       <p className="font-semibold text-brand-950 pb-1 border-b border-brand-200/40">
-                        {new Date(`${item.date}T00:00:00`).toLocaleDateString(undefined, {
+                        {(parseDateSafe(item.date) ?? new Date()).toLocaleDateString(undefined, {
                           weekday: "short",
                           month: "short",
                           day: "numeric",

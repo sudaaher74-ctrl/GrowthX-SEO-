@@ -8,7 +8,7 @@ import { SourceBadge } from "@/components/google/parts";
 import { useGscDeclining, useGscQueries, useGscSummary, useGscTimeseries } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import type { GscMetric, GscRow } from "@/lib/api-client";
-import { count, percent, position, shortDay } from "@/lib/google-format";
+import { count, formatDayLabel, percent, position, shortDay } from "@/lib/google-format";
 
 const BUCKETS = [
   { label: "Positions 1–3", test: (p: number) => p < 4 },
@@ -78,7 +78,7 @@ export function SearchPerformanceView() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
                       <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
                       <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} reversed={metric === "position"} tickFormatter={(v) => active.fmt(Number(v))} width={48} />
-                      <Tooltip formatter={(v) => [active.fmt(Number(v)), active.label]} labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()} />
+                      <Tooltip formatter={(v) => [active.fmt(Number(v)), active.label]} labelFormatter={(l) => formatDayLabel(l)} />
                       <Line type="monotone" dataKey={metric} stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
