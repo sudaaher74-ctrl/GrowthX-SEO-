@@ -10,7 +10,6 @@ import { useGa4Report } from "@/hooks/use-ga4-report";
 import {
   GlobalVisibilityMap,
   SearchPerformanceChart,
-  ImprovementReportCard,
   TrafficOverviewPanel,
   OpportunitiesPanel,
 } from "./hub/index";
@@ -48,7 +47,7 @@ export function GoogleHub() {
 
   return (
     <div className="space-y-4">
-      {/* ── TOP SECTION (3-COLUMN GRID) ── */}
+      {/* ── TOP SECTION (2-COLUMN BALANCED GRID) ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 items-stretch">
         <GlobalVisibilityMap
           domain={domain}
@@ -58,7 +57,6 @@ export function GoogleHub() {
           gscPosition={gscPosition}
         />
         <SearchPerformanceChart overview={overview} days={days} />
-        <ImprovementReportCard />
       </div>
 
       {/* ── MIDDLE SECTION (ROW 2: 3-COLUMN) ── */}

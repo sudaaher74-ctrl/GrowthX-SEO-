@@ -65,7 +65,7 @@ export function SearchPerformanceChart({
   }, [overview]);
 
   return (
-    <div className="lg:col-span-5 flex flex-col justify-between rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md">
+    <div className="lg:col-span-6 flex flex-col justify-between rounded-2xl border border-brand-200/50 bg-brand-50/50 p-4 shadow-card backdrop-blur-md">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
