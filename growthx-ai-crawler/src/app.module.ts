@@ -55,6 +55,8 @@ import { TokensModule } from './modules/tokens/tokens.module';
 import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-intelligence.module';
 
 
+import { CsrfGuard } from './modules/auth/csrf.guard';
+
 @Module({
   imports: [
     CompetitorActionEngineModule,
@@ -133,6 +135,9 @@ import { GrowthIntelligenceModule } from './modules/growth-intelligence/growth-i
   ],
 
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
+  ],
 })
 export class AppModule {}

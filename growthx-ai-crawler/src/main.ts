@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 /**
@@ -36,6 +37,8 @@ async function bootstrap() {
   // proxy's address for every caller, so the rate limiter would put all traffic
   // in a single shared bucket — one busy client would lock everyone out.
   app.set('trust proxy', 1);
+
+  app.use(cookieParser());
 
   const allowedOrigins = corsOrigins();
   app.enableCors({
