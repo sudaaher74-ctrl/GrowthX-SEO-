@@ -10,8 +10,9 @@
  * Set GOOGLE_SHOTS_DIR to also save a screenshot of each screen.
  */
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { API_BASE } from "./api-base";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API = API_BASE;
 const ORG = "org_test";
 const PROJECT = "proj_test";
 const G = `/api/projects/${PROJECT}/google`;
@@ -193,7 +194,8 @@ test.describe("Google section, Overview", () => {
   test("shows the plain-language headline, eight KPIs with their sources, and the funnel", async ({ page }) => {
     await open(page, "/google/overview");
 
-    await expect(page.getByRole("heading", { name: "Google Performance", exact: true })).toBeVisible({ timeout: 15_000 });
+    // The page title comes from the view's label in components/google/nav.ts.
+    await expect(page.getByRole("heading", { name: "Combined overview", level: 1 })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Search visibility rose 160.0%")).toBeVisible();
     await expect(page.getByText("because click-through rate fell from 4.8% to 1.2%")).toBeVisible();
 

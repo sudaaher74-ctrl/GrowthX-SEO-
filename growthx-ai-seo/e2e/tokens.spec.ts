@@ -12,8 +12,9 @@
  * running against PostgreSQL, with a stand-in model provider reporting usage.
  */
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { API_BASE } from "./api-base";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API = API_BASE;
 const ORG = "org_test";
 const PROJECT = "proj_test";
 
