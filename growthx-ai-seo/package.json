@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test:smoke": "playwright test",
     "check:data": "node scripts/check-no-fabricated-data.mjs",
-    "check:design": "node scripts/check-design-tokens.mjs"
+    "check:design": "node scripts/check-design-tokens.mjs",
+    "check:dead-code": "knip"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
