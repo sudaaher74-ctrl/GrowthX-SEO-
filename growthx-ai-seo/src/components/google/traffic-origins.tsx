@@ -84,11 +84,12 @@ export function TrafficOrigins({ data }: { data: Ga4ReportData }) {
         ) : sources.length === 0 ? (
           <p className="py-4 text-[12px] text-brand-500">Google Analytics returned no sources for this period.</p>
         ) : (
-          <Table minWidth={640}>
+          <Table minWidth={700}>
             <thead>
               <tr>
                 <Th>Source / medium</Th>
                 <Th>Channel</Th>
+                <Th align="right">Active users</Th>
                 <Th align="right">Sessions</Th>
                 <Th align="right">Share</Th>
                 <Th align="right">Engagement</Th>
@@ -100,6 +101,7 @@ export function TrafficOrigins({ data }: { data: Ga4ReportData }) {
                 <Tr key={`${x.source}/${x.medium}/${x.channel}`}>
                   <Td><span className="block max-w-[240px] truncate text-[12px] text-brand-950" title={`${x.source} / ${x.medium}`}>{x.source} / {x.medium}</span></Td>
                   <Td><span className="text-[12px] text-brand-600">{x.channel}</span></Td>
+                  <Td align="right">{count(x.users)}</Td>
                   <Td align="right">{count(x.sessions)}</Td>
                   <Td align="right">{percent(share(x.sessions))}</Td>
                   <Td align="right">{percent(x.engagementRate)}</Td>

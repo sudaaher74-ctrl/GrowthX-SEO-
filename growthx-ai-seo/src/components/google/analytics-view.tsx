@@ -7,6 +7,8 @@ import { Ga4Gate } from "@/components/google/ga4-gate";
 import { Headlines, SourceBadge } from "@/components/google/parts";
 import { MoreLinks } from "@/components/google/more-links";
 import { TrafficOrigins } from "@/components/google/traffic-origins";
+import { NewVsReturningCard } from "@/components/google/new-vs-returning-card";
+import { ActiveUsersBySource } from "@/components/google/active-users-by-source";
 import { buildTraffic } from "@/components/google/traffic-view";
 import { useGoogleOverview } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
@@ -45,23 +47,31 @@ function AnalyticsBody({ report, data }: { report: Ga4Report; data: Ga4ReportDat
         />
       </div>
 
-      <Panel title="Sessions" subtitle="All channels, by day. Analytics figures end yesterday.">
-        <div className="h-64 w-full p-4">
-          {daily.length >= 2 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={daily}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
-                <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => count(Number(v))} width={48} />
-                <Tooltip formatter={(v) => [count(Number(v)), "Sessions"]} labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()} />
-                <Line type="monotone" dataKey="sessions" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-10 text-center text-[12px] text-brand-500">Not enough daily data in this period to draw a trend.</p>
-          )}
-        </div>
-      </Panel>
+      {/* User Trends: Daily Sessions & New vs. Returning Users */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 items-stretch">
+        <Panel title="Sessions" subtitle="All channels, by day. Analytics figures end yesterday.">
+          <div className="h-64 w-full p-4">
+            {daily.length >= 2 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={daily}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => count(Number(v))} width={48} />
+                  <Tooltip formatter={(v) => [count(Number(v)), "Sessions"]} labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()} />
+                  <Line type="monotone" dataKey="sessions" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-10 text-center text-[12px] text-brand-500">Not enough daily data in this period to draw a trend.</p>
+            )}
+          </div>
+        </Panel>
+
+        <NewVsReturningCard data={data} />
+      </div>
+
+      {/* Active users by Filter Source (Instagram, Facebook, Google, Direct, etc.) */}
+      <ActiveUsersBySource data={data} />
 
       <TrafficOrigins data={data} />
 

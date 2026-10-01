@@ -591,7 +591,7 @@ export interface Ga4ReportData {
   endDate: string;
   empty: boolean;
   totals: Ga4ReportTotals;
-  daily: { date: string; sessions: number; users: number }[];
+  daily: { date: string; sessions: number; users: number; newUsers?: number; returningUsers?: number }[];
   landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
   /** Engagement and key events are absent from snapshots stored before they were fetched per channel; the next refresh adds them. */
   channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];

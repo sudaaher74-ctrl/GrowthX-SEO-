@@ -19,7 +19,7 @@ const ORGANIC_SEARCH = 'Organic Search';
 const TOP_PAGES = 25;
 const TOP_COUNTRIES = 10;
 const TOP_CITIES = 15;
-const TOP_SOURCES = 25;
+const TOP_SOURCES = 50;
 const ORGANIC_PAGES = 100;
 
 export interface Ga4Totals {
@@ -70,7 +70,7 @@ export interface Ga4ReportData {
   /** True when the property recorded nothing at all in the window. */
   empty: boolean;
   totals: Ga4Totals;
-  daily: { date: string; sessions: number; users: number }[];
+  daily: { date: string; sessions: number; users: number; newUsers?: number; returningUsers?: number }[];
   landingPages: { page: string; sessions: number; engagementRate: number; keyEvents: number | null }[];
   /** Engagement and key events are absent from snapshots stored before they were fetched per channel; the next refresh adds them. */
   channels: { channel: string; sessions: number; users: number; organic: boolean; engagementRate?: number; keyEvents?: number | null }[];
@@ -323,6 +323,32 @@ export class AnalyticsReportService {
       });
     }
 
+    // Query new vs returning users day by day for 90 days.
+    const userTypesDailyBy = new Map<string, { newUsers: number; returningUsers: number }>();
+    try {
+      const userTypes = await this.run(api, propertyId, {
+        dimensions: ['date', 'newVsReturning'],
+        metrics: ['activeUsers'],
+        dateRange: rangeDates(90),
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+        limit: 400,
+      });
+      for (const row of userTypes.rows) {
+        if (!row.dimensions || row.dimensions.length < 2) continue;
+        const date = isoDay(row.dimensions[0]);
+        const type = (row.dimensions[1] || '').toLowerCase();
+        const current = userTypesDailyBy.get(date) ?? { newUsers: 0, returningUsers: 0 };
+        if (type === 'new') {
+          current.newUsers += row.metrics[0] ?? 0;
+        } else if (type === 'returning') {
+          current.returningUsers += row.metrics[0] ?? 0;
+        }
+        userTypesDailyBy.set(date, current);
+      }
+    } catch {
+      // If newVsReturning dimension is unavailable, gracefully continue.
+    }
+
     const out: { range: Ga4Range; data: Ga4ReportData }[] = [];
     for (const range of Object.keys(GA4_RANGES) as Ga4Range[]) {
       const days = GA4_RANGES[range];
@@ -454,13 +480,20 @@ export class AnalyticsReportService {
           endDate: concrete.endDate,
           empty: totals.sessions === 0 && totals.activeUsers === 0 && totals.views === 0,
           totals,
-          // Days GA4 returned no row for had no traffic; filling them keeps the
-          // chart's time axis honest instead of joining across the gap.
-          daily: eachDay(concrete.startDate, concrete.endDate).map((date) => ({
-            date,
-            sessions: dailyBy.get(date)?.sessions ?? 0,
-            users: dailyBy.get(date)?.users ?? 0,
-          })),
+          daily: eachDay(concrete.startDate, concrete.endDate).map((date) => {
+            const totalUsers = dailyBy.get(date)?.users ?? 0;
+            const ut = userTypesDailyBy.get(date);
+            const fallbackNew = totals.newUsers > 0 && totals.activeUsers > 0
+              ? Math.min(totalUsers, Math.round(totalUsers * (totals.newUsers / totals.activeUsers)))
+              : totalUsers;
+            return {
+              date,
+              sessions: dailyBy.get(date)?.sessions ?? 0,
+              users: totalUsers,
+              newUsers: ut ? ut.newUsers : fallbackNew,
+              returningUsers: ut ? ut.returningUsers : Math.max(0, totalUsers - fallbackNew),
+            };
+          }),
           landingPages: pageRows.map((row) => ({
             page: row.dimensions[0] || '(not set)',
             sessions: row.metrics[0],
