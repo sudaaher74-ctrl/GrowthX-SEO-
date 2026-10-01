@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/overview/configuration-schema.json",
-  "entry": ["src/main.ts", "src/main-worker.ts", "scripts/**/*.js"],
+  "entry": [
+    "src/main.ts",
+    "src/main-worker.ts",
+    "scripts/**/*.js",
+    "src/modules/issues/scripts/backfill-issue-identity.ts"
+  ],
   "project": ["src/**/*.ts"],
   "rules": {
     "types": "off",

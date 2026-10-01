@@ -15,8 +15,9 @@
  * 2 / 0 by severity, in 4 problems, one of them on 29 product pages.
  */
 import { test, expect, type Route } from "@playwright/test";
+import { API_BASE } from "./api-base";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API = API_BASE;
 const ORG = "org_test";
 const PROJECT = "proj_test";
 const DOMAIN = "aivaenterprises.com";
