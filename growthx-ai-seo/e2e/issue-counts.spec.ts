@@ -16,7 +16,7 @@
  */
 import { test, expect, type Route } from "@playwright/test";
 
-const API = "http://localhost:3000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const ORG = "org_test";
 const PROJECT = "proj_test";
 const DOMAIN = "aivaenterprises.com";
