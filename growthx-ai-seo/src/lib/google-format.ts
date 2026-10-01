@@ -30,8 +30,28 @@ export function formatKpi(kpi: Pick<GoogleKpi, "format" | "value">): string {
   }
 }
 
-export const shortDay = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+export function parseDateSafe(raw: unknown): Date | null {
+  if (raw == null || typeof raw === "boolean" || typeof raw === "symbol") return null;
+  const str = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const d = new Date(`${str}T00:00:00`);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+export function formatDayLabel(raw: unknown): string {
+  const d = parseDateSafe(raw);
+  return d ? d.toDateString() : String(raw ?? "");
+}
+
+export const shortDay = (iso: string): string => {
+  const d = parseDateSafe(iso);
+  if (!d) return String(iso ?? "");
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+};
 
 /** The address without its host, which is what a person scans for. */
 export function pathOf(url: string): string {

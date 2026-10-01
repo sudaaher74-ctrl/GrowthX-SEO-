@@ -13,13 +13,14 @@ import { useGa4Report } from "@/hooks/use-ga4-report";
 import { type Ga4Report, type Ga4ReportData } from "@/lib/api-client";
 import { errorMessage } from "@/lib/error-message";
 
+import { formatDayLabel, shortDay } from "@/lib/google-format";
+
 const count = (n: number) => Math.round(n).toLocaleString();
 const percent = (rate: number) => `${(rate * 100).toFixed(1)}%`;
 const duration = (seconds: number) => {
   const s = Math.round(seconds);
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 };
-const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
 type Ga4Hook = ReturnType<typeof useGa4Report>;
 
@@ -291,7 +292,7 @@ export function Ga4Overview({ projectId }: { projectId: string | null }) {
                       <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} allowDecimals={false} width={36} />
                       <Tooltip
                         formatter={(v, name) => [count(Number(v)), name]}
-                        labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()}
+                        labelFormatter={(l) => formatDayLabel(l)}
                       />
                       <Line type="monotone" name="Sessions" dataKey="sessions" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
                       <Line type="monotone" name="Users" dataKey="users" stroke="var(--color-series-2)" strokeWidth={2} dot={false} />

@@ -9,7 +9,7 @@ import { MoreLinks } from "@/components/google/more-links";
 import { useGoogleOverview, useGscPages, useGscQueries, useGscSummary, useGscTimeseries } from "@/hooks/use-google";
 import { useWorkspace } from "@/hooks/use-growthx";
 import type { GscMetric, GscPoint, GscRow } from "@/lib/api-client";
-import { count, pathOf, percent, position, shortDay } from "@/lib/google-format";
+import { count, formatDayLabel, pathOf, percent, position, shortDay } from "@/lib/google-format";
 
 function delta(m: GscMetric, kind: "pct" | "places") {
   if (kind === "places") return m.change === null ? null : Math.round(m.change * 10) / 10;
@@ -74,7 +74,7 @@ export function SearchConsoleView() {
                       <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
                       <YAxis yAxisId="clicks" tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => count(Number(v))} width={48} />
                       <YAxis yAxisId="impressions" orientation="right" tick={{ fontSize: 11, fill: "var(--text-muted)" }} tickFormatter={(v) => count(Number(v))} width={48} />
-                      <Tooltip formatter={(v, name) => [count(Number(v)), name === "clicks" ? "Clicks" : "Impressions"]} labelFormatter={(l) => new Date(`${String(l)}T00:00:00`).toDateString()} />
+                      <Tooltip formatter={(v, name) => [count(Number(v)), name === "clicks" ? "Clicks" : "Impressions"]} labelFormatter={(l) => formatDayLabel(l)} />
                       <Line yAxisId="clicks" type="monotone" dataKey="clicks" stroke="var(--color-series-1)" strokeWidth={2} dot={false} />
                       <Line yAxisId="impressions" type="monotone" dataKey="impressions" stroke="var(--color-series-2)" strokeWidth={2} dot={false} />
                     </LineChart>
@@ -93,7 +93,7 @@ export function SearchConsoleView() {
               <RowsPanel title="Top pages" label="Page" href="/google/pages" more="All pages" query={pages.query} format={pathOf} />
             </div>
 
-            <MoreLinks group="search-console" />
+            <MoreLinks group="search-console" exclude={["keywords", "pages", "index"]} />
           </div>
         )
       }
