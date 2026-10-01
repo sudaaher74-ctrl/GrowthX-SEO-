@@ -19,7 +19,7 @@ import { useGa4Report } from "@/hooks/use-ga4-report";
 import {
   GlobalVisibilityMap,
   SearchPerformanceChart,
-  ImprovementQuickActions,
+  ImprovementReportCard,
   TrafficOverviewPanel,
   QueriesOpportunitiesPanel,
 } from "./hub/index";
@@ -133,7 +133,7 @@ export function GoogleHub() {
           gscPosition={gscPosition}
         />
         <SearchPerformanceChart overview={overview} days={days} />
-        <ImprovementQuickActions />
+        <ImprovementReportCard />
       </div>
 
       {/* ── MIDDLE SECTION (ROW 2: 3-COLUMN) ── */}
