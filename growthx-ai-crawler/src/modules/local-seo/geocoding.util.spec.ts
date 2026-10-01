@@ -43,9 +43,7 @@ describe('geocoding.util', () => {
   });
 
   it('falls back to Nominatim when Google Places fails or returns no location', async () => {
-    let call = 0;
     global.fetch = jest.fn().mockImplementation(async (url: string) => {
-      call++;
       if (typeof url === 'string' && url.includes('places.googleapis.com')) {
         return { ok: false, status: 500 } as any;
       }

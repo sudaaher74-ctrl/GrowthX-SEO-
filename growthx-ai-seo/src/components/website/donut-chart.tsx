@@ -44,7 +44,7 @@ export function DonutChart({
     const circumference = 2 * Math.PI * radius;
     let accumulatedAngle = 0;
 
-    return data.map((item, index) => {
+    return data.map((item, _index) => {
       const percentage = total > 0 ? (item.value / total) * 100 : 0;
       const strokeDasharray = `${(percentage / 100) * circumference} ${circumference}`;
       const strokeDashoffset = -((accumulatedAngle / 100) * circumference);

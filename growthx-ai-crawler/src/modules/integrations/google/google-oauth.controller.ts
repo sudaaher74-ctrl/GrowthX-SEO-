@@ -44,7 +44,7 @@ export class GoogleOAuthCallbackController {
       // says "Connected" and returns nothing.
       const next = result.missingScopes.length > 0 ? 'scopes' : 'select';
       return back(`${destination}?google=${next}&provider=${result.integration.provider}`);
-    } catch (err: any) {
+    } catch (_err: any) {
       // The reason is not put in the URL: it can contain detail about why a
       // state failed to verify, which is a hint to whoever forged it.
       return back(`/integrations?google=failed`);

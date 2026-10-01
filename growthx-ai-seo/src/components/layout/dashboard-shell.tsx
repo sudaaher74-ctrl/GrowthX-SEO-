@@ -21,16 +21,16 @@ import { useTheme } from "@/hooks/use-theme";
  */
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const router = useRouter();
-  const { theme, isDark } = useTheme();
-
-  useEffect(() => {
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
     try {
-      const saved = localStorage.getItem("growthx_sidebar_collapsed");
-      if (saved === "true") setCollapsed(true);
-    } catch {}
-  }, []);
+      return localStorage.getItem("growthx_sidebar_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const router = useRouter();
+  const { isDark } = useTheme();
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {

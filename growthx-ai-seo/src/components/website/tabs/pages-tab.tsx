@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Compass, ExternalLink, Globe, Layers, Link as LinkIcon, MoreHorizontal, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { CrawlIssue, CrawlJob, CrawlPage } from "@/lib/api-client";
@@ -94,7 +94,7 @@ export function PagesTab({
   }, [issues]);
 
   // Derive Deterministic SEO Score per Page (0-100)
-  const getPageSeoScore = (page: CrawlPage) => {
+  const getPageSeoScore = useCallback((page: CrawlPage) => {
     let score = 100;
     if (page.statusCode >= 400) score -= 40;
     else if (page.statusCode >= 300) score -= 15;
@@ -115,7 +115,7 @@ export function PagesTab({
     score -= Math.min(issueCount * 4, 25);
 
     return Math.max(15, Math.min(100, score));
-  };
+  }, [issuesPerUrl]);
 
   // 1. Total Pages Crawled card metrics
   const lastRun = historyRuns.length >= 2 ? historyRuns[historyRuns.length - 2] : null;
@@ -393,7 +393,7 @@ export function PagesTab({
     });
 
     return result;
-  }, [pages, searchQuery, selectedType, selectedStatus, selectedIndexability, sortBy, issuesPerUrl]);
+  }, [pages, searchQuery, selectedType, selectedStatus, selectedIndexability, sortBy, issuesPerUrl, getPageSeoScore]);
 
   // Pagination calculation
   const totalPagesCount = Math.ceil(filteredPages.length / itemsPerPage) || 1;

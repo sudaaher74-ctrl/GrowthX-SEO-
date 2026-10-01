@@ -74,12 +74,11 @@ interface SetupStep {
 const DEFAULT_WINDOW_DAYS = 28;
 
 export default function UnifiedDashboardPage() {
-  const { orgId, projectId, projects } = useWorkspace();
+  const { orgId, projectId } = useWorkspace();
   const [metricKey, setMetricKey] = useState<MetricKey>("searchClicks");
   const [severityTab, setSeverityTab] = useState<"ALL" | IssueSeverity>("ALL");
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
   const portfolio = usePortfolio(orgId);
-  const project = projects.find((p) => p.id === projectId) ?? projects[0] ?? null;
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
 
   const crawl = useLatestCrawl(client?.domain ?? null);

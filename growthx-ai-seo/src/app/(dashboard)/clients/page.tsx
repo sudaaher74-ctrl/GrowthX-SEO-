@@ -19,7 +19,7 @@ export default function ClientsPage() {
   const [filter, setFilter] = useState<Filter>("All");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "aiCitationSharePct", dir: -1 });
 
-  const clients = portfolio.data?.clients ?? [];
+  const clients = useMemo(() => portfolio.data?.clients ?? [], [portfolio.data?.clients]);
   const summary = portfolio.data?.summary;
   const alerts = portfolio.data?.alerts ?? [];
 

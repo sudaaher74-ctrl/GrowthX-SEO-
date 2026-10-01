@@ -11,7 +11,7 @@ interface ContentTabProps {
   issues: CrawlIssue[];
 }
 
-export function ContentTab({ pages, issues }: ContentTabProps) {
+export function ContentTab({ pages, issues: _issues }: ContentTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIssueType, setSelectedIssueType] = useState("ALL");
 

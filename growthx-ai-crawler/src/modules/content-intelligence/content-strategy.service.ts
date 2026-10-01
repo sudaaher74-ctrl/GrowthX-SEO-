@@ -400,7 +400,7 @@ export class ContentStrategyService {
 
   private normalizePillars(
     raw: unknown,
-    projectId: string,
+    _projectId: string,
   ): { pillar: string; percentage: number; rationale: string; topics?: string[] }[] {
     const rows = Array.isArray(raw) ? raw : [];
 

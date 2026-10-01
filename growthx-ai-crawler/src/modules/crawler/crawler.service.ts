@@ -1470,7 +1470,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       summary: crawlSummary,
     };
 
-    const finished = await this.prisma.crawlJob.update({
+    const _finished = await this.prisma.crawlJob.update({
       where: { id: jobId },
       data: {
         status: 'COMPLETED',

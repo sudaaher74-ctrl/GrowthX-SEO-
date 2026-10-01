@@ -184,7 +184,7 @@ export class StrategyService {
    * dressed up as analysis, which is exactly what the customer is paying us not
    * to send. If no model is reachable we say so.
    */
-  async generate(projectId: string, organizationId: string) {
+  async generate(projectId: string, _organizationId: string) {
 
     const evidence = await this.gatherEvidence(projectId);
 

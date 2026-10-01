@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText } from "lucide-react";
-import { useWorkspace, useVisibility, usePortfolio, useLocalSeo } from "@/hooks/use-growthx";
+import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { StatusNote } from "@/components/ui/console";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
@@ -168,8 +168,6 @@ function CompetitorIntelligenceClient() {
   const portfolio = usePortfolio(orgId);
   const clientRow = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? null;
   const customerDomain = clientRow?.domain || "";
-  const localSeo = useLocalSeo(projectId);
-  const visibility = useVisibility(projectId, 28);
 
   const searchParams = useSearchParams();
   const pathname = usePathname();

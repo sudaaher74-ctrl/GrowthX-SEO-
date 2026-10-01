@@ -19,8 +19,6 @@ const SITE = "https://milquu.in";
 const MILK = `${SITE}/products/milk/`;
 const BLOG = `${SITE}/blog/why-a2`;
 
-const metric = (current: number, previous: number | null, lowerIsBetter = false) => ({ current, previous, lowerIsBetter });
-
 const day = (n: number) => new Date(Date.UTC(2026, 8, 1 + n)).toISOString().slice(0, 10);
 const SEARCH_SERIES = Array.from({ length: 28 }, (_, i) => ({ date: day(i), clicks: 10 + (i % 5), impressions: 900 + i * 10, ctr: 0.011 + (i % 5) / 1000, position: 9 - (i % 3) / 10 }));
 const ORGANIC_SERIES = Array.from({ length: 28 }, (_, i) => ({ date: day(i), sessions: 4 + (i % 4), users: 3 + (i % 3), keyEvents: null, revenue: null }));

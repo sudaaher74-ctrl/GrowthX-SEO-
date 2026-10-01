@@ -508,7 +508,7 @@ export class CompetitorCrawlService {
           where: { id: job.id },
           data: { healthScore: scoreRes.healthScore, uniqueIssuesCount: uniqueMap.size },
         });
-      } catch (err) {}
+      } catch (_err) {}
     }
 
     await this.prisma.competitorDomain.updateMany({

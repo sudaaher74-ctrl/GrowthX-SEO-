@@ -15,13 +15,12 @@ interface PerformanceTabProps {
 }
 
 export function PerformanceTab({
-  crawl,
+  crawl: _crawl,
   pages,
-  historyRuns = [],
+  historyRuns: _historyRuns = [],
 }: PerformanceTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deviceFilter, setDeviceFilter] = useState<"all" | "mobile" | "desktop">("all");
-  const [activeDeviceTab, setActiveDeviceTab] = useState<"mobile" | "desktop">("mobile");
   const [sortBy, setSortBy] = useState<"slowest" | "lcp" | "cls">("slowest");
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
 
@@ -59,7 +58,7 @@ export function PerformanceTab({
     // put "LCP 359.8s" on a customer dashboard, from a figure that was mostly
     // our own render queue. Null here renders as "No data", which is true.
     return null;
-  }, [pagesWithPerf, pages]);
+  }, [pagesWithPerf]);
 
   const avgInpMs = useMemo(() => {
     if (pagesWithPerf.length > 0) {

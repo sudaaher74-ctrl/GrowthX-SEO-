@@ -21,7 +21,7 @@ interface GaugeScoreProps {
 export function GaugeScore({
   score,
   maxScore = 100,
-  label = "Technical Health Score",
+  label: _label = "Technical Health Score",
   statusText,
   statusTone = "bad",
   description,

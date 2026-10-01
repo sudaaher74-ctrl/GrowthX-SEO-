@@ -28,7 +28,6 @@ export default function AdminPage() {
   const [grantTo, setGrantTo] = useState<TenantStat | null>(null);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Filtering states
   const [tenantSearch, setTenantSearch] = useState("");
@@ -58,15 +57,34 @@ export default function AdminPage() {
       setTenants(tenantsData);
       setSystemHealth(healthData);
       setUsers(usersData);
-      setIsLoading(false);
     } catch (err) {
       console.error("Failed to load admin telemetry:", err);
-      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    let active = true;
+    Promise.all([
+      api.getAdminQueues(),
+      api.getAdminCosts(),
+      api.getAdminTenants(),
+      api.getAdminSystemHealth(),
+      api.getAdminUsers(),
+    ])
+      .then(([queues, costs, tenantsData, healthData, usersData]) => {
+        if (!active) return;
+        setWorkerQueues(queues);
+        setApiCosts(costs);
+        setTenants(tenantsData);
+        setSystemHealth(healthData);
+        setUsers(usersData);
+      })
+      .catch((err) => {
+        console.error("Failed to load admin telemetry:", err);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleRefresh = async () => {

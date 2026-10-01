@@ -48,7 +48,7 @@ export class GapAnalysisService {
 
   /** Generate content gaps by comparing patterns against project context. */
   async analyzeGaps(projectId: string, organizationId: string) {
-    const [patterns, existingGaps] = await Promise.all([
+    const [patterns, _existingGaps] = await Promise.all([
       this.prisma.creativePattern.findMany({
         where: { organizationId, projectId },
         orderBy: { opportunityScore: 'desc' },
