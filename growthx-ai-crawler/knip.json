@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@5/overview/configuration-schema.json",
+  "entry": ["src/main.ts", "src/main-worker.ts", "scripts/**/*.js"],
+  "project": ["src/**/*.ts"],
+  "rules": {
+    "types": "off",
+    "enumMembers": "off",
+    "exports": "off"
+  },
+  "ignoreDependencies": [
+    "google-auth-library",
+    "@eslint/js",
+    "globals"
+  ],
+  "ignoreBinaries": ["knip"]
+}

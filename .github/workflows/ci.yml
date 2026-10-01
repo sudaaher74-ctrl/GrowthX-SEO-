@@ -46,6 +46,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Dead code check (knip)
+        run: npx knip@5
+
       # Also runs check:data, which fails the build on fabricated customer-facing figures.
       - name: Build
         run: npm run build
@@ -95,6 +98,9 @@ jobs:
       # files instead of failing on them.
       - name: Lint
         run: npm run lint:check
+
+      - name: Dead code check (knip)
+        run: npx knip@5
 
       # The fetch, render-permit and crawl-engine specs drive a real browser.
       - name: Install Chromium
