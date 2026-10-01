@@ -51,9 +51,13 @@
   "components/website/cwv-benchmark-bar.tsx": 51,
   "components/website/donut-chart.tsx": 5,
   "components/website/gauge-score.tsx": 30,
+  "components/website/pages/discovered-not-crawled-panel.tsx": 41,
+  "components/website/pages/pages-distributions.tsx": 34,
+  "components/website/pages/pages-kpis.tsx": 74,
+  "components/website/pages/pages-table.tsx": 139,
   "components/website/tabs/content-tab.tsx": 110,
   "components/website/tabs/issues-tab.tsx": 82,
   "components/website/tabs/overview-tab.tsx": 81,
-  "components/website/tabs/pages-tab.tsx": 310,
+  "components/website/tabs/pages-tab.tsx": 22,
   "components/website/tabs/performance-tab.tsx": 146
 }
