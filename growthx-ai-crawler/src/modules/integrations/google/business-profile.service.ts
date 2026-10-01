@@ -1,8 +1,21 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { google } from './google-apis';
 import type { OAuth2Client } from 'googleapis-common';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
+import { BusinessProfileV4Service } from './business-profile-v4.service';
+import {
+  classifyFailure,
+  formatAddress,
+  formatDate,
+  pointDate,
+  quotaLimitIsZero,
+  utcDay,
+  type ClassifiedFailure,
+  type FailureKind,
+} from './business-profile.helpers';
+
+export type { FailureKind, ClassifiedFailure };
 
 /**
  * Reads a customer's Google Business Profile into the GrowthX data layer.
@@ -68,28 +81,12 @@ export const GBP_PROFILE_FIELDS = [
   'serviceItems',
 ] as const;
 
-/** What a Google failure means for the customer, and for the connection row. */
-type FailureKind =
-  | 'REAUTH'
-  | 'PENDING_APPROVAL'
-  | 'QUOTA_NOT_GRANTED'
-  | 'RATE_LIMITED'
-  | 'NOT_FOUND'
-  | 'OTHER';
-
-interface ClassifiedFailure {
-  kind: FailureKind;
-  httpStatus: number | null;
-  /** Safe to show: never a token, never a raw payload. */
-  message: string;
-}
-
 @Injectable()
 export class BusinessProfileService {
   private readonly logger = new Logger(BusinessProfileService.name);
 
   /** Reviews, media and local posts live only here. */
-  static readonly V4_BASE = 'https://mybusiness.googleapis.com/v4';
+  static readonly V4_BASE = BusinessProfileV4Service.V4_BASE;
 
   /** How much history a sync pulls when it has none. */
   static readonly DEFAULT_METRIC_DAYS = 180;
@@ -138,6 +135,7 @@ export class BusinessProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly oauth: GoogleOAuthService,
+    @Optional() private readonly v4Service: BusinessProfileV4Service = new BusinessProfileV4Service(prisma),
   ) {}
 
   /**
@@ -349,7 +347,7 @@ export class BusinessProfileService {
         }
       } else {
         try {
-          counts.reviews = await this.syncReviews(projectId, auth, accountName, locationName);
+          counts.reviews = await this.v4Service.syncReviews(projectId, auth, accountName, locationName, this.prisma);
           await this.recordSource(projectId, locationName, 'reviews', { count: counts.reviews });
         } catch (error) {
           failed.push('reviews');
@@ -357,7 +355,7 @@ export class BusinessProfileService {
         }
 
         try {
-          counts.photos = await this.syncMedia(projectId, auth, accountName, locationName);
+          counts.photos = await this.v4Service.syncMedia(projectId, auth, accountName, locationName, this.prisma);
           await this.recordSource(projectId, locationName, 'media', { count: counts.photos });
         } catch (error) {
           failed.push('media');
@@ -365,7 +363,7 @@ export class BusinessProfileService {
         }
 
         try {
-          counts.posts = await this.syncPosts(projectId, auth, accountName, locationName);
+          counts.posts = await this.v4Service.syncPosts(projectId, auth, accountName, locationName, this.prisma);
           await this.recordSource(projectId, locationName, 'posts', { count: counts.posts });
         } catch (error) {
           failed.push('posts');
@@ -686,201 +684,7 @@ export class BusinessProfileService {
     path: string,
     options: { query?: Record<string, string>; method?: string; body?: unknown } = {},
   ): Promise<any> {
-    const { token } = await auth.getAccessToken();
-    if (!token) {
-      throw new ServiceUnavailableException('Google did not return an access token for this connection.');
-    }
-
-    const url = new URL(`${BusinessProfileService.V4_BASE}/${path}`);
-    for (const [key, value] of Object.entries(options.query ?? {})) url.searchParams.set(key, value);
-
-    const response = await fetch(url.toString(), {
-      method: options.method ?? 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      let detail = '';
-      let googleError: any = null;
-      try {
-        googleError = JSON.parse(body)?.error ?? null;
-        detail = googleError?.message ?? '';
-      } catch {
-        detail = body.slice(0, 300);
-      }
-      const error: any = new Error(detail || `Google returned HTTP ${response.status}.`);
-      error.status = response.status;
-      // The structured error, not just its message: `details` carries the
-      // quota limit, which is what tells a 429 of zero from a 429 of busy.
-      if (googleError) error.googleError = googleError;
-      throw error;
-    }
-
-    return response.json();
-  }
-
-  /** Every page of a v4 collection. */
-  private async v4All(
-    auth: OAuth2Client,
-    path: string,
-    collection: string,
-    query: Record<string, string> = {},
-  ): Promise<any[]> {
-    const items: any[] = [];
-    let pageToken: string | undefined;
-    do {
-      const page = await this.v4(auth, path, { query: pageToken ? { ...query, pageToken } : query });
-      items.push(...(page?.[collection] ?? []));
-      pageToken = page?.nextPageToken;
-    } while (pageToken);
-    return items;
-  }
-
-  private async syncReviews(
-    projectId: string,
-    auth: OAuth2Client,
-    accountName: string,
-    locationName: string,
-  ): Promise<number> {
-    const locationId = locationName.split('/').pop();
-    const reviews = await this.v4All(auth, `${accountName}/locations/${locationId}/reviews`, 'reviews', {
-      pageSize: '50',
-    });
-
-    for (const review of reviews) {
-      const googleReviewId: string | undefined = review.reviewId ?? review.name?.split('/').pop();
-      if (!googleReviewId) continue;
-
-      const values = {
-        authorName: review.reviewer?.displayName ?? 'Google user',
-        authorPhotoUrl: review.reviewer?.profilePhotoUrl ?? null,
-        rating: starRating(review.starRating),
-        text: review.comment ?? null,
-        // Kept as Google's own timestamp string. LocalReview has always stored
-        // these as text and other callers read them that way.
-        time: review.createTime ?? '',
-        relativeTime: '',
-        locationName,
-        googleReplyText: review.reviewReply?.comment ?? null,
-        googleReplyUpdatedAt: parseTime(review.reviewReply?.updateTime),
-        googleUpdateTime: parseTime(review.updateTime),
-      };
-
-      await this.prisma.localReview.upsert({
-        where: { projectId_googleReviewId: { projectId, googleReviewId } },
-        update: values,
-        // replyStatus is left to its default on create and untouched on update:
-        // it is this product's own workflow state, and a re-sync must not
-        // reset a reply someone already worked on.
-        create: { projectId, googleReviewId, ...values },
-      });
-    }
-
-    return reviews.length;
-  }
-
-  private async syncMedia(
-    projectId: string,
-    auth: OAuth2Client,
-    accountName: string,
-    locationName: string,
-  ): Promise<number> {
-    const locationId = locationName.split('/').pop();
-    const media = await this.v4All(auth, `${accountName}/locations/${locationId}/media`, 'mediaItems', {
-      pageSize: '100',
-    });
-
-    const names: string[] = [];
-    for (const item of media) {
-      if (!item.name) continue;
-      names.push(item.name);
-      const values = {
-        locationName,
-        mediaFormat: item.mediaFormat ?? null,
-        category: item.locationAssociation?.category ?? null,
-        googleUrl: item.googleUrl ?? null,
-        thumbnailUrl: item.thumbnailUrl ?? null,
-        sourceUrl: item.sourceUrl ?? null,
-        description: item.description ?? null,
-        widthPx: item.dimensions?.widthPixels ?? null,
-        heightPx: item.dimensions?.heightPixels ?? null,
-        // Absent when Google reports no insights for the item. Left null
-        // rather than zeroed — "not reported" is not "never viewed".
-        viewCount: item.insights?.viewCount === undefined ? null : Number(item.insights.viewCount),
-        // Google attributes an item only when a customer contributed it, so a
-        // missing attribution is an absence of information rather than proof
-        // the merchant uploaded it. Left null, not guessed at as MERCHANT.
-        attribution: item.attribution?.profileName ? 'CUSTOMER' : null,
-        createTime: parseTime(item.createTime),
-        syncedAt: new Date(),
-      };
-      await this.prisma.gbpMedia.upsert({
-        where: { projectId_mediaName: { projectId, mediaName: item.name } },
-        update: values,
-        create: { projectId, mediaName: item.name, ...values },
-      });
-    }
-
-    // A photo the merchant deleted on Google must stop being shown here.
-    await this.prisma.gbpMedia.deleteMany({
-      where: { projectId, locationName, ...(names.length ? { mediaName: { notIn: names } } : {}) },
-    });
-
-    return names.length;
-  }
-
-  private async syncPosts(
-    projectId: string,
-    auth: OAuth2Client,
-    accountName: string,
-    locationName: string,
-  ): Promise<number> {
-    const locationId = locationName.split('/').pop();
-    const posts = await this.v4All(auth, `${accountName}/locations/${locationId}/localPosts`, 'localPosts', {
-      pageSize: '100',
-    });
-
-    const names: string[] = [];
-    for (const post of posts) {
-      if (!post.name) continue;
-      names.push(post.name);
-      const values = {
-        locationName,
-        summary: post.summary ?? null,
-        languageCode: post.languageCode ?? null,
-        state: post.state ?? null,
-        topicType: post.topicType ?? null,
-        searchUrl: post.searchUrl ?? null,
-        callToActionType: post.callToAction?.actionType ?? null,
-        callToActionUrl: post.callToAction?.url ?? null,
-        eventTitle: post.event?.title ?? null,
-        eventStart: formatDate(post.event?.schedule?.startDate),
-        eventEnd: formatDate(post.event?.schedule?.endDate),
-        mediaUrls: (post.media ?? [])
-          .map((item: any) => item.googleUrl ?? item.sourceUrl)
-          .filter((url: unknown): url is string => typeof url === 'string'),
-        createTime: parseTime(post.createTime),
-        updateTime: parseTime(post.updateTime),
-        syncedAt: new Date(),
-      };
-      await this.prisma.gbpLocalPost.upsert({
-        where: { projectId_postName: { projectId, postName: post.name } },
-        update: values,
-        create: { projectId, postName: post.name, ...values },
-      });
-    }
-
-    await this.prisma.gbpLocalPost.deleteMany({
-      where: { projectId, locationName, ...(names.length ? { postName: { notIn: names } } : {}) },
-    });
-
-    return names.length;
+    return this.v4Service.v4(auth, path, options);
   }
 
   // ───────────────────────────────────────── writing back to Google
@@ -955,18 +759,15 @@ export class BusinessProfileService {
       );
     }
 
-    const locationId = location.locationName.split('/').pop();
     try {
       const auth = await this.auth(projectId);
-      const response = await this.v4(
+      return await this.v4Service.replyToReview(
         auth,
-        `${location.accountName}/locations/${locationId}/reviews/${googleReviewId}/reply`,
-        { method: 'PUT', body: { comment } },
+        location.accountName,
+        location.locationName,
+        googleReviewId,
+        comment,
       );
-      return {
-        comment: response?.comment ?? comment,
-        updateTime: parseTime(response?.updateTime),
-      };
     } catch (error) {
       throw await this.surface(projectId, error);
     }
@@ -1000,88 +801,7 @@ export class BusinessProfileService {
    * that cannot terminate.
    */
   classifyFailure(error: any): ClassifiedFailure {
-    const httpStatus: number | null =
-      error?.status ?? error?.response?.status ?? (typeof error?.code === 'number' ? error.code : null);
-    const raw: string = error?.response?.data?.error?.message ?? error?.message ?? '';
-
-    if (httpStatus === 401) {
-      return {
-        kind: 'REAUTH',
-        httpStatus,
-        message:
-          'Google rejected the stored authorization for this Business Profile. Reconnect Google Business Profile ' +
-          'to resume reading it.',
-      };
-    }
-
-    if (httpStatus === 403) {
-      if (/has not been used in project|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(raw)) {
-        return {
-          kind: 'PENDING_APPROVAL',
-          httpStatus,
-          message:
-            'Business Profile API access is pending Google’s approval for this Cloud project. The API is not ' +
-            'enabled yet, so no profile data can be read. This is granted by Google per project and is not something ' +
-            'reconnecting will fix.',
-        };
-      }
-      return {
-        kind: 'PENDING_APPROVAL',
-        httpStatus,
-        message:
-          'Google refused this Business Profile request (403). The usual cause is that this Cloud project has not ' +
-          'been approved for the Business Profile APIs, which Google grants per project and can take weeks; the ' +
-          'other is that the connected Google account does not manage this location.',
-      };
-    }
-
-    if (httpStatus === 404) {
-      return {
-        kind: 'NOT_FOUND',
-        httpStatus,
-        message: 'Google no longer has this location, or it has moved to another account. Re-select the location.',
-      };
-    }
-
-    if (httpStatus === 429) {
-      // Google's answer to an unapproved Cloud project, and the reason this
-      // branch cannot simply say "wait a minute": the quota is zero, so there
-      // is no minute at which it succeeds.
-      if (quotaLimitIsZero(error)) {
-        return {
-          kind: 'QUOTA_NOT_GRANTED',
-          httpStatus,
-          message:
-            'Google is allowing this deployment zero Business Profile requests per minute, which is what an ' +
-            'unapproved Cloud project is given rather than what a busy one is given. Waiting and retrying cannot ' +
-            'change it: the Business Profile API access request for this Cloud project has to be approved by ' +
-            'Google, which raises the quota above zero. Nothing about the Google account you signed in with is ' +
-            'wrong, and reconnecting will not help. Track this location via Places / Manual Entry until the ' +
-            'approval lands.',
-        };
-      }
-      return {
-        kind: 'RATE_LIMITED',
-        httpStatus,
-        message:
-          'Google is temporarily rate-limiting Business Profile requests for this project. ' +
-          'Automatic retries were attempted but Google is still busy. ' +
-          'Please wait a minute and click "Try again" — this usually resolves on its own.' +
-          // Google names the quota and the service it applies to, which is the
-          // only way for whoever runs this deployment to check the limit in
-          // Cloud Console rather than guess at it. As in the OTHER branch:
-          // Google's message field, which carries no token and no credential.
-          (raw ? ` Google said: ${raw.slice(0, 300)}` : ''),
-      };
-    }
-
-    return {
-      kind: 'OTHER',
-      httpStatus,
-      // Truncated and taken from Google's own message field, which carries no
-      // token and no credential.
-      message: raw ? `Google could not answer this Business Profile request: ${raw.slice(0, 300)}` : 'Google could not answer this Business Profile request.',
-    };
+    return classifyFailure(error);
   }
 
   /**
@@ -1161,105 +881,5 @@ export class BusinessProfileService {
     }
     this.logger.warn(`[GBP ${projectId}] ${source}: ${failure.message}`);
     await this.recordSource(projectId, locationName, source, { failure });
-  }
-}
-
-/**
- * Everything Google attached to a failure, from either transport.
- *
- * The SDK clients put the parsed body on `response.data`; the v4 helper has no
- * SDK, so it attaches the same object as `googleError`. Both are read here so
- * the two paths classify identically.
- */
-function googleErrorDetails(error: any): any[] {
-  const payload = error?.response?.data?.error ?? error?.googleError ?? null;
-  return Array.isArray(payload?.details) ? payload.details : [];
-}
-
-/**
- * Whether a 429 is a quota of zero rather than a burst.
- *
- * This is the distinction that decides whether waiting is the advice. A Cloud
- * project that has not been granted Business Profile access does not get a
- * 403: the APIs enable fine and answer every request with
- * RESOURCE_EXHAUSTED, because the per-minute quota they are provisioned with
- * is 0 until Google approves the access request. The number is in the
- * structured error, as `quota_limit_value` on the ErrorInfo detail, and it is
- * the only thing that separates "approved and briefly busy" from "not
- * approved, and no amount of waiting or retrying will change that".
- */
-function quotaLimitIsZero(error: any): boolean {
-  for (const detail of googleErrorDetails(error)) {
-    const value = detail?.metadata?.quota_limit_value ?? detail?.metadata?.quotaLimitValue;
-    if (value !== undefined && value !== null && Number(value) === 0) return true;
-  }
-  // The v4 path can reduce a body to text before anything parses it, so the
-  // same fact is accepted in the message it came wrapped in.
-  const raw: string = error?.response?.data?.error?.message ?? error?.message ?? '';
-  return /quota_limit_value["'\s:]+["']?0\b/i.test(raw);
-}
-
-/** A single line for display. Null when Google gave no address at all. */
-function formatAddress(address: any): string | null {
-  if (!address) return null;
-  const parts = [
-    ...(address.addressLines ?? []),
-    address.locality,
-    address.administrativeArea,
-    address.postalCode,
-    address.regionCode,
-  ].filter((part: unknown) => typeof part === 'string' && part.trim().length > 0);
-  return parts.length ? parts.join(', ') : null;
-}
-
-/** Google's Date type as an ISO-ish string, without inventing missing parts. */
-function formatDate(date: any): string | null {
-  if (!date || !date.year) return null;
-  const month = date.month ? String(date.month).padStart(2, '0') : null;
-  const day = date.day ? String(date.day).padStart(2, '0') : null;
-  if (month && day) return `${date.year}-${month}-${day}`;
-  if (month) return `${date.year}-${month}`;
-  return String(date.year);
-}
-
-/** A datapoint's date. Null when it is not a whole day, which cannot be stored. */
-function pointDate(date: any): Date | null {
-  if (!date?.year || !date?.month || !date?.day) return null;
-  return new Date(Date.UTC(date.year, date.month - 1, date.day));
-}
-
-function utcDay(input: Date): Date {
-  const date = new Date(input);
-  date.setUTCHours(0, 0, 0, 0);
-  return date;
-}
-
-function parseTime(value: unknown): Date | null {
-  if (typeof value !== 'string' || !value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-/**
- * Google's star rating is a word, not a number.
- *
- * STAR_RATING_UNSPECIFIED has no numeric meaning, so it becomes 0 rather than
- * a guess — a review whose rating Google would not state must not be averaged
- * in as though it were three stars.
- */
-function starRating(value: unknown): number {
-  switch (value) {
-    case 'ONE':
-      return 1;
-    case 'TWO':
-      return 2;
-    case 'THREE':
-      return 3;
-    case 'FOUR':
-      return 4;
-    case 'FIVE':
-      return 5;
-    default:
-      return 0;
   }
 }
