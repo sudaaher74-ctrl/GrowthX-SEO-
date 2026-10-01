@@ -33,6 +33,7 @@ export function PostsTab({
     <GbpTabGate
       query={query}
       label="Posts"
+      keepTabOnError
       onConnect={onConnect}
       onChooseLocation={onChooseLocation}
       onSync={onSync}

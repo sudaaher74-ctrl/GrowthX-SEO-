@@ -15,7 +15,17 @@ export function describePlacesFailure(parsed: any): string {
   const info = (parsed?.error?.details ?? []).find(
     (detail: any) => typeof detail?.reason === 'string',
   );
-  if (!info) return '';
+  if (!info) {
+    // Google sometimes sends only "The caller does not have permission" with no
+    // `details`, which is what a customer saw with nothing to act on. These are
+    // the causes that produce it, so name them instead of leaving a bare 403.
+    return parsed?.error?.status === 'PERMISSION_DENIED'
+      ? ' Google did not say why. In the Cloud project that owns GOOGLE_PLACES_API_KEY, check that ' +
+          'Places API (New) is enabled, that billing is on, and that the key\'s API restrictions ' +
+          'include Places API (New) and its application restriction is "None" (a server cannot ' +
+          'satisfy a referrer restriction).'
+      : '';
+  }
 
   const remedy: Record<string, string> = {
     SERVICE_DISABLED:

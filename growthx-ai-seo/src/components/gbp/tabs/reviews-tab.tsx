@@ -43,6 +43,7 @@ export function ReviewsTab({
     <GbpTabGate
       query={query}
       label="Reviews"
+      keepTabOnError
       placesLockedNote={
         <>
           Google shares only its 5 most relevant reviews publicly. The full review list and replying

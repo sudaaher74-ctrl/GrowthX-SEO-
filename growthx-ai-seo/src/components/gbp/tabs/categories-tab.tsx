@@ -34,6 +34,7 @@ export function CategoriesTab({
     <GbpTabGate
       query={query}
       label="Categories"
+      keepTabOnError
       placesLockedNote={
         <>
           These are the place types Google Maps shows for your listing. They follow your Business Profile

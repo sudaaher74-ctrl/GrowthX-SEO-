@@ -12,6 +12,10 @@ on:
   push:
     branches: [main]
 
+# Nothing here writes to the repository, so the token only needs to read it.
+permissions:
+  contents: read
+
 # A newer push to the same branch makes the older run irrelevant.
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,6 +25,9 @@ jobs:
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
+    # A normal run takes 3-4 minutes; this stops a hung browser or test from
+    # holding a runner for GitHub's six-hour default.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: growthx-ai-seo
@@ -74,6 +81,9 @@ jobs:
   api:
     name: API checks
     runs-on: ubuntu-latest
+    # A normal run takes 3-4 minutes; this stops a hung browser or test from
+    # holding a runner for GitHub's six-hour default.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: growthx-ai-crawler

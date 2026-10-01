@@ -130,12 +130,17 @@ interface ConnectionNoticeProps {
  * The connection-level answer, or null when the connection is fine and the tab
  * should render its own data.
  *
+ * A plain function, deliberately not a component: the caller tests the result
+ * for null. Rendered as `<GbpConnectionNotice />` the result is always a truthy
+ * element, so a healthy connection produced a blank tab and the tab's own data
+ * was never shown.
+ *
  * `requiresGoogleApproval` with `ERROR` is treated as a first-class state
  * rather than as a failure: on a fresh deployment it is the *expected* answer
  * for days or weeks while Google reviews the Business Profile API request, and
  * it is not something the customer's own setup can fix.
  */
-function GbpConnectionNotice({
+function connectionNotice({
   connection,
   places,
   onConnect,
@@ -447,10 +452,73 @@ function PlacesDataBanner({
   );
 }
 
+/**
+ * The one-line version of the ERROR connection notice, for a tab that keeps
+ * rendering beneath it.
+ *
+ * The full-page panel is right when there is nothing else to show. When the
+ * tab can show what GrowthX has already stored, replacing that with a panel
+ * hides real data behind a message about data that could not be read.
+ */
+function GbpAccessBanner({
+  connection,
+  places,
+  onSync,
+  isSyncing,
+}: {
+  connection: GbpConnection;
+  places?: GbpPlacesMeta | null;
+  onSync?: () => void;
+  isSyncing?: boolean;
+}) {
+  const lastSynced = formatGbpTimestamp(connection.lastSyncedAt);
+  const waiting = connection.requiresGoogleApproval;
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-2 rounded-xl border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-[11.5px] leading-relaxed text-warning-700 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div className="flex items-start gap-2">
+        <Clock size={14} className="mt-0.5 shrink-0 text-warning-600" />
+        <p>
+          <span className="font-semibold">
+            {waiting ? "Business Profile access is waiting on Google's approval." : "The last read from Google failed."}
+          </span>{" "}
+          This tab shows what GrowthX has stored{lastSynced ? ` (last sync ${lastSynced})` : ""}; nothing new can
+          be read until access is granted.
+          {placesDetail(places) && <span className="block opacity-80">{placesDetail(places)}</span>}
+        </p>
+      </div>
+      {onSync && (
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={isSyncing}
+          className="inline-flex shrink-0 items-center gap-1 font-semibold hover:underline disabled:opacity-50"
+        >
+          {isSyncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+          Try syncing again
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface TabGateProps<T extends GbpEnvelope> {
   query: { data: T | undefined; isLoading: boolean; isError: boolean; error: unknown };
   /** What this tab is loading, for the loading and failure lines. */
   label: string;
+  /**
+   * Render the tab, under a one-line banner, when the connection is in ERROR
+   * (most often: Google has not yet approved the Business Profile APIs)
+   * instead of replacing it with a full-page notice.
+   *
+   * Only for a tab that handles an empty list itself, normally with
+   * GbpSourceNotice, because it will be rendered over data that may not exist.
+   * The other connection states still show their notice: there is nothing to
+   * keep when no account is connected or no location is chosen.
+   */
+  keepTabOnError?: boolean;
   /** What this tab cannot show when it is filled from the public listing. */
   placesLockedNote?: React.ReactNode;
   onConnect?: () => void;
@@ -471,6 +539,7 @@ interface TabGateProps<T extends GbpEnvelope> {
 export function GbpTabGate<T extends GbpEnvelope>({
   query,
   label,
+  keepTabOnError = false,
   placesLockedNote,
   onConnect,
   onChooseLocation,
@@ -523,16 +592,29 @@ export function GbpTabGate<T extends GbpEnvelope>({
     );
   }
 
-  const notice = (
-    <GbpConnectionNotice
-      connection={query.data.connection}
-      places={query.data.places}
-      onConnect={onConnect}
-      onChooseLocation={onChooseLocation}
-      onSync={onSync}
-      isSyncing={isSyncing}
-    />
-  );
+  const { connection } = query.data;
+  if (keepTabOnError && connection?.configured && connection.state === "ERROR") {
+    return (
+      <div className="space-y-4">
+        <GbpAccessBanner
+          connection={connection}
+          places={query.data.places}
+          onSync={onSync}
+          isSyncing={isSyncing}
+        />
+        {children(query.data)}
+      </div>
+    );
+  }
+
+  const notice = connectionNotice({
+    connection: query.data.connection,
+    places: query.data.places,
+    onConnect,
+    onChooseLocation,
+    onSync,
+    isSyncing,
+  });
   if (notice) return notice;
 
   return <>{children(query.data)}</>;

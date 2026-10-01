@@ -89,11 +89,20 @@ describe('GoogleOAuthService', () => {
     it('carries a signed state, not a readable one', () => {
       const { service } = build();
 
-      const url = service.authorizationUrl({ provider: 'search_console', projectId: 'p1', organizationId: 'o1' });
+      // Long, distinctive ids on purpose. The state is base64url plus a random
+      // nonce and signature, so a short marker like 'p1' turns up in it by
+      // chance on some runs and made this test fail intermittently in CI.
+      const url = service.authorizationUrl({
+        provider: 'search_console',
+        projectId: 'project-id-that-must-not-leak',
+        organizationId: 'organization-id-that-must-not-leak',
+      });
       const state = decodeURIComponent(new URL(url).searchParams.get('state')!);
 
       expect(state.split('.')).toHaveLength(2);
-      expect(state).not.toContain('p1');
+      expect(state).not.toContain('project-id-that-must-not-leak');
+      expect(state).not.toContain('organization-id-that-must-not-leak');
+      expect(state).not.toContain('projectId');
     });
   });
 

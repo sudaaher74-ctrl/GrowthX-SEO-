@@ -220,7 +220,7 @@ test.describe("Google section, Overview", () => {
     await expect(page.getByText("No revenue is recorded in this Google Analytics property.")).toBeVisible();
   });
 
-  test("the hub offers two sources, and every other view is reachable from one of them", async ({ page }) => {
+  test("the hub offers two sources, and the section nav lists only the views meant to be browsed", async ({ page }) => {
     await open(page, "/google");
     await expect(page.getByRole("link", { name: /Search Console/ }).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("link", { name: /Analytics 4/ }).first()).toBeVisible();
@@ -229,8 +229,11 @@ test.describe("Google section, Overview", () => {
 
     await open(page, "/google/keywords");
     const nav = page.getByRole("navigation", { name: "Google sections" });
-    await expect(nav.getByRole("link").first()).toHaveText("Search Console", { timeout: 15_000 });
-    expect(await nav.getByRole("link").allInnerTexts()).toEqual(["Search Console", "Search Performance", "Keywords", "Pages", "Google Index"]);
+    // Keywords, Pages and Google Index are `hidden` in components/google/nav.ts: they
+    // stay out of the section nav, and appear in it only while you are on that page.
+    // From /google/keywords that leaves the Search Console link, Search Performance
+    // and Keywords itself. Pages and Google Index must not be offered here.
+    await expect(nav.getByRole("link")).toHaveText(["Search Console", "Search Performance", "Keywords"], { timeout: 15_000 });
   });
 
   test("shows Search Console as connected but empty, with blanks instead of zeros", async ({ page }) => {
