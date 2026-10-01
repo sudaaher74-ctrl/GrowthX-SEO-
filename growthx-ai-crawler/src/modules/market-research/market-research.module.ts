@@ -15,6 +15,8 @@ import { CompetitorVerificationService } from './competitor-verification.service
 import { CompetitorDiscoveryService } from './competitor-discovery.service';
 import { WebSearchService } from './web-search.service';
 
+import { CompetitorAutoIdentifyService } from './competitor-auto-identify.service';
+
 /**
  * GrowthX Market Research.
  *
@@ -26,8 +28,32 @@ import { WebSearchService } from './web-search.service';
 @Module({
   imports: [DatabaseModule, AiVisibilityModule, ContentIntelligenceModule],
   controllers: [MarketResearchController],
-  providers: [ModelRouterService, EvidenceRetrievalService, BusinessProfileService, CompetitorVerificationService, CompetitorDiscoveryService, WebSearchService, MarketResearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, MarketResearchScheduler],
-  exports: [MarketResearchService, BusinessProfileService, CompetitorVerificationService, CompetitorDiscoveryService, WebSearchService, MarketActionService, OutcomeMeasurementService, WeeklyDeltaService, ModelRouterService],
+  providers: [
+    ModelRouterService,
+    EvidenceRetrievalService,
+    BusinessProfileService,
+    CompetitorVerificationService,
+    CompetitorDiscoveryService,
+    CompetitorAutoIdentifyService,
+    WebSearchService,
+    MarketResearchService,
+    MarketActionService,
+    OutcomeMeasurementService,
+    WeeklyDeltaService,
+    MarketResearchScheduler,
+  ],
+  exports: [
+    MarketResearchService,
+    CompetitorAutoIdentifyService,
+    BusinessProfileService,
+    CompetitorVerificationService,
+    CompetitorDiscoveryService,
+    WebSearchService,
+    MarketActionService,
+    OutcomeMeasurementService,
+    WeeklyDeltaService,
+    ModelRouterService,
+  ],
 })
 export class MarketResearchModule {}
 
