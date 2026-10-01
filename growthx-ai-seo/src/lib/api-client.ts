@@ -286,7 +286,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // Clearing the session used to leave the caller on the dashboard, where
     // every query then failed with a different error. Send them to sign in —
     // except when they are already on an auth page, which would loop.
-    const onAuthPage = ["/login", "/register"].includes(window.location.pathname);
+    const onAuthPage = ["/login", "/register", "/auth/callback"].includes(window.location.pathname);
     if (!onAuthPage && process.env.NODE_ENV !== "production") {
       console.warn("Bypassing 401 redirect in development mode.");
     } else if (!onAuthPage) {
