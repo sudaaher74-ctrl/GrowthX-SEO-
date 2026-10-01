@@ -5,13 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { OpenAI } from 'openai';
 import Groq from 'groq-sdk';
 import {
-  SARVAM_CHAT_COMPLETIONS_URL,
   SarvamReasoningEffort,
-  buildSarvamBody,
-  clampSarvamMaxTokens,
-  describeEmptySarvamResponse,
-  readSarvamMessage,
-  relaxSarvamBody,
   resolveSarvamModel,
   resolveSarvamReasoningEffort,
 } from '../../ai-engine/utils/sarvam-request.util';
@@ -20,168 +14,38 @@ import { extractAndParseJson } from '../../ai-engine/utils/json-extractor.util';
 import { configuredValue, isConfiguredValue } from '../../../config/optional-env';
 import { AiUsageService } from './ai-usage.service';
 import { TokensService } from '../../tokens/tokens.service';
-import { MammouthCapability, resolveMammouthModelForCapability } from './mammouth-models.config';
+import { MammouthCapability } from './mammouth-models.config';
+import {
+  AiProvider,
+  RoutingProfile,
+  AiTask,
+  TASK_PROFILE,
+  AiRequest,
+  AiUsage,
+  AiCompletion,
+  Rate,
+  ANTHROPIC_RATES,
+  TASK_PREFERENCE,
+  profileFor,
+} from './multi-ai-router.types';
+import { executeMammouthCall, redactMammouthKey, taskToCapability } from './mammouth-invoker.util';
+import { executeSarvamCall, postToSarvam } from './sarvam-invoker.util';
+import { executeAnthropicCall, anthropicWithFallback } from './anthropic-invoker.util';
 
-export enum AiProvider {
-  MAMMOUTH = 'MAMMOUTH',
-  SARVAM = 'SARVAM',
-  GEMINI = 'GEMINI',
-  OPENAI = 'OPENAI',
-  ANTHROPIC = 'ANTHROPIC',
-  GROQ = 'GROQ',
-  OPENROUTER = 'OPENROUTER',
-  /**
-   * A search-grounded assistant we measure, not one we borrow for generation:
-   * it is in no TASK_PREFERENCE chain, so it only ever answers when a caller pins it
-   * (AI Visibility asking "what does Perplexity say").
-   */
-  PERPLEXITY = 'PERPLEXITY',
-}
-
-/**
- * How a task is routed, independent of which vendor ends up serving it.
- *
- * Three profiles rather than one per task on purpose: the vendor preference
- * order genuinely only has three shapes, and a table with one row per task
- * drifts out of agreement with itself the first time a vendor is added.
- */
-export enum RoutingProfile {
-  /** Deep SEO reasoning, strategy, competitive analysis. */
-  REASONING = 'REASONING',
-  /** Generating code patches for the autonomous engineer. */
-  CODE_GEN = 'CODE_GEN',
-  /** Cheap, high-volume extraction and classification. */
-  FAST = 'FAST',
-}
-
-/**
- * What the caller wants done. Named for the product surface that asks, not the
- * model that answers, so the spend ledger reads as "what did the fix engine
- * cost us" rather than "what did REASONING cost us".
- *
- * The first three values are the original routing profiles, kept as task names
- * so existing callers keep working unchanged.
- */
-export enum AiTask {
-  REASONING = 'REASONING',
-  CODE_GEN = 'CODE_GEN',
-  FAST = 'FAST',
-
-  SEO_RESEARCH = 'SEO_RESEARCH',
-  SEO_ANALYSIS = 'SEO_ANALYSIS',
-  COMPETITOR_ANALYSIS = 'COMPETITOR_ANALYSIS',
-  AI_VISIBILITY_ANALYSIS = 'AI_VISIBILITY_ANALYSIS',
-  PAGE_COMPARISON = 'PAGE_COMPARISON',
-  CONTENT_STRUCTURE_ANALYSIS = 'CONTENT_STRUCTURE_ANALYSIS',
-  ENTITY_ANALYSIS = 'ENTITY_ANALYSIS',
-  SEO_OPPORTUNITY_GENERATION = 'SEO_OPPORTUNITY_GENERATION',
-  CODE_GENERATION = 'CODE_GENERATION',
-  CODE_REVIEW = 'CODE_REVIEW',
-  FIX_VALIDATION = 'FIX_VALIDATION',
-  LOCAL_SEO_ANALYSIS = 'LOCAL_SEO_ANALYSIS',
-  REVIEW_RESPONSE_DRAFT = 'REVIEW_RESPONSE_DRAFT',
-  SUMMARY_GENERATION = 'SUMMARY_GENERATION',
-}
-
-/**
- * Which routing profile each task uses.
- *
- * The judgement encoded here: anything that reads a page and decides what is
- * wrong with it reasons; anything that writes or checks code needs the code
- * profile; anything run hundreds of times per client per week is priced first
- * and reasoned second, because at 300 prompts x 5 engines x weekly the cheap
- * model is the difference between a viable gross margin and a services
- * business.
- */
-const TASK_PROFILE: Readonly<Record<AiTask, RoutingProfile>> = {
-  [AiTask.REASONING]: RoutingProfile.REASONING,
-  [AiTask.CODE_GEN]: RoutingProfile.CODE_GEN,
-  [AiTask.FAST]: RoutingProfile.FAST,
-
-  [AiTask.SEO_RESEARCH]: RoutingProfile.REASONING,
-  [AiTask.SEO_ANALYSIS]: RoutingProfile.REASONING,
-  [AiTask.COMPETITOR_ANALYSIS]: RoutingProfile.REASONING,
-  [AiTask.AI_VISIBILITY_ANALYSIS]: RoutingProfile.REASONING,
-  [AiTask.PAGE_COMPARISON]: RoutingProfile.REASONING,
-  [AiTask.SEO_OPPORTUNITY_GENERATION]: RoutingProfile.REASONING,
-
-  [AiTask.CODE_GENERATION]: RoutingProfile.CODE_GEN,
-  [AiTask.CODE_REVIEW]: RoutingProfile.CODE_GEN,
-  [AiTask.FIX_VALIDATION]: RoutingProfile.CODE_GEN,
-
-  [AiTask.CONTENT_STRUCTURE_ANALYSIS]: RoutingProfile.FAST,
-  [AiTask.ENTITY_ANALYSIS]: RoutingProfile.FAST,
-  [AiTask.LOCAL_SEO_ANALYSIS]: RoutingProfile.FAST,
-  [AiTask.REVIEW_RESPONSE_DRAFT]: RoutingProfile.FAST,
-  [AiTask.SUMMARY_GENERATION]: RoutingProfile.FAST,
+// Re-export all types, enums and utilities so callers and declaration files remain 100% compatible
+export {
+  AiProvider,
+  RoutingProfile,
+  AiTask,
+  TASK_PROFILE,
+  AiRequest,
+  AiUsage,
+  AiCompletion,
+  Rate,
+  ANTHROPIC_RATES,
+  TASK_PREFERENCE,
+  profileFor,
 };
-
-export interface AiRequest {
-  prompt: string;
-  systemInstruction?: string;
-  task?: AiTask;
-  /** Force a specific vendor. Denied with 403 if the plan does not include it. */
-  provider?: AiProvider;
-  /** When present, the organization's plan decides which vendors are reachable. */
-  organizationId?: string;
-  /** Attribution only — spend is reported per project as well as per org. */
-  projectId?: string;
-  /**
-   * Set false when the caller's configuration forbids switching vendors. The
-   * first provider is then the only one tried, and its failure is the answer:
-   * a customer who pinned a vendor for a compliance reason must not be quietly
-   * served by a different one.
-   */
-  allowFallback?: boolean;
-  /** JSON Schema. When supplied, the response is constrained to match it. */
-  jsonSchema?: Record<string, unknown>;
-  maxTokens?: number;
-}
-
-export interface AiUsage {
-  inputTokens: number;
-  outputTokens: number;
-  /** Null when we have no published rate for the model — never a guessed number. */
-  estimatedCostUsd: number | null;
-}
-
-export interface AiCompletion {
-  provider: AiProvider;
-  model: string;
-  text: string;
-  usage: AiUsage;
-  /** Set when the vendor's safety classifiers declined rather than answered. */
-  refused: boolean;
-}
-
-/** USD per million tokens. */
-interface Rate {
-  input: number;
-  output: number;
-}
-
-/**
- * Published Anthropic rates. Other vendors are left out deliberately: we report
- * token counts for them but no cost, because a wrong margin number is worse
- * than an absent one. Set GEMINI_RATE_* / OPENAI_RATE_* to fill them in.
- */
-const ANTHROPIC_RATES: Readonly<Record<string, Rate>> = {
-  'claude-opus-5': { input: 5, output: 25 },
-  'claude-sonnet-5': { input: 3, output: 15 },
-  'claude-haiku-4-5': { input: 1, output: 5 },
-};
-
-/** Which vendor each routing profile prefers, best first. */
-const TASK_PREFERENCE: Readonly<Record<RoutingProfile, readonly AiProvider[]>> = {
-  [RoutingProfile.REASONING]: [AiProvider.MAMMOUTH, AiProvider.ANTHROPIC, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [RoutingProfile.CODE_GEN]: [AiProvider.MAMMOUTH, AiProvider.ANTHROPIC, AiProvider.OPENAI, AiProvider.GEMINI, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.OPENROUTER],
-  [RoutingProfile.FAST]: [AiProvider.MAMMOUTH, AiProvider.SARVAM, AiProvider.GROQ, AiProvider.GEMINI, AiProvider.OPENAI, AiProvider.ANTHROPIC, AiProvider.OPENROUTER],
-};
-
-/** The routing profile a task uses. Unknown values reason rather than guess cheap. */
-export function profileFor(task: AiTask): RoutingProfile {
-  return TASK_PROFILE[task] ?? RoutingProfile.REASONING;
-}
 
 @Injectable()
 export class MultiAiRouterService {
@@ -570,75 +434,29 @@ export class MultiAiRouterService {
   // ---------------------------------------------------------------- Anthropic
 
   private async callAnthropic(request: AiRequest, task: AiTask): Promise<AiCompletion> {
-    if (!this.anthropic) throw new ServiceUnavailableException('ANTHROPIC_API_KEY is not configured.');
-
-    // Thinking is on by default on Opus 5 and counts against max_tokens, so the
-    // budget has to cover reasoning as well as the answer or replies truncate.
-    const maxTokens = request.maxTokens ?? 8000;
-
-    const body: Record<string, any> = {
-      model: this.anthropicModel,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: request.prompt }],
-      output_config: {
-        effort: task === AiTask.FAST ? 'low' : 'high',
-        ...(request.jsonSchema ? { format: { type: 'json_schema', schema: request.jsonSchema } } : {}),
+    return executeAnthropicCall({
+      anthropic: this.anthropic,
+      anthropicModel: this.anthropicModel,
+      serverSideFallbackEnabled: this.serverSideFallbackEnabled,
+      request,
+      task,
+      logger: this.logger,
+      onDisableServerSideFallback: () => {
+        this.serverSideFallbackEnabled = false;
       },
-    };
-    if (request.systemInstruction) body.system = request.systemInstruction;
-    // No temperature / top_p / top_k — those are rejected on this model family.
-
-    const message = this.serverSideFallbackEnabled
-      ? await this.anthropicWithFallback(body)
-      : await this.anthropic.messages.create(body as any);
-
-    // Safety classifiers decline with HTTP 200, so this must be checked before
-    // reading content — otherwise an empty content array throws.
-    const refused = message.stop_reason === 'refusal';
-    const text = refused
-      ? ''
-      : message.content
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('');
-
-    if (refused) {
-      this.logger.warn(`Anthropic declined the request (${(message as any).stop_details?.category ?? 'unspecified'}).`);
-    }
-
-    return {
-      provider: AiProvider.ANTHROPIC,
-      model: message.model,
-      text,
-      usage: this.usage(
-        message.usage?.input_tokens ?? 0,
-        message.usage?.output_tokens ?? 0,
-        ANTHROPIC_RATES[message.model] ?? ANTHROPIC_RATES[this.anthropicModel],
-      ),
-      refused,
-    };
+      usageFn: (input, output, rate) => this.usage(input, output, rate),
+    });
   }
 
-  /**
-   * Asks Anthropic to re-serve a declined request on its recommended fallback
-   * model. The beta may not be enabled on every account, so a rejection here
-   * disables the flag and retries plainly rather than failing the caller.
-   */
   private async anthropicWithFallback(body: Record<string, any>) {
-    try {
-      return await (this.anthropic as any).beta.messages.create({
-        ...body,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-      });
-    } catch (error: any) {
-      const message = String(error?.message ?? '');
-      if (!/beta|fallback/i.test(message)) throw error;
-
-      this.logger.warn(`Server-side fallback unavailable (${message}); continuing without it.`);
-      this.serverSideFallbackEnabled = false;
-      return this.anthropic!.messages.create(body as any);
-    }
+    return anthropicWithFallback(
+      this.anthropic!,
+      body,
+      this.logger,
+      () => {
+        this.serverSideFallbackEnabled = false;
+      },
+    );
   }
 
   // ------------------------------------------------------------------- OpenAI
@@ -833,198 +651,45 @@ export class MultiAiRouterService {
   // ------------------------------------------------------------------ Sarvam AI
 
   private async callSarvam(request: AiRequest): Promise<AiCompletion> {
-    if (!this.isRealKey(this.sarvamKey)) {
-      throw new ServiceUnavailableException('SARVAM_API_KEY is not configured.');
-    }
-
-    const messages: Array<{ role: string; content: string }> = [];
-    let system = request.systemInstruction;
-    if (request.jsonSchema) {
-      const schemaInstruction = `You MUST return strictly valid JSON matching this schema:\n${JSON.stringify(request.jsonSchema)}`;
-      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
-    }
-
-    if (system) messages.push({ role: 'system', content: system });
-    messages.push({ role: 'user', content: request.prompt });
-
-    // Callers ask for anything between 512 and 16000 tokens. Sarvam caps output
-    // by plan and charges reasoning against the same budget, so the request is
-    // clamped to what the account allows and floored high enough that a JSON
-    // answer has room to finish.
-    const maxTokens = clampSarvamMaxTokens(request.maxTokens, {
+    return executeSarvamCall({
+      sarvamKey: this.sarvamKey,
+      sarvamModel: this.sarvamModel,
+      sarvamReasoningEffort: this.sarvamReasoningEffort,
       config: this.config,
-      structured: Boolean(request.jsonSchema),
+      request,
+      rate: this.envRate('SARVAM'),
+      logger: this.logger,
+      usageFn: (input, output, rate) => this.usage(input, output, rate),
     });
-
-    let body = buildSarvamBody({
-      model: this.sarvamModel,
-      messages,
-      maxTokens,
-      reasoningEffort: this.sarvamReasoningEffort,
-      jsonMode: Boolean(request.jsonSchema),
-    });
-
-    let response = await this.postToSarvam(body);
-
-    if (response.status === 400) {
-      const errText = await response.text().catch(() => '');
-      const relaxed = relaxSarvamBody(body, errText);
-      if (!relaxed) {
-        throw new ServiceUnavailableException(`Sarvam API failed (HTTP 400): ${errText}`);
-      }
-      this.logger.warn(`Sarvam rejected '${relaxed.dropped}'; retrying without it.`);
-      body = relaxed.body;
-      response = await this.postToSarvam(body);
-    }
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      throw new ServiceUnavailableException(`Sarvam API failed (HTTP ${response.status}): ${errText}`);
-    }
-
-    const json: any = await response.json();
-    const message = readSarvamMessage(json);
-
-    // Returning '' here used to leave every caller parsing an empty string into
-    // an empty object and writing a blank record. The cause is knowable —
-    // usually the output budget spent on reasoning — so it is raised, not hidden.
-    if (!message.text) {
-      throw new ServiceUnavailableException(describeEmptySarvamResponse(message, maxTokens));
-    }
-
-    return {
-      provider: AiProvider.SARVAM,
-      model: json?.model ?? this.sarvamModel,
-      text: message.text,
-      // Sarvam publishes no rate we can hard-code, so cost is only known when
-      // the operator supplies one. This matters more than it looks: an install
-      // running entirely on Sarvam otherwise records every call at no cost, the
-      // ledger reports zero spend, and the organization's monthly budget can
-      // never fire. Set SARVAM_RATE_INPUT_PER_MTOK / SARVAM_RATE_OUTPUT_PER_MTOK
-      // to make the ceiling real.
-      usage: this.usage(message.promptTokens, message.completionTokens, this.envRate('SARVAM')),
-      refused: false,
-    };
   }
 
   private postToSarvam(body: Record<string, unknown>): Promise<Response> {
-    return fetch(SARVAM_CHAT_COMPLETIONS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-subscription-key': this.sarvamKey!,
-        Authorization: `Bearer ${this.sarvamKey!}`,
-      },
-      body: JSON.stringify(body),
-    });
+    return postToSarvam(this.sarvamKey!, body);
   }
 
   // ------------------------------------------------------------------ Mammouth
-  /**
-   * Calls Mammouth AI's OpenAI-compatible API (https://api.mammouth.ai/v1).
-   * Automatically resolves the model based on task capability requirements
-   * unless explicitly overridden. Enforces JSON output and tracks tokens/cost.
-   */
+
   private async callMammouth(request: AiRequest, task: AiTask, modelOverride?: string): Promise<AiCompletion> {
-    if (!this.mammouth) {
-      throw new ServiceUnavailableException('MAMMOUTH_API_KEY is not configured.');
-    }
-
-    const capability = this.taskToCapability(task);
-    const chosenModel = modelOverride || resolveMammouthModelForCapability(capability, {
-      userSelectedModel: this.mammouthModel,
+    return executeMammouthCall({
+      mammouth: this.mammouth,
+      mammouthKey: this.mammouthKey,
+      defaultModel: this.mammouthModel,
+      temperature: this.mammouthTemperature,
+      maxTokens: this.mammouthMaxTokens,
+      request,
+      task,
+      modelOverride,
+      rate: this.envRate('MAMMOUTH'),
+      usageFn: (input, output, rate) => this.usage(input, output, rate),
     });
-
-    const messages: any[] = [];
-    let system = request.systemInstruction;
-    if (request.jsonSchema) {
-      const schemaInstruction = `You MUST return strictly valid JSON matching this schema:\n${JSON.stringify(request.jsonSchema)}`;
-      system = system ? `${system}\n\n${schemaInstruction}` : schemaInstruction;
-    }
-
-    if (system) messages.push({ role: 'system', content: system });
-    messages.push({ role: 'user', content: request.prompt });
-
-    try {
-      const response = await this.mammouth.chat.completions.create({
-        model: chosenModel,
-        messages,
-        temperature: this.mammouthTemperature,
-        max_tokens: request.maxTokens ?? this.mammouthMaxTokens,
-        ...(request.jsonSchema ? { response_format: { type: 'json_object' } } : {}),
-      } as any);
-
-      const content = response.choices?.[0]?.message?.content ?? '';
-
-      return {
-        provider: AiProvider.MAMMOUTH,
-        model: response.model ?? chosenModel,
-        text: content,
-        usage: this.usage(
-          response.usage?.prompt_tokens ?? 0,
-          response.usage?.completion_tokens ?? 0,
-          this.envRate('MAMMOUTH'),
-        ),
-        refused: false,
-      };
-    } catch (error: any) {
-      const status = error?.status || error?.statusCode;
-      const message = this.redactMammouthKey(
-        String(error?.message || error || 'Unknown Mammouth error'),
-      );
-
-      if (status === 401 || /unauthorized|api key|invalid proxy server token/i.test(message)) {
-        throw new ServiceUnavailableException('Mammouth AI authentication failed: invalid API key.');
-      }
-      if (status === 429 || /rate limit|quota|credits|budget|exceededbudget/i.test(message)) {
-        throw new ServiceUnavailableException('Mammouth AI rate limit or quota exceeded. Please check credits.');
-      }
-      if (/timeout|abort|econnrefused/i.test(message)) {
-        throw new ServiceUnavailableException('Mammouth AI request timed out.');
-      }
-
-      throw new ServiceUnavailableException(`Mammouth AI error: ${message}`);
-    }
   }
 
-  /**
-   * Upstream errors quote the offending request back, and an OpenAI-compatible
-   * gateway will happily include the bearer token in that quote. The message
-   * ends up in an HTTP response body and in the logs, so scrub the key out of
-   * it before it travels anywhere.
-   */
   private redactMammouthKey(message: string): string {
-    let out = message;
-    if (this.mammouthKey && this.mammouthKey.length >= 8) {
-      out = out.split(this.mammouthKey).join('[REDACTED]');
-    }
-    // Also catch any other bearer-style token the upstream echoed back.
-    return out.replace(/\b(sk|pk|api)[-_][A-Za-z0-9_-]{8,}/gi, '[REDACTED]');
+    return redactMammouthKey(message, this.mammouthKey);
   }
 
   private taskToCapability(task: AiTask): MammouthCapability {
-    switch (task) {
-      case AiTask.SEO_RESEARCH:
-      case AiTask.SEO_ANALYSIS:
-      case AiTask.SEO_OPPORTUNITY_GENERATION:
-        return MammouthCapability.SEO_ANALYSIS;
-      case AiTask.COMPETITOR_ANALYSIS:
-        return MammouthCapability.COMPETITOR_ANALYSIS;
-      case AiTask.AI_VISIBILITY_ANALYSIS:
-        return MammouthCapability.AEV_ANALYSIS;
-      case AiTask.CODE_GENERATION:
-      case AiTask.CODE_REVIEW:
-      case AiTask.FIX_VALIDATION:
-        return MammouthCapability.TECHNICAL_SEO_REASONING;
-      case AiTask.CONTENT_STRUCTURE_ANALYSIS:
-      case AiTask.ENTITY_ANALYSIS:
-        return MammouthCapability.CONTENT_ANALYSIS;
-      case AiTask.FAST:
-        return MammouthCapability.KEYWORD_ANALYSIS;
-      case AiTask.REASONING:
-      default:
-        return MammouthCapability.LONG_FORM_REASONING;
-    }
+    return taskToCapability(task);
   }
 
   // -------------------------------------------------------------------- Costs
