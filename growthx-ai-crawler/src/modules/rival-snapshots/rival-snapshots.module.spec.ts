@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../database/prisma.service';
 import { DiscoveryService } from '../crawler/discovery/discovery.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { RivalSnapshotsModule } from './rival-snapshots.module';
 import { RivalSnapshotScheduler } from './rival-snapshot.scheduler';
 
@@ -12,8 +13,9 @@ import { RivalSnapshotScheduler } from './rival-snapshot.scheduler';
   providers: [
     { provide: DiscoveryService, useValue: {} },
     { provide: FetcherService, useValue: {} },
+    { provide: FetchService, useValue: {} },
   ],
-  exports: [DiscoveryService, FetcherService],
+  exports: [DiscoveryService, FetcherService, FetchService],
 })
 class FakeCrawlerModule {}
 

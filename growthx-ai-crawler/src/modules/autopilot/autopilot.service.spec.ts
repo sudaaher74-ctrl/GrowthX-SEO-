@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../database/prisma.service';
 import { CrawlerService } from '../crawler/crawler.service';
 import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { IssueCountService } from '../issues/issue-count.service';
 import { IssueGroupService } from '../issues/issue-group.service';
 import { AutopilotModule } from './autopilot.module';
@@ -77,14 +78,16 @@ function fakePrisma() {
 function setup(modelJson: string) {
   const prisma = fakePrisma();
   const crawler = { startCrawlJob: jest.fn().mockResolvedValue('job-own') };
-  const fetcher = {
-    fetchPage: jest.fn((url: string) =>
-      Promise.resolve(
-        url.includes('dead.in')
-          ? { statusCode: 0, html: '' }
-          : { statusCode: 200, html: '<title>Brand Kettle | Premium Assam tea</title><meta name="description" content="Tea from Assam"><h1>Assam tea</h1>' },
-      ),
+  const fetchMock = jest.fn((url: string) =>
+    Promise.resolve(
+      url.includes('dead.in')
+        ? { statusCode: 0, html: '' }
+        : { statusCode: 200, html: '<title>Brand Kettle | Premium Assam tea</title><meta name="description" content="Tea from Assam"><h1>Assam tea</h1>' },
     ),
+  );
+  const fetcher = {
+    fetch: fetchMock,
+    fetchPage: fetchMock,
   };
   const router = { generate: jest.fn().mockResolvedValue({ text: modelJson, refused: false }) };
   const competitorCrawl = { startCrawl: jest.fn().mockResolvedValue({ jobId: 'j' }) };
@@ -320,11 +323,12 @@ describe('competitor-finder', () => {
   providers: [
     { provide: CrawlerService, useValue: {} },
     { provide: FetcherService, useValue: {} },
+    { provide: FetchService, useValue: {} },
     { provide: ConfigService, useValue: { get: () => undefined } },
     { provide: IssueCountService, useValue: {} },
     { provide: IssueGroupService, useValue: {} },
   ],
-  exports: [CrawlerService, FetcherService, ConfigService, IssueCountService, IssueGroupService],
+  exports: [CrawlerService, FetcherService, FetchService, ConfigService, IssueCountService, IssueGroupService],
 })
 class FakeCrawlerModule {}
 

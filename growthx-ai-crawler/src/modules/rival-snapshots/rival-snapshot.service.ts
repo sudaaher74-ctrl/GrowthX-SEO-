@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../../database/prisma.service';
 import { DiscoveryService } from '../crawler/discovery/discovery.service';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 
 export interface PageFacts {
   statusCode: number;
@@ -76,7 +76,7 @@ export class RivalSnapshotService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly discovery: DiscoveryService,
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
   ) {}
 
   /** Politeness delay between fetches; overridden in tests. */
@@ -109,9 +109,11 @@ export class RivalSnapshotService {
         continue;
       }
       try {
-        const res = await this.fetcher.fetchPage(url, false);
+        const res = typeof (this.fetcher as any).fetch === 'function'
+          ? await this.fetcher.fetch(url)
+          : await (this.fetcher as any).fetchPage(url, false);
         fetched += 1;
-        const facts = extractPageFacts(res.html, res.statusCode);
+        const facts = extractPageFacts(res.html, res.statusCode ?? 0);
         const contentHash = factsHash(facts);
         const last = await this.prisma.rivalPageSnapshot.findFirst({
           where: { domain: host, url },

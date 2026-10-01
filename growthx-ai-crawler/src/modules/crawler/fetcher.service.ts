@@ -40,6 +40,11 @@ export interface FetchResult {
   errorMessage?: string;
 }
 
+/**
+ * @deprecated Use `FetchService` (`src/modules/crawler/fetch/fetch.service.ts`) instead.
+ * Callers across crawler, verification, autopilot, competitor snapshots, and SEO tools
+ * have been migrated to `FetchService`.
+ */
 @Injectable()
 export class FetcherService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FetcherService.name);

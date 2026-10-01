@@ -69,7 +69,8 @@ describe('KeywordDiagnosisService', () => {
         market: { country: 'India', language: 'en', source: 'DEFAULT' },
       })),
     };
-    const fetcher = { fetchPage: jest.fn(async () => ({ statusCode: 200, html: setup.html ?? PAGE_HTML })) };
+    const fetchMock = jest.fn(async () => ({ statusCode: 200, html: setup.html ?? PAGE_HTML }));
+    const fetcher = { fetch: fetchMock, fetchPage: fetchMock };
     const analytics = {
       visitsByPage: jest.fn(async () =>
         setup.visits === undefined ? new Map([[pathKey(PAGE), { sessions: 2031, engagementRate: 0.71, conversions: 90 }]]) : setup.visits,

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnav
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { canonicalUrl } from '../crawler/canonical-url';
-import { FetcherService } from '../crawler/fetcher.service';
+import { FetchService } from '../crawler/fetch/fetch.service';
 import { AnalyticsInsightsService, pathKey } from '../integrations/google/analytics-insights.service';
 import { DataForSeoService, OrganicResult } from './dataforseo.service';
 import { diagnose, DiagnosisInput, ReadPage } from './diagnosis-rules';
@@ -46,7 +46,7 @@ export class KeywordDiagnosisService {
     private readonly prisma: PrismaService,
     private readonly dataforseo: DataForSeoService,
     private readonly ranks: RankTrackingService,
-    private readonly fetcher: FetcherService,
+    private readonly fetcher: FetchService,
     private readonly analytics: AnalyticsInsightsService,
   ) {}
 
@@ -312,13 +312,17 @@ export class KeywordDiagnosisService {
       keywordEarly: false,
     };
     try {
-      const fetched = await withTimeout(this.fetcher.fetchPage(url), FETCH_TIMEOUT_MS);
+      const fetchPromise = typeof (this.fetcher as any).fetch === 'function'
+        ? this.fetcher.fetch(url)
+        : (this.fetcher as any).fetchPage(url);
+      const fetched: any = await withTimeout(fetchPromise, FETCH_TIMEOUT_MS);
       base.statusCode = fetched.statusCode || null;
-      if (fetched.errorMessage || !fetched.html) {
-        base.error = fetched.errorMessage ?? `HTTP ${fetched.statusCode}, no content`;
+      const errorMsg = fetched.error?.message || fetched.errorMessage;
+      if (errorMsg || !fetched.html) {
+        base.error = errorMsg ?? `HTTP ${fetched.statusCode}, no content`;
         return base;
       }
-      if (fetched.statusCode >= 400) {
+      if (fetched.statusCode && fetched.statusCode >= 400) {
         base.error = `HTTP ${fetched.statusCode}`;
         return base;
       }

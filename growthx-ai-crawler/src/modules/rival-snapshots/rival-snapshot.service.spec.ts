@@ -45,7 +45,10 @@ function setup(opts: { urls: string[]; lastHash?: string | null; disallow?: stri
     }),
     isAllowed: jest.fn((_r: unknown, url: string) => ({ allowed: !(opts.disallow ?? []).includes(url), evidence: '' })),
   };
-  const fetcher = { fetchPage: jest.fn().mockResolvedValue({ html: html('Same'), statusCode: 200 }) };
+  const fetcher = {
+    fetch: jest.fn().mockResolvedValue({ html: html('Same'), statusCode: 200 }),
+    fetchPage: jest.fn().mockResolvedValue({ html: html('Same'), statusCode: 200 }),
+  };
   const service = new TestService(prisma as any, discovery as any, fetcher as any);
   return { service, prisma, fetcher };
 }
@@ -76,7 +79,8 @@ describe('RivalSnapshotService.snapshotDomain', () => {
     });
     const r = await service.snapshotDomain('rival.in');
     expect(r.skippedByRobots).toBe(1);
-    const fetched = fetcher.fetchPage.mock.calls.map((c) => c[0]);
+    const callSource = fetcher.fetch.mock.calls.length ? fetcher.fetch : fetcher.fetchPage;
+    const fetched = callSource.mock.calls.map((c: any[]) => c[0]);
     expect(fetched).toEqual(['https://rival.in/', 'https://www.rival.in/ok']);
   });
 
@@ -84,6 +88,7 @@ describe('RivalSnapshotService.snapshotDomain', () => {
     const urls = Array.from({ length: 120 }, (_, i) => `https://rival.in/p${i}`);
     const { service, fetcher } = setup({ urls });
     await service.snapshotDomain('rival.in');
-    expect(fetcher.fetchPage).toHaveBeenCalledTimes(RivalSnapshotService.MAX_PAGES);
+    const callSource = fetcher.fetch.mock.calls.length ? fetcher.fetch : fetcher.fetchPage;
+    expect(callSource).toHaveBeenCalledTimes(RivalSnapshotService.MAX_PAGES);
   });
 });
