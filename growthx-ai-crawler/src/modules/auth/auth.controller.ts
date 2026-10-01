@@ -1,5 +1,6 @@
 import { Controller, Post, Body, UnauthorizedException, Get, UseGuards, Req, Res, UseFilters } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
 import { ExchangeCodeDto, LoginDto, RefreshDto, RegisterDto } from './auth.dto';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -7,6 +8,7 @@ import { GoogleAuthGuard } from './google-auth.guard';
 import { GoogleAuthExceptionFilter } from './google-auth.filter';
 import { AllowWithoutOrganization } from './allow-without-organization.decorator';
 import { UsersService } from '../users/users.service';
+import { setAuthCookies, clearAuthCookies } from './auth-cookie.util';
 
 @Controller('auth')
 export class AuthController {
@@ -21,32 +23,48 @@ export class AuthController {
    */
   @Post('login')
   @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
-  async login(@Body() body: LoginDto) {
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res?: Response) {
     const user = await this.authService.validateUser(body.email, body.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.authService.login(user);
+    const result = await this.authService.login(user);
+    if (res) setAuthCookies(res, result);
+    return result;
   }
 
   @Post('refresh')
   @Throttle({ burst: { limit: 5, ttl: 1_000 }, sustained: { limit: 30, ttl: 60_000 } })
-  async refresh(@Body() body: RefreshDto) {
-    return this.authService.refresh(body.refresh_token);
+  async refresh(
+    @Body() body: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const token = body?.refresh_token || (req.cookies?.refresh_token as string | undefined);
+    if (!token) {
+      throw new UnauthorizedException('A refresh token is required.');
+    }
+    const result = await this.authService.refresh(token);
+    if (res) setAuthCookies(res, result);
+    return result;
   }
 
   /** Trades the one-time code from the Google redirect for the session tokens. */
   @Post('exchange')
   @Throttle({ burst: { limit: 3, ttl: 1_000 }, sustained: { limit: 10, ttl: 60_000 } })
-  async exchange(@Body() body: ExchangeCodeDto) {
-    return this.authService.exchangeLoginCode(body.code);
+  async exchange(@Body() body: ExchangeCodeDto, @Res({ passthrough: true }) res?: Response) {
+    const result = await this.authService.exchangeLoginCode(body.code);
+    if (res) setAuthCookies(res, result);
+    return result;
   }
 
   /** Sign-ups from one address, capped so a script cannot mass-create accounts. */
   @Post('register')
   @Throttle({ burst: { limit: 2, ttl: 1_000 }, sustained: { limit: 5, ttl: 60_000 } })
-  async register(@Body() body: RegisterDto) {
-    return this.authService.register(body);
+  async register(@Body() body: RegisterDto, @Res({ passthrough: true }) res?: Response) {
+    const result = await this.authService.register(body);
+    if (res) setAuthCookies(res, result);
+    return result;
   }
 
   @Get('google')
@@ -93,9 +111,10 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @AllowWithoutOrganization()
-  async logout(@Req() req: any) {
+  async logout(@Req() req: any, @Res({ passthrough: true }) res?: Response) {
     const userId = req?.user?.userId || req?.user?.id;
     if (userId) await this.authService.revokeAllSessions(userId);
+    if (res) clearAuthCookies(res);
     return { success: true, message: 'Logged out successfully' };
   }
 }

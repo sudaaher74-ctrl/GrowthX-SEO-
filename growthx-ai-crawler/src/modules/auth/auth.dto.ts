@@ -39,10 +39,10 @@ export class RegisterDto {
 }
 
 export class RefreshDto {
-  @IsString({ message: 'A refresh token is required.' })
-  @MinLength(1, { message: 'A refresh token is required.' })
+  @IsOptional()
+  @IsString({ message: 'A refresh token must be a string.' })
   @MaxLength(4096)
-  refresh_token!: string;
+  refresh_token?: string;
 }
 
 export class ExchangeCodeDto {

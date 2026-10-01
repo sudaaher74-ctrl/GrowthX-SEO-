@@ -68,7 +68,11 @@ function notifyAuthChange() {
   authListeners.forEach((l) => l());
 }
 
-// ─────────────────────────────────────────────────────────── auth storage
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export const auth = {
   getToken(): string | null {
@@ -107,11 +111,15 @@ export const auth = {
       window.localStorage.removeItem(REFRESH_KEY);
       window.localStorage.removeItem(ORG_KEY);
       window.localStorage.removeItem(PROJECT_KEY);
+      if (typeof document !== "undefined") {
+        document.cookie = "logged_in=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        document.cookie = "csrf_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      }
     }
     notifyAuthChange();
   },
   isAuthenticated(): boolean {
-    return Boolean(auth.getToken());
+    return Boolean(getCookie("logged_in") || auth.getToken());
   },
 };
 
@@ -176,20 +184,26 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 async function refreshSession(): Promise<boolean> {
   const refreshToken = auth.getRefreshToken();
-  if (!refreshToken) return false;
+  const hasLoggedInCookie = Boolean(getCookie("logged_in"));
+  if (!refreshToken && !hasLoggedInCookie) return false;
 
   refreshInFlight ??= (async () => {
     try {
+      const csrfToken = getCookie("csrf_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["x-csrf-token"] = csrfToken;
+
       const response = await fetch(`${getApiBase()}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ refresh_token: refreshToken || undefined }),
       });
       if (!response.ok) return false;
       const body = (await response.json()) as { access_token?: string; refresh_token?: string };
-      if (!body.access_token) return false;
-      auth.setToken(body.access_token);
+      if (body.access_token) auth.setToken(body.access_token);
       if (body.refresh_token) auth.setRefreshToken(body.refresh_token);
+      notifyAuthChange();
       return true;
     } catch {
       return false;
@@ -204,6 +218,7 @@ async function refreshSession(): Promise<boolean> {
 async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
   const token = auth.getToken();
   const orgId = auth.getOrgId();
+  const csrfToken = getCookie("csrf_token");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -211,6 +226,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (orgId) headers["x-organization-id"] = orgId;
+  if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
   const baseUrl = getApiBase();
   let response: Response | null = null;
@@ -222,11 +238,17 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   const method = (init.method ?? "GET").toUpperCase();
   const retryable = method === "GET" || method === "HEAD";
 
+  const fetchInit: RequestInit = {
+    ...init,
+    headers,
+    credentials: "include",
+  };
+
   try {
-    response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    response = await fetch(`${baseUrl}${path}`, fetchInit);
     if (retryable && [502, 503, 504].includes(response.status)) {
       await new Promise((res) => setTimeout(res, 800));
-      response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+      response = await fetch(`${baseUrl}${path}`, fetchInit);
     }
   } catch {
     response = null;
