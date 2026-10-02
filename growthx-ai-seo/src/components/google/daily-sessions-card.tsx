@@ -53,7 +53,7 @@ export function DailySessionsCard({ data }: { data: Ga4ReportData }) {
             </span>
           </div>
           <p className="text-[11.5px] text-brand-400">
-            All channels, by day. Analytics figures end yesterday.
+            All channels, by day. Analytics figures end yesterday (today's intraday traffic finalizes at midnight).
           </p>
         </div>
 

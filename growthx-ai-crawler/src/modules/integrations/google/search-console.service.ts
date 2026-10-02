@@ -200,9 +200,11 @@ export class SearchConsoleService {
     propertyId: string,
     options: { days?: number; full?: boolean },
   ): Promise<{ start: Date; end: Date }> {
-    const end = new Date();
-    end.setUTCDate(end.getUTCDate() - 3);
-    end.setUTCHours(0, 0, 0, 0);
+    // Search Console processes and records data in Pacific Time (America/Los_Angeles).
+    // Using current date in PT with dataState: 'all' lets us retrieve all available
+    // fresh data rather than artificially cutting off 3 days ago.
+    const ptDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+    const end = new Date(`${ptDateStr}T00:00:00.000Z`);
 
     const requested = Math.min(options.days ?? 90, SearchConsoleService.MAX_HISTORY_DAYS);
 

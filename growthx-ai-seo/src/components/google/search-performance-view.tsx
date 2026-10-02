@@ -62,7 +62,7 @@ export function SearchPerformanceView() {
 
             <Panel
               title="Search trend"
-              subtitle={`${shortDay(s.range.start)} – ${shortDay(s.range.end)}. Search Console figures end a few days before today.`}
+              subtitle={`${shortDay(s.range.start)} – ${shortDay(s.range.end)}. Up to Google's latest published data (Search Console has a standard 1–3 day processing delay).`}
               actions={
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Metric shown">
                   {METRICS.map((m) => (

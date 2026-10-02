@@ -65,7 +65,7 @@ export function SearchConsoleView() {
               <Kpi label="Avg position" value={position(s.position.current)} delta={delta(s.position, "places")} deltaSuffix=" places" deltaGood="down" trend={spark((p) => p.position)} aside={<SourceBadge source="GSC" />} />
             </div>
 
-            <Panel title="Clicks and impressions" subtitle={`${shortDay(s.range.start)} – ${shortDay(s.range.end)}. Search Console figures end a few days before today.`}>
+            <Panel title="Clicks and impressions" subtitle={`${shortDay(s.range.start)} – ${shortDay(s.range.end)}. Up to Google's latest published data (Search Console has a standard 1–3 day processing delay).`}>
               <div className="h-64 w-full p-4">
                 {points.length >= 2 ? (
                   <ResponsiveContainer width="100%" height="100%">

@@ -101,7 +101,7 @@ export function TrendChart({ overview }: { overview: GoogleOverview }) {
   return (
     <Panel
       title="Google performance trend"
-      subtitle="One metric at a time. Search Console figures end a few days before today; Analytics figures end yesterday."
+      subtitle="One metric at a time. Search Console figures reflect Google's latest published window; Analytics figures end yesterday."
       actions={
         <div className="flex flex-wrap gap-1" role="group" aria-label="Metric shown">
           {available.map(({ metric, ok }) => (

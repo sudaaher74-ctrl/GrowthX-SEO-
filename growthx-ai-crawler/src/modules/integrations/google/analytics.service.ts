@@ -26,11 +26,10 @@ export class AnalyticsService {
   /** GA4 caps a report at 100,000 rows; this is a per-page size well under it. */
   private static readonly PAGE_SIZE = 10000;
   /**
-   * GA4 processes most data within hours but can take up to 48. Two days back
-   * is a compromise: fresher than Search Console, still clear of the window
-   * where figures are actively being revised.
+   * GA4 processes most data within hours. Syncing through yesterday (1 day back)
+   * provides the freshest completed daily figures matching AnalyticsReportService.
    */
-  private static readonly PROCESSING_LAG_DAYS = 2;
+  private static readonly PROCESSING_LAG_DAYS = 1;
 
   constructor(
     private readonly prisma: PrismaService,

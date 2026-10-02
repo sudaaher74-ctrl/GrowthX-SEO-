@@ -170,7 +170,7 @@ function TrafficBody({ report: r, data: reportData }: { report: Ga4Report; data:
         </p>
       </Panel>
 
-      <Panel title="Daily sessions" subtitle="All channels, by day. Analytics figures end yesterday.">
+      <Panel title="Daily sessions" subtitle="All channels, by day. Analytics figures end yesterday (today's intraday traffic finalizes at midnight).">
         <div className="h-64 w-full p-4">
           {data.daily.length >= 2 ? (
             <ResponsiveContainer width="100%" height="100%">
