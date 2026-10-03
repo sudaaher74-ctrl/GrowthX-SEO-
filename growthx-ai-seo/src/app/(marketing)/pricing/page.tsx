@@ -270,31 +270,35 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Still Not Sure? Talk to Our Team Banner */}
+        {/* Point visitors to the pricing answers available on this public page. */}
         <div className="bg-gradient-to-r from-brand-900 via-brand-900/90 to-brand-950 rounded-2xl border border-brand-800 p-6 sm:p-8 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-10">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-series-6 bg-brand-800/80 border border-series-6/30 px-2.5 py-0.5 rounded-full">
               Still Not Sure?
             </span>
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1.5">
-              Talk to our team
+              Still have questions?
             </h3>
             <p className="text-xs sm:text-sm text-brand-400 mt-0.5">
-              Get a personalized recommendation based on your business goals.
+              Read the answers to common plan and billing questions.
             </p>
           </div>
 
-          <Link
-            href="/help"
+          <button
+            type="button"
+            onClick={() => {
+              setOpenFaq(0);
+              document.getElementById("pricing-faq")?.scrollIntoView({ behavior: "smooth" });
+            }}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-brand-800 border border-brand-700 hover:bg-brand-700/80 hover:border-series-6/60 shadow-sm transition-all shrink-0 cursor-pointer"
           >
-            <span>Contact Sales</span>
+            <span>View pricing FAQs</span>
             <ArrowRight size={14} />
-          </Link>
+          </button>
         </div>
 
         {/* FAQ Accordion Prompt */}
-        <div className="text-center">
+        <div id="pricing-faq" className="text-center">
           <button
             type="button"
             onClick={() => setOpenFaq(openFaq === null ? 0 : null)}

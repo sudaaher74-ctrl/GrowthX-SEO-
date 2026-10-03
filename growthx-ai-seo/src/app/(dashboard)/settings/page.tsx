@@ -73,7 +73,12 @@ export default function SettingsPage() {
           )}
 
           {activeTab === "ai" && <AiConfigurationTab />}
-          {activeTab === "api" && <AiConfigurationTab />}
+          {activeTab === "api" && (
+            <div className="card p-6 space-y-2">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">API Keys</h3>
+              <p className="text-sm text-[var(--text-muted)]">API key management is not available yet.</p>
+            </div>
+          )}
           {activeTab === "team" && <TeamTab orgId={orgId} />}
           {activeTab === "profile" && <ProfileTab />}
 

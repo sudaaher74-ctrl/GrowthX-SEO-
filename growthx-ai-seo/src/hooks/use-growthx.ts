@@ -58,6 +58,10 @@ function subscribeToProjectChange(listener: () => void) {
 }
 
 function setActiveOrg(id: string) {
+  if (auth.getOrgId() !== id) {
+    auth.setProjectId("");
+    projectListeners.forEach((l) => l());
+  }
   auth.setOrgId(id);
   orgListeners.forEach((l) => l());
 }
@@ -90,7 +94,11 @@ export function useWorkspace() {
 
   const orgList = orgs.data ?? [];
   const isStoredOrgValid = orgList.some((o) => o.id === storedOrgId);
-  const orgId = isStoredOrgValid ? storedOrgId : (orgList[0]?.id ?? null);
+  // Keep the last selected workspace while the directory is loading or unavailable.
+  // Only a successful response can prove that a saved selection is no longer valid.
+  const orgId = orgs.isSuccess
+    ? (isStoredOrgValid ? storedOrgId : (orgList[0]?.id ?? null))
+    : storedOrgId;
 
   useEffect(() => {
     if (orgId && orgId !== auth.getOrgId()) {
@@ -115,7 +123,9 @@ export function useWorkspace() {
 
   const projectList = projects.data ?? [];
   const isStoredProjectValid = projectList.some((p) => p.id === storedProjectId);
-  const projectId = isStoredProjectValid ? storedProjectId : (projectList[0]?.id ?? null);
+  const projectId = projects.isSuccess
+    ? (isStoredProjectValid ? storedProjectId : (projectList[0]?.id ?? null))
+    : storedProjectId;
 
   useEffect(() => {
     if (projectId && projectId !== auth.getProjectId()) {
@@ -875,4 +885,3 @@ export function useTransitionFinding(projectId: string | null) {
 
 
 // ─────────────────────────────────────────────────────────────── Business
-

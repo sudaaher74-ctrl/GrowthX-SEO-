@@ -312,6 +312,8 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     if (!onAuthPage && process.env.NODE_ENV !== "production") {
       console.warn("Bypassing 401 redirect in development mode.");
     } else if (!onAuthPage) {
+      // A full navigation discards in-memory query data from the expired session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
     }
   }
@@ -481,23 +483,9 @@ export const api = {
   generateCompetitorIntelReport: (projectId: string) =>
     post<CompetitorIntelReport>(`/api/projects/${projectId}/action-engine/competitor-report`, {}),
     // ── Organizations & projects
-  listOrganizations: async () => {
-    try {
-      const orgs = await get<{ id: string; name: string; slug: string }[]>("/organizations");
-      return orgs || [];
-    } catch {
-      return [];
-    }
-  },
+  listOrganizations: () => get<{ id: string; name: string; slug: string }[]>("/organizations"),
   createOrganization: (name: string, slug: string) => post<{ id: string; name: string; slug: string }>("/organizations", { name, slug }),
-  listProjects: async (orgId: string) => {
-    try {
-      const projects = await get<{ id: string; name: string }[]>(`/projects/org/${orgId}`);
-      return projects || [];
-    } catch {
-      return [];
-    }
-  },
+  listProjects: (orgId: string) => get<{ id: string; name: string }[]>(`/projects/org/${orgId}`),
   listMembers: (orgId: string) => get<OrgMember[]>(`/organizations/${orgId}/members`),
   addMember: (orgId: string, email: string, role: Role = "MEMBER") =>
     post<OrgMember>(`/organizations/${orgId}/members`, { email, role }),
@@ -1013,4 +1001,3 @@ interface GrowthIntelligenceReport {
   notMeasured: { source: IntelligenceSource; reason: string | null }[];
   methodology: { thresholds: Record<string, unknown>; notes: string[] };
 }
-

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Check, ChevronRight, Copy, FileDown, Home, Loader2, RefreshCw, Share2, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronRight, FileDown, Home, Loader2, RefreshCw, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -39,11 +39,10 @@ function WebsiteAuditClient() {
   const portfolio = usePortfolio(orgId);
 
   const clients = portfolio.data?.clients ?? [];
-  const client =
-    (queryDomain ? clients.find((c) => c.domain === queryDomain) : null) ??
-    clients.find((c) => c.projectId === projectId) ??
-    clients[0] ??
-    null;
+  const client = queryDomain
+    ? (clients.find((c) => c.domain === queryDomain) ?? null)
+    : (clients.find((c) => c.projectId === projectId) ?? clients[0] ?? null);
+  const auditProjectId = client?.projectId ?? null;
 
   const crawl = useLatestCrawl(client?.domain ?? null);
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
@@ -53,10 +52,10 @@ function WebsiteAuditClient() {
   // fetched a page at a time — 100 rows — so their length is a page size, not a
   // count. Reading it as one is how this screen said 100 issues while the
   // dashboard, reading the real total, said 156.
-  const issueCounts = useIssueCounts(projectId);
+  const issueCounts = useIssueCounts(auditProjectId);
   const counts = issueCounts.data ?? null;
   // True affected-page counts per problem, for the printed report.
-  const issueGroups = useIssueGroups(projectId);
+  const issueGroups = useIssueGroups(auditProjectId);
 
   const VALID_TABS: TabId[] = [
     "overview",
@@ -72,10 +71,8 @@ function WebsiteAuditClient() {
     tabParam && (VALID_TABS as string[]).includes(tabParam) ? tabParam : "technical-seo",
   );
   const [crawling, setCrawling] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const allIssues = issues.data?.data ?? [];
   const allPages = pages.data?.data ?? [];
@@ -133,12 +130,6 @@ function WebsiteAuditClient() {
 
   function handleExportPdf() {
     setShowPdfModal(true);
-  }
-
-  function handleCopyShareLink() {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
   }
 
   // Client display name (e.g. Aiva Enterprises)
@@ -263,16 +254,7 @@ function WebsiteAuditClient() {
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:bg-brand-100 active:scale-95 transition-all"
             >
               <FileDown size={13.5} className="text-brand-400" />
-              <span>Export PDF</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowShareModal(true)}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:bg-brand-100 active:scale-95 transition-all"
-            >
-              <Share2 size={13.5} className="text-brand-400" />
-              <span>Share Report</span>
+              <span>Save PDF to share</span>
             </button>
 
             <button
@@ -354,11 +336,11 @@ function WebsiteAuditClient() {
 
       {/* Main Tab View Router with Real Query State */}
       <QueryState
-        isLoading={Boolean(client?.domain) && (portfolio.isLoading || crawl.isLoading)}
-        error={client?.domain ? portfolio.error || crawl.error : null}
+        isLoading={portfolio.isLoading || (Boolean(client?.domain) && crawl.isLoading)}
+        error={portfolio.error || crawl.error}
         isEmpty={!client?.domain}
-        emptyTitle="No website registered"
-        emptyBody="This workspace has no website attached yet. Add one from the dashboard and we will read it and build your audit."
+        emptyTitle={queryDomain ? "Website not found in this workspace" : "No website registered"}
+        emptyBody={queryDomain ? "Choose a website from your workspace to view its audit." : "This workspace has no website attached yet. Add one from the dashboard and we will read it and build your audit."}
         emptyAction={
           <Link
             href="/dashboard"
@@ -421,7 +403,7 @@ function WebsiteAuditClient() {
           />
         )}
 
-        {activeTab === "report" && <AuditReportTab projectId={projectId || ""} />}
+        {activeTab === "report" && <AuditReportTab projectId={auditProjectId || ""} />}
 
         {activeTab === "issues" && (
           <IssuesTab
@@ -446,43 +428,6 @@ function WebsiteAuditClient() {
         pages={allPages}
         qualityDiagnostics={qualityDiagnostics}
       />
-
-      {/* Share Report Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Share Website Audit Report</h3>
-              <button
-                type="button"
-                onClick={() => setShowShareModal(false)}
-                className="text-slate-400 hover:text-slate-600 rounded p-1"
-              >
-                <X size={15} />
-              </button>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Anyone with this link can view the current technical SEO audit, performance benchmarks, and crawl findings.
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={typeof window !== "undefined" ? window.location.href : ""}
-                className="h-8 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-mono text-xs text-slate-600 select-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              />
-              <button
-                type="button"
-                onClick={handleCopyShareLink}
-                className="h-8 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-3 text-xs font-semibold transition inline-flex items-center gap-1"
-              >
-                {copiedLink ? <Check size={12} /> : <Copy size={12} />}
-                <span>{copiedLink ? "Copied!" : "Copy"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Crawl Logs Modal */}
       {showLogsModal && (

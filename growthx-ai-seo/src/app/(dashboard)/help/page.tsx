@@ -1,10 +1,10 @@
 "use client";
-import { motion } from "framer-motion";import { Book, MessageCircle, Video, ChevronDown, ChevronUp } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 const faqs = [
-  { q: "How do I connect Google Search Console?", a: "Go to Settings → Integrations and click 'Connect' next to Google Search Console. You'll be redirected to Google's OAuth flow. Select your property and authorize GrowthX to read your data." },
+  { q: "How do I connect Google Search Console?", a: "Open Integrations and click 'Connect Google' next to Google Search Console. You'll be redirected to Google's OAuth flow. Select your property and authorize GrowthX to read your data." },
   { q: "How often is ranking data updated?", a: "Rank tracking is updated daily for all tracked keywords. GSC data has a 2-3 day delay from Google, which is standard across all SEO tools." },
   { q: "Is the AI-generated content safe to publish?", a: "Yes, but always review before publishing. Our platform requires human approval before any content goes live, in line with Google's E-E-A-T guidelines. Never publish AI content without editing." },
   { q: "What is GEO / AI Search Optimization?", a: "GEO (Generative Engine Optimization) is the practice of optimizing your content to appear in AI-generated answers on platforms like Google AI Overviews, ChatGPT, Perplexity, and Gemini." },
@@ -18,27 +18,8 @@ export default function HelpPage() {
     <div className="space-y-8 max-w-3xl">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-h1 text-[var(--text-primary)]">Help & Support</h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">Docs, FAQs, and support channels</p>
+        <p className="text-sm text-[var(--text-muted)] mt-1">Answers to common questions about GrowthX</p>
       </motion.div>
-
-      <div className="grid sm:grid-cols-3 gap-3">
-        {[
-          { icon: <Book size={20}/>, label: "Documentation", desc: "Full platform guide", color: "text-slate-500", bg: "bg-slate-50 dark:bg-slate-900/20" },
-          { icon: <Video size={20}/>, label: "Video Tutorials", desc: "Watch & learn", color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-900/20" },
-          { icon: <MessageCircle size={20}/>, label: "Live Chat", desc: "Chat with support", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
-        ].map((item, i) => (
-          <motion.div key={item.label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
-            className="card p-5 flex items-center gap-4 cursor-pointer hover:shadow-card-hover">
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", item.bg)}>
-              <span className={item.color}>{item.icon}</span>
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-[var(--text-primary)]">{item.label}</div>
-              <div className="text-xs text-[var(--text-muted)]">{item.desc}</div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
         <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Frequently Asked Questions</h3>

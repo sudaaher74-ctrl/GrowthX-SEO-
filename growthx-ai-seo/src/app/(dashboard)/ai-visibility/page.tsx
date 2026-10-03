@@ -2,7 +2,7 @@
 import { AiVisibilityDisabled } from "@/components/ai-visibility/ai-visibility-disabled";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, Plus, Loader2, Calendar, ChevronDown, ArrowRight, X, Bot, Building2, Globe, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
@@ -54,6 +54,7 @@ const TABS = [
 ];
 
 function AiVisibilityClient() {
+  const router = useRouter();
   const { orgId, projectId, projects } = useWorkspace();
   const portfolio = usePortfolio(orgId);
 
@@ -301,7 +302,7 @@ function AiVisibilityClient() {
         report={report}
         onViewInsights={() => setActiveTab("insights")}
         onViewQuestions={() => setActiveTab("questions")}
-        onViewCrawlDetails={() => window.location.assign("/website")}
+        onViewCrawlDetails={() => router.push("/website")}
         isAnalyzing={sweep.isPending}
       />
 

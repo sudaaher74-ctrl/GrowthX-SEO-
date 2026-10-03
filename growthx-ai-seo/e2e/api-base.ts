@@ -9,7 +9,11 @@
  * :3001, which is the dashboard's own port, while the app falls back to the
  * API's :3000.
  *
- * Keep the fallback in step with getApiBase(). Setting NEXT_PUBLIC_API_URL
- * affects both sides, so the two cannot drift apart when it is set.
+ * Next loads .env.local for the app build, but Playwright does not load it for
+ * specs. Load the same environment here before resolving the API origin.
  */
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(process.cwd());
+
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");

@@ -89,12 +89,6 @@ function LoginFormInner() {
             <label className="text-xs font-bold text-brand-300">
               Password
             </label>
-            <Link
-              href="/login?forgot=true"
-              className="text-xs font-semibold text-series-6 hover:text-series-6/80 transition-colors"
-            >
-              Forgot password?
-            </Link>
           </div>
           <div className="relative">
             <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 pointer-events-none" />
