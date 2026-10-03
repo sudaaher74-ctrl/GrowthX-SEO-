@@ -40,7 +40,7 @@ export class PlatformAdminGuard implements CanActivate {
     }
 
     if (!email || !allowed.includes(email)) {
-      throw new ForbiddenException('This area is restricted to GrowthX platform operators.');
+      throw new ForbiddenException('This area is restricted to Reigel platform operators.');
     }
 
     return true;

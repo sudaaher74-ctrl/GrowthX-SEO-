@@ -136,7 +136,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
     return true;
   });
 
-  // A reply counts as answered when Google itself holds one, or when GrowthX
+  // A reply counts as answered when Google itself holds one, or when Reigel
   // published one. Both are facts about the profile; a local draft is not.
   const answered = data.reviews.filter(
     (review) => Boolean(review.googleReply) || review.replyStatus === "PUBLISHED",
@@ -376,7 +376,7 @@ function ReviewsContent({ data, projectId }: { data: GbpReviews; projectId: stri
                       <p className="text-xs text-brand-800 leading-relaxed">
                         {publishedReply ?? (
                           <span className="italic text-brand-400">
-                            Published from GrowthX; Google has not returned the text yet.
+                            Published from Reigel; Google has not returned the text yet.
                           </span>
                         )}
                       </p>

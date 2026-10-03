@@ -40,7 +40,7 @@ function FixRules() {
         It changes your site only when you say so.
       </h3>
       <p className="text-sm text-brand-400 leading-relaxed mb-5">
-        Fixes are sorted by what they touch, not by which tool found them. GrowthX never merges anything for you.
+        Fixes are sorted by what they touch, not by which tool found them. Reigel never merges anything for you.
       </p>
       <div className="space-y-3">
         {FIX_RULES.map((rule) => {

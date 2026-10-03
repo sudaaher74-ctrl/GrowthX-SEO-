@@ -1,9 +1,3 @@
-databases:
-  - name: growthx-postgres
-    databaseName: growthx_crawler
-    user: growthx
-    plan: free
-
 services:
   - type: redis
     name: growthx-redis
@@ -27,10 +21,10 @@ services:
     dockerfilePath: Dockerfile
     healthCheckPath: /health
     envVars:
+      # PostgreSQL connection string (Neon Serverless Postgres or external Postgres).
+      # DIRECT_URL is automatically derived from DATABASE_URL by docker-entrypoint.sh.
       - key: DATABASE_URL
-        fromDatabase:
-          name: growthx-postgres
-          property: connectionString
+        sync: false
       - key: REDIS_URL
         fromService:
           type: redis

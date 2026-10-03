@@ -244,7 +244,7 @@ export function ChangesView() {
         <Gate query={ledger} what="change history">
           {(l) =>
             l.changes.length === 0 ? (
-              <EmptyNote>No change has been recorded yet. Fixes and content shipped through GrowthX appear here.</EmptyNote>
+              <EmptyNote>No change has been recorded yet. Fixes and content shipped through Reigel appear here.</EmptyNote>
             ) : (
               <ul className="divide-y divide-brand-200/40">
                 {l.changes.slice(0, 25).map((c) => (

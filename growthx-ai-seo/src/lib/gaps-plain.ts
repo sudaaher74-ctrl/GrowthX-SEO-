@@ -247,6 +247,6 @@ export function buildGapPlan(item: GapItem, you: { domain: string }): string {
     `## Why this matters\n${item.why}\n\n` +
     `## What to do\n${item.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n\n` +
     (item.example ? `## Their example\n${item.example.url}\n\n` : "") +
-    `## When it's done\nRe-check your website in GrowthX (Website Audit → Run audit) and this item will drop off the Gaps list.\n`
+    `## When it's done\nRe-check your website in Reigel (Website Audit → Run audit) and this item will drop off the Gaps list.\n`
   );
 }

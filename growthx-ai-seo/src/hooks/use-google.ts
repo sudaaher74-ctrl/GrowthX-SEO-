@@ -77,7 +77,7 @@ export function useGoogleRefresh(projectId: string | null | undefined) {
   });
 }
 
-/** GrowthX Intelligence for the workspace and the window chosen in the top bar. */
+/** Reigel Intelligence for the workspace and the window chosen in the top bar. */
 export function useGrowthIntelligence(projectId: string | null | undefined) {
   const days = usePeriodDays();
   return {

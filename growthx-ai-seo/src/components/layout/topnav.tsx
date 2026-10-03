@@ -118,7 +118,7 @@ export function TopNav({
             </span>
           </Link>
         ) : (
-          <span className="font-semibold text-brand-950">GrowthX AI</span>
+          <span className="font-semibold text-brand-950">Reigel AI</span>
         )}
         <span className="text-brand-300">/</span>
         <span className="font-medium text-brand-500">{meta.title}</span>

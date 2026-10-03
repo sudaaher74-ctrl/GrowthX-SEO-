@@ -110,7 +110,7 @@ export function FeatureCards() {
                   Don&apos;t just find problems. Get the fix.
                 </h3>
                 <p className="text-xs sm:text-sm text-brand-400 leading-relaxed mt-1.5">
-                  GrowthX prepares the actual code change and opens a pull request on your GitHub repository. You review the diff and merge it. We never merge for you.
+                  Reigel prepares the actual code change and opens a pull request on your GitHub repository. You review the diff and merge it. We never merge for you.
                 </p>
               </div>
 

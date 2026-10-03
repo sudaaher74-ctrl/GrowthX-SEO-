@@ -183,7 +183,7 @@ export default function AdminPage() {
             </Pill>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 dark:text-brand-100 mt-1.5">
-            GrowthX Software Administration
+            Reigel Software Administration
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Global management for SaaS tenant workspaces, platform users, BullMQ worker clusters, and AI model spend.
@@ -327,7 +327,7 @@ export default function AdminPage() {
             )}
             <Panel
               title="Registered SaaS Tenants & Workspaces"
-              subtitle="All client organizations registered on this GrowthX instance."
+              subtitle="All client organizations registered on this Reigel instance."
               actions={
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-brand-400" size={13} />

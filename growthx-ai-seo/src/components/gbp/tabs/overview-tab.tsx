@@ -755,7 +755,7 @@ function OverviewContent({
           <div className="relative mt-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/50 p-4 min-h-[170px] flex flex-col items-center justify-center text-center gap-2">
             <MapPin size={20} className="text-brand-300" />
             <p className="text-xs text-brand-500 max-w-[240px]">
-              GeoGrid is a scan GrowthX runs itself, not part of the Google sync. Run one from Local
+              GeoGrid is a scan Reigel runs itself, not part of the Google sync. Run one from Local
               Rankings to see your position across nearby areas.
             </p>
             <button

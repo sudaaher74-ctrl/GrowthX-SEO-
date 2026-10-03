@@ -20,13 +20,13 @@ const STRUCTURED_DATA = {
     {
       "@type": "Organization",
       "@id": `${SITE_URL}/#org`,
-      name: "GrowthX",
+      name: "Reigel",
       url: SITE_URL,
       email: "sudarshan@growthx.in",
     },
     {
       "@type": "SoftwareApplication",
-      name: "GrowthX AI SEO",
+      name: "Reigel AI SEO",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       description:

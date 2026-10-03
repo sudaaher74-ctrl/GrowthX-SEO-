@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "What GrowthX AI SEO collects, how connected Google data is used and stored, who it is shared with, and how to revoke access or delete it.",
+    "What Reigel AI SEO collects, how connected Google data is used and stored, who it is shared with, and how to revoke access or delete it.",
 };
 
 /**
@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
       <p className="mt-2 text-sm text-brand-500">Last updated {LAST_UPDATED}</p>
 
       <p className="mt-6 text-sm leading-relaxed text-brand-300">
-        GrowthX AI SEO (&ldquo;GrowthX&rdquo;, &ldquo;we&rdquo;) is a search-engine-optimisation
+        Reigel AI SEO (&ldquo;Reigel&rdquo;, &ldquo;we&rdquo;) is a search-engine-optimisation
         workspace. Customers connect the websites and marketing accounts they own or manage, and we
         analyse that data to report on technical health, search visibility and local presence, and
         to recommend changes. This policy explains what we hold, why, who else sees it, and how to
@@ -80,7 +80,7 @@ export default function PrivacyPolicyPage() {
           every page view, and we refresh it on a schedule while the connection is active.
         </p>
         <p>
-          GrowthX&apos;s use of information received from Google APIs adheres to the{" "}
+          Reigel&apos;s use of information received from Google APIs adheres to the{" "}
           <a
             className="font-medium text-slate-900 underline underline-offset-2"
             href="https://developers.google.com/terms/api-services-user-data-policy"

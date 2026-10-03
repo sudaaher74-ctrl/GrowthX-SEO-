@@ -98,7 +98,7 @@ export function PropertyPicker({
           <h2 className="mt-3 text-[15px] font-semibold text-brand-950">{title}</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
             {errorMessage(properties.error)} Authorize the connection for this project, then come back and pick a
-            property. Signing in to GrowthX with a Google account is a separate thing from granting this project
+            property. Signing in to Reigel with a Google account is a separate thing from granting this project
             access to your data.
           </p>
         </div>
@@ -115,7 +115,7 @@ export function PropertyPicker({
         </div>
         <h2 className="mt-3 text-[15px] font-semibold text-brand-950">{title}</h2>
         <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
-          One more step. Pick which property GrowthX should read — the same site can be verified more than one way,
+          One more step. Pick which property Reigel should read — the same site can be verified more than one way,
           and each holds different data.
         </p>
 

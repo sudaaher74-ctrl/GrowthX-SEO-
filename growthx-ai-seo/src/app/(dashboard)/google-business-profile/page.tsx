@@ -143,7 +143,7 @@ function GoogleBusinessProfileContent() {
         title="A required Google permission was declined"
         body={
           <>
-            You signed in, but one of the permissions GrowthX needs to read your Business Profile was
+            You signed in, but one of the permissions Reigel needs to read your Business Profile was
             not granted. Nothing can be synced without it. Try again and accept every requested
             permission on Google&apos;s consent screen.
           </>

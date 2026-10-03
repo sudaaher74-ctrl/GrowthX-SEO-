@@ -32,7 +32,7 @@ export default function GlobalError({
           padding: "16px",
         }}
       >
-        <title>Something went wrong | GrowthX AI SEO</title>
+        <title>Something went wrong | Reigel AI SEO</title>
         <div
           style={{
             width: "100%",
@@ -46,7 +46,7 @@ export default function GlobalError({
           }}
         >
           <h1 style={{ margin: 0, fontSize: "17px", fontWeight: 800, letterSpacing: "-0.01em" }}>
-            GrowthX hit an unexpected error
+            Reigel hit an unexpected error
           </h1>
           <p style={{ margin: "10px 0 0", fontSize: "12.5px", lineHeight: 1.6, color: "#64748b" }}>
             The app failed to start up. Trying again usually clears it — if it keeps happening,

@@ -46,7 +46,7 @@ export function ProofStrip() {
         {/* Partner Logos */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="text-[11px] font-bold uppercase tracking-wider text-brand-400 shrink-0">
-            Brands growing with GrowthX
+            Brands growing with Reigel
           </span>
           <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8">
             {PARTNER_LOGOS.map((brand) => (

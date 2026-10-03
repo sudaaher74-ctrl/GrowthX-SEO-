@@ -463,7 +463,7 @@ Generate the internal linking strategy and actionable suggestions.`;
     body: GenerateLinkPatchBody,
   ): Promise<LinkSculptingPatch> {
     const cleanAnchor = body.recommendedAnchorText || this.slugToAnchor(body.targetUrl.split('/').pop() || 'guide', 'Solution');
-    const deliverableHtml = `<!-- GrowthX Internal Link Sculpting Patch -->
+    const deliverableHtml = `<!-- Reigel Internal Link Sculpting Patch -->
 <!-- Source Donor: ${body.sourceUrl} -->
 <!-- Target Destination: ${body.targetUrl} -->
 
@@ -540,7 +540,7 @@ Generate the internal linking strategy and actionable suggestions.`;
       sentence = `When scaling search architecture, modern teams depend on <a href="${targetUrl}" title="${targetTitle}">${cleanAnchor}</a> to establish authoritative topical coverage and eliminate crawl bottlenecks.`;
     }
 
-    const htmlAfter = `<!-- GrowthX Neural Link Sculptor — Topical Bridge Injection -->\n<p>${sentence}</p>`;
+    const htmlAfter = `<!-- Reigel Neural Link Sculptor — Topical Bridge Injection -->\n<p>${sentence}</p>`;
 
     return { sentence, htmlAfter };
   }

@@ -1,5 +1,5 @@
 /**
- * GrowthX AI SEO — API client.
+ * Reigel AI SEO — API client.
  *
  * Talks to the NestJS backend. Paths here are the real controller routes:
  * auth and organizations sit at the root, everything else under `/api`.
@@ -294,7 +294,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     (payload as { message?: string } | null)?.message ??
     (typeof envelope?.message === "string" ? envelope.message : null) ??
     response?.statusText ??
-    "Could not reach the GrowthX API. Check your connection and try again.";
+    "Could not reach the Reigel API. Check your connection and try again.";
 
   if (response?.status === 401 && typeof window !== "undefined") {
     // A 60-minute access token expiring mid-task used to end the session. Try
@@ -624,7 +624,7 @@ export const api = {
       `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/pages${pageType ? `?pageType=${encodeURIComponent(pageType)}` : ""}`,
     ),
 
-  // ── GrowthX Intelligence ─────────────────────────────────────────────────
+  // ── Reigel Intelligence ──────────────────────────────────────────────────
   growthIntelligence: (projectId: string, days: number) =>
     get<GrowthIntelligenceReport>(`/api/projects/${projectId}/intelligence?days=${days}`),
 
@@ -945,7 +945,7 @@ export const api = {
 
 // ── Content Intelligence types ────────────────────────────────────────────
 
-// ── GrowthX Intelligence ───────────────────────────────────────────────────
+// ── Reigel Intelligence ───────────────────────────────────────────────────
 
 type IntelligenceSource = "CRAWL" | "GSC" | "GA4" | "GBP" | "COMPETITORS" | "AI_VISIBILITY";
 

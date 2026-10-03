@@ -230,7 +230,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 to select
               </span>
             </div>
-            <span>GrowthX AI SEO · Quick Command</span>
+            <span>Reigel AI SEO · Quick Command</span>
           </div>
         </motion.div>
       </div>

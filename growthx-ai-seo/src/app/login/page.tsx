@@ -59,7 +59,7 @@ function LoginFormInner() {
         Welcome back
       </h2>
       <p className="text-sm text-brand-400 mb-8">
-        Log in to your GrowthX account
+        Log in to your Reigel account
       </p>
 
       {/* Form */}
@@ -229,7 +229,7 @@ export default function LoginPage() {
               </span>
             </h1>
             <p className="text-sm text-brand-400 mt-2.5 max-w-md leading-relaxed">
-              Access your dashboard, track progress and let GrowthX do the heavy lifting.
+              Access your dashboard, track progress and let Reigel do the heavy lifting.
             </p>
           </div>
 
@@ -260,7 +260,7 @@ export default function LoginPage() {
                   Execution that saves time
                 </h4>
                 <p className="text-xs text-brand-400 mt-0.5 leading-relaxed">
-                  Approve your plan and let GrowthX implement the improvements.
+                  Approve your plan and let Reigel implement the improvements.
                 </p>
               </div>
             </div>
@@ -275,7 +275,7 @@ export default function LoginPage() {
                   Built for businesses
                 </h4>
                 <p className="text-xs text-brand-400 mt-0.5 leading-relaxed">
-                  Join growing teams that trust GrowthX to drive results.
+                  Join growing teams that trust Reigel to drive results.
                 </p>
               </div>
             </div>
@@ -287,7 +287,7 @@ export default function LoginPage() {
               <Quote size={15} />
             </div>
             <p className="text-xs text-brand-300 leading-relaxed italic mb-3">
-              &ldquo;GrowthX completely changed how we approach SEO and AI search. The automated execution saves weeks of engineering time every month.&rdquo;
+              &ldquo;Reigel completely changed how we approach SEO and AI search. The automated execution saves weeks of engineering time every month.&rdquo;
             </p>
             <div className="flex items-center gap-2.5 pt-2 border-t border-brand-800">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-series-6 to-accent-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
@@ -298,7 +298,7 @@ export default function LoginPage() {
                   Sudarshan Aher
                 </h5>
                 <p className="text-[10px] text-brand-400 font-medium">
-                  Founder &amp; CEO, GrowthX
+                  Founder &amp; CEO, Reigel
                 </p>
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col justify-between p-6 sm:p-10 lg:p-12 bg-brand-950">
         {/* Top bar with Create account link */}
         <div className="flex items-center justify-end gap-2 text-xs text-brand-400">
-          <span>New to GrowthX?</span>
+          <span>New to Reigel?</span>
           <Link
             href="/register"
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-brand-800 text-white font-bold hover:bg-brand-900 transition-all cursor-pointer"

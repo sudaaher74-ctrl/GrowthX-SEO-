@@ -142,7 +142,7 @@ export function AiConfigurationTab() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-[var(--text-primary)]">AI Provider Configuration</h2>
-              <p className="text-xs text-[var(--text-muted)]">Configure GrowthX underlying AI reasoning layer using Sarvam AI</p>
+              <p className="text-xs text-[var(--text-muted)]">Configure Reigel underlying AI reasoning layer using Sarvam AI</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">

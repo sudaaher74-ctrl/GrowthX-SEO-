@@ -43,7 +43,7 @@ export function ReportPage({
       </div>
       <article id="report-root" className="mx-auto max-w-4xl space-y-6 rounded-xl border bg-white p-6 shadow-card sm:p-10">
         <header className="border-b pb-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-400">GrowthX AI SEO report</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-brand-400">Reigel AI SEO report</p>
           <h1 className="mt-1 text-[26px] font-bold tracking-[-0.02em] text-brand-950">{title}</h1>
           <p className="mt-1 text-[13px] text-brand-600">
             {clientName}

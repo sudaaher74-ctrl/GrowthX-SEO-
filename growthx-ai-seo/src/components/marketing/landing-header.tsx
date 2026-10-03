@@ -45,7 +45,7 @@ export function LandingHeader() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <span className="text-xl font-extrabold tracking-tight text-white">
-              Growth<span className="text-series-6">X</span>
+              Reigel
             </span>
             <span className="hidden sm:block text-[10px] font-semibold text-brand-400 uppercase tracking-widest mt-0.5">
               AI SEO

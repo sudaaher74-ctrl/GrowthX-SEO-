@@ -37,7 +37,7 @@ export class AiSearchService {
 
     // Step 2: Reasoning & Synthesis Prompt
     const systemPrompt = `
-      You are GrowthX AI, an elite SEO Intelligence Platform and Autonomous Website Engineer.
+      You are Reigel AI, an elite SEO Intelligence Platform and Autonomous Website Engineer.
       Analyze the provided evidence and answer the user's question like a Senior Technical SEO.
       
       Format your response exactly like this:

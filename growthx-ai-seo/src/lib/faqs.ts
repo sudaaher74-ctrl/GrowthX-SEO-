@@ -2,7 +2,7 @@
 export const FAQS = [
   {
     q: "Will it change my site without asking?",
-    a: "Never. Fixes arrive as a pull request on your GitHub repository with a before/after diff. Nothing is published until you review and merge it, and GrowthX never merges for you.",
+    a: "Never. Fixes arrive as a pull request on your GitHub repository with a before/after diff. Nothing is published until you review and merge it, and Reigel never merges for you.",
   },
   {
     q: "Do I need a developer?",
@@ -14,7 +14,7 @@ export const FAQS = [
   },
   {
     q: "How is this different from Semrush or Ahrefs?",
-    a: "They show you data. GrowthX turns it into a ranked list, prepares the fix as a pull request, and checks that it worked.",
+    a: "They show you data. Reigel turns it into a ranked list, prepares the fix as a pull request, and checks that it worked.",
   },
   {
     q: "Which AI assistants do you measure?",

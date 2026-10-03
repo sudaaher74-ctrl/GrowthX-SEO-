@@ -110,8 +110,8 @@ const ACTION_LABELS: Record<string, string> = {
   GEO_GRID_POINT: "Local ranking scan",
   MONTHLY_ALLOWANCE: "Monthly tokens",
   ALLOWANCE_EXPIRED: "Unused monthly tokens expired",
-  ADMIN_GRANT: "Tokens added by GrowthX",
-  ADMIN_ADJUSTMENT: "Adjustment by GrowthX",
+  ADMIN_GRANT: "Tokens added by Reigel",
+  ADMIN_ADJUSTMENT: "Adjustment by Reigel",
   PURCHASE: "Tokens purchased",
 };
 

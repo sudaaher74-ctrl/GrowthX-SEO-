@@ -11,7 +11,7 @@ import { ApiError } from "@/lib/api-client";
  */
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 0) return "Could not reach the GrowthX API. Check your connection and try again.";
+    if (error.status === 0) return "Could not reach the Reigel API. Check your connection and try again.";
     return error.message;
   }
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";

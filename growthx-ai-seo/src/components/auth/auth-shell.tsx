@@ -110,7 +110,7 @@ export function AuthShell({
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white">
               <Globe size={20} className="text-black" />
             </div>
-            <span className="text-[15px] font-semibold tracking-tight text-white">GrowthX AI</span>
+            <span className="text-[15px] font-semibold tracking-tight text-white">Reigel AI</span>
           </div>
 
           <h1 className="auth-rise mt-8 text-[26px] font-semibold leading-[1.15] tracking-tight text-white lg:mt-12 lg:text-[38px]">
@@ -127,7 +127,7 @@ export function AuthShell({
           <Steps className="mt-9 space-y-5 lg:mt-11" />
 
           <p className="auth-rise mt-10 hidden max-w-md text-[11.5px] leading-relaxed text-white/35 lg:block">
-            Figures in GrowthX come from your clients&apos; own crawls, tracked prompts and connected
+            Figures in Reigel come from your clients&apos; own crawls, tracked prompts and connected
             accounts. Where something has not been measured, it says so.
           </p>
         </div>

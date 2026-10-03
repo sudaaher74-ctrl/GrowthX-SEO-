@@ -119,7 +119,7 @@ function Sheet({
       </div>
       {children}
       <div className="report-footer">
-        <span>GrowthX | AI SEO for Real Business Growth</span>
+        <span>Reigel | AI SEO for Real Business Growth</span>
         <span className="font-bold">{pageNumber}</span>
       </div>
     </div>
@@ -301,7 +301,7 @@ export function SeoAuditReportDocument({
             <p className="text-xs italic text-brand-200">
               &ldquo;Fix the right issues, get more traffic, more customers, and grow faster.&rdquo;
             </p>
-            <p className="text-[10px] font-semibold text-accent-400 mt-0.5">— GrowthX AI</p>
+            <p className="text-[10px] font-semibold text-accent-400 mt-0.5">— Reigel AI</p>
           </div>
         </div>
 
@@ -464,7 +464,7 @@ export function SeoAuditReportDocument({
             <p className="text-[9pt] italic font-medium text-brand-700 leading-relaxed">
               &ldquo;A well-optimized website doesn&apos;t just rank higher, it grows your business.&rdquo;
             </p>
-            <p className="text-[8.5pt] font-bold text-accent-700">— GrowthX AI</p>
+            <p className="text-[8.5pt] font-bold text-accent-700">— Reigel AI</p>
           </div>
         </div>
       </Sheet>
@@ -813,7 +813,7 @@ export function SeoAuditReportDocument({
             </div>
             <div className="space-y-0.5">
               <h4 className="text-[10pt] font-extrabold text-white">Let&apos;s make your website rank higher</h4>
-              <p className="text-[7.5pt] text-brand-300">Fix these issues and unlock your website&apos;s full potential with GrowthX AI</p>
+              <p className="text-[7.5pt] text-brand-300">Fix these issues and unlock your website&apos;s full potential with Reigel AI</p>
             </div>
           </div>
         </div>

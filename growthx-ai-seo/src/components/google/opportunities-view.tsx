@@ -265,7 +265,7 @@ export function OpportunitiesView() {
                         <Pill tone={BAND[o.potential]}>{o.potential.toLowerCase()} potential</Pill>
                         <Pill>{o.effort.toLowerCase()} effort</Pill>
                         <span className="rounded-md bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                          {o.source === "SEARCH_CONSOLE" ? "GSC" : o.source === "ANALYTICS" ? "GA4" : "GrowthX"}
+                          {o.source === "SEARCH_CONSOLE" ? "GSC" : o.source === "ANALYTICS" ? "GA4" : "Reigel"}
                         </span>
                       </div>
                     </div>
@@ -285,7 +285,7 @@ export function OpportunitiesView() {
                           items={o.evidence.map((e) => ({
                             label: e.label,
                             value: e.value,
-                            source: e.source === "SEARCH_CONSOLE" ? "GSC" : e.source === "ANALYTICS" ? "GA4" : "GrowthX",
+                            source: e.source === "SEARCH_CONSOLE" ? "GSC" : e.source === "ANALYTICS" ? "GA4" : "Reigel",
                           }))}
                         />
                       ) : <span />}

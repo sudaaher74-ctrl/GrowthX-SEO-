@@ -60,7 +60,7 @@ export function Sidebar({
           <div className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-signal-400 text-signal-ink shadow-xs">
             <LayoutGrid size={13} className="text-signal-ink" />
           </div>
-          <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">GrowthX</span>
+          <span className="text-[13.5px] font-bold tracking-[-0.02em] text-brand-950">Reigel</span>
           <span className="rounded-full bg-signal-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.09em] text-signal-400">AI SEO</span>
           
           <button

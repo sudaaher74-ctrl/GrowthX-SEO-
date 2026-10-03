@@ -20,7 +20,7 @@ export function AiVisibilityDisabled() {
           </div>
           <h3 className="text-base font-bold text-brand-950">AI Visibility is disabled</h3>
           <p className="text-xs leading-relaxed text-brand-400">
-            This part of GrowthX is switched off for now. Competitor Intelligence and Website Audit work as usual.
+            This part of Reigel is switched off for now. Competitor Intelligence and Website Audit work as usual.
           </p>
           <div className="pt-2">
             <Link

@@ -1,7 +1,7 @@
 /**
  * The shapes the intelligence layer reads and writes.
  *
- * Every claim GrowthX makes carries the evidence it rests on. `Evidence` is
+ * Every claim Reigel makes carries the evidence it rests on. `Evidence` is
  * therefore the unit everything else points at: a finding lists the ids of the
  * evidence behind it, and a recommendation inherits them. Nothing in a
  * conclusion may be stated that is not traceable to one of these.

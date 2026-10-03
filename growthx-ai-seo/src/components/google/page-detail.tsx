@@ -96,13 +96,13 @@ function Diagnosis({ findings, hasAnySource }: { findings: GoogleDiagnosisFindin
   return (
     <Panel
       title="Why is this page performing this way?"
-      subtitle="GrowthX analysis of this page's own figures. Every finding shows the numbers that triggered it."
+      subtitle="Reigel analysis of this page's own figures. Every finding shows the numbers that triggered it."
     >
       <div className="space-y-3 p-4">
         {findings.length === 0 ? (
           <p className="text-[12.5px] text-brand-600">
             {hasAnySource
-              ? "GrowthX found nothing wrong with this page in the data it holds. That is a result, not a gap: none of its checks fired."
+              ? "Reigel found nothing wrong with this page in the data it holds. That is a result, not a gap: none of its checks fired."
               : "There is no data for this page yet, so nothing can be said about it."}
           </p>
         ) : (
@@ -223,9 +223,9 @@ function CrawlSection({ d }: { d: GooglePageDetail }) {
   const idx = d.index;
   return (
     <Panel
-      title="GrowthX SEO data"
+      title="Reigel SEO data"
       subtitle={c ? `From the crawl of ${new Date(c.crawledAt).toLocaleDateString()}` : undefined}
-      actions={<SourceBadge source="GrowthX" />}
+      actions={<SourceBadge source="Reigel" />}
     >
       <div className="space-y-4 p-4">
         {!c ? (

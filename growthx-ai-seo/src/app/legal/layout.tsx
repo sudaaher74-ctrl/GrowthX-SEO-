@@ -13,7 +13,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-brand-800">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
           <Link href="/" className="text-sm font-bold tracking-tight text-white">
-            GrowthX AI SEO
+            Reigel AI SEO
           </Link>
           <nav className="flex gap-5 text-sm text-brand-400">
             <Link href="/legal/privacy" className="hover:text-white transition-colors">
@@ -30,7 +30,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
 
       <footer className="border-t border-brand-800">
         <div className="mx-auto max-w-3xl px-6 py-6 text-xs text-brand-500">
-          GrowthX AI SEO
+          Reigel AI SEO
         </div>
       </footer>
     </div>

@@ -1,5 +1,5 @@
 /**
- * The Google services GrowthX connects to, and what each one needs.
+ * The Google services Reigel connects to, and what each one needs.
  *
  * These are data connectors, not engines. Nothing here analyses anything: each
  * entry says which Google API a connector talks to and the narrowest scope

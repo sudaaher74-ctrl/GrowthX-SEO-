@@ -84,7 +84,7 @@ export function CostComparison() {
           </h2>
 
           <p className="text-sm sm:text-base text-brand-400 leading-relaxed max-w-2xl mx-auto mb-8">
-            Most teams stitch together an agency and a pile of subscriptions. GrowthX covers the same ground in one place, prepares the fixes, and checks they worked.
+            Most teams stitch together an agency and a pile of subscriptions. Reigel covers the same ground in one place, prepares the fixes, and checks they worked.
           </p>
 
           {/* Dual Controls: Billing Cycle + Currency Switcher */}
@@ -179,7 +179,7 @@ export function CostComparison() {
               The usual way
             </div>
             <div className="col-span-3 text-right text-success-400 font-bold">
-              GrowthX
+              Reigel
             </div>
           </div>
 

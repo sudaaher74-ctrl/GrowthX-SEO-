@@ -54,7 +54,7 @@ const PRICING_FAQS = [
   },
   {
     q: "How does the Fix Engine ship changes?",
-    a: "GrowthX prepares the fixes and opens a pull request on your website's GitHub repository, with a before/after diff. Nothing is published until you review and merge it. GrowthX never merges for you.",
+    a: "Reigel prepares the fixes and opens a pull request on your website's GitHub repository, with a before/after diff. Nothing is published until you review and merge it. Reigel never merges for you.",
   },
   {
     q: "Which AI assistants do you measure?",

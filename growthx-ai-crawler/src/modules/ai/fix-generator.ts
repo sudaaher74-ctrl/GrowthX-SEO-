@@ -4,7 +4,7 @@
  *
  * The rule this file exists to enforce: a proposed fix must be built from the
  * customer's page, never from a template mentioning our product. A patch that
- * says "GrowthX AI" on someone else's site is worse than no patch at all.
+ * says "Reigel AI" on someone else's site is worse than no patch at all.
  */
 
 export type FixType =

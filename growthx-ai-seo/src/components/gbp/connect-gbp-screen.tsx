@@ -70,7 +70,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
             Google Business Profile
           </h1>
           <p className="text-sm text-brand-500 dark:text-brand-400 leading-relaxed max-w-lg">
-            Link your Google Business Profile to GrowthX and let AI analyze, optimize,
+            Link your Google Business Profile to Reigel and let AI analyze, optimize,
             and grow your local visibility automatically.
           </p>
 
@@ -154,7 +154,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
                 </svg>
               </div>
 
-              {/* Right GrowthX Card */}
+              {/* Right Reigel Card */}
               <div className="rounded-xl border border-brand-200 dark:border-brand-800 bg-white dark:bg-brand-900 p-3 shadow-sm flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-white shadow-xs">
                   <div className="grid grid-cols-2 gap-0.5 p-1">
@@ -166,7 +166,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
                 </div>
                 <div>
                   <div className="text-[13px] font-bold text-brand-950 dark:text-white leading-tight">
-                    GrowthX
+                    Reigel
                   </div>
                   <div className="text-[9px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                     AI Local SEO
@@ -400,7 +400,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
               Trusted by Businesses
             </h4>
             <p className="text-[11px] text-brand-500 dark:text-brand-400 mt-1 leading-relaxed">
-              Thousands of businesses use GrowthX to improve their local visibility.
+              Thousands of businesses use Reigel to improve their local visibility.
             </p>
           </div>
         </div>
@@ -462,7 +462,7 @@ export function ConnectGbpScreen({ projectId, connection, onConnected }: Connect
               </div>
 
               <div className="rounded-lg bg-blue-50 dark:bg-blue-950/40 p-3 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50">
-                <span className="font-bold">Security Note:</span> GrowthX will never post or publish changes without your explicit review and approval.
+                <span className="font-bold">Security Note:</span> Reigel will never post or publish changes without your explicit review and approval.
               </div>
             </div>
 

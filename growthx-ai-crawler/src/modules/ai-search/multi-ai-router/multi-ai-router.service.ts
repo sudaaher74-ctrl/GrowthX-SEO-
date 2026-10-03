@@ -148,7 +148,7 @@ export class MultiAiRouterService {
         baseURL: 'https://openrouter.ai/api/v1',
         defaultHeaders: {
           'HTTP-Referer': this.config.get<string>('OPENROUTER_SITE_URL') || 'https://growthx.ai',
-          'X-Title': this.config.get<string>('OPENROUTER_SITE_NAME') || 'GrowthX AI SEO',
+          'X-Title': this.config.get<string>('OPENROUTER_SITE_NAME') || 'Reigel AI SEO',
         },
       });
     }

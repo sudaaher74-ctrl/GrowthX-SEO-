@@ -3,7 +3,7 @@
 import { api, ApiError } from "@/lib/api-client";
 
 /**
- * Staging Engine for GrowthX-SEO Platform
+ * Staging Engine for Reigel SEO Platform
  *
  * Bridges the gap between Competitor Intelligence / AI Visibility and the Fix Engine.
  * Staged items (keyword gaps, content briefs, schema fixes, prompt gaps) are persisted

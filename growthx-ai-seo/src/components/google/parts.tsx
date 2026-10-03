@@ -20,7 +20,7 @@ import { DASH, count, formatDayLabel, formatKpi, money, percent, position, short
 const SOURCE_LABEL: Record<GoogleSource | "GSC+GA4", string> = {
   GSC: "Search Console",
   GA4: "Google Analytics",
-  GrowthX: "GrowthX",
+  Reigel: "Reigel",
   "GSC+GA4": "Search Console + Analytics",
 };
 

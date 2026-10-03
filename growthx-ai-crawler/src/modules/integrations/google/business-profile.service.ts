@@ -18,7 +18,7 @@ import {
 export type { FailureKind, ClassifiedFailure };
 
 /**
- * Reads a customer's Google Business Profile into the GrowthX data layer.
+ * Reads a customer's Google Business Profile into the Reigel data layer.
  *
  * A connector, not an engine, and built on the same shape as the Search
  * Console one: list what the account can see, pull it into local tables on a

@@ -91,10 +91,10 @@ export function LandingFooter() {
               {/* Logo */}
               <Link href="/" className="inline-flex items-center gap-2 mb-6 group">
                 <div className="w-8 h-8 rounded-xl bg-series-6/20 border border-series-6/30 flex items-center justify-center text-series-6 font-black text-sm shadow-xs group-hover:bg-series-6/30 transition-colors">
-                  G
+                  R
                 </div>
                 <span className="text-2xl font-black text-white tracking-tight">
-                  Growth<span className="text-series-6">X</span>
+                  Reigel
                 </span>
               </Link>
 
@@ -109,35 +109,35 @@ export function LandingFooter() {
 
             </div>
 
-            {/* Request AI Summary of GrowthX */}
+            {/* Request AI Summary of Reigel */}
             <div className="pt-2">
               <p className="text-xs font-semibold text-brand-300 mb-2.5">
-                Request AI summary of GrowthX
+                Request AI summary of Reigel
               </p>
               <div className="flex items-center gap-2.5">
                 <a
-                  href="https://chatgpt.com/?q=What+is+GrowthX+AI+SEO+and+how+does+it+work%3F"
+                  href="https://chatgpt.com/?q=What+is+Reigel+AI+SEO+and+how+does+it+work%3F"
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Ask ChatGPT about GrowthX"
+                  title="Ask ChatGPT about Reigel"
                   className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
                 >
                   <OpenAiSpiralIcon />
                 </a>
                 <a
-                  href="https://claude.ai/new?q=What+is+GrowthX+AI+SEO+and+how+does+it+work%3F"
+                  href="https://claude.ai/new?q=What+is+Reigel+AI+SEO+and+how+does+it+work%3F"
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Ask Claude about GrowthX"
+                  title="Ask Claude about Reigel"
                   className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
                 >
                   <ClaudeSparkIcon />
                 </a>
                 <a
-                  href="https://www.perplexity.ai/search?q=What+is+GrowthX+AI+SEO+platform%3F"
+                  href="https://www.perplexity.ai/search?q=What+is+Reigel+AI+SEO+platform%3F"
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Ask Perplexity about GrowthX"
+                  title="Ask Perplexity about Reigel"
                   className="w-9 h-9 rounded-xl bg-brand-900/80 border border-brand-800 flex items-center justify-center text-brand-300 hover:text-white hover:border-brand-700 hover:bg-brand-850 transition-all cursor-pointer shadow-xs"
                 >
                   <PerplexityIcon />
@@ -197,7 +197,7 @@ export function LandingFooter() {
         {/* Bottom Bar */}
         <div className="border-t border-brand-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-brand-500">
-            &copy; {currentYear} GrowthX AI SEO. All rights reserved.
+            &copy; {currentYear} Reigel AI SEO. All rights reserved.
           </p>
 
           {/* Legal Links */}

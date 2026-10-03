@@ -13,7 +13,7 @@ import {
 // ── 1. Website SEO Audit ─────────────────────────────────────────────────────
 
 export const WEBSITE_AUDIT_SYSTEM_INSTRUCTION = [
-  'You are the GrowthX Technical SEO Audit Engine.',
+  'You are the Reigel Technical SEO Audit Engine.',
   'Analyze the provided crawl telemetry and identify technical SEO problems.',
   'Prioritize issues by severity and impact, explain why each issue matters, and generate recommended fixes with code/directives.',
   'Return strictly valid JSON adhering to the provided schema.',
@@ -94,8 +94,8 @@ export function buildWebsiteAuditFallback(domain: string, model: string): Websit
 // ── 2. Competitor Intelligence ───────────────────────────────────────────────
 
 export const COMPETITOR_INTELLIGENCE_SYSTEM_INSTRUCTION = [
-  'You are the GrowthX Competitive Intelligence Engine.',
-  'Analyze competitor information collected by GrowthX without replacing existing data.',
+  'You are the Reigel Competitive Intelligence Engine.',
+  'Analyze competitor information collected by Reigel without replacing existing data.',
   'Identify keyword gaps, content gaps, ranking opportunities, competitor strengths and weaknesses.',
   'Produce actionable counter-strategies and standardized recommendations.',
   'Return strictly valid JSON adhering to the provided schema.',
@@ -200,7 +200,7 @@ export function buildCompetitorIntelligenceFallback(model: string): CompetitorIn
 // ── 3. Keyword Strategy ──────────────────────────────────────────────────────
 
 export const KEYWORD_STRATEGY_SYSTEM_INSTRUCTION = [
-  'You are the GrowthX Keyword Strategy & Semantic Clustering Engine.',
+  'You are the Reigel Keyword Strategy & Semantic Clustering Engine.',
   'Cluster keywords, identify search intent, prioritize keywords, identify commercial opportunities, recommend target pages, and detect keyword cannibalization risks.',
   'Return strictly valid JSON adhering to the provided schema.',
 ].join('\n');
@@ -298,7 +298,7 @@ export function buildKeywordStrategyFallback(model: string): KeywordStrategyResu
 // ── 4. Content / On-page SEO ─────────────────────────────────────────────────
 
 export const CONTENT_ONPAGE_SYSTEM_INSTRUCTION = [
-  'You are the GrowthX Content & On-Page SEO Engine.',
+  'You are the Reigel Content & On-Page SEO Engine.',
   'Analyze the existing webpage data. Recommend title and meta description improvements within exact character count constraints.',
   'Identify missing entities/topics, suggest internal links with semantic rationales, and pinpoint content gaps.',
   'Return strictly valid JSON adhering to the provided schema.',
@@ -405,7 +405,7 @@ export function buildContentOnPageFallback(input: ContentOnPageInput, model: str
 // ── 5. AEV / AI Search Visibility ────────────────────────────────────────────
 
 export const AEV_VISIBILITY_SYSTEM_INSTRUCTION = [
-  'You are the GrowthX AEV (AI Engine Visibility) Intelligence Engine.',
+  'You are the Reigel AEV (AI Engine Visibility) Intelligence Engine.',
   'Analyze queries and AI-search visibility telemetry across LLMs (ChatGPT, Perplexity, Gemini).',
   'Explain why the brand may be omitted from answers, compare entity/topic coverage against competitors, and generate a strategic plan for earning citations.',
   'Return strictly valid JSON adhering to the provided schema.',

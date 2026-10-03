@@ -822,7 +822,7 @@ export class AutomationService {
 
   private fixPrBody(issues: any[], changed: string[], skipped: string[]): string {
     return [
-      '## Automated SEO fixes by GrowthX AI',
+      '## Automated SEO fixes by Reigel AI',
       '',
       `Applied **${changed.length}** change(s) from the latest crawl. The build was run before pushing.`,
       '',
@@ -841,7 +841,7 @@ export class AutomationService {
 
   private contentPrBody(pieces: any[], changed: string[]): string {
     return [
-      '## New content by GrowthX AI',
+      '## New content by Reigel AI',
       '',
       `Adds **${changed.length}** page(s), written against queries where competitors are currently cited.`,
       '',

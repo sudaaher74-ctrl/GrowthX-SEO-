@@ -184,7 +184,7 @@ function ProfileTab() {
       <div className="card p-6 border-red-100 bg-red-50/20 space-y-3">
         <h3 className="text-sm font-semibold text-brand-950">Session Management</h3>
         <p className="text-xs text-[var(--text-muted)]">
-          Sign out of your active GrowthX session on this device. You will be redirected to the sign-in screen.
+          Sign out of your active Reigel session on this device. You will be redirected to the sign-in screen.
         </p>
         <div>
           <Button
@@ -195,7 +195,7 @@ function ProfileTab() {
             className="text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200"
           >
             {loggingOut ? <Loader2 size={14} className="animate-spin mr-2" /> : <LogOut size={14} className="mr-2 text-red-500" />}
-            Sign out of GrowthX
+            Sign out of Reigel
           </Button>
         </div>
       </div>
@@ -249,7 +249,7 @@ function TeamTab({ orgId }: { orgId: string | null }) {
         </form>
         {error && <p className="text-xs text-red-500">{error}</p>}
         <p className="text-xs text-[var(--text-muted)]">
-          They need a GrowthX AI account already — this attaches an existing account to your workspace, it doesn&apos;t email an invite.
+          They need a Reigel AI account already — this attaches an existing account to your workspace, it doesn&apos;t email an invite.
         </p>
       </div>
 

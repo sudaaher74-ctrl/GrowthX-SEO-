@@ -9,7 +9,7 @@ function windowDays(value?: string): number {
 }
 
 /**
- * GrowthX Intelligence: the one place the crawl, Search Console, Analytics,
+ * Reigel Intelligence: the one place the crawl, Search Console, Analytics,
  * Business Profile, competitor and AI-visibility evidence is combined.
  * Read-only, so a viewer may use it; the project guard scopes it to the
  * caller's organization.

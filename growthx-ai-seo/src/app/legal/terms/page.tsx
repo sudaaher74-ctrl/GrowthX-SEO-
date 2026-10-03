@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The terms under which GrowthX AI SEO is provided: what you may connect, what the product does on your behalf, and the limits of what it guarantees.",
+    "The terms under which Reigel AI SEO is provided: what you may connect, what the product does on your behalf, and the limits of what it guarantees.",
 };
 
 const LAST_UPDATED = "9 September 2026";
@@ -24,13 +24,13 @@ export default function TermsPage() {
       <p className="mt-2 text-sm text-brand-500">Last updated {LAST_UPDATED}</p>
 
       <p className="mt-6 text-sm leading-relaxed text-brand-300">
-        These terms govern your use of GrowthX AI SEO. By creating an account or connecting a
+        These terms govern your use of Reigel AI SEO. By creating an account or connecting a
         service to it, you agree to them.
       </p>
 
       <Section id="service" title="What the service does">
         <p>
-          GrowthX crawls websites you nominate, reads data from marketing accounts you connect, and
+          Reigel crawls websites you nominate, reads data from marketing accounts you connect, and
           produces analysis and recommendations about search visibility. It is an analysis tool. It
           does not guarantee any ranking, traffic level or commercial outcome, and search engines
           give no such guarantees to anyone who claims otherwise.

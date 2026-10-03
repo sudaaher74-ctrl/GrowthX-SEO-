@@ -12,19 +12,19 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "GrowthX: find what's costing you customers, then fix it",
-    template: "%s | GrowthX",
+    default: "Reigel: find what's costing you customers, then fix it",
+    template: "%s | Reigel",
   },
   description: SITE_DESCRIPTION,
-  keywords: ["SEO audit", "AI search visibility", "competitor tracking", "Google Business Profile", "SEO for agencies", "GrowthX"],
-  authors: [{ name: "GrowthX" }],
-  creator: "GrowthX",
+  keywords: ["SEO audit", "AI search visibility", "competitor tracking", "Google Business Profile", "SEO for agencies", "Reigel"],
+  authors: [{ name: "Reigel" }],
+  creator: "Reigel",
   metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
     locale: "en_IN",
     url: SITE_URL,
-    siteName: "GrowthX",
+    siteName: "Reigel",
     description: SITE_DESCRIPTION,
   },
   twitter: {

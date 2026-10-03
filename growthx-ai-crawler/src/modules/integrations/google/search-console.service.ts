@@ -5,7 +5,7 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { googleApiClientError } from './google-api-error';
 
 /**
- * Reads Google Search Console into the GrowthX data layer.
+ * Reads Google Search Console into the Reigel data layer.
  *
  * A connector, not an engine. Nothing here decides what anything means — it
  * fetches what Google reports, normalises it, and stores it so Keyword

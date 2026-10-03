@@ -161,7 +161,7 @@ function connectionNotice({
         detail={connection.statusMessage}
         body={
           <>
-            This is an operator problem, not something you can fix from here. GrowthX cannot start a
+            This is an operator problem, not something you can fix from here. Reigel cannot start a
             Google connection until this deployment is given its Google OAuth credentials. Ask whoever
             runs this environment to add them, then reload this page.
           </>
@@ -199,7 +199,7 @@ function connectionNotice({
           body={
             <>
               Your Google account is connected, but no business location has been picked yet. Nothing
-              can be synced until GrowthX knows which listing to read.
+              can be synced until Reigel knows which listing to read.
             </>
           }
           action={
@@ -221,7 +221,7 @@ function connectionNotice({
           detail={connection.statusMessage}
           body={
             <>
-              The permission GrowthX was granted is no longer valid — usually because it was revoked in
+              The permission Reigel was granted is no longer valid — usually because it was revoked in
               your Google account, or a required permission was declined. Reconnect to resume syncing.
             </>
           }
@@ -247,7 +247,7 @@ function connectionNotice({
                 <>
                   {" "}
                   Meanwhile, your public Google Maps listing can fill in your rating, reviews, photos,
-                  categories and hours right now — find it once and GrowthX will use it until approval
+                  categories and hours right now — find it once and Reigel will use it until approval
                   lands.
                 </>
               )}
@@ -271,7 +271,7 @@ function connectionNotice({
           tone="danger"
           title="The last read from Google failed"
           detail={connection.statusMessage}
-          body={<>GrowthX could not read this profile the last time it tried. Retry the sync below.</>}
+          body={<>Reigel could not read this profile the last time it tried. Retry the sync below.</>}
           action={onSync ? { label: "Try syncing again", onClick: onSync, pending: isSyncing } : undefined}
         />
       );
@@ -457,7 +457,7 @@ function PlacesDataBanner({
  * rendering beneath it.
  *
  * The full-page panel is right when there is nothing else to show. When the
- * tab can show what GrowthX has already stored, replacing that with a panel
+ * tab can show what Reigel has already stored, replacing that with a panel
  * hides real data behind a message about data that could not be read.
  */
 function GbpAccessBanner({
@@ -484,7 +484,7 @@ function GbpAccessBanner({
           <span className="font-semibold">
             {waiting ? "Business Profile access is waiting on Google's approval." : "The last read from Google failed."}
           </span>{" "}
-          This tab shows what GrowthX has stored{lastSynced ? ` (last sync ${lastSynced})` : ""}; nothing new can
+          This tab shows what Reigel has stored{lastSynced ? ` (last sync ${lastSynced})` : ""}; nothing new can
           be read until access is granted.
           {placesDetail(places) && <span className="block opacity-80">{placesDetail(places)}</span>}
         </p>
@@ -567,7 +567,7 @@ export function GbpTabGate<T extends GbpEnvelope>({
         title={`${label} could not be loaded`}
         body={
           <>
-            GrowthX could not reach its own API for this tab, so nothing is shown rather than something
+            Reigel could not reach its own API for this tab, so nothing is shown rather than something
             approximate.
           </>
         }

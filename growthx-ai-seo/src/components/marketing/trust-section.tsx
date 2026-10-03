@@ -67,7 +67,7 @@ export function TrustSection() {
             <div className="bg-brand-900/30 border border-brand-800/80 rounded-xl px-4 py-3 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-series-6 shrink-0" />
               <p className="text-xs sm:text-sm font-semibold text-brand-300">
-                Most tools stop at the report. GrowthX starts there.
+                Most tools stop at the report. Reigel starts there.
               </p>
             </div>
           </div>

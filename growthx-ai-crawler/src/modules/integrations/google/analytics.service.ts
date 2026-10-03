@@ -6,7 +6,7 @@ import { googleApiClientError } from './google-api-error';
 import { AnalyticsReportService } from './analytics-report.service';
 
 /**
- * Reads Google Analytics 4 into the GrowthX data layer.
+ * Reads Google Analytics 4 into the Reigel data layer.
  *
  * GA4 is what turns a search finding into a business one: Search Console says
  * a page gets 8,000 clicks, GA4 says whether any of them did anything. Both

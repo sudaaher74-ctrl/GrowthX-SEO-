@@ -1,7 +1,7 @@
 /**
  * Mammouth AI Model Capability & Routing Configuration
  *
- * Configurable model selection layer for GrowthX SEO tasks.
+ * Configurable model selection layer for Reigel SEO tasks.
  * Avoids hardcoding a single model and ensures tasks are routed
  * to models that actually support their required capabilities.
  */

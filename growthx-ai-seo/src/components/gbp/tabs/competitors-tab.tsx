@@ -63,7 +63,7 @@ export function CompetitorsTab({ localSeo, projectId, onSelectTab, onFindListing
         title="Find your Google Maps listing first"
         body={
           <>
-            Competitor searches are run from where your business is, so GrowthX needs your listing on Google
+            Competitor searches are run from where your business is, so Reigel needs your listing on Google
             Maps. Find it once and every search here, and the rank grid, starts from your storefront.
           </>
         }

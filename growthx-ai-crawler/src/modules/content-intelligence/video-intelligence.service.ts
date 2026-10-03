@@ -123,7 +123,7 @@ const VIDEO_INTELLIGENCE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const SYSTEM_PROMPT = `You are GrowthX Social Video Intelligence Analyst.
+const SYSTEM_PROMPT = `You are Reigel Social Video Intelligence Analyst.
 Analyze the video content metadata, transcript, title, description, and visual cues.
 Deconstruct the video strategy:
 1. Identify the exact hook type and opening text.

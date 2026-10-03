@@ -41,7 +41,7 @@ const ALLOWED_ROLES = new Set(['system', 'user', 'assistant']);
 const MAX_MESSAGE_CHARS = 10_000;
 
 /** Default system prompt used when the caller does not supply one. */
-const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant for GrowthX AI SEO.
+const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant for Reigel AI SEO.
 Give accurate, concise and practical answers.
 When the user asks a technical question:
 - explain the problem clearly

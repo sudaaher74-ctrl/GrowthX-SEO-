@@ -30,10 +30,10 @@ export function IndexView() {
         }
         const u = r.urlSets;
         const stages = [
-          { label: "Discovered", value: u.discovered, source: "GrowthX" as const },
-          { label: "In sitemap", value: u.inSitemap, source: "GrowthX" as const },
-          { label: "Crawled", value: u.crawled, source: "GrowthX" as const },
-          { label: "Indexable (our check)", value: u.indexableByOurCheck, source: "GrowthX" as const },
+          { label: "Discovered", value: u.discovered, source: "Reigel" as const },
+          { label: "In sitemap", value: u.inSitemap, source: "Reigel" as const },
+          { label: "Crawled", value: u.crawled, source: "Reigel" as const },
+          { label: "Indexable (our check)", value: u.indexableByOurCheck, source: "Reigel" as const },
           { label: "Indexed by Google", value: u.indexedByGoogle, source: "GSC" as const },
           { label: "Seen in search, 28d", value: u.seenInGoogleSearchLast28Days, source: "GSC" as const },
         ];

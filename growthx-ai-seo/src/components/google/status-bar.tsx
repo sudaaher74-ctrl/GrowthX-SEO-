@@ -100,7 +100,7 @@ export function GoogleStatusBar({ projectId, source }: { projectId: string | nul
           <SourceLine name="Google Search Console" s={o.sources.searchConsole} hint="last synced" />
           <SourceLine name="Google Analytics 4" s={o.sources.analytics} hint="last synced" />
           <div className="flex flex-wrap items-center gap-x-2 text-[12px]">
-            <span className="font-semibold text-brand-950">GrowthX crawler</span>
+            <span className="font-semibold text-brand-950">Reigel crawler</span>
             <span className="text-[11px] text-brand-400">
               last crawl {o.sources.crawler.lastCrawledAt ? relativeTime(o.sources.crawler.lastCrawledAt) : "never"}
             </span>

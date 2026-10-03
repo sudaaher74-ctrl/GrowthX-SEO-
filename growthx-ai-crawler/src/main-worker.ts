@@ -7,7 +7,7 @@ process.env.WORKER_MODE = 'true';
 
 async function bootstrap() {
   const logger = new Logger('WorkerBootstrap');
-  logger.log('Starting GrowthX Crawler Worker headlessly...');
+  logger.log('Starting Reigel Crawler Worker headlessly...');
 
   // We use createApplicationContext for background tasks.
   // It boots the module tree but does not start an HTTP server.

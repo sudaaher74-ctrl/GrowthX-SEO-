@@ -11,7 +11,7 @@ import { expectedCtr } from '../integrations/google/expected-ctr';
  * really "not measured".
  */
 
-export type Source = 'GSC' | 'GA4' | 'GrowthX';
+export type Source = 'GSC' | 'GA4' | 'Reigel';
 
 export interface MetricChange {
   current: number;
@@ -244,7 +244,7 @@ export function buildHeadlines(input: HeadlineInput): Headline[] {
         text: `${ctrGap.pages} page${ctrGap.pages === 1 ? ' gets' : 's get'} seen often but clicked rarely for where ${ctrGap.pages === 1 ? 'it ranks' : 'they rank'} — about ${num(ctrGap.missedClicks)} clicks a period are being missed.`,
         evidence: [
           { label: 'Pages affected', value: String(ctrGap.pages), source: 'GSC' },
-          { label: 'Estimated missed clicks', value: num(ctrGap.missedClicks), source: 'GrowthX' },
+          { label: 'Estimated missed clicks', value: num(ctrGap.missedClicks), source: 'Reigel' },
         ],
         links: [{ label: 'View affected pages', view: 'pages', segment: 'high-impressions-low-ctr' }],
         confidence: 'MEDIUM',
@@ -463,9 +463,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'crawl-error',
         tone: 'bad',
         text: `Our last crawl got ${crawl.statusCode === 0 ? 'no response' : `HTTP ${crawl.statusCode}`} from this page.`,
-        evidence: [{ label: 'Crawl status', value: crawl.statusCode === 0 ? 'no response' : String(crawl.statusCode), source: 'GrowthX' }],
+        evidence: [{ label: 'Crawl status', value: crawl.statusCode === 0 ? 'no response' : String(crawl.statusCode), source: 'Reigel' }],
         action: 'Restore the page, or redirect it to its replacement.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'HIGH',
       });
     }
@@ -474,9 +474,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'not-indexable',
         tone: 'bad',
         text: 'The page tells Google not to index it, or cannot be indexed as it stands.',
-        evidence: [{ label: 'Indexability', value: 'not indexable', source: 'GrowthX' }],
+        evidence: [{ label: 'Indexability', value: 'not indexable', source: 'Reigel' }],
         action: 'If this page should appear in search, remove the noindex setting or fix what blocks it.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'HIGH',
       });
     }
@@ -485,9 +485,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'canonical-elsewhere',
         tone: 'warn',
         text: 'This page names a different page as its main version, so Google may show that one instead.',
-        evidence: [{ label: 'Canonical', value: crawl.canonicalUrl, source: 'GrowthX' }],
+        evidence: [{ label: 'Canonical', value: crawl.canonicalUrl, source: 'Reigel' }],
         action: 'If this page should rank itself, point its canonical at its own address.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'MEDIUM',
       });
     }
@@ -496,9 +496,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'missing-title',
         tone: 'warn',
         text: 'The page has no title.',
-        evidence: [{ label: 'Title', value: 'missing', source: 'GrowthX' }],
+        evidence: [{ label: 'Title', value: 'missing', source: 'Reigel' }],
         action: 'Add a title that says what the page offers and includes the search people use.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'HIGH',
       });
     }
@@ -507,9 +507,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'missing-description',
         tone: 'warn',
         text: 'The page has no meta description, so Google writes its own snippet.',
-        evidence: [{ label: 'Meta description', value: 'missing', source: 'GrowthX' }],
+        evidence: [{ label: 'Meta description', value: 'missing', source: 'Reigel' }],
         action: 'Write a short description that answers the search and invites the click.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'MEDIUM',
       });
     }
@@ -518,9 +518,9 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         id: 'missing-h1',
         tone: 'warn',
         text: 'The page has no main heading (H1).',
-        evidence: [{ label: 'H1 headings', value: '0', source: 'GrowthX' }],
+        evidence: [{ label: 'H1 headings', value: '0', source: 'Reigel' }],
         action: 'Add one clear H1 that matches the page’s purpose.',
-        source: 'GrowthX',
+        source: 'Reigel',
         confidence: 'MEDIUM',
       });
     }
@@ -531,7 +531,7 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         text: `The page ranks around position ${gsc.position.toFixed(1)} and has only ${crawl.wordCount} words.`,
         evidence: [
           { label: 'Average position', value: gsc.position.toFixed(1), source: 'GSC' },
-          { label: 'Words on page', value: String(crawl.wordCount), source: 'GrowthX' },
+          { label: 'Words on page', value: String(crawl.wordCount), source: 'Reigel' },
         ],
         action: 'Compare with the pages ranking above it and cover what they answer that this page does not.',
         source: 'GSC+GA4',
@@ -550,7 +550,7 @@ export function diagnosePage(input: DiagnosisInput): DiagnosisFinding[] {
         evidence: [
           { label: 'Impressions', value: Math.round(gsc.impressions).toLocaleString('en-US'), source: 'GSC' },
           { label: 'CTR', value: `${(gsc.ctr * 100).toFixed(1)}%`, source: 'GSC' },
-          { label: 'Typical CTR at this position', value: `${(expected * 100).toFixed(1)}%`, source: 'GrowthX' },
+          { label: 'Typical CTR at this position', value: `${(expected * 100).toFixed(1)}%`, source: 'Reigel' },
           { label: 'Average position', value: gsc.position.toFixed(1), source: 'GSC' },
         ],
         action: 'Review the title and meta description against what people searching for it want.',

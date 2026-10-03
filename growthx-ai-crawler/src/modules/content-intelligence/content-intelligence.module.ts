@@ -23,7 +23,7 @@ import { ContentIntelligenceController } from './content-intelligence.controller
 import { CompetitorActionEngineModule } from '../competitor-action-engine/competitor-action-engine.module';
 
 /**
- * GrowthX Content Intelligence & Competitor Social Video Intelligence Engine.
+ * Reigel Content Intelligence & Competitor Social Video Intelligence Engine.
  *
  * Competitor Social Discovery → Video Intelligence & Multi-modal Analysis
  * → Pattern Detection → Cross-Competitor Matrix → Gap Analysis → AI Strategy

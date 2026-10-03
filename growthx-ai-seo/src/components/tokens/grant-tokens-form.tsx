@@ -16,7 +16,7 @@ const field =
  * How an operator gives a customer tokens (or takes some back).
  *
  * Bonus tokens never lapse, which is what a grant is for. The note is kept on
- * the ledger for operators; the customer sees "Tokens added by GrowthX" and the
+ * the ledger for operators; the customer sees "Tokens added by Reigel" and the
  * amount, never the note.
  */
 export function GrantTokensForm({

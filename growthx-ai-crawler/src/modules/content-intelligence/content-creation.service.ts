@@ -17,7 +17,7 @@ const CONTENT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const SYSTEM = `You are GrowthX AI Content Creator.
+const SYSTEM = `You are Reigel AI Content Creator.
 Generate original, creative content for this brand.
 NEVER copy competitor content. The content must be differentiated and brand-specific.
 Follow the brand voice, tone, and messaging rules provided.

@@ -51,7 +51,7 @@ const PIPELINE_STEPS = [
     num: "04",
     title: "Approve, then we prove it",
     description:
-      "Approve a fix and GrowthX opens a pull request on your repository. You merge it. Then we re-crawl to check it worked.",
+      "Approve a fix and Reigel opens a pull request on your repository. You merge it. Then we re-crawl to check it worked.",
     icon: TrendingUp,
     iconBg: "bg-brand-900 border border-brand-800 text-warning-400",
   },
@@ -87,7 +87,7 @@ function WorkflowAppPreview() {
             <div>
               <div className="mb-4 pl-1">
                 <span className="text-sm font-black tracking-tight text-white">
-                  Growth<span className="text-series-6">X</span>
+                  Reigel
                 </span>
               </div>
 
@@ -248,7 +248,7 @@ function WorkflowAppPreview() {
                   </div>
                 </div>
 
-                {/* Let GrowthX Do the Work */}
+                {/* Let Reigel Do the Work */}
                 <div className="bg-brand-900/40 rounded-xl p-3 border border-brand-800 shadow-xs flex flex-col justify-between">
                   <div className="flex items-start gap-2 mb-2">
                     <div className="w-6 h-6 rounded-lg bg-series-6/20 text-series-6 flex items-center justify-center shrink-0">
@@ -352,7 +352,7 @@ export function WorkflowSteps() {
                 in four steps.
               </h2>
               <p className="mt-2 text-sm sm:text-base text-brand-400 leading-relaxed">
-                Add your URL and up to 5 rivals. GrowthX does the crawling and comparing, ranks the work, prepares the fixes, and checks the results.
+                Add your URL and up to 5 rivals. Reigel does the crawling and comparing, ranks the work, prepares the fixes, and checks the results.
               </p>
             </div>
 

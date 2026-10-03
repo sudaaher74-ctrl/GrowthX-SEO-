@@ -57,7 +57,7 @@ function DashboardMockup() {
               {/* Logo */}
               <div className="mb-3.5 pl-1">
                 <span className="text-sm font-black tracking-tight text-white">
-                  Growth<span className="text-series-6">X</span>
+                  Reigel
                 </span>
               </div>
 
@@ -436,7 +436,7 @@ export function HeroSection() {
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg text-brand-400 leading-relaxed max-w-xl">
-              GrowthX crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
+              Reigel crawls your site, watches your rivals and asks ChatGPT, Claude, Gemini, Perplexity and Sarvam about you. It ranks what to fix, opens the pull request, and checks the fix worked. Built for agencies and business owners.
             </p>
 
             {/* URL Box CTA */}

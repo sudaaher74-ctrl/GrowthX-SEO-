@@ -1,5 +1,5 @@
 /**
- * Response and request shapes for the GrowthX API, split out of api-client.ts.
+ * Response and request shapes for the Reigel API, split out of api-client.ts.
  * api-client re-exports everything here, so imports from it keep working.
  */
 
@@ -637,7 +637,7 @@ export interface PageValue {
 
 // ── Google section ─────────────────────────────────────────────────────────
 
-export type GoogleSource = "GSC" | "GA4" | "GrowthX";
+export type GoogleSource = "GSC" | "GA4" | "Reigel";
 
 export interface GoogleSourceStatus {
   connected: boolean;

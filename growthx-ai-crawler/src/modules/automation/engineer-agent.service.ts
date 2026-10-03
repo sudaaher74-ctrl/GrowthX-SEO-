@@ -192,9 +192,9 @@ export class EngineerAgentService {
       }
 
       const title = `${clip(instruction.split('\n')[0], 60)}`;
-      await this.git.commitAndPush(dir, branch, `chore(growthx): ${title}`);
+      await this.git.commitAndPush(dir, branch, `chore(reigel): ${title}`);
       steps.push(this.step('push', branch, true));
-      const prUrl = await this.git.createPullRequest(token, repo.owner, repo.name, `GrowthX engineer: ${title}`, branch, repo.defaultBranch, this.prBody(instruction, outcome.summary, changed));
+      const prUrl = await this.git.createPullRequest(token, repo.owner, repo.name, `Reigel engineer: ${title}`, branch, repo.defaultBranch, this.prBody(instruction, outcome.summary, changed));
       steps.push(this.step('pull_request', prUrl, true));
 
       return this.finish(runId, AutomationRunStatus.AWAITING_REVIEW, steps, { branch, pullRequestUrl: prUrl, filesChanged: changed });
@@ -303,7 +303,7 @@ export class EngineerAgentService {
 
   private prBody(instruction: string, summary: string, files: string[]): string {
     return [
-      '## Change prepared by the GrowthX engineer',
+      '## Change prepared by the Reigel engineer',
       '',
       '**Instruction**',
       `> ${instruction.replace(/\n/g, '\n> ')}`,
