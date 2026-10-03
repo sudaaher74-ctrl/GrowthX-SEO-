@@ -108,7 +108,7 @@ function Sheet({
       <div className="report-header">
         <div className="flex items-center gap-2">
           <span className="text-base font-black tracking-tight text-brand-950">
-            Growth<span className="text-accent-600">X</span>
+            Reigel
           </span>
         </div>
         <div className="text-[9pt] text-brand-500 font-medium">
@@ -208,7 +208,7 @@ export function SeoAuditReportDocument({
         <div className="flex items-center justify-between border-b border-white/15 pb-4">
           <div className="flex items-center gap-2">
             <span className="text-xl font-black tracking-tight text-white">
-              Growth<span className="text-accent-400">X</span>
+              Reigel
             </span>
             <div className="h-4 w-px bg-white/20" />
             <span className="text-[9px] font-bold tracking-widest text-brand-300 uppercase">

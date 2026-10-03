@@ -210,7 +210,7 @@ export default function LoginPage() {
         <div className="relative z-10">
           <Link href="/" className="inline-block">
             <span className="text-2xl font-black tracking-tight text-white">
-              Growth<span className="text-series-6">X</span>
+              Reigel
             </span>
             <p className="text-xs font-semibold text-brand-400 mt-0.5">
               SEO. AI Visibility. Real Growth.
