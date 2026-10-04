@@ -163,9 +163,12 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     setIsOpenRef.current = setIsOpen;
   }, [state, setIsOpen]);
 
-  // Initialize Speech APIs
+  // Prepare the browser speech objects, but do not start recognition here.
+  // `recognition.start()` is the permission-bearing action and must only run
+  // from `startListening`, which is called by an explicit user gesture.
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      synthRef.current = window.speechSynthesis;
       const speechWindow = window as SpeechCapableWindow;
       const SpeechRecognition =
         speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
@@ -255,29 +258,19 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           if (stateRef.current === 'listening') {
             setState('thinking');
           }
-          // Keep listening for the wake word or a confirmation, unless the
-          // mic can't be used — restarting then only refires the same error
-          // every 100ms. A tap on the mic retries (see startListening).
-          if (micBlockedRef.current) return;
-          setTimeout(() => {
-            try {
-              if (recognitionRef.current) recognitionRef.current.start();
-            } catch {}
-          }, 100);
         };
 
         recognitionRef.current = recognition;
-        // Start listening immediately in background for wake word
-        try { recognition.start(); } catch {}
-        
+
         return () => {
           recognition.onend = null;
           recognition.onerror = null;
           recognition.onresult = null;
           try { recognition.stop(); } catch {}
+          recognitionRef.current = null;
+          synthRef.current?.cancel();
         };
       }
-      synthRef.current = window.speechSynthesis;
     }
   }, []); // Only run once on mount
 

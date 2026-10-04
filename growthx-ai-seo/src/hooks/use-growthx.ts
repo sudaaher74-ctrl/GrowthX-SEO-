@@ -855,9 +855,17 @@ export function useFindings(
       filters.limit ?? null,
       filters.cursor ?? null,
     ],
-    queryFn: () => api.findings(projectId!, filters),
+    queryFn: async () => {
+      // Findings are a materialized view of the audit and the other detector
+      // sources. Reconcile before reading so a completed audit cannot show 14
+      // problems on Website Audit and an empty Fix Engine until the nightly
+      // scheduler happens to run.
+      await api.syncFindings(projectId!);
+      return api.findings(projectId!, filters);
+    },
     enabled: Boolean(projectId),
     retry: false,
+    staleTime: 60 * 1000,
   });
 }
 

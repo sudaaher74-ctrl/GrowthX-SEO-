@@ -324,13 +324,15 @@ export function AivaPanel() {
 
                 <div className="relative flex items-center justify-between p-2 pl-3 gap-4 min-h-[60px]">
                 {/* Left: Aiva Orb */}
-                <div 
-                  className="flex-shrink-0 cursor-pointer p-1" 
+                <button
+                  type="button"
+                  aria-label={state === 'listening' ? 'Send voice message' : 'Start voice input'}
+                  className="flex-shrink-0 cursor-pointer rounded-full p-1"
                   onClick={state === 'listening' ? stopListening : startListening}
                   title={state === 'listening' ? 'Tap to send' : 'Tap to speak'}
                 >
-                  <AivaOrb state={state} className="w-10 h-10" onClick={() => {}} />
-                </div>
+                  <AivaOrb state={state} className="w-10 h-10" />
+                </button>
 
                 {/* Middle: Conversation Text */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">

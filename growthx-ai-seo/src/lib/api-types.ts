@@ -470,7 +470,7 @@ export interface GoogleProviderStatus {
 
 export interface GoogleConnectionStatus {
   /** Whether this deployment has Google credentials at all. */
-  configuration: { configured: boolean; missing: string[] };
+  configuration: { configured: boolean };
   providers: GoogleProviderStatus[];
 }
 

@@ -12,14 +12,14 @@ import { api, ApiError, type Role } from "@/lib/api-client";
 import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
 
 const tabs = [
-  { id: "workspace", label: "Workspace", icon: Globe },
-  { id: "ai", label: "AI Configuration", icon: Cpu },
-  { id: "profile", label: "Profile", icon: User },
-  { id: "team", label: "Team", icon: Users },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "security", label: "Security & 2FA", icon: Shield },
-  { id: "api", label: "API Keys", icon: Key },
-  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "workspace", label: "Workspace", icon: Globe, comingSoon: false },
+  { id: "ai", label: "AI Configuration", icon: Cpu, comingSoon: false },
+  { id: "profile", label: "Profile", icon: User, comingSoon: false },
+  { id: "team", label: "Team", icon: Users, comingSoon: false },
+  { id: "notifications", label: "Notifications", icon: Bell, comingSoon: true },
+  { id: "security", label: "Security & 2FA", icon: Shield, comingSoon: true },
+  { id: "api", label: "API Keys", icon: Key, comingSoon: true },
+  { id: "appearance", label: "Appearance", icon: Palette, comingSoon: true },
 ];
 
 const ROLE_OPTIONS: Role[] = ["OWNER", "ADMIN", "MEMBER", "VIEWER"];
@@ -44,6 +44,7 @@ export default function SettingsPage() {
               className={cn("sidebar-item w-full", activeTab === tab.id && "active")}>
               <tab.icon size={15}/>
               {tab.label}
+              {tab.comingSoon && <span className="ml-auto text-[9px] font-semibold uppercase tracking-wide text-brand-400">Soon</span>}
             </button>
           ))}
         </motion.div>

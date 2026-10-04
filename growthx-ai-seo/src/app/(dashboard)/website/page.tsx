@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ChevronRight, FileDown, Home, Loader2, RefreshCw, X, Zap } from "lucide-react";
 
@@ -31,6 +31,8 @@ import { OverviewTab } from "@/components/website/tabs/overview-tab";
 import type { WebsiteTabId as TabId } from "@/components/website/tabs/tab-id";
 
 function WebsiteAuditClient() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryDomain = searchParams.get("domain");
   const tabParam = searchParams.get("tab") as TabId | null;
@@ -67,12 +69,18 @@ function WebsiteAuditClient() {
     "report",
   ];
 
-  const [activeTab, setActiveTab] = useState<TabId>(
-    tabParam && (VALID_TABS as string[]).includes(tabParam) ? tabParam : "technical-seo",
-  );
+  const activeTab: TabId = tabParam && (VALID_TABS as string[]).includes(tabParam)
+    ? tabParam
+    : "technical-seo";
   const [crawling, setCrawling] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+
+  function selectTab(tab: TabId) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   const allIssues = issues.data?.data ?? [];
   const allPages = pages.data?.data ?? [];
@@ -293,7 +301,7 @@ function WebsiteAuditClient() {
               type="button"
               role="tab"
               aria-selected={isActive}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               className={cn(
                 "inline-flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
                 isActive
@@ -336,7 +344,11 @@ function WebsiteAuditClient() {
 
       {/* Main Tab View Router with Real Query State */}
       <QueryState
-        isLoading={portfolio.isLoading || (Boolean(client?.domain) && crawl.isLoading)}
+        isLoading={
+          portfolio.isLoading ||
+          (Boolean(client?.domain) &&
+            (crawl.isLoading || pages.isLoading || issues.isLoading || issueCounts.isLoading))
+        }
         error={portfolio.error || crawl.error}
         isEmpty={!client?.domain}
         emptyTitle={queryDomain ? "Website not found in this workspace" : "No website registered"}
@@ -356,7 +368,7 @@ function WebsiteAuditClient() {
             crawl={crawl.data ?? null}
             issues={allIssues}
             pages={allPages}
-            onSwitchTab={setActiveTab}
+            onSwitchTab={selectTab}
           />
         )}
 
@@ -367,7 +379,7 @@ function WebsiteAuditClient() {
             pages={allPages}
             qualityDiagnostics={qualityDiagnostics}
             historyRuns={historyRuns}
-            onSwitchTab={setActiveTab}
+            onSwitchTab={selectTab}
             onOpenLogs={() => setShowLogsModal(true)}
             onOpenRecommendations={() => {
               const el = document.getElementById("technical-issues-table");

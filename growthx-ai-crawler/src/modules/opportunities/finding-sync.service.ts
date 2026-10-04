@@ -49,9 +49,11 @@ export class FindingSyncService {
     );
 
     const collectedFindings: NormalisedFinding[] = [];
+    const successfulSources = new Set<string>();
     for (let i = 0; i < results.length; i++) {
       const res = results[i];
       if (res.status === 'fulfilled') {
+        successfulSources.add(this.adapters[i].source);
         collectedFindings.push(...res.value);
       } else {
         this.logger.error(
@@ -155,6 +157,7 @@ export class FindingSyncService {
       select: {
         id: true,
         fingerprint: true,
+        source: true,
         status: true,
         lifecycle: true,
         transitions: true,
@@ -162,6 +165,11 @@ export class FindingSyncService {
     });
 
     for (const stored of allStoredOpportunities) {
+      // A failed adapter supplied no evidence either way. Never turn that
+      // observability gap into a false "resolved" finding.
+      if (!successfulSources.has(stored.source)) {
+        continue;
+      }
       if (collectedFingerprints.has(stored.fingerprint)) {
         continue;
       }

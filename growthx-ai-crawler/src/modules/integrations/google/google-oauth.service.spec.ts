@@ -233,6 +233,16 @@ describe('GoogleOAuthService', () => {
   });
 
   describe('statusFor', () => {
+    it('does not expose missing environment-variable names to customers', async () => {
+      delete process.env.INTEGRATION_TOKEN_KEY;
+      const { service } = build();
+
+      const status = await service.statusFor('p1');
+
+      expect(status.configuration).toEqual({ configured: false });
+      expect(JSON.stringify(status)).not.toContain('INTEGRATION_TOKEN_KEY');
+    });
+
     it('reports every provider, including the ones not connected', async () => {
       // A dashboard that omits unconnected sources cannot offer a Connect
       // button for them, and one that renders them as zeroes looks broken.

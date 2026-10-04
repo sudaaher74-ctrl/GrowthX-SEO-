@@ -61,8 +61,9 @@ export class GoogleOAuthService {
   private client(): OAuth2Client {
     const { configured, missing } = this.configuration();
     if (!configured) {
+      this.logger.error(`Google integration configuration is incomplete: ${missing.join(', ')}`);
       throw new ServiceUnavailableException(
-        `Google integrations are not configured on this deployment. Missing: ${missing.join(', ')}.`,
+        'Google connections are not configured on this deployment. Ask the service operator to finish the Google integration setup.',
       );
     }
     return new google.auth.OAuth2(
@@ -424,7 +425,10 @@ export class GoogleOAuthService {
     const byProvider = new Map(rows.map((row) => [row.provider, row]));
 
     return {
-      configuration: this.configuration(),
+      // Environment-variable names are operator diagnostics, not customer
+      // guidance. Keep the exact list in server logs and expose only whether
+      // this deployment is ready.
+      configuration: { configured: this.configuration().configured },
       providers: Object.values(GOOGLE_PROVIDERS).map((provider) => {
         const row = byProvider.get(provider.id);
         return {

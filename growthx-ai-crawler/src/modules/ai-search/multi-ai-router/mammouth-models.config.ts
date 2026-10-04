@@ -32,7 +32,7 @@ export interface MammouthModelMetadata {
 export const MAMMOUTH_MODELS: Readonly<Record<string, MammouthModelMetadata>> = {
   'mammouth-recommended': {
     id: 'mammouth-recommended',
-    displayName: 'Mammouth Recommended (Auto-Optimized)',
+    displayName: 'Recommended (automatic)',
     capabilities: [
       MammouthCapability.SEO_ANALYSIS,
       MammouthCapability.CONTENT_ANALYSIS,

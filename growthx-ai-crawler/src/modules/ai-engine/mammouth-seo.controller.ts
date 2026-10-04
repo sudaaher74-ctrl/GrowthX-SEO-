@@ -44,8 +44,10 @@ export class MammouthSeoController {
     private readonly mammouthService: MammouthSeoService,
     private readonly config: ConfigService,
   ) {
-    this.runtimeConfig.defaultModel =
-      this.config.get<string>('MAMMOUTH_DEFAULT_MODEL') || 'mammouth-recommended';
+    const configuredDefault = this.config.get<string>('MAMMOUTH_DEFAULT_MODEL');
+    this.runtimeConfig.defaultModel = configuredDefault && MAMMOUTH_MODELS[configuredDefault]
+      ? configuredDefault
+      : 'mammouth-recommended';
   }
 
   @Get('config')

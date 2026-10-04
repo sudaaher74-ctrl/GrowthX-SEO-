@@ -14,6 +14,7 @@ export function AiConfigurationTab() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
     connected: boolean;
     latencyMs?: number;
@@ -80,6 +81,7 @@ export function AiConfigurationTab() {
   async function handleSaveConfig() {
     setSaving(true);
     setSavedSuccess(false);
+    setSaveError(null);
     try {
       await api.mammouth.updateConfig({
         defaultModel: selectedModel,
@@ -87,10 +89,8 @@ export function AiConfigurationTab() {
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch {
-      // Graceful local acknowledge
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      setSaveError(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -127,7 +127,7 @@ export function AiConfigurationTab() {
     );
   }
 
-  const isConnected = testResult ? testResult.connected : (config?.connected ?? true);
+  const isConnected = config.isConfigured && (testResult ? testResult.connected : config.connected);
   const models = config?.availableModels || [];
   const activeModelMeta = models.find((m) => m.id === selectedModel);
 
@@ -142,7 +142,7 @@ export function AiConfigurationTab() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-[var(--text-primary)]">AI Provider Configuration</h2>
-              <p className="text-xs text-[var(--text-muted)]">Configure Reigel underlying AI reasoning layer using Sarvam AI</p>
+              <p className="text-xs text-[var(--text-muted)]">Models and capabilities reported by the configured backend provider</p>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -171,7 +171,7 @@ export function AiConfigurationTab() {
               variant="primary"
               size="sm"
               onClick={handleSaveConfig}
-              disabled={saving}
+              disabled={saving || !isConnected || models.length === 0}
               className="text-xs"
             >
               {saving ? (
@@ -198,7 +198,7 @@ export function AiConfigurationTab() {
             <div className="flex items-center justify-between">
               <span className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-2">
                 <Sparkles size={16} className="text-slate-400" />
-                Sarvam AI
+                {config.provider}
               </span>
               <Badge variant="default" className="text-[11px] font-mono">
                 Primary Engine
@@ -232,7 +232,9 @@ export function AiConfigurationTab() {
               )}
             </div>
             <p className="text-xs text-[var(--text-muted)]">
-              {testResult?.message ?? "Verified active connection to Sarvam AI endpoints."}
+              {testResult?.message ?? (isConnected
+                ? "The provider is configured and available to Reigel."
+                : "The provider is not connected. An operator must configure and verify it before models can be selected.")}
             </p>
           </div>
         </div>
@@ -256,7 +258,7 @@ export function AiConfigurationTab() {
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)] flex items-center gap-1.5 font-sans">
               <Key size={13} className="text-slate-400" />
-              <span>SARVAM_API_KEY</span>
+              <span>{config.isConfigured ? "Configured server-side" : "Not configured"}</span>
             </div>
           </div>
           <p className="text-xs text-[var(--text-muted)]">
@@ -278,6 +280,7 @@ export function AiConfigurationTab() {
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={!isConnected || models.length === 0}
             className="w-full text-sm bg-[var(--surface-2)] border border-[var(--border-color)] rounded-lg px-3.5 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-slate-950"
           >
             {models.map((m) => (
@@ -286,6 +289,10 @@ export function AiConfigurationTab() {
               </option>
             ))}
           </select>
+
+          {!isConnected && (
+            <p className="text-xs text-[var(--text-muted)]">Model selection is unavailable until the provider is connected.</p>
+          )}
 
           {activeModelMeta && (
             <div className="p-3.5 rounded-lg border border-[var(--border-color)] bg-[var(--surface-2)]/30 space-y-2">
@@ -306,6 +313,12 @@ export function AiConfigurationTab() {
             </div>
           )}
         </div>
+
+        {saveError && (
+          <div role="alert" className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-700">
+            Configuration was not saved: {saveError}
+          </div>
+        )}
 
         {/* Use AI For: Feature Toggles */}
         <div className="space-y-3 pt-2">
@@ -342,11 +355,12 @@ export function AiConfigurationTab() {
             ].map((feat) => (
               <label
                 key={feat.id}
-                className="flex items-start gap-3 p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/40 hover:bg-[var(--surface-2)]/80 cursor-pointer transition-colors"
+                className={`flex items-start gap-3 p-3.5 rounded-xl border border-[var(--border-color)] bg-[var(--surface-2)]/40 transition-colors ${isConnected ? "hover:bg-[var(--surface-2)]/80 cursor-pointer" : "cursor-not-allowed opacity-60"}`}
               >
                 <input
                   type="checkbox"
                   checked={features[feat.id]}
+                  disabled={!isConnected}
                   onChange={(e) =>
                     setFeatures({ ...features, [feat.id]: e.target.checked })
                   }

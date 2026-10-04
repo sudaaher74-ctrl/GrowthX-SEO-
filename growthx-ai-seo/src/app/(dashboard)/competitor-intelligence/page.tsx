@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText } from "lucide-react";
 import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
-import { StatusNote } from "@/components/ui/console";
+import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
 import { BattlegroundTab } from "@/components/competitor/battleground-tab";
 import { CounterMoveDrafts } from "@/components/competitor/counter-move-drafts";
 import { CompetitorReportTab } from "@/components/competitor/competitor-report-tab";
@@ -153,6 +153,23 @@ function RemoveCompetitorButton({
 }
 
 const DEFAULT_TAB = "battleground";
+
+function CompetitorEmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <Panel padded>
+      <div className="mx-auto max-w-md space-y-3 py-10 text-center">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100 text-brand-500">
+          <Swords size={20} />
+        </div>
+        <h2 className="text-[15px] font-semibold text-brand-950">Add a competitor to compare</h2>
+        <p className="text-[12.5px] leading-relaxed text-brand-500">
+          There are no competitors in this workspace yet. Gaps, Rival Radar and the full report appear after you add one and its website has been read.
+        </p>
+        <ActionButton variant="primary" icon={<Plus size={13} />} onClick={onAdd}>Add competitor</ActionButton>
+      </div>
+    </Panel>
+  );
+}
 
 export default function CompetitorIntelligencePage() {
   return (
@@ -357,6 +374,10 @@ function CompetitorIntelligenceClient() {
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip competitors={competitorsList} onRemove={askToRemove} />
 
+      {competitorsQuery.error && (
+        <StatusNote tone="bad">Could not load competitors. Retry this page before relying on comparison results.</StatusNote>
+      )}
+
       {activeTab === "battleground" && (
         <BattlegroundTab
           projectId={projectId || ""}
@@ -370,20 +391,28 @@ function CompetitorIntelligenceClient() {
       )}
 
       {activeTab === "gaps" && (
-        <GapsTab
-          projectId={projectId || ""}
-          domain={customerDomain}
-          competitors={competitorsList}
-          onOpenCounterMoves={() => setActiveTab("counter-moves")}
-        />
+        competitorsQuery.isLoading
+          ? <div className="p-8 text-center text-sm text-brand-400">Loading competitors…</div>
+          : competitorsList.length === 0
+            ? <CompetitorEmptyState onAdd={openAddModal} />
+            : <GapsTab
+                projectId={projectId || ""}
+                domain={customerDomain}
+                competitors={competitorsList}
+                onOpenCounterMoves={() => setActiveTab("counter-moves")}
+              />
       )}
 
       {activeTab === "radar" && (
-        <RivalRadarTab
-          projectId={projectId || ""}
-          domain={customerDomain}
-          onOpenCounterMoves={() => setActiveTab("counter-moves")}
-        />
+        competitorsQuery.isLoading
+          ? <div className="p-8 text-center text-sm text-brand-400">Loading competitors…</div>
+          : competitorsList.length === 0
+            ? <CompetitorEmptyState onAdd={openAddModal} />
+            : <RivalRadarTab
+                projectId={projectId || ""}
+                domain={customerDomain}
+                onOpenCounterMoves={() => setActiveTab("counter-moves")}
+              />
       )}
 
 
@@ -391,7 +420,13 @@ function CompetitorIntelligenceClient() {
         <CounterMoveDrafts projectId={projectId || ""} onOpenTab={(tab) => setActiveTab(tab)} />
       )}
 
-      {activeTab === "report" && <CompetitorReportTab projectId={projectId || ""} rivalCount={competitorsList.length} />}
+      {activeTab === "report" && (
+        competitorsQuery.isLoading
+          ? <div className="p-8 text-center text-sm text-brand-400">Loading competitors…</div>
+          : competitorsList.length === 0
+            ? <CompetitorEmptyState onAdd={openAddModal} />
+            : <CompetitorReportTab projectId={projectId || ""} rivalCount={competitorsList.length} />
+      )}
 
       {/* ── ADD COMPETITOR MODAL ── */}
       {showAddModal && (

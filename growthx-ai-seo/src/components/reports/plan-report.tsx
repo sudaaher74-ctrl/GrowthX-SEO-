@@ -3,6 +3,7 @@ import { ReportGap, ReportKpis, ReportLoading, ReportPage, ReportSection, Report
 import { useFindings } from "@/hooks/use-growthx";
 import type { GrowthOpportunity } from "@/lib/api-client";
 import { count } from "@/lib/google-format";
+import { errorMessage } from "@/lib/error-message";
 
 const GROUPS: { label: string; sources: string[] }[] = [
   { label: "Website Audit", sources: ["WEBSITE"] },
@@ -39,8 +40,20 @@ export function PlanReport() {
   const { projectId, clientName, domain } = useReportContext();
   const findings = useFindings(projectId, { limit: 200 });
   if (!projectId || findings.isLoading) return <ReportLoading what="the improvement plan" />;
+  if (findings.error || !findings.data) {
+    return (
+      <ReportPage
+        title="Complete improvement plan"
+        clientName={clientName}
+        domain={domain}
+        intro="Every problem and opportunity found across the workspace, ranked by impact."
+      >
+        <ReportGap>The plan is unavailable because its findings could not be loaded. {errorMessage(findings.error)}</ReportGap>
+      </ReportPage>
+    );
+  }
 
-  const items = (findings.data?.items ?? []).filter((f) => !["DISMISSED", "RESOLVED"].includes(f.lifecycle ?? "DETECTED"));
+  const items = findings.data.items.filter((f) => !["DISMISSED", "RESOLVED"].includes(f.lifecycle ?? "DETECTED"));
   const ordered = [...items].sort((a, b) => (b.impact ?? 0) - (a.impact ?? 0));
 
   return (

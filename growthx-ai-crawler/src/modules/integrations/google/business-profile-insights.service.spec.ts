@@ -35,6 +35,17 @@ describe('BusinessProfileInsightsService', () => {
   }
 
   describe('the four kinds of nothing', () => {
+    it('keeps operator configuration names out of the customer-facing message', async () => {
+      const prisma = fakePrisma();
+      const oauth = { configuration: () => ({ configured: false, missing: ['INTEGRATION_TOKEN_KEY'] }) };
+      const service = new BusinessProfileInsightsService(prisma as any, oauth as any);
+
+      const result = await service.overview(PROJECT);
+
+      expect(result.connection.statusMessage).toMatch(/service operator/i);
+      expect(result.connection.statusMessage).not.toContain('INTEGRATION_TOKEN_KEY');
+    });
+
     it('says NOT_CONNECTED when no connection exists', async () => {
       const { service } = harness();
       const result = await service.photos(PROJECT);

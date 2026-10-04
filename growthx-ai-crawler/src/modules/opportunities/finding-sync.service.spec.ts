@@ -42,10 +42,10 @@ describe('FindingSyncService', () => {
       },
     };
 
-    mockWebsiteAdapter = { collect: jest.fn().mockResolvedValue([sampleFinding]) };
-    mockGbpAdapter = { collect: jest.fn().mockResolvedValue([]) };
-    mockCompetitorAdapter = { collect: jest.fn().mockResolvedValue([]) };
-    mockAiVisAdapter = { collect: jest.fn().mockResolvedValue([]) };
+    mockWebsiteAdapter = { source: 'WEBSITE', collect: jest.fn().mockResolvedValue([sampleFinding]) };
+    mockGbpAdapter = { source: 'LOCAL', collect: jest.fn().mockResolvedValue([]) };
+    mockCompetitorAdapter = { source: 'COMPETITOR', collect: jest.fn().mockResolvedValue([]) };
+    mockAiVisAdapter = { source: 'MARKET', collect: jest.fn().mockResolvedValue([]) };
 
     service = new FindingSyncService(
       mockPrisma as unknown as PrismaService,
@@ -77,6 +77,7 @@ describe('FindingSyncService', () => {
       {
         id: 'opp-1',
         fingerprint: sampleFinding.fingerprint,
+        source: 'WEBSITE',
         status: 'OPEN',
         lifecycle: FindingLifecycle.QUEUED,
       },
@@ -107,6 +108,7 @@ describe('FindingSyncService', () => {
       {
         id: 'opp-dismissed',
         fingerprint: sampleFinding.fingerprint,
+        source: 'WEBSITE',
         status: 'DISMISSED',
         lifecycle: FindingLifecycle.DISMISSED,
       },
@@ -136,6 +138,7 @@ describe('FindingSyncService', () => {
       {
         id: 'opp-executing',
         fingerprint: 'audit::MISSING_H1',
+        source: 'WEBSITE',
         status: 'ACTIONED',
         lifecycle: FindingLifecycle.APPLYING, // Mid-execution!
         transitions: [],
@@ -156,6 +159,7 @@ describe('FindingSyncService', () => {
       {
         id: 'opp-open',
         fingerprint: 'audit::MISSING_H1',
+        source: 'WEBSITE',
         status: 'OPEN',
         lifecycle: FindingLifecycle.QUEUED,
         transitions: [],
@@ -176,5 +180,24 @@ describe('FindingSyncService', () => {
         }),
       }),
     );
+  });
+
+  it('does not resolve a source when its adapter failed', async () => {
+    mockWebsiteAdapter.collect.mockRejectedValue(new Error('audit store unavailable'));
+    mockPrisma.growthOpportunity.findMany.mockResolvedValue([
+      {
+        id: 'opp-open',
+        fingerprint: 'audit::MISSING_H1',
+        source: 'WEBSITE',
+        status: 'OPEN',
+        lifecycle: FindingLifecycle.QUEUED,
+        transitions: [],
+      },
+    ]);
+
+    const res = await service.syncProject('proj-1');
+
+    expect(res).toEqual({ created: 0, updated: 0, resolved: 0 });
+    expect(mockPrisma.growthOpportunity.update).not.toHaveBeenCalled();
   });
 });

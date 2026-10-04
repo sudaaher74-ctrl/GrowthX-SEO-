@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GBP_DAILY_METRICS, GBP_PROFILE_FIELDS, GbpSourceName } from './business-profile.service';
@@ -62,6 +62,8 @@ const IMPRESSION_METRICS = [
 
 @Injectable()
 export class BusinessProfileInsightsService {
+  private readonly logger = new Logger(BusinessProfileInsightsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly oauth: GoogleOAuthService,
@@ -127,12 +129,15 @@ export class BusinessProfileInsightsService {
     const configuration = this.oauth.configuration();
 
     if (!integration || integration.status === 'DISCONNECTED') {
+      if (!configuration.configured) {
+        this.logger.error(`Google integration configuration is incomplete: ${configuration.missing.join(', ')}`);
+      }
       return {
         state: 'NOT_CONNECTED' as GbpConnectionState,
         status: 'NOT_CONNECTED',
         statusMessage: configuration.configured
           ? null
-          : `Google integrations are not configured on this deployment. Missing: ${configuration.missing.join(', ')}.`,
+          : 'Google connections are not configured on this deployment. Ask the service operator to finish the Google integration setup.',
         selectedResourceId: null,
         selectedResourceName: null,
         lastSyncedAt: null,
