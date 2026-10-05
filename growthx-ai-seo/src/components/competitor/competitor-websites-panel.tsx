@@ -54,7 +54,7 @@ export function CompetitorWebsitesPanel({
 
   const recrawlMutation = useMutation({
     mutationFn: ({ competitorId, domain: _d }: { competitorId: string; domain: string }) =>
-      api.crawlCompetitorSite(projectId, competitorId, { force: true }),
+      api.crawlCompetitorSite(projectId, competitorId),
     onMutate: ({ competitorId, domain }) => {
       setCrawlingCompId(competitorId);
       setPanelMessage(`Starting re-crawl for ${domain}…`);
@@ -95,7 +95,7 @@ export function CompetitorWebsitesPanel({
     setPanelMessage(`Starting re-crawl for ${toCrawl.length} competitor website${toCrawl.length > 1 ? "s" : ""}…`);
     try {
       const results = await Promise.allSettled(
-        toCrawl.map((c) => api.crawlCompetitorSite(projectId, c.competitorId!, { force: true }))
+        toCrawl.map((c) => api.crawlCompetitorSite(projectId, c.competitorId!))
       );
       const failed = results.filter((result) => result.status === "rejected").length;
       const queued = results.length - failed;
