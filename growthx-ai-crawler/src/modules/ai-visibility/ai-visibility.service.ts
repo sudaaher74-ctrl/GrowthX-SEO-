@@ -739,6 +739,21 @@ export class AiVisibilityService {
 
     return competitor;
   }
+
+  async crawlCompetitor(projectId: string, competitorId: string, options?: { force?: boolean }) {
+    if (!this.competitorCrawl) {
+      throw new BadRequestException('Competitor crawler service is not available.');
+    }
+    const competitor = await this.prisma.competitorDomain.findFirst({
+      where: { id: competitorId, projectId },
+      include: { project: { select: { organizationId: true } } },
+    });
+    if (!competitor) {
+      throw new NotFoundException('Competitor not found for this project.');
+    }
+    const orgId = competitor.project?.organizationId || '';
+    return this.competitorCrawl.startCrawl(orgId, projectId, competitorId, options);
+  }
 }
 
 function originFields(context: ProjectContext) {

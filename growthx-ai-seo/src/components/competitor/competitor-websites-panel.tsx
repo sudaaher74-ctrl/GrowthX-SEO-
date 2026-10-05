@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -9,6 +10,7 @@ import {
   Clock,
   ExternalLink,
   Loader2,
+  RotateCw,
   Star,
 } from "lucide-react";
 import { Panel, relativeTime } from "@/components/ui/console";
@@ -29,7 +31,18 @@ const TYPES_SHOWN = SERIES.length;
  * Competitor intelligence panel displaying monitored websites with high-fidelity
  * visual hierarchy, crawl status badges, performance metrics, and content breakdown.
  */
-export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
+export function CompetitorWebsitesPanel({
+  projectId,
+  onRecrawl,
+}: {
+  projectId: string;
+  onRecrawl?: (competitorId: string, domain: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [crawlingCompId, setCrawlingCompId] = useState<string | null>(null);
+  const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [recrawlingAll, setRecrawlingAll] = useState(false);
+
   const query = useQuery({
     queryKey: ["competitor-websites", projectId],
     queryFn: () => api.competitorWebsites(projectId),
@@ -38,11 +51,70 @@ export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
     refetchOnWindowFocus: true,
     refetchInterval: (q) => (q.state.data?.sites.some((s) => ACTIVE.includes(s.status)) ? 10_000 : false),
   });
+
+  const recrawlMutation = useMutation({
+    mutationFn: ({ competitorId, domain: _d }: { competitorId: string; domain: string }) =>
+      api.crawlCompetitorSite(projectId, competitorId, { force: true }),
+    onMutate: ({ competitorId, domain }) => {
+      setCrawlingCompId(competitorId);
+      setPanelMessage(`Starting re-crawl for ${domain}…`);
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-pages", projectId] });
+      qc.invalidateQueries({ queryKey: ["rival-moves", projectId] });
+      setPanelMessage(`Re-crawl started for ${variables.domain}. Results update automatically.`);
+      setTimeout(() => setPanelMessage(null), 5000);
+    },
+    onError: (err: any) => {
+      setPanelMessage(`Could not start re-crawl: ${err?.message || "Please try again."}`);
+      setTimeout(() => setPanelMessage(null), 6000);
+    },
+    onSettled: () => {
+      setCrawlingCompId(null);
+    },
+  });
+
+  const handleRecrawl = (competitorId: string, domain: string) => {
+    recrawlMutation.mutate({ competitorId, domain });
+    onRecrawl?.(competitorId, domain);
+  };
+
   const sites = query.data?.sites ?? [];
+  const competitorSites = sites.filter((s) => s.role === "competitor" && Boolean(s.competitorId));
   const reading = sites.filter((s) => ACTIVE.includes(s.status)).length;
   const yourSite = sites.find((s) => s.role === "you");
   const yourPages = yourSite?.pagesRead ?? null;
   const yourHealth = yourSite?.healthScore ?? null;
+
+  const handleRecrawlAll = async () => {
+    const toCrawl = competitorSites.filter((s) => !ACTIVE.includes(s.status));
+    if (toCrawl.length === 0) return;
+    setRecrawlingAll(true);
+    setPanelMessage(`Starting re-crawl for ${toCrawl.length} competitor website${toCrawl.length > 1 ? "s" : ""}…`);
+    try {
+      const results = await Promise.allSettled(
+        toCrawl.map((c) => api.crawlCompetitorSite(projectId, c.competitorId!, { force: true }))
+      );
+      const failed = results.filter((result) => result.status === "rejected").length;
+      const queued = results.length - failed;
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-pages", projectId] });
+      qc.invalidateQueries({ queryKey: ["rival-moves", projectId] });
+      setPanelMessage(
+        failed === 0
+          ? `Re-crawl queued for all ${queued} competitors.`
+          : `${queued} re-crawl${queued === 1 ? "" : "s"} queued; ${failed} could not start.`
+      );
+      setTimeout(() => setPanelMessage(null), 4000);
+    } catch {
+      setPanelMessage("Some re-crawls could not be started.");
+    } finally {
+      setRecrawlingAll(false);
+    }
+  };
 
   return (
     <Panel
@@ -55,6 +127,18 @@ export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
       actions={
         sites.length > 0 ? (
           <div className="flex items-center gap-2">
+            {competitorSites.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRecrawlAll}
+                disabled={recrawlingAll || reading > 0}
+                title="Re-crawl all competitor websites to refresh page coverage, architecture and health scores"
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/70 bg-surface-1 px-3 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+              >
+                <RotateCw size={11} className={recrawlingAll ? "animate-spin text-signal-400" : "text-brand-400"} />
+                <span>{recrawlingAll ? "Queueing re-crawls…" : "Re-crawl all"}</span>
+              </button>
+            )}
             <span className="rounded-full bg-brand-100 border border-brand-200/50 px-2.5 py-0.5 text-[11px] font-mono font-medium text-brand-600">
               {sites.length} monitored {sites.length === 1 ? "site" : "sites"}
             </span>
@@ -62,6 +146,13 @@ export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
         ) : undefined
       }
     >
+      {panelMessage && (
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-signal-400/30 bg-signal-400/10 px-3.5 py-2 text-[11.5px] font-medium text-brand-950">
+          <Loader2 size={13} className="animate-spin text-signal-400 shrink-0" />
+          <span>{panelMessage}</span>
+        </div>
+      )}
+
       {query.isLoading ? (
         <p className="flex items-center justify-center gap-2 p-8 text-[12px] text-brand-500">
           <Loader2 size={14} className="animate-spin text-signal-400" /> Loading websites…
@@ -80,6 +171,8 @@ export function CompetitorWebsitesPanel({ projectId }: { projectId: string }) {
               site={site}
               yourPages={yourPages}
               yourHealth={yourHealth}
+              onRecrawl={handleRecrawl}
+              isRecrawling={crawlingCompId === site.competitorId}
             />
           ))}
         </div>
@@ -92,10 +185,14 @@ function SiteCard({
   site,
   yourPages,
   yourHealth: _yourHealth,
+  onRecrawl,
+  isRecrawling,
 }: {
   site: CompetitorWebsite;
   yourPages: number | null;
   yourHealth: number | null;
+  onRecrawl?: (competitorId: string, domain: string) => void;
+  isRecrawling?: boolean;
 }) {
   const you = site.role === "you";
   const initials =
@@ -165,7 +262,21 @@ function SiteCard({
             </div>
           </div>
 
-          <StatusBadge site={site} />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <StatusBadge site={site} />
+            {!you && site.competitorId && (
+              <button
+                type="button"
+                onClick={() => onRecrawl?.(site.competitorId!, site.domain)}
+                disabled={ACTIVE.includes(site.status) || isRecrawling}
+                title={ACTIVE.includes(site.status) ? "Crawl currently in progress" : `Re-crawl ${site.name} website now`}
+                aria-label={`Re-crawl ${site.name}`}
+                className="rounded-lg border border-brand-200/60 bg-surface-1 p-1.5 text-brand-500 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs"
+              >
+                <RotateCw size={12} className={ACTIVE.includes(site.status) || isRecrawling ? "animate-spin text-signal-400" : ""} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Core Metrics Strip */}
@@ -292,13 +403,27 @@ function SiteCard({
                 "Direct rival in market"
               )}
             </span>
-            <Link
-              href="/competitor-intelligence?tab=gaps"
-              className="text-brand-500 hover:text-signal-400 font-semibold text-[11px] flex items-center gap-1 shrink-0 transition-colors group/btn"
-            >
-              <span>Compare Gaps</span>
-              <ArrowUpRight size={11} className="transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-            </Link>
+            <div className="flex items-center gap-2 shrink-0">
+              {site.competitorId && (
+                <button
+                  type="button"
+                  onClick={() => onRecrawl?.(site.competitorId!, site.domain)}
+                  disabled={ACTIVE.includes(site.status) || isRecrawling}
+                  title={ACTIVE.includes(site.status) ? "Reading their pages…" : `Re-crawl ${site.name}'s website now`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200/60 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 hover:border-brand-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                >
+                  <RotateCw size={11} className={ACTIVE.includes(site.status) || isRecrawling ? "animate-spin text-signal-400" : "text-brand-400"} />
+                  <span>{ACTIVE.includes(site.status) ? "Reading…" : site.status === "FAILED" ? "Retry crawl" : "Re-crawl"}</span>
+                </button>
+              )}
+              <Link
+                href="/competitor-intelligence?tab=gaps"
+                className="text-brand-500 hover:text-signal-400 font-semibold text-[11px] flex items-center gap-1 shrink-0 transition-colors group/btn"
+              >
+                <span>Compare Gaps</span>
+                <ArrowUpRight size={11} className="transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+              </Link>
+            </div>
           </>
         )}
       </div>

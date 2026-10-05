@@ -71,6 +71,21 @@ describe('CompetitorCrawlService', () => {
       });
     });
 
+    it('cancels active crawl and starts a fresh one when force re-crawl is requested', async () => {
+      const { prisma, crawler, service } = build();
+      (prisma.crawlJob as any).updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.crawlJob.findFirst.mockResolvedValue({ id: 'running1' });
+
+      const result = await service.startCrawl('org1', 'p1', 'comp1', { force: true });
+
+      expect((prisma.crawlJob as any).updateMany).toHaveBeenCalledWith({
+        where: { websiteId: 'w1', status: { in: ['PENDING', 'RUNNING'] } },
+        data: expect.objectContaining({ status: 'CANCELLED' }),
+      });
+      expect(crawler.startCrawlJob).toHaveBeenCalledWith('w1', expect.any(Object));
+      expect(result).toMatchObject({ jobId: 'job1', alreadyRunning: false });
+    });
+
     it('never files a competitor site under the customer project', async () => {
       // This is the whole safety property. Every query that reads a project's
       // own pages filters on website.projectId, so leaving it null is what

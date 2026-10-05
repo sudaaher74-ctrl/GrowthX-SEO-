@@ -137,6 +137,18 @@ export class AiVisibilityController {
     return this.visibility.removeCompetitor(projectId, competitorId);
   }
 
+  @Post('competitors/:competitorId/crawl')
+  @ApiOperation({ summary: 'Crawl or re-crawl a competitor website' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'competitorId' })
+  crawlCompetitor(
+    @Param('projectId') projectId: string,
+    @Param('competitorId') competitorId: string,
+    @Body() body?: { force?: boolean },
+  ) {
+    return this.visibility.crawlCompetitor(projectId, competitorId, body);
+  }
+
   @Post('competitors')
   @ApiOperation({ summary: 'Track a competitor for share-of-voice comparison' })
   @ApiParam({ name: 'projectId' })

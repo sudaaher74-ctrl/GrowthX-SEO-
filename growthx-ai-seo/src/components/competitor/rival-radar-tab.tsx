@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, ExternalLink, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList, ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { ActionButton, Kpi, Panel, Pill, relativeTime } from "@/components/ui/console";
-import { api, type RivalMove } from "@/lib/api-client";
+import { api, type RivalMove, type TrackedCompetitor } from "@/lib/api-client";
 import { buildRadarPlan, KIND_LABEL, toRadarItem, type RadarItem } from "@/lib/radar-plain";
 import { stagingEngine } from "@/lib/staging-engine";
 
@@ -26,14 +26,21 @@ export function RivalRadarTab({
   projectId,
   domain,
   onOpenCounterMoves,
+  onRecrawlCompetitor,
+  competitors,
 }: {
   projectId: string;
   domain: string;
   onOpenCounterMoves: () => void;
+  onRecrawlCompetitor?: (competitorId: string, domain: string) => void;
+  competitors?: TrackedCompetitor[];
 }) {
+  const qc = useQueryClient();
   const [kind, setKind] = useState<RivalMove["kind"] | "all">("all");
   const [rival, setRival] = useState<string>("all");
   const [planFor, setPlanFor] = useState<RadarItem | null>(null);
+  const [recrawlingDomain, setRecrawlingDomain] = useState<string | null>(null);
+  const [recrawlNote, setRecrawlNote] = useState<string | null>(null);
 
   const feed = useQuery({
     queryKey: ["rival-moves", projectId],
@@ -41,6 +48,35 @@ export function RivalRadarTab({
     enabled: Boolean(projectId),
     staleTime: 5 * 60 * 1000,
   });
+
+  const handleRecrawlFocus = async (focusDomain: string) => {
+    setRecrawlingDomain(focusDomain);
+    setRecrawlNote(`Starting re-crawl for ${focusDomain}…`);
+    try {
+      const match = competitors?.find((c) => c.domain === focusDomain);
+      if (match) {
+        await api.crawlCompetitorSite(projectId, match.id, { force: true });
+        onRecrawlCompetitor?.(match.id, focusDomain);
+      } else {
+        const list = await api.listCompetitors(projectId);
+        const comp = list.find((c) => c.domain === focusDomain);
+        if (comp) {
+          await api.crawlCompetitorSite(projectId, comp.id, { force: true });
+          onRecrawlCompetitor?.(comp.id, focusDomain);
+        }
+      }
+      qc.invalidateQueries({ queryKey: ["rival-moves", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
+      setRecrawlNote(`Re-crawl started for ${focusDomain}. Latest changes update automatically.`);
+      setTimeout(() => setRecrawlNote(null), 5000);
+    } catch (e: any) {
+      setRecrawlNote(`Could not re-crawl: ${e?.message || "Please try again."}`);
+      setTimeout(() => setRecrawlNote(null), 6000);
+    } finally {
+      setRecrawlingDomain(null);
+    }
+  };
 
   const allItems = useMemo(() => (feed.data?.moves ?? []).map(toRadarItem), [feed.data]);
   const watching = feed.data?.watching ?? [];
@@ -91,8 +127,14 @@ export function RivalRadarTab({
             })}
           </div>
         )}
+        {recrawlNote && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-signal-400/30 bg-signal-400/10 px-3.5 py-2 text-[11.5px] font-medium text-brand-950">
+            <Loader2 size={13} className="animate-spin text-signal-400 shrink-0" />
+            <span>{recrawlNote}</span>
+          </div>
+        )}
         {focus && (
-          <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl border bg-brand-50 p-3 text-[12px] sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl border bg-brand-50 p-3 text-[12px] sm:grid-cols-4">
             <div>
               <p className="text-[10.5px] font-semibold uppercase tracking-wide text-brand-400">Website last read</p>
               <p className="text-brand-950">
@@ -110,6 +152,17 @@ export function RivalRadarTab({
               <a href={`https://${focus.domain}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand-950 hover:underline">
                 {focus.domain} <ExternalLink size={11} />
               </a>
+            </div>
+            <div className="flex flex-col justify-end">
+              <button
+                type="button"
+                onClick={() => handleRecrawlFocus(focus.domain)}
+                disabled={recrawlingDomain === focus.domain}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-200/70 bg-surface-1 px-3 py-1.5 text-[11px] font-semibold text-brand-800 hover:bg-brand-50 hover:text-brand-950 transition-colors shadow-2xs disabled:opacity-50"
+              >
+                <RotateCw size={11} className={recrawlingDomain === focus.domain ? "animate-spin text-signal-400" : "text-brand-400"} />
+                <span>{recrawlingDomain === focus.domain ? "Reading…" : "Re-crawl website"}</span>
+              </button>
             </div>
           </div>
         )}

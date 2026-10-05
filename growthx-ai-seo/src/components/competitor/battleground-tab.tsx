@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, Loader2, Plus, Swords, X } from "lucide-react";
+import { ClipboardList, Loader2, Plus, RotateCw, Swords, X } from "lucide-react";
 import { PlanModal } from "@/components/competitor/plan-modal";
 import { CompetitorWebsitesPanel } from "@/components/competitor/competitor-websites-panel";
 import { ActionButton, Kpi, Panel, Pill, Table, Td, Th, Tr, relativeTime } from "@/components/ui/console";
@@ -36,6 +36,7 @@ interface BattlegroundTabProps {
   onAddCompetitor: () => void;
   onRemoveCompetitor: (competitor: TrackedCompetitor) => void;
   onOpenCounterMoves: () => void;
+  onRecrawlCompetitor?: (competitorId: string, domain: string) => void;
 }
 
 function ignoredKey(projectId: string) {
@@ -93,6 +94,7 @@ export function BattlegroundTab({
   onAddCompetitor,
   onRemoveCompetitor,
   onOpenCounterMoves,
+  onRecrawlCompetitor,
 }: BattlegroundTabProps) {
   const ourCrawl = useLatestCrawl(domain || null);
   // While a recrawl of your site runs, compare with the last completed one;
@@ -271,6 +273,16 @@ export function BattlegroundTab({
               </button>
               <button
                 type="button"
+                onClick={() => onRecrawlCompetitor?.(c.id, c.domain)}
+                disabled={reading}
+                aria-label={`Re-crawl ${name}`}
+                title={reading ? "Currently reading their website" : `Re-crawl ${name}'s website`}
+                className="rounded-md p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-950 disabled:opacity-40 transition-colors"
+              >
+                <RotateCw size={11} className={reading ? "animate-spin text-signal-400" : ""} />
+              </button>
+              <button
+                type="button"
                 onClick={() => onRemoveCompetitor(c)}
                 aria-label={`Remove ${name}`}
                 title={`Stop tracking ${name}`}
@@ -321,7 +333,7 @@ export function BattlegroundTab({
         Your Google ranking positions aren&apos;t shown yet: connect Google Search Console in Integrations to add them.
       </p>
 
-      <CompetitorWebsitesPanel projectId={projectId} />
+      <CompetitorWebsitesPanel projectId={projectId} onRecrawl={onRecrawlCompetitor} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* This week's moves */}

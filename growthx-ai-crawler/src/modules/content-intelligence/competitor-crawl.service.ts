@@ -49,7 +49,12 @@ export class CompetitorCrawlService {
     return bare;
   }
 
-  async startCrawl(organizationId: string, projectId: string, competitorId: string) {
+  async startCrawl(
+    organizationId: string,
+    projectId: string,
+    competitorId: string,
+    options?: { force?: boolean },
+  ) {
     const competitor = await this.prisma.competitorDomain.findFirst({
       where: {
         id: competitorId,
@@ -79,32 +84,46 @@ export class CompetitorCrawlService {
       },
     });
 
-    // One crawl per site at a time. Several callers ask for one — adding the
-    // competitor, the page's own "crawl" request, the competitor list, the
-    // scheduler, Business — and each used to queue another. The list asks on
-    // every 4-second poll while anything is crawling, so seven competitors
-    // queued seven more crawls every poll: none finished, each new one became
-    // the "latest" so the page showed "Waiting to start" for ever, and the pile
-    // of abandoned jobs was a large share of what the server spent its time on.
-    const active = await this.prisma.crawlJob.findFirst({
-      where: { websiteId: website.id, status: { in: ['PENDING', 'RUNNING'] } },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
-    if (active) {
-      if (competitor.websiteId !== website.id) {
-        await this.prisma.competitorDomain.update({
-          where: { id: competitor.id },
-          data: { websiteId: website.id, status: 'ANALYZING' },
+    // If user explicitly asks to re-crawl (force), cancel any active/stuck jobs
+    // so a fresh crawl job starts immediately.
+    if (options?.force) {
+      if ((this.prisma as any).crawlJob?.updateMany) {
+        await (this.prisma as any).crawlJob.updateMany({
+          where: { websiteId: website.id, status: { in: ['PENDING', 'RUNNING'] } },
+          data: { status: 'CANCELLED', finishedAt: new Date() },
         });
       }
-      return {
-        jobId: active.id,
-        websiteId: website.id,
-        domain,
-        pageLimit: CompetitorCrawlService.PAGE_LIMIT,
-        alreadyRunning: true,
-      };
+    } else {
+      // One crawl per site at a time unless forced. Several callers ask for one — adding the
+      // competitor, the page's own "crawl" request, the competitor list, the
+      // scheduler, Business — and each used to queue another. The list asks on
+      // every 4-second poll while anything is crawling, so seven competitors
+      // queued seven more crawls every poll: none finished, each new one became
+      // the "latest" so the page showed "Waiting to start" for ever, and the pile
+      // of abandoned jobs was a large share of what the server spent its time on.
+      const active = await this.prisma.crawlJob.findFirst({
+        where: {
+          websiteId: website.id,
+          status: { in: ['PENDING', 'RUNNING'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (active) {
+        if (competitor.websiteId !== website.id) {
+          await this.prisma.competitorDomain.update({
+            where: { id: competitor.id },
+            data: { websiteId: website.id, status: 'ANALYZING' },
+          });
+        }
+        return {
+          jobId: active.id,
+          websiteId: website.id,
+          domain,
+          pageLimit: CompetitorCrawlService.PAGE_LIMIT,
+          alreadyRunning: true,
+        };
+      }
     }
 
     // Linked before the crawl starts, not after: the crawler looks up which

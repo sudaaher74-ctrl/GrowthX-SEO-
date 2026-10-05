@@ -605,15 +605,30 @@ export const api = {
       { domain, label },
     ),
     /**
-   * Crawls the competitor's public website so their page coverage can be
+   * Crawls or re-crawls the competitor's public website so their page coverage can be
    * compared with yours. Returns once the crawl is queued, not once it is
    * done — a few hundred pages at one request per second takes minutes.
    */
-  crawlCompetitorSite: (projectId: string, competitorId: string) =>
-    post<{ jobId: string; websiteId: string; domain: string; pageLimit: number }>(
-      `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/crawl`,
-      {},
-    ),
+  crawlCompetitorSite: async (projectId: string, competitorId: string, options?: { force?: boolean }) => {
+    // Starting a crawl is idempotent by default. Cancellation is reserved for
+    // an explicit user-requested re-crawl.
+    const payload = options ?? { force: false };
+    try {
+      return await post<{ jobId: string; websiteId: string; domain: string; pageLimit: number; alreadyRunning?: boolean }>(
+        `/api/projects/${projectId}/content-intelligence/competitors/${competitorId}/crawl`,
+        payload,
+      );
+    } catch (error) {
+      // Fall back only when this deployment does not expose the primary route.
+      // A timeout or server error may mean the first POST already queued work;
+      // retrying a forced request could cancel that crawl and start another.
+      if (!(error instanceof ApiError) || ![404, 405].includes(error.status)) throw error;
+      return await post<{ jobId: string; websiteId: string; domain: string; pageLimit: number; alreadyRunning?: boolean }>(
+        `/api/projects/${projectId}/ai-visibility/competitors/${competitorId}/crawl`,
+        payload,
+      );
+    }
+  },
   
   
   

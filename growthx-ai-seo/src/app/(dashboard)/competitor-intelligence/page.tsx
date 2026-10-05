@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText } from "lucide-react";
+import { Plus, CheckCircle2, Swords, Zap, Layers, Loader2, Radar, Trash2, X, Home, FileText, RotateCw, AlertTriangle } from "lucide-react";
 import { useWorkspace, usePortfolio } from "@/hooks/use-growthx";
 import { api, type TrackedCompetitor } from "@/lib/api-client";
 import { ActionButton, Panel, StatusNote } from "@/components/ui/console";
@@ -56,17 +56,20 @@ function isReading(c: TrackedCompetitor): boolean {
 function CrawlStatusStrip({
   competitors,
   onRemove,
+  onRecrawl,
 }: {
   competitors: TrackedCompetitor[];
   onRemove: (competitor: TrackedCompetitor) => void;
+  onRecrawl?: (competitor: TrackedCompetitor) => void;
 }) {
   // These used to test for IN_PROGRESS, QUEUED and DONE, which no crawl job is
   // ever in, so the strip never appeared and nothing said a competitor was
   // being read. The Battleground's "Websites we read" panel has the detail.
   const crawling = competitors.filter(isReading);
   const done = competitors.filter((c) => !isReading(c) && c.crawlStatus === "COMPLETED");
+  const failed = competitors.filter((c) => !isReading(c) && c.crawlStatus === "FAILED");
 
-  if (crawling.length === 0) return null;
+  if (crawling.length === 0 && failed.length === 0) return null;
 
   return (
     <div
@@ -74,15 +77,26 @@ function CrawlStatusStrip({
       style={{ borderColor: "var(--border-color)" }}
     >
       <div className="mb-3 flex items-center gap-2">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal-400" />
-        </span>
-        <Radar size={14} className="text-signal-400" />
-        <span className="text-[12px] font-semibold text-brand-950">
-          Reading {crawling.length} competitor website{crawling.length > 1 ? "s" : ""}. This usually takes a few minutes.
-        </span>
-        <Loader2 size={13} className="ml-auto animate-spin text-signal-400" />
+        {crawling.length > 0 ? (
+          <>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal-400" />
+            </span>
+            <Radar size={14} className="text-signal-400" />
+            <span className="text-[12px] font-semibold text-brand-950">
+              Reading {crawling.length} competitor website{crawling.length > 1 ? "s" : ""}. This usually takes a few minutes.
+            </span>
+            <Loader2 size={13} className="ml-auto animate-spin text-signal-400" />
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={14} className="text-error-600" />
+            <span className="text-[12px] font-semibold text-brand-950">
+              {failed.length} competitor website{failed.length > 1 ? "s" : ""} could not be read. You can retry anytime.
+            </span>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -119,13 +133,53 @@ function CrawlStatusStrip({
                 {c.pagesCrawled ? `Done: ${c.pagesCrawled.toLocaleString()} pages read` : "Done"}
               </p>
             </div>
-            <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+            <div className="flex items-center gap-1">
+              {onRecrawl && (
+                <button
+                  type="button"
+                  onClick={() => onRecrawl(c)}
+                  aria-label={`Re-crawl ${c.name ?? c.domain}`}
+                  title={`Re-crawl ${c.name ?? c.domain}'s website`}
+                  className="rounded-md p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-950 transition-colors"
+                >
+                  <RotateCw size={12} />
+                </button>
+              )}
+              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+            </div>
+          </div>
+        ))}
+
+        {failed.map((c) => (
+          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-error-200/50 bg-error-50/50 px-3 py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-error-100 text-error-600">
+              <AlertTriangle size={14} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
+              <p className="text-[10.5px] text-error-700">
+                {c.crawlError ? `Failed: ${c.crawlError}` : "Crawl failed"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              {onRecrawl && (
+                <button
+                  type="button"
+                  onClick={() => onRecrawl(c)}
+                  className="inline-flex items-center gap-1 rounded-md bg-white border border-error-200 px-2 py-1 text-[10.5px] font-semibold text-error-700 hover:bg-error-50 shadow-2xs transition-colors"
+                >
+                  <RotateCw size={10} />
+                  <span>Retry</span>
+                </button>
+              )}
+              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+            </div>
           </div>
         ))}
       </div>
 
       <p className="mt-2.5 text-[10.5px] text-brand-400">
-        We re-check every competitor automatically. Results appear in each tab as soon as a website has been read.
+        We re-check every competitor automatically. You can also re-crawl any competitor on demand.
       </p>
     </div>
   );
@@ -242,6 +296,20 @@ function CompetitorIntelligenceClient() {
 
   const competitorsList = competitorsQuery.data ?? [];
 
+  const crawlCompetitorMutation = useMutation({
+    mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId, { force: true }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
+      qc.invalidateQueries({ queryKey: ["competitor-pages", projectId] });
+      qc.invalidateQueries({ queryKey: ["rival-moves", projectId] });
+    },
+  });
+
+  const handleRecrawlCompetitor = (competitorId: string, _domain?: string) => {
+    crawlCompetitorMutation.mutate(competitorId);
+  };
+
   const addCompetitorMutation = useMutation({
     mutationFn: (data: { domain: string; name?: string }) =>
       api.addCompetitor(projectId!, data.domain, data.name),
@@ -257,14 +325,6 @@ function CompetitorIntelligenceClient() {
     },
     onError: (err: Error) => {
       setFormError(err.message || "Failed to add competitor.");
-    },
-  });
-
-  const crawlCompetitorMutation = useMutation({
-    mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["competitors", projectId] });
-      qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
     },
   });
 
@@ -328,16 +388,26 @@ function CompetitorIntelligenceClient() {
           </Link>
           <span>/</span>
           <span className="text-brand-950 font-bold">{currentTabObj.label}</span>
-          {activeTab !== "report" && (
+          <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab("report")}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+              onClick={openAddModal}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
             >
-              <span>Full report</span>
-              <span className="text-brand-400">↓</span>
+              <Plus size={13} />
+              <span>Add competitor</span>
             </button>
-          )}
+            {activeTab !== "report" && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("report")}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-[11.5px] font-semibold text-brand-950 hover:bg-brand-100 transition shadow-2xs"
+              >
+                <span>Full report</span>
+                <span className="text-brand-400">↓</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Global Horizontal Sub-navigation Pill Strip */}
@@ -372,7 +442,11 @@ function CompetitorIntelligenceClient() {
 
 
       {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
-      <CrawlStatusStrip competitors={competitorsList} onRemove={askToRemove} />
+      <CrawlStatusStrip
+        competitors={competitorsList}
+        onRemove={askToRemove}
+        onRecrawl={(c) => handleRecrawlCompetitor(c.id, c.domain)}
+      />
 
       {competitorsQuery.error && (
         <StatusNote tone="bad">Could not load competitors. Retry this page before relying on comparison results.</StatusNote>
@@ -386,6 +460,7 @@ function CompetitorIntelligenceClient() {
           competitors={competitorsList}
           onAddCompetitor={openAddModal}
           onRemoveCompetitor={askToRemove}
+          onRecrawlCompetitor={handleRecrawlCompetitor}
           onOpenCounterMoves={() => setActiveTab("counter-moves")}
         />
       )}
@@ -411,6 +486,8 @@ function CompetitorIntelligenceClient() {
             : <RivalRadarTab
                 projectId={projectId || ""}
                 domain={customerDomain}
+                competitors={competitorsList}
+                onRecrawlCompetitor={handleRecrawlCompetitor}
                 onOpenCounterMoves={() => setActiveTab("counter-moves")}
               />
       )}

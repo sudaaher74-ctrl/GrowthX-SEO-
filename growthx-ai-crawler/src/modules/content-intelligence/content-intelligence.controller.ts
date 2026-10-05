@@ -258,8 +258,9 @@ export class ContentIntelligenceController {
     @Req() req: any,
     @Param('projectId') projectId: string,
     @Param('competitorId') competitorId: string,
+    @Body() body?: { force?: boolean },
   ) {
-    return this.competitorCrawl.startCrawl(req.organizationId, projectId, competitorId);
+    return this.competitorCrawl.startCrawl(req.organizationId, projectId, competitorId, { force: body?.force });
   }
 
   /** What the last completed crawl found, by page kind. Null until one has. */
