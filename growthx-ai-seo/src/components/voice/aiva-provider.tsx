@@ -13,22 +13,22 @@ const playTone = (frequency: number, type: OscillatorType, duration: number, vol
   try {
     if (typeof window === 'undefined') return;
     const AudioContext =
-    window.AudioContext || (window as SpeechCapableWindow).webkitAudioContext;
+      window.AudioContext || (window as SpeechCapableWindow).webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  
-  osc.type = type;
-  osc.frequency.setValueAtTime(frequency, ctx.currentTime + startTime);
-  
-  gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
-  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + startTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
-  
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime + startTime);
+
+    gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
+    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + startTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
     osc.start(ctx.currentTime + startTime);
     osc.stop(ctx.currentTime + startTime + duration);
   } catch {
@@ -145,19 +145,19 @@ export function AivaProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const router = useRouter();
   const stateRef = useRef<AivaState>(state);
-  const confirmActionRef = useRef<() => void>(() => {});
-  const cancelActionRef = useRef<() => void>(() => {});
+  const confirmActionRef = useRef<() => void>(() => { });
+  const cancelActionRef = useRef<() => void>(() => { });
   const setIsOpenRef = useRef(setIsOpen);
   // `speak` and `processTranscript` are declared further down but used by the
   // mount effect above them. Reaching back for the declaration directly pins
   // the effect to the very first render's copy, so later renders — and the
   // state those closures read — never reach the speech callbacks. Same ref
   // indirection `setIsOpenRef` already uses, kept current on every render.
-  const speakRef = useRef<(text: string, callback?: () => void) => void>(() => {});
-  const processTranscriptRef = useRef<() => void | Promise<void>>(() => {});
+  const speakRef = useRef<(text: string, callback?: () => void) => void>(() => { });
+  const processTranscriptRef = useRef<() => void | Promise<void>>(() => { });
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  
+
   useEffect(() => {
     stateRef.current = state;
     setIsOpenRef.current = setIsOpen;
@@ -185,7 +185,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             currentTranscript += event.results[i][0].transcript;
           }
-          
+
           const lower = currentTranscript.toLowerCase();
 
           if (stateRef.current === 'idle') {
@@ -214,12 +214,12 @@ export function AivaProvider({ children }: { children: ReactNode }) {
             }
           } else if (stateRef.current === 'listening') {
             setTranscript(currentTranscript);
-            
+
             // Auto-stop and transition to thinking after 2 seconds of silence
             clearTimeout(silenceTimeout);
             silenceTimeout = setTimeout(() => {
               if (stateRef.current === 'listening') {
-                try { recognition.stop(); } catch {}
+                try { recognition.stop(); } catch { }
               }
             }, 2000);
           }
@@ -266,7 +266,7 @@ export function AivaProvider({ children }: { children: ReactNode }) {
           recognition.onend = null;
           recognition.onerror = null;
           recognition.onresult = null;
-          try { recognition.stop(); } catch {}
+          try { recognition.stop(); } catch { }
           recognitionRef.current = null;
           synthRef.current?.cancel();
         };
@@ -291,16 +291,15 @@ export function AivaProvider({ children }: { children: ReactNode }) {
 
         // Connect socket for real-time progress
         const token = auth.getToken();
-        if (token) {
-          const socketUrl = getApiBase();
-          socketRef.current = io(socketUrl, {
-            auth: { token },
-            transports: ['websocket'],
-          });
-          socketRef.current.on(`aiva.progress.${res.sessionId}`, (payload: { message?: string }) => {
-            setProgressMessage(payload.message ?? null);
-          });
-        }
+        const socketUrl = getApiBase();
+        socketRef.current = io(socketUrl, {
+          auth: token ? { token } : undefined,
+          withCredentials: true,
+          transports: ['websocket'],
+        });
+        socketRef.current.on(`aiva.progress.${res.sessionId}`, (payload: { message?: string }) => {
+          setProgressMessage(payload.message ?? null);
+        });
       } catch (err) {
         console.error('Failed to init Aiva session:', err);
       }
@@ -345,227 +344,227 @@ export function AivaProvider({ children }: { children: ReactNode }) {
     queryClient.invalidateQueries({ queryKey: ['autopilot'] });
   };
 
-  const processTranscript = async () => {
-    const finalTranscript = transcript.trim();
-    if (!finalTranscript) {
-      setState('idle');
-      return;
+const processTranscript = async () => {
+  const finalTranscript = transcript.trim();
+  if (!finalTranscript) {
+    setState('idle');
+    return;
+  }
+
+  try {
+    setAssistantMessage('Thinking...');
+    const projectId = auth.getProjectId() || undefined;
+
+    const res: VoiceAgentResult = await api.voice.chat({
+      sessionId,
+      projectId,
+      text: finalTranscript,
+      context: { path: pathname },
+    });
+
+    setAssistantMessage(res.spokenSummary);
+    setUiPayload(res.uiPayload ?? null);
+    followAutopilot(res);
+    setState('speaking');
+
+    if (res.success && !res.confirmationRequired) {
+      playSuccessSound();
     }
 
-    try {
-      setAssistantMessage('Thinking...');
-      const projectId = auth.getProjectId() || undefined;
-
-      const res: VoiceAgentResult = await api.voice.chat({
-        sessionId,
-        projectId,
-        text: finalTranscript,
-        context: { path: pathname },
-      });
-
-      setAssistantMessage(res.spokenSummary);
-      setUiPayload(res.uiPayload ?? null);
-      followAutopilot(res);
-      setState('speaking');
-      
-      if (res.success && !res.confirmationRequired) {
-        playSuccessSound();
-      }
-
-      speak(res.spokenSummary, () => {
-        if (res.confirmationRequired) {
-          setState('confirming');
-          setPendingConfirmation({
-            tool: res.tool!,
-            params: (res.data as Record<string, unknown>) ?? {},
-          });
-        } else if (res.success) {
-          setState('completed');
-          setTimeout(() => setState('idle'), 2000);
-        } else {
-          setState('error');
-          setTimeout(() => setState('idle'), 3000);
-        }
-      });
-
-      if (res.navigateTo) {
-        router.push(res.navigateTo);
-      }
-    } catch {
-      setState('error');
-      const errorMsg = 'Sorry, I encountered an error.';
-      setAssistantMessage(errorMsg);
-      speak(errorMsg);
-      setTimeout(() => setState('idle'), 3000);
-    }
-  };
-
-  // Point the refs the effects above call through at this render's closures,
-  // so the speech callbacks always see current state rather than mount-time
-  // state. This has to sit below both declarations: reaching up to them from
-  // an effect declared earlier is the same stale-closure capture it replaces.
-  // Effects run after the commit, so the speech recognition callbacks — which
-  // only fire once the browser reports a result or an error — always find a
-  // current function here.
-  useEffect(() => {
-    speakRef.current = speak;
-    processTranscriptRef.current = processTranscript;
-  });
-
-  const startListening = () => {
-    if (!micBlockedRef.current) {
-      beginListening();
-      return;
-    }
-    // A tap is a user gesture, so this is the moment Chrome will show its
-    // permission prompt again (or pick up an Allow set in site settings).
-    const showBlocked = (message: string) => {
-      micBlockedRef.current = message;
-      setAssistantMessage(message);
-      setState('error');
-    };
-    if (!navigator.mediaDevices?.getUserMedia) {
-      showBlocked(micBlockedRef.current);
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(
-      (stream) => {
-        stream.getTracks().forEach((track) => track.stop());
-        micBlockedRef.current = null;
-        beginListening();
-      },
-      (err: unknown) => {
-        const denied = err instanceof DOMException && err.name === 'NotAllowedError';
-        showBlocked(denied ? MIC_BLOCKED_MESSAGE : MIC_UNAVAILABLE_MESSAGE);
-      },
-    );
-  };
-
-  const beginListening = () => {
-    if (recognitionRef.current) {
-      setTranscript('');
-      setProgressMessage(null);
-      setState('listening');
-      setAssistantMessage('Listening...');
-      if (synthRef.current) synthRef.current.cancel();
-      try {
-        recognitionRef.current.start();
-      } catch {
-        // Already started
-      }
-    } else {
-      setAssistantMessage('Voice recognition is not supported in this browser.');
-      setState('error');
-      setTimeout(() => setState('idle'), 3000);
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current && state === 'listening') {
-      recognitionRef.current.stop();
-      // onend will handle the transition to thinking
-    }
-  };
-
-  const confirmAction = async () => {
-    if (!pendingConfirmation) return;
-    setState('working');
-    setAssistantMessage('Working on it...');
-
-    try {
-      const projectId = auth.getProjectId() || undefined;
-
-      const res: VoiceAgentResult = await api.voice.chat({
-        sessionId,
-        projectId,
-        text: 'yes',
-        confirmed: true,
-        pendingTool: pendingConfirmation.tool,
-        pendingParams: pendingConfirmation.params,
-        context: { path: pathname },
-      });
-
-      setPendingConfirmation(null);
-      setAssistantMessage(res.spokenSummary);
-      setUiPayload(res.uiPayload ?? null);
-      setState('speaking');
-      
-      if (res.success) {
-        playSuccessSound();
-      }
-
-      speak(res.spokenSummary, () => {
+    speak(res.spokenSummary, () => {
+      if (res.confirmationRequired) {
+        setState('confirming');
+        setPendingConfirmation({
+          tool: res.tool!,
+          params: (res.data as Record<string, unknown>) ?? {},
+        });
+      } else if (res.success) {
         setState('completed');
         setTimeout(() => setState('idle'), 2000);
-      });
-
-      if (res.navigateTo) {
-        router.push(res.navigateTo);
+      } else {
+        setState('error');
+        setTimeout(() => setState('idle'), 3000);
       }
-    } catch {
-      setState('error');
-      setAssistantMessage('Confirmation failed.');
-      speak('Confirmation failed.');
-      setTimeout(() => setState('idle'), 3000);
-    }
-  };
-
-  const say = (text: string) => {
-    setAssistantMessage(text);
-    if (!isOpen) return;
-    setState('speaking');
-    speak(text, () => {
-      setState('idle');
     });
-  };
 
-  const cancelAction = () => {
-    setPendingConfirmation(null);
-    setState('idle');
-    setAssistantMessage('Action cancelled.');
-    speak('Action cancelled.');
-  };
-
-  // Keep confirm/cancel refs current (same no-deps pattern as speakRef above).
-  // Both functions close over state that changes; refs let the recognition
-  // callback always call the latest version without needing to be in its
-  // dependency array.
-  useEffect(() => {
-    confirmActionRef.current = confirmAction;
-    cancelActionRef.current = cancelAction;
-  });
-
-  const toggleOpen = () => setIsOpen((prev) => !prev);
-  const close = () => {
-    setIsOpen(false);
-    if (synthRef.current) synthRef.current.cancel();
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch {}
+    if (res.navigateTo) {
+      router.push(res.navigateTo);
     }
-    setState('idle');
-  };
+  } catch {
+    setState('error');
+    const errorMsg = 'Sorry, I encountered an error.';
+    setAssistantMessage(errorMsg);
+    speak(errorMsg);
+    setTimeout(() => setState('idle'), 3000);
+  }
+};
 
-  return (
-    <AivaContext.Provider
-      value={{
-        state,
-        isOpen,
-        transcript,
-        assistantMessage,
-        toggleOpen,
-        close,
-        startListening,
-        stopListening,
-        confirmAction,
-        cancelAction,
-        progressMessage,
-        uiPayload,
-        say,
-      }}
-    >
-      {children}
-    </AivaContext.Provider>
+// Point the refs the effects above call through at this render's closures,
+// so the speech callbacks always see current state rather than mount-time
+// state. This has to sit below both declarations: reaching up to them from
+// an effect declared earlier is the same stale-closure capture it replaces.
+// Effects run after the commit, so the speech recognition callbacks — which
+// only fire once the browser reports a result or an error — always find a
+// current function here.
+useEffect(() => {
+  speakRef.current = speak;
+  processTranscriptRef.current = processTranscript;
+});
+
+const startListening = () => {
+  if (!micBlockedRef.current) {
+    beginListening();
+    return;
+  }
+  // A tap is a user gesture, so this is the moment Chrome will show its
+  // permission prompt again (or pick up an Allow set in site settings).
+  const showBlocked = (message: string) => {
+    micBlockedRef.current = message;
+    setAssistantMessage(message);
+    setState('error');
+  };
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showBlocked(micBlockedRef.current);
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(
+    (stream) => {
+      stream.getTracks().forEach((track) => track.stop());
+      micBlockedRef.current = null;
+      beginListening();
+    },
+    (err: unknown) => {
+      const denied = err instanceof DOMException && err.name === 'NotAllowedError';
+      showBlocked(denied ? MIC_BLOCKED_MESSAGE : MIC_UNAVAILABLE_MESSAGE);
+    },
   );
+};
+
+const beginListening = () => {
+  if (recognitionRef.current) {
+    setTranscript('');
+    setProgressMessage(null);
+    setState('listening');
+    setAssistantMessage('Listening...');
+    if (synthRef.current) synthRef.current.cancel();
+    try {
+      recognitionRef.current.start();
+    } catch {
+      // Already started
+    }
+  } else {
+    setAssistantMessage('Voice recognition is not supported in this browser.');
+    setState('error');
+    setTimeout(() => setState('idle'), 3000);
+  }
+};
+
+const stopListening = () => {
+  if (recognitionRef.current && state === 'listening') {
+    recognitionRef.current.stop();
+    // onend will handle the transition to thinking
+  }
+};
+
+const confirmAction = async () => {
+  if (!pendingConfirmation) return;
+  setState('working');
+  setAssistantMessage('Working on it...');
+
+  try {
+    const projectId = auth.getProjectId() || undefined;
+
+    const res: VoiceAgentResult = await api.voice.chat({
+      sessionId,
+      projectId,
+      text: 'yes',
+      confirmed: true,
+      pendingTool: pendingConfirmation.tool,
+      pendingParams: pendingConfirmation.params,
+      context: { path: pathname },
+    });
+
+    setPendingConfirmation(null);
+    setAssistantMessage(res.spokenSummary);
+    setUiPayload(res.uiPayload ?? null);
+    setState('speaking');
+
+    if (res.success) {
+      playSuccessSound();
+    }
+
+    speak(res.spokenSummary, () => {
+      setState('completed');
+      setTimeout(() => setState('idle'), 2000);
+    });
+
+    if (res.navigateTo) {
+      router.push(res.navigateTo);
+    }
+  } catch {
+    setState('error');
+    setAssistantMessage('Confirmation failed.');
+    speak('Confirmation failed.');
+    setTimeout(() => setState('idle'), 3000);
+  }
+};
+
+const say = (text: string) => {
+  setAssistantMessage(text);
+  if (!isOpen) return;
+  setState('speaking');
+  speak(text, () => {
+    setState('idle');
+  });
+};
+
+const cancelAction = () => {
+  setPendingConfirmation(null);
+  setState('idle');
+  setAssistantMessage('Action cancelled.');
+  speak('Action cancelled.');
+};
+
+// Keep confirm/cancel refs current (same no-deps pattern as speakRef above).
+// Both functions close over state that changes; refs let the recognition
+// callback always call the latest version without needing to be in its
+// dependency array.
+useEffect(() => {
+  confirmActionRef.current = confirmAction;
+  cancelActionRef.current = cancelAction;
+});
+
+const toggleOpen = () => setIsOpen((prev) => !prev);
+const close = () => {
+  setIsOpen(false);
+  if (synthRef.current) synthRef.current.cancel();
+  if (recognitionRef.current) {
+    try { recognitionRef.current.stop(); } catch { }
+  }
+  setState('idle');
+};
+
+return (
+  <AivaContext.Provider
+    value={{
+      state,
+      isOpen,
+      transcript,
+      assistantMessage,
+      toggleOpen,
+      close,
+      startListening,
+      stopListening,
+      confirmAction,
+      cancelAction,
+      progressMessage,
+      uiPayload,
+      say,
+    }}
+  >
+    {children}
+  </AivaContext.Provider>
+);
 }
 
 export function useAiva() {

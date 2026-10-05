@@ -2,9 +2,30 @@ import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDiscon
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
+function allowedOrigins(): string[] | boolean {
+  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configured.length > 0) return configured;
+  if (process.env.NODE_ENV !== 'production') {
+    return ['http://localhost:3000', 'http://localhost:3001'];
+  }
+  return false;
+}
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      const allowed = allowedOrigins();
+      if (allowed === false) return callback(null, false);
+      if (!origin || (Array.isArray(allowed) && (allowed.includes(origin) || allowed.includes('*')))) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
   },
 })
 export class CrawlerGateway implements OnGatewayConnection, OnGatewayDisconnect {

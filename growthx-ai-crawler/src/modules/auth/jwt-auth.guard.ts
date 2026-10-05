@@ -1,11 +1,9 @@
 import { ExecutionContext, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../database/prisma.service';
 import { ALLOW_WITHOUT_ORGANIZATION } from './allow-without-organization.decorator';
 import { ROLES_KEY } from './roles.decorator';
-
-const prisma = new PrismaClient();
 
 const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -28,7 +26,10 @@ const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS'
 export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  constructor(private readonly reflector: Reflector) {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
+  ) {
     super();
   }
 
@@ -39,9 +40,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (process.env.AUTH_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
       const request = context.switchToHttp().getRequest();
       try {
-        const user = await prisma.user.findUnique({ where: { email: 'dev@growthx.ai' } });
+        const user = await this.prisma.user.findUnique({ where: { email: 'dev@growthx.ai' } });
         if (user) {
-          const membership = await prisma.organizationMember.findFirst({ where: { userId: user.id } });
+          const membership = await this.prisma.organizationMember.findFirst({ where: { userId: user.id } });
           if (membership) {
             request.user = { userId: user.id, email: user.email, organizationId: membership.organizationId };
             request.organizationId = membership.organizationId;
@@ -95,13 +96,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (!projectId) return;
 
     const userId = request.user?.userId;
-    const project = await prisma.project.findUnique({
+    const project = await this.prisma.project.findUnique({
       where: { id: String(projectId) },
       select: { organizationId: true },
     });
     const membership =
       project && userId
-        ? await prisma.organizationMember.findUnique({
+        ? await this.prisma.organizationMember.findUnique({
             where: { userId_organizationId: { userId, organizationId: project.organizationId } },
             select: { id: true, role: true },
           })
