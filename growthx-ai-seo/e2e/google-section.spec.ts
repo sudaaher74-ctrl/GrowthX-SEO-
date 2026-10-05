@@ -220,12 +220,11 @@ test.describe("Google section, Overview", () => {
     await expect(page.getByText("No revenue is recorded in this Google Analytics property.")).toBeVisible();
   });
 
-  test("the hub offers two sources, and the section nav lists only the views meant to be browsed", async ({ page }) => {
+  test("the Google entry route opens the authoritative overview and keeps hidden views out of navigation", async ({ page }) => {
     await open(page, "/google");
-    await expect(page.getByRole("link", { name: /Search Console/ }).first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("link", { name: /Analytics 4/ }).first()).toBeVisible();
-    // No row of thirteen tabs: the section frame shows none on the hub.
-    await expect(page.getByRole("navigation", { name: "Google sections" })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/google\/overview$/);
+    await expect(page.getByRole("heading", { name: "Combined overview", level: 1 })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("navigation", { name: "Google sections" })).toBeVisible();
 
     await open(page, "/google/keywords");
     const nav = page.getByRole("navigation", { name: "Google sections" });
