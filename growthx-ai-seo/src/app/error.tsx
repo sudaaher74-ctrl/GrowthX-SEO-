@@ -12,10 +12,10 @@ import { AlertTriangle, RotateCw } from "lucide-react";
 
 export default function RootError({
   error,
-  unstable_retry,
+  reset,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  reset: () => void;
 }) {
   useEffect(() => {
     console.error("[app] route crashed:", error);
@@ -43,7 +43,7 @@ export default function RootError({
         <div className="mt-6 flex items-center justify-center gap-2.5">
           <button
             type="button"
-            onClick={() => unstable_retry()}
+            onClick={() => reset()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-black"
           >
             <RotateCw size={13} />
