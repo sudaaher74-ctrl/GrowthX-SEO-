@@ -9,6 +9,7 @@ import {
   AevVisibilityInput,
   AevVisibilityResult,
 } from './mammouth-seo.types';
+import { wrapUntrustedContent } from '../security/ai-sanitizer.util';
 
 // ── 1. Website SEO Audit ─────────────────────────────────────────────────────
 
@@ -27,8 +28,7 @@ export function buildWebsiteAuditPrompt(
   return [
     `Website Domain: ${domain}`,
     `Total Pages Crawled: ${pagesCrawled}`,
-    `Crawl Diagnostic Telemetry:`,
-    JSON.stringify(condensedSummary, null, 2),
+    wrapUntrustedContent(JSON.stringify(condensedSummary, null, 2), 'CRAWL_TELEMETRY'),
     '',
     'Perform a thorough technical SEO evaluation. Detail technical problems with severity, evidence, whyItMatters, recommendedFix, and codeSnippetOrDirective.',
     'Include standardized SEO recommendations with problem, evidence, impact, priority, recommended_action, expected_outcome, and confidence (0.0 to 1.0).',
@@ -105,10 +105,17 @@ export function buildCompetitorIntelligencePrompt(input: CompetitorIntelligenceI
   return [
     `Target Domain: ${input.domain}`,
     `Market Category: ${input.marketCategory || 'General / Technology'}`,
-    `Tracked Competitors:`,
-    JSON.stringify(input.competitors.slice(0, 8), null, 2),
-    `Tracked Keywords & Rankings:`,
-    JSON.stringify((input.trackedKeywords || []).slice(0, 20), null, 2),
+    wrapUntrustedContent(
+      JSON.stringify(
+        {
+          trackedCompetitors: input.competitors.slice(0, 8),
+          trackedKeywords: (input.trackedKeywords || []).slice(0, 20),
+        },
+        null,
+        2,
+      ),
+      'COMPETITOR_DATA',
+    ),
     '',
     'Perform competitive teardown identifying keyword gaps, content gaps, and ranking opportunities.',
     'Generate actionable recommendations with problem, evidence, impact, priority, recommended_action, expected_outcome, and confidence.',
@@ -311,7 +318,7 @@ export function buildContentOnPagePrompt(input: ContentOnPageInput): string {
     `Current Meta Description: ${input.metaDescription || 'None / Not set'}`,
     `H1: ${input.h1 || 'None'}`,
     `Target Primary Keyword: ${input.targetKeyword || 'Inferred from context'}`,
-    `Content Snippet: ${input.contentSnippet ? input.contentSnippet.slice(0, 1500) : 'Not provided'}`,
+    wrapUntrustedContent(input.contentSnippet ? input.contentSnippet.slice(0, 1500) : 'Not provided', 'PAGE_CONTENT_SNIPPET'),
     '',
     'Optimize title (50-60 chars) and meta description (130-155 chars). Identify missing semantic topics/entities and high-value internal links.',
   ].join('\n');

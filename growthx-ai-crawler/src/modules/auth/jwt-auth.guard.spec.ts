@@ -57,7 +57,7 @@ describe('JwtAuthGuard — organization resolution', () => {
     jest
       .spyOn(reflector, 'getAllAndOverride')
       .mockImplementation((key: any) => (key === ALLOW_WITHOUT_ORGANIZATION ? exempt : key === 'roles' ? roles : undefined) as any);
-    return new JwtAuthGuard(reflector);
+    return new JwtAuthGuard(reflector, mockPrisma as any);
   }
 
   it('puts the resolved organization where the API reads it', async () => {

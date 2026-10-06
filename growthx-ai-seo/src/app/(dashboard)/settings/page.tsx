@@ -10,14 +10,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAddMember, useMembers, useRemoveMember, useUpdateMemberRole, useWorkspace, useProfile } from "@/hooks/use-growthx";
 import { api, ApiError, type Role } from "@/lib/api-client";
 import { AiConfigurationTab } from "@/components/settings/ai-configuration-tab";
+import { PrivacyTab } from "@/components/settings/privacy-tab";
 
 const tabs = [
   { id: "workspace", label: "Workspace", icon: Globe, comingSoon: false },
   { id: "ai", label: "AI Configuration", icon: Cpu, comingSoon: false },
   { id: "profile", label: "Profile", icon: User, comingSoon: false },
+  { id: "privacy", label: "Privacy & Data", icon: Shield, comingSoon: false },
   { id: "team", label: "Team", icon: Users, comingSoon: false },
   { id: "notifications", label: "Notifications", icon: Bell, comingSoon: true },
-  { id: "security", label: "Security & 2FA", icon: Shield, comingSoon: true },
   { id: "api", label: "API Keys", icon: Key, comingSoon: true },
   { id: "appearance", label: "Appearance", icon: Palette, comingSoon: true },
 ];
@@ -82,8 +83,9 @@ export default function SettingsPage() {
           )}
           {activeTab === "team" && <TeamTab orgId={orgId} />}
           {activeTab === "profile" && <ProfileTab />}
+          {activeTab === "privacy" && <PrivacyTab />}
 
-          {activeTab !== "workspace" && activeTab !== "ai" && activeTab !== "api" && activeTab !== "team" && activeTab !== "profile" && (
+          {activeTab !== "workspace" && activeTab !== "ai" && activeTab !== "api" && activeTab !== "team" && activeTab !== "profile" && activeTab !== "privacy" && (
             <div className="card p-6 flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3">⚙️</div>
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">{tabs.find(t => t.id === activeTab)?.label} isn&apos;t built yet</h3>

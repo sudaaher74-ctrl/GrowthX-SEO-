@@ -45,13 +45,16 @@ export function setAuthCookies(res: Response, tokens: AuthTokens): void {
     maxAge: 15 * 60 * 1000,
   });
 
-  // 2. Refresh token — long-lived (7 days), HttpOnly, restricted to /auth/refresh
+  // 2. Refresh token — lifetime matches the server-side RefreshSession (default
+  //    30 days), HttpOnly, restricted to the auth endpoints that consume it.
   if (tokens.refresh_token) {
+    const parsedDays = parseInt(process.env.JWT_REFRESH_EXPIRES_IN || '30', 10);
+    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30;
     res.cookie('refresh_token', tokens.refresh_token, {
       ...base,
       httpOnly: true,
-      path: '/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/auth',
+      maxAge: days * 24 * 60 * 60 * 1000,
     });
   }
 
@@ -85,11 +88,10 @@ export function clearAuthCookies(res: Response): void {
     path: '/',
   });
 
-  res.clearCookie('refresh_token', {
-    ...base,
-    httpOnly: true,
-    path: '/auth/refresh',
-  });
+  // Cleared under both the current and the previous path so sessions created
+  // before the path widened to /auth are also removed on logout.
+  res.clearCookie('refresh_token', { ...base, httpOnly: true, path: '/auth' });
+  res.clearCookie('refresh_token', { ...base, httpOnly: true, path: '/auth/refresh' });
 
   res.clearCookie('csrf_token', {
     ...base,

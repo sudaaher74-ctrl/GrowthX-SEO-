@@ -214,6 +214,12 @@ export function LandingFooter() {
             >
               Terms of Service
             </Link>
+            <Link
+              href="/legal/security"
+              className="text-brand-500 hover:text-brand-300 transition-colors"
+            >
+              Security
+            </Link>
           </div>
         </div>
       </div>

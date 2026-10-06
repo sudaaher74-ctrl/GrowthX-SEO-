@@ -3,7 +3,9 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { allowedBrowserOrigins } from './config/allowed-origins';
 
 /**
  * Browser origins allowed to call this API with credentials.
@@ -14,16 +16,7 @@ import { AppModule } from './app.module';
  * list means "same-origin only" rather than "everyone".
  */
 function corsOrigins(): string[] {
-  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  if (configured.length > 0) return configured;
-  if (process.env.NODE_ENV !== 'production') {
-    return ['http://localhost:3000', 'http://localhost:3001'];
-  }
-  return [];
+  return allowedBrowserOrigins();
 }
 
 async function bootstrap() {
@@ -37,6 +30,18 @@ async function bootstrap() {
   // proxy's address for every caller, so the rate limiter would put all traffic
   // in a single shared bucket — one busy client would lock everyone out.
   app.set('trust proxy', 1);
+
+  // This is a JSON API, so the page-oriented CSP is not needed except for
+  // Swagger UI (dev only), which uses inline scripts. HSTS is only meaningful
+  // over HTTPS, which Render terminates in production.
+  const swaggerOn = process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER_DOCS === 'true';
+  app.use(
+    helmet({
+      contentSecurityPolicy: swaggerOn ? false : { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      hsts: process.env.NODE_ENV === 'production' ? { maxAge: 15552000, includeSubDomains: true } : false,
+    }),
+  );
 
   app.use(cookieParser());
 

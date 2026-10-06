@@ -84,4 +84,39 @@ describe('CsrfGuard', () => {
     });
     expect(guard.canActivate(ctx)).toBe(true);
   });
+
+  describe('Origin check', () => {
+    const post = (origin?: string) =>
+      createMockContext({
+        method: 'POST',
+        path: '/api/projects',
+        headers: origin === undefined ? {} : { origin },
+        cookies: {},
+      });
+
+    it('rejects a state-changing request from an origin that is not allowed', () => {
+      process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
+      expect(() => guard.canActivate(post('https://evil.example'))).toThrow(ForbiddenException);
+    });
+
+    it('rejects the opaque "null" origin', () => {
+      process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
+      expect(() => guard.canActivate(post('null'))).toThrow(ForbiddenException);
+    });
+
+    it('accepts an allowed origin', () => {
+      process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
+      expect(guard.canActivate(post('https://app.example.com'))).toBe(true);
+    });
+
+    it('rejects a forged origin even on the login route', () => {
+      process.env.CORS_ALLOWED_ORIGINS = 'https://app.example.com';
+      const ctx = createMockContext({ method: 'POST', path: '/auth/login', headers: { origin: 'https://evil.example' }, cookies: {} });
+      expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+    });
+
+    afterEach(() => {
+      delete process.env.CORS_ALLOWED_ORIGINS;
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Request } from 'express';
+import { allowedBrowserOrigins } from '../../config/allowed-origins';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -13,15 +14,19 @@ const EXEMPT_PATHS = [
 ];
 
 /**
- * Double-Submit Cookie CSRF protection.
+ * CSRF protection for browser sessions carried in cookies.
  *
- * When a request relies on the browser-managed `access_token` cookie for
- * authentication (rather than an explicit `Authorization: Bearer` header),
- * this guard ensures the caller also provided matching `X-CSRF-Token` header
- * matching the `csrf_token` cookie.
+ * Two independent checks on every state-changing request that does not use an
+ * explicit `Authorization: Bearer` header:
  *
- * Safe methods (GET, HEAD, OPTIONS) and non-cookie clients (Bearer header)
- * are exempt.
+ * 1. Origin: if the browser sent an `Origin` header it must be one we allow.
+ *    Browsers always send it on cross-site POST/PUT/PATCH/DELETE, so a forged
+ *    request from another site is refused even before any token is compared.
+ * 2. Double-submit: when the request authenticates with the `access_token`
+ *    cookie, `X-CSRF-Token` must match the `csrf_token` cookie.
+ *
+ * Safe methods (GET, HEAD, OPTIONS) and Bearer-header clients are exempt:
+ * a header the browser does not attach by itself cannot be forged cross-site.
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
@@ -39,19 +44,28 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
 
-    // 3. Unauthenticated auth endpoints
+    // 3. Origin must be allowed whenever the browser states one
+    const origin = (req.headers.origin as string | undefined)?.trim().replace(/\/+$/, '');
+    if (origin && origin !== 'null' && !allowedBrowserOrigins().includes(origin)) {
+      throw new ForbiddenException('Request origin is not allowed');
+    }
+    if (origin === 'null') {
+      throw new ForbiddenException('Request origin is not allowed');
+    }
+
+    // 4. Unauthenticated auth endpoints
     const path = req.path || req.url;
     if (EXEMPT_PATHS.some((exempt) => path.startsWith(exempt))) {
       return true;
     }
 
-    // 4. If request is not carrying an access_token cookie, let JWT guard handle 401
+    // 5. If request is not carrying an access_token cookie, let JWT guard handle 401
     const hasAccessCookie = Boolean(req.cookies?.access_token);
     if (!hasAccessCookie) {
       return true;
     }
 
-    // 5. Enforce double-submit token match
+    // 6. Enforce double-submit token match
     const headerToken = (req.headers['x-csrf-token'] as string | undefined)?.trim();
     const cookieToken = req.cookies?.csrf_token;
 

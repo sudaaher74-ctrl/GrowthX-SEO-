@@ -66,6 +66,7 @@
     "google-auth-library": "^11.0.2",
     "googleapis-common": "^9.1.0",
     "groq-sdk": "^1.5.0",
+    "helmet": "^8.3.0",
     "ioredis": "^5.4.1",
     "openai": "^4.58.0",
     "passport": "^0.7.0",

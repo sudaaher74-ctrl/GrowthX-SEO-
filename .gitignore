@@ -56,3 +56,4 @@ dump.rdb
 
 # Transient agent worktrees — full repo checkouts, reclaimed when the agent ends
 .claude/worktrees/
+backups/

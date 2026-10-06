@@ -19,7 +19,7 @@ import { jwtSecret } from '../../config/secrets';
       imports: [ConfigModule],
       useFactory: async () => ({
         secret: jwtSecret(),
-        signOptions: { expiresIn: '60m' },
+        signOptions: { expiresIn: '15m' },
       }),
       inject: [ConfigService],
     }),

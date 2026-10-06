@@ -74,21 +74,51 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * Session state lives in HttpOnly cookies the API sets, which page scripts
+ * cannot read. The only thing kept here is a non-secret "signed in" flag so the
+ * UI can decide what to render before the first API call, plus organization and
+ * project selection. Tokens are never stored in web storage.
+ */
+const SESSION_FLAG_KEY = "growthx.session";
+
+/** Browsers that stored tokens before the cookie migration: remove them. */
+function purgeLegacyTokens() {
+  if (typeof window === "undefined") return;
+  const hadLegacy = Boolean(window.localStorage.getItem(TOKEN_KEY) || window.localStorage.getItem(REFRESH_KEY));
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
+  if (hadLegacy) window.localStorage.setItem(SESSION_FLAG_KEY, "1");
+}
+purgeLegacyTokens();
+
+let csrfCache: string | null = null;
+
+/**
+ * The CSRF token is readable from the cookie only when the dashboard and API
+ * share a parent domain. Otherwise ask the API for it: CORS lets only our own
+ * origin read the answer.
+ */
+async function ensureCsrfToken(): Promise<string | null> {
+  const fromCookie = getCookie("csrf_token");
+  if (fromCookie) return fromCookie;
+  if (csrfCache) return csrfCache;
+  try {
+    const response = await fetch(`${getApiBase()}/auth/csrf`, { credentials: "include" });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { csrf_token?: string | null };
+    csrfCache = body.csrf_token ?? null;
+  } catch {
+    csrfCache = null;
+  }
+  return csrfCache;
+}
+
 export const auth = {
-  getToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(TOKEN_KEY);
-  },
-  setToken(token: string) {
-    window.localStorage.setItem(TOKEN_KEY, token);
-    notifyAuthChange();
-  },
-  getRefreshToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(REFRESH_KEY);
-  },
-  setRefreshToken(token: string) {
-    window.localStorage.setItem(REFRESH_KEY, token);
+  /** Called after the API has set the session cookies. */
+  markSignedIn() {
+    window.localStorage.setItem(SESSION_FLAG_KEY, "1");
+    csrfCache = null;
     notifyAuthChange();
   },
   getOrgId(): string | null {
@@ -106,9 +136,11 @@ export const auth = {
     window.localStorage.setItem(PROJECT_KEY, projectId);
   },
   clear() {
+    csrfCache = null;
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(TOKEN_KEY);
       window.localStorage.removeItem(REFRESH_KEY);
+      window.localStorage.removeItem(SESSION_FLAG_KEY);
       window.localStorage.removeItem(ORG_KEY);
       window.localStorage.removeItem(PROJECT_KEY);
       if (typeof document !== "undefined") {
@@ -119,7 +151,8 @@ export const auth = {
     notifyAuthChange();
   },
   isAuthenticated(): boolean {
-    return Boolean(getCookie("logged_in") || auth.getToken());
+    if (typeof window === "undefined") return false;
+    return Boolean(getCookie("logged_in") || window.localStorage.getItem(SESSION_FLAG_KEY));
   },
 };
 
@@ -183,26 +216,23 @@ export class ApiError extends Error {
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function refreshSession(): Promise<boolean> {
-  const refreshToken = auth.getRefreshToken();
-  const hasLoggedInCookie = Boolean(getCookie("logged_in"));
-  if (!refreshToken && !hasLoggedInCookie) return false;
+  if (!auth.isAuthenticated()) return false;
 
   refreshInFlight ??= (async () => {
     try {
-      const csrfToken = getCookie("csrf_token");
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const csrfToken = await ensureCsrfToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json", "x-auth-mode": "cookie" };
       if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
+      // The refresh token travels only in its HttpOnly cookie.
       const response = await fetch(`${getApiBase()}/auth/refresh`, {
         method: "POST",
         headers,
         credentials: "include",
-        body: JSON.stringify({ refresh_token: refreshToken || undefined }),
+        body: JSON.stringify({}),
       });
       if (!response.ok) return false;
-      const body = (await response.json()) as { access_token?: string; refresh_token?: string };
-      if (body.access_token) auth.setToken(body.access_token);
-      if (body.refresh_token) auth.setRefreshToken(body.refresh_token);
+      csrfCache = null;
       notifyAuthChange();
       return true;
     } catch {
@@ -216,15 +246,16 @@ async function refreshSession(): Promise<boolean> {
 }
 
 async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
-  const token = auth.getToken();
   const orgId = auth.getOrgId();
-  const csrfToken = getCookie("csrf_token");
+  const requestMethod = (init.method ?? "GET").toUpperCase();
+  const isSafeMethod = requestMethod === "GET" || requestMethod === "HEAD";
+  const csrfToken = isSafeMethod ? getCookie("csrf_token") : await ensureCsrfToken();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((init.headers as Record<string, string>) || {}),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  headers["x-auth-mode"] = "cookie";
   if (orgId) headers["x-organization-id"] = orgId;
   if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
@@ -368,22 +399,19 @@ export const api = {
 
   // ── Auth
   async login(email: string, password: string) {
-    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/login", { email, password });
-    auth.setToken(result.access_token);
-    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
+    const result = await post<{ success: boolean; expires_in?: number }>("/auth/login", { email, password });
+    auth.markSignedIn();
     return result;
   },
   async register(data: { email: string; password: string; firstName?: string; lastName?: string }) {
-    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/register", data);
-    auth.setToken(result.access_token);
-    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
+    const result = await post<{ success: boolean; expires_in?: number }>("/auth/register", data);
+    auth.markSignedIn();
     return result;
   },
   /** Trades the one-time code from the Google sign-in redirect for the session tokens. */
   async exchangeLoginCode(code: string) {
-    const result = await post<{ access_token: string; refresh_token?: string }>("/auth/exchange", { code });
-    auth.setToken(result.access_token);
-    if (result.refresh_token) auth.setRefreshToken(result.refresh_token);
+    const result = await post<{ success: boolean; expires_in?: number }>("/auth/exchange", { code });
+    auth.markSignedIn();
     return result;
   },
   getMe: () => get<UserProfile>('/auth/me'),
@@ -392,6 +420,13 @@ export const api = {
       await post<{ success: boolean }>("/auth/logout").catch(() => {});
     } catch {
       // Ignore network errors on logout
+    } finally {
+      auth.clear();
+    }
+  },
+  deleteAccount: async () => {
+    try {
+      return await del<{ success: boolean }>("/auth/account");
     } finally {
       auth.clear();
     }

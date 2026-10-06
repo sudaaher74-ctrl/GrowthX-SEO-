@@ -290,12 +290,16 @@ export function AivaProvider({ children }: { children: ReactNode }) {
         setSessionId(res.sessionId);
 
         // Connect socket for real-time progress
-        const token = auth.getToken();
+        // Authenticates with the HttpOnly session cookie sent on the handshake.
         const socketUrl = getApiBase();
         socketRef.current = io(socketUrl, {
-          auth: token ? { token } : undefined,
           withCredentials: true,
           transports: ['websocket'],
+        });
+        // The server only delivers progress to rooms a client has been
+        // authorised to join, so (re)subscribe on every connect.
+        socketRef.current.on('connect', () => {
+          socketRef.current?.emit('subscribe.aiva', { sessionId: res.sessionId });
         });
         socketRef.current.on(`aiva.progress.${res.sessionId}`, (payload: { message?: string }) => {
           setProgressMessage(payload.message ?? null);

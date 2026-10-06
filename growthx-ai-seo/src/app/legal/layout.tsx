@@ -22,6 +22,9 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
             <Link href="/legal/terms" className="hover:text-white transition-colors">
               Terms
             </Link>
+            <Link href="/legal/security" className="hover:text-white transition-colors">
+              Security
+            </Link>
           </nav>
         </div>
       </header>

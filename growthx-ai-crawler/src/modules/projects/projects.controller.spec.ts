@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { OrgContextService } from '../organizations/org-context.service';
+import { PrismaService } from '../../database/prisma.service';
 
 describe('ProjectsController', () => {
   let controller: ProjectsController;
@@ -27,6 +28,7 @@ describe('ProjectsController', () => {
       providers: [
         { provide: ProjectsService, useValue: projects },
         { provide: OrgContextService, useValue: orgContext },
+        { provide: PrismaService, useValue: {} },
       ],
     }).compile();
     controller = module.get(ProjectsController);

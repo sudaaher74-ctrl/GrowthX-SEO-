@@ -8,6 +8,7 @@ import { api, auth, getApiBase } from "@/lib/api-client";
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", company: "" });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -16,6 +17,10 @@ export default function RegisterPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!acceptedTerms) {
+      setError("Please agree to the Terms of Service and acknowledge the Privacy Policy to continue.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
@@ -128,6 +133,28 @@ export default function RegisterPage() {
             {error}
           </p>
         )}
+
+        <div className="flex items-start gap-2.5 pt-1 text-xs text-brand-400">
+          <input
+            id="terms-consent"
+            type="checkbox"
+            required
+            checked={acceptedTerms}
+            onChange={(e) => setAcceptedTerms(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-brand-700 bg-brand-900 text-series-6 focus:ring-series-6 cursor-pointer"
+          />
+          <label htmlFor="terms-consent" className="leading-snug cursor-pointer select-none">
+            I agree to the{" "}
+            <Link href="/legal/terms" target="_blank" className="font-medium text-series-6 underline underline-offset-2 hover:text-series-6/80">
+              Terms of Service
+            </Link>{" "}
+            and acknowledge the{" "}
+            <Link href="/legal/privacy" target="_blank" className="font-medium text-series-6 underline underline-offset-2 hover:text-series-6/80">
+              Privacy Policy
+            </Link>
+            .
+          </label>
+        </div>
 
         <div className="pt-1">
           <SubmitButton busy={busy}>{busy ? "Creating…" : "Create account"}</SubmitButton>

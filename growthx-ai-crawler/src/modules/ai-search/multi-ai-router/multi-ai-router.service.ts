@@ -31,6 +31,7 @@ import {
 import { executeMammouthCall, redactMammouthKey, taskToCapability } from './mammouth-invoker.util';
 import { executeSarvamCall, postToSarvam } from './sarvam-invoker.util';
 import { executeAnthropicCall, anthropicWithFallback } from './anthropic-invoker.util';
+import { redactSecretsForAi } from '../../security/ai-sanitizer.util';
 
 // Re-export all types, enums and utilities so callers and declaration files remain 100% compatible
 export {
@@ -229,7 +230,16 @@ export class MultiAiRouterService {
    */
   async generate(request: AiRequest): Promise<AiCompletion> {
     const task = request.task ?? AiTask.REASONING;
-    const scoped = await this.attributed(request);
+    const sanitizedPrompt = request.prompt ? redactSecretsForAi(request.prompt) : request.prompt;
+    const sanitizedSystemInstruction = request.systemInstruction
+      ? redactSecretsForAi(request.systemInstruction)
+      : request.systemInstruction;
+    const sanitizedRequest: AiRequest = {
+      ...request,
+      prompt: sanitizedPrompt,
+      systemInstruction: sanitizedSystemInstruction,
+    };
+    const scoped = await this.attributed(sanitizedRequest);
 
     await this.usageLedger?.assertWithinBudget(scoped.organizationId);
     await this.tokens?.assertCanStart(scoped.organizationId);

@@ -78,7 +78,7 @@ export class AuthService {
         // string, so a computed value needs the assertion.
         { expiresIn: `${days}d` as `${number}d`, jwtid: session.id },
       ),
-      expires_in: 3600,
+      expires_in: 900,
     };
   }
 
@@ -128,6 +128,31 @@ export class AuthService {
     }
 
     return this.issueTokens({ id: user.id, email: user.email });
+  }
+
+  /**
+   * Revokes the session behind a refresh token (or all of the user's sessions).
+   * Never throws for a bad token: logout must always succeed. Returns the user
+   * id when the token was valid, for the security log.
+   */
+  async revokeSessionForToken(refreshToken: string | undefined, all: boolean): Promise<string | null> {
+    if (!refreshToken) return null;
+    let payload: { sub?: string; jti?: string; type?: string };
+    try {
+      payload = this.jwtService.verify(refreshToken);
+    } catch {
+      return null;
+    }
+    if (payload.type !== 'refresh' || !payload.sub) return null;
+    if (all) {
+      await this.revokeAllSessions(payload.sub);
+    } else if (payload.jti) {
+      await this.prisma.refreshSession.updateMany({
+        where: { id: payload.jti, userId: payload.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return payload.sub;
   }
 
   /** Ends every refresh session of a user. Access tokens lapse within the hour. */

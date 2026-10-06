@@ -44,7 +44,7 @@ describe('auth-cookie.util', () => {
 
     expect(cookies['refresh_token'].value).toBe('test-refresh-token');
     expect(cookies['refresh_token'].options.httpOnly).toBe(true);
-    expect(cookies['refresh_token'].options.path).toBe('/auth/refresh');
+    expect(cookies['refresh_token'].options.path).toBe('/auth');
 
     expect(cookies['csrf_token'].value).toBeDefined();
     expect(cookies['csrf_token'].options.httpOnly).toBe(false);
@@ -53,20 +53,21 @@ describe('auth-cookie.util', () => {
     expect(cookies['logged_in'].options.httpOnly).toBe(false);
   });
 
-  it('clears all four auth cookies on logout', () => {
-    const cleared: Record<string, any> = {};
+  it('clears auth cookies on logout', () => {
+    const cleared: Record<string, any>[] = [];
     const mockRes = {
       clearCookie: jest.fn((name: string, options: any) => {
-        cleared[name] = options;
+        cleared.push({ name, ...options });
       }),
     } as unknown as Response;
 
     clearAuthCookies(mockRes);
 
-    expect(mockRes.clearCookie).toHaveBeenCalledTimes(4);
-    expect(cleared['access_token'].path).toBe('/');
-    expect(cleared['refresh_token'].path).toBe('/auth/refresh');
-    expect(cleared['csrf_token'].path).toBe('/');
-    expect(cleared['logged_in'].path).toBe('/');
+    expect(mockRes.clearCookie).toHaveBeenCalledTimes(5);
+    expect(cleared.some((c) => c.name === 'access_token' && c.path === '/')).toBe(true);
+    expect(cleared.some((c) => c.name === 'refresh_token' && c.path === '/auth')).toBe(true);
+    expect(cleared.some((c) => c.name === 'refresh_token' && c.path === '/auth/refresh')).toBe(true);
+    expect(cleared.some((c) => c.name === 'csrf_token' && c.path === '/')).toBe(true);
+    expect(cleared.some((c) => c.name === 'logged_in' && c.path === '/')).toBe(true);
   });
 });
