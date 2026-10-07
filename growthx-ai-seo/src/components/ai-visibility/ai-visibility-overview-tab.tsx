@@ -6,6 +6,7 @@ import { AiKpiCard } from "./ai-kpi-card";
 import { AiVisibilityGauge } from "./ai-visibility-gauge";
 import type { VisibilityReport } from "@/lib/api-client";
 import { assistantLabel, assistantList } from "@/lib/ai-assistants";
+import { Panel } from "@/components/ui/console";
 
 interface AiVisibilityOverviewTabProps {
   report?: VisibilityReport | null;
@@ -106,8 +107,8 @@ export function AiVisibilityOverviewTab({
           value={mentionRate}
           subtext="Tracked queries where your brand is cited."
           icon={<Radio size={16} />}
-          iconBgColor="bg-emerald-50 text-emerald-600"
-          colorScheme="emerald"
+          iconBgColor="bg-success-50 text-success-600"
+          colorScheme="success"
           infoTooltip={`Share of measured answers from ${assistantsAsked} that cited your domain or brand, last 28 days.`}
           sparkline={mentionTrend}
         />
@@ -118,8 +119,8 @@ export function AiVisibilityOverviewTab({
           value={totalCitations.toLocaleString()}
           subtext={`Answers from ${assistantsAsked} that cited you.`}
           icon={<Link2 size={16} />}
-          iconBgColor="bg-blue-50 text-blue-600"
-          colorScheme="blue"
+          iconBgColor="bg-accent-50 text-accent-600"
+          colorScheme="accent"
           infoTooltip="Measured answers in the last 28 days that named your domain or brand."
         />
 
@@ -129,7 +130,7 @@ export function AiVisibilityOverviewTab({
           value={shareOfVoice}
           subtext="Presence compared to tracked competitors."
           icon={<PieChart size={16} />}
-          iconBgColor="bg-slate-100 text-slate-900"
+          iconBgColor="bg-brand-100 text-brand-900"
           colorScheme="default"
           infoTooltip="Your mentions as a share of all brand mentions (you plus tracked competitors) in measured answers."
         />
@@ -140,8 +141,8 @@ export function AiVisibilityOverviewTab({
           value={trackedQueries.toString()}
           subtext="High-intent conversational buyer prompts."
           icon={<Search size={16} />}
-          iconBgColor="bg-amber-50 text-amber-600"
-          colorScheme="orange"
+          iconBgColor="bg-warning-50 text-warning-600"
+          colorScheme="warning"
           infoTooltip="Questions asked of each enabled AI assistant on every sweep."
         />
 
@@ -156,15 +157,15 @@ export function AiVisibilityOverviewTab({
       {/* ── ROW 2: Model Distribution Donut (40%) + Competitor Share of Voice (60%) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: AI Model Distribution Donut (Col span 5) */}
-        <div className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+        <Panel className="lg:col-span-5 flex flex-col justify-between p-6">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">AI Model Distribution</h3>
+            <div className="flex items-center justify-between pb-3 border-b border-brand-100">
+              <h3 className="text-base font-bold text-brand-900">AI Model Distribution</h3>
               <div className="flex gap-2 items-center">
-                <span className="text-[10px] text-slate-500 flex items-center gap-1 border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50">
-                  <Sparkles size={10} className="text-slate-400" /> Powered by Sarvam AI
+                <span className="text-[10px] text-brand-500 flex items-center gap-1 border border-brand-200 px-1.5 py-0.5 rounded bg-brand-50">
+                  <Sparkles size={10} className="text-brand-400" /> Powered by Sarvam AI
                 </span>
-                <span className="text-[11px] text-slate-700 font-semibold bg-slate-100 px-2 py-0.5 rounded-md">
+                <span className="text-[11px] text-brand-700 font-semibold bg-brand-100 px-2 py-0.5 rounded-md">
                   Live Citations
                 </span>
               </div>
@@ -191,20 +192,20 @@ export function AiVisibilityOverviewTab({
               </svg>
 
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-black text-slate-900">{totalCitations}</span>
-                <span className="text-[10px] uppercase font-bold text-slate-400">Total Citations</span>
+                <span className="text-2xl font-black text-brand-900">{totalCitations}</span>
+                <span className="text-[10px] uppercase font-bold text-brand-400">Total Citations</span>
               </div>
             </div>
 
             {/* Model legend breakdown */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
+            <div className="space-y-2 pt-2 border-t border-brand-100">
               {segments.map((s) => (
                 <div key={s.label} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                    <span className="font-semibold text-slate-700">{s.label}</span>
+                    <span className="font-semibold text-brand-700">{s.label}</span>
                   </div>
-                  <span className="font-bold text-slate-900">{s.pct}%</span>
+                  <span className="font-bold text-brand-900">{s.pct}%</span>
                 </div>
               ))}
             </div>
@@ -213,27 +214,27 @@ export function AiVisibilityOverviewTab({
           <button
             type="button"
             onClick={onViewInsightsTab}
-            className="mt-5 w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-xs font-bold hover:bg-slate-100 transition flex items-center justify-center gap-1.5"
+            className="mt-5 w-full py-2.5 px-4 rounded-xl border border-brand-200 bg-brand-50 text-brand-900 text-xs font-bold hover:bg-brand-100 transition flex items-center justify-center gap-1.5"
           >
             <span>View AI Insights</span>
             <ArrowRight size={13} />
           </button>
-        </div>
+        </Panel>
 
         {/* Right: Competitor Share of Voice (Col span 7) */}
-        <div className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+        <Panel className="lg:col-span-7 flex flex-col justify-between p-6">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-brand-100">
               <div>
-                <h3 className="text-base font-bold text-slate-900">AI Share of Voice Benchmark</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h3 className="text-base font-bold text-brand-900">AI Share of Voice Benchmark</h3>
+                <p className="text-xs text-brand-500 mt-0.5">
                   LLM response mentions comparing your domain vs. tracked rivals
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onViewCompetitorsTab}
-                className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1"
+                className="text-xs font-semibold text-brand-700 hover:text-brand-900 flex items-center gap-1"
               >
                 <span>View All</span>
                 <ArrowRight size={13} />
@@ -243,10 +244,10 @@ export function AiVisibilityOverviewTab({
             {/* Competitor Bars */}
             <div className="mt-5 space-y-4">
               {topCompetitors.length === 0 ? (
-                <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-slate-200 bg-slate-50/50">
-                  <Bot className="h-6 w-6 text-slate-400 mx-auto" />
-                  <p className="text-xs font-bold text-slate-800">No Share of Voice Measurements Yet</p>
-                  <p className="text-[11px] text-slate-500">
+                <div className="p-8 text-center space-y-2 border rounded-xl border-dashed border-brand-200 bg-brand-50/50">
+                  <Bot className="h-6 w-6 text-brand-400 mx-auto" />
+                  <p className="text-xs font-bold text-brand-800">No Share of Voice Measurements Yet</p>
+                  <p className="text-[11px] text-brand-500">
                     Add competitors and run an AI Visibility sweep to measure brand mentions across LLMs.
                   </p>
                 </div>
@@ -254,19 +255,19 @@ export function AiVisibilityOverviewTab({
                 topCompetitors.map((comp) => (
                   <div key={comp.domain} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className={`flex items-center gap-1.5 ${comp.isYou ? "text-slate-950 font-bold" : "text-slate-700"}`}>
+                      <span className={`flex items-center gap-1.5 ${comp.isYou ? "text-brand-950 font-bold" : "text-brand-700"}`}>
                         <span>#{comp.rank}</span>
                         <span className="truncate">{comp.domain}</span>
                         {comp.isYou && (
-                          <span className="bg-slate-100 text-slate-900 text-[10px] px-1.5 py-0.2 rounded font-bold">
+                          <span className="bg-brand-100 text-brand-900 text-[10px] px-1.5 py-0.2 rounded font-bold">
                             You
                           </span>
                         )}
                       </span>
-                      <span className="font-bold text-slate-900">{comp.sharePct}%</span>
+                      <span className="font-bold text-brand-900">{comp.sharePct}%</span>
                     </div>
 
-                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-2.5 w-full bg-brand-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full ${comp.barColor} rounded-full transition-all`}
                         style={{ width: `${Math.max(4, comp.sharePct)}%` }}
@@ -278,85 +279,85 @@ export function AiVisibilityOverviewTab({
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-4 pt-3 border-t border-brand-100 flex items-center justify-between text-xs text-brand-400">
             <span>Measured across {assistantsAsked}</span>
-            <span className="text-slate-900 font-semibold cursor-pointer hover:underline" onClick={onViewCompetitorsTab}>
+            <span className="text-brand-900 font-semibold cursor-pointer hover:underline" onClick={onViewCompetitorsTab}>
               Deep Dive →
             </span>
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* ── ROW 3: Customer Journey Simulator & Brand Perception ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         
         {/* Customer Journey Simulator */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
-          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+        <Panel className="flex flex-col justify-between p-6">
+          <div className="pb-3 border-b border-brand-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Compass size={16} /></div>
+              <div className="p-1.5 bg-accent-50 text-accent-600 rounded-lg"><Compass size={16} /></div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Customer Journey Simulator</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Mentions by buyer intent stage</p>
+                <h3 className="text-base font-bold text-brand-900">Customer Journey Simulator</h3>
+                <p className="text-xs text-brand-500 mt-0.5">Mentions by buyer intent stage</p>
               </div>
             </div>
-            <Map size={16} className="text-slate-400" />
+            <Map size={16} className="text-brand-400" />
           </div>
           
           <div className="mt-5 space-y-5">
             <div>
               <div className="flex justify-between items-end mb-1.5">
-                <span className="text-xs font-bold text-slate-700">Discovery (Top of Funnel)</span>
-                <span className="text-sm font-black text-indigo-600">{report?.customerJourney?.discovery.citationSharePct ?? 0}%</span>
+                <span className="text-xs font-bold text-brand-700">Discovery (Top of Funnel)</span>
+                <span className="text-sm font-black text-series-a">{report?.customerJourney?.discovery.citationSharePct ?? 0}%</span>
               </div>
-              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.discovery.citationSharePct ?? 0)}%` }} />
+              <div className="h-2 w-full bg-brand-100 rounded-full overflow-hidden">
+                <div className="h-full bg-series-a rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.discovery.citationSharePct ?? 0)}%` }} />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">{report?.customerJourney?.discovery.cited ?? 0} citations out of {report?.customerJourney?.discovery.checked ?? 0} answers</p>
+              <p className="text-[10px] text-brand-500 mt-1">{report?.customerJourney?.discovery.cited ?? 0} citations out of {report?.customerJourney?.discovery.checked ?? 0} answers</p>
             </div>
             
             <div>
               <div className="flex justify-between items-end mb-1.5">
-                <span className="text-xs font-bold text-slate-700">Recommendation (Bottom of Funnel)</span>
-                <span className="text-sm font-black text-emerald-600">{report?.customerJourney?.recommendation.citationSharePct ?? 0}%</span>
+                <span className="text-xs font-bold text-brand-700">Recommendation (Bottom of Funnel)</span>
+                <span className="text-sm font-black text-series-b">{report?.customerJourney?.recommendation.citationSharePct ?? 0}%</span>
               </div>
-              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.recommendation.citationSharePct ?? 0)}%` }} />
+              <div className="h-2 w-full bg-brand-100 rounded-full overflow-hidden">
+                <div className="h-full bg-series-b rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.recommendation.citationSharePct ?? 0)}%` }} />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">{report?.customerJourney?.recommendation.cited ?? 0} citations out of {report?.customerJourney?.recommendation.checked ?? 0} answers</p>
+              <p className="text-[10px] text-brand-500 mt-1">{report?.customerJourney?.recommendation.cited ?? 0} citations out of {report?.customerJourney?.recommendation.checked ?? 0} answers</p>
             </div>
           </div>
-        </div>
+        </Panel>
 
         {/* Brand Perception */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
-          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+        <Panel className="flex flex-col justify-between p-6">
+          <div className="pb-3 border-b border-brand-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-pink-50 text-pink-600 rounded-lg"><ThumbsUp size={16} /></div>
+              <div className="p-1.5 bg-accent-50 text-accent-600 rounded-lg"><ThumbsUp size={16} /></div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Brand Perception</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Sentiment analysis of AI mentions</p>
+                <h3 className="text-base font-bold text-brand-900">Brand Perception</h3>
+                <p className="text-xs text-brand-500 mt-0.5">Sentiment analysis of AI mentions</p>
               </div>
             </div>
-            <LineChart size={16} className="text-slate-400" />
+            <LineChart size={16} className="text-brand-400" />
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-              <span className="block text-[10px] uppercase font-bold text-emerald-600 mb-1">Positive</span>
-              <span className="block text-2xl font-black text-emerald-700">{report?.brandPerception?.positive ?? 0}</span>
+            <div className="p-3 bg-success-50 rounded-xl border border-success-100">
+              <span className="block text-[10px] uppercase font-bold text-success-600 mb-1">Positive</span>
+              <span className="block text-2xl font-black text-success-700">{report?.brandPerception?.positive ?? 0}</span>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Neutral</span>
-              <span className="block text-2xl font-black text-slate-700">{report?.brandPerception?.neutral ?? 0}</span>
+            <div className="p-3 bg-brand-50 rounded-xl border border-brand-200">
+              <span className="block text-[10px] uppercase font-bold text-brand-500 mb-1">Neutral</span>
+              <span className="block text-2xl font-black text-brand-700">{report?.brandPerception?.neutral ?? 0}</span>
             </div>
-            <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
-              <span className="block text-[10px] uppercase font-bold text-rose-600 mb-1">Negative</span>
-              <span className="block text-2xl font-black text-rose-700">{report?.brandPerception?.negative ?? 0}</span>
+            <div className="p-3 bg-error-50 rounded-xl border border-error-100">
+              <span className="block text-[10px] uppercase font-bold text-error-600 mb-1">Negative</span>
+              <span className="block text-2xl font-black text-error-700">{report?.brandPerception?.negative ?? 0}</span>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-3 text-center">Based on {report?.brandPerception?.total ?? 0} analyzed statements across all queries</p>
-        </div>
+          <p className="text-[10px] text-brand-400 mt-3 text-center">Based on {report?.brandPerception?.total ?? 0} analyzed statements across all queries</p>
+        </Panel>
 
       </div>
     </div>

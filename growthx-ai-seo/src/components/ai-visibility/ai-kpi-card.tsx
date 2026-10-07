@@ -3,6 +3,7 @@
 import React from "react";
 import { Info, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Panel } from "@/components/ui/console";
 
 interface AiKpiCardProps {
   label: string;
@@ -12,7 +13,7 @@ interface AiKpiCardProps {
   subtext: string;
   icon: React.ReactNode;
   iconBgColor?: string;
-  colorScheme?: "emerald" | "blue" | "purple" | "orange" | "yellow" | "coral" | "default";
+  colorScheme?: "success" | "accent" | "warning" | "error" | "default" | "series-a" | "series-b";
   infoTooltip?: string;
   className?: string;
   /**
@@ -29,64 +30,64 @@ export function AiKpiCard({
   trendPositive = true,
   subtext,
   icon,
-  iconBgColor = "bg-emerald-50 text-emerald-600",
-  colorScheme = "emerald",
+  iconBgColor = "bg-success-50 text-success-600",
+  colorScheme = "success",
   infoTooltip,
   className,
   sparkline,
 }: AiKpiCardProps) {
   // Wave configurations based on colorScheme
   const waveStyles = {
-    emerald: {
-      stroke: "#10b981",
-      stopStart: "#10b981",
-      stopEnd: "#34d399",
-      fillId: "fill-emerald",
+    success: {
+      stroke: "var(--success-500, #10b981)",
+      stopStart: "var(--success-500, #10b981)",
+      stopEnd: "var(--success-400, #34d399)",
+      fillId: "fill-success",
     },
-    blue: {
-      stroke: "#3b82f6",
-      stopStart: "#3b82f6",
-      stopEnd: "#60a5fa",
-      fillId: "fill-blue",
-    },
-    purple: {
-      stroke: "#0f172a",
-      stopStart: "#0f172a",
-      stopEnd: "#475569",
-      fillId: "fill-purple",
+    accent: {
+      stroke: "var(--accent-500, #3b82f6)",
+      stopStart: "var(--accent-500, #3b82f6)",
+      stopEnd: "var(--accent-400, #60a5fa)",
+      fillId: "fill-accent",
     },
     default: {
-      stroke: "#0f172a",
-      stopStart: "#0f172a",
-      stopEnd: "#475569",
+      stroke: "var(--brand-800, #1e293b)",
+      stopStart: "var(--brand-800, #1e293b)",
+      stopEnd: "var(--brand-600, #475569)",
       fillId: "fill-default",
     },
-    orange: {
-      stroke: "#f97316",
-      stopStart: "#f97316",
-      stopEnd: "#fb923c",
-      fillId: "fill-orange",
+    warning: {
+      stroke: "var(--warning-500, #f59e0b)",
+      stopStart: "var(--warning-500, #f59e0b)",
+      stopEnd: "var(--warning-400, #fbbf24)",
+      fillId: "fill-warning",
     },
-    yellow: {
-      stroke: "#eab308",
-      stopStart: "#eab308",
-      stopEnd: "#fde047",
-      fillId: "fill-yellow",
+    error: {
+      stroke: "var(--error-500, #ef4444)",
+      stopStart: "var(--error-500, #ef4444)",
+      stopEnd: "var(--error-400, #f87171)",
+      fillId: "fill-error",
     },
-    coral: {
-      stroke: "#f43f5e",
-      stopStart: "#f43f5e",
-      stopEnd: "#fb7185",
-      fillId: "fill-coral",
+    "series-a": {
+      stroke: "var(--series-a, #8b5cf6)",
+      stopStart: "var(--series-a, #8b5cf6)",
+      stopEnd: "var(--series-a, #8b5cf6)",
+      fillId: "fill-series-a",
+    },
+    "series-b": {
+      stroke: "var(--series-b, #ec4899)",
+      stopStart: "var(--series-b, #ec4899)",
+      stopEnd: "var(--series-b, #ec4899)",
+      fillId: "fill-series-b",
     },
   }[colorScheme];
 
   const sparkPath = buildSparkPath(sparkline);
 
   return (
-    <div
+    <Panel
       className={cn(
-        "relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-sm",
+        "relative flex flex-col justify-between overflow-hidden p-5 transition-all hover:shadow-sm",
         className
       )}
     >
@@ -97,30 +98,30 @@ export function AiKpiCard({
             <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold", iconBgColor)}>
               {icon}
             </div>
-            <span className="text-[13px] font-medium text-slate-600">{label}</span>
+            <span className="text-[13px] font-medium text-brand-600">{label}</span>
           </div>
           {infoTooltip ? (
-            <div className="group relative cursor-pointer text-slate-300 hover:text-slate-400">
+            <div className="group relative cursor-pointer text-brand-300 hover:text-brand-400">
               <Info size={14} />
               <div className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-48 rounded-lg bg-primary-600 px-2.5 py-1.5 text-[11px] leading-tight text-white shadow-lg group-hover:block">
                 {infoTooltip}
               </div>
             </div>
           ) : (
-            <Info size={14} className="text-slate-300" />
+            <Info size={14} className="text-brand-300" />
           )}
         </div>
 
         {/* Second row: Metric value + trend pill */}
         <div className="mt-3.5 flex items-baseline gap-2.5">
-          <span className="text-[28px] font-bold tracking-tight text-slate-900">{value}</span>
+          <span className="text-[28px] font-bold tracking-tight text-brand-900">{value}</span>
           {trend && (
             <span
               className={cn(
                 "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold",
                 trendPositive
-                  ? "bg-emerald-50 text-emerald-600"
-                  : "bg-rose-50 text-rose-600"
+                  ? "bg-success-50 text-success-600"
+                  : "bg-error-50 text-error-600"
               )}
             >
               <TrendingUp size={12} className={trendPositive ? "" : "rotate-180"} />
@@ -130,7 +131,7 @@ export function AiKpiCard({
         </div>
 
         {/* Third row: Subtext description */}
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-500 line-clamp-2 min-h-[34px]">
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-brand-500 line-clamp-2 min-h-[34px]">
           {subtext}
         </p>
       </div>
@@ -150,7 +151,7 @@ export function AiKpiCard({
           </svg>
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
 

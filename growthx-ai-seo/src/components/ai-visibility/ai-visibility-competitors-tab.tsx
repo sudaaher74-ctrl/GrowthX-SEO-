@@ -218,7 +218,7 @@ export function AiVisibilityCompetitorsTab({
           value={yourShare === null ? "—" : `${yourShare}%`}
           subtext="Share of measured answers that name you"
           icon={<Users size={16} />}
-          iconBgColor="bg-slate-100 text-slate-900"
+          iconBgColor="bg-brand-100 text-brand-900"
           colorScheme="default"
         />
 
@@ -232,8 +232,8 @@ export function AiVisibilityCompetitorsTab({
               : "Competitors with higher recommendation share"
           }
           icon={<Trophy size={16} />}
-          iconBgColor="bg-rose-50 text-rose-600"
-          colorScheme="coral"
+          iconBgColor="bg-error-50 text-error-600"
+          colorScheme="error"
         />
 
         {/* KPI 3: Top Competitor */}
@@ -242,8 +242,8 @@ export function AiVisibilityCompetitorsTab({
           value={leading.value}
           subtext={leading.subtext}
           icon={<Crown size={16} />}
-          iconBgColor="bg-amber-50 text-amber-600"
-          colorScheme="yellow"
+          iconBgColor="bg-warning-50 text-warning-600"
+          colorScheme="warning"
         />
 
         {/* KPI 4: Total Citations */}
@@ -252,8 +252,8 @@ export function AiVisibilityCompetitorsTab({
           value={totalCitations.toLocaleString()}
           subtext="Direct brand mentions across tested queries"
           icon={<FileText size={16} />}
-          iconBgColor="bg-emerald-50 text-emerald-600"
-          colorScheme="emerald"
+          iconBgColor="bg-success-50 text-success-600"
+          colorScheme="success"
         />
 
         {/* KPI 5: Tested Prompts */}
@@ -262,8 +262,8 @@ export function AiVisibilityCompetitorsTab({
           value={totalChecked.toString()}
           subtext={`Answers from ${assistantsAsked}`}
           icon={<Target size={16} />}
-          iconBgColor="bg-blue-50 text-blue-600"
-          colorScheme="blue"
+          iconBgColor="bg-accent-50 text-accent-600"
+          colorScheme="accent"
         />
       </div>
 
