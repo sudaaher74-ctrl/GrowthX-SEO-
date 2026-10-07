@@ -181,9 +181,8 @@ export function useConnectLocalBusiness(projectId: string | null) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
       qc.invalidateQueries({ queryKey: ["gbp-proposals", projectId] });
-      // A newly attached Maps listing fills the Business Profile tabs from its
-      // public data, so every one of them has something new to show.
-      invalidateGbp(qc, projectId);
+      // A newly attached Maps listing used to fill the Business Profile tabs from its
+      // public data, but GBP is removed.
     },
   });
 }
@@ -212,109 +211,7 @@ export function useGeoGridHistory(projectId: string | null, keyword?: string) {
   });
 }
 
-// ── Google Business Profile (the real Google connector)
-//
-// Every read here serves from the backend's synced tables and carries the
-// connection and source envelopes, so the hooks deliberately do not unwrap the
-// payload: a tab needs to know *why* a list is empty as much as it needs the
-// list. `retry: false` throughout — a 403 from Google means the Cloud project
-// is not approved yet, and retrying it three times only makes the wait longer.
 
-/** The provider id the OAuth endpoints use for Business Profile. */
-export const GBP_PROVIDER = "business_profile";
-
-/** Everything on the Business Profile screen that a sync or a reconnect changes. */
-const GBP_QUERY_KEYS = [
-  "google-integrations",
-  "gbp-overview",
-  "gbp-metrics",
-  "gbp-reviews",
-  "gbp-photos",
-  "gbp-posts",
-  "gbp-services",
-  "gbp-categories",
-  "gbp-locations",
-] as const;
-
-function invalidateGbp(qc: ReturnType<typeof useQueryClient>, projectId: string | null) {
-  for (const key of GBP_QUERY_KEYS) qc.invalidateQueries({ queryKey: [key, projectId] });
-}
-
-export function useGbpOverview(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-overview", projectId],
-    queryFn: () => api.getGbpOverview(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpMetrics(projectId: string | null, days = 28) {
-  return useQuery({
-    queryKey: ["gbp-metrics", projectId, days],
-    queryFn: () => api.getGbpMetrics(projectId!, days),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpReviews(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-reviews", projectId],
-    queryFn: () => api.getGbpReviews(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpPhotos(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-photos", projectId],
-    queryFn: () => api.getGbpPhotos(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpPosts(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-posts", projectId],
-    queryFn: () => api.getGbpPosts(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpServices(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-services", projectId],
-    queryFn: () => api.getGbpServices(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-export function useGbpCategories(projectId: string | null) {
-  return useQuery({
-    queryKey: ["gbp-categories", projectId],
-    queryFn: () => api.getGbpCategories(projectId!),
-    enabled: Boolean(projectId),
-    retry: false,
-  });
-}
-
-/**
- * The picker's list. Unlike every other Business Profile read this one calls
- * Google live, so it is only fetched when a picker is actually on screen.
- */
-export function useGbpLocations(projectId: string | null, enabled = true) {
-  return useQuery({
-    queryKey: ["gbp-locations", projectId],
-    queryFn: () => api.getGbpLocations(projectId!),
-    enabled: Boolean(projectId) && enabled,
-    retry: false,
-  });
-}
 
 /** Starts the real Google consent flow. The caller navigates to the URL returned. */
 export function useAuthorizeGoogleProvider(projectId: string | null) {
@@ -336,24 +233,11 @@ export function useSelectGoogleResource(projectId: string | null) {
       resourceId: string;
       resourceName: string;
     }) => api.selectGoogleResource(projectId!, provider, resourceId, resourceName),
-    onSuccess: () => invalidateGbp(qc, projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["google-integrations", projectId] }),
   });
 }
 
-export function useSyncBusinessProfile(projectId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (days?: number) => api.syncBusinessProfile(projectId!, days),
-    onSuccess: () => {
-      invalidateGbp(qc, projectId);
-      // The public listing refresh also updates the tracked location's rating.
-      qc.invalidateQueries({ queryKey: ["local-seo", projectId] });
-    },
-    // A sync that Business Profile refused still records that refusal on the
-    // connection, which every tab reads.
-    onError: () => invalidateGbp(qc, projectId),
-  });
-}
+
 
 /** One Maps search from this project's listing. A mutation: each search is a billed Places call. */
 export function usePlacesCompetitors(projectId: string | null) {
@@ -367,7 +251,7 @@ export function useDisconnectGoogleProvider(projectId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (provider: string) => api.disconnectGoogleProvider(projectId!, provider),
-    onSuccess: () => invalidateGbp(qc, projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["google-integrations", projectId] }),
   });
 }
 

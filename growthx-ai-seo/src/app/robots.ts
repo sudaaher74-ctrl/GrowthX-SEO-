@@ -13,7 +13,6 @@ export default function robots(): MetadataRoute.Robots {
         "/competitor-intelligence",
         "/ai-visibility",
         "/google",
-        "/google-business-profile",
         "/fix-engine",
         "/reports",
         "/settings",

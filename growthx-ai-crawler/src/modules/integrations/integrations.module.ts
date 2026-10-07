@@ -7,10 +7,6 @@ import { SearchConsoleService } from './google/search-console.service';
 import { SearchConsoleInsightsService } from './google/search-console-insights.service';
 import { SearchDemandService } from './google/search-demand.service';
 import { SearchConsoleController } from './google/search-console.controller';
-import { BusinessProfileService } from './google/business-profile.service';
-import { BusinessProfileV4Service } from './google/business-profile-v4.service';
-import { BusinessProfileInsightsService } from './google/business-profile-insights.service';
-import { BusinessProfileController } from './google/business-profile.controller';
 import { PlacesListingService } from './google/places-listing.service';
 import { GoogleSyncScheduler } from './google/google-sync.scheduler';
 import { AnalyticsService } from './google/analytics.service';
@@ -19,15 +15,6 @@ import { AnalyticsReportService } from './google/analytics-report.service';
 import { AnalyticsController } from './google/analytics.controller';
 import { DatabaseModule } from '../../database/database.module';
 
-/**
- * Google Business Profile used to be served by two more providers here —
- * GoogleBusinessService and GbpService — each with its own OAuth round trip.
- * Both wrote `tokens.access_token` straight into `Integration.accessToken`, a
- * column every other connector fills with AES-256-GCM ciphertext, and one of
- * them authenticated its callback with an unsigned base64 state. They are gone:
- * Business Profile is now the `business_profile` provider on the shared Google
- * OAuth subsystem, which encrypts tokens and signs state like the rest.
- */
 @Module({
   imports: [DatabaseModule],
   providers: [
@@ -39,9 +26,6 @@ import { DatabaseModule } from '../../database/database.module';
     AnalyticsService,
     AnalyticsInsightsService,
     AnalyticsReportService,
-    BusinessProfileService,
-    BusinessProfileV4Service,
-    BusinessProfileInsightsService,
     PlacesListingService,
     GoogleSyncScheduler,
   ],
@@ -51,7 +35,6 @@ import { DatabaseModule } from '../../database/database.module';
     GoogleOAuthCallbackController,
     SearchConsoleController,
     AnalyticsController,
-    BusinessProfileController,
   ],
   exports: [
     GoogleOAuthService,
@@ -65,11 +48,6 @@ import { DatabaseModule } from '../../database/database.module';
     AnalyticsService,
     AnalyticsInsightsService,
     AnalyticsReportService,
-    // Local SEO reads and writes the customer's profile through this — the
-    // auditor to read it, the fix pusher to patch it.
-    BusinessProfileService,
-    BusinessProfileV4Service,
-    BusinessProfileInsightsService,
     // The public Maps listing: what Local SEO audits and searches from while
     // Business Profile access waits on Google's approval.
     PlacesListingService,

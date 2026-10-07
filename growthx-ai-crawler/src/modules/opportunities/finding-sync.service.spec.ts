@@ -7,7 +7,6 @@ describe('FindingSyncService', () => {
   let service: FindingSyncService;
   let mockPrisma: any;
   let mockWebsiteAdapter: any;
-  let mockGbpAdapter: any;
   let mockCompetitorAdapter: any;
   let mockAiVisAdapter: any;
 
@@ -43,14 +42,12 @@ describe('FindingSyncService', () => {
     };
 
     mockWebsiteAdapter = { source: 'WEBSITE', collect: jest.fn().mockResolvedValue([sampleFinding]) };
-    mockGbpAdapter = { source: 'LOCAL', collect: jest.fn().mockResolvedValue([]) };
     mockCompetitorAdapter = { source: 'COMPETITOR', collect: jest.fn().mockResolvedValue([]) };
     mockAiVisAdapter = { source: 'MARKET', collect: jest.fn().mockResolvedValue([]) };
 
     service = new FindingSyncService(
       mockPrisma as unknown as PrismaService,
       mockWebsiteAdapter,
-      mockGbpAdapter,
       mockCompetitorAdapter,
       mockAiVisAdapter,
     );

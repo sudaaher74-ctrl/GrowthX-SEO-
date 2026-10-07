@@ -49,7 +49,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { id: "nav-google", title: "Google", category: "Navigation", icon: SearchIcon, href: "/google", subtitle: "Search Console and Analytics, in one place" },
     { id: "nav-ai", title: "AI Visibility", category: "Navigation", icon: Eye, href: "/ai-visibility", subtitle: "How ChatGPT, Gemini, Perplexity and Claude describe you" },
     { id: "nav-fix", title: "Fix Engine", category: "Navigation", icon: Wrench, href: "/fix-engine", subtitle: "Your improvement plan, and changes as a pull request" },
-    { id: "nav-gbp", title: "Google Business Profile", category: "Navigation", icon: Store, href: "/google-business-profile", subtitle: "Audit, photos, reviews, categories, services & Maps 3-Pack" },
     { id: "nav-reports", title: "Website report", category: "Navigation", icon: FileSpreadsheet, href: "/website?tab=report", subtitle: "Your full website audit report, ready to download" },
     { id: "nav-integrations", title: "Integrations", category: "Navigation", icon: GitBranch, href: "/integrations", subtitle: "Connect Google, GitHub & CRM sources" },
     { id: "nav-settings", title: "Settings", category: "Navigation", icon: Settings, href: "/settings", subtitle: "Workspace configuration & team" },
@@ -65,7 +64,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     // is a route in this app — the palette was written before it was mounted,
     // so nobody ever clicked them into a 404.
     { id: "act-sync", title: "Sync Google Search Console Data", category: "Quick Actions", icon: RefreshCw, action: () => { router.push("/google"); }, subtitle: "Fetch the latest search queries" },
-    { id: "act-local", title: "Analyze Local Presence", category: "Quick Actions", icon: MapPin, action: () => { router.push("/google-business-profile"); }, subtitle: "Google Business Profile rankings & audit" },
   ], [router]);
 
   const filteredItems = useMemo(() => {

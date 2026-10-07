@@ -3,11 +3,10 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service';
 import { SearchConsoleService } from './search-console.service';
 import { AnalyticsService } from './analytics.service';
-import { BusinessProfileService } from './business-profile.service';
 
 /**
- * Keeps connected Google sources — Search Console, Analytics and Business
- * Profile — up to date, off the request path.
+ * Keeps connected Google sources — Search Console and Analytics
+ * up to date, off the request path.
  *
  * A sync paginates through months of rows and can take minutes; doing it
  * inside a page request would time out and would re-fetch the same data for
@@ -34,7 +33,6 @@ export class GoogleSyncScheduler {
     private readonly prisma: PrismaService,
     private readonly searchConsole: SearchConsoleService,
     private readonly analytics: AnalyticsService,
-    private readonly businessProfile: BusinessProfileService,
   ) {}
 
   /**
@@ -52,16 +50,12 @@ export class GoogleSyncScheduler {
     try {
       const connections = await this.prisma.integration.findMany({
         where: {
-          provider: { in: ['search_console', 'analytics', 'business_profile'] },
+          provider: { in: ['search_console', 'analytics'] },
           // Only connections that can actually be read. NEEDS_REAUTH and
           // NEEDS_SELECTION are states a person has to resolve; retrying them
           // on a timer burns quota and buries the real failures in the log.
           //
-          // ERROR is excluded for the same reason, which for Business Profile
-          // means a connection parked on "pending Google's approval" is not
-          // re-tried nightly. That is deliberate — the wait is measured in
-          // weeks — and pressing Sync on the page retries immediately and
-          // clears the state the moment Google answers.
+          // ERROR is excluded for the same reason.
           status: 'CONNECTED',
           selectedResourceId: { not: null },
         },
@@ -76,15 +70,10 @@ export class GoogleSyncScheduler {
       // exhaust it and fail all of them instead of some.
       for (const { projectId, provider } of connections) {
         try {
-          // Business Profile counts records per source rather than rows in one
-          // table, so its result is summarised rather than assumed to carry a
-          // rowsWritten.
           const summary =
             provider === 'analytics'
               ? describe(await this.analytics.sync(projectId))
-              : provider === 'business_profile'
-                ? describeBusinessProfile(await this.businessProfile.sync(projectId))
-                : describe(await this.searchConsole.sync(projectId));
+              : describe(await this.searchConsole.sync(projectId));
           await this.prisma.integration.update({
             where: { projectId_provider: { projectId, provider } },
             data: { nextSyncAt: nextRun() },

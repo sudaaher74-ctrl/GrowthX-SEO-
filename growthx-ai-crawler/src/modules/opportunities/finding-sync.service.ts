@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { FindingLifecycle, Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
-import { GbpAdapter } from '../local-seo/gbp.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
 import { FindingAdapter, NormalisedFinding } from './finding-adapter.interface';
@@ -21,13 +20,11 @@ export class FindingSyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly websiteAuditAdapter: WebsiteAuditAdapter,
-    private readonly gbpAdapter: GbpAdapter,
     private readonly competitorAdapter: CompetitorAdapter,
     private readonly aiVisibilityAdapter: AiVisibilityAdapter,
   ) {
     this.adapters = [
       this.websiteAuditAdapter,
-      this.gbpAdapter,
       this.competitorAdapter,
       this.aiVisibilityAdapter,
     ];

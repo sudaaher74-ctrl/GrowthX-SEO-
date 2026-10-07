@@ -14,7 +14,6 @@ import { LifecycleService } from './lifecycle.service';
 import { FindingsController } from './findings.controller';
 import { FindingSyncService } from './finding-sync.service';
 import { WebsiteAuditAdapter } from '../issues/website-audit.adapter';
-import { GbpAdapter } from '../local-seo/gbp.adapter';
 import { CompetitorAdapter } from '../market-intelligence/competitor.adapter';
 import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
 
@@ -37,7 +36,6 @@ import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
     GrowthConsultantService,
     LifecycleService,
     WebsiteAuditAdapter,
-    GbpAdapter,
     CompetitorAdapter,
     AiVisibilityAdapter,
     FindingSyncService,
@@ -55,7 +53,6 @@ import { AiVisibilityAdapter } from '../ai-visibility/ai-visibility.adapter';
     LifecycleService,
     FindingSyncService,
     WebsiteAuditAdapter,
-    GbpAdapter,
     CompetitorAdapter,
     AiVisibilityAdapter,
   ],

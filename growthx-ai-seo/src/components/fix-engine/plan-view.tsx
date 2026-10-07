@@ -111,7 +111,7 @@ export function PlanView() {
             <NoDataState
               compact
               title={items.length === 0 ? "No findings yet" : "Nothing open here"}
-              missing={items.length === 0 ? "The plan is built from your website audit, Google data, competitors, AI Visibility and Business Profile." : "Every finding in this group is dismissed or resolved."}
+              missing={items.length === 0 ? "The plan is built from your website audit, Google data, competitors and AI Visibility." : "Every finding in this group is dismissed or resolved."}
               whyItMatters="Each tab feeds this plan once it has data."
               actionRequired={items.length === 0 ? "Complete the earlier steps, then press Refresh plan." : "Choose another group, or press Refresh plan."}
             />

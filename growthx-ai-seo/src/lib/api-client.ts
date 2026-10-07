@@ -476,28 +476,7 @@ export const api = {
       `/api/projects/${projectId}/integrations/google/${provider}`,
     ),
 
-  // ── Google Business Profile: synced data
-  getGbpLocations: (projectId: string) =>
-    get<GbpLocationList>(`/api/projects/${projectId}/business-profile/locations`),
-  syncBusinessProfile: (projectId: string, days?: number) =>
-    post<GbpSyncResult>(
-      `/api/projects/${projectId}/business-profile/sync${days ? `?days=${days}` : ""}`,
-      {},
-    ),
-  getGbpOverview: (projectId: string) =>
-    get<GbpOverview>(`/api/projects/${projectId}/business-profile/overview`),
-  getGbpMetrics: (projectId: string, days = 28) =>
-    get<GbpMetrics>(`/api/projects/${projectId}/business-profile/metrics?days=${days}`),
-  getGbpReviews: (projectId: string) =>
-    get<GbpReviews>(`/api/projects/${projectId}/business-profile/reviews`),
-  getGbpPhotos: (projectId: string) =>
-    get<GbpPhotos>(`/api/projects/${projectId}/business-profile/photos`),
-  getGbpPosts: (projectId: string) =>
-    get<GbpPosts>(`/api/projects/${projectId}/business-profile/posts`),
-  getGbpServices: (projectId: string) =>
-    get<GbpServices>(`/api/projects/${projectId}/business-profile/services`),
-  getGbpCategories: (projectId: string) =>
-    get<GbpCategories>(`/api/projects/${projectId}/business-profile/categories`),
+
   /** Who Google Maps shows for a search, around this project's listing. Public Places data. */
   getPlacesCompetitors: (projectId: string, keyword: string, radiusKm?: number) =>
     post<PlacesCompetitorSearch>(`/api/projects/${projectId}/local-seo/places/competitors`, {

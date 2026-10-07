@@ -325,7 +325,7 @@ function IntegrationsClient() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-[14px] font-bold text-brand-950">Google Business Profile & Places</h3>
+                  <h3 className="text-[14px] font-bold text-brand-950">Google Places</h3>
                   <MetricBadge state={localSeo.data ? "MEASURED" : "NOT_CONNECTED"} />
                 </div>
                 <p className="text-[12px] text-brand-500 mt-0.5">
@@ -342,17 +342,6 @@ function IntegrationsClient() {
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <Link
-                href="/google-business-profile"
-                className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50 transition"
-              >
-                Manage in Google Business Profile
-                <ExternalLink size={12} />
-              </Link>
-            </div>
-          </div>
         </div>
 
         {/* 4. GitHub Code Repository */}
@@ -477,6 +466,7 @@ function IntegrationsClient() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

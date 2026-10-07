@@ -61,7 +61,7 @@ export function PlanReport() {
       title="Complete improvement plan"
       clientName={clientName}
       domain={domain}
-      intro="Every problem and opportunity found across your website audit, Google data, competitors, AI visibility and Business Profile, ranked by impact, each with the evidence and what to do."
+      intro="Every problem and opportunity found across your website audit, Google data, competitors and AI visibility, ranked by impact, each with the evidence and what to do."
     >
       <ReportSection title="Summary">
         <ReportKpis items={[

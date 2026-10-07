@@ -3,10 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { LocalSeoService } from './local-seo.service';
-import { GbpAnalyzerService } from './gbp-analyzer.service';
-import { GbpAutofixService } from './gbp-autofix.service';
 import { GeoGridService, GeoGridScanRequest } from './geo-grid.service';
-import { ReviewsService } from './reviews.service';
 import { PlacesListingService } from '../integrations/google/places-listing.service';
 
 @Controller('api/projects/:projectId/local-seo')
@@ -15,10 +12,7 @@ import { PlacesListingService } from '../integrations/google/places-listing.serv
 export class LocalSeoController {
   constructor(
     private readonly localSeoService: LocalSeoService,
-    private readonly gbpAnalyzer: GbpAnalyzerService,
-    private readonly gbpAutofix: GbpAutofixService,
     private readonly geoGridService: GeoGridService,
-    private readonly reviewsService: ReviewsService,
     private readonly placesListing: PlacesListingService,
   ) {}
 
@@ -72,27 +66,6 @@ export class LocalSeoController {
     return this.localSeoService.listLocations(projectId);
   }
 
-  @Post('gbp/analyze')
-  async analyzeGbp(@Param('projectId') projectId: string, @Req() req: any) {
-    return this.gbpAnalyzer.analyzeProfile(projectId, req.user?.organizationId || req.organizationId);
-  }
-
-  @Roles(Role.OWNER, Role.ADMIN)
-  @Post('gbp/fix/:proposalId/approve')
-  async approveFix(@Param('projectId') projectId: string, @Param('proposalId') proposalId: string) {
-    return this.gbpAutofix.approveAndPushFix(proposalId, projectId);
-  }
-
-  @Post('gbp/fix/:proposalId/reject')
-  async rejectFix(@Param('projectId') projectId: string, @Param('proposalId') proposalId: string) {
-    return this.gbpAutofix.rejectFix(proposalId, projectId);
-  }
-
-  @Get('gbp/proposals')
-  async getProposals(@Param('projectId') projectId: string) {
-    return this.localSeoService.getProposals(projectId);
-  }
-
   /** Previous geo-grid runs, newest first. A single grid is a snapshot. */
   @Get('geo-grid/history')
   async geoGridHistory(
@@ -119,32 +92,4 @@ export class LocalSeoController {
     return this.geoGridService.runGeoGridScan(projectId, orgId, body);
   }
 
-  @Get('reviews')
-  async getReviews(@Param('projectId') projectId: string) {
-    return this.reviewsService.getReviews(projectId);
-  }
-
-  @Post('reviews/sync')
-  async syncReviews(@Param('projectId') projectId: string) {
-    return this.reviewsService.syncReviews(projectId);
-  }
-
-  @Post('reviews/:reviewId/draft')
-  async draftReviewReply(
-    @Param('projectId') projectId: string,
-    @Param('reviewId') reviewId: string,
-    @Body() body?: { tone?: string },
-  ) {
-    return this.reviewsService.draftReply(projectId, reviewId, body?.tone);
-  }
-
-  @Roles(Role.OWNER, Role.ADMIN)
-  @Post('reviews/:reviewId/publish')
-  async publishReviewReply(
-    @Param('projectId') projectId: string,
-    @Param('reviewId') reviewId: string,
-    @Body() body: { replyText: string }
-  ) {
-    return this.reviewsService.publishReply(projectId, reviewId, body.replyText);
-  }
 }

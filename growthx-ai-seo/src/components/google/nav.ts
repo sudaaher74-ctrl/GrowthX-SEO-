@@ -1,8 +1,6 @@
 /**
  * The Google section's views, in the order they are shown.
  *
- * Google Business Profile is not listed: it has its own sidebar entry, and
- * /google/business-profile stays only as the return address of its connect flow.
  *
  * Every view here is built. `built` stays on the type so a planned view can be
  * listed, with a "soon" badge, before it exists.

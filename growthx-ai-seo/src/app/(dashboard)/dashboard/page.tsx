@@ -42,7 +42,7 @@ import {
   ChannelShare,
   normalizeTrend,
 } from "@/components/dashboard/traffic-charts";
-import { ReviewsSummary } from "@/components/dashboard/reviews-summary";
+
 
 type MetricKey = "searchClicks" | "impressions" | "sessions" | "conversions";
 
@@ -128,7 +128,6 @@ export default function UnifiedDashboardPage() {
 
   const hasWebsite = Boolean(client?.domain);
   const hasCompetitors = Boolean((trackedCompetitors.data?.length ?? 0) > 0);
-  const hasGbp = Boolean(executive.data?.connections?.businessProfile || localSeo.data);
 
   const setupSteps: SetupStep[] = [
     {
@@ -159,13 +158,7 @@ export default function UnifiedDashboardPage() {
       href: "/integrations",
       cta: "Connect",
     },
-    {
-      label: "Connect your Google Business Profile",
-      why: "Brings your star rating and customer reviews into this page.",
-      done: hasGbp,
-      href: "/google-business-profile",
-      cta: "Connect",
-    },
+
     {
       label: "Add your competitors",
       why: "Lets us show where competitors are ahead of you, and how to catch up.",
@@ -587,30 +580,7 @@ export default function UnifiedDashboardPage() {
         )}
       </section>
 
-      {/* Row 4: reviews and where visitors come from, then the full GA4 traffic. */}
-      <div className={cn("grid gap-3.5", hasChannels && "lg:grid-cols-2")}>
-      <Card id="reviews" className="flex flex-col gap-3.5">
-        <CardHead title="Your Google reviews" subtitle="What customers say about you on Google." />
-        {localSeo.isLoading ? (
-          <LoadingLine text="Loading your reviews…" />
-        ) : !localSeo.data ? (
-          <EmptyPrompt
-            icon={Star}
-            title="Connect your Google Business Profile"
-            body="See your star rating and number of reviews here, and get tips to earn more."
-            action={{ label: "Connect", href: "/google-business-profile" }}
-          />
-        ) : (
-          <ReviewsSummary
-            businessName={localSeo.data.businessName}
-            rating={localSeo.data.rating}
-            reviewCount={localSeo.data.reviewCount}
-            updatedAt={localSeo.data.updatedAt}
-          />
-        )}
-      </Card>
-      {ga4Data && hasChannels && <ChannelShare data={ga4Data} days={ga4.days} />}
-      </div>
+
 
       {/* GA4 traffic — real figures from the customer's own property, or the reason there are none. */}
       <Ga4Overview projectId={projectId} />
