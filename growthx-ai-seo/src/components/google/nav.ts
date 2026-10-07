@@ -43,7 +43,6 @@ export const GOOGLE_VIEWS: GoogleView[] = [
     built: true,
     will: "Sarvam reads Search Console and Analytics 4, says where you stand, and lists what to do first.",
   },
-  { id: "overview", group: "analysis", label: "Combined overview", href: "/google/overview", built: true, will: "How Google visibility turns into traffic, engagement and results." },
   {
     id: "search-performance", group: "search-console",
     label: "Search Performance",

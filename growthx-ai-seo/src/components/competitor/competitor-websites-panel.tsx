@@ -54,7 +54,7 @@ export function CompetitorWebsitesPanel({
 
   const recrawlMutation = useMutation({
     mutationFn: ({ competitorId, domain: _d }: { competitorId: string; domain: string }) =>
-      api.crawlCompetitorSite(projectId, competitorId, { force: true }),
+      api.crawlCompetitorSite(projectId, competitorId),
     onMutate: ({ competitorId, domain }) => {
       setCrawlingCompId(competitorId);
       setPanelMessage(`Starting re-crawl for ${domain}…`);
@@ -95,7 +95,7 @@ export function CompetitorWebsitesPanel({
     setPanelMessage(`Starting re-crawl for ${toCrawl.length} competitor website${toCrawl.length > 1 ? "s" : ""}…`);
     try {
       const results = await Promise.allSettled(
-        toCrawl.map((c) => api.crawlCompetitorSite(projectId, c.competitorId!, { force: true }))
+        toCrawl.map((c) => api.crawlCompetitorSite(projectId, c.competitorId!))
       );
       const failed = results.filter((result) => result.status === "rejected").length;
       const queued = results.length - failed;
@@ -195,8 +195,11 @@ function SiteCard({
   isRecrawling?: boolean;
 }) {
   const you = site.role === "you";
+  const displayName = (site.name || site.domain || (you ? "Your website" : "Competitor")).trim();
+  const displayDomain = (site.domain || displayName).trim();
+  const pageTypes = Array.isArray(site.pageTypes) ? site.pageTypes : [];
   const initials =
-    site.name
+    displayName
       .split(/\s+/)
       .slice(0, 2)
       .map((w) => w[0]?.toUpperCase() ?? "")
@@ -237,7 +240,7 @@ function SiteCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="truncate text-[14.5px] font-bold text-brand-950 tracking-tight">
-                  {site.name}
+                  {displayName}
                 </h3>
                 {you ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-signal-400/15 border border-signal-400/30 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-signal-400 shrink-0">
@@ -251,12 +254,12 @@ function SiteCard({
                 )}
               </div>
               <a
-                href={`https://${site.domain}`}
+                href={`https://${displayDomain}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-brand-400 hover:text-signal-400 transition-colors group/link truncate"
               >
-                <span>{site.domain}</span>
+                <span>{displayDomain}</span>
                 <ExternalLink size={10} className="shrink-0 opacity-50 group-hover/link:opacity-100 transition-opacity" />
               </a>
             </div>
@@ -267,10 +270,10 @@ function SiteCard({
             {!you && site.competitorId && (
               <button
                 type="button"
-                onClick={() => onRecrawl?.(site.competitorId!, site.domain)}
+                onClick={() => onRecrawl?.(site.competitorId!, displayDomain)}
                 disabled={ACTIVE.includes(site.status) || isRecrawling}
-                title={ACTIVE.includes(site.status) ? "Crawl currently in progress" : `Re-crawl ${site.name} website now`}
-                aria-label={`Re-crawl ${site.name}`}
+                title={ACTIVE.includes(site.status) ? "Crawl currently in progress" : `Re-crawl ${displayName} website now`}
+                aria-label={`Re-crawl ${displayName}`}
                 className="rounded-lg border border-brand-200/60 bg-surface-1 p-1.5 text-brand-500 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-2xs"
               >
                 <RotateCw size={12} className={ACTIVE.includes(site.status) || isRecrawling ? "animate-spin text-signal-400" : ""} />
@@ -367,7 +370,7 @@ function SiteCard({
         </div>
 
         {/* Page Architecture */}
-        <PageKinds site={site} />
+        <PageKinds site={site} pageTypes={pageTypes} />
 
         {/* Not Opened Note if any */}
         <NotOpenedNote site={site} />
@@ -407,9 +410,9 @@ function SiteCard({
               {site.competitorId && (
                 <button
                   type="button"
-                  onClick={() => onRecrawl?.(site.competitorId!, site.domain)}
+                  onClick={() => onRecrawl?.(site.competitorId!, displayDomain)}
                   disabled={ACTIVE.includes(site.status) || isRecrawling}
-                  title={ACTIVE.includes(site.status) ? "Reading their pages…" : `Re-crawl ${site.name}'s website now`}
+                  title={ACTIVE.includes(site.status) ? "Reading their pages…" : `Re-crawl ${displayName}'s website now`}
                   className="inline-flex items-center gap-1 rounded-lg border border-brand-200/60 bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 hover:text-brand-950 hover:border-brand-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
                 >
                   <RotateCw size={11} className={ACTIVE.includes(site.status) || isRecrawling ? "animate-spin text-signal-400" : "text-brand-400"} />
@@ -472,8 +475,9 @@ function StatusBadge({ site }: { site: CompetitorWebsite }) {
 }
 
 /** What the site is made of, as a sleek segmented bar and balanced category grid. */
-function PageKinds({ site }: { site: CompetitorWebsite }) {
-  const total = site.pageTypes.reduce((sum, t) => sum + t.count, 0);
+function PageKinds({ site, pageTypes }: { site: CompetitorWebsite; pageTypes?: CompetitorWebsite["pageTypes"] }) {
+  const safePageTypes = Array.isArray(pageTypes) ? pageTypes : [];
+  const total = safePageTypes.reduce((sum, t) => sum + (Number.isFinite(t.count) ? t.count : 0), 0);
   if (total === 0) {
     return (
       <div className="rounded-lg border border-dashed p-3 text-center" style={{ borderColor: "var(--border-color)" }}>
@@ -488,8 +492,8 @@ function PageKinds({ site }: { site: CompetitorWebsite }) {
     );
   }
 
-  const shown = site.pageTypes.slice(0, TYPES_SHOWN);
-  const rest = site.pageTypes.slice(TYPES_SHOWN).reduce((sum, t) => sum + t.count, 0);
+  const shown = safePageTypes.slice(0, TYPES_SHOWN);
+  const rest = safePageTypes.slice(TYPES_SHOWN).reduce((sum, t) => sum + (Number.isFinite(t.count) ? t.count : 0), 0);
   const segments = [
     ...shown.map((t, i) => ({
       key: t.type,

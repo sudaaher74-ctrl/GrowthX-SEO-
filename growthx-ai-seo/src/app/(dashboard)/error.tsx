@@ -18,10 +18,10 @@ import { AlertTriangle, RotateCw, LayoutDashboard } from "lucide-react";
 
 export default function DashboardError({
   error,
-  unstable_retry,
+  reset,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  reset: () => void;
 }) {
   useEffect(() => {
     // Production strips the message off server-thrown errors, so the digest is
@@ -56,7 +56,7 @@ export default function DashboardError({
         <div className="mt-6 flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => unstable_retry()}
+            onClick={() => reset()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-[12px] font-bold text-white shadow-sm transition-colors hover:bg-black"
           >
             <RotateCw size={13} />

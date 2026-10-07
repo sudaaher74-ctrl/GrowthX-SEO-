@@ -43,14 +43,13 @@ const LEGACY_TAB_MAP: Record<string, string> = {
   "ai-answers": "battleground",
 };
 
-/**
- * Live crawl progress strip shown below the page header while one or more
- * competitors are being crawled. It polls automatically via the query's
- * refetchInterval and disappears once all crawls complete.
- */
 /** A crawl job the server has queued or is running. JobStatus is PENDING | RUNNING | COMPLETED | FAILED | CANCELLED. */
 function isReading(c: TrackedCompetitor): boolean {
   return c.crawlStatus === "RUNNING" || c.crawlStatus === "PENDING";
+}
+
+function competitorLabel(c: TrackedCompetitor): string {
+  return c.name?.trim() || c.domain?.trim() || c.label?.trim() || "Competitor";
 }
 
 function CrawlStatusStrip({
@@ -100,82 +99,91 @@ function CrawlStatusStrip({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {crawling.map((c) => (
-          <div
-            key={c.id}
-            className="flex items-center gap-2.5 rounded-xl border bg-surface-2 px-3 py-2"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-[10px] font-bold text-brand-950">
-              {(c.name ?? c.domain ?? "C")[0].toUpperCase()}
+        {crawling.map((c) => {
+          const label = competitorLabel(c);
+          return (
+            <div
+              key={c.id}
+              className="flex items-center gap-2.5 rounded-xl border bg-surface-2 px-3 py-2"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-[10px] font-bold text-brand-950">
+                {label.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11.5px] font-semibold text-brand-950">{label}</p>
+                <p className="text-[10.5px] text-brand-400">
+                  {c.crawlStatus === "PENDING" ? "Waiting to start…" : "Reading their pages…"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Loader2 size={11} className="animate-spin text-signal-400" />
+                <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-brand-400">
-                {c.crawlStatus === "PENDING" ? "Waiting to start…" : "Reading their pages…"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin text-signal-400" />
-              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
-        {done.map((c) => (
-          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-success-200/50 bg-success-50/50 px-3 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-success-100 text-success-600">
-              <CheckCircle2 size={14} />
+        {done.map((c) => {
+          const label = competitorLabel(c);
+          return (
+            <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-success-200/50 bg-success-50/50 px-3 py-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-success-100 text-success-600">
+                <CheckCircle2 size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11.5px] font-semibold text-brand-950">{label}</p>
+                <p className="text-[10.5px] text-success-700">
+                  {c.pagesCrawled ? `Done: ${c.pagesCrawled.toLocaleString()} pages read` : "Done"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {onRecrawl && (
+                  <button
+                    type="button"
+                    onClick={() => onRecrawl(c)}
+                    aria-label={`Re-crawl ${label}`}
+                    title={`Re-crawl ${label}'s website`}
+                    className="rounded-md p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-950 transition-colors"
+                  >
+                    <RotateCw size={12} />
+                  </button>
+                )}
+                <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-success-700">
-                {c.pagesCrawled ? `Done: ${c.pagesCrawled.toLocaleString()} pages read` : "Done"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {onRecrawl && (
-                <button
-                  type="button"
-                  onClick={() => onRecrawl(c)}
-                  aria-label={`Re-crawl ${c.name ?? c.domain}`}
-                  title={`Re-crawl ${c.name ?? c.domain}'s website`}
-                  className="rounded-md p-1 text-brand-400 hover:bg-brand-100 hover:text-brand-950 transition-colors"
-                >
-                  <RotateCw size={12} />
-                </button>
-              )}
-              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
-        {failed.map((c) => (
-          <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-error-200/50 bg-error-50/50 px-3 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-error-100 text-error-600">
-              <AlertTriangle size={14} />
+        {failed.map((c) => {
+          const label = competitorLabel(c);
+          return (
+            <div key={c.id} className="flex items-center gap-2.5 rounded-xl border border-error-200/50 bg-error-50/50 px-3 py-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-error-100 text-error-600">
+                <AlertTriangle size={14} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11.5px] font-semibold text-brand-950">{label}</p>
+                <p className="text-[10.5px] text-error-700">
+                  {c.crawlError ? `Failed: ${c.crawlError}` : "Crawl failed"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {onRecrawl && (
+                  <button
+                    type="button"
+                    onClick={() => onRecrawl(c)}
+                    className="inline-flex items-center gap-1 rounded-md bg-white border border-error-200 px-2 py-1 text-[10.5px] font-semibold text-error-700 hover:bg-error-50 shadow-2xs transition-colors"
+                  >
+                    <RotateCw size={10} />
+                    <span>Retry</span>
+                  </button>
+                )}
+                <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11.5px] font-semibold text-brand-950">{c.name ?? c.domain}</p>
-              <p className="text-[10.5px] text-error-700">
-                {c.crawlError ? `Failed: ${c.crawlError}` : "Crawl failed"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {onRecrawl && (
-                <button
-                  type="button"
-                  onClick={() => onRecrawl(c)}
-                  className="inline-flex items-center gap-1 rounded-md bg-white border border-error-200 px-2 py-1 text-[10.5px] font-semibold text-error-700 hover:bg-error-50 shadow-2xs transition-colors"
-                >
-                  <RotateCw size={10} />
-                  <span>Retry</span>
-                </button>
-              )}
-              <RemoveCompetitorButton competitor={c} onRemove={onRemove} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="mt-2.5 text-[10.5px] text-brand-400">
@@ -192,7 +200,7 @@ function RemoveCompetitorButton({
   competitor: TrackedCompetitor;
   onRemove: (competitor: TrackedCompetitor) => void;
 }) {
-  const name = competitor.name ?? competitor.domain;
+  const name = competitorLabel(competitor);
   return (
     <button
       type="button"
@@ -277,7 +285,6 @@ function CompetitorIntelligenceClient() {
     }
   };
 
-
   // Add Competitor modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [competitorDomain, setCompetitorDomain] = useState("");
@@ -297,7 +304,7 @@ function CompetitorIntelligenceClient() {
   const competitorsList = competitorsQuery.data ?? [];
 
   const crawlCompetitorMutation = useMutation({
-    mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId, { force: true }),
+    mutationFn: (competitorId: string) => api.crawlCompetitorSite(projectId!, competitorId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["competitors", projectId] });
       qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
@@ -350,7 +357,7 @@ function CompetitorIntelligenceClient() {
 
   const askToRemove = (c: TrackedCompetitor) => {
     setDeleteError("");
-    setCompetitorToDelete({ id: c.id, name: c.name || c.label || c.domain });
+    setCompetitorToDelete({ id: c.id, name: competitorLabel(c) });
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -374,9 +381,7 @@ function CompetitorIntelligenceClient() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── BREADCRUMB & SUB-NAVIGATION BAR ── */}
       <div className="space-y-4">
-        {/* Breadcrumb row */}
         <div className="flex items-center gap-2 text-xs font-semibold text-brand-400">
           <Link href="/dashboard" className="flex items-center gap-1 hover:text-brand-950 transition">
             <Home className="h-3.5 w-3.5" />
@@ -410,7 +415,6 @@ function CompetitorIntelligenceClient() {
           </div>
         </div>
 
-        {/* Global Horizontal Sub-navigation Pill Strip */}
         <div
           role="tablist"
           aria-label="Competitor intelligence tabs"
@@ -440,8 +444,6 @@ function CompetitorIntelligenceClient() {
         </div>
       </div>
 
-
-      {/* ── REAL-TIME CRAWL STATUS STRIP ── */}
       <CrawlStatusStrip
         competitors={competitorsList}
         onRemove={askToRemove}
@@ -492,7 +494,6 @@ function CompetitorIntelligenceClient() {
               />
       )}
 
-
       {activeTab === "counter-moves" && (
         <CounterMoveDrafts projectId={projectId || ""} onOpenTab={(tab) => setActiveTab(tab)} />
       )}
@@ -505,7 +506,6 @@ function CompetitorIntelligenceClient() {
             : <CompetitorReportTab projectId={projectId || ""} rivalCount={competitorsList.length} />
       )}
 
-      {/* ── ADD COMPETITOR MODAL ── */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div
@@ -592,7 +592,6 @@ function CompetitorIntelligenceClient() {
         </div>
       )}
 
-      {/* ── DELETE COMPETITOR CONFIRMATION ── */}
       {competitorToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div
