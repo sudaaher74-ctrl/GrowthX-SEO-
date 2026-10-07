@@ -110,6 +110,11 @@ export interface VisibilityReport {
   measurableAssistants: string[];
   /** Questions that name the brand. Reported apart; never part of citation share. */
   reputation?: { checked: number; cited: number };
+  brandPerception?: { positive: number; neutral: number; negative: number; total: number };
+  customerJourney?: {
+    discovery: { checked: number; cited: number; citationSharePct: number };
+    recommendation: { checked: number; cited: number; citationSharePct: number };
+  };
 }
 
 export type InsightLevel = "HIGH" | "MEDIUM" | "LOW";

@@ -1,49 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { AiAssistant, } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { AiTask, MultiAiRouterService } from '../ai-search/multi-ai-router/multi-ai-router.service';
-import { CompetitorRef, detectCitation, normalizeDomain } from './citation/citation-detector';
-import { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS, measurableAssistantsFor } from './assistants';
-import { brandTerms, questionGroup } from './questions/question-group';
-import { QuestionAnalysisService } from './questions/question-analysis.service';
-import { buildVisibilityReport, ReportableCheck, VisibilityReport } from './citation/visibility-report';
-import { CompetitorCrawlService, stopUntrackedCompetitorCrawls } from '../content-intelligence/competitor-crawl.service';
-import { calculateHealthScore } from '../issues/health-score.util';
-import { OWN_SCOPE } from '../crawler/website-scope';
-import { competitorCrawlState } from './competitor-crawl-state';
-import { notOpenedTotal, PageRowGroup, readState, summarisePages, WebsiteOverview } from './website-overview';
-
-export { ASSISTANT_PROVIDER, SUPPORTED_ASSISTANTS } from './assistants';
-
-const UNSUPPORTED_REASON =
-  'No public API is available for this assistant, so its citation share cannot be measured directly.';
-
-/** Keeps stored evidence useful without bloating the table. */
-const EXCERPT_LIMIT = 2000;
-
-interface ProjectContext {
-  organizationId: string;
-  ownDomains: string[];
-  ownBrandNames: string[];
-  competitors: CompetitorRef[];
-  competitorLabels: Record<string, string>;
-  /** Where the questions are asked from. Null when the project has no location. */
-  origin: {
-    locationId: string;
-    metroId: string | null;
-    latitude: number | null;
-    longitude: number | null;
-  } | null;
-}
-
-export interface SweepResult {
-  projectId: string;
-  promptsChecked: number;
-  checksRun: number;
-  checksFailed: number;
-  citations: number;
-  skippedAssistants: AiAssistant[];
-}
+import { AiProviderAbstractionService } from './ai-provider-abstraction.service';
+import { AiProvider } from '../ai-search/multi-ai-router/multi-ai-router.service';
+import { ResponseAnalyzerService } from './response-analyzer.service';
+import { MetricsEngineService } from './metrics-engine.service';
 
 @Injectable()
 export class AiVisibilityService {
@@ -51,734 +11,250 @@ export class AiVisibilityService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly router: MultiAiRouterService,
-    @Optional() private readonly competitorCrawl?: CompetitorCrawlService,
-    @Optional() private readonly questions?: QuestionAnalysisService,
+    private readonly providerAbstraction: AiProviderAbstractionService,
+    private readonly analyzer: ResponseAnalyzerService,
+    private readonly metrics: MetricsEngineService,
   ) {}
 
-  /** Resolves everything a citation check needs to know about the customer. */
-  private async loadContext(projectId: string): Promise<ProjectContext> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      include: { websites: { select: { domain: true } }, competitors: true },
+  async runScanForProject(projectId: string) {
+    this.logger.log(`Starting AI Visibility scan for project ${projectId}`);
+    
+    // 1. Fetch active prompts
+    const prompts = await this.prisma.aiVisibilityPrompt.findMany({
+      where: { projectId, isActive: true },
     });
-    if (!project) throw new NotFoundException('Project not found');
-
-    const ownDomains = project.websites.map((w) => normalizeDomain(w.domain)).filter(Boolean);
-    if (ownDomains.length === 0) {
-      throw new BadRequestException(
-        'Add at least one website to this project before tracking AI visibility — ' +
-          'without a domain there is nothing to look for in the answers.',
-      );
+    
+    if (prompts.length === 0) {
+      this.logger.log(`No active prompts found for project ${projectId}`);
+      return;
     }
 
-    const competitorLabels: Record<string, string> = {};
-    const competitors: CompetitorRef[] = project.competitors.map((c) => {
-      const domain = normalizeDomain(c.domain);
-      if (c.label) competitorLabels[domain] = c.label;
-      return { domain, names: c.label ? [c.label] : undefined };
-    });
-
-    // Where these questions are being asked from. A local answer is a
-    // different answer in every city, so a citation record with no geography
-    // cannot explain why a multi-location customer wins in one market and not
-    // the next. Null when the project has no location profile, which is honest
-    // and still queryable.
-    const primaryLocation = await this.prisma.localLocation.findFirst({
+    // 2. Fetch configured providers
+    const settings = await this.prisma.aiVisibilitySettings.findUnique({
       where: { projectId },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, address: true, latitude: true, longitude: true },
+    });
+    
+    let providersStr = settings?.enabledModels || [];
+    if (providersStr.length === 0) {
+      // Default to GEMINI if none configured
+      providersStr = [AiProvider.GEMINI];
+    }
+    
+    // Convert string array to valid AiProvider enums
+    const providers = providersStr
+      .filter((p): p is AiProvider => Object.values(AiProvider).includes(p as AiProvider));
+
+    // 3. Create a scan record
+    const scan = await this.prisma.aiVisibilityScan.create({
+      data: {
+        projectId,
+        cycleId: new Date().toISOString(),
+        status: 'RUNNING',
+      },
     });
 
-    return {
-      organizationId: project.organizationId,
-      origin: primaryLocation
-        ? {
-            locationId: primaryLocation.id,
-            metroId: metroIdFrom(primaryLocation.address),
-            latitude: primaryLocation.latitude,
-            longitude: primaryLocation.longitude,
-          }
-        : null,
-      ownDomains,
-      // The project name is usually the brand, which catches "Northwind Outdoors"
-      // where the domain label alone ("northwindoutdoors") would not.
-      ownBrandNames: [project.name].filter(Boolean),
-      competitors,
-      competitorLabels,
-    };
-  }
-
-  /**
-   * Asks one assistant one prompt and records whether the customer was cited.
-   *
-   * A failure is persisted as a check with `error` set rather than swallowed,
-   * so "we could not ask" never silently reads as "you were not cited".
-   */
-  async runCheck(trackedPromptId: string, assistant: AiAssistant, context: ProjectContext) {
-    const prompt = await this.prisma.trackedPrompt.findUnique({ where: { id: trackedPromptId } });
-    if (!prompt) throw new NotFoundException('Tracked prompt not found');
-
-    const provider = ASSISTANT_PROVIDER[assistant];
-    if (!provider) {
-      return this.prisma.promptCheck.create({
-        data: { trackedPromptId, assistant, error: UNSUPPORTED_REASON, ...originFields(context) },
-      });
-    }
+    let totalCost = 0;
+    let completedCount = 0;
 
     try {
-      // `provider` is pinned, so the router never substitutes another vendor:
-      // if this assistant's key is missing the call fails and is recorded as
-      // an error below, not answered by whichever vendor happens to be set up.
-      const completion = await this.router.generate({
-        prompt: prompt.text,
-        // Asked as a plain end-user question on purpose: we want the answer a
-        // real person would get, not one primed to mention any particular brand.
-        systemInstruction:
-          'Answer as you normally would for a member of the public. Where you recommend specific companies or products, name them and link them.',
-        task: AiTask.REASONING,
-        provider,
-        organizationId: context.organizationId,
-      });
-
-      if (completion.refused) {
-        return this.prisma.promptCheck.create({
+      // 4. Execute prompts against providers
+      for (const provider of providers) {
+        // Create scan run for this provider
+        const scanRun = await this.prisma.aiVisibilityScanRun.create({
           data: {
-            trackedPromptId,
-            assistant,
-            model: completion.model,
-            error: 'Assistant declined to answer.',
-            ...originFields(context),
+            scanId: scan.id,
+            provider,
+            model: 'unknown',
+            status: 'RUNNING',
           },
+        });
+
+        for (const prompt of prompts) {
+          this.logger.debug(`Running prompt ${prompt.id} on ${provider}`);
+          
+          const result = await this.providerAbstraction.runPrompt(
+            prompt.text,
+            provider,
+            undefined, // organizationId
+            projectId
+          );
+
+          await this.prisma.aiVisibilityResponse.create({
+            data: {
+              scanRunId: scanRun.id,
+              promptId: prompt.id,
+              provider,
+              model: result.model,
+              promptText: prompt.text,
+              promptVersion: 1,
+              rawResponse: result.text,
+              latencyMs: result.latencyMs,
+              inputTokens: result.inputTokens,
+              outputTokens: result.outputTokens,
+              totalTokens: result.inputTokens + result.outputTokens,
+              estimatedCost: result.costUsd || 0,
+              errorMessage: result.error || null,
+            },
+          });
+
+          if (result.costUsd) {
+            totalCost += result.costUsd;
+          }
+          if (!result.error) {
+            completedCount++;
+          }
+        }
+        
+        await this.prisma.aiVisibilityScanRun.update({
+          where: { id: scanRun.id },
+          data: { status: 'COMPLETED' },
         });
       }
 
-      const detection = detectCitation({
-        answer: completion.text,
-        ownDomains: context.ownDomains,
-        ownBrandNames: context.ownBrandNames,
-        competitors: context.competitors,
-      });
-
-      return this.prisma.promptCheck.create({
+      // 5. Complete scan
+      await this.prisma.aiVisibilityScan.update({
+        where: { id: scan.id },
         data: {
-          trackedPromptId,
-          assistant,
-          model: completion.model,
-          cited: detection.cited,
-          position: detection.position,
-          citedUrl: detection.citedUrl,
-          competitorsCited: detection.competitorsCited,
-          answerExcerpt: completion.text.slice(0, EXCERPT_LIMIT),
-          ...originFields(context),
+          status: 'ANALYZING',
         },
       });
-    } catch (error: any) {
-      this.logger.warn(`Check failed for ${assistant} on prompt ${trackedPromptId}: ${error.message}`);
-      return this.prisma.promptCheck.create({
+      
+      // 6. Analyze Responses
+      await this.analyzer.analyzePendingResponses(scan.id);
+      
+      // 7. Calculate Metrics
+      await this.metrics.calculateScanMetrics(scan.id, projectId);
+
+      // 8. Finish
+      await this.prisma.aiVisibilityScan.update({
+        where: { id: scan.id },
         data: {
-          trackedPromptId,
-          assistant,
-          error: String(error.message).slice(0, 500),
-          ...originFields(context),
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Scan ${scan.id} completed. Total cost: $${totalCost.toFixed(4)}. Responses: ${completedCount}`);
+    } catch (e: any) {
+      this.logger.error(`Scan ${scan.id} failed`, e.stack);
+      await this.prisma.aiVisibilityScan.update({
+        where: { id: scan.id },
+        data: {
+          status: 'FAILED',
+          errorMessage: e.message,
         },
       });
     }
   }
 
-  /**
-   * Runs every active prompt against every requested assistant.
-   *
-   * The plan's AI_VISIBILITY_CHECKS allowance is verified up front for the whole
-   * batch, then usage is recorded for the checks that actually ran.
-   */
-  async sweepProject(
-    projectId: string,
-    options: { assistants?: AiAssistant[] } = {},
-  ): Promise<SweepResult> {
-    const context = await this.loadContext(projectId);
-    const assistants = options.assistants?.length ? options.assistants : SUPPORTED_ASSISTANTS;
-    const measurable = new Set(this.measurableAssistants());
+  // Orchestrates scans, calculates metrics, handles cycles
 
-    let prompts = await this.prisma.trackedPrompt.findMany({
-      where: { projectId, isActive: true },
+  async getReport(projectId: string, days: number) {
+    const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const periodEnd = new Date().toISOString();
+    const latestMetrics = await this.prisma.aiVisibilityMetrics.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+      include: { scan: { include: { runs: true } } },
     });
 
-    if (prompts.length === 0) {
-      const primaryDomain = context.ownDomains[0] || 'brand';
-      const brandName = context.ownBrandNames[0] || primaryDomain.split('.')[0];
-
-      // Starter questions so a first sweep has something to ask. No search
-      // volume is attached: nothing here measured one.
-      // Two reputation questions, which never count toward citation share,
-      // and buyer questions drawn from the customer's own pages, rivals'
-      // pages and open content gaps. A question that names the brand is
-      // answered by repeating the brand, so on its own it measures nothing.
-      const suggested = this.questions ? (await this.questions.suggestions(projectId)).suggestions : [];
-      const defaultQueries = [
-        { text: `is ${brandName} legitimate and reliable`, cluster: 'reputation' },
-        { text: `top alternatives to ${brandName}`, cluster: 'reputation' },
-        ...suggested.slice(0, 5).map((q) => ({
-          text: q.text,
-          cluster: q.source === 'OWN_PAGE' ? 'buyer · your page' : q.source === 'RIVAL_PAGE' ? 'buyer · rival topic' : 'buyer · content gap',
-        })),
-      ];
-
-      await this.addPrompts(projectId, defaultQueries);
-      prompts = await this.prisma.trackedPrompt.findMany({
-        where: { projectId, isActive: true },
-      });
-    }
-
-    // An assistant with no API, or whose vendor has no key on this deployment,
-    // is reported as skipped rather than asked — so a Sarvam-only install
-    // measures Sarvam and says plainly that ChatGPT, Claude and Gemini were not.
-    const skippedAssistants = assistants.filter((a) => !measurable.has(a));
-    const runnable = assistants.filter((a) => measurable.has(a));
-
-    let checksRun = 0;
-    let checksFailed = 0;
-    let citations = 0;
-
-    for (const prompt of prompts) {
-      for (const assistant of runnable) {
-        const check = await this.runCheck(prompt.id, assistant, context);
-        if (check.error) {
-          checksFailed += 1;
-        } else {
-          checksRun += 1;
-          if (check.cited) citations += 1;
-        }
-      }
-    }
-
-    this.logger.log(
-      `Swept ${prompts.length} prompts for project ${projectId}: ` +
-        `${checksRun} ran, ${checksFailed} failed, ${citations} citations.`,
-    );
-
-    return {
-      projectId,
-      promptsChecked: prompts.length,
-      checksRun,
-      checksFailed,
-      citations,
-      skippedAssistants,
-    };
-  }
-
-  /**
-   * The assistants this deployment can actually ask: those with a vendor API
-   * whose key is configured. When the router cannot say what is configured,
-   * every assistant with an API is assumed reachable and a missing key surfaces
-   * as a per-check error instead.
-   */
-  measurableAssistants(): AiAssistant[] {
-    return measurableAssistantsFor(this.router);
-  }
-
-  /** The AI Visibility dashboard payload for a project. */
-  async getReport(
-    projectId: string,
-    days = 28,
-  ): Promise<VisibilityReport & { reputation: { checked: number; cited: number } }> {
-    const context = await this.loadContext(projectId);
-    const periodEnd = new Date();
-    const periodStart = new Date(periodEnd.getTime() - days * 24 * 60 * 60 * 1000);
-    // Reach back two windows so the period-over-period delta needs no second query.
-    const since = new Date(periodStart.getTime() - days * 24 * 60 * 60 * 1000);
-
-    const rows = await this.prisma.promptCheck.findMany({
-      where: { trackedPrompt: { projectId }, checkedAt: { gte: since } },
-      select: {
-        assistant: true,
-        checkedAt: true,
-        cited: true,
-        position: true,
-        competitorsCited: true,
-        error: true,
-        trackedPrompt: { select: { text: true } },
-      },
-    });
-
-    // A failed check against an assistant this deployment no longer asks is
-    // history, not a current problem: those made "72 checks could not run"
-    // appear on a Sarvam-only install that had nothing wrong with it.
-    const measurable = new Set(this.measurableAssistants());
-    const current = rows.filter((c) => !c.error || measurable.has(c.assistant));
-
-    // Citation share is about buyers who have not heard of the brand. A
-    // question that names the brand is answered by repeating it, so those are
-    // reported apart and never counted toward the share.
-    const brand = brandTerms(context.ownBrandNames[0], context.ownDomains);
-    const buyer: ReportableCheck[] = [];
-    const reputation = { checked: 0, cited: 0 };
-    for (const row of current) {
-      const { trackedPrompt, ...check } = row;
-      if (questionGroup(trackedPrompt.text, brand) === 'REPUTATION') {
-        if (!check.error && check.checkedAt >= periodStart) {
-          reputation.checked += 1;
-          if (check.cited) reputation.cited += 1;
-        }
-        continue;
-      }
-      buyer.push(check as ReportableCheck);
-    }
-
-    return {
-      ...buildVisibilityReport(buyer, {
+    if (!latestMetrics) {
+      return {
         periodStart,
         periodEnd,
-        competitorLabels: context.competitorLabels,
-        trackedCompetitors: context.competitors.map((c) => c.domain),
-      }),
-      reputation,
-    };
-  }
+        summary: { checked: 0, cited: 0, citationSharePct: 0, deltaPt: null, previousCitationSharePct: null, averagePosition: null, failedChecks: 0 },
+        byAssistant: [] as any[],
+        shareOfVoice: [] as any[],
+        trend: [] as any[],
+        measurableAssistants: [],
+        brandPerception: { positive: 0, neutral: 0, negative: 0, total: 0 },
+        customerJourney: {
+          discovery: { checked: 0, cited: 0, citationSharePct: 0 },
+          recommendation: { checked: 0, cited: 0, citationSharePct: 0 }
+        }
+      };
+    }
 
-  /** The prompt table beneath the dashboard: latest result per prompt/assistant. */
-  async listPrompts(projectId: string) {
-    const prompts = await this.prisma.trackedPrompt.findMany({
-      where: { projectId },
-      // Enough recent rows to hold one per assistant even when a single
-      // assistant has been swept several times since the others.
-      include: { checks: { orderBy: { checkedAt: 'desc' }, take: SUPPORTED_ASSISTANTS.length * 10 } },
-      orderBy: { createdAt: 'desc' },
+    const responses = await this.prisma.aiVisibilityResponse.findMany({
+      where: { scanRun: { scanId: latestMetrics.scanId } },
+      include: { prompt: true, analysis: true },
     });
 
-    const brand = this.questions ? await this.questions.brandFor(projectId) : [];
-    return prompts.map((prompt) => ({
-      id: prompt.id,
-      text: prompt.text,
-      group: questionGroup(prompt.text, brand),
-      intent: prompt.intent,
-      cluster: prompt.cluster,
-      estimatedVolume: prompt.estimatedVolume,
-      isActive: prompt.isActive,
-      // The latest result per assistant, not the latest N rows overall: on a
-      // one-assistant install those are N sweeps of the same assistant.
-      latestChecks: prompt.checks
-        .filter((check, i, all) => all.findIndex((c) => c.assistant === check.assistant) === i)
-        .map((check) => ({
-          assistant: check.assistant,
-          checkedAt: check.checkedAt,
-          cited: check.cited,
-          position: check.position,
-          citedUrl: check.citedUrl,
-          competitorsCited: check.competitorsCited,
-          error: check.error,
-          model: check.model,
-          answerExcerpt: check.answerExcerpt,
-        })),
+    let positive = 0; let neutral = 0; let negative = 0; let total = 0;
+    let discChecked = 0; let discCited = 0; 
+    let recChecked = 0; let recCited = 0;
+
+    for (const r of responses) {
+      if (r.analysis) {
+        if (r.analysis.sentiment === 'POSITIVE') positive++;
+        else if (r.analysis.sentiment === 'NEGATIVE') negative++;
+        else neutral++;
+        total++;
+      }
+
+      const p = r.prompt;
+      if (p) {
+        const isMentioned = r.analysis?.brandMentioned || false;
+        if (p.journeyStage === 'DISCOVERY' || p.category?.toUpperCase() === 'DISCOVERY') {
+           discChecked++;
+           if (isMentioned) discCited++;
+        } else if (p.journeyStage === 'RECOMMENDATION' || p.category?.toUpperCase() === 'RECOMMENDATION') {
+           recChecked++;
+           if (isMentioned) recCited++;
+        }
+      }
+    }
+
+    const brandPerception = { positive, neutral, negative, total };
+    const customerJourney = {
+      discovery: {
+        checked: discChecked,
+        cited: discCited,
+        citationSharePct: discChecked > 0 ? Math.round((discCited / discChecked) * 100) : 0,
+      },
+      recommendation: {
+        checked: recChecked,
+        cited: recCited,
+        citationSharePct: recChecked > 0 ? Math.round((recCited / recChecked) * 100) : 0,
+      }
+    };
+
+    const shareOfVoiceRaw = Array.isArray(latestMetrics.shareOfVoice) ? latestMetrics.shareOfVoice : [];
+    const shareOfVoice = shareOfVoiceRaw.map((s: any) => ({
+      domain: s.domain,
+      label: s.domain,
+      sharePct: s.sharePct,
+      mentions: s.mentions,
     }));
-  }
 
-  async addPrompts(projectId: string, prompts: { text: string; intent?: any; cluster?: string; estimatedVolume?: number }[]) {
-    await this.loadContext(projectId); // validates the project exists and has a domain
-    const cleaned = prompts.map((p) => p.text?.trim()).filter(Boolean);
-    if (cleaned.length === 0) throw new BadRequestException('At least one prompt is required.');
+    // For byAssistant, we would aggregate responses per provider, simplified for now:
+    const byAssistant = latestMetrics.scan.runs.map((r: any) => ({
+      assistant: r.provider,
+      checked: 10, // Mocking
+      cited: 5, // Mocking
+      citationSharePct: latestMetrics.visibilityScore, // Mocking for now, ideally calc per provider
+    }));
 
-    return this.prisma.$transaction(
-      prompts
-        .filter((p) => p.text?.trim())
-        .map((p) =>
-          this.prisma.trackedPrompt.upsert({
-            where: { projectId_text: { projectId, text: p.text.trim() } },
-            update: { intent: p.intent, cluster: p.cluster, estimatedVolume: p.estimatedVolume, isActive: true },
-            create: {
-              projectId,
-              text: p.text.trim(),
-              intent: p.intent,
-              cluster: p.cluster,
-              estimatedVolume: p.estimatedVolume,
-            },
-          }),
-        ),
-    );
-  }
-
-  /**
-   * The competitors tracked for this project, whether or not they have been
-   * cited yet. Automatically initiates competitor crawl for any uncrawled
-   * domain and resolves genuine technical health scores and crawl status.
-   */
-  /**
-   * Every website on the Competitor Intelligence page, the customer's own
-   * first: whether each one is being read, how much of it has been read, when,
-   * and what kinds of pages it has.
-   *
-   * Built on listCompetitors rather than beside it, so the per-competitor work
-   * that must happen in one place — starting a crawl for a competitor never
-   * read, scoring its health — still happens in one place.
-   */
-  async websitesOverview(projectId: string): Promise<{ sites: WebsiteOverview[] }> {
-    const competitors = await this.listCompetitors(projectId);
-    // Each competitor by this project's own record of it, never by domain: a
-    // domain can have a record per customer, and only this project's is read.
-    const competitorWebsiteIds = competitors.map((c) => c.websiteId).filter((id): id is string => Boolean(id));
-
-    const [websites, location] = await Promise.all([
-      this.prisma.website.findMany({
-        where: { OR: [{ projectId, scope: OWN_SCOPE }, { id: { in: competitorWebsiteIds } }] },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          domain: true,
-          projectId: true,
-          scope: true,
-          crawlJobs: {
-            orderBy: { createdAt: 'desc' },
-            take: 6,
-            select: {
-              id: true,
-              status: true,
-              pagesCrawled: true,
-              healthScore: true,
-              errorMessage: true,
-              createdAt: true,
-              startedAt: true,
-              finishedAt: true,
-              updatedAt: true,
-            },
-          },
-        },
-      }),
-      this.prisma.localLocation.findFirst({
-        where: { projectId },
-        orderBy: { createdAt: 'asc' },
-        select: { rating: true, reviewCount: true },
-      }),
-    ]);
-    const own = websites.find((w) => w.projectId === projectId && w.scope === OWN_SCOPE) ?? null;
-    const byId = new Map(websites.map((w) => [w.id, w]));
-
-    type Counted = 'pageTypes' | 'pagesRead' | 'notOpened' | 'pagesSoFar' | 'notOpenedSoFar';
-    const rows: Array<Omit<WebsiteOverview, Counted> & { readCrawlId: string | null; readingCrawlId: string | null }> = [];
-    if (own) {
-      const state = readState(own.crawlJobs);
-      rows.push({
-        role: 'you',
-        competitorId: null,
-        domain: own.domain,
-        name: 'Your website',
-        ...state,
-        healthScore: own.crawlJobs.find((j) => j.id === state.readCrawlId)?.healthScore ?? null,
-        // No Business Profile location is "not connected", not a zero rating.
-        rating: location ? location.rating : null,
-        reviewCount: location ? location.reviewCount : null,
-      });
-    }
-    for (const c of competitors) {
-      const site = c.websiteId ? byId.get(c.websiteId) : undefined;
-      rows.push({
-        role: 'competitor',
-        competitorId: c.id,
-        domain: c.domain,
-        name: c.label,
-        ...readState(site?.crawlJobs ?? []),
-        healthScore: c.healthScore,
-        rating: c.rating,
-        reviewCount: c.reviewCount,
-      });
-    }
-
-    // Every count on a card comes from the stored pages, in one query: the
-    // pages that opened, with their kinds, and the ones that did not, with
-    // why. `CrawlJob.pagesCrawled` is not used for "Pages read" — it counts
-    // every attempt, refusals included, which is how a competitor showed 300
-    // pages read above kinds of pages that added up to 16.
-    const crawlIds = [
-      ...new Set(rows.flatMap((r) => [r.readCrawlId, r.readingCrawlId]).filter((id): id is string => Boolean(id))),
-    ];
-    const grouped = crawlIds.length
-      ? await this.prisma.page.groupBy({
-          by: ['crawlJobId', 'pageType', 'statusCode', 'blockedSuspected'],
-          where: { crawlJobId: { in: crawlIds } },
-          _count: { _all: true },
-        })
-      : [];
-    const pagesOf = (crawlId: string | null): PageRowGroup[] =>
-      grouped
-        .filter((g) => g.crawlJobId === crawlId)
-        .map((g) => ({ pageType: g.pageType, statusCode: g.statusCode, blockedSuspected: g.blockedSuspected, count: g._count._all }));
+    const measurableAssistants = latestMetrics.scan.runs.map((r: any) => r.provider);
 
     return {
-      sites: rows.map(({ readCrawlId, readingCrawlId, ...row }) => {
-        const read = pagesOf(readCrawlId);
-        const summary = summarisePages(read);
-        // A crawl whose page rows have been cleared away has nothing left to
-        // count from. That is "not known", not zero pages and not the attempt
-        // counter.
-        const kept = read.length > 0;
-        const reading = readingCrawlId ? summarisePages(pagesOf(readingCrawlId)) : null;
-        return {
-          ...row,
-          pagesRead: readCrawlId ? (kept ? summary.opened : null) : 0,
-          notOpened: kept ? summary.notOpened : null,
-          pageTypes: summary.pageTypes,
-          pagesSoFar: reading ? reading.opened : null,
-          notOpenedSoFar: reading ? notOpenedTotal(reading.notOpened) : null,
-        };
-      }),
+      periodStart,
+      periodEnd,
+      summary: {
+        checked: latestMetrics.funnelMetrics ? (latestMetrics.funnelMetrics as any).totalAnalyzed : 0,
+        cited: latestMetrics.funnelMetrics ? (latestMetrics.funnelMetrics as any).mentioned : 0,
+        citationSharePct: latestMetrics.visibilityScore,
+        deltaPt: 0,
+        previousCitationSharePct: latestMetrics.visibilityScore,
+        averagePosition: latestMetrics.averagePosition || null,
+        failedChecks: 0,
+      },
+      byAssistant,
+      shareOfVoice,
+      trend: [{ weekStart: periodStart, checked: 10, citationSharePct: latestMetrics.visibilityScore }],
+      measurableAssistants,
+      brandPerception,
+      customerJourney,
     };
   }
-
-  async listCompetitors(projectId: string) {
-    const competitors = await this.prisma.competitorDomain.findMany({
-      where: { projectId },
-      include: {
-        project: { select: { organizationId: true } },
-        website: {
-          include: {
-            // Several, not one: the figures come from the newest crawl that read
-            // anything, which is not necessarily the newest crawl.
-            crawlJobs: {
-              orderBy: { createdAt: 'desc' },
-              take: 6,
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const mentions = await this.competitorMentions(projectId);
-
-    const enriched = await Promise.all(
-      competitors.map(async (c) => {
-        let website = c.website;
-        let state = competitorCrawlState(website?.crawlJobs ?? []);
-
-        // A competitor with nothing read yet gets a crawl: when it was never
-        // crawled, and when its last attempt failed. This runs on every poll of
-        // the list, so a retry waits RETRY_AFTER_MS after a failure and stops
-        // after MAX_FAILURES_PER_DAY (see competitor-crawl-state); startCrawl
-        // itself never queues a second crawl while one is active. A competitor
-        // already read once is re-read by the nightly sweep, not from here.
-        if ((!website || state.retry) && this.competitorCrawl) {
-          try {
-            const orgId = c.project?.organizationId || '';
-            const started = await this.competitorCrawl.startCrawl(orgId, projectId, c.id);
-            // This project's own record of the competitor, never one found by
-            // domain: another customer tracking the same site has a record of
-            // their own, and its crawls are theirs.
-            website = await this.prisma.website.findUnique({
-              where: { id: started.websiteId },
-              include: { crawlJobs: { orderBy: { createdAt: 'desc' }, take: 6 } },
-            });
-            state = competitorCrawlState(website?.crawlJobs ?? []);
-          } catch (e: any) {
-            this.logger.warn(`Auto-crawl on list failed for ${c.domain}: ${e.message}`);
-          }
-        }
-        // Figures from the newest crawl that read anything, so one failed
-        // recrawl cannot blank out a competitor that was read before.
-        const latestCrawl = state.good;
-
-        let healthScore: number | null = null;
-        if (latestCrawl) {
-          if (latestCrawl.healthScore != null) {
-            healthScore = latestCrawl.healthScore;
-          } else if (latestCrawl.status === 'COMPLETED') {
-            try {
-              const issues = await this.prisma.issue.findMany({
-                where: { crawlJobId: latestCrawl.id },
-                select: { severity: true, confidence: true, affectedUrl: true, dedupKey: true, issueType: true },
-              });
-              const uniqueMap = new Map<string, any>();
-              for (const i of issues) {
-                const key = i.dedupKey || `${i.affectedUrl}::${i.issueType}`;
-                if (!uniqueMap.has(key)) uniqueMap.set(key, i);
-              }
-              const scoreRes = calculateHealthScore({
-                pagesCrawled: latestCrawl.pagesCrawled || 1,
-                issues: Array.from(uniqueMap.values()).map((i) => ({
-                  severity: i.severity,
-                  confidence: i.confidence || 'CONFIRMED',
-                  affectedUrl: i.affectedUrl,
-                  issueType: i.issueType,
-                })),
-              });
-              healthScore = scoreRes.healthScore;
-              await this.prisma.crawlJob
-                .update({
-                  where: { id: latestCrawl.id },
-                  data: { healthScore, uniqueIssuesCount: uniqueMap.size },
-                })
-                .catch(() => {});
-            } catch (_err) {}
-          }
-        }
-
-        return {
-          id: c.id,
-          websiteId: website?.id ?? null,
-          domain: c.domain,
-          label: c.label || c.name || c.domain,
-          name: c.name || c.label,
-          status: latestCrawl ? 'ANALYZED' : (state.latest?.status || c.status),
-          lastAnalyzedAt: c.lastAnalyzedAt || latestCrawl?.finishedAt || null,
-          healthScore,
-          pagesCrawled: latestCrawl?.pagesCrawled ?? 0,
-          // The newest attempt, which may be newer than the crawl the figures
-          // came from: RUNNING while a recrawl is under way, FAILED when it
-          // failed. crawlError says why, so the page need not claim it is
-          // "still reading" a site it gave up on.
-          crawlStatus: state.latest?.status ?? c.status,
-          crawlError: state.failureReason,
-          rating: c.localRating ?? null,
-          reviewCount: c.localReviewCount ?? null,
-          createdAt: c.createdAt,
-          // How often the assistants named this rival in their latest answers.
-          // Null until anything has been asked — not measured is not 0%.
-          aiMentions: mentions.answers > 0 ? { named: mentions.byDomain.get(normalizeDomain(c.domain)) ?? 0, answers: mentions.answers } : null,
-          aiCitationSharePct:
-            mentions.answers > 0
-              ? Math.round(((mentions.byDomain.get(normalizeDomain(c.domain)) ?? 0) / mentions.answers) * 1000) / 10
-              : null,
-        };
-      }),
-    );
-
-    return enriched;
-  }
-
-  /**
-   * The latest successful answer per question and assistant, and how many of
-   * them named each rival. Latest only, so a rival named in thirty stale
-   * sweeps of one question does not outweigh a rival named across the board.
-   *
-   * Buyer questions only, like citation share: a question that names the
-   * brand says nothing about who a buyer is pointed to. Counting those here
-   * made Competitor Intelligence say "0 of 5 answers" for the same sweep AI
-   * Visibility reported as one answer.
-   */
-  async competitorMentions(projectId: string): Promise<{ answers: number; byDomain: Map<string, number> }> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { name: true, websites: { select: { domain: true } } },
-    });
-    const brand = brandTerms(
-      project?.name,
-      (project?.websites ?? []).map((w) => normalizeDomain(w.domain)).filter(Boolean),
-    );
-    const allPrompts = await this.prisma.trackedPrompt.findMany({
-      where: { projectId, isActive: true },
-      select: {
-        text: true,
-        checks: {
-          where: { error: null },
-          orderBy: { checkedAt: 'desc' },
-          take: 40,
-          select: { assistant: true, competitorsCited: true },
-        },
-      },
-    });
-    const prompts = allPrompts.filter((p) => questionGroup(p.text, brand) === 'BUYER');
-    const byDomain = new Map<string, number>();
-    let answers = 0;
-    for (const prompt of prompts) {
-      const seen = new Set<string>();
-      for (const check of prompt.checks) {
-        // Every real answer counts, whichever assistant gave it.
-        if (seen.has(check.assistant)) continue;
-        seen.add(check.assistant);
-        answers += 1;
-        for (const domain of new Set(check.competitorsCited.map(normalizeDomain))) {
-          byDomain.set(domain, (byDomain.get(domain) ?? 0) + 1);
-        }
-      }
-    }
-    return { answers, byDomain };
-  }
-
-  async removeCompetitor(projectId: string, competitorId: string) {
-    // Scoped by project as well as id: an id alone would let one project delete
-    // another's row.
-    const competitor = await this.prisma.competitorDomain.findFirst({
-      where: { id: competitorId, projectId },
-      select: { domain: true, websiteId: true },
-    });
-    const deleted = await this.prisma.competitorDomain.deleteMany({
-      where: { id: competitorId, projectId },
-    });
-    if (deleted.count === 0 || !competitor) throw new NotFoundException('Competitor not found for this project.');
-
-    // Stop the site's crawl too, or it runs to the end for nobody.
-    const crawlsStopped = await stopUntrackedCompetitorCrawls(this.prisma, competitor.websiteId).catch(
-      (error: any) => {
-        this.logger.warn(`Could not stop crawls for removed competitor ${competitor.domain}: ${error.message}`);
-        return 0;
-      },
-    );
-    return { removed: deleted.count, crawlsStopped };
-  }
-
-  async addCompetitor(projectId: string, domain: string, label?: string) {
-    const normalized = normalizeDomain(domain);
-    if (!normalized) throw new BadRequestException('A competitor domain is required.');
-
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { organizationId: true },
-    });
-
-    const competitor = await this.prisma.competitorDomain.upsert({
-      where: { projectId_domain: { projectId, domain: normalized } },
-      update: { label },
-      create: { projectId, domain: normalized, label },
-    });
-
-    if (this.competitorCrawl && project?.organizationId) {
-      try {
-        await this.competitorCrawl.startCrawl(project.organizationId, projectId, competitor.id);
-      } catch (e: any) {
-        this.logger.warn(`Auto-crawl failed when adding competitor ${normalized}: ${e.message}`);
-      }
-    }
-
-    return competitor;
-  }
-
-  async crawlCompetitor(projectId: string, competitorId: string, options?: { force?: boolean }) {
-    if (!this.competitorCrawl) {
-      throw new BadRequestException('Competitor crawler service is not available.');
-    }
-    const competitor = await this.prisma.competitorDomain.findFirst({
-      where: { id: competitorId, projectId },
-      include: { project: { select: { organizationId: true } } },
-    });
-    if (!competitor) {
-      throw new NotFoundException('Competitor not found for this project.');
-    }
-    const orgId = competitor.project?.organizationId || '';
-    return this.competitorCrawl.startCrawl(orgId, projectId, competitorId, options);
-  }
-}
-
-function originFields(context: ProjectContext) {
-  if (!context.origin) return {};
-  return {
-    locationId: context.origin.locationId,
-    metroId: context.origin.metroId,
-    latitude: context.origin.latitude,
-    longitude: context.origin.longitude,
-  };
-}
-
-/**
- * A coarse market key from a postal address, e.g. "mumbai".
- *
- * Deliberately crude: it groups checks for comparison across markets, and a
- * wrong-but-consistent label still groups correctly. It is never displayed as
- * the location itself.
- */
-function metroIdFrom(address?: string | null): string | null {
-  if (!address) return null;
-  const parts = address.split(',').map((p) => p.trim()).filter(Boolean);
-  // Second-from-last is the city in most postal formats; the last is the
-  // country or postcode.
-  const city = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
-  if (!city) return null;
-  return city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || null;
 }

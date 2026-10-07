@@ -32,9 +32,7 @@ import {
 } from "@/components/ai-visibility/ai-visibility-other-tabs";
 import { assistantList } from "@/lib/ai-assistants";
 
-// Switched off for now; to re-enable, make this the default export again.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function AiVisibilityPage() {
+export default function AiVisibilityPage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-slate-400">Loading AI Visibility...</div>}>
       <AiVisibilityClient />
@@ -516,6 +514,6 @@ function AiVisibilityClient() {
 }
 
 
-export default function AiVisibilityDisabledPage() {
+export function AiVisibilityDisabledPage() {
   return <AiVisibilityDisabled />;
 }

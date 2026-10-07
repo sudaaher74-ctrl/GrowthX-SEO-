@@ -1,26 +1,23 @@
 import { Module } from '@nestjs/common';
-import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
-import { AiVisibilityService } from './ai-visibility.service';
-import { GeoSimulationService } from './geo-simulation.service';
-import { VisibilityInsightsService } from './visibility-insights.service';
-import { QuestionAnalysisService } from './questions/question-analysis.service';
-import { AiVisibilityController } from './ai-visibility.controller';
-import { AiVisibilityScheduler } from './ai-visibility.scheduler';
 import { DatabaseModule } from '../../database/database.module';
 import { AiSearchModule } from '../ai-search/ai-search.module';
-import { ContentIntelligenceModule } from '../content-intelligence/content-intelligence.module';
+import { AiVisibilityService } from './ai-visibility.service';
+import { PromptEngineService } from './prompt-engine.service';
+import { AiProviderAbstractionService } from './ai-provider-abstraction.service';
+import { ResponseAnalyzerService } from './response-analyzer.service';
+import { MetricsEngineService } from './metrics-engine.service';
+import { AiVisibilityController } from './ai-visibility.controller';
 
 @Module({
-  imports: [DatabaseModule, AiSearchModule, ContentIntelligenceModule],
+  imports: [DatabaseModule, AiSearchModule],
   controllers: [AiVisibilityController],
   providers: [
-    AeoAnalysisService,
-    AiVisibilityService,
-    GeoSimulationService,
-    VisibilityInsightsService,
-    QuestionAnalysisService,
-    AiVisibilityScheduler,
+    AiVisibilityService, 
+    PromptEngineService, 
+    AiProviderAbstractionService, 
+    ResponseAnalyzerService,
+    MetricsEngineService,
   ],
-  exports: [AeoAnalysisService, AiVisibilityService, GeoSimulationService, QuestionAnalysisService],
+  exports: [AiVisibilityService],
 })
 export class AiVisibilityModule {}

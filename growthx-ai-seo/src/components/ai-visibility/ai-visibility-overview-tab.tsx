@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Radio, Link2, PieChart, Search, Sparkles, ArrowRight, Bot } from "lucide-react";
+import { Radio, Link2, PieChart, Search, Sparkles, ArrowRight, Bot, Compass, ThumbsUp, Map, LineChart } from "lucide-react";
 import { AiKpiCard } from "./ai-kpi-card";
 import { AiVisibilityGauge } from "./ai-visibility-gauge";
 import type { VisibilityReport } from "@/lib/api-client";
@@ -285,6 +285,79 @@ export function AiVisibilityOverviewTab({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* ── ROW 3: Customer Journey Simulator & Brand Perception ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        
+        {/* Customer Journey Simulator */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Compass size={16} /></div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Customer Journey Simulator</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Mentions by buyer intent stage</p>
+              </div>
+            </div>
+            <Map size={16} className="text-slate-400" />
+          </div>
+          
+          <div className="mt-5 space-y-5">
+            <div>
+              <div className="flex justify-between items-end mb-1.5">
+                <span className="text-xs font-bold text-slate-700">Discovery (Top of Funnel)</span>
+                <span className="text-sm font-black text-indigo-600">{report?.customerJourney?.discovery.citationSharePct ?? 0}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.discovery.citationSharePct ?? 0)}%` }} />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">{report?.customerJourney?.discovery.cited ?? 0} citations out of {report?.customerJourney?.discovery.checked ?? 0} answers</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-end mb-1.5">
+                <span className="text-xs font-bold text-slate-700">Recommendation (Bottom of Funnel)</span>
+                <span className="text-sm font-black text-emerald-600">{report?.customerJourney?.recommendation.citationSharePct ?? 0}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.max(4, report?.customerJourney?.recommendation.citationSharePct ?? 0)}%` }} />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">{report?.customerJourney?.recommendation.cited ?? 0} citations out of {report?.customerJourney?.recommendation.checked ?? 0} answers</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Brand Perception */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-pink-50 text-pink-600 rounded-lg"><ThumbsUp size={16} /></div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Brand Perception</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Sentiment analysis of AI mentions</p>
+              </div>
+            </div>
+            <LineChart size={16} className="text-slate-400" />
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+              <span className="block text-[10px] uppercase font-bold text-emerald-600 mb-1">Positive</span>
+              <span className="block text-2xl font-black text-emerald-700">{report?.brandPerception?.positive ?? 0}</span>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Neutral</span>
+              <span className="block text-2xl font-black text-slate-700">{report?.brandPerception?.neutral ?? 0}</span>
+            </div>
+            <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
+              <span className="block text-[10px] uppercase font-bold text-rose-600 mb-1">Negative</span>
+              <span className="block text-2xl font-black text-rose-700">{report?.brandPerception?.negative ?? 0}</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-3 text-center">Based on {report?.brandPerception?.total ?? 0} analyzed statements across all queries</p>
+        </div>
+
       </div>
     </div>
   );

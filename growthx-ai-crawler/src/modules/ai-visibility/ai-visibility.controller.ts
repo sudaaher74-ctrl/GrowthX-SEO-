@@ -1,269 +1,90 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AiAssistant, SearchIntent } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '@prisma/client';
+import { Controller, Get, Post, Body, Param, Query, Delete, UseGuards } from '@nestjs/common';
 import { AiVisibilityService } from './ai-visibility.service';
-import { AeoAnalysisService } from './aeo-analysis/aeo-analysis.service';
-import { GeoSimulationService } from './geo-simulation.service';
-import { VisibilityInsightsService } from './visibility-insights.service';
-import { QuestionAnalysisService } from './questions/question-analysis.service';
-import { roadmapTasks } from './questions/roadmap-tasks';
+import { PromptEngineService } from './prompt-engine.service';
+import { PrismaService } from '../../database/prisma.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-
-export class PromptItemDto {
-  @IsString()
-  text: string;
-
-  @IsOptional()
-  @IsEnum(SearchIntent)
-  intent?: SearchIntent;
-
-  @IsOptional()
-  @IsString()
-  cluster?: string;
-
-  @IsOptional()
-  @IsNumber()
-  estimatedVolume?: number;
-}
-
-export class AddPromptsDto {
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => PromptItemDto)
-  prompts: PromptItemDto[];
-}
-
-export class AddCompetitorDto {
-  @IsString()
-  domain: string;
-
-  @IsOptional()
-  @IsString()
-  label?: string;
-}
-
-/**
- * AI Visibility (AEO/GEO) — whether ChatGPT, Claude, and Gemini cite the
- * customer when answering the questions their buyers actually ask.
- *
- * Every route is Pro-only: the whole surface sits behind.
- */
-@ApiTags('AI Visibility')
-@ApiBearerAuth()
-@Controller('api/projects/:projectId/ai-visibility')
+@Controller('projects/:projectId/ai-visibility')
 @UseGuards(JwtAuthGuard)
 export class AiVisibilityController {
   constructor(
-    private readonly visibility: AiVisibilityService,
-    private readonly aeo: AeoAnalysisService,
-    private readonly geoSimulation: GeoSimulationService,
-    private readonly insights: VisibilityInsightsService,
-    private readonly questions: QuestionAnalysisService,
+    private readonly aiVisibilityService: AiVisibilityService,
+    private readonly promptEngineService: PromptEngineService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Citation share, per-assistant breakdown, share of voice, and weekly trend' })
-  @ApiParam({ name: 'projectId' })
-  @ApiQuery({ name: 'days', required: false, example: 28 })
-  async getReport(@Param('projectId') projectId: string, @Query('days') days?: string) {
-    const window = Math.min(180, Math.max(7, parseInt(days ?? '28', 10) || 28));
-    const report = await this.visibility.getReport(projectId, window);
-    return {
-      ...report,
-      // Stated explicitly so the dashboard never implies we measured an
-      // assistant we cannot actually query on this deployment.
-      measurableAssistants: this.visibility.measurableAssistants(),
-    };
-  }
-
-  @Get('prompts')
-  @ApiOperation({ summary: 'Tracked prompts with their most recent result per assistant' })
-  @ApiParam({ name: 'projectId' })
-  listPrompts(@Param('projectId') projectId: string) {
-    return this.visibility.listPrompts(projectId);
-  }
-
-  @Post('prompts')
-  @ApiOperation({ summary: 'Add or update the prompts tracked for this project' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        prompts: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              text: { type: 'string', example: 'best insulated jacket for winter hiking' },
-              intent: { type: 'string', enum: Object.values(SearchIntent) },
-              cluster: { type: 'string', example: 'buying guides' },
-              estimatedVolume: { type: 'number', example: 4400 },
-            },
-          },
-        },
-      },
-    },
-  })
-  addPrompts(@Param('projectId') projectId: string, @Body() body: AddPromptsDto) {
-    return this.visibility.addPrompts(projectId, body?.prompts ?? []);
-  }
-
-  @Get('competitors')
-  @ApiOperation({ summary: 'Competitors tracked for this project, cited or not' })
-  @ApiParam({ name: 'projectId' })
-  listCompetitors(@Param('projectId') projectId: string) {
-    return this.visibility.listCompetitors(projectId);
-  }
-
-  @Get('competitors/websites')
-  @ApiOperation({ summary: 'Your website and each competitor\'s: read status, pages read, kinds of pages, health and Google rating' })
-  @ApiParam({ name: 'projectId' })
-  websitesOverview(@Param('projectId') projectId: string) {
-    return this.visibility.websitesOverview(projectId);
-  }
-
-  @Roles(Role.OWNER, Role.ADMIN)
-  @Delete('competitors/:competitorId')
-  @ApiOperation({ summary: 'Stop tracking a competitor' })
-  @ApiParam({ name: 'projectId' })
-  @ApiParam({ name: 'competitorId' })
-  removeCompetitor(@Param('projectId') projectId: string, @Param('competitorId') competitorId: string) {
-    return this.visibility.removeCompetitor(projectId, competitorId);
-  }
-
-  @Post('competitors/:competitorId/crawl')
-  @ApiOperation({ summary: 'Crawl or re-crawl a competitor website' })
-  @ApiParam({ name: 'projectId' })
-  @ApiParam({ name: 'competitorId' })
-  crawlCompetitor(
+  async getVisibilityReport(
     @Param('projectId') projectId: string,
-    @Param('competitorId') competitorId: string,
-    @Body() body?: { force?: boolean },
+    @Query('days') days?: string,
   ) {
-    return this.visibility.crawlCompetitor(projectId, competitorId, body);
-  }
-
-  @Post('competitors')
-  @ApiOperation({ summary: 'Track a competitor for share-of-voice comparison' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        domain: { type: 'string', example: 'trailheadco.com' },
-        // Without this, an answer saying "Trailhead Co" rather than the domain
-        // is missed, so the label is worth setting.
-        label: { type: 'string', example: 'Trailhead Co' },
-      },
-    },
-  })
-  addCompetitor(@Param('projectId') projectId: string, @Body() body: AddCompetitorDto) {
-    return this.visibility.addCompetitor(projectId, body?.domain, body?.label);
+    const daysNum = days ? parseInt(days, 10) : 28;
+    return this.aiVisibilityService.getReport(projectId, daysNum);
   }
 
   @Post('sweep')
-  @ApiOperation({ summary: 'Run every active prompt against every measurable assistant now' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    required: false,
-    schema: {
-      type: 'object',
-      properties: {
-        assistants: { type: 'array', items: { type: 'string', enum: Object.values(AiAssistant) } },
-      },
-    },
-  })
-  sweep(@Param('projectId') projectId: string, @Body() body?: { assistants?: AiAssistant[] }) {
-    // The service checks the AI_VISIBILITY_CHECKS allowance for the whole batch
-    // before spending anything, then bills only the checks that succeeded.
-    return this.visibility.sweepProject(projectId, { assistants: body?.assistants });
+  async runSweep(@Param('projectId') projectId: string) {
+    // Fire and forget or await
+    this.aiVisibilityService.runScanForProject(projectId);
+    return { success: true, message: 'Scan started' };
   }
 
-  @Get('aeo')
-  @ApiOperation({ summary: 'On-page answer-engine readiness (structured data, semantic HTML)' })
-  @ApiParam({ name: 'projectId' })
-  getAeo(@Param('projectId') projectId: string) {
-    return this.aeo.analyzeWebsiteAeo(projectId);
+  @Get('prompts')
+  async listPrompts(@Param('projectId') projectId: string) {
+    const prompts = await this.prisma.aiVisibilityPrompt.findMany({
+      where: { projectId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    // Frontend expects TrackedPromptRow[]
+    return prompts.map(p => ({
+      id: p.id,
+      text: p.text,
+      category: p.category,
+      citations: 0,
+      sharePct: 0,
+      trend: [],
+    }));
   }
 
-  @Get('questions')
-  @ApiOperation({
-    summary: 'Each tracked question joined to the Website Audit and Competitor Intelligence',
-    description:
-      'The latest answer, the page on your site that should answer it (or none: a content gap) with its ' +
-      "audit issues, and each named rival's page compared on direct answer, FAQ, schema and term coverage.",
-  })
-  @ApiParam({ name: 'projectId' })
-  analyzeQuestions(@Param('projectId') projectId: string) {
-    return this.questions.analyze(projectId);
-  }
-
-  @Get('questions/suggestions')
-  @ApiOperation({ summary: "Buyer questions drawn from your pages, rivals' pages and open content gaps" })
-  @ApiParam({ name: 'projectId' })
-  suggestQuestions(@Param('projectId') projectId: string) {
-    return this.questions.suggestions(projectId);
-  }
-
-  @Get('roadmap-tasks')
-  @ApiOperation({ summary: 'AI Visibility findings as SEO Roadmap tasks, one per uncited buyer question' })
-  @ApiParam({ name: 'projectId' })
-  async roadmap(@Param('projectId') projectId: string) {
-    const report = await this.questions.analyze(projectId);
-    return { groups: roadmapTasks(report.questions) };
-  }
-
-  @Get('insights')
-  @ApiOperation({ summary: 'AI-written analysis of the measured citation data, with recommendations' })
-  @ApiParam({ name: 'projectId' })
-  @ApiQuery({ name: 'question', required: false, example: 'Why are competitors cited instead of us?' })
-  getInsights(@Param('projectId') projectId: string, @Query('question') question?: string) {
-    return this.insights.getInsights(projectId, question);
-  }
-
-  @Post('insights')
-  @ApiOperation({ summary: 'Ask a question about the measured citation data' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    required: false,
-    schema: {
-      type: 'object',
-      properties: {
-        question: { type: 'string', example: 'How do we get cited for our main service?' },
-      },
-    },
-  })
-  askInsights(@Param('projectId') projectId: string, @Body() body?: { question?: string }) {
-    return this.insights.getInsights(projectId, body?.question);
-  }
-
-  @Post('simulate')
-  @ApiOperation({ summary: 'Ask a search query live to each enabled AI engine and draft content for it' })
-  @ApiParam({ name: 'projectId' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', example: 'best ai seo automation tools for ecommerce' },
-        engines: { type: 'array', items: { type: 'string', enum: ['PERPLEXITY', 'CHATGPT', 'GEMINI', 'CLAUDE', 'SARVAM'] } },
-        location: { type: 'string', example: 'United States' },
-      },
-      required: ['query'],
-    },
-  })
-  async simulateQuery(
-    @Req() req: any,
+  @Post('prompts')
+  async addPrompts(
     @Param('projectId') projectId: string,
-    @Body() body: { query: string; engines?: Array<'PERPLEXITY' | 'CHATGPT' | 'GEMINI' | 'CLAUDE' | 'SARVAM'>; location?: string },
+    @Body('prompts') prompts: { text: string; cluster?: string }[],
   ) {
-    const orgId = req.organizationId || 'default-org';
-    return this.geoSimulation.simulateQuery(orgId, projectId, body);
+    for (const p of prompts) {
+      await this.prisma.aiVisibilityPrompt.create({
+        data: {
+          projectId,
+          text: p.text,
+          category: p.cluster || 'Custom',
+        },
+      });
+    }
+    return { added: prompts.length };
+  }
+
+  @Get('competitors')
+  async listCompetitors(@Param('projectId') projectId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { competitors: true },
+    });
+    return project?.competitors || [];
+  }
+
+  @Post('competitors')
+  async addCompetitor(
+    @Param('projectId') projectId: string,
+    @Body('domain') domain: string,
+    @Body('label') label?: string,
+  ) {
+    const competitor = await this.prisma.competitorDomain.create({
+      data: {
+        projectId,
+        domain,
+        label: label || domain,
+      },
+    });
+    return competitor;
   }
 }
-

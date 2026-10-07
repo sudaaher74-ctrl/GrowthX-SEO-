@@ -255,7 +255,7 @@ export class CompetitorIntelReportService {
    * count the AI Answers tab shows.
    */
   private async aiMentions(projectId: string, projectName: string | null | undefined, domains: string[]) {
-    const brand = brandTerms(projectName, domains.map(normalizeDomain));
+    const brand = brandTerms(projectName ?? '', domains.map(normalizeDomain));
     const prompts = await this.prisma.trackedPrompt.findMany({
       where: { projectId, isActive: true },
       select: {

@@ -549,6 +549,12 @@ model Project {
   keywordGapSnapshots       KeywordGapSnapshot[]
   keywordDiagnoses          KeywordDiagnosis[]
 
+  aiVisibilityPrompts       AiVisibilityPrompt[]
+  aiVisibilityScans         AiVisibilityScan[]
+  aiVisibilityProviderUsage AiVisibilityProviderUsage[]
+  aiVisibilityMetrics       AiVisibilityMetrics[]
+  aiVisibilitySettings      AiVisibilitySettings?
+
   @@index([organizationId])
 }
 
@@ -4070,4 +4076,195 @@ model SeoImpactRecord {
 
   @@index([projectId, createdAt])
   @@index([projectId, url])
+}
+
+// ==========================================
+// AI VISIBILITY MODULE (Reigel)
+// ==========================================
+
+model AiVisibilityPrompt {
+  id             String                      @id @default(uuid())
+  projectId      String
+  text           String
+  category       String                      @default("Discovery")
+  journeyStage   String                      @default("DISCOVERY")
+  isActive       Boolean                     @default(true)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  project        Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions       AiVisibilityPromptVersion[]
+  responses      AiVisibilityResponse[]
+
+  @@index([projectId, isActive])
+}
+
+model AiVisibilityPromptVersion {
+  id             String             @id @default(uuid())
+  promptId       String
+  text           String
+  version        Int
+  createdAt      DateTime           @default(now())
+  prompt         AiVisibilityPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+}
+
+model AiVisibilityScan {
+  id             String                 @id @default(uuid())
+  projectId      String
+  cycleId        String
+  status         String                 @default("PENDING")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs           AiVisibilityScanRun[]
+  metrics        AiVisibilityMetrics[]
+
+  @@index([projectId, cycleId])
+  @@index([status])
+}
+
+model AiVisibilityScanRun {
+  id             String                 @id @default(uuid())
+  scanId         String
+  provider       String
+  model          String
+  status         String                 @default("PENDING")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorMessage   String?
+  scan           AiVisibilityScan       @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  responses      AiVisibilityResponse[]
+
+  @@index([scanId])
+}
+
+model AiVisibilityResponse {
+  id             String                        @id @default(uuid())
+  scanRunId      String
+  promptId       String
+  provider       String
+  model          String
+  surfaceType    String?
+  searchEnabled  Boolean                       @default(false)
+  promptText     String
+  promptVersion  Int
+  latencyMs      Int?
+  rawResponse    String?
+  inputTokens    Int?
+  outputTokens   Int?
+  totalTokens    Int?
+  estimatedCost  Float?
+  status         String                        @default("SUCCESS")
+  errorMessage   String?
+  createdAt      DateTime                      @default(now())
+  
+  scanRun        AiVisibilityScanRun           @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  prompt         AiVisibilityPrompt            @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  analysis       AiVisibilityResponseAnalysis?
+  citations      AiVisibilityCitation[]
+  mentions       AiVisibilityBrandMention[]
+  usageLog       AiVisibilityProviderUsage?
+
+  @@index([scanRunId])
+  @@index([promptId])
+}
+
+model AiVisibilityResponseAnalysis {
+  id             String               @id @default(uuid())
+  responseId     String               @unique
+  brandMentioned Boolean              @default(false)
+  brandPosition  Int?
+  shortlisted    Boolean              @default(false)
+  recommended    Boolean              @default(false)
+  finalChoice    Boolean              @default(false)
+  sentiment      String?
+  confidence     Float?
+  parsedJson     Json?
+  createdAt      DateTime             @default(now())
+  
+  response       AiVisibilityResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+}
+
+model AiVisibilityCitation {
+  id             String               @id @default(uuid())
+  responseId     String
+  url            String
+  domain         String
+  title          String?
+  brandMentioned Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  
+  response       AiVisibilityResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+  @@index([domain])
+}
+
+model AiVisibilityBrandMention {
+  id             String               @id @default(uuid())
+  responseId     String
+  isCustomer     Boolean
+  brandName      String
+  competitorId   String?
+  position       Int?
+  recommended    Boolean              @default(false)
+  shortlisted    Boolean              @default(false)
+  finalChoice    Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+
+  response       AiVisibilityResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@index([responseId])
+  @@index([isCustomer])
+}
+
+model AiVisibilityProviderUsage {
+  id             String               @id @default(uuid())
+  responseId     String               @unique
+  projectId      String
+  provider       String
+  model          String
+  inputTokens    Int
+  outputTokens   Int
+  cost           Float
+  createdAt      DateTime             @default(now())
+
+  response       AiVisibilityResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+model AiVisibilityMetrics {
+  id                 String               @id @default(uuid())
+  projectId          String
+  scanId             String               @unique
+  visibilityScore    Float
+  mentionRate        Float
+  recommendationRate Float
+  shortlistRate      Float
+  finalChoiceRate    Float
+  averagePosition    Float?
+  shareOfVoice       Json
+  funnelMetrics      Json
+  createdAt          DateTime             @default(now())
+
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scan               AiVisibilityScan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model AiVisibilitySettings {
+  id             String               @id @default(uuid())
+  projectId      String               @unique
+  enabledModels  String[]
+  useOpenRouter  Boolean              @default(false)
+  promptsQuota   Int                  @default(10)
+  scansPerMonth  Int                  @default(2)
+  updatedAt      DateTime             @updatedAt
+
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
