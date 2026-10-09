@@ -26,6 +26,19 @@ export function getCookieBaseOptions(): CookieOptions {
   };
 }
 
+export function setCsrfCookie(
+  res: Response,
+  csrfToken = crypto.randomBytes(24).toString('hex'),
+): string {
+  res.cookie('csrf_token', csrfToken, {
+    ...getCookieBaseOptions(),
+    httpOnly: false,
+    path: '/',
+    maxAge: 15 * 60 * 1000,
+  });
+  return csrfToken;
+}
+
 export interface AuthTokens {
   access_token: string;
   refresh_token?: string;
@@ -59,13 +72,7 @@ export function setAuthCookies(res: Response, tokens: AuthTokens): void {
   }
 
   // 3. CSRF token — random nonce, readable by JavaScript for Double-Submit header
-  const csrfToken = crypto.randomBytes(24).toString('hex');
-  res.cookie('csrf_token', csrfToken, {
-    ...base,
-    httpOnly: false,
-    path: '/',
-    maxAge: 15 * 60 * 1000,
-  });
+  setCsrfCookie(res);
 
   // 4. Logged-in flag — readable by JavaScript to detect auth state without JWT decode
   res.cookie('logged_in', '1', {

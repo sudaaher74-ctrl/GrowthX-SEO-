@@ -34,6 +34,30 @@ describe('AuthController', () => {
     controller = module.get(AuthController);
   });
 
+  it('returns the current CSRF token and refreshes its cookie lifetime', () => {
+    const res = { cookie: jest.fn() } as any;
+    const token = 'a'.repeat(48);
+    expect(controller.csrf({ cookies: { csrf_token: token } } as any, res)).toEqual({
+      csrf_token: token,
+    });
+    expect(res.cookie).toHaveBeenCalledWith(
+      'csrf_token',
+      token,
+      expect.objectContaining({ httpOnly: false, path: '/', maxAge: 15 * 60 * 1000 }),
+    );
+  });
+
+  it('issues a CSRF token when the cookie has expired', () => {
+    const res = { cookie: jest.fn() } as any;
+    const result = controller.csrf({ cookies: {} } as any, res);
+    expect(result.csrf_token).toMatch(/^[a-f0-9]{48}$/);
+    expect(res.cookie).toHaveBeenCalledWith(
+      'csrf_token',
+      result.csrf_token,
+      expect.objectContaining({ httpOnly: false, path: '/', maxAge: 15 * 60 * 1000 }),
+    );
+  });
+
   it('issues a token for valid credentials', async () => {
     auth.validateUser.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
     await expect(controller.login({ email: 'a@b.com', password: 'x' })).resolves.toEqual({

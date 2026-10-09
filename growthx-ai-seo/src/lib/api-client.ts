@@ -92,26 +92,41 @@ function purgeLegacyTokens() {
 }
 purgeLegacyTokens();
 
-let csrfCache: string | null = null;
+let csrfCache: { token: string; expiresAt: number } | null = null;
+let csrfFetchInFlight: Promise<string | null> | null = null;
 
 /**
  * The CSRF token is readable from the cookie only when the dashboard and API
  * share a parent domain. Otherwise ask the API for it: CORS lets only our own
- * origin read the answer.
+ * origin read the answer. Cache it for less than the API cookie lifetime.
  */
-async function ensureCsrfToken(): Promise<string | null> {
+async function ensureCsrfToken(forceRefresh = false): Promise<string | null> {
   const fromCookie = getCookie("csrf_token");
   if (fromCookie) return fromCookie;
-  if (csrfCache) return csrfCache;
+  if (!forceRefresh && csrfCache && csrfCache.expiresAt > Date.now()) return csrfCache.token;
+  if (!forceRefresh && csrfFetchInFlight) return csrfFetchInFlight;
+
+  const fetchToken = async (): Promise<string | null> => {
+    try {
+      const response = await fetch(`${getApiBase()}/auth/csrf`, { credentials: "include" });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { csrf_token?: string | null };
+      const token = body.csrf_token ?? null;
+      csrfCache = token ? { token, expiresAt: Date.now() + 10 * 60 * 1000 } : null;
+      return token;
+    } catch {
+      csrfCache = null;
+      return null;
+    }
+  };
+
+  const pending = fetchToken();
+  csrfFetchInFlight = pending;
   try {
-    const response = await fetch(`${getApiBase()}/auth/csrf`, { credentials: "include" });
-    if (!response.ok) return null;
-    const body = (await response.json()) as { csrf_token?: string | null };
-    csrfCache = body.csrf_token ?? null;
-  } catch {
-    csrfCache = null;
+    return await pending;
+  } finally {
+    if (csrfFetchInFlight === pending) csrfFetchInFlight = null;
   }
-  return csrfCache;
 }
 
 export const auth = {
@@ -280,6 +295,26 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     if (retryable && [502, 503, 504].includes(response.status)) {
       await new Promise((res) => setTimeout(res, 800));
       response = await fetch(`${baseUrl}${path}`, fetchInit);
+    }
+
+    // The CSRF guard rejects a request before its controller runs, so retrying
+    // only this exact failure cannot duplicate a completed mutation.
+    if (!isSafeMethod && response.status === 403) {
+      let csrfRejected = false;
+      try {
+        const errorBody = (await response.clone().json()) as { message?: unknown };
+        const message = typeof errorBody?.message === "string" ? errorBody.message : "";
+        csrfRejected = /invalid or missing csrf token/i.test(message);
+      } catch {
+        csrfRejected = false;
+      }
+      if (csrfRejected) {
+        const freshToken = await ensureCsrfToken(true);
+        if (freshToken) {
+          headers["x-csrf-token"] = freshToken;
+          response = await fetch(`${baseUrl}${path}`, fetchInit);
+        }
+      }
     }
   } catch {
     response = null;

@@ -8,7 +8,7 @@ import { GoogleAuthGuard } from './google-auth.guard';
 import { GoogleAuthExceptionFilter } from './google-auth.filter';
 import { AllowWithoutOrganization } from './allow-without-organization.decorator';
 import { UsersService } from '../users/users.service';
-import { setAuthCookies, clearAuthCookies } from './auth-cookie.util';
+import { setAuthCookies, clearAuthCookies, setCsrfCookie } from './auth-cookie.util';
 
 /**
  * Browser clients opt in with `X-Auth-Mode: cookie`: their session lives only in
@@ -134,8 +134,18 @@ export class AuthController {
    * origins are refused by CORS and cannot read the response.
    */
   @Get('csrf')
-  csrf(@Req() req: Request) {
-    return { csrf_token: (req.cookies?.csrf_token as string | undefined) ?? null };
+  csrf(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // Refresh the cookie lifetime when the dashboard asks for a token. If an
+    // old cookie has expired, issue a new token so long-lived sessions recover.
+    const csrfToken =
+      (req.cookies?.csrf_token as string | undefined) ?? setCsrfCookie(res);
+    if (req.cookies?.csrf_token) {
+      setCsrfCookie(res, csrfToken);
+    }
+    return { csrf_token: csrfToken };
   }
 
   /**
