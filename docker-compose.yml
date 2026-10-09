@@ -45,6 +45,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
       - PORT=3000
+      # Google sign-in must return to the browser frontend, not this API service.
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3001}
       - ENABLE_PLAYWRIGHT_STARTUP=false
       - PLAYWRIGHT_HEADLESS=true
       - CRAWLER_JOB_CONCURRENCY=5
