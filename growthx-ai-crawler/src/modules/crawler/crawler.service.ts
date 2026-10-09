@@ -31,6 +31,7 @@ import { isInternalTargetUrl } from './url/url-normalizer';
 import { findAll, issueKey, responseStats } from './crawl-completion';
 import { CrawlJobState } from './crawl-job-state';
 import { CrawlFindingsRecorder } from './crawl-findings-recorder';
+import { crawlStateRetentionSeconds } from './crawl-state-retention';
 
 /**
  * Ceiling on the HTML kept per page, per column.
@@ -143,8 +144,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // that was really lost is still closed, one stall window later.
     const graceMs = Number(process.env.CRAWL_STARTUP_GRACE_MS ?? CrawlerService.STALL_TIMEOUT_MS);
     this.startupSweep = setTimeout(() => {
+      void this.renewActiveState();
       void this.finalizeStalledJobs();
       this.stallSweep = setInterval(() => {
+        void this.renewActiveState();
         void this.finalizeStalledJobs();
       }, CrawlerService.STALL_SWEEP_INTERVAL_MS);
       // Do not hold the process open on this timer alone.
@@ -156,6 +159,25 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     if (this.startupSweep) clearTimeout(this.startupSweep);
     if (this.stallSweep) clearInterval(this.stallSweep);
+  }
+
+  private async renewActiveState(): Promise<void> {
+    const redis = this.queue.getRedisClient?.();
+    if (!redis) return;
+    try {
+      const jobs = await this.prisma.crawlJob.findMany({
+        where: { status: { in: ['PENDING', 'RUNNING'] } }, select: { id: true },
+      });
+      const pipeline = redis.pipeline();
+      for (const job of jobs) {
+        for (const suffix of ['visited', 'claims', 'pending_tasks', 'settled_tasks', 'crawl_state', 'renders_used', 'stats']) {
+          pipeline.expire(`job:${job.id}:${suffix}`, crawlStateRetentionSeconds());
+        }
+      }
+      await pipeline.exec();
+    } catch (error) {
+      this.logger.warn(`Active crawl-state renewal failed: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -320,9 +342,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         status: 'PENDING',
         concurrency: clamp(options.maxConcurrency || website.maxConcurrency || 5, 1, limits.maxConcurrency),
         depthLimit: clamp(options.maxDepth || website.maxDepth || 10, 1, limits.maxDepth),
-        // Every crawl has a ceiling. Without one, a site of 100,000 product
-        // pages held the shared workers for a day.
-        pageLimit: clamp(options.pageLimit ?? limits.defaultPageLimit, 1, limits.maxPageLimit),
+        // Operators can opt into full-site page coverage. Explicit caller
+        // limits still apply; concurrency, depth and render controls remain.
+        pageLimit: limits.unlimitedPages && options.pageLimit === undefined
+          ? null
+          : clamp(options.pageLimit ?? limits.defaultPageLimit, 1, limits.maxPageLimit),
         startedAt: new Date(),
       },
     });
@@ -369,7 +393,12 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
     // The clock starts when the crawl does, not when it was queued, so a crawl
     // that waited its turn behind another still gets its whole budget.
     const deadlineAt = payload.timeBudgetMs ? Date.now() + payload.timeBudgetMs : undefined;
-    await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: { status: 'RUNNING' } });
+    await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: {
+      status: 'RUNNING',
+      ...(process.env.CRAWL_FAIR_SCHEDULING === 'true' ? { qualityDiagnostics: {
+        crawlConfig: JSON.parse(JSON.stringify(payload)), dispatchReady: false,
+      } } : {}),
+    } });
     this.metrics.activeCrawlJobs.inc();
 
     // Initialize per-job stats tracking
@@ -459,6 +488,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       )
       .catch((err) => {
         this.logger.warn(`[JOB ${payload.jobId}] Could not write the seed inventory: ${(err as Error).message}`);
+        if (process.env.CRAWL_FAIR_SCHEDULING === 'true') throw err;
         return { added: 0, merged: 0, invalid: 0 };
       });
 
@@ -504,6 +534,14 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       try {
         await this.queue.bulkAddPageFetchTasks(seedPayloads, 0);
         await this.inventory.markQueued(payload.jobId, [...seedUrls]);
+        if (process.env.CRAWL_FAIR_SCHEDULING === 'true') {
+          await this.prisma.crawlJob.update({ where: { id: payload.jobId }, data: {
+            qualityDiagnostics: {
+              crawlConfig: JSON.parse(JSON.stringify(payload)), dispatchReady: true,
+              crawlStateSnapshot: JSON.parse(JSON.stringify({ sitemapUrls: [...sitemapSet], robots: discoveredRobots, sitemapFindings })),
+            },
+          } });
+        }
       } catch (err) {
         // A URL that never reached the queue is not a URL that disappeared.
         // It stays in the inventory, marked with why, so the reconciliation
@@ -623,6 +661,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async processPageFetch(payload: PageFetchPayload): Promise<void> {
+    let settled = true;
     try {
       // Before any fetch, render or write: this queue is shared by every
       // crawl, and work for a crawl that has already finished is work that
@@ -631,12 +670,28 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
       const normUrl = this.state.normalizeUrl(payload.targetUrl);
 
+      if (payload.resumeAttempt && await this.state.claimedByTask(payload.jobId, normUrl, payload.taskId)) {
+        const recorded = await this.prisma.crawlFrontier.findFirst({
+          where: { crawlJobId: payload.jobId, normalizedUrl: normUrl }, select: { state: true },
+        });
+        if (recorded?.state === 'DONE') return;
+        await this.state.releaseUrlClaim(payload.jobId, normUrl);
+      }
+
       if (!(await this.admitUrl(payload, normUrl))) return;
 
       // Read once per page from wherever the crawl's state actually lives, so
       // a page fetched by another worker — or by this one after a restart —
       // knows the same sitemap and the same robots.txt as the first page did.
-      const crawlState = await this.state.loadCrawlState(payload.jobId);
+      let crawlState = await this.state.loadCrawlState(payload.jobId);
+      if (process.env.CRAWL_FAIR_SCHEDULING === 'true' && !this.state.jobSitemapUrls.has(payload.jobId)) {
+        const checkpoint = await this.prisma.crawlJob.findUnique({ where: { id: payload.jobId }, select: { qualityDiagnostics: true } });
+        const snapshot = (checkpoint?.qualityDiagnostics as any)?.crawlStateSnapshot;
+        if (snapshot) {
+          await this.state.saveCrawlState(payload.jobId, { sitemapUrls: new Set(snapshot.sitemapUrls), robots: snapshot.robots, sitemapFindings: snapshot.sitemapFindings ?? [] });
+          crawlState = await this.state.loadCrawlState(payload.jobId);
+        }
+      }
 
       this.logger.log(`[JOB ${payload.jobId}] [Depth ${payload.depth}] Fetching & Analyzing: ${normUrl}`);
       // The two-tier fetch. Beyond rendering client-side pages, the contract
@@ -650,6 +705,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       await this.pacer.wait(payload.domain || new URL(normUrl).host, payload.rateLimitDelayMs);
       const renderAllowed = (await this.state.rendersUsed(payload.jobId)) < this.renderBudgetFor(payload);
       const outcome = await this.fetchSvc.fetch(normUrl, { renderAllowed });
+      if (process.env.CRAWL_RENDER_ALL_PAGES === 'true' &&
+          (['timeout', 'dns', 'proxy'].includes(outcome.error?.kind ?? '') || [429, 503].includes(outcome.statusCode ?? 0))) {
+        throw new Error(outcome.error?.message ?? `Origin temporarily unavailable (HTTP ${outcome.statusCode}); retry this page.`);
+      }
+      if (outcome.renderUnavailable && process.env.CRAWL_RENDER_ALL_PAGES === 'true') {
+        throw new Error('Required browser rendering is temporarily unavailable; retry this page.');
+      }
       if (outcome.tier === 'rendered') {
         await this.state.noteRenderUsed(payload.jobId);
       }
@@ -758,6 +820,9 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           contentHash: content.contentHash,
           simHash: content.simHash || undefined,
         };
+        const alreadyStored = this.prisma.page.findUnique ? await this.prisma.page.findUnique({
+          where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } }, select: { id: true },
+        }) : null;
         const page = await this.prisma.page.upsert({
           where: { crawlJobId_url: { crawlJobId: payload.jobId, url: normUrl } },
           update: pageData,
@@ -771,7 +836,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
         // The inventory's copy of the outcome. A 301 and a 404 are both crawl
         // results recorded against the URL that produced them; neither removes
         // the URL, and a canonical pointing elsewhere does not replace it.
-        await this.inventory.markCrawled(payload.jobId, normUrl, {
+        const storedOutcome = {
           httpStatus: fetchRes.statusCode,
           contentType: fetchRes.contentType,
           indexability: indexability.indexability,
@@ -779,11 +844,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           robotsAllowed: robotsDecision?.allowed ?? true,
           rendered: outcome.tier === 'rendered',
           redirectTarget: fetchRes.finalUrl !== normUrl ? fetchRes.finalUrl : null,
-        });
+        };
 
         const updatedJob = await this.prisma.crawlJob.update({
           where: { id: payload.jobId },
-          data: { pagesCrawled: { increment: 1 } },
+          data: { pagesCrawled: { increment: alreadyStored ? 0 : 1 } },
         });
         this.crawlerGateway.broadcastProgress(payload.jobId, { pagesCrawled: updatedJob.pagesCrawled, currentUrl: normUrl });
         this.metrics.pagesCrawledTotal.inc({ jobId: payload.jobId, status: String(fetchRes.statusCode) });
@@ -879,10 +944,13 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
           const jsOnlyTargets = this.linksOnlyInRenderedDom(outcome, normUrl);
           await this.discoverInternalLinksAndEnqueue(payload, allInternalTargets, page.id, jsOnlyTargets);
         }
+        await this.inventory.markCrawled(payload.jobId, normUrl, storedOutcome);
       } catch (dbErr: any) {
         this.logger.error(`[JOB ${payload.jobId}] Error saving page or issues for ${normUrl}`, dbErr);
+        throw dbErr;
       }
     } catch (err) {
+      settled = false;
       // A URL is claimed before it is fetched, so that two workers cannot crawl
       // it at once. The claim outlives the attempt that made it, so an attempt
       // that dies before recording anything takes the page with it: BullMQ
@@ -893,8 +961,19 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       await this.state.releaseUrlClaim(payload.jobId, this.state.normalizeUrl(payload.targetUrl));
       throw err;
     } finally {
-      await this.settlePageFetchTask(payload);
+      if (settled) await this.settlePageFetchTask(payload);
     }
+  }
+
+  /** Called only when BullMQ has exhausted all attempts for this page. */
+  async failPageFetchTask(payload: PageFetchPayload, message: string): Promise<void> {
+    await this.prisma.crawlFrontier.updateMany({
+      where: { crawlJobId: payload.jobId, normalizedUrl: this.state.normalizeUrl(payload.targetUrl), state: { not: 'DONE' } },
+      data: { state: 'FAILED', reason: 'fetch_failed' },
+    });
+    await this.state.setJobCrawlStatus(payload.jobId, 'PARTIAL');
+    this.logger.warn(`[JOB ${payload.jobId}] Page exhausted its retries: ${message}`);
+    await this.settlePageFetchTask(payload);
   }
 
   /**
@@ -923,7 +1002,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       await this.inventory.markExcluded(payload.jobId, normUrl, 'crawl_budget_exceeded');
       return false;
     }
-    const { alreadyVisited, limitReached } = await this.state.markUrlVisited(payload.jobId, normUrl, payload.pageLimit);
+    const { alreadyVisited, limitReached } = await this.state.markUrlVisited(payload.jobId, normUrl, payload.pageLimit, payload.taskId);
     if (alreadyVisited) {
       await this.state.bumpJobStat(payload.jobId, 'urlsSkipped');
       await this.inventory.markExcluded(payload.jobId, normUrl, 'duplicate');
@@ -959,6 +1038,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
 
   /** A crawl may ask for fewer renders than the deployment allows, never more. */
   private renderBudgetFor(payload: PageFetchPayload): number {
+    if (process.env.CRAWL_RENDER_ALL_PAGES === 'true' && payload.renderBudget === undefined) {
+      // Total work is unlimited; simultaneous browser work is still bounded
+      // by BrowserPoolService and the worker's page-fetch concurrency.
+      return Number.MAX_SAFE_INTEGER;
+    }
     const deploymentBudget = Number(process.env.CRAWL_MAX_RENDERED_PAGES || 100);
     return payload.renderBudget !== undefined ? Math.min(payload.renderBudget, deploymentBudget) : deploymentBudget;
   }
@@ -1034,6 +1118,10 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
    */
   private async settlePageFetchTask(payload: PageFetchPayload): Promise<void> {
     if (this.queue.pageFetchQueue) {
+      if (process.env.CRAWL_FAIR_SCHEDULING === 'true') {
+        if (await this.queue.getPendingTasks(payload.jobId) === 0) await this.completeJob(payload.jobId);
+        return;
+      }
       // Settled by task identity, not by arrival: BullMQ runs a task again
       // after a retry or a lapsed lock, and counting those re-runs as
       // separate work is what drove the counter to zero with most of the
@@ -1199,7 +1287,7 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
             };
           }),
         )
-        .catch(() => undefined);
+        .catch((error) => { if (process.env.CRAWL_FAIR_SCHEDULING === 'true') throw error; });
     }
 
     // Recorded after the inventory rows exist, so each spelling reads as the
@@ -1232,6 +1320,18 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async completeJob(jobId: string): Promise<void> {
+    const redis = this.queue?.getRedisClient?.();
+    const token = `${process.pid}-${Date.now()}-${Math.random()}`;
+    const key = `job:${jobId}:completing`;
+    if (redis && await redis.set(key, token, 'PX', 180000, 'NX') !== 'OK') return;
+    try {
+      await CrawlerService.prototype.completeJobUnlocked.call(this, jobId);
+    } finally {
+      if (redis) await redis.eval("if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0", 1, key, token);
+    }
+  }
+
+  private async completeJobUnlocked(jobId: string): Promise<void> {
     const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId } });
     // A cancelled crawl stays cancelled. The in-memory worker pool calls this
     // when its workers drain, and a crawl cancelled mid-flight (its competitor
@@ -1565,6 +1665,7 @@ export function crawlLimits() {
     maxDepth: num('CRAWL_MAX_DEPTH', 25),
     defaultPageLimit: num('CRAWL_DEFAULT_PAGE_LIMIT', 2000),
     maxPageLimit: num('CRAWL_MAX_PAGE_LIMIT', 5000),
+    unlimitedPages: process.env.CRAWL_UNLIMITED_PAGES === 'true',
   };
 }
 

@@ -11,6 +11,7 @@ import { DiscoveryService } from './discovery/discovery.service';
 import { FrontierService } from './frontier/frontier.service';
 import { UrlInventoryService } from './inventory/url-inventory.service';
 import { CrawlRetentionService } from './crawl-retention.service';
+import { FairCrawlDispatcher } from './fair-crawl-dispatcher';
 
 @Global()
 @Module({
@@ -28,6 +29,7 @@ import { CrawlRetentionService } from './crawl-retention.service';
     FrontierService,
     UrlInventoryService,
     CrawlerProcessor,
+    FairCrawlDispatcher,
     VerificationEngineService,
     // Nightly pruning of old crawls' HTML and detail; see the service.
     CrawlRetentionService,

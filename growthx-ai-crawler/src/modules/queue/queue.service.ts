@@ -2,6 +2,9 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { randomUUID } from 'crypto';
+import { crawlStateRetentionSeconds } from '../crawler/crawl-state-retention';
+import { Optional } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
 
 export interface CrawlJobPayload {
   jobId: string;
@@ -46,10 +49,12 @@ export interface PageFetchPayload {
    * job's lock lapses. See `settlePageFetchTask`.
    */
   taskId?: string;
+  resumeAttempt?: boolean;
 }
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
+  constructor(@Optional() private readonly prisma?: PrismaService) {}
   private readonly logger = new Logger(QueueService.name);
   private redisConnection?: IORedis;
   public crawlJobsQueue?: Queue<CrawlJobPayload>;
@@ -233,8 +238,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       delay: delayMs,
       removeOnComplete: true,
       removeOnFail: true,
-      attempts: 2,
-      backoff: { type: 'fixed', delay: 1000 },
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 15000 },
     });
   }
 
@@ -256,6 +261,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
    */
   async bulkAddPageFetchTasks(payloads: PageFetchPayload[], delayMs: number = 0): Promise<void> {
     if (!this.pageFetchQueue || payloads.length === 0) return;
+    // In frontier scheduling mode, inventory rows are the durable waiting
+    // list. The dispatcher publishes only a bounded number of those rows.
+    if (process.env.CRAWL_FAIR_SCHEDULING === 'true') return;
 
     // Pre-increment by total before any worker can see even the first task.
     await this.incrementPendingTasks(payloads[0].jobId, payloads.length);
@@ -267,8 +275,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         delay: delayMs,
         removeOnComplete: true as const,
         removeOnFail: true as const,
-        attempts: 2,
-        backoff: { type: 'fixed' as const, delay: 1000 },
+        attempts: 5,
+        backoff: { type: 'exponential' as const, delay: 15000 },
       },
     }));
 
@@ -285,7 +293,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     if (this.redisConnection) {
       const key = `job:${jobId}:pending_tasks`;
       const val = await this.redisConnection.incrby(key, count);
-      await this.redisConnection.expire(key, 86400);
+      await this.redisConnection.expire(key, crawlStateRetentionSeconds());
       return val;
     }
     const current = (this.inMemoryTaskCounters.get(jobId) || 0) + count;
@@ -362,7 +370,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           this.settledTasksKey(jobId),
           `job:${jobId}:pending_tasks`,
           taskId,
-          '86400',
+          String(crawlStateRetentionSeconds()),
         )) as [number, number];
         return { remaining: Math.max(0, Number(remaining)), alreadySettled: seen === 1 };
       } catch (error) {
@@ -395,6 +403,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getPendingTasks(jobId: string): Promise<number> {
+    if (process.env.CRAWL_FAIR_SCHEDULING === 'true' && this.prisma) {
+      return this.prisma.crawlFrontier.count({ where: { crawlJobId: jobId, state: { in: ['PENDING', 'IN_PROGRESS'] } } });
+    }
     if (this.redisConnection) {
       const key = `job:${jobId}:pending_tasks`;
       const val = await this.redisConnection.get(key);
@@ -423,6 +434,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async hasQueuedWork(jobId: string): Promise<boolean> {
     if (!this.crawlJobsQueue || !this.pageFetchQueue) return false;
     try {
+      if (process.env.CRAWL_FAIR_SCHEDULING === 'true' && this.prisma && await this.getPendingTasks(jobId) > 0) return true;
       const startJob = await this.crawlJobsQueue.getJob(jobId);
       if (startJob) {
         const state = await startJob.getState();

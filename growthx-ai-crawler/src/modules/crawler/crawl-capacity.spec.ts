@@ -76,6 +76,12 @@ describe('crawl capacity', () => {
   });
 
   describe('CrawlerService.startCrawlJob', () => {
+    const previousUnlimited = process.env.CRAWL_UNLIMITED_PAGES;
+    beforeEach(() => { delete process.env.CRAWL_UNLIMITED_PAGES; });
+    afterEach(() => {
+      if (previousUnlimited === undefined) delete process.env.CRAWL_UNLIMITED_PAGES;
+      else process.env.CRAWL_UNLIMITED_PAGES = previousUnlimited;
+    });
     function fakeService(inFlight: { id: string } | null) {
       const created: any[] = [];
       const self: any = {
@@ -119,6 +125,30 @@ describe('crawl capacity', () => {
       const { start, created } = fakeService(null);
       await start({ pageLimit: 150 });
       expect(created[0].pageLimit).toBe(150);
+    });
+
+    it('stores no page cap and sends no page cap to workers when enabled by the operator', async () => {
+      process.env.CRAWL_UNLIMITED_PAGES = 'true';
+      const { start, created, self } = fakeService(null);
+      await start();
+      expect(created[0].pageLimit).toBeNull();
+      expect(self.queue.addCrawlJob.mock.calls[0][0].pageLimit).toBeUndefined();
+      expect(created[0].concurrency).toBe(5);
+      expect(created[0].depthLimit).toBe(10);
+    });
+
+    it('honors an explicit finite page cap even when unlimited pages are enabled', async () => {
+      process.env.CRAWL_UNLIMITED_PAGES = 'true';
+      const { start, created } = fakeService(null);
+      await start({ pageLimit: 150 });
+      expect(created[0].pageLimit).toBe(150);
+    });
+
+    it('requires an exact true setting to opt in', async () => {
+      process.env.CRAWL_UNLIMITED_PAGES = 'false';
+      const { start, created } = fakeService(null);
+      await start();
+      expect(created[0].pageLimit).toBe(crawlLimits().defaultPageLimit);
     });
   });
 });

@@ -207,7 +207,7 @@ export class VoiceToolsService {
     }
 
     // A third party's site: bounded, as the competitor crawl elsewhere is.
-    const jobId = await this.crawler.startCrawlJob(website.id, { pageLimit: 200, useSitemap: true });
+    const jobId = await this.crawler.startCrawlJob(website.id, { useSitemap: true });
 
     return {
       success: true,

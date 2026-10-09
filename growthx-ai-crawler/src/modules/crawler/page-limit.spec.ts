@@ -139,6 +139,19 @@ describe('CrawlerService — page ceiling', () => {
       expect(client.scard).not.toHaveBeenCalled();
       expect(client.sadd).toHaveBeenCalled();
     });
+
+    it('continues past the former 5000-page deployment ceiling without a page cap', async () => {
+      const client = redis();
+      const service = build(client);
+      for (let i = 0; i < 6000; i++) {
+        expect(await service.state.markUrlVisited('large-job', `https://example.com/page-${i}`))
+          .toEqual({ alreadyVisited: false, limitReached: false });
+      }
+      expect(client.sets.get('job:large-job:visited')?.size).toBe(6000);
+      expect(client.scard).not.toHaveBeenCalled();
+      expect(await service.state.markUrlVisited('large-job', 'https://example.com/page-1'))
+        .toEqual({ alreadyVisited: true, limitReached: false });
+    });
   });
 });
 

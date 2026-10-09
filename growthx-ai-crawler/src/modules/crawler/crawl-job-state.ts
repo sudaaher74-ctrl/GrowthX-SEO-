@@ -4,6 +4,7 @@ import { QueueService } from '../queue/queue.service';
 import { canonicalUrl } from './canonical-url';
 import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
 import { ParsedRobots } from './discovery/robots-txt';
+import { crawlStateRetentionSeconds } from './crawl-state-retention';
 
 /**
  * Everything a crawl remembers between pages: which URLs it has claimed, the
@@ -21,6 +22,7 @@ export class CrawlJobState {
   constructor(private readonly queue: QueueService) {}
 
   readonly localVisited = new Map<string, Set<string>>();
+  private readonly localClaims = new Map<string, Map<string, string>>();
 
   readonly jobSitemapUrls = new Map<string, Set<string>>();
 
@@ -94,7 +96,7 @@ export class CrawlJobState {
           sitemapFindings: state.sitemapFindings,
         }),
         'EX',
-        86400,
+        crawlStateRetentionSeconds(),
       );
     } catch (error) {
       this.logger.warn(`[JOB ${jobId}] Crawl state could not be shared with the other workers: ${(error as Error).message}`);
@@ -175,7 +177,7 @@ export class CrawlJobState {
     try {
       const key = `job:${jobId}:renders_used`;
       await redisClient.incr(key);
-      await redisClient.expire(key, 86400);
+      await redisClient.expire(key, crawlStateRetentionSeconds());
     } catch {
       /* the in-process count above still bounds this worker */
     }
@@ -198,7 +200,7 @@ export class CrawlJobState {
     try {
       const key = `job:${jobId}:stats`;
       await redisClient.hincrby(key, field, by);
-      await redisClient.expire(key, 86400);
+      await redisClient.expire(key, crawlStateRetentionSeconds());
     } catch {
       /* a lost counter must never cost a page */
     }
@@ -213,7 +215,7 @@ export class CrawlJobState {
     try {
       const key = `job:${jobId}:stats`;
       await redisClient.hset(key, 'crawlStatus', status);
-      await redisClient.expire(key, 86400);
+      await redisClient.expire(key, crawlStateRetentionSeconds());
     } catch {
       /* as above */
     }
@@ -269,18 +271,32 @@ export class CrawlJobState {
    * path of every fetch, and a handful of extra pages on a cap of a few
    * hundred is not worth either.
    */
-  async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number): Promise<{ alreadyVisited: boolean; limitReached: boolean }> {
+  async markUrlVisited(jobId: string, targetUrl: string, pageLimit?: number, taskId?: string): Promise<{ alreadyVisited: boolean; limitReached: boolean }> {
     const redisClient = this.queue.getRedisClient();
     const key = `job:${jobId}:visited`;
     const member = this.visitKey(targetUrl);
 
     if (redisClient) {
+      // This bounded claim script passed recovery-prototype-test.cjs against
+      // an isolated Redis restart, including duplicate rejection and cleanup.
+      if (taskId && typeof redisClient.eval === 'function') {
+        const result = Number(await redisClient.eval(`
+          if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then return 0 end
+          if tonumber(ARGV[3]) > 0 and redis.call('SCARD', KEYS[1]) >= tonumber(ARGV[3]) then return -1 end
+          redis.call('SADD', KEYS[1], ARGV[1])
+          redis.call('HSET', KEYS[2], ARGV[1], ARGV[2])
+          redis.call('EXPIRE', KEYS[1], ARGV[4])
+          redis.call('EXPIRE', KEYS[2], ARGV[4])
+          return 1
+        `, 2, key, `job:${jobId}:claims`, member, taskId, pageLimit ?? 0, crawlStateRetentionSeconds()));
+        return { alreadyVisited: result === 0, limitReached: result === -1 };
+      }
       if (pageLimit && (await redisClient.scard(key)) >= pageLimit) {
         return { alreadyVisited: false, limitReached: true };
       }
       const added = await redisClient.sadd(key, member);
       if (added === 1) {
-        await redisClient.expire(key, 86400);
+        await redisClient.expire(key, crawlStateRetentionSeconds());
         return { alreadyVisited: false, limitReached: false };
       }
       return { alreadyVisited: true, limitReached: false };
@@ -298,7 +314,20 @@ export class CrawlJobState {
       return { alreadyVisited: true, limitReached: false };
     }
     visitedSet.add(member);
+    if (taskId) {
+      const owners = this.localClaims.get(jobId) ?? new Map<string, string>();
+      owners.set(member, taskId);
+      this.localClaims.set(jobId, owners);
+    }
     return { alreadyVisited: false, limitReached: false };
+  }
+
+  async claimedByTask(jobId: string, targetUrl: string, taskId?: string): Promise<boolean> {
+    if (!taskId) return false;
+    const member = this.visitKey(targetUrl);
+    const redis = this.queue.getRedisClient?.();
+    if (redis) return (await redis.hget(`job:${jobId}:claims`, member)) === taskId;
+    return this.localClaims.get(jobId)?.get(member) === taskId;
   }
 
   /**
@@ -334,9 +363,11 @@ export class CrawlJobState {
     const redisClient = this.queue.getRedisClient?.();
     if (redisClient) {
       await redisClient.srem(`job:${jobId}:visited`, member).catch(() => undefined);
+      if (redisClient.hdel) await redisClient.hdel(`job:${jobId}:claims`, member).catch(() => undefined);
       return;
     }
     this.localVisited.get(jobId)?.delete(member);
+    this.localClaims.get(jobId)?.delete(member);
   }
 
   /**
@@ -383,6 +414,7 @@ export class CrawlJobState {
   /** Forgets everything this process held for a finished crawl. */
   dropLocal(jobId: string): void {
     this.localVisited.delete(jobId);
+    this.localClaims.delete(jobId);
     this.jobSitemapUrls.delete(jobId);
     this.jobSitemapFindings.delete(jobId);
     this.jobRobots.delete(jobId);

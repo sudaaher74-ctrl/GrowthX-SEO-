@@ -125,6 +125,8 @@ export class BrowserPoolService implements OnModuleDestroy {
 
   /** Set once a launch has failed, so we do not pay the timeout on every page. */
   private launchFailure?: string;
+  private launchRetryAt = 0;
+  private readonly launchRetryMs = Number(process.env.BROWSER_LAUNCH_RETRY_MS ?? 30000);
 
   /** Renders served by the browser currently running. Reset on every launch. */
   private rendersSinceLaunch = 0;
@@ -190,7 +192,8 @@ export class BrowserPoolService implements OnModuleDestroy {
     // the two race and leave a live browser with no reference to it.
     if (this.closing) await this.closing.catch(() => {});
     if (this.context && this.browser?.isConnected()) return this.context;
-    if (this.launchFailure) return undefined;
+    if (this.launchFailure && Date.now() < this.launchRetryAt) return undefined;
+    this.launchFailure = undefined;
     if (this.launching) return this.launching;
     if (this.budgetRefusal && Date.now() < this.budgetRecheckAt) return undefined;
 
@@ -220,7 +223,7 @@ export class BrowserPoolService implements OnModuleDestroy {
 
     this.launching = (async () => {
       try {
-        this.browser = await chromium.launch({
+        this.browser = await this.bounded(chromium.launch({
           headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
           // Set only where the runtime needs it (a sandbox with an egress
           // proxy, say). Unset in production, so nothing is routed anywhere
@@ -261,24 +264,30 @@ export class BrowserPoolService implements OnModuleDestroy {
             // which is how renders came back as empty shells under load.
             ...(process.env.CHROMIUM_EXTRA_ARGS ? process.env.CHROMIUM_EXTRA_ARGS.split(' ').filter(Boolean) : []),
           ],
-        });
+        }), 'launching');
 
-        this.browser.on('disconnected', () => {
+        const launchedBrowser = this.browser;
+        launchedBrowser.on('disconnected', () => {
           this.logger.warn('Chromium disconnected; the next render will relaunch it.');
-          this.context = undefined;
-          this.browser = undefined;
+          // A slow old browser may disconnect after its replacement launched.
+          if (this.browser === launchedBrowser) {
+            this.context = undefined;
+            this.browser = undefined;
+          }
         });
 
-        this.context = await this.browser.newContext({
+        this.context = await this.bounded(launchedBrowser.newContext({
           userAgent,
           viewport: { width: 1366, height: 900 },
           ignoreHTTPSErrors: true,
           javaScriptEnabled: true,
-        });
+        }), 'creating a context');
         return this.context;
       } catch (err) {
         this.launchFailure = (err as Error).message;
+        this.launchRetryAt = Date.now() + this.launchRetryMs;
         this.logger.error(`Chromium could not be launched: ${this.launchFailure}. Pages needing JavaScript cannot be rendered.`);
+        if (this.browser) await this.shutdownBrowser().catch(() => {});
         return undefined;
       } finally {
         this.launching = undefined;

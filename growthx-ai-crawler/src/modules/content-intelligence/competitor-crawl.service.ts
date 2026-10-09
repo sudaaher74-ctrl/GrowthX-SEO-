@@ -13,20 +13,12 @@ import { competitorScope, websiteKey } from '../crawler/website-scope';
 export class CompetitorCrawlService {
   private readonly logger = new Logger(CompetitorCrawlService.name);
 
-  // A competitor crawl is a sample of their site, not an audit of it, and on a
-  // small server it shares the crawler with the customer's own audits. At 300
-  // pages with up to 50 browser renders each, the customer sat looking at
-  // "Reading their pages…" for far too long. These bounds cap a crawl at
-  // twelve minutes; the report reads topics and page types, which 150 pages
-  // already show.
-  static readonly PAGE_LIMIT = 150;
+  // Competitor intelligence needs the same coverage as website audits.
+  // Keep request pacing and concurrency bounded; CrawlerService applies the
+  // deployment's page, depth and render limits to both kinds of crawl.
   static readonly RATE_LIMIT_DELAY_MS = 1000;
   static readonly MAX_CONCURRENCY = 2;
-  static readonly MAX_DEPTH = 4;
-  /** After this long the crawl stops reading and finishes with what it has. */
-  static readonly TIME_BUDGET_MS = 12 * 60 * 1000;
-  /** Pages opened in the headless browser, the slowest fetch there is. */
-  static readonly RENDER_BUDGET = 20;
+  static readonly MAX_DEPTH = 10;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -107,7 +99,7 @@ export class CompetitorCrawlService {
           status: { in: ['PENDING', 'RUNNING'] },
         },
         orderBy: { createdAt: 'desc' },
-        select: { id: true },
+        select: { id: true, pageLimit: true },
       });
       if (active) {
         if (competitor.websiteId !== website.id) {
@@ -120,7 +112,7 @@ export class CompetitorCrawlService {
           jobId: active.id,
           websiteId: website.id,
           domain,
-          pageLimit: CompetitorCrawlService.PAGE_LIMIT,
+          pageLimit: active.pageLimit ?? null,
           alreadyRunning: true,
         };
       }
@@ -134,26 +126,21 @@ export class CompetitorCrawlService {
       data: { websiteId: website.id, status: 'ANALYZING' },
     });
 
-    let jobId = 'job-' + Date.now();
-    try {
-      jobId = await this.crawler.startCrawlJob(website.id, {
-        maxConcurrency: CompetitorCrawlService.MAX_CONCURRENCY,
-        maxDepth: CompetitorCrawlService.MAX_DEPTH,
-        pageLimit: CompetitorCrawlService.PAGE_LIMIT,
-        rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
-        timeBudgetMs: CompetitorCrawlService.TIME_BUDGET_MS,
-        renderBudget: CompetitorCrawlService.RENDER_BUDGET,
-      });
-    } catch (e: any) {
-      this.logger.warn(`Live crawler notice: ${e.message}. Ensuring baseline crawl.`);
-    }
+    const jobId = await this.crawler.startCrawlJob(website.id, {
+      maxConcurrency: CompetitorCrawlService.MAX_CONCURRENCY,
+      // Existing competitor records retain the former four-level setting.
+      // Override it with the ordinary audit depth without rewriting records.
+      maxDepth: CompetitorCrawlService.MAX_DEPTH,
+      rateLimitDelayMs: CompetitorCrawlService.RATE_LIMIT_DELAY_MS,
+    });
 
     if ((this.prisma as any).page?.create) {
       await this.ensureCompetitorCrawlData(domain, competitor.id, website.id);
     }
 
     this.logger.log(`Started competitor crawl ${jobId} for ${domain} (competitor ${competitor.id}).`);
-    return { jobId, websiteId: website.id, domain, pageLimit: CompetitorCrawlService.PAGE_LIMIT, alreadyRunning: false };
+    const job = await this.prisma.crawlJob.findUnique({ where: { id: jobId }, select: { pageLimit: true } });
+    return { jobId, websiteId: website.id, domain, pageLimit: job?.pageLimit ?? null, alreadyRunning: false };
   }
 
   async getCoverage(organizationId: string, projectId: string, competitorId: string) {

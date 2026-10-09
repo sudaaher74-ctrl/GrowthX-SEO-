@@ -180,6 +180,63 @@ describe('CrawlerService writes the v2 columns', () => {
 });
 
 describe('CrawlerService budgets rendering', () => {
+  it('restores sitemap and robots metadata from the database after Redis state loss', async () => {
+    const previous = process.env.CRAWL_FAIR_SCHEDULING;
+    process.env.CRAWL_FAIR_SCHEDULING = 'true';
+    try {
+      const { service } = makeService({ fetchSvc: { fetch: jest.fn(async () => outcome()) } });
+      const snapshot = { sitemapUrls: [payload.targetUrl], robots: { groups: [], sitemaps: [] }, sitemapFindings: [] };
+      (service as any).prisma.crawlJob.findUnique = jest.fn(async ({ select }: any) => select?.status
+        ? { status: 'RUNNING' } : { qualityDiagnostics: { crawlStateSnapshot: snapshot } });
+      await service.processPageFetch(payload);
+      expect((service as any).state.jobSitemapUrls.get(payload.jobId).has(payload.targetUrl)).toBe(true);
+      expect((service as any).state.jobRobots.get(payload.jobId)).toEqual(snapshot.robots);
+    } finally {
+      if (previous === undefined) delete process.env.CRAWL_FAIR_SCHEDULING;
+      else process.env.CRAWL_FAIR_SCHEDULING = previous;
+    }
+  });
+  it('resumes an interrupted claim only for the same BullMQ task', async () => {
+    const fetch = jest.fn(async () => outcome());
+    const { service, upserts } = makeService({ fetchSvc: { fetch } });
+    (service as any).prisma.crawlFrontier = { findFirst: jest.fn(async () => ({ state: 'PENDING' })) };
+    await (service as any).state.markUrlVisited(payload.jobId, payload.targetUrl, undefined, 'interrupted');
+    await service.processPageFetch({ ...payload, taskId: 'another-task', resumeAttempt: true });
+    expect(fetch).not.toHaveBeenCalled();
+    await service.processPageFetch({ ...payload, taskId: 'interrupted', resumeAttempt: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(upserts).toHaveLength(1);
+  });
+  it('allows required renders after 100 pages when full rendering is enabled', async () => {
+    const previous = process.env.CRAWL_RENDER_ALL_PAGES;
+    process.env.CRAWL_RENDER_ALL_PAGES = 'true';
+    try {
+      const fetch = jest.fn(async () => outcome({ tier: 'rendered', renderedHtml: '<h1>Complete</h1>' }));
+      const { service } = makeService({ fetchSvc: { fetch } });
+      (service as any).state.jobRendersUsed.set(payload.jobId, 600);
+      await service.processPageFetch(payload);
+      expect(fetch).toHaveBeenCalledWith(payload.targetUrl, { renderAllowed: true });
+    } finally {
+      if (previous === undefined) delete process.env.CRAWL_RENDER_ALL_PAGES;
+      else process.env.CRAWL_RENDER_ALL_PAGES = previous;
+    }
+  });
+
+  it('retries unavailable rendering without storing a shell or settling the page', async () => {
+    const previous = process.env.CRAWL_RENDER_ALL_PAGES;
+    process.env.CRAWL_RENDER_ALL_PAGES = 'true';
+    try {
+      const { service, upserts } = makeService({ fetchSvc: { fetch: jest.fn(async () => outcome({ renderUnavailable: true })) } });
+      const settle = jest.spyOn(service as any, 'settlePageFetchTask');
+      await expect(service.processPageFetch(payload)).rejects.toThrow('Required browser rendering');
+      expect(upserts).toHaveLength(0);
+      expect(settle).not.toHaveBeenCalled();
+      expect(await (service as any).state.isUrlClaimed(payload.jobId, payload.targetUrl)).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.CRAWL_RENDER_ALL_PAGES;
+      else process.env.CRAWL_RENDER_ALL_PAGES = previous;
+    }
+  });
   it('allows rendering while the budget holds', async () => {
     const fetch = jest.fn(async (_url: string, _opts?: unknown) => outcome());
     const { service } = makeService({ fetchSvc: { fetch } });

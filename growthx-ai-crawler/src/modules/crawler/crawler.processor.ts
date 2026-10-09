@@ -106,7 +106,15 @@ export class CrawlerProcessor implements OnModuleInit, OnModuleDestroy {
     this.pageFetchWorker = new Worker<PageFetchPayload>(
       'page-fetch',
       async (job: Job<PageFetchPayload>) => {
-        await this.crawlerService.processPageFetch(job.data);
+        try {
+          await this.crawlerService.processPageFetch({ ...job.data,
+            resumeAttempt: job.attemptsMade > 0 || Number((job as any).attemptsStarted || 0) > 1 });
+        } catch (error) {
+          if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
+            await this.crawlerService.failPageFetchTask(job.data, (error as Error).message);
+          }
+          throw error;
+        }
       },
       {
         connection: redisConnection,

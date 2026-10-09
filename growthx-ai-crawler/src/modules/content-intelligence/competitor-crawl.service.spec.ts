@@ -48,7 +48,7 @@ describe('CompetitorCrawlService', () => {
           update: jest.fn().mockResolvedValue({}),
         },
         website: { upsert: jest.fn().mockResolvedValue({ id: 'w1', domain: 'acme.com' }) },
-        crawlJob: { findFirst: jest.fn().mockResolvedValue(null) },
+        crawlJob: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue({ pageLimit: 2000 }) },
       };
       const crawler = { startCrawlJob: jest.fn().mockResolvedValue('job1') };
       return { prisma, crawler, service: new CompetitorCrawlService(prisma as any, crawler as any) };
@@ -100,29 +100,34 @@ describe('CompetitorCrawlService', () => {
       expect(prisma.website.upsert.mock.calls[0][0].update).toEqual({});
     });
 
-    it('bounds the crawl and slows it down', async () => {
+    it('uses ordinary audit limits instead of silently sampling 150 pages', async () => {
       const { crawler, service } = build();
 
       await service.startCrawl('org1', 'p1', 'comp1');
 
       const options = crawler.startCrawlJob.mock.calls[0][1];
-      expect(options.pageLimit).toBe(CompetitorCrawlService.PAGE_LIMIT);
+      expect(options.pageLimit).toBeUndefined();
       expect(options.rateLimitDelayMs).toBe(CompetitorCrawlService.RATE_LIMIT_DELAY_MS);
       expect(options.maxConcurrency).toBe(CompetitorCrawlService.MAX_CONCURRENCY);
-      expect(options.timeBudgetMs).toBe(CompetitorCrawlService.TIME_BUDGET_MS);
-      expect(options.renderBudget).toBe(CompetitorCrawlService.RENDER_BUDGET);
+      expect(options.timeBudgetMs).toBeUndefined();
+      expect(options.renderBudget).toBeUndefined();
+      expect(options.maxDepth).toBe(10);
       // Slower and shallower than the defaults used on a customer's own site,
       // which are 500ms, concurrency 5, depth 10.
       expect(CompetitorCrawlService.RATE_LIMIT_DELAY_MS).toBeGreaterThan(500);
       expect(CompetitorCrawlService.MAX_CONCURRENCY).toBeLessThan(5);
-      expect(CompetitorCrawlService.MAX_DEPTH).toBeLessThan(10);
     });
 
-    it('keeps a competitor crawl to minutes, not the better part of an hour', () => {
-      expect(CompetitorCrawlService.PAGE_LIMIT).toBeLessThanOrEqual(150);
-      expect(CompetitorCrawlService.TIME_BUDGET_MS).toBeLessThanOrEqual(15 * 60 * 1000);
-      // Below the production deployment's own ceiling of 50 renders.
-      expect(CompetitorCrawlService.RENDER_BUDGET).toBeLessThan(50);
+    it('returns the actual job page limit rather than a hardcoded sampling limit', async () => {
+      const { prisma, service } = build();
+      prisma.crawlJob.findUnique.mockResolvedValue({ pageLimit: 1200 });
+      expect(await service.startCrawl('org1', 'p1', 'comp1')).toMatchObject({ pageLimit: 1200 });
+    });
+
+    it('propagates dispatch failures instead of returning an invented job ID', async () => {
+      const { crawler, service } = build();
+      crawler.startCrawlJob.mockRejectedValue(new Error('Queue unavailable'));
+      await expect(service.startCrawl('org1', 'p1', 'comp1')).rejects.toThrow('Queue unavailable');
     });
 
     it('crawls the bare domain, not the URL the customer pasted', async () => {
@@ -156,6 +161,7 @@ describe('CompetitorCrawlService', () => {
         },
         crawlJob: {
           findFirst: jest.fn(({ where }) => Promise.resolve(jobs.find((j) => j.websiteId === where.websiteId && where.status.in.includes(j.status)) ?? null)),
+          findUnique: jest.fn().mockResolvedValue({ pageLimit: 2000 }),
         },
       };
       const crawler = { startCrawlJob: jest.fn().mockResolvedValue('mine') };

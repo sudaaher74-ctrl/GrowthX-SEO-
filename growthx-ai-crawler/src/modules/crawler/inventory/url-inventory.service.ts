@@ -163,6 +163,7 @@ export class UrlInventoryService {
       result.merged = valid - count;
     } catch (err) {
       this.logger.warn(`Could not record ${first.size} URLs: ${(err as Error).message}`);
+      if (process.env.CRAWL_FAIR_SCHEDULING === 'true') throw err;
       return result;
     }
 
