@@ -111,7 +111,7 @@ export class AiVisibilityController {
       competitorId: string | null,
       domain: string,
       name: string,
-      website: { id: string; domain: string; crawlJobs: Array<any> } | null,
+      website: NonNullable<typeof ownWebsite> | NonNullable<(typeof competitors)[number]['website']> | null,
       rating: number | null = null,
       reviewCount: number | null = null,
     ) => {
@@ -151,7 +151,7 @@ export class AiVisibilityController {
         rating,
         reviewCount,
         pageTypes: pageTypes
-          .map((row) => ({ type: row.pageType, label: row.pageType.replace(/_/g, ' ').toLowerCase().replace(/\\b\\w/g, (letter) => letter.toUpperCase()), count: row._count._all }))
+          .map((row) => ({ type: row.pageType, label: row.pageType.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()), count: row._count._all }))
           .sort((a, b) => b.count - a.count),
       };
     };
