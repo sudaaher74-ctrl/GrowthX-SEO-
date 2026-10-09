@@ -4,7 +4,7 @@ import { PromptEngineService } from './prompt-engine.service';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@Controller('projects/:projectId/ai-visibility')
+@Controller(['api/projects/:projectId/ai-visibility', 'projects/:projectId/ai-visibility'])
 @UseGuards(JwtAuthGuard)
 export class AiVisibilityController {
   constructor(
