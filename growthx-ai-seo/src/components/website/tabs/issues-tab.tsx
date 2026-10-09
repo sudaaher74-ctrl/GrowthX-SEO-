@@ -2,16 +2,15 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, FileDown, Search, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, ExternalLink, Search, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CrawlIssue } from "@/lib/api-client";
 
 interface IssuesTabProps {
   issues: CrawlIssue[];
-  onExportPdf?: () => void;
 }
 
-export function IssuesTab({ issues, onExportPdf }: IssuesTabProps) {
+export function IssuesTab({ issues }: IssuesTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState("ALL");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
@@ -119,18 +118,6 @@ export function IssuesTab({ issues, onExportPdf }: IssuesTabProps) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {onExportPdf && (
-              <button
-                type="button"
-                onClick={onExportPdf}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg border bg-white hover:bg-brand-50 hover:text-brand-950 text-brand-700 dark:bg-brand-900 dark:text-brand-200 text-xs font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
-                title="Download 9-Page PDF Audit Report"
-              >
-                <FileDown size={13} className="text-accent-600 dark:text-accent-400" />
-                <span>Download PDF</span>
-              </button>
-            )}
-
             <Link
               href="/fix-engine"
               className="inline-flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 rounded-lg border bg-white hover:border-brand-300 hover:bg-brand-50 hover:text-brand-950 text-brand-700 dark:bg-brand-900 dark:text-brand-200 text-xs font-semibold transition-all shadow-xs active:scale-95"

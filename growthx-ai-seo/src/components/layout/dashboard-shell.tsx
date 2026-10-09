@@ -7,7 +7,6 @@ import { auth, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
-import { AutopilotCard } from "@/components/autopilot/autopilot-card";
 import { TokenBanner } from "@/components/tokens/token-banner";
 
 import { useTheme } from "@/hooks/use-theme";
@@ -94,7 +93,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-      <AutopilotCard />
       <AivaPanel />
     </AivaProvider>
   );

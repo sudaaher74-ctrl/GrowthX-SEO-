@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, FileDown, Home, Loader2, RefreshCw, X, Zap } from "lucide-react";
+import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, X, Zap } from "lucide-react";
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
@@ -18,7 +18,6 @@ import {
   useWorkspace,
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
-import { SeoAuditReportModal } from "@/components/website/audit-report-pdf/seo-audit-report-modal";
 import { AuditReportTab } from "@/components/website/tabs/audit-report-tab";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
@@ -73,7 +72,6 @@ function WebsiteAuditClient() {
     ? tabParam
     : "technical-seo";
   const [crawling, setCrawling] = useState(false);
-  const [showPdfModal, setShowPdfModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
 
   function selectTab(tab: TabId) {
@@ -134,10 +132,6 @@ function WebsiteAuditClient() {
     } finally {
       setCrawling(false);
     }
-  }
-
-  function handleExportPdf() {
-    setShowPdfModal(true);
   }
 
   // Client display name (e.g. Aiva Enterprises)
@@ -256,15 +250,6 @@ function WebsiteAuditClient() {
 
           {/* Action buttons toolbar */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportPdf}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-200/50 bg-brand-50 px-3.5 py-1.5 text-xs font-semibold text-brand-950 shadow-xs hover:bg-brand-100 active:scale-95 transition-all"
-            >
-              <FileDown size={13.5} className="text-brand-400" />
-              <span>Save PDF to share</span>
-            </button>
-
             <button
               type="button"
               onClick={handleReCrawl}
@@ -420,26 +405,9 @@ function WebsiteAuditClient() {
         {activeTab === "issues" && (
           <IssuesTab
             issues={allIssues}
-            onExportPdf={() => setShowPdfModal(true)}
           />
         )}
       </QueryState>
-
-      {/* 9-Page SEO Audit Report PDF Modal */}
-      <SeoAuditReportModal
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-        clientName={client?.name}
-        domain={client?.domain}
-        crawledAt={crawl.data?.finishedAt || crawl.data?.startedAt}
-        crawlDuration={crawlDuration}
-        healthScore={crawl.data?.healthScore}
-        counts={counts}
-        groups={issueGroups.data?.groups ?? null}
-        issues={allIssues}
-        pages={allPages}
-        qualityDiagnostics={qualityDiagnostics}
-      />
 
       {/* Crawl Logs Modal */}
       {showLogsModal && (

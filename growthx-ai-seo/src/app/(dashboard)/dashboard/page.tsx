@@ -29,7 +29,6 @@ import {
 import { api, type IssueSeverity } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { SEVERITY_ORDER, SEVERITY_PLAIN } from "@/lib/plain-language";
-import { AutopilotStart } from "@/components/autopilot/autopilot-start";
 import { Ga4Overview } from "@/components/ga4/ga4-panels";
 import { useGa4Report } from "@/hooks/use-ga4-report";
 import { Card, CardHead, EmptyPrompt, LoadingLine } from "@/components/dashboard/dashboard-cards";
@@ -305,9 +304,6 @@ export default function UnifiedDashboardPage() {
       )}
 
       {/* One step to everything: website in, competitors and full report out. */}
-      {(!hasWebsite || (trackedCompetitors.isSuccess && !hasCompetitors)) && (
-        <AutopilotStart projectId={projectId} domain={client?.domain ?? null} />
-      )}
 
       {/* Row 1: how is my website doing / are people finding me */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr]">
