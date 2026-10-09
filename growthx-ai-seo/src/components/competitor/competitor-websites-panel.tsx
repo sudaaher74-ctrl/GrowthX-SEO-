@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Loader2,
   RotateCw,
-  Star,
 } from "lucide-react";
 import { Panel, relativeTime } from "@/components/ui/console";
 import { api, type CompetitorWebsite, type SiteReadStatus } from "@/lib/api-client";
@@ -122,7 +121,7 @@ export function CompetitorWebsitesPanel({
       subtitle={
         reading
           ? `Reading ${reading} website${reading === 1 ? "" : "s"} now. This updates automatically.`
-          : "Your website and each competitor's: how much we've read, what kinds of pages they have, and their Google rating."
+          : "Your website and each competitor's: how much we've read and what kinds of pages they have."
       }
       actions={
         sites.length > 0 ? (
@@ -282,9 +281,8 @@ function SiteCard({
           </div>
         </div>
 
-        {/* Core Metrics Strip */}
         <div
-          className="grid grid-cols-3 rounded-xl border bg-brand-50/50 p-1 divide-x divide-line/60"
+          className="grid grid-cols-2 rounded-xl border bg-brand-50/50 p-1 divide-x divide-line/60"
           style={{ borderColor: "var(--border-color)" }}
         >
           {/* Pages Crawled */}
@@ -340,33 +338,6 @@ function SiteCard({
             </div>
           </div>
 
-          {/* Google Rating */}
-          <div className="px-2.5 py-2 flex flex-col justify-between">
-            <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-brand-400">
-              Google Rating
-            </span>
-            <div className="my-0.5 flex items-center gap-1">
-              {site.rating != null ? (
-                <>
-                  <span className="text-[17px] font-bold font-mono text-brand-950 leading-tight">
-                    {site.rating.toFixed(1)}
-                  </span>
-                  <Star size={12} className="fill-warning-400 text-warning-400 -mt-0.5" />
-                </>
-              ) : (
-                <span className="text-[17px] font-bold font-mono text-brand-400 leading-tight">—</span>
-              )}
-            </div>
-            <div className="text-[10px] text-brand-400 truncate">
-              {site.rating != null && site.reviewCount ? (
-                `${site.reviewCount.toLocaleString()} reviews`
-              ) : site.role === "you" ? (
-                "Not connected"
-              ) : (
-                "Not on Google"
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Page Architecture */}

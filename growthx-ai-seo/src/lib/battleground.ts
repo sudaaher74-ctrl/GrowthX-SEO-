@@ -69,18 +69,6 @@ export function buildMetrics(you: YouInput, rivals: RivalInput[]): Metric[] {
   return [
     { key: "pages", label: "Pages on the website", source: "Crawled", you: you.pagesCrawled, rivals: side((r) => r.pagesCrawled), format: (n) => `${count(n)} pages`, short: count },
     { key: "health", label: "Website health score", source: "Crawled", you: you.healthScore, rivals: side((r) => r.healthScore), format: (n) => `${Math.round(n)}/100`, short: (n) => String(Math.round(n)) },
-    {
-      key: "ai",
-      label: "Named by AI assistants",
-      source: "AI sampled",
-      you: you.aiChecked ? you.aiSharePct : null,
-      rivals: side((r) => aiPct(r.aiNamed, r.aiAnswers)),
-      sample: you.aiChecked,
-      format: pct,
-      short: pct,
-    },
-    { key: "rating", label: "Google rating", source: "Google Places", you: you.rating, rivals: side((r) => r.rating), format: (n) => `${n.toFixed(1)}★`, short: (n) => n.toFixed(1) },
-    { key: "reviews", label: "Google reviews", source: "Google Places", you: you.reviewCount, rivals: side((r) => r.reviewCount), format: count, short: count },
   ];
 }
 

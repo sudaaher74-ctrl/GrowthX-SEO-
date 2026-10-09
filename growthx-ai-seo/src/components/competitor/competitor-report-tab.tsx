@@ -270,8 +270,7 @@ function RivalFacts({ rival: r, asked, namedYou }: { rival: IntelReportRival; as
             <span>You</span>
             <span>Them</span>
           </div>
-          <Row label="Named in AI answers" you={asked ? `${namedYou} of ${asked}` : "—"} them={r.aiMentions ?? "—"} />
-          <Row label="Google reviews" you="—" them={reviewText(r)} />
+
           {a && (
             <>
               {a.pageTypes.map((t) => (
