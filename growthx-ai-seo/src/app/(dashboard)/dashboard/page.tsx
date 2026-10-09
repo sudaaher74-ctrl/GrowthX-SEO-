@@ -71,6 +71,7 @@ export default function UnifiedDashboardPage() {
   const [metricKey, setMetricKey] = useState<MetricKey>("searchClicks");
   const [severityTab, setSeverityTab] = useState<"ALL" | IssueSeverity>("ALL");
   const [pickedGroup, setPickedGroup] = useState<string | null>(null);
+  const [auditActionError, setAuditActionError] = useState<string | null>(null);
   const portfolio = usePortfolio(orgId);
   const client = portfolio.data?.clients.find((c) => c.projectId === projectId) ?? portfolio.data?.clients[0] ?? null;
 
@@ -168,14 +169,21 @@ export default function UnifiedDashboardPage() {
   ];
   const setupIncomplete = setupSteps.some((s) => !s.done);
 
-  const runAudit = () => {
-    if (!client?.domain) return;
-    startCrawlMutation.mutate({
-      domain: client.domain,
-      maxDepth: 10,
-      maxConcurrency: 3,
-      useSitemap: true,
-    });
+  const runAudit = async () => {
+    if (!client?.domain || auditBusy) return;
+    setAuditActionError(null);
+    try {
+      await startCrawlMutation.mutateAsync({
+        domain: client.domain,
+        maxDepth: 10,
+        maxConcurrency: 3,
+        useSitemap: true,
+      });
+    } catch (error) {
+      setAuditActionError(
+        error instanceof Error ? error.message : "The website check could not start. Please try again.",
+      );
+    }
   };
   const auditBusy = startCrawlMutation.isPending || crawlRunning;
 
@@ -295,6 +303,12 @@ export default function UnifiedDashboardPage() {
           </button>
         </div>
       </div>
+
+      {auditActionError && (
+        <div role="alert">
+          <StatusNote tone="bad">Could not start the website check: {auditActionError}</StatusNote>
+        </div>
+      )}
 
       {crawlRunning && (
         <StatusNote>

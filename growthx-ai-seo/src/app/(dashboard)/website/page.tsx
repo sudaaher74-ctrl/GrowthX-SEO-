@@ -18,6 +18,7 @@ import {
   useWorkspace,
 } from "@/hooks/use-growthx";
 import { QueryState } from "@/components/ui/query-state";
+import { StatusNote } from "@/components/ui/console";
 import { AuditReportTab } from "@/components/website/tabs/audit-report-tab";
 
 import { TechnicalSeoTab } from "@/components/website/tabs/technical-seo-tab";
@@ -46,6 +47,7 @@ function WebsiteAuditClient() {
   const auditProjectId = client?.projectId ?? null;
 
   const crawl = useLatestCrawl(client?.domain ?? null);
+  const crawlInProgress = crawl.data?.status === "PENDING" || crawl.data?.status === "RUNNING";
   const issues = useCrawlIssues(crawl.data?.id ?? null, undefined, crawl.data?.status);
   const pages = useCrawlPages(crawl.data?.id ?? null, crawl.data?.status);
   const history = useCrawlHistory(client?.domain ?? null, 12);
@@ -72,6 +74,8 @@ function WebsiteAuditClient() {
     ? tabParam
     : "technical-seo";
   const [crawling, setCrawling] = useState(false);
+  const [crawlActionError, setCrawlActionError] = useState<string | null>(null);
+  const [crawlActionMessage, setCrawlActionMessage] = useState<string | null>(null);
   const [showLogsModal, setShowLogsModal] = useState(false);
 
   function selectTab(tab: TabId) {
@@ -115,7 +119,9 @@ function WebsiteAuditClient() {
   }, [crawl.data?.status, refetchHistory, refetchIssues, refetchPages, refetchPortfolio]);
 
   async function handleReCrawl() {
-    if (!client?.domain) return;
+    if (!client?.domain || crawling || crawlInProgress) return;
+    setCrawlActionError(null);
+    setCrawlActionMessage(null);
     setCrawling(true);
     try {
       await api.startCrawl({
@@ -124,11 +130,17 @@ function WebsiteAuditClient() {
         maxConcurrency: 10,
         useSitemap: true,
       });
-      setTimeout(() => {
-        crawl.refetch();
-        issues.refetch();
-        pages.refetch();
-      }, 1500);
+      const latest = await crawl.refetch();
+      await history.refetch();
+      if (latest.data?.status === "PENDING" || latest.data?.status === "RUNNING") {
+        setCrawlActionMessage("The website check for " + client.domain + " has started. This page will update while it runs.");
+      } else {
+        setCrawlActionMessage("The website check for " + client.domain + " was accepted. Refresh the page in a moment to see its progress.");
+      }
+    } catch (error) {
+      setCrawlActionError(
+        error instanceof Error ? error.message : "The website check could not start. Please try again.",
+      );
     } finally {
       setCrawling(false);
     }
@@ -253,11 +265,11 @@ function WebsiteAuditClient() {
             <button
               type="button"
               onClick={handleReCrawl}
-              disabled={crawling || !client?.domain}
+              disabled={crawling || crawlInProgress || !client?.domain}
               className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-signal-400 px-3.5 py-1.5 text-xs font-bold text-signal-ink shadow-sm hover:bg-signal-500 active:scale-95 disabled:opacity-50 transition-all"
             >
               <RefreshCw size={13} className={cn(crawling && "animate-spin")} />
-              <span>{crawling ? "Checking…" : "Check my website again"}</span>
+              <span>{crawling || crawlInProgress ? "Checking…" : "Check my website again"}</span>
             </button>
 
             <Link
@@ -313,6 +325,16 @@ function WebsiteAuditClient() {
       </div>
 
       {/* A re-audit that failed: the API returns the last good audit and says so. */}
+      {crawlActionError && (
+        <div role="alert">
+          <StatusNote tone="bad">Could not start the website check: {crawlActionError}</StatusNote>
+        </div>
+      )}
+      {crawlActionMessage && !crawlActionError && (
+        <div role="status">
+          <StatusNote>{crawlActionMessage}</StatusNote>
+        </div>
+      )}
       {crawl.data?.latestAttempt && (
         <div
           role="status"
