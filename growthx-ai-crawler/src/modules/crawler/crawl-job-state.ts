@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import * as url from 'url';
+import { normalizeUrl } from './url/url-normalizer';
 import { QueueService } from '../queue/queue.service';
 import { canonicalUrl } from './canonical-url';
 import { DiscoveryService, SitemapFinding } from './discovery/discovery.service';
@@ -393,22 +393,9 @@ export class CrawlJobState {
   }
 
   normalizeUrl(rawUrl: string): string {
-    try {
-      let formatted = rawUrl.trim();
-      if (!formatted.startsWith('http://') && !formatted.startsWith('https://')) {
-        formatted = `https://${formatted}`;
-      }
-      const parsed = url.parse(formatted);
-      parsed.hash = null;
-      let pathname = parsed.pathname || '/';
-      if (pathname !== '/' && pathname.endsWith('/')) {
-        pathname = pathname.slice(0, -1);
-      }
-      parsed.pathname = pathname;
-      return url.format(parsed);
-    } catch {
-      return rawUrl;
-    }
+    // Use the frontier's spelling so completing a fetch releases its exact
+    // reservation, including query strings encoded with spaces or reordered keys.
+    return normalizeUrl(rawUrl);
   }
 
   /** Forgets everything this process held for a finished crawl. */
