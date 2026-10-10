@@ -19,7 +19,7 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
   },
   LONG_TITLE: {
     title: '{n} page titles get cut off halfway in Google',
-    cost: 'Shoppers see "Fresh Organic Tomatoes — Best Quality Whole…" and can\'t tell what you sell. These pages get {traffic}',
+    cost: 'Long page titles may be shortened in search results, hiding important words that explain what the page offers. These pages get {traffic}',
     action:
       "Shorten each title to about 55 characters, with the most important words first. You can do this yourself in your website builder's page settings",
     fixClass: FIX_CLASS.LONG_TITLE ?? 'AUTO',
@@ -29,7 +29,7 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     title: '{n} page titles are too short to tell Google what the page is',
     cost: "A two-word title competes badly against a competitor's descriptive one. These pages get {traffic}",
     action:
-      "Make each title say what the page offers, for example \"Fresh Cow Milk Delivery in Pune | Your Brand\". You can do this yourself in the page settings",
+      "Make each title describe that page's actual service, product or topic, using your business name where helpful. You can do this yourself in the page settings",
     fixClass: FIX_CLASS.SHORT_TITLE ?? 'AUTO',
     technical: 'Title tag is unusually brief (< 10 characters or under 3 words).',
   },
@@ -61,7 +61,7 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     title: '{n} images are invisible to Google and to blind visitors',
     cost: "Image search sends free traffic you're not collecting, and screen readers skip these entirely — which is also an accessibility risk",
     action:
-      "Add a short description to each image (the \"alt text\" box when you edit an image), such as \"Glass bottle of fresh cow milk\". Your images look the same. You can do this yourself",
+      "Add a short description of what each image actually shows in the \"alt text\" box when you edit it. Your images look the same. You can do this yourself",
     fixClass: FIX_CLASS.MISSING_ALT_TEXT ?? 'AUTO',
     technical: '<img> tags missing alt attribute or containing empty alt text.',
   },
@@ -205,7 +205,7 @@ export const ISSUE_COPY: Record<string, IssueCopy> = {
     title: '{n} page addresses are hard for people and Google to read',
     cost: 'Addresses full of codes and numbers get fewer clicks than readable ones and say nothing about the page',
     action:
-      "Ask your web developer to use short, readable page addresses (like /cow-milk) and set up redirects from the old ones so nothing breaks",
+      "Ask your web developer to use short, readable page addresses that describe each page's actual topic and set up redirects from the old ones so nothing breaks",
     fixClass: FIX_CLASS.URL_STRUCTURE_ISSUE ?? 'APPROVAL',
     technical: 'URL contains excessive query parameters, uppercase characters, or non-descriptive numeric tokens.',
   },

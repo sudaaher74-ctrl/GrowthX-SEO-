@@ -7,6 +7,8 @@ import {
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { isSafeFixType, unsafeFixReason } from './fix-safety';
+import { resolveReactRoute } from './react-route';
+import { isPublishableSeoText } from '../ai/fix-generator';
 import { PrismaService } from '../../database/prisma.service';
 import { ImpactService } from '../impact/impact.service';
 import { changeClassForFixType } from '../impact/change-class';
@@ -305,7 +307,7 @@ export class AutomationService {
       // A build that fails is never pushed — a broken site is worse than an
       // unfixed one.
       const validated = await this.validation.validateRepository(workingDir, context.packageManager, changed);
-      steps.push(this.step('validate', validated.success ? 'build passed' : 'build failed', validated.success));
+      steps.push(this.step('validate', String(validated.output).slice(0, 400), validated.success));
 
       if (!validated.success) {
         return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, {
@@ -324,7 +326,7 @@ export class AutomationService {
         `SEO fixes: ${changed.length} file(s)`,
         branch,
         repo.defaultBranch,
-        this.fixPrBody(issues, changed, skipped),
+        this.fixPrBody(issues, changed, skipped, validated.output),
       );
       steps.push(this.step('pull_request', prUrl, true));
 
@@ -415,7 +417,7 @@ export class AutomationService {
       steps.push(this.step('write', `${changed.length} page(s)`, true));
 
       const validated = await this.validation.validateRepository(workingDir, context.packageManager, changed);
-      steps.push(this.step('validate', validated.success ? 'build passed' : 'build failed', validated.success));
+      steps.push(this.step('validate', String(validated.output).slice(0, 400), validated.success));
 
       if (!validated.success) {
         return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, {
@@ -535,7 +537,7 @@ export class AutomationService {
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw);
-      return parsed?.fixType && parsed?.proposedValue ? parsed : null;
+      return parsed?.fixType && parsed?.proposedValue && isPublishableSeoText(parsed.fixType, parsed.proposedValue) ? parsed : null;
     } catch {
       return null;
     }
@@ -608,6 +610,11 @@ export class AutomationService {
         pagesRouter.push(path.join('pages', `${routePath || 'index'}.${ext}`));
       }
       const found = await this.firstExisting(repoDir, base, pagesRouter);
+      if (found) return found;
+    }
+
+    for (const appRoot of appRoots) {
+      const found = await resolveReactRoute(path.join(repoDir, appRoot), `/${routePath}`);
       if (found) return found;
     }
 
@@ -820,11 +827,14 @@ export class AutomationService {
     return 'content/blog';
   }
 
-  private fixPrBody(issues: any[], changed: string[], skipped: string[]): string {
+  private fixPrBody(issues: any[], changed: string[], skipped: string[], validationOutput: string): string {
     return [
       '## Automated SEO fixes by Reigel AI',
       '',
-      `Applied **${changed.length}** change(s) from the latest crawl. The build was run before pushing.`,
+      `Prepared **${changed.length}** change(s) from the audit findings.`,
+      '',
+      '### Validation',
+      String(validationOutput).slice(0, 1000),
       '',
       '### Files changed',
       ...changed.map((f) => `- \`${f}\``),

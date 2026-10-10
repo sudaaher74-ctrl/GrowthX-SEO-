@@ -92,7 +92,18 @@ function describe(page: PageContext): string {
 const GROUNDING =
   'Base everything strictly on the page described below. Do not invent products, ' +
   'prices, company names, or claims that are not evidenced by the page. If a detail ' +
-  'is unknown, write around it rather than guessing.';
+  'is unknown, write around it rather than guessing. Return the final replacement text itself, ' +
+  'never instructions, commentary, examples or HTML tags in a text field.';
+
+/** The value is published literally, so editing instructions are never a valid patch. */
+export function isPublishableSeoText(fixType: string, value: unknown): boolean {
+  if (fixType !== 'META_TITLE' && fixType !== 'META_DESCRIPTION') return true;
+  if (typeof value !== 'string' || !value.trim()) return false;
+  const limit = fixType === 'META_TITLE' ? 65 : 160;
+  return value.trim().length <= limit && !/[<>\r\n]/.test(value) &&
+    !/^\s*(?:rewrite|replace|update|change|shorten|add|set|write|make|ensure|use|include|remove)\b.{0,50}\b(?:title|description|tag|metadata)\b/i.test(value) &&
+    !/\b(?:e\.g\.|for example|such as|should be|to uniquely reflect)\b/i.test(value);
+}
 
 /** Maps a crawler issue type to the fix we should propose for it. */
 export function planFix(issueType: string, page: PageContext, recommendation?: string): FixPlan {
@@ -392,6 +403,7 @@ export function renderFromModel(
   const firstString = Object.values(parsed).find((v) => typeof v === 'string' && v.trim());
   if (!firstString) return null;
   const value = String(firstString).trim();
+  if (!isPublishableSeoText(plan.fixType, value)) return null;
 
   switch (plan.fixType) {
     case 'META_TITLE':
