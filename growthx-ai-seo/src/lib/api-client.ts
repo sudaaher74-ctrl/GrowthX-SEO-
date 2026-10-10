@@ -238,9 +238,9 @@ const refreshSession = createSessionRefresh({
   publish: () => {
     try { window.localStorage.setItem(REFRESH_VERSION_KEY, crypto.randomUUID()); } catch { /* Storage may be unavailable. */ }
   },
-  lock: (run) => typeof navigator !== 'undefined' && navigator.locks
-    ? navigator.locks.request('reigel-session-refresh', run)
-    : run(),
+  lock: async (run) => typeof navigator !== 'undefined' && navigator.locks
+    ? await navigator.locks.request('reigel-session-refresh', run)
+    : await run(),
   refresh: async (): Promise<RefreshResult> => {
     try {
       const csrfToken = await ensureCsrfToken(true);
