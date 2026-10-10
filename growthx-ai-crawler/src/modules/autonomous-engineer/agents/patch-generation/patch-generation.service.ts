@@ -30,6 +30,7 @@ function loaded(): typeof import('ts-morph') {
 import * as cheerio from 'cheerio';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { patchReactSeo } from './react-seo-patch';
 import { MultiAiRouterService, AiTask } from '../../../ai-search/multi-ai-router/multi-ai-router.service';
 import { IssueAnalysisResult } from '../issue-analysis/issue-analysis.service';
 
@@ -499,6 +500,12 @@ Respond strictly with a JSON object.
     const target = options.target ?? this.detectTarget(filePath);
 
     if (target === 'nextjs-metadata') {
+      if (fixType === 'META_TITLE' || fixType === 'META_DESCRIPTION') {
+        const source = await fs.readFile(filePath, 'utf8');
+        if (!/export\s+(?:const|let|var)\s+metadata\b|export\s+(?:async\s+)?function\s+generateMetadata\b/.test(source)) {
+          return patchReactSeo(filePath, fixType === 'META_TITLE' ? 'title' : 'description', value);
+        }
+      }
       if (JSON_LD_FIX_TYPES.has(fixType)) {
         return this.injectNextJsJsonLd(filePath, value);
       }

@@ -3,6 +3,11 @@ import * as path from 'path';
 import { ISSUE_COPY, renderCopy } from './issue-copy';
 
 describe('issue-copy', () => {
+  it('does not present business-specific examples as customer evidence', () => {
+    const copy = JSON.stringify(ISSUE_COPY);
+    expect(copy).not.toMatch(/tomato|cow milk|cow-milk|fresh organic|shoppers see/i);
+    expect(renderCopy('LONG_TITLE', { n: 2 }).cost).toContain('may be shortened');
+  });
   const JARGON_BLOCKLIST = [
     'schema',
     'canonical',
