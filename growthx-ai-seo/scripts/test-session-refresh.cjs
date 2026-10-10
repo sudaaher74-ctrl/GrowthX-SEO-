@@ -15,7 +15,7 @@ function load(context, code) {
 }
 function browser(handler, storage = new Map()) {
   const location = { pathname: '/dashboard', href: '/dashboard' };
-  const context = { process: { env: { NODE_ENV: 'production', NEXT_PUBLIC_API_URL: 'https://api.example.test' } }, console, setTimeout, clearTimeout, AbortSignal, Math, Date,
+  const context = { process: { env: { NODE_ENV: 'production', NEXT_PUBLIC_API_URL: 'https://api.example.test' } }, console, setTimeout, clearTimeout, AbortSignal, Math, Date, crypto: require('node:crypto').webcrypto,
     document: { cookie: '' }, window: { location, localStorage: { getItem: k => storage.get(k) || null, setItem: (k,v) => storage.set(k,v), removeItem: k => storage.delete(k) } }, navigator: {}, fetch: handler };
   const refresh = load({ ...context }, compile('session-refresh.ts'));
   context.require = name => { if (name === './session-refresh') return refresh; if (name === './api-types') return load({ ...context }, compile('api-types.ts')); throw new Error(name); };

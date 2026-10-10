@@ -236,7 +236,7 @@ function refreshVersion(): string {
 const refreshSession = createSessionRefresh({
   version: refreshVersion,
   publish: () => {
-    try { window.localStorage.setItem(REFRESH_VERSION_KEY, `${Date.now()}-${Math.random()}`); } catch { /* Storage may be unavailable. */ }
+    try { window.localStorage.setItem(REFRESH_VERSION_KEY, crypto.randomUUID()); } catch { /* Storage may be unavailable. */ }
   },
   lock: (run) => typeof navigator !== 'undefined' && navigator.locks
     ? navigator.locks.request('reigel-session-refresh', run)
