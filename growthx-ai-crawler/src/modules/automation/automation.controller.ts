@@ -149,4 +149,10 @@ export class AutomationController {
   listRuns(@Param('projectId') projectId: string) {
     return this.automation.listRuns(projectId);
   }
+
+  @Get('changes')
+  @ApiOperation({ summary: 'Saved before/after fix evidence and subsequent crawl measurements' })
+  listChanges(@Param('projectId') projectId: string) {
+    return this.automation.listChanges(projectId);
+  }
 }

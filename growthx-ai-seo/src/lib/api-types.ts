@@ -1056,6 +1056,22 @@ export interface SiteRepository {
   updatedAt: string;
 }
 
+export interface FixChangeReport {
+  id: string;
+  status: string;
+  startedAt: string;
+  pullRequestUrl: string | null;
+  filesChanged: string[];
+  error: string | null;
+  skipped: string[];
+  changes: {
+    issueId: string; url: string; field: string; before: string | null; after: string;
+    why: string; file: string; measuredAt: string | null;
+    liveValue: string | null; checkedAt: string | null;
+    verification: 'MATCHED' | 'DIFFERENT' | 'NOT_CHECKED';
+  }[];
+}
+
 export interface AutomationRun {
   id: string;
   kind: "FIXES" | "CONTENT";

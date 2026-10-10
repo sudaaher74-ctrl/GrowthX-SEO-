@@ -31,6 +31,7 @@ export default function FixEnginePage() {
         }
       />
       <ShipPanel />
+      <Link href="/fix-engine/changes" className="inline-flex rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700">Changes &amp; proof — see before and after</Link>
       <EngineerPanel />
       <RunsPanel />
       <PlanView />

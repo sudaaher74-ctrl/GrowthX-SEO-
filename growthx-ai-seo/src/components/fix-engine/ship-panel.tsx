@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, GitPullRequest } from "lucide-react";
 import { ActionButton, Panel, Pill, StatusNote, relativeTime } from "@/components/ui/console";
@@ -145,7 +146,8 @@ export function RunCard({ run }: { run: AutomationRun }) {
           ))}
         </ul>
       )}
-      {run.status === "AWAITING_REVIEW" && <p className="mt-1.5 text-[11px] text-brand-400">Not live yet: it goes live only when you merge the pull request.</p>}
+      <Link href="/fix-engine/changes" className="mt-2 inline-block text-[12px] font-semibold text-accent-700 hover:underline">See what changed and why</Link>
+      {run.status === "AWAITING_REVIEW" && <p className="mt-1.5 text-[11px] text-brand-400">Pull request prepared. Check Changes &amp; proof for evidence from a later website audit.</p>}
     </div>
   );
 }
