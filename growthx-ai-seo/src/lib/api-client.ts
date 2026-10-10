@@ -6,6 +6,7 @@
  */
 
 import type { StagedFixItem } from "@/lib/staging-engine";
+import { createSessionRefresh, type RefreshResult } from './session-refresh';
 import type {
   ChangeImpact,
   ChangeKind,
@@ -102,7 +103,7 @@ let csrfFetchInFlight: Promise<string | null> | null = null;
  */
 async function ensureCsrfToken(forceRefresh = false): Promise<string | null> {
   const fromCookie = getCookie("csrf_token");
-  if (fromCookie) return fromCookie;
+  if (fromCookie && !forceRefresh) return fromCookie;
   if (!forceRefresh && csrfCache && csrfCache.expiresAt > Date.now()) return csrfCache.token;
   if (!forceRefresh && csrfFetchInFlight) return csrfFetchInFlight;
 
@@ -228,14 +229,21 @@ export class ApiError extends Error {
  * Shared between concurrent callers: a page that fires six queries at once
  * would otherwise send six refreshes and race to overwrite each other's token.
  */
-let refreshInFlight: Promise<boolean> | null = null;
-
-async function refreshSession(): Promise<boolean> {
-  if (!auth.isAuthenticated()) return false;
-
-  refreshInFlight ??= (async () => {
+const REFRESH_VERSION_KEY = 'growthx.session-refresh-version';
+function refreshVersion(): string {
+  try { return window.localStorage.getItem(REFRESH_VERSION_KEY) || ''; } catch { return ''; }
+}
+const refreshSession = createSessionRefresh({
+  version: refreshVersion,
+  publish: () => {
+    try { window.localStorage.setItem(REFRESH_VERSION_KEY, `${Date.now()}-${Math.random()}`); } catch { /* Storage may be unavailable. */ }
+  },
+  lock: (run) => typeof navigator !== 'undefined' && navigator.locks
+    ? navigator.locks.request('reigel-session-refresh', run)
+    : run(),
+  refresh: async (): Promise<RefreshResult> => {
     try {
-      const csrfToken = await ensureCsrfToken();
+      const csrfToken = await ensureCsrfToken(true);
       const headers: Record<string, string> = { "Content-Type": "application/json", "x-auth-mode": "cookie" };
       if (csrfToken) headers["x-csrf-token"] = csrfToken;
 
@@ -244,23 +252,29 @@ async function refreshSession(): Promise<boolean> {
         method: "POST",
         headers,
         credentials: "include",
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({}),
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        if (response.status !== 401) return 'temporary-error';
+        // A browser without Web Locks may lose a rotation race to another tab.
+        // Confirm its new access cookie before treating the session as expired.
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const check = await fetch(`${getApiBase()}/auth/me`, { credentials: 'include', signal: AbortSignal.timeout(10000) });
+        if (check.ok) return 'refreshed';
+        return check.status === 401 ? 'expired' : 'temporary-error';
+      }
       csrfCache = null;
       notifyAuthChange();
-      return true;
+      return 'refreshed';
     } catch {
-      return false;
-    } finally {
-      refreshInFlight = null;
+      return 'temporary-error';
     }
-  })();
-
-  return refreshInFlight;
-}
+  },
+});
 
 async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
+  const observedRefreshVersion = typeof window !== 'undefined' ? refreshVersion() : '';
   const orgId = auth.getOrgId();
   const requestMethod = (init.method ?? "GET").toUpperCase();
   const isSafeMethod = requestMethod === "GET" || requestMethod === "HEAD";
@@ -366,8 +380,15 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // A 60-minute access token expiring mid-task used to end the session. Try
     // the refresh token first and replay the request; only clear the session
     // when that fails too.
-    if (allowRefresh && path !== "/auth/refresh" && (await refreshSession())) {
-      return request<T>(path, init, false);
+    if (allowRefresh && path !== "/auth/refresh" && auth.isAuthenticated()) {
+      const refreshed = await refreshSession(observedRefreshVersion);
+      if (refreshed === 'refreshed') return request<T>(path, init, false);
+      if (refreshed === 'temporary-error') {
+        throw new ApiError(503, 'Your session could not be refreshed yet. Your work is preserved; please try again.', payload);
+      }
+    } else if (!allowRefresh) {
+      // A resource-specific 401 after a successful refresh is not a logout.
+      throw new ApiError(401, String(message), payload);
     }
     auth.clear();
 
