@@ -9,6 +9,7 @@ import * as path from 'path';
 import { isSafeFixType, unsafeFixReason } from './fix-safety';
 import { resolveReactRoute } from './react-route';
 import { isPublishableSeoText } from '../ai/fix-generator';
+import { OWN_SCOPE } from '../crawler/website-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { ImpactService } from '../impact/impact.service';
 import { changeClassForFixType } from '../impact/change-class';
@@ -25,6 +26,7 @@ interface RunStep {
   step: string;
   detail?: string;
   ok: boolean;
+  change?: { issueId: string; url: string; field: string; before: string | null; after: string; why: string; file: string; measuredAt: string | null };
 }
 
 /** How many fixes one run will attempt, so a PR stays reviewable. */
@@ -284,6 +286,23 @@ export class AutomationService {
 
         if (outcome.applied) {
           changed.push(path.relative(workingDir, target));
+          const field = patch.fixType === 'META_TITLE' ? 'title' : patch.fixType === 'META_DESCRIPTION' ? 'metaDescription' : null;
+          steps.push({ ...this.step('change', issue.affectedUrl, true), change: {
+            issueId: issue.id, url: issue.affectedUrl, field: patch.fixType,
+            before: field ? issue.page?.[field] ?? null : null,
+            after: JSON_LD_FIX_TYPES.has(patch.fixType) ? this.extractJsonLd(patch.codeSnippet) ?? patch.proposedValue : patch.proposedValue,
+            why: patch.fixType === 'META_TITLE'
+              ? 'Give this page a clear, specific name so visitors can tell what it is about in their browser and in search results.'
+              : patch.fixType === 'META_DESCRIPTION'
+                ? 'Give search engines a concise description of this page that can help visitors decide whether to open it. Search engines may choose their own description.'
+                : patch.fixType === 'ALT_TEXT'
+                  ? 'Describe the image for visitors who use screen readers and for search engines.'
+                  : JSON_LD_FIX_TYPES.has(patch.fixType)
+                    ? 'Make information already on the page easier for search engines to understand. This does not guarantee a special appearance in search results.'
+                    : issue.explanation || issue.description || issue.recommendation,
+            file: path.relative(workingDir, target),
+            measuredAt: issue.page?.crawlJob?.createdAt?.toISOString() ?? null,
+          } });
           if (issue.affectedUrl) {
             applied.push({
               url: issue.affectedUrl,
@@ -297,6 +316,7 @@ export class AutomationService {
       }
 
       steps.push(this.step('patch', `${changed.length} file(s) changed, ${skipped.length} skipped`, true));
+      skipped.forEach(reason => steps.push(this.step('skipped', reason, false)));
 
       if (changed.length === 0) {
         return this.finishRun(run.id, AutomationRunStatus.FAILED, steps, {
@@ -461,6 +481,32 @@ export class AutomationService {
     });
   }
 
+  async listChanges(projectId: string) {
+    const runs = await this.listRuns(projectId);
+    const urls = [...new Set(runs.flatMap(run => (run.steps as unknown as RunStep[])
+      .flatMap(step => step.change ? [step.change.url] : [])))];
+    const pages = urls.length ? await this.prisma.page.findMany({
+      where: { url: { in: urls }, crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
+      select: { url: true, title: true, metaDescription: true, statusCode: true, blockedSuspected: true, crawlJob: { select: { createdAt: true } } },
+      orderBy: { crawlJob: { createdAt: 'desc' } },
+    }) : [];
+    return runs.map(run => ({
+      id: run.id, status: run.status, startedAt: run.startedAt, pullRequestUrl: run.pullRequestUrl,
+      filesChanged: [...new Set(run.filesChanged)], error: run.error,
+      changes: (run.steps as unknown as RunStep[]).flatMap(step => {
+        if (!step.change) return [];
+        const change = step.change;
+        const page = pages.find(page => page.url === change.url);
+        const field = change.field === 'META_TITLE' ? 'title' : change.field === 'META_DESCRIPTION' ? 'metaDescription' : null;
+        const checked = Boolean(field && page && run.finishedAt && page.crawlJob.createdAt > run.finishedAt && page.statusCode === 200 && !page.blockedSuspected);
+        const liveValue = checked && field ? page![field] : null;
+        return [{ ...change, liveValue, checkedAt: checked ? page!.crawlJob.createdAt : null,
+          verification: checked ? liveValue === change.after ? 'MATCHED' : 'DIFFERENT' : 'NOT_CHECKED' }];
+      }),
+      skipped: (run.steps as unknown as RunStep[]).filter(step => step.step === 'skipped').map(step => step.detail),
+    }));
+  }
+
   // ─────────────────────────────────────────────────────────────── helpers
 
   private async requireRepository(projectId: string) {
@@ -481,7 +527,7 @@ export class AutomationService {
         aiFixAvailable: true,
         ...(issueIds?.length ? { id: { in: issueIds } } : {}),
       },
-      include: { aiRecommendation: true },
+      include: { aiRecommendation: true, page: { include: { crawlJob: { select: { createdAt: true } } } } },
       orderBy: { severity: 'asc' },
       take: MAX_FIXES_PER_RUN,
     });

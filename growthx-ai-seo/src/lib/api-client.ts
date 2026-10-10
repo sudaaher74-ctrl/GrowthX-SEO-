@@ -994,6 +994,7 @@ export const api = {
   runEngineer: (projectId: string, instruction: string) =>
     post<AutomationRun>(`/api/projects/${projectId}/automation/runs/engineer`, { instruction }),
   listAutomationRuns: (projectId: string) => get<AutomationRun[]>(`/api/projects/${projectId}/automation/runs`),
+  listFixChanges: (projectId: string) => get<import('./api-types').FixChangeReport[]>(`/api/projects/${projectId}/automation/changes`),
 
   // ── Admin
   getAdminQueues: () => get<QueueStat[]>("/api/admin/queues"),
