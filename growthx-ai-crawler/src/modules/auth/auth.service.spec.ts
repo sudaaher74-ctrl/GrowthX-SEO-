@@ -22,7 +22,7 @@ function fakeTable(idField = 'id') {
   return {
     rows,
     create: jest.fn(async ({ data }: any) => {
-      const row = { [idField]: data[idField] ?? `id_${rows.length + 1}`, revokedAt: null, usedAt: null, ...data };
+      const row = { [idField]: data[idField] ?? `id_${rows.length + 1}`, createdAt: new Date(), revokedAt: null, usedAt: null, ...data };
       rows.push(row);
       return row;
     }),
@@ -43,7 +43,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let users: any;
   let jwt: { sign: jest.Mock; verify: jest.Mock };
-  let prisma: { refreshSession: ReturnType<typeof fakeTable>; loginCode: ReturnType<typeof fakeTable> };
+  let prisma: { refreshSession: ReturnType<typeof fakeTable>; loginCode: ReturnType<typeof fakeTable>; $transaction: jest.Mock };
 
   beforeEach(async () => {
     users = { findByEmail: jest.fn(), createUser: jest.fn(), findById: jest.fn() };
@@ -54,7 +54,10 @@ describe('AuthService', () => {
       verify: jest.fn(),
     };
 
-    prisma = { refreshSession: fakeTable(), loginCode: fakeTable() };
+    prisma = { refreshSession: fakeTable(), loginCode: fakeTable(), $transaction: jest.fn(async run => {
+      const saved = prisma.refreshSession.rows.map(row => ({ ...row }));
+      try { return await run(prisma); } catch (error) { prisma.refreshSession.rows.splice(0, prisma.refreshSession.rows.length, ...saved); throw error; }
+    }) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -160,6 +163,17 @@ describe('AuthService', () => {
   });
 
   describe('refresh tokens', () => {
+    it('uses real JWTs with persistent expiry and deterministic retry tokens', async () => {
+      const realJwt = new JwtService({ secret: 'test-only-key'.repeat(4), signOptions: { expiresIn: '15m' } });
+      Object.assign(service, { jwtService: realJwt });
+      const first = await service.login({ id: 'u1', email: 'a@b.com' });
+      const payload: any = realJwt.verify(first.refresh_token);
+      expect(payload.exp - payload.iat).toBeGreaterThan(300 * 86400);
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+      const rotated = await service.refresh(first.refresh_token);
+      expect((await service.refresh(first.refresh_token)).refresh_token).toBe(rotated.refresh_token);
+      expect(realJwt.verify(rotated.access_token).type).toBeUndefined();
+    });
     it('issues a refresh token alongside the access token', async () => {
       const result = await service.login({ id: 'u1', email: 'a@b.com' });
 
@@ -168,7 +182,7 @@ describe('AuthService', () => {
       // The refresh token carries a longer expiry than the access token.
       expect(jwt.sign).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'refresh' }),
-        expect.objectContaining({ expiresIn: expect.any(String) }),
+        expect.objectContaining({ jwtid: expect.any(String), expiresIn: expect.any(Number) }),
       );
     });
 
@@ -201,20 +215,21 @@ describe('AuthService', () => {
       await expect(service.refresh('old.token')).rejects.toThrow(UnauthorizedException);
     });
 
-    it('refuses to reuse a rotated token, and past the grace period revokes every session of the user', async () => {
+    it('recovers the same replacement after a lost response, but rejects old replay', async () => {
       await service.login({ id: 'u1', email: 'a@b.com' });
       await service.login({ id: 'u1', email: 'a@b.com' });
       const [first, second] = prisma.refreshSession.rows;
       jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: first.id });
       users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 
-      await service.refresh('t');
-      // Inside the grace period: refused, but the other session survives.
-      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      const rotated = await service.refresh('t');
+      // Inside the bounded grace period: recover, without rotating twice.
+      expect(await service.refresh('t')).toEqual(rotated);
+      expect(prisma.refreshSession.rows).toHaveLength(3);
       expect(second.revokedAt).toBeNull();
 
       // After it: treated as a copied token.
-      first.revokedAt = new Date(Date.now() - 60_000);
+      first.revokedAt = new Date(Date.now() - 180_000);
       await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
       expect(second.revokedAt).toBeInstanceOf(Date);
     });
@@ -226,6 +241,37 @@ describe('AuthService', () => {
       jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: row.id });
 
       await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('rolls back rotation if replacement creation fails', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: prisma.refreshSession.rows[0].id });
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+      prisma.refreshSession.create.mockRejectedValueOnce(new Error('database unavailable'));
+      await expect(service.refresh('t')).rejects.toThrow('database unavailable');
+      expect(prisma.refreshSession.rows[0].revokedAt).toBeNull();
+      await expect(service.refresh('t')).resolves.toHaveProperty('refresh_token');
+    });
+
+    it('manual logout also revokes a recovered replacement', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      jwt.verify.mockReturnValue({ sub: 'u1', type: 'refresh', jti: prisma.refreshSession.rows[0].id });
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+      await service.refresh('t');
+      await service.revokeSessionForToken('t', false);
+      await expect(service.refresh('t')).rejects.toThrow(UnauthorizedException);
+      expect(prisma.refreshSession.rows.every(row => row.revokedAt)).toBe(true);
+    });
+
+    it('prefers a valid cookie over a stale legacy cookie', async () => {
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      await service.login({ id: 'u1', email: 'a@b.com' });
+      const [old, current] = prisma.refreshSession.rows;
+      old.revokedAt = new Date(Date.now() - 180000);
+      jwt.verify.mockImplementation(token => ({ sub: 'u1', type: 'refresh', jti: token === 'old' ? old.id : current.id }));
+      users.findById.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+      await expect(service.refreshCookieCandidates(['old', 'current'])).resolves.toHaveProperty('refresh_token');
+      expect(prisma.refreshSession.rows[2].revokedAt).toBeNull();
     });
 
     it('revokes every session on logout', async () => {

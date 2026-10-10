@@ -27,6 +27,7 @@ describe('auth-cookie.util', () => {
   it('sets access_token, refresh_token, csrf_token, and logged_in cookies', () => {
     const cookies: Record<string, { value: string; options: any }> = {};
     const mockRes = {
+      clearCookie: jest.fn(),
       cookie: jest.fn((name: string, value: string, options: any) => {
         cookies[name] = { value, options };
       }),
@@ -51,6 +52,8 @@ describe('auth-cookie.util', () => {
 
     expect(cookies['logged_in'].value).toBe('1');
     expect(cookies['logged_in'].options.httpOnly).toBe(false);
+    expect(cookies['logged_in'].options.maxAge).toBe(cookies['refresh_token'].options.maxAge);
+    expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', expect.objectContaining({ path: '/auth/refresh' }));
   });
 
   it('clears auth cookies on logout', () => {
