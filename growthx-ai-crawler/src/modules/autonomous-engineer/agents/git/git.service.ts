@@ -8,6 +8,43 @@ import * as path from 'path';
 export class GitService {
   private readonly logger = new Logger(GitService.name);
 
+  /** Read immutable PR revisions. Never follow arbitrary URLs with the customer's token. */
+  async readPullRequestEvidence(token: string, owner: string, repo: string, number: number) {
+    const octokit = new Octokit({ auth: token, request: { timeout: 10000 } });
+    const { data: pr } = await octokit.rest.pulls.get({ owner, repo, pull_number: number });
+    const { data: comparison } = await octokit.rest.repos.compareCommitsWithBasehead({ owner, repo, basehead: `${pr.base.sha}...${pr.head.sha}` });
+    const baseSha = comparison.merge_base_commit.sha;
+    const files = await octokit.paginate(octokit.rest.pulls.listFiles, { owner, repo, pull_number: number, per_page: 100 });
+    const read = async (file: string, ref: string): Promise<string | null> => {
+      try {
+        const { data } = await octokit.rest.repos.getContent({ owner, repo, path: file, ref });
+        if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || data.size > 256000) return null;
+        return Buffer.from(data.content, 'base64').toString('utf8');
+      } catch (error: any) {
+        if (error.status === 404) return null;
+        throw error;
+      }
+    };
+    const snapshots: { file: string; before: string | null; after: string | null }[] = [];
+    for (const file of files.filter(file => /\.(jsx|tsx|html)$/.test(file.filename)).slice(0, 50)) {
+      const [before, after] = await Promise.all([read(file.previous_filename || file.filename, baseSha), read(file.filename, pr.head.sha)]);
+      snapshots.push({ file: file.filename, before, after });
+    }
+    const roots = [...new Set(snapshots.filter(file => file.file.includes('/src/')).map(file => file.file.split('/src/')[0]))];
+    const routers: { file: string; content: string }[] = [];
+    for (const root of roots) {
+      for (const name of ['router', 'routes', 'App']) {
+        for (const ext of ['jsx', 'tsx']) {
+          const file = `${root}/src/${name}.${ext}`;
+          const content = await read(file, pr.head.sha);
+          if (content) routers.push({ file, content });
+        }
+      }
+    }
+    return { state: pr.merged_at ? 'MERGED' : pr.state === 'closed' ? 'CLOSED' : 'OPEN', mergedAt: pr.merged_at,
+      baseSha, headSha: pr.head.sha, files: snapshots, routers };
+  }
+
   /**
    * Clones a repository to a local temporary directory.
    */

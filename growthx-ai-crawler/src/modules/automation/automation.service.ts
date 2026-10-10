@@ -6,6 +6,8 @@ import {
   } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
+import { readTitleEvidence, readTitleVariants } from './pr-title-evidence';
 import { isSafeFixType, unsafeFixReason } from './fix-safety';
 import { resolveReactRoute } from './react-route';
 import { isPublishableSeoText } from '../ai/fix-generator';
@@ -26,7 +28,7 @@ interface RunStep {
   step: string;
   detail?: string;
   ok: boolean;
-  change?: { issueId: string; url: string; field: string; before: string | null; after: string; why: string; file: string; measuredAt: string | null };
+  change?: { issueId: string; url: string; field: string; before: string | null; after: string; why: string; file: string; measuredAt: string | null; source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string };
 }
 
 /** How many fixes one run will attempt, so a PR stays reviewable. */
@@ -50,6 +52,7 @@ const MAX_ROUTE_DEPTH = 12;
 @Injectable()
 export class AutomationService {
   private readonly logger = new Logger(AutomationService.name);
+  private readonly reviewCache = new Map<string, { at: number; value: Awaited<ReturnType<GitService['readPullRequestEvidence']>> }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -483,6 +486,35 @@ export class AutomationService {
 
   async listChanges(projectId: string) {
     const runs = await this.listRuns(projectId);
+    const repo = await this.prisma.siteRepository.findUnique({ where: { projectId } });
+    const reviews = new Map<string, Awaited<ReturnType<GitService['readPullRequestEvidence']>>>();
+    const evidenceErrors = new Set<string>();
+    for (const run of runs) {
+      if (!repo || !run.pullRequestUrl) continue;
+      const match = run.pullRequestUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+      if (!match || match[1].toLowerCase() !== repo.owner.toLowerCase() || match[2].toLowerCase() !== repo.name.toLowerCase()) continue;
+      try {
+        const key = `${projectId}:${repo.id}:${run.pullRequestUrl}`;
+        let cached = this.reviewCache.get(key);
+        if (!cached || Date.now() - cached.at > 60000) {
+          const token = this.security.decryptCredentials(repo.accessTokenEncrypted);
+          const value = await this.git.readPullRequestEvidence(token, repo.owner, repo.name, Number(match[3]));
+          cached = { at: Date.now(), value };
+          if (this.reviewCache.size >= 50) this.reviewCache.clear();
+          this.reviewCache.set(key, cached);
+        }
+        reviews.set(run.id, cached.value);
+        const recovered = await this.recoverTitleChanges(projectId, run, cached.value);
+        if (recovered.length) {
+          const steps = run.steps as unknown as RunStep[];
+          // The final PR may have been edited after preparation. Prefer its exact revision.
+          run.steps = [...steps.filter(step => !step.change || step.change.field !== 'META_TITLE'), ...recovered] as any;
+        }
+      } catch {
+        evidenceErrors.add(run.id);
+        this.logger.warn(`Could not refresh pull request evidence for run ${run.id}`);
+      }
+    }
     const urls = [...new Set(runs.flatMap(run => (run.steps as unknown as RunStep[])
       .flatMap(step => step.change ? [step.change.url] : [])))];
     const pages = urls.length ? await this.prisma.page.findMany({
@@ -491,20 +523,76 @@ export class AutomationService {
       orderBy: { crawlJob: { createdAt: 'desc' } },
     }) : [];
     return runs.map(run => ({
-      id: run.id, status: run.status, startedAt: run.startedAt, pullRequestUrl: run.pullRequestUrl,
+      id: run.id, status: run.status, reviewState: reviews.get(run.id)?.state ?? 'UNKNOWN', mergedAt: reviews.get(run.id)?.mergedAt ?? null,
+      evidenceError: evidenceErrors.has(run.id) ? 'Could not refresh GitHub evidence. Saved evidence is shown; try refreshing again.' : null,
+      startedAt: run.startedAt, pullRequestUrl: run.pullRequestUrl,
       filesChanged: [...new Set(run.filesChanged)], error: run.error,
       changes: (run.steps as unknown as RunStep[]).flatMap(step => {
         if (!step.change) return [];
         const change = step.change;
         const page = pages.find(page => page.url === change.url);
         const field = change.field === 'META_TITLE' ? 'title' : change.field === 'META_DESCRIPTION' ? 'metaDescription' : null;
-        const checked = Boolean(field && page && run.finishedAt && page.crawlJob.createdAt > run.finishedAt && page.statusCode === 200 && !page.blockedSuspected);
+        const boundary = reviews.get(run.id)?.mergedAt ? new Date(reviews.get(run.id)!.mergedAt!) : run.finishedAt;
+        const checked = Boolean(!change.dynamic && field && page && boundary && page.crawlJob.createdAt > boundary && page.statusCode === 200 && !page.blockedSuspected);
         const liveValue = checked && field ? page![field] : null;
         return [{ ...change, liveValue, checkedAt: checked ? page!.crawlJob.createdAt : null,
           verification: checked ? liveValue === change.after ? 'MATCHED' : 'DIFFERENT' : 'NOT_CHECKED' }];
       }),
       skipped: (run.steps as unknown as RunStep[]).filter(step => step.step === 'skipped').map(step => step.detail),
     }));
+  }
+
+  private async recoverTitleChanges(projectId: string, run: { id: string; startedAt: Date }, review: Awaited<ReturnType<GitService['readPullRequestEvidence']>>): Promise<RunStep[]> {
+    const pages = await this.prisma.page.findMany({
+      where: { crawlJob: { website: { projectId, scope: OWN_SCOPE }, status: 'COMPLETED' } },
+      select: { url: true, title: true, statusCode: true, blockedSuspected: true, crawlJob: { select: { createdAt: true } } },
+      orderBy: { crawlJob: { createdAt: 'desc' } }, take: 10000,
+    });
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'reigel-pr-evidence-'));
+    try {
+      const safeFile = (file: string) => !file.includes('\\') && !path.posix.isAbsolute(file) && !file.split('/').includes('..');
+      for (const entry of [...review.files.map(file => ({ file: file.file, content: file.after })), ...review.routers]) {
+        if (!safeFile(entry.file) || entry.content === null) continue;
+        const target = path.join(directory, entry.file);
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.writeFile(target, entry.content);
+      }
+      const urlsByFile = new Map<string, string[]>();
+      for (const router of review.routers) {
+        const root = path.join(directory, router.file.split('/src/')[0]);
+        for (const url of [...new Set(pages.map(page => page.url))].slice(0, 500)) {
+          let pathname: string;
+          try { pathname = new URL(url).pathname.replace(/\/$/, '') || '/'; } catch { continue; }
+          const target = await resolveReactRoute(root, pathname);
+          if (target) {
+            const file = path.relative(directory, target).split(path.sep).join('/');
+            const urls = urlsByFile.get(file) ?? [];
+            if (!urls.includes(url)) urls.push(url);
+            urlsByFile.set(file, urls);
+          }
+        }
+      }
+      return review.files.flatMap(file => {
+        const oldTitle = readTitleEvidence(file.before);
+        const newTitle = readTitleEvidence(file.after);
+        const variants = readTitleVariants(file.after, newTitle.expression);
+        if (JSON.stringify(oldTitle) === JSON.stringify(newTitle) || (!newTitle.value && !newTitle.expression)) return [];
+        const urls = urlsByFile.get(file.file) ?? [''];
+        return urls.map(url => {
+          const measured = pages.find(page => page.url === url && page.crawlJob.createdAt < run.startedAt && page.statusCode === 200 && !page.blockedSuspected);
+          return { ...this.step('change', url || file.file, true), change: {
+            issueId: `pr:${run.id}:${file.file}:${url}`, url, field: 'META_TITLE',
+            before: measured ? measured.title : oldTitle.value,
+            beforeSource: measured ? 'AUDIT' : 'REPOSITORY',
+            after: newTitle.value ?? (variants.length ? `The title follows the selected category:\n${variants.join('\n')}` : 'The page title adapts to the selected category or page state.'),
+            dynamic: !newTitle.value, expression: newTitle.expression,
+            source: `Pull request revision ${review.headSha}`, file: file.file,
+            measuredAt: measured?.crawlJob.createdAt.toISOString() ?? null,
+            why: 'Give this page a specific name so visitors can tell what it is about. Category pages use a title that follows the selected category.',
+          } };
+        });
+      });
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
   }
 
   // ─────────────────────────────────────────────────────────────── helpers
