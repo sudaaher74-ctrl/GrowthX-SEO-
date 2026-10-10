@@ -1059,6 +1059,9 @@ export interface SiteRepository {
 export interface FixChangeReport {
   id: string;
   status: string;
+  reviewState: 'OPEN' | 'MERGED' | 'CLOSED' | 'UNKNOWN';
+  mergedAt: string | null;
+  evidenceError: string | null;
   startedAt: string;
   pullRequestUrl: string | null;
   filesChanged: string[];
@@ -1067,6 +1070,7 @@ export interface FixChangeReport {
   changes: {
     issueId: string; url: string; field: string; before: string | null; after: string;
     why: string; file: string; measuredAt: string | null;
+    source?: string; dynamic?: boolean; expression?: string | null; beforeSource?: string;
     liveValue: string | null; checkedAt: string | null;
     verification: 'MATCHED' | 'DIFFERENT' | 'NOT_CHECKED';
   }[];
