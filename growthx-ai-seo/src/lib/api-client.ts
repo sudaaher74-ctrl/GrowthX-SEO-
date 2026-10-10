@@ -109,7 +109,7 @@ async function ensureCsrfToken(forceRefresh = false): Promise<string | null> {
 
   const fetchToken = async (): Promise<string | null> => {
     try {
-      const response = await fetch(`${getApiBase()}/auth/csrf`, { credentials: "include" });
+      const response = await fetch(`${getApiBase()}/auth/csrf`, { credentials: "include", signal: AbortSignal.timeout(10000) });
       if (!response.ok) return null;
       const body = (await response.json()) as { csrf_token?: string | null };
       const token = body.csrf_token ?? null;
@@ -252,7 +252,7 @@ const refreshSession = createSessionRefresh({
         method: "POST",
         headers,
         credentials: "include",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(45000),
         body: JSON.stringify({}),
       });
       if (!response.ok) {
@@ -272,6 +272,21 @@ const refreshSession = createSessionRefresh({
     }
   },
 });
+
+/** Renew before access expiry; retry temporary failures without leaving the page. */
+export async function renewSession(): Promise<RefreshResult> {
+  if (!auth.isAuthenticated()) return 'expired';
+  return refreshWithRetry(refreshVersion());
+}
+
+async function refreshWithRetry(observedVersion: string): Promise<RefreshResult> {
+  let result = await refreshSession(observedVersion);
+  if (result === 'temporary-error') {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    result = await refreshSession(observedVersion);
+  }
+  return result;
+}
 
 async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
   const observedRefreshVersion = typeof window !== 'undefined' ? refreshVersion() : '';
@@ -381,7 +396,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     // the refresh token first and replay the request; only clear the session
     // when that fails too.
     if (allowRefresh && path !== "/auth/refresh" && auth.isAuthenticated()) {
-      const refreshed = await refreshSession(observedRefreshVersion);
+      const refreshed = await refreshWithRetry(observedRefreshVersion);
       if (refreshed === 'refreshed') return request<T>(path, init, false);
       if (refreshed === 'temporary-error') {
         throw new ApiError(503, 'Your session could not be refreshed yet. Your work is preserved; please try again.', payload);

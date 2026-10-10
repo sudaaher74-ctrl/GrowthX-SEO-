@@ -5,6 +5,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
+import { refreshLifetimeDays } from './session-lifetime';
 
 /** How long the Google sign-in redirect's one-time code may be exchanged. */
 const LOGIN_CODE_TTL_MS = 60_000;
@@ -13,14 +14,9 @@ const LOGIN_CODE_TTL_MS = 60_000;
  * A refresh token presented again this soon after it was rotated is taken for
  * two tabs racing, not theft: that request is refused, nothing else is revoked.
  */
-const ROTATION_GRACE_MS = 10_000;
+const ROTATION_GRACE_MS = 120_000;
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
-
-function refreshLifetimeDays(): number {
-  const parsed = parseInt(process.env.JWT_REFRESH_EXPIRES_IN || '30', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
-}
 
 @Injectable()
 export class AuthService {
@@ -44,7 +40,7 @@ export class AuthService {
   /**
    * Issues a short-lived access token plus a long-lived refresh token.
    *
-   * The access token stays at 60 minutes so a stolen one expires quickly. The
+   * The access token stays at 15 minutes so a stolen one expires quickly. The
    * refresh token lets the client get a new one silently, which is what stops a
    * working session ending in a hard bounce to the login page mid-task.
    */
@@ -57,26 +53,30 @@ export class AuthService {
    * `jti`, so it can be rotated and revoked. Without that row a stolen token
    * worked for its whole 30 days with no way to end it.
    */
-  private async issueTokens(user: { id: string; email: string }) {
-    const payload = { email: user.email, sub: user.id };
+  private async issueTokens(user: { id: string; email: string }, db = this.prisma, id?: string) {
     const days = refreshLifetimeDays();
-    const session = await this.prisma.refreshSession.create({
-      data: { userId: user.id, expiresAt: new Date(Date.now() + days * 86_400_000) },
+    const session = await db.refreshSession.create({
+      data: { ...(id ? { id } : {}), userId: user.id, expiresAt: new Date(Date.now() + days * 86_400_000) },
     });
     // Housekeeping only; a failure here must not fail a sign-in.
-    void this.prisma.refreshSession
+    if (db === this.prisma) void db.refreshSession
       .deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 86_400_000) } } })
       .catch(() => undefined);
 
+    return this.tokensForSession(user, session);
+  }
+
+  private tokensForSession(user: { id: string; email: string }, session: { id: string; createdAt: Date; expiresAt: Date }) {
+    const payload = { email: user.email, sub: user.id };
     return {
       access_token: this.jwtService.sign(payload),
       // `type` distinguishes the two: a refresh token must not be accepted as
       // an access token, or its long life would defeat the short access expiry.
       refresh_token: this.jwtService.sign(
-        { ...payload, type: 'refresh' },
+        { ...payload, type: 'refresh', iat: Math.floor(session.createdAt.getTime() / 1000) },
         // `expiresIn` is typed as a `ms` template-literal rather than a plain
         // string, so a computed value needs the assertion.
-        { expiresIn: `${days}d` as `${number}d`, jwtid: session.id },
+        { expiresIn: Math.floor(session.expiresAt.getTime() / 1000) - Math.floor(session.createdAt.getTime() / 1000), jwtid: session.id },
       ),
       expires_in: 900,
     };
@@ -110,24 +110,48 @@ export class AuthService {
       throw new UnauthorizedException('That session has ended. Please sign in again.');
     }
 
-    // Claimed atomically: of two requests carrying the same token, one wins.
-    const claimed = await this.prisma.refreshSession.updateMany({
-      where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } },
-      data: { revokedAt: new Date() },
-    });
-    if (claimed.count !== 1) {
-      const fresh = await this.prisma.refreshSession.findUnique({ where: { id: session.id } });
-      const revokedAgo = fresh?.revokedAt ? Date.now() - fresh.revokedAt.getTime() : Infinity;
-      if (revokedAgo > ROTATION_GRACE_MS) await this.revokeAllSessions(session.userId);
-      throw new UnauthorizedException('That session has ended. Please sign in again.');
-    }
-
     const user = payload.sub ? await this.usersService.findById(payload.sub) : null;
     if (!user) {
       throw new UnauthorizedException('That account no longer exists.');
     }
 
-    return this.issueTokens({ id: user.id, email: user.email });
+    const replacementId = sha256(`${session.id}:${refreshToken}`);
+    // Rotation and replacement commit together. A dropped response can retry
+    // the exact token within the bounded grace window and recover that pair.
+    const result = await this.prisma.$transaction(async tx => {
+      const claimed = await tx.refreshSession.updateMany({
+        where: { id: session.id, revokedAt: null, expiresAt: { gt: new Date() } },
+        data: { revokedAt: new Date() },
+      });
+      if (claimed.count === 1) return this.issueTokens(user, tx as PrismaService, replacementId);
+      const original = await tx.refreshSession.findUnique({ where: { id: session.id } });
+      const replacement = await tx.refreshSession.findUnique({ where: { id: replacementId } });
+      const withinGrace = original?.revokedAt && Date.now() - original.revokedAt.getTime() <= ROTATION_GRACE_MS;
+      if (withinGrace && replacement && replacement.userId === user.id && !replacement.revokedAt && replacement.expiresAt > new Date()) {
+        return this.tokensForSession(user, replacement);
+      }
+      return null;
+    });
+    if (result) return result;
+    const fresh = await this.prisma.refreshSession.findUnique({ where: { id: session.id } });
+    // Expiry is not evidence of theft. Only an old, explicitly rotated token
+    // causes replay protection to revoke other sessions.
+    if (fresh?.revokedAt && Date.now() - fresh.revokedAt.getTime() > ROTATION_GRACE_MS) await this.revokeAllSessions(session.userId);
+    throw new UnauthorizedException('That session has ended. Please sign in again.');
+  }
+
+  async refreshCookieCandidates(tokens: string[]) {
+    for (const token of [...new Set(tokens)].slice(0, 5)) {
+      try {
+        const payload = this.jwtService.verify(token);
+        if (payload.type !== 'refresh' || !payload.jti) continue;
+        const session = await this.prisma.refreshSession.findUnique({ where: { id: payload.jti } });
+        if (session && session.userId === payload.sub && !session.revokedAt && session.expiresAt > new Date()) return this.refresh(token);
+      } catch (error) {
+        if (!(error instanceof Error) || !['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) throw error;
+      }
+    }
+    return this.refresh(tokens[0]);
   }
 
   /**
@@ -149,6 +173,11 @@ export class AuthService {
     } else if (payload.jti) {
       await this.prisma.refreshSession.updateMany({
         where: { id: payload.jti, userId: payload.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      // Also end a replacement if logout carried the predecessor after a lost response.
+      await this.prisma.refreshSession.updateMany({
+        where: { id: sha256(`${payload.jti}:${refreshToken}`), userId: payload.sub, revokedAt: null },
         data: { revokedAt: new Date() },
       });
     }

@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/topnav";
-import { auth, subscribeToAuthChange } from "@/lib/api-client";
+import { auth, renewSession, subscribeToAuthChange } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { AivaProvider } from "@/components/voice/aiva-provider";
 import { AivaPanel } from "@/components/voice/aiva-panel";
@@ -52,6 +52,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (signedIn === false) router.replace("/login");
   }, [signedIn, router]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const renew = async () => {
+      clearTimeout(timer);
+      if (stopped || document.visibilityState === 'hidden') return;
+      const result = await renewSession();
+      if (stopped) return;
+      // Only confirmed expiry/revocation ends a session. Outages are retried.
+      if (result === 'expired') { auth.clear(); return; }
+      clearTimeout(timer);
+      timer = setTimeout(renew, result === 'temporary-error' ? 15000 : 5 * 60 * 1000);
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') void renew(); };
+    void renew();
+    window.addEventListener('online', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { stopped = true; clearTimeout(timer); window.removeEventListener('online', onVisible); document.removeEventListener('visibilitychange', onVisible); };
+  }, [signedIn]);
 
   // Render nothing until the answer is known, rather than a frame of dashboard
   // chrome that a signed-out visitor should never see.

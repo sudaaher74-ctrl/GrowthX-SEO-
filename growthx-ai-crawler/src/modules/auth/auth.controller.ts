@@ -64,7 +64,10 @@ export class AuthController {
     if (!token) {
       throw new UnauthorizedException('A refresh token is required.');
     }
-    const result = await this.authService.refresh(token);
+    const cookies = String(req.headers?.cookie || '').split(';').map(cookie => cookie.trim()).filter(cookie => cookie.startsWith('refresh_token=')).map(cookie => {
+      try { return decodeURIComponent(cookie.slice('refresh_token='.length)); } catch { return ''; }
+    }).filter(Boolean);
+    const result = cookies.length > 1 ? await this.authService.refreshCookieCandidates(cookies) : await this.authService.refresh(token);
     if (res) setAuthCookies(res, result);
     return sessionBody(result, req);
   }

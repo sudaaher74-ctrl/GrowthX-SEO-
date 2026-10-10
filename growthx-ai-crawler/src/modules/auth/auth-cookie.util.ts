@@ -1,5 +1,6 @@
 import { Response, CookieOptions } from 'express';
 import * as crypto from 'crypto';
+import { refreshLifetimeDays } from './session-lifetime';
 
 /**
  * Cookie configuration for auth tokens.
@@ -49,6 +50,9 @@ export interface AuthTokens {
  */
 export function setAuthCookies(res: Response, tokens: AuthTokens): void {
   const base = getCookieBaseOptions();
+  const days = refreshLifetimeDays();
+  // A narrower legacy cookie wins cookie-parser's selection over /auth.
+  res.clearCookie('refresh_token', { ...base, httpOnly: true, path: '/auth/refresh' });
 
   // 1. Access token — short-lived (15 min), HttpOnly
   res.cookie('access_token', tokens.access_token, {
@@ -61,8 +65,6 @@ export function setAuthCookies(res: Response, tokens: AuthTokens): void {
   // 2. Refresh token — lifetime matches the server-side RefreshSession (default
   //    30 days), HttpOnly, restricted to the auth endpoints that consume it.
   if (tokens.refresh_token) {
-    const parsedDays = parseInt(process.env.JWT_REFRESH_EXPIRES_IN || '30', 10);
-    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30;
     res.cookie('refresh_token', tokens.refresh_token, {
       ...base,
       httpOnly: true,
@@ -79,7 +81,7 @@ export function setAuthCookies(res: Response, tokens: AuthTokens): void {
     ...base,
     httpOnly: false,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: days * 24 * 60 * 60 * 1000,
   });
 }
 

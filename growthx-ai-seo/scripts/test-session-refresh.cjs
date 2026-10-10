@@ -58,3 +58,20 @@ test('concurrent tabs share one rotation under a browser-wide lock', async () =>
   assert.deepEqual(await Promise.all([tabA(''), tabA(''), tabB('')]), ['refreshed', 'refreshed', 'refreshed']);
   assert.equal(rotations, 1);
 });
+
+test('silent renewal retries a temporary failure without losing the session', async () => {
+  let attempts = 0;
+  const { client, location } = browser(async url => url.endsWith('/auth/csrf') ? new Response('{"csrf_token":"nonce"}') : response(++attempts === 1 ? 503 : 200));
+  assert.equal(await client.renewSession(), 'refreshed');
+  assert.equal(attempts, 2);
+  assert.equal(client.auth.isAuthenticated(), true);
+  assert.equal(location.href, '/dashboard');
+});
+
+test('manual logout stops silent renewal', async () => {
+  let requests = 0;
+  const { client } = browser(async () => { requests++; return response(200); });
+  client.auth.clear();
+  assert.equal(await client.renewSession(), 'expired');
+  assert.equal(requests, 0);
+});
