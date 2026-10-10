@@ -6,6 +6,7 @@ import { FetchError, classifyTransportError } from './fetch-error';
 import { EscalationReason, shouldEscalateToRender, spaFingerprints } from './render-escalation';
 import { registrableDomain, sameRegistrableDomain } from '../url/registrable-domain';
 import { deadlineSignal } from './http-deadline';
+import { isHtmlResponse } from '../crawlable';
 
 /** One hop of a redirect chain, recorded rather than collapsed. */
 export interface RedirectHop {
@@ -165,7 +166,9 @@ export class FetchService {
       }
     }
 
-    const verdict = shouldEscalateToRender(statik.body, { force: options.forceRender });
+    const htmlResponse = isHtmlResponse(statik.headers['content-type']);
+    const verdict = htmlResponse ? shouldEscalateToRender(statik.body, { force: options.forceRender })
+      : { reasons: [], escalate: false, rawAnchorCount: 0, rawTitle: undefined };
     const renderAllowed = options.renderAllowed !== false;
 
     const base: FetchOutcome = {
@@ -308,6 +311,7 @@ export class FetchService {
   ): Promise<StaticResponse> {
     const hops: RedirectHop[] = [];
     const seen = new Set<string>();
+    const deadline = Date.now() + timeoutMs;
     let current = targetUrl;
     let ttfbMs: number | undefined;
 
@@ -319,6 +323,8 @@ export class FetchService {
 
       const guard = this.ssrfGuard(current);
       if (guard) throw guard;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new FetchError('timeout', `Redirect chain exceeded ${timeoutMs}ms at ${targetUrl}`);
 
       const hopStart = Date.now();
       let response: { status: number; headers: Record<string, unknown>; data: unknown };
@@ -326,9 +332,9 @@ export class FetchService {
         response = await axios.get(current, {
           ...publicOnly(),
           headers,
-          timeout: timeoutMs,
+          timeout: remainingMs,
           // A hard cap as well as axios's idle timeout: see deadlineSignal.
-          signal: deadlineSignal(timeoutMs),
+          signal: deadlineSignal(remainingMs),
           // Every hop is walked by hand. The chain itself is a finding: an
           // apex-to-www-to-https chain is three hops of normal housekeeping and
           // a loop is a defect, and a client that collapses both to a final URL
