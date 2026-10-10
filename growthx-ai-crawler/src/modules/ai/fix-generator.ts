@@ -173,6 +173,7 @@ export function planFix(issueType: string, page: PageContext, recommendation?: s
 
   switch (issueType) {
     case 'MISSING_TITLE':
+    case 'DUPLICATE_TITLE':
     case 'SHORT_TITLE':
     case 'LONG_TITLE':
       return {
