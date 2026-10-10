@@ -8,7 +8,7 @@ import { SitemapService } from '../sitemap/sitemap.service';
 import { FetcherService } from './fetcher.service';
 import { classifyPageType } from './page-type';
 import { detectProductSignals } from './product-detector';
-import { isCrawlablePage, isHtmlResponse } from './crawlable';
+import { isCrawlablePage, isHtmlResponse, crawlExclusionReason } from './crawlable';
 import { MetricsService } from '../observability/metrics.service';
 import { HtmlExtractorService } from '../extractor/html-extractor.service';
 import { ImageAnalyzerService } from '../analyzer/image-analyzer.service';
@@ -669,6 +669,11 @@ export class CrawlerService implements OnModuleInit, OnModuleDestroy {
       if (!(await this.crawlStillWants(payload.jobId))) return;
 
       const normUrl = this.state.normalizeUrl(payload.targetUrl);
+      const exclusion = crawlExclusionReason(normUrl);
+      if (exclusion) {
+        await this.inventory.markExcluded(payload.jobId, normUrl, exclusion);
+        return;
+      }
 
       if (payload.resumeAttempt && await this.state.claimedByTask(payload.jobId, normUrl, payload.taskId)) {
         const recorded = await this.prisma.crawlFrontier.findFirst({

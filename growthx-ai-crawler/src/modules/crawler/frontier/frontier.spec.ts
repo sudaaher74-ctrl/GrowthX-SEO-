@@ -95,6 +95,20 @@ function fakePrisma() {
 describe('FrontierService', () => {
   const limits = { maxPages: 500, maxDepth: 10 };
 
+  it('drains queued assets and commerce auth handoffs without claiming page slots', async () => {
+    const prisma = fakePrisma();
+    const frontier = new FrontierService(prisma);
+    await frontier.add('speed', [
+      { url: 'https://example.com/image.jpg', source: 'link', depth: 0 },
+      { url: 'https://example.com/customer_authentication/redirect?locale=en', source: 'link', depth: 0 },
+      { url: 'https://example.com/product/milk', source: 'sitemap', depth: 0 },
+    ], limits);
+    const claimed = await frontier.claimNext('speed', 1);
+    expect(claimed.map(row => row.url)).toEqual(['https://example.com/product/milk']);
+    expect(prisma.rows.filter((row: any) => row.state === 'SKIPPED')).toHaveLength(2);
+    expect(prisma.rows.filter((row: any) => row.state === 'IN_PROGRESS')).toHaveLength(1);
+  });
+
   it('deduplicates on the normalized URL, not the raw one', async () => {
     const prisma = fakePrisma();
     const frontier = new FrontierService(prisma);

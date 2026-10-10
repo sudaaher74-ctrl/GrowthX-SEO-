@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { DiscoverySource } from '../discovery/discovery.service';
 import { normalizeUrl, TrailingSlashPolicy } from '../url/url-normalizer';
+import { crawlExclusionReason } from '../crawlable';
 
 export type FrontierState = 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'SKIPPED' | 'FAILED';
 
@@ -135,12 +136,18 @@ export class FrontierService {
     const candidates = await this.prisma.crawlFrontier.findMany({
       where: { crawlJobId, state: 'PENDING' },
       orderBy: [{ depth: 'asc' }, { createdAt: 'asc' }],
-      take: count,
+      take: Math.max(count, 64),
       select: { id: true, url: true, normalizedUrl: true, depth: true, discoverySource: true, sourceUrl: true },
     });
 
     const claimed: typeof candidates = [];
     for (const candidate of candidates) {
+      const exclusion = crawlExclusionReason(candidate.url);
+      if (exclusion) {
+        await this.prisma.crawlFrontier.updateMany({ where: { id: candidate.id, state: 'PENDING' }, data: { state: 'SKIPPED', reason: exclusion, claimedAt: null } });
+        continue;
+      }
+      if (claimed.length >= count) continue;
       // The state guard in the WHERE clause is the claim: an update that
       // matches nothing means another worker got there first.
       const { count: updated } = await this.prisma.crawlFrontier.updateMany({

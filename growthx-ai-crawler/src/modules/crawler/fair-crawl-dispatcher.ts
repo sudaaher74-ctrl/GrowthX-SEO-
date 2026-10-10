@@ -4,6 +4,8 @@ import { QueueService, CrawlJobPayload, PageFetchPayload } from '../queue/queue.
 import { FrontierService } from './frontier/frontier.service';
 import { CrawlerService } from './crawler.service';
 
+import { prioritizeSites } from './crawl-priority';
+
 /** Reuses the existing Postgres frontier; BullMQ holds only a bounded window.
  * Organization turns include all its own and competitor sites together. */
 @Injectable()
@@ -80,9 +82,13 @@ export class FairCrawlDispatcher implements OnModuleInit, OnModuleDestroy {
         for (const job of tenantJobs) perSite.set(job.id, await this.prisma.crawlFrontier.count({ where: { crawlJobId: job.id, state: 'IN_PROGRESS' } }));
         let slots = Math.min(free, Math.max(0, perTenant - active));
         const rounds = tenantJobs.length;
+        const orderedJobs = prioritizeSites(tenantJobs, turn);
+        const hasCompetitors = tenantJobs.some(job => job.website.scope !== 'own');
+        let ownActive = tenantJobs.filter(job => job.website.scope === 'own').reduce((total, job) => total + (perSite.get(job.id) ?? 0), 0);
         for (let pass = 0; pass < perTenant && slots > 0; pass++) {
           for (let j = 0; j < rounds && slots > 0; j++) {
-            const job = tenantJobs[(turn + j) % rounds];
+            const job = orderedJobs[j];
+            if (hasCompetitors && perTenant > 1 && job.website.scope === 'own' && ownActive >= perTenant - 1) continue;
             if ((perSite.get(job.id) ?? 0) >= job.concurrency) continue;
             const config = (job.qualityDiagnostics as any).crawlConfig as CrawlJobPayload;
             const rows = await this.frontier.claimNext(job.id, 1);
@@ -99,6 +105,7 @@ export class FairCrawlDispatcher implements OnModuleInit, OnModuleDestroy {
                 removeOnComplete: { age: 604800, count: 10000 }, removeOnFail: { age: 604800, count: 10000 } });
               slots--; free--;
               perSite.set(job.id, (perSite.get(job.id) ?? 0) + 1);
+              if (job.website.scope === 'own') ownActive++;
             }
           }
         }

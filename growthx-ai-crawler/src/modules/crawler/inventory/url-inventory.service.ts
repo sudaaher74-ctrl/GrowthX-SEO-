@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { normalizeUrl, TrailingSlashPolicy } from '../url/url-normalizer';
 import { canonicalUrl } from '../canonical-url';
-import { isCrawlablePage } from '../crawlable';
+import { isCrawlablePage, crawlExclusionReason } from '../crawlable';
 
 /**
  * Why a discovered URL was not fetched.
@@ -154,8 +154,8 @@ export class UrlInventoryService {
           discoverySource: addition.source,
           sources: [addition.source],
           sourceUrl: addition.sourceUrl,
-          state: 'PENDING',
-          reason: 'queued',
+          state: crawlExclusionReason(addition.url) ? 'SKIPPED' : 'PENDING',
+          reason: crawlExclusionReason(addition.url) ?? 'queued',
         })),
         skipDuplicates: true,
       });
@@ -189,7 +189,7 @@ export class UrlInventoryService {
     if (normalizedUrls.length === 0) return;
     await this.prisma.crawlFrontier
       .updateMany({
-        where: { crawlJobId, normalizedUrl: { in: normalizedUrls } },
+        where: { crawlJobId, normalizedUrl: { in: normalizedUrls }, state: { in: ['PENDING', 'IN_PROGRESS'] } },
         data: { queuedAt: new Date(), reason: 'queued' },
       })
       .catch(() => undefined);

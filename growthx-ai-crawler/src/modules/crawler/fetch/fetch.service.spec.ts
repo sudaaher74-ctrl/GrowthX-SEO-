@@ -22,6 +22,29 @@ describe('FetchService', () => {
     server = undefined;
   });
 
+  it('never renders a non-HTML response even when forceRender is requested', async () => {
+    server = await startFixtureServer({ '/download': { headers: { 'content-type': 'image/png' }, body: 'binary asset' } });
+    const render = jest.spyOn(pool, 'withPage');
+    try {
+      const out = await fetcher.fetch(server.url('/download'), { forceRender: true });
+      expect(out.contentType).toBe('image/png');
+      expect(out.tier).toBe('static');
+      expect(render).not.toHaveBeenCalled();
+    } finally { render.mockRestore(); }
+  });
+
+  it('uses one timeout budget for the entire changing redirect chain', async () => {
+    server = await startFixtureServer({ '*': { handler: (req, res) => {
+      const step = Number(new URL(req.url!, 'http://fixture.test').searchParams.get('step') || 0);
+      setTimeout(() => { res.writeHead(302, { location: `/redirect?step=${step + 1}` }); res.end(); }, 100);
+    } } });
+    const started = Date.now();
+    const out = await fetcher.fetch(server.url('/redirect?step=0'), { timeoutMs: 250, maxRedirects: 10 });
+    expect(out.error?.kind).toBe('timeout');
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(server.requests.length).toBeLessThan(5);
+  });
+
   describe('SPA with an empty shell', () => {
     // Reproduces dronaarchery.com: an 803-byte body whose only content is
     // <div id="root">, with the title, meta description, JSON-LD, headings and

@@ -75,3 +75,12 @@ export function isHtmlResponse(contentType: string | null | undefined): boolean 
   const type = contentType.split(';')[0].trim().toLowerCase();
   return type === 'text/html' || type === 'application/xhtml+xml' || type === '';
 }
+
+/** Assets and commerce SSO handoffs are evidence to record, never SEO pages to fetch. */
+export function crawlExclusionReason(url: string): 'unsupported_content_type' | 'skipped_by_configuration' | null {
+  if (!isCrawlablePage(url)) return 'unsupported_content_type';
+  try {
+    if (/^\/(customer_authentication|services\/login_with_shop)(\/|$)/i.test(new URL(url).pathname)) return 'skipped_by_configuration';
+  } catch { /* Invalid URLs are handled by the normalizer. */ }
+  return null;
+}
