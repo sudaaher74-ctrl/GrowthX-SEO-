@@ -162,7 +162,7 @@ describe('CrawlerService', () => {
         // The member is the canonical key, not the URL as linked, so the same
         // page reached via www. or http:// claims the same slot in the set.
         expect(sadd).toHaveBeenCalledWith('job:job1:visited', 'example.com/a');
-        expect(expire).toHaveBeenCalledWith('job:job1:visited', 86400); // 24h TTL
+        expect(expire).toHaveBeenCalledWith('job:job1:visited', 604800); // 7-day recovery window
       });
 
       it('treats a URL another worker already claimed as visited', async () => {
@@ -267,6 +267,10 @@ describe('CrawlerService', () => {
 
     it('fetches a page at the depth limit', async () => {
       const { service, fetchPage } = serviceForPageFetch();
+      // This test covers fetching at the boundary; analysis has its own suite.
+      jest.spyOn(service as any, 'analysePage').mockImplementation(() => {
+        throw new Error('analysis boundary reached');
+      });
       fetchPage.mockResolvedValue({
         url: 'https://example.com/edge',
         finalUrl: 'https://example.com/edge',
@@ -283,13 +287,13 @@ describe('CrawlerService', () => {
         tier: 'static',
       });
 
-      await service.processPageFetch({
+      await expect(service.processPageFetch({
         jobId: 'job1',
         websiteId: 'w1',
         targetUrl: 'https://example.com/edge',
         depth: 3,
         maxDepth: 3,
-      } as any);
+      } as any)).rejects.toThrow('analysis boundary reached');
 
       expect(fetchPage).toHaveBeenCalled();
     });
