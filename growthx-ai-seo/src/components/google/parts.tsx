@@ -33,32 +33,6 @@ export function SourceBadge({ source }: { source: GoogleSource | "GSC+GA4" }) {
   );
 }
 
-// ── KPI cards ───────────────────────────────────────────────────────────────
-
-export function KpiCard({ kpi, days }: { kpi: GoogleKpi; days: number }) {
-  const d = kpi.delta;
-  const shown = d ? Math.round(d.value * 10) / 10 : null;
-  const suffix = d?.kind === "pct" ? "%" : d?.kind === "pts" ? " pts" : " places";
-  const sub =
-    kpi.value === null
-      ? kpi.note
-      : d
-        ? `vs previous ${days} days`
-        : "No earlier period to compare with";
-  return (
-    <Kpi
-      label={kpi.label}
-      value={formatKpi(kpi)}
-      delta={shown}
-      deltaSuffix={suffix}
-      deltaGood={kpi.lowerIsBetter ? "down" : "up"}
-      trend={kpi.sparkline}
-      aside={<SourceBadge source={kpi.source} />}
-      sub={sub}
-    />
-  );
-}
-
 // ── Trend chart ─────────────────────────────────────────────────────────────
 
 interface TrendMetric {
@@ -81,82 +55,6 @@ const TREND_METRICS: TrendMetric[] = [
   { id: "keyEvents", label: "Key events", source: "GA4", read: (o) => o.series.organic.map((p) => ({ date: p.date, value: p.keyEvents })), fmt: count, missing: "No key events are set up in this Google Analytics property." },
   { id: "revenue", label: "Revenue", source: "GA4", read: (o) => o.series.organic.map((p) => ({ date: p.date, value: p.revenue })), fmt: money, missing: "No revenue is recorded in this Google Analytics property." },
 ];
-
-/**
- * One metric at a time — not everything on one unreadable chart. A metric with
- * nothing behind it is shown disabled, with why, rather than as a flat line.
- */
-export function TrendChart({ overview }: { overview: GoogleOverview }) {
-  const available = useMemo(
-    () =>
-      TREND_METRICS.map((m) => {
-        const data = m.read(overview);
-        return { metric: m, data, ok: data.length > 0 && data.some((p) => p.value !== null) };
-      }),
-    [overview],
-  );
-  const [picked, setPicked] = useState<string | null>(null);
-  const active = available.find((a) => a.metric.id === picked && a.ok) ?? available.find((a) => a.ok) ?? null;
-
-  return (
-    <Panel
-      title="Google performance trend"
-      subtitle="One metric at a time. Search Console figures reflect Google's latest published window; Analytics figures end yesterday."
-      actions={
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Metric shown">
-          {available.map(({ metric, ok }) => (
-            <button
-              key={metric.id}
-              type="button"
-              disabled={!ok}
-              aria-pressed={active?.metric.id === metric.id}
-              title={ok ? SOURCE_LABEL[metric.source] : metric.missing}
-              onClick={() => setPicked(metric.id)}
-              className={cn(
-                "rounded-lg border px-2 py-0.5 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-40",
-                active?.metric.id === metric.id ? "border-primary-500 bg-primary-50 text-primary-700" : "bg-white text-brand-600 hover:bg-brand-50",
-              )}
-            >
-              {metric.label}
-            </button>
-          ))}
-        </div>
-      }
-    >
-      <div className="p-4">
-        {active ? (
-          <>
-            <div className="mb-2 flex items-center gap-2 text-[12px] text-brand-500">
-              <SourceBadge source={active.metric.source} />
-              <span>{active.metric.label}, by day</span>
-            </div>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={active.data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-brand-100)" vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={shortDay} tick={{ fontSize: 11, fill: "var(--text-muted)" }} minTickGap={24} />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "var(--text-muted)" }}
-                    reversed={active.metric.reversed}
-                    tickFormatter={(v) => active.metric.fmt(Number(v))}
-                    width={48}
-                  />
-                  <Tooltip
-                    formatter={(v) => [active.metric.fmt(Number(v)), active.metric.label]}
-                    labelFormatter={(l) => formatDayLabel(l)}
-                  />
-                  <Line type="monotone" dataKey="value" stroke="var(--color-series-1)" strokeWidth={2} dot={false} connectNulls={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </>
-        ) : (
-          <p className="py-10 text-center text-[12px] text-brand-500">No data available for this period.</p>
-        )}
-      </div>
-    </Panel>
-  );
-}
 
 // ── Funnel ──────────────────────────────────────────────────────────────────
 
