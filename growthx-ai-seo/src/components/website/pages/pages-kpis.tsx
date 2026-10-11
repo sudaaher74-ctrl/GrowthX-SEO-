@@ -7,6 +7,7 @@ import type { CrawlInventoryMetrics } from "./page-score";
 
 interface PagesKpisProps {
   successfulCount: number;
+  totalPages: number;
   pagesDelta: number | null;
   erroredCount: number;
   redirectedCount: number;
@@ -29,6 +30,7 @@ interface PagesKpisProps {
 
 export function PagesKpis({
   successfulCount,
+  totalPages,
   pagesDelta,
   erroredCount,
   redirectedCount,
@@ -50,7 +52,7 @@ export function PagesKpis({
 }: PagesKpisProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-      {/* 1. Total Pages Crawled (Strictly HTTP 2xx) */}
+      {/* 1. Total Pages Crawled */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -59,7 +61,7 @@ export function PagesKpis({
           </div>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {successfulCount.toLocaleString()}
+              {totalPages.toLocaleString()}
             </span>
             {pagesDelta !== null && pagesDelta !== 0 && (
               <span
@@ -74,7 +76,7 @@ export function PagesKpis({
             )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            HTTP 2xx pages successfully fetched.
+            Pages recorded for this crawl. Status counts below describe the loaded pages.
           </p>
         </div>
 

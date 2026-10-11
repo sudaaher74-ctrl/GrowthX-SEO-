@@ -66,7 +66,7 @@ export function CompetitorWebsitesPanel({
       setPanelMessage(`Re-crawl started for ${variables.domain}. Results update automatically.`);
       setTimeout(() => setPanelMessage(null), 5000);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setPanelMessage(`Could not start re-crawl: ${err?.message || "Please try again."}`);
       setTimeout(() => setPanelMessage(null), 6000);
     },

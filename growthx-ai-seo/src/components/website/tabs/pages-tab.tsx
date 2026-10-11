@@ -13,6 +13,7 @@ import type { CrawlQualityDiagnostics } from "../pages/page-score";
 interface PagesTabProps {
   crawl: CrawlJob | null;
   pages: CrawlPage[];
+  totalPages?: number;
   issues: CrawlIssue[];
   historyRuns?: { pagesCrawled: number; issuesFound: number }[];
   onOpenPageDetails?: (page: CrawlPage) => void;
@@ -21,6 +22,7 @@ interface PagesTabProps {
 export function PagesTab({
   crawl,
   pages,
+  totalPages = crawl?.pagesCrawled ?? pages.length,
   issues,
   historyRuns = [],
   onOpenPageDetails,
@@ -40,7 +42,7 @@ export function PagesTab({
   const lastRun = historyRuns.length >= 2 ? historyRuns[historyRuns.length - 2] : null;
   const currentRun = historyRuns.length >= 1 ? historyRuns[historyRuns.length - 1] : null;
   const pagesDelta =
-    lastRun && currentRun
+    lastRun && currentRun && crawl?.status !== "RUNNING" && crawl?.status !== "PENDING"
       ? currentRun.pagesCrawled - lastRun.pagesCrawled
       : null;
 
@@ -81,7 +83,7 @@ export function PagesTab({
         discoveryMetrics: {
           urlsDiscovered: inventory?.urlsDiscovered ?? crawl?.qualityDiagnostics?.urlsDiscovered ?? storedSummary?.urlsDiscovered,
           urlsQueued: inventory?.urlsQueued ?? crawl?.qualityDiagnostics?.urlsEligible ?? storedSummary?.urlsQueued,
-          urlsCrawled: inventory?.urlsCrawled ?? crawl?.qualityDiagnostics?.pagesCrawled ?? storedSummary?.urlsCrawled,
+          urlsCrawled: totalPages,
           failed: inventory?.failed ?? storedSummary?.failed,
           duplicates: inventory?.duplicates ?? crawl?.qualityDiagnostics?.urlsSkipped ?? storedSummary?.duplicates,
           canonicalized: inventory?.canonicalized ?? storedSummary?.canonicalized,
@@ -93,7 +95,7 @@ export function PagesTab({
           discoveredNotCrawled: inventory?.discoveredNotCrawled ?? storedSummary?.discoveredNotCrawled,
         },
       }),
-    [pages, issues, crawl, inventory, storedSummary]
+    [pages, issues, crawl, inventory, storedSummary, totalPages]
   );
 
   const successfulCount = summary.successful;
@@ -249,6 +251,7 @@ export function PagesTab({
     <div className="space-y-5">
       {/* TOP ROW: 4 KPI CARDS */}
       <PagesKpis
+        totalPages={totalPages}
         successfulCount={successfulCount}
         pagesDelta={pagesDelta}
         erroredCount={erroredCount}

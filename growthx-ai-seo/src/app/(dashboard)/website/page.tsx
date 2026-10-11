@@ -7,6 +7,7 @@ import { ArrowRight, ChevronRight, Home, Loader2, RefreshCw, X, Zap } from "luci
 
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { crawlPageTotal } from "@/lib/crawl-page-total";
 import {
   useCrawlHistory,
   useCrawlIssues,
@@ -86,6 +87,7 @@ function WebsiteAuditClient() {
 
   const allIssues = issues.data?.data ?? [];
   const allPages = pages.data?.data ?? [];
+  const totalPages = crawlPageTotal(crawl.data?.pagesCrawled, pages.data?.meta.total, allPages.length);
   const qualityDiagnostics = crawl.data?.qualityDiagnostics ?? issues.data?.meta?.qualityDiagnostics ?? null;
   const historyRuns = history.data ?? [];
 
@@ -171,7 +173,7 @@ function WebsiteAuditClient() {
     {
       id: "pages",
       label: "Pages",
-      badge: counts && counts.pagesCrawled > 0 ? counts.pagesCrawled : undefined,
+      badge: totalPages > 0 ? totalPages : undefined,
       badgeTone: "info",
     },
     { id: "content", label: "Content" },
@@ -243,7 +245,7 @@ function WebsiteAuditClient() {
                   Last checked: {formatRelativeTime(crawl.data.finishedAt)}
                 </span>
                 <span className="text-brand-400">·</span>
-                <span>{counts?.pagesCrawled ?? allPages.length} pages</span>
+                <span>{totalPages.toLocaleString()} pages</span>
                 <span className="text-brand-400">·</span>
                 <span>
                   {counts
@@ -369,9 +371,13 @@ function WebsiteAuditClient() {
           </Link>
         }
       >
+        {totalPages > allPages.length && (
+          <StatusNote>Loaded {allPages.length.toLocaleString()} of {totalPages.toLocaleString()} crawled pages. Page details and breakdowns use this sample; the crawl total covers the whole job.</StatusNote>
+        )}
         {/* Render Tab Content based on activeTab */}
         {activeTab === "overview" && (
           <OverviewTab
+            totalPages={totalPages}
             crawl={crawl.data ?? null}
             issues={allIssues}
             pages={allPages}
@@ -381,6 +387,7 @@ function WebsiteAuditClient() {
 
         {activeTab === "technical-seo" && (
           <TechnicalSeoTab
+            totalPages={totalPages}
             crawl={crawl.data ?? null}
             issues={allIssues}
             pages={allPages}
@@ -405,6 +412,7 @@ function WebsiteAuditClient() {
 
         {activeTab === "pages" && (
           <PagesTab
+            totalPages={totalPages}
             crawl={crawl.data ?? null}
             pages={allPages}
             issues={allIssues}

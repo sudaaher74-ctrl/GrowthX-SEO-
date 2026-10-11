@@ -70,8 +70,8 @@ export function RivalRadarTab({
       qc.invalidateQueries({ queryKey: ["competitor-websites", projectId] });
       setRecrawlNote(`Re-crawl started for ${focusDomain}. Latest changes update automatically.`);
       setTimeout(() => setRecrawlNote(null), 5000);
-    } catch (e: any) {
-      setRecrawlNote(`Could not re-crawl: ${e?.message || "Please try again."}`);
+    } catch (e: unknown) {
+      setRecrawlNote(`Could not re-crawl: ${e instanceof Error ? e.message : "Please try again."}`);
       setTimeout(() => setRecrawlNote(null), 6000);
     } finally {
       setRecrawlingDomain(null);
